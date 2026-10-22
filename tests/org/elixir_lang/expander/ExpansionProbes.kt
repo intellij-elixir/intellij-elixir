@@ -1554,23 +1554,10 @@ internal class ExpansionProbes(
 
         /** The `def*` calls in [node], outermost first. */
         fun definitions(node: ElixirAst): List<ElixirAst> {
-            val definer = node is ElixirAst.Call &&
-                (node.callee as? ElixirAst.Literal.Atom)?.name in DEFINERS &&
-                node.arguments?.size in 1..2
+            val definer = isDefiner(node) && (node as ElixirAst.Call).arguments?.size in 1..2
 
             return listOfNotNull(node.takeIf { definer }) + children(node).flatMap(::definitions)
         }
-
-        val DEFINERS = setOf("def", "defp", "defmacro", "defmacrop")
-
-        fun children(node: ElixirAst): List<ElixirAst> =
-            when (node) {
-                is ElixirAst.Call -> node.arguments.orEmpty()
-                is ElixirAst.Tuple -> node.elements
-                is ElixirAst.ListNode -> node.elements
-                is ElixirAst.Block -> node.expressions
-                is ElixirAst.Alias, is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> emptyList()
-            }
 
         /** How a part of a `case`, `cond`, `receive`, `try`, `fn`, `with`, `for`, `def*`, `defmodule`, `defprotocol` or `defimpl` is expanded. */
         enum class Part {
@@ -1704,14 +1691,6 @@ internal class ExpansionProbes(
                 else -> null
             }
         }
-
-        /** The expressions [node] unquotes, outside any `quote` nested in it. */
-        private fun unquoted(node: ElixirAst): List<ElixirAst> =
-            when {
-                isNamedCall(node, "quote") -> emptyList()
-                isCall(node, "unquote", 1) || isCall(node, "unquote_splicing", 1) -> (node as ElixirAst.Call).arguments!!
-                else -> children(node).flatMap(::unquoted)
-            }
 
         fun hasReceiveWithoutAfterZero(node: ElixirAst): Boolean {
             val options = (node as? ElixirAst.Call)?.arguments?.singleOrNull() as? ElixirAst.ListNode

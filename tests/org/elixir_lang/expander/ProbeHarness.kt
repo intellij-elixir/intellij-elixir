@@ -8,8 +8,12 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.TextRange
+import com.intellij.psi.PsiComment
+import com.intellij.psi.PsiWhiteSpace
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.intellij_elixir.Quoter
+import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.lowering.expressionNodes
 import org.elixir_lang.lowering.inspect
 import org.elixir_lang.psi.ElixirFile
@@ -28,6 +32,10 @@ import kotlin.time.Duration.Companion.seconds
  * The harness's modules carry a token unique to the compile: test forks share one quoter node, and two compiles
  * defining the same module at once would make Elixir raise. So a case body may define only modules nested in its case
  * module.
+ *
+ * With a [Hook], the harness hooks the case module and every `defmodule` a case body holds, at any depth, outside a
+ * `quote`, by one call to the probe module's `hook/0` as the first thing in the module's body. A case never names the
+ * hook.
  *
  * @param parse parses source text into a file, whose top-level expressions are the statements
  */
@@ -109,8 +117,8 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
      *
      * The expander reads [plain]: the source without the harness's own text. The probes are left out, and the probe
      * module's and the hook's bodies, the hook's header, the `require` of the probe module and the step-0 probe are
-     * blanked to their newlines, so lines are kept. The top-level probe is `:ok` on its line, so the file still holds
-     * more than modules.
+     * blanked to their newlines, so lines are kept. The hook calls in nested modules are left out as the probes are. The
+     * top-level probe is `:ok` on its line, so the file still holds more than modules.
      *
      * @property bodyStarts where each case body starts in [plain]
      * @property bodyLines the line each case body starts on, in [plain] and in the compiled source alike
@@ -235,7 +243,7 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
     /** Compiles [layout], and returns what happened, however it ended. */
     fun attempt(layout: Layout): Attempt {
         val tags = mutableListOf<Tag>()
-        val written = write(layout, tags) { index, case -> probed(probeModule(layout.token), index, case, tags) }
+        val written = write(layout, tags) { index, case -> probed(probeModule(layout.token), index, case, tags, layout.hook != null) }
         val compiled = Quoter.compile(written.source, COMPILE_TIMEOUT)
         val values = mutableMapOf<Int, OtpErlangObject>()
         val hooks = mutableMapOf<String, List<HookEntry>>()
@@ -306,47 +314,56 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
     /**
      * [case]'s body with a probe after each statement, top-level or nested, on the statement's own line, and each
      * identity range wrapped; each probe's tag is added to [tags]. A keyword value such as `do: x` takes parentheses
-     * around it and its probe.
+     * around it and its probe. With [hooked], each module [case] defines starts with a call to the probe module's hook.
      */
-    private fun probed(probeModule: String, index: Int, case: Case, tags: MutableList<Tag>): String {
-        val ends = statementEnds(parse(case.body))
+    private fun probed(probeModule: String, index: Int, case: Case, tags: MutableList<Tag>, hooked: Boolean): String {
+        val file = parse(case.body)
+        val ends = statementEnds(file)
         val insertions = mutableListOf<Insertion>()
+
+        val hooks = if (hooked) hookCalls(probeModule, file) else Hooks(emptyList(), emptyList())
+
+        insertions += hooks.insertions
 
         ends.forEachIndexed { statement, end ->
             val tag = Tag(index, 0, statement + 1)
             tags.add(tag)
-            insertions.add(Insertion(end, 1, "; " + probe(probeModule, tag)))
+            insertions.add(Insertion(end, 3, "; " + probe(probeModule, tag)))
 
             if (case.value == statement + 1) {
-                insertions.add(Insertion(end, 2, "; IntellijElixir.Quoter.Probe.send(__ENV__, {:value, $index, q})"))
+                insertions.add(Insertion(end, 4, "; IntellijElixir.Quoter.Probe.send(__ENV__, {:value, $index, q})"))
             }
         }
         case.bodies.forEachIndexed { block, statements ->
             val start = statements.first().startOffset
-            val keywordValue = case.body.substring(0, start).trimEnd().endsWith(":")
+            val keywordValue = isKeywordValue(file, start)
 
-            if (keywordValue) insertions.add(Insertion(start, 3, "("))
+            if (keywordValue) insertions.add(Insertion(start, 5, "("))
 
             statements.forEachIndexed { statement, range ->
                 val tag = Tag(index, block + 1, statement + 1)
                 val close = if (keywordValue && statement == statements.lastIndex) ")" else ""
+                // A statement that holds a module's wrapped value is probed after the wrapper closes.
+                val encloses = hooks.wrapped.any { range.startOffset < it.startOffset && range.endOffset == it.endOffset }
                 tags.add(tag)
-                insertions.add(Insertion(range.endOffset, 1, "; " + probe(probeModule, tag) + close))
+                insertions.add(Insertion(range.endOffset, if (encloses) 3 else 1, "; " + probe(probeModule, tag) + close))
             }
         }
         case.identities.forEachIndexed { identity, range ->
             val statement = ends.indexOfFirst { range.endOffset <= it } + 1
             val tag = Tag(index, 0, statement, identity + 1)
             tags.add(tag)
-            insertions.add(Insertion(range.startOffset, 4, "$probeModule.i(${tagList(tag)}, "))
+            insertions.add(Insertion(range.startOffset, 6, "$probeModule.i(${tagList(tag)}, "))
             insertions.add(Insertion(range.endOffset, 0, ")"))
         }
 
         val probedBody = StringBuilder(case.body)
 
-        // Each insertion at an offset lands left of those already there, so at one offset the result reads: the end of
-        // a wrapped range, then a statement probe, then a value send, then a keyword value's opening parenthesis, then
-        // the start of the next range.
+        // Each insertion at an offset lands left of those already there, so at one offset the result reads: a module's
+        // hook call, the end of a wrapped range, then the probe of a nested statement, then the close of a module's
+        // keyword value, then the probe of a statement that holds the nested ones or a wrapped range (a top-level
+        // statement always does), then a value send, then a keyword value's opening parenthesis, then the start of
+        // the next range.
         insertions.sortedWith(compareByDescending<Insertion> { it.offset }.thenByDescending { it.order }).forEach {
             probedBody.insert(it.offset, it.text)
         }
@@ -355,6 +372,58 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
     }
 
     private class Insertion(val offset: Int, val order: Int, val text: String)
+
+    /** Whether the code at [offset] in [file] is a keyword's value, which a `:` precedes, comments aside. */
+    private fun isKeywordValue(file: ElixirFile, offset: Int): Boolean =
+        ReadAction.computeBlocking<Boolean, Throwable> {
+            var previous = file.findElementAt(offset)?.let(PsiTreeUtil::prevLeaf)
+
+            while (previous is PsiWhiteSpace || previous is PsiComment) previous = PsiTreeUtil.prevLeaf(previous)
+
+            previous?.text?.endsWith(":") == true
+        }
+
+    /**
+     * The call to [probeModule]'s hook for each module [file] defines outside a `quote`: first in a `do` block, and
+     * around a keyword `do:` value, which the call and the value would otherwise not share.
+     */
+    private fun hookCalls(probeModule: String, file: ElixirFile): Hooks {
+        val statements = ReadAction.computeBlocking<List<ElixirAst>, Throwable> {
+            val lowering = Lowering.of(file, legLevel())
+
+            expressionNodes(file).map { lowering.lower(it.psi) }
+        }
+        val call = "$probeModule.hook()"
+        val insertions = mutableListOf<Insertion>()
+        val wrapped = mutableListOf<TextRange>()
+
+        statements.flatMap { modules(it) }.forEach { module ->
+            val value = (module.arguments!!.last() as? ElixirAst.ListNode)?.elements
+                ?.firstOrNull { keyOf(it) == "do" }?.let(::valueOf)
+            val range = value?.meta?.origin
+
+            when {
+                value == null -> Unit
+                range != null && !range.isEmpty && isKeywordValue(file, range.startOffset) -> {
+                    insertions += Insertion(range.startOffset, -1, "($call; ")
+                    insertions += Insertion(range.endOffset, 2, ")")
+                    wrapped += range
+                }
+                value is ElixirAst.Block && value.expressions.isEmpty() || range!!.isEmpty ->
+                    insertions += Insertion(module.meta.origin.endOffset - "end".length, -1, "$call ")
+                else -> {
+                    val first = (value as? ElixirAst.Block)?.expressions?.first() ?: value
+
+                    insertions += Insertion(first.meta.origin.startOffset, -1, "$call; ")
+                }
+            }
+        }
+
+        return Hooks(insertions, wrapped)
+    }
+
+    /** The hook calls to insert, and the keyword values they wrap in parentheses. */
+    private class Hooks(val insertions: List<Insertion>, val wrapped: List<TextRange>)
 
     /**
      * Where each statement ends, as the lowering splits a file into statements: a parenthesised block is one, though
@@ -408,6 +477,37 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
          * `@doc` and `@deprecated` are compared as the Docs chunk merges them instead.
          */
         val DEFINITION_ATTRIBUTES = listOf("impl")
+
+        /**
+         * The probe module's `hook/0`, which puts the callbacks of [hookModule] on the module calling it as its body
+         * expands.
+         */
+        fun hookMacro(hookModule: String): String = """
+            |
+            |  defmacro hook do
+            |    Module.put_attribute(__CALLER__.module, :before_compile, $hookModule)
+            |    Module.put_attribute(__CALLER__.module, :on_definition, {$hookModule, :on_def})
+            |    Module.put_attribute(__CALLER__.module, :after_compile, $hookModule)
+            |    :ok
+            |  end
+            |""".trimMargin()
+
+        /**
+         * The `defmodule` calls in [node], outermost first, outside any `quote` and any definition's head, where
+         * `defmodule` is a name being defined, except in what the head unquotes. `defmodule` and the definers are
+         * written local or as `Kernel.<name>`.
+         */
+        fun modules(node: ElixirAst): List<ElixirAst.Call> {
+            if (isNamedCall(node, "quote")) return emptyList()
+
+            val call = node as? ElixirAst.Call ?: return children(node).flatMap { modules(it) }
+            val parts = children(call)
+            val inside =
+                if (isDefiner(call)) parts.take(1).flatMap { unquoted(it) }.flatMap { modules(it) } + parts.drop(1).flatMap { modules(it) }
+                else parts.flatMap { modules(it) }
+
+            return listOfNotNull(call.takeIf { it.arguments?.size == 2 && isKernelCall(it, "defmodule") }) + inside
+        }
 
         /** [hook]'s module body. */
         fun hookBody(hook: Hook): String = """
@@ -495,6 +595,9 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
             val source = buildString {
                 append("defmodule $probeModule do\n")
                 harness(PROBE_BODY)
+
+                if (layout.hook != null) harness(hookMacro(hookModule))
+
                 append("end\n")
 
                 layout.hook?.let { hook ->
@@ -509,12 +612,7 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
                     append("\ndefmodule ${caseModule(layout.token, index)} do\n")
                     harness("require $probeModule\n")
 
-                    if (layout.hook != null) {
-                        harness(
-                            "@before_compile $hookModule\n@on_definition {$hookModule, :on_def}\n" +
-                                "@after_compile $hookModule\n"
-                        )
-                    }
+                    if (layout.hook != null) harness("$probeModule.hook()\n")
 
                     harness(probe(probeModule, Tag(index, 0, 0).also { tags?.add(it) }) + "\n")
                     bodyStarts.add(length)
@@ -641,6 +739,39 @@ internal class Diagnostic(val severity: String, val line: Int?, val column: Int?
         }
     }
 }
+
+private val DEFINERS = setOf("def", "defp", "defmacro", "defmacrop")
+
+/** Whether [call] is written [name], or `Kernel.[name]`. */
+private fun isKernelCall(call: ElixirAst.Call, name: String): Boolean {
+    val remote = dotArguments(call.callee)?.takeIf { it.size == 2 }?.let { (receiver, function) ->
+        (receiver as? ElixirAst.Alias)?.segments?.map { (it as? ElixirAst.Literal.Atom)?.name } == listOf("Kernel") &&
+            (function as? ElixirAst.Literal.Atom)?.name == name
+    }
+
+    return remote == true || (call.callee as? ElixirAst.Literal.Atom)?.name == name
+}
+
+/** Whether [node] is a call of `def`, `defp`, `defmacro` or `defmacrop`, written local or as `Kernel.<name>`. */
+internal fun isDefiner(node: ElixirAst): Boolean = node is ElixirAst.Call && DEFINERS.any { isKernelCall(node, it) }
+
+/** The expressions [node] unquotes, outside any `quote` nested in it. */
+internal fun unquoted(node: ElixirAst): List<ElixirAst> =
+    when {
+        isNamedCall(node, "quote") -> emptyList()
+        isCall(node, "unquote", 1) || isCall(node, "unquote_splicing", 1) -> (node as ElixirAst.Call).arguments!!
+        else -> children(node).flatMap(::unquoted)
+    }
+
+/** The nodes directly under [node]. */
+internal fun children(node: ElixirAst): List<ElixirAst> =
+    when (node) {
+        is ElixirAst.Call -> node.arguments.orEmpty()
+        is ElixirAst.Tuple -> node.elements
+        is ElixirAst.ListNode -> node.elements
+        is ElixirAst.Block -> node.expressions
+        is ElixirAst.Alias, is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> emptyList()
+    }
 
 internal fun utf8(term: OtpErlangObject): String =
     when (term) {

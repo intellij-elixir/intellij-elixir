@@ -22,9 +22,16 @@ abstract class ProbeTestCase : ParsingTestCase() {
         }
     }
 
-    /** The invariant each compile keeps: none of [layout]'s modules is loaded or open, and the same names compile. */
-    protected fun assertLeftNothingBehind(layout: ProbeHarness.Layout) {
-        val modules = listOf(layout.probeModule, layout.hookModule) + layout.cases.indices.map(layout::caseModule)
+    /**
+     * The invariant each compile keeps: none of [attempt]'s modules, the nested ones the hook reported among them, is
+     * loaded or open, and the same names compile.
+     */
+    protected fun assertLeftNothingBehind(attempt: ProbeHarness.Attempt) {
+        val layout = attempt.layout
+        val modules = (
+            listOf(layout.probeModule, layout.hookModule) + layout.cases.indices.map(layout::caseModule) +
+                attempt.batch.hooks.keys
+            ).distinct()
 
         assertEquals("left behind", emptyList<String>(), loadedOrOpen(modules))
 

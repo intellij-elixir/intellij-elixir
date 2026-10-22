@@ -75,7 +75,7 @@ class DefinitionTableProbeTest : ProbeTestCase() {
             val module = expansions.layout.caseModule(0)
 
             ran(case, attempt, module)
-            assertLeftNothingBehind(expansions.layout)
+            assertLeftNothingBehind(attempt)
 
             val bodyLine = expansions.layout.bodyLines[0]
 

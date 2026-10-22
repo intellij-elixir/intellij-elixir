@@ -4,6 +4,7 @@ import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.intellij.openapi.util.TextRange
 
 /**
  * The harness sees, after each statement of a case module body, the change Elixir makes to its env, and nothing else.
@@ -62,9 +63,184 @@ class ProbeHarnessSelfTest : ProbeTestCase() {
         assertEquals(listOf(0 to 0, 0 to 1), batch.observations.map { it.tag.case to it.tag.statement })
     }
 
+    /** A module a case body defines is hooked as the case module is, though its body never names the hook. */
+    fun testTheHookReportsANestedModule() {
+        val attempt = harness.attempt(
+            ProbeHarness.Layout(harness.token(), listOf(ProbeHarness.Case(NESTED_MODULE)), hook = ProbeHarness.Hook())
+        )
+        val caseModule = attempt.layout.caseModule(0)
+
+        assertEquals(OtpErlangAtom("ok"), attempt.compiled.status)
+        assertEquals(listOf(caseModule, "$caseModule.Fixture"), attempt.batch.hooks.keys.sorted())
+        assertEquals(
+            listOf("f/1"),
+            attempt.batch.hooks.getValue("$caseModule.Fixture").map { "${it.name}/${it.arity}" },
+        )
+        assertLeftNothingBehind(attempt)
+    }
+
+    /**
+     * Modules at any depth, in a `do` block, in a keyword `do:` value, and with no body, are hooked; a `defmodule` in
+     * a `quote` or in a definition's head, but for what the head unquotes, is not a module of the case.
+     */
+    fun testEveryModuleACaseDefinesIsHooked() {
+        val attempt = harness.attempt(
+            ProbeHarness.Layout(
+                harness.token(),
+                listOf(
+                    ProbeHarness.Case(
+                        """
+                        defmodule A do
+                          defmodule B, do: (def b(x), do: x)
+                          defmodule C do
+                            defmodule D, do: def(d(x), do: x)
+                          end
+                          defmodule E do end
+                          defmodule F, do: ()
+                        end
+                        def q, do: quote(do: defmodule(Q, do: nil))
+                        def defmodule(name, do: block), do: {name, block}
+                        """.trimIndent()
+                    )
+                ),
+                hook = ProbeHarness.Hook(),
+            )
+        )
+        val caseModule = attempt.layout.caseModule(0)
+
+        assertEquals(OtpErlangAtom("ok"), attempt.compiled.status)
+        assertEquals(
+            listOf("", ".A", ".A.B", ".A.C", ".A.C.D", ".A.E", ".A.F"),
+            attempt.batch.hooks.keys.map { it.removePrefix(caseModule) }.sorted()
+        )
+        assertLeftNothingBehind(attempt)
+    }
+
+    /** A keyword module that ends the body is wrapped with its hook call, and the probe after it is outside the wrapper. */
+    fun testAProbeAfterAKeywordModuleReportsTheCaseModule() {
+        val attempt = harness.attempt(
+            ProbeHarness.Layout(harness.token(), listOf(ProbeHarness.Case("defmodule M, do: :ok")), hook = ProbeHarness.Hook())
+        )
+
+        assertEquals(OtpErlangAtom("ok"), attempt.compiled.status)
+        assertEquals(
+            listOf(attempt.layout.caseModule(0), attempt.layout.caseModule(0)),
+            attempt.batch.observations.map { (it.env.get(OtpErlangAtom("module")) as OtpErlangAtom).atomValue() },
+        )
+    }
+
+    /** The same holds for the probe of a clause body that ends with such a module. */
+    fun testAClauseBodyProbeAfterAKeywordModuleReportsTheCaseModule() {
+        val body = "case 1 do\n  _ -> defmodule M, do: :ok\nend"
+        val module = body.indexOf("defmodule")
+        val attempt = harness.attempt(
+            ProbeHarness.Layout(
+                harness.token(),
+                listOf(ProbeHarness.Case(body, bodies = listOf(listOf(TextRange(module, module + "defmodule M, do: :ok".length))))),
+                hook = ProbeHarness.Hook(),
+            )
+        )
+
+        assertEquals(OtpErlangAtom("ok"), attempt.compiled.status)
+        assertEquals(
+            List(3) { attempt.layout.caseModule(0) },
+            attempt.batch.observations.map { (it.env.get(OtpErlangAtom("module")) as OtpErlangAtom).atomValue() },
+        )
+    }
+
+    /** A module defined through `Kernel.defmodule` is a module of the case, and so is hooked. */
+    fun testAQualifiedDefmoduleIsHooked() {
+        val attempt = harness.attempt(
+            ProbeHarness.Layout(
+                harness.token(),
+                listOf(ProbeHarness.Case("Kernel.defmodule G do\n  def g(x), do: x\nend")),
+                hook = ProbeHarness.Hook(),
+            )
+        )
+
+        assertEquals(OtpErlangAtom("ok"), attempt.compiled.status)
+        assertEquals(
+            listOf("", ".G"),
+            attempt.batch.hooks.keys.map { it.removePrefix(attempt.layout.caseModule(0)) }.sorted()
+        )
+    }
+
+    /** A `defmodule` defined through `Kernel.def` is a name being defined, not a module. */
+    fun testAQualifiedDefinitionOfDefmoduleIsNotHooked() {
+        val attempt = harness.attempt(
+            ProbeHarness.Layout(
+                harness.token(),
+                listOf(ProbeHarness.Case("defmodule A do end\nKernel.def defmodule(name, do: block), do: {name, block}")),
+                hook = ProbeHarness.Hook(),
+            )
+        )
+
+        assertEquals(OtpErlangAtom("ok"), attempt.compiled.status)
+        assertEquals(listOf("", ".A"), attempt.batch.hooks.keys.map { it.removePrefix(attempt.layout.caseModule(0)) }.sorted())
+    }
+
+    /** A module defined by what a definition's head unquotes is a module of the case, though the head is not code. */
+    fun testAModuleDefinedInAnUnquotedHeadIsHooked() {
+        val attempt = harness.attempt(
+            ProbeHarness.Layout(
+                harness.token(),
+                listOf(ProbeHarness.Case("def f(unquote((defmodule M do end; 0))), do: :ok")),
+                hook = ProbeHarness.Hook(),
+            )
+        )
+
+        assertEquals(OtpErlangAtom("ok"), attempt.compiled.status)
+        assertEquals(listOf("", ".M"), attempt.batch.hooks.keys.map { it.removePrefix(attempt.layout.caseModule(0)) }.sorted())
+    }
+
+    /** A comment between `do:` and a module's value doesn't move the value out of the module. */
+    fun testAKeywordModuleWhoseValueFollowsACommentHoldsItsDefinition() {
+        val attempt = harness.attempt(
+            ProbeHarness.Layout(
+                harness.token(),
+                listOf(ProbeHarness.Case("defmodule M, do: # note\n  def m(x), do: x")),
+                hook = ProbeHarness.Hook(),
+            )
+        )
+        val caseModule = attempt.layout.caseModule(0)
+
+        assertEquals(OtpErlangAtom("ok"), attempt.compiled.status)
+        assertEquals(listOf("m/1"), attempt.batch.hooks.getValue("$caseModule.M").map { "${it.name}/${it.arity}" })
+        assertEquals(emptyList<String>(), attempt.batch.hooks.getValue(caseModule).map { it.name })
+    }
+
+    /** The hook reaches a nested module by a call to the probe module, which dispatches nothing the expander reports. */
+    fun testANestedModulesHookAddsNoDispatchEvent() {
+        val token = harness.token()
+
+        fun events(hook: ProbeHarness.Hook?): List<String> {
+            val attempt = harness.attempt(ProbeHarness.Layout(token, listOf(ProbeHarness.Case(NESTED_MODULE)), hook = hook))
+
+            assertEquals(OtpErlangAtom("ok"), attempt.compiled.status)
+
+            return DispatchEvents.of(
+                attempt.compiled.events,
+                attempt.batch.caseModule(0),
+                attempt.batch.probeModule,
+                attempt.bodyLines[0],
+                attempt.layout.hookModule,
+                attempt.batch.definitionAttributes,
+            )
+        }
+
+        val without = events(null)
+
+        assertTrue("the nested module's events: $without", without.any { it.contains("Kernel.def/2") })
+        assertEquals(without, events(ProbeHarness.Hook()))
+    }
+
     private fun assertSteps(actual: List<Map<String, OtpErlangObject>>, vararg expected: Map<String, OtpErlangObject>) =
         assertEquals(
             expected.joinToString("\n---\n") { ProbedEnvNormaliser.render(it) },
             actual.joinToString("\n---\n") { ProbedEnvNormaliser.render(it) }
         )
+
+    private companion object {
+        const val NESTED_MODULE = "defmodule Fixture do\n  def f(a), do: a\nend"
+    }
 }
