@@ -15,8 +15,9 @@ import com.ericsson.otp.erlang.OtpErlangPort
 import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
-import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SPEC_NAME_EXPANDED_AS_CALL
+import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_BINARY_SPEC_IS_A_NAME
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_QUOTED_APART
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_SORTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPE_HEADS_NEED_LIST_META
@@ -194,6 +195,8 @@ internal fun <I> annotation(view: EscapeView<I>, tuple: Shape.Tuple<I>, level: E
  * one.
  */
 internal fun <I> definitionHead(view: EscapeView<I>, head: I, level: ElixirLanguageLevel): I? {
+    ProgressManager.checkCanceled()
+
     val tuple = (view.shape(head) as? Shape.Tuple)?.takeIf { it.elements.size == 3 } ?: return null
     val left = properList(view, tuple.elements[2])?.takeIf { it.size == 2 }?.first()
         ?.takeIf { QUOTED_DEF_CONTEXT_SKIPS_GUARD.isSufficient(level) && (view.shape(tuple.elements[0]) as? Shape.Atom)?.name == "when" }
@@ -353,6 +356,8 @@ internal class QuoteEscape<I, O> private constructor(
 
     /** `do_quote/2`, its heads in Elixir's order. */
     private fun doQuote(input: I, unquote: Boolean): O {
+        ProgressManager.checkCanceled()
+
         val shape = view.shape(input)
         val tuple = shape as? Shape.Tuple
         val q = quote
@@ -369,10 +374,12 @@ internal class QuoteEscape<I, O> private constructor(
 
         return when {
             q == null -> doEscape(input, shape, unquote)
-            tuple != null -> quoteTuple(q, tuple, annotated(q, tuple, q.metaOf(input)), unquote)
+            tuple != null && tuple.elements.size == 3 -> quoteTuple(q, tuple, annotated(q, tuple, q.metaOf(input)), unquote)
             shape is Shape.List -> lists.built(escapeList(shape.elements, shape.tail, unquote))
-            // `do_quote(Other, _) -> Other`.
-            else -> doEscape(input, shape, unquote)
+            // `do_quote(Other, _) -> Other`: a literal built as it is, and a term no source writes put in as it is.
+            shape is Shape.Atom || shape is Shape.Integer || shape is Shape.Float ||
+                shape is Shape.Bitstring && shape.padBits == 0 || shape is Shape.Unknown -> doEscape(input, shape, unquote)
+            else -> inserted(input)
         }
     }
 
@@ -439,14 +446,19 @@ internal class QuoteEscape<I, O> private constructor(
         }
 
         captured(name, args)?.let { (function, functionArity) ->
-            return quoteTuple(q, tuple, q.captureMeta(input, q.metaOf(input), function, functionArity), unquote)
+            val meta = q.metaOf(input)
+
+            return quoteTuple(q, tuple, functionArity?.let { q.captureMeta(input, meta, function, it) } ?: meta, unquote)
         }
 
         return quoteTuple(q, tuple, annotated(q, tuple, q.importMeta(input, q.metaOf(input), name, arity)), unquote)
     }
 
-    /** `F` and `A` of the capture `{'&', _, [{'/', _, [{F, _, C}, A]}]}`, [name] and [args] its name and arguments. */
-    private fun captured(name: String, args: Shape<I>): Pair<String, Int>? {
+    /**
+     * `F` and `A` of the capture `{'&', _, [{'/', _, [{F, _, C}, A]}]}`, [name] and [args] its name and arguments. `A`
+     * is `null` past an `Int`, an arity no function has.
+     */
+    private fun captured(name: String, args: Shape<I>): Pair<String, Int?>? {
         if (name != "&") return null
 
         val slash = (args as? Shape.List)?.takeIf { it.tail == null }?.elements?.singleOrNull()
@@ -460,7 +472,7 @@ internal class QuoteEscape<I, O> private constructor(
 
         val value = (view.shape(arity) as? Shape.Integer)?.value ?: return null
 
-        return functionName to value.toInt()
+        return functionName to value.takeIf { it.bitLength() < Int.SIZE_BITS }?.toInt()
     }
 
     /** `annotate/2` of [tuple], its metadata [meta]. */
@@ -606,7 +618,7 @@ internal class QuoteEscape<I, O> private constructor(
         val bytes = shape.bytes.map { it.toInt() and 0xFF }
         val bits = bytes[0] ushr (8 - size)
         val rest = ByteArray(bytes.size - 1) { i -> ((bytes[i] shl size) or (bytes[i + 1] ushr (8 - size))).toByte() }
-        val binaryArgs = if (BITSTRING_SPEC_NAME_EXPANDED_AS_CALL.isSufficient(level)) null else emptyList<O>()
+        val binaryArgs = if (ESCAPED_BINARY_SPEC_IS_A_NAME.isSufficient(level)) null else emptyList<O>()
 
         return build.call(
             build.atom("<<>>"),
@@ -623,13 +635,11 @@ internal class QuoteEscape<I, O> private constructor(
     private fun map(shape: Shape.Map<I>, unquote: Boolean): O {
         if (REGEX_ESCAPED_IN_FIXED_FIELD_ORDER.isSufficient(level)) structEscape(shape)
         val entries = listed(shape.entries, level, MapEntry<I>::keyTerm, MapEntry<I>::valueTerm) ?: run {
-            // Every key and value is escaped, so one that raises does in whatever order the entries have.
-            for (entry in shape.entries) {
-                raises(entry.key, unquote)
-                raises(entry.value, unquote)
-            }
+            // Every key and value is escaped, in an order no term decides, so the escape raises only what each that
+            // raises does, and only where every other is known not to.
+            val raised = shape.entries.flatMap { listOf(it.key, it.value) }.mapNotNull { raised(it, unquote) }
 
-            throw Decline(null)
+            throw raised.distinctBy(Raise::exception).singleOrNull() ?: Decline(null)
         }
         val quoted = if (ESCAPED_MAP_ENTRIES_QUOTED_APART.isSufficient(level)) {
             entries.map { entry ->
@@ -645,20 +655,24 @@ internal class QuoteEscape<I, O> private constructor(
         return build.call(build.atom("%{}"), quoted)
     }
 
-    /** Throws what escaping [input] raises, if it raises. */
-    private fun raises(input: I, unquote: Boolean) {
+    /** What escaping [input] raises, `null` where it doesn't. Throws [Decline] where that isn't known. */
+    private fun raised(input: I, unquote: Boolean): Raise? =
         try {
             doQuote(input, unquote)
-        } catch (_: Decline) {
+            null
+        } catch (raise: Raise) {
+            raise
         }
-    }
 
     /** A struct whose module exports `__escape__/1`, which escapes it with code the escape doesn't run. */
     private fun structEscape(shape: Shape.Map<I>) {
-        val module = shape.entries.firstOrNull { (it.keyTerm as? OtpErlangAtom)?.atomValue() == "__struct__" }
-            ?.let { it.valueTerm as? OtpErlangAtom }
-            ?.atomValue()
-            ?: return
+        // `__escape__` is looked for before any entry is escaped, so where the module isn't known, nor is the escape.
+        val struct = shape.entries.firstOrNull { (it.keyTerm as? OtpErlangAtom)?.atomValue() == "__struct__" }
+        val unknown = if (struct == null) shape.entries.map(MapEntry<I>::key) else listOf(struct.value)
+
+        unknown.firstNotNullOfOrNull { view.shape(it) as? Shape.Unknown }?.let { throw Decline(it.at) }
+
+        val module = (struct?.valueTerm as? OtpErlangAtom)?.atomValue() ?: return
 
         val escapes = when (val exported = exports.of(module)) {
             is ModuleExports.Present -> ESCAPE in exported.exported
@@ -762,11 +776,13 @@ internal class QuoteEscape<I, O> private constructor(
             value: ((E) -> OtpErlangObject)? = null,
         ): List<E>? =
             try {
-                val byKey = entries.sortedWith(compareBy(MAP_KEY_ORDER, key))
+                val byKey = entries.sortedWith(compareBy(mapKeyOrder(level), key))
 
                 when {
                     ESCAPED_MAP_ENTRIES_SORTED.isSufficient(level) ->
-                        byKey.sortedWith(compareBy(TERM_ORDER, key).let { order -> value?.let { order.thenBy(TERM_ORDER, it) } ?: order })
+                        termOrder(level).let { terms ->
+                            byKey.sortedWith(compareBy(terms, key).let { order -> value?.let { order.thenBy(terms, it) } ?: order })
+                        }
                     entries.size > SMALL_MAP -> null
                     else -> byKey
                 }
@@ -784,8 +800,6 @@ internal class QuoteEscape<I, O> private constructor(
         private const val ARGUMENT_ERROR = "Elixir.ArgumentError"
 
         private const val ERLANG_ERROR = "Elixir.ErlangError"
-
-        private const val FUNCTION_CLAUSE_ERROR = "Elixir.FunctionClauseError"
     }
 }
 
@@ -834,8 +848,10 @@ internal sealed interface AstTerm {
  * token metadata.
  */
 internal class ParsedMeta(private val columns: Boolean, private val lineOffset: Int = 0) {
-    fun pairs(keys: List<Meta.Key>): List<Pair<String, Meta.Value>> =
-        keys.flatMap { key ->
+    fun pairs(keys: List<Meta.Key>): List<Pair<String, Meta.Value>> {
+        ProgressManager.checkCanceled()
+
+        return keys.flatMap { key ->
             when (key) {
                 is Meta.Key.Location -> listOfNotNull(
                     "line" to Meta.Value.Integer((key.position.line + lineOffset).toLong()),
@@ -844,10 +860,13 @@ internal class ParsedMeta(private val columns: Boolean, private val lineOffset: 
                 is Meta.Key.Entry -> if (key.tokenMetadata) emptyList() else listOf(key.name to key.value)
             }
         }
+    }
 
     /** The code that builds [value]. */
-    fun code(s: Synthetic, value: Meta.Value): ElixirAst =
-        when (value) {
+    fun code(s: Synthetic, value: Meta.Value): ElixirAst {
+        ProgressManager.checkCanceled()
+
+        return when (value) {
             is Meta.Value.Atom -> s.atom(value.name)
             is Meta.Value.Integer -> s.integer(value.value.toBigInteger())
             is Meta.Value.Binary -> ElixirAst.Literal.Binary(s.meta(), value.text.toByteArray(Charsets.UTF_8))
@@ -855,6 +874,7 @@ internal class ParsedMeta(private val columns: Boolean, private val lineOffset: 
             is Meta.Value.List -> s.list(value.elements.map { code(s, it) })
             is Meta.Value.Tuple -> s.tuple(*value.elements.map { code(s, it) }.toTypedArray())
         }
+    }
 
     fun shape(value: Meta.Value): Shape<AstTerm> =
         when (value) {
@@ -916,7 +936,29 @@ internal class AstEscapeView(private val s: Synthetic, private val parsed: Parse
                 }
             }
             is ElixirAst.Placeholder -> if (node.stopsExpansion) Shape.Unknown(node) else Shape.Verbatim
+            is ElixirAst.Value -> valueShape(node)
         }
+
+    /** [value]'s term as [TermEscapeView] reads it, each of its parts a [ElixirAst.Value] of its own. */
+    private fun valueShape(value: ElixirAst.Value): Shape<AstTerm> {
+        val part = { term: OtpErlangObject -> AstTerm.Node(ElixirAst.Value(value.meta, term)) }
+
+        return when (val shape = TermEscapeView.shape(value.term)) {
+            is Shape.Tuple -> Shape.Tuple(shape.elements.map(part))
+            is Shape.List -> Shape.List(shape.elements.map(part), shape.tail?.let(part))
+            is Shape.Map ->
+                Shape.Map(shape.entries.map { MapEntry(part(it.key), part(it.value), it.keyTerm, it.valueTerm) })
+            is Shape.Atom -> shape
+            is Shape.Integer -> shape
+            is Shape.Float -> shape
+            is Shape.Bitstring -> shape
+            is Shape.Pid -> shape
+            is Shape.ExternalFun -> shape
+            is Shape.Unescapable -> shape
+            is Shape.Verbatim -> shape
+            is Shape.Unknown -> shape
+        }
+    }
 
     private fun named(node: ElixirAst, name: String, args: List<ElixirAst>): Shape<AstTerm> =
         Shape.Tuple(

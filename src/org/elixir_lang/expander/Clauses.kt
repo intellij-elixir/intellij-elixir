@@ -1,5 +1,8 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangList
+import com.ericsson.otp.erlang.OtpErlangString
+import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.language_level.ElixirLanguageFeature.CATCH_WHEN_ARITY_CHECKED
 import org.elixir_lang.language_level.ElixirLanguageFeature.CLAUSES_TAKE_VERSION
 import org.elixir_lang.language_level.ElixirLanguageFeature.PARALLEL_MATCH
@@ -61,7 +64,9 @@ internal fun expandCase(node: ElixirAst.Call, state: ExState, env: Env, run: Run
 
     return Expander.expand(subject, state, env, run).thenValue { subjectState, subjectEnv, subjectValue ->
         val rewritten = if (isOptimizeBoolean(node) && returnsBoolean(subjectValue)) {
-            rewriteCaseClauses(opts, run.level)
+            rewriteCaseClauses(opts, run.level).also {
+                recordDispatch(node, ModuleClauses.Dispatched.Clauses(it), env, run)
+            }
         } else {
             opts
         }
@@ -281,8 +286,9 @@ private fun rescue(arrow: ElixirAst, arg: ElixirAst, state: ExState, env: Env, r
             }
         }
         arg is ElixirAst.Placeholder && arg.stopsExpansion -> Expansion.Unported(arg)
-        // Elixir's `{_, _, _}` shape: a call, a block, or a tuple not of two.
-        (arg is ElixirAst.Call || arg is ElixirAst.Block || arg is ElixirAst.Tuple && arg.elements.size != 2) &&
+        // Elixir's `{_, _, _}` shape: a call, a block, a tuple not of two, or a value that is a 3-tuple.
+        (arg is ElixirAst.Call || arg is ElixirAst.Block || arg is ElixirAst.Tuple && arg.elements.size != 2 ||
+            arg is ElixirAst.Value && (arg.term as? OtpErlangTuple)?.arity() == 3) &&
             RESCUE_CALL_EXPANDED_AS_MACRO.isSufficient(run.level) -> rescueExpandedOnce(arrow, arg, state, env, run)
         else -> rescueIn(arrow, arg, underscore(arg), arg, state, env, run)
     }
@@ -292,7 +298,10 @@ private fun rescue(arrow: ElixirAst, arg: ElixirAst, state: ExState, env: Env, r
  * `invalid_rescue_clause` at [arrow] where it is left as it is.
  */
 private fun rescueExpandedOnce(arrow: ElixirAst, arg: ElixirAst, state: ExState, env: Env, run: Run): Expansion =
-    when (val expanded = macroExpandOnce(arg, state, env, run)) {
+    // `?line(Meta)` reads the meta as a list.
+    if (arg is ElixirAst.Value && (arg.term as OtpErlangTuple).elementAt(1).let { it !is OtpErlangList && it !is OtpErlangString }) {
+        Expansion.Error("function_clause", arg).also { run.crash = Crash(it, FUNCTION_CLAUSE_ERROR) }
+    } else when (val expanded = macroExpandOnce(arg, state, env, run)) {
         is MacroExpanded.Node ->
             if (expanded.expanded) {
                 rescue(arrow, expanded.node, state, env, run)
@@ -317,6 +326,11 @@ private fun rescueIn(
     match(left, state, state, env, run, at).thenValue { leftState, leftEnv, leftValue ->
         Expander.expand(right, leftState, leftEnv, run).thenValue { s, e, value ->
             val rights = if (value is Term.List && value.tail == null) value.elements else listOf(value)
+
+            // A known term other than an atom raises whatever the unknown ones are.
+            if (leftValue == VARIABLE_NODE && rights.all { it is Term.Atom || it == Term.Unexpanded }) {
+                rights.firstNotNullOfOrNull { unknownStop(it, right) }?.let { return@thenValue it }
+            }
 
             if (leftValue == VARIABLE_NODE && rights.all { it is Term.Atom }) {
                 Expansion.Expanded(s, e, NODE)

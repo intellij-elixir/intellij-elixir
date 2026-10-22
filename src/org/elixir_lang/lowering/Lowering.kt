@@ -290,6 +290,7 @@ private fun ElixirAst.withMeta(keys: List<Meta.Key>): ElixirAst {
         is ElixirAst.Tuple -> ElixirAst.Tuple(meta, elements)
         is ElixirAst.Block -> ElixirAst.Block(meta, expressions)
         is ElixirAst.Placeholder -> ElixirAst.Placeholder(meta, reason)
+        is ElixirAst.Value -> ElixirAst.Value(meta, term)
     }
 }
 

@@ -1,5 +1,7 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProcessCanceledException
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
@@ -610,8 +612,8 @@ class ModuleExpanderTest : ExpanderTestCase() {
               defmacro m/0 line 2 clauses 1
               body: expanded {} next 0 context [Elixir.A]
               defmacro m/0: expanded {} next 0 value ok
-            module Elixir.B stopped `A.m()`
-              body: opaque remote_macro Elixir.A.m/0 `A.m()`
+            module Elixir.B compiled
+              body: expanded {} next 0 context ${if (isBefore(version, "1.13.0-rc.0")) "[Elixir.B, Elixir.A]" else "[Elixir.B]"}
             """.trimIndent()
         }
 
@@ -649,12 +651,12 @@ class ModuleExpanderTest : ExpanderTestCase() {
         ) { version ->
             """
             top expanded {} next 0 context ${topContext(version, "Elixir.A")}
-            module Elixir.A stopped `m()`
+            module Elixir.A compiled
               defmacro m/0 line 2 clauses 1
               def f/0 line 3 clauses 1
               body: expanded {} next 0 context [Elixir.A]
               defmacro m/0: expanded {} next 0 value ok
-              def f/0: opaque local_macro Elixir.A.m/0 `m()`
+              def f/0: expanded {} next 0 value ok
             """.trimIndent()
         }
 
@@ -681,6 +683,281 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
             if (isBefore(version, "1.15.0-rc.0")) start else "$start\n  reported incorrect_dispatch `m()`"
         }
+
+    /** A module defined again expands its body with its own macros, not the ones the first definition loaded. */
+    fun testARedefinedModulesLocalMacro() =
+        assertLevels(
+            """
+            defmodule A do
+              defmacro m, do: :old
+            end
+
+            defmodule A do
+              defmacro m, do: :new
+              def f, do: m()
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            val context = if (isBefore(version, "1.13.0-rc.0")) "[Elixir.A, Elixir.A]" else "[]"
+
+            """
+            top expanded {} next 0 context $context
+            module Elixir.A compiled
+              defmacro m/0 line 2 clauses 1
+              body: expanded {} next 0 context [Elixir.A]
+              defmacro m/0: expanded {} next 0 value old
+            module Elixir.A compiled
+              defmacro m/0 line 6 clauses 1
+              def f/0 line 7 clauses 1
+              body: expanded {} next 0 context ${if (isBefore(version, "1.13.0-rc.0")) context else "[Elixir.A]"}
+              defmacro m/0: expanded {} next 0 value new
+              def f/0: expanded {} next 0 value new
+            """.trimIndent()
+        }
+
+    /** Before 1.15 a bare name that isn't a variable calls the local function of that name, in a macro's body too. */
+    fun testABareNameInAMacroCallsALocalFunctionBefore1_15() =
+        assertLevels(
+            """
+            defmodule A do
+              defp h, do: :ok
+              defmacro m, do: h
+              def f, do: m()
+            end
+            """.trimIndent(),
+            LEVELS.filter { isBefore(it, "1.15.0-rc.0") },
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            module Elixir.A compiled
+              defp h/0 line 2 clauses 1
+              defmacro m/0 line 3 clauses 1
+              def f/0 line 4 clauses 1
+              body: expanded {} next 0 context [Elixir.A]
+              defp h/0: expanded {} next 0 value ok
+              defmacro m/0: expanded {} next 0
+              def f/0: expanded {} next 0 value ok
+            """.trimIndent()
+        }
+
+    /** A zero-width generator never advances, so Elixir never finishes the comprehension and the call is not answered. */
+    fun testAZeroWidthBitstringGeneratorThatSkips() = assertZeroWidthGenerator("1::size(0)", "do: :ok", binds = 0)
+
+    fun testAZeroWidthBitstringGeneratorThatMatches() = assertZeroWidthGenerator("x::size(0)", "do: x", binds = 1)
+
+    private fun assertZeroWidthGenerator(segment: String, body: String, binds: Int) =
+        assertLevels(
+            """
+            defmodule A do
+              defmacro m, do: for(<<$segment <- <<1>> >>, $body)
+            end
+
+            defmodule B do
+              require A
+              A.m()
+            end
+            """.trimIndent(),
+            LEVELS + "1.20.0-rc.4",
+        ) { version ->
+            """
+            top expanded {} next 0 context ${if (isBefore(version, "1.13.0-rc.0")) "[Elixir.B, Elixir.A]" else "[]"}
+            module Elixir.A compiled
+              defmacro m/0 line 2 clauses 1
+              body: expanded {} next 0 context [Elixir.A]
+              defmacro m/0: expanded {} next ${if (isBefore(version, "1.20.0-rc.5")) binds else binds + 1}
+            module Elixir.B stopped `A.m()`
+              body: opaque remote_macro Elixir.A.m/0 `A.m()`
+            """.trimIndent()
+        }
+
+    /** A macro building a bitstring is cancelled while it writes the bits. */
+    fun testAWideBitstringIsCancelledAsItIsWritten() = assertCancelledAt("<<0::size($WIDE)>>", WIDE / 2)
+
+    /** A macro matching a bitstring is cancelled while it reads the bits, once it has written them. */
+    fun testAWideBitstringIsCancelledAsItIsRead() =
+        assertCancelledAt("(<<x::size($WIDE)>> = <<-1::size($WIDE)>>; x > 0)", WIDE + WIDE / 2)
+
+    /** A macro subtracting one long list from another is cancelled while it scans them. */
+    fun testAListSubtractionIsCancelledAsItScans() {
+        val lists = "l = [1]; " + "l = :erlang.++(l, l); ".repeat(DOUBLINGS) +
+            "r = [2]; " + "r = :erlang.++(r, r); ".repeat(DOUBLINGS)
+        // Parsing the body makes most of the checks, so the scan's are counted from the same body's with one element
+        // to scan.
+        val unscanned = checks("($lists :erlang.length(:erlang.--(l, [r])))")
+
+        assertCancelledAt("($lists :erlang.length(:erlang.--(l, r)))", unscanned + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** A macro collecting a long comprehension's unique results is cancelled while it scans them. */
+    fun testAUniqueComprehensionIsCancelledAsItScans() {
+        val digits = (1..8).joinToString(", ", "[", "]")
+        val comprehension = { uniq: Boolean ->
+            "for a <- $digits, b <- $digits, c <- $digits, d <- $digits, uniq: $uniq, do: {a, b, c, d}"
+        }
+        // Running the generators makes most of the checks, so the scan's are counted from the same comprehension's
+        // without `uniq`.
+        val unscanned = checks(":erlang.length(${comprehension(false)})")
+
+        assertCancelledAt(":erlang.length(${comprehension(true)})", unscanned + 8 * 8 * 8 * 8 / 2)
+    }
+
+    /** A macro merging two long keyword lists is cancelled while it scans them. */
+    fun testAKeywordMergeIsCancelledAsItScans() {
+        val lists = "l = [a: 1]; " + "l = :erlang.++(l, l); ".repeat(DOUBLINGS) +
+            "r = [b: 2]; " + "r = :erlang.++(r, r); ".repeat(DOUBLINGS)
+        // Parsing the body makes most of the checks, so the scan's are counted from the same body's with one pair on
+        // the left.
+        val unscanned = checks("($lists :erlang.length(Keyword.merge([a: 1], r)))")
+
+        assertCancelledAt("($lists :erlang.length(Keyword.merge(l, r)))", unscanned + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** A macro flattening a list that holds itself twice at every depth is cancelled while it walks it. */
+    fun testAFlattenIsCancelledAsItWalks() {
+        // Building the list makes most of the checks, so the walk's are counted from the same body's flattening `[]`.
+        val unwalked = checks("($TREE :erlang.length(:lists.flatten([])))")
+
+        assertCancelledAt("($TREE :erlang.length(:lists.flatten(t)))", unwalked + (1 shl DOUBLINGS) / 2)
+    }
+
+    /**
+     * A macro asking whether two lists that each hold one part twice at every depth are equal is cancelled as it walks
+     * them. Two lists built apart, since the VM, and the evaluator, answer a term equal to itself without walking it.
+     */
+    fun testAnEqualityIsCancelledAsItWalks() {
+        // Building the lists makes most of the checks, so the walk's are counted from the same body's not comparing them.
+        val trees = "$TREE ${TREE.replace("t", "u")}"
+        val unwalked = checks("($trees :erlang.is_list(t))")
+
+        assertCancelledAt("($trees t == u)", unwalked + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** Asking whether two such lists are equal looks through both for references, ports and pids, cancelled as it looks. */
+    fun testAnEqualityIsCancelledAsItLooksForIdentities() {
+        val trees = "$TREE ${TREE.replace("t", "u")}"
+
+        assertCancelledIn("org.elixir_lang.expander.TermOrderKt", "holdsDistinctIdentities", (1 shl DOUBLINGS) / 2) {
+            expandMacro("($trees t == u)")
+        }
+    }
+
+    /** A macro ordering two such lists is cancelled while it compares them, once it has walked each. */
+    fun testAComparisonIsCancelledAsItWalks() {
+        val trees = "$TREE ${TREE.replace("t", "u")}"
+        // Ordering a list before a tuple compares no elements, so the walks before the comparison are counted from it.
+        val uncompared = checks("($trees :erlang.<(t, {u}))")
+
+        assertCancelledAt("($trees :erlang.<(t, u))", uncompared + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** A macro ordering two equal wide bitstrings is cancelled while it compares their bits, once it has written them. */
+    fun testABitstringComparisonIsCancelledAsItScans() {
+        val bits = 1 shl 15
+        val bitstrings = "a = <<0::size($bits)>>; b = <<a::bitstring>>;"
+        // Writing the two bitstrings makes most of the checks, so the comparison's are counted from not comparing them.
+        val uncompared = checks("($bitstrings :erlang.is_bitstring(b))")
+
+        assertCancelledAt("($bitstrings :erlang.<(a, b))", uncompared + bits / 2)
+    }
+
+    /** A macro ordering such a list is cancelled while it walks it for an unknown value. */
+    fun testAComparedTermIsCancelledAsItIsWalked() {
+        // Building the list makes most of the checks, so the walk's are counted from the same body's not ordering it.
+        val unwalked = checks("($TREE :erlang.is_list(t))")
+
+        assertCancelledAt("($TREE :erlang.<(t, {:a}))", unwalked + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** A macro keying a map by such a list is cancelled while it looks in the key for a function. */
+    fun testAMapKeyIsCancelledAsItIsWalked() {
+        // Ordering the list walks it for an unknown value, as a key is, so the look for a function is counted from it.
+        val unwalked = checks("($TREE :erlang.<(t, {:a}))")
+
+        assertCancelledAt("($TREE :erlang.map_size(%{t => 1}))", unwalked + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** A macro escaping such a list is cancelled while it escapes it. */
+    fun testAnEscapeIsCancelledAsItWalks() {
+        // Building the list makes most of the checks, so the escape's are counted from the same body's escaping `[[], []]`.
+        val unwalked = checks("($TREE :erlang.length(Macro.escape([[], []])))")
+
+        assertCancelledAt("($TREE :erlang.length(Macro.escape(t)))", unwalked + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** A macro unquoting a pair that holds itself twice at every depth is cancelled while it validates it. */
+    fun testAnUnquoteIsCancelledAsItValidates() {
+        val pairs = "p = :a; " + "p = {p, p}; ".repeat(DOUBLINGS)
+        // Building the pair makes most of the checks, so the validation's are counted from the same body's of `{:a, :a}`.
+        val unwalked = checks("($pairs :erlang.tuple_size(quote(do: unquote({:a, :a}))))")
+
+        assertCancelledAt("($pairs :erlang.tuple_size(quote(do: unquote(p))))", unwalked + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** A macro whose comprehension rejects every element of a long list is cancelled while it scans them. */
+    fun testARejectingComprehensionIsCancelledAsItScans() {
+        val list = "l = [:a]; " + "l = :erlang.++(l, l); ".repeat(DOUBLINGS)
+        // Building the list makes most of the checks, so the scan's are counted from the same body's over one element.
+        val unscanned = checks("($list :erlang.length(for :b <- [:a], do: 1))")
+
+        assertCancelledAt("($list :erlang.length(for :b <- l, do: 1))", unscanned + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** A macro folding a long list with a function that calls nothing is cancelled while it calls the function. */
+    fun testAFoldIsCancelledAsItCallsItsFunction() =
+        assertCancelledAsItCalls { ":lists.foldl(fn _, acc -> acc end, 0, $it)" }
+
+    /** A macro filtering a long list with a predicate that calls nothing is cancelled while it calls the predicate. */
+    fun testAFilterIsCancelledAsItCallsItsPredicate() =
+        assertCancelledAsItCalls { ":erlang.length(:lists.filter(fn _ -> true end, $it))" }
+
+    /** A macro asking whether a predicate that calls nothing holds for all of a long list is cancelled while it asks. */
+    fun testAnAllIsCancelledAsItCallsItsPredicate() = assertCancelledAsItCalls { ":lists.all(fn _ -> true end, $it)" }
+
+    /** A macro whose body is [call] of a long list, built from one element by doubling, is cancelled within [call]. */
+    private fun assertCancelledAsItCalls(call: (String) -> String) {
+        val list = "l = [1]; " + "l = :erlang.++(l, l); ".repeat(DOUBLINGS)
+        // Building the list makes most of the checks, so the calls' are counted from the same body's over one element.
+        val uncalled = checks("($list ${call("[1]")})")
+
+        assertCancelledAt("($list ${call("l")})", uncalled + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** The expansion of a macro whose body is [body] is cancelled by a cancel at its [check]th check. */
+    private fun assertCancelledAt(body: String, check: Int) {
+        val indicator = CancelAt(check)
+
+        try {
+            expandMacro(body, indicator)
+            fail("no cancel at check $check, of ${indicator.checks}")
+        } catch (_: ProcessCanceledException) {
+        }
+    }
+
+    /** The checks the expansion of a macro whose body is [body] makes. */
+    private fun checks(body: String): Int = CancelAt(Int.MAX_VALUE).also { expandMacro(body, it) }.checks
+
+    private fun expandMacro(body: String, indicator: CancelAt) {
+        whileCheckingIndicators {
+            ProgressManager.getInstance().runProcess({ expandMacro(body) }, indicator)
+        }
+    }
+
+    /** Expands `B`, which calls `A.m`, a macro whose body is [body]. */
+    private fun expandMacro(body: String) {
+        val code = """
+            defmodule A do
+              defmacro m, do: $body
+            end
+
+            defmodule B do
+              require A
+              A.m()
+            end
+        """.trimIndent()
+
+        expandAndRender(code, "1.20.4")
+    }
 
     fun testALocalMacroThatConflictsWithAnImport() =
         assertLevels(
@@ -738,12 +1015,85 @@ class ModuleExpanderTest : ExpanderTestCase() {
         ) { version ->
             """
             top expanded {} next 0 context ${topContext(version, "Elixir.A")}
-            module Elixir.A stopped `m(x, 1)`
+            module Elixir.A compiled
               defmacro m/2 line 2 clauses 1
               defmacro m/1 line 3 clauses 1
               body: expanded {} next 0 context [Elixir.A]
               defmacro m/2: expanded {x:0 y:1} next 2
-              defmacro m/1: opaque local_macro Elixir.A.m/2 `m(x, 1)`
+              defmacro m/1: expanded {x:0} next 1
+            """.trimIndent()
+        }
+
+    /** A clause stopped at a fragment is still a clause of its macro, so a call it matches stops, not the next. */
+    fun testACallMatchingAStoppedMacroClause() =
+        assertLevels(
+            """
+            defmodule A do
+              defmacrop m(:a), do: [unquote_splicing([1, 2])]
+              defmacrop m(x), do: x
+              def f, do: m(:a)
+              def g, do: m(:b)
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            module Elixir.A stopped `unquote_splicing([1, 2])`
+              defmacrop m/1 line 2 clauses 2
+              def f/0 line 4 clauses 1
+              def g/0 line 5 clauses 1
+              body: expanded {} next 0 context [Elixir.A]
+              defmacrop m/1: unported `unquote_splicing([1, 2])`
+              defmacrop m/1: expanded {x:0} next 1
+              def f/0: opaque local_macro Elixir.A.m/1 `m(:a)`
+              def g/0: expanded {} next 0 value b
+            """.trimIndent()
+        }
+
+    /** An unnamed macro may be the one a later local call reaches, as `m/1`'s first clause here, so the call declines. */
+    fun testALocalMacroCallAfterAnUnnamedDefinitionDeclines() =
+        assertLevels(
+            """
+            defmodule A do
+              n = :m
+              defmacrop unquote(n)(x), do: :first
+              defmacrop m(x), do: x
+              def g, do: m(:b)
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            module Elixir.A stopped `unquote(n)`
+              defmacrop m/1 line 4 clauses 1
+              def g/0 line 5 clauses 1
+              defmacrop unnamed
+              body: expanded {n:0} next 1 context [Elixir.A]
+              defmacrop unnamed unordered: unported `unquote(n)`
+              defmacrop m/1 unordered: expanded {x:0} next 1
+              def g/0 unordered: opaque local_macro Elixir.A.m/1 `m(:b)`
+            """.trimIndent()
+        }
+
+    /** `case/1` isn't the special form, so a macro body calling it makes a local call. */
+    fun testAMacroBodysCaseOfOneArgumentIsALocalCall() = assertSpecialFormNameIsALocalCall("case(x)")
+
+    /** `try/2` isn't the special form, so a macro body calling it makes a local call. */
+    fun testAMacroBodysTryOfTwoArgumentsIsALocalCall() = assertSpecialFormNameIsALocalCall("try(x, x)")
+
+    /** A macro body of [body] calls a local function the module lacks, which the evaluator declines. */
+    private fun assertSpecialFormNameIsALocalCall(body: String) =
+        assertLevels("defmodule A do\n  defmacrop m(x), do: $body\n  def f, do: m(1)\nend", LEVELS) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            module Elixir.A stopped `m(1)`
+              defmacrop m/1 line 2 clauses 1
+              def f/0 line 3 clauses 1
+              body: expanded {} next 0 context [Elixir.A]
+              defmacrop m/1: expanded {x:0} next 1
+              def f/0: opaque local_macro Elixir.A.m/1 `m(1)`
             """.trimIndent()
         }
 
@@ -763,12 +1113,12 @@ class ModuleExpanderTest : ExpanderTestCase() {
         ) { version ->
             """
             top expanded {} next 0 context ${topContext(version, "Elixir.A")}
-            module Elixir.A stopped `s()`
+            module Elixir.A compiled
               defmacro s/0 line 2 clauses 1
               def f/1 line 3 clauses 1
               body: expanded {} next 0 context [Elixir.A]
               defmacro s/0: expanded {} next 0
-              def f/1: opaque local_macro Elixir.A.s/0 `s()`
+              def f/1: expanded {x:0 y:1} next 2
             """.trimIndent()
         }
 
@@ -788,11 +1138,11 @@ class ModuleExpanderTest : ExpanderTestCase() {
         ) { version ->
             """
             top expanded {} next 0 context ${topContext(version, "Elixir.A")}
-            module Elixir.A stopped `m()`
+            module Elixir.A compiled
               defmacro m/0 line 2 clauses 2
               body: expanded {} next 0 context [Elixir.A]
               defmacro m/0: expanded {} next 0
-              defmacro m/0: opaque local_macro Elixir.A.m/0 `m()`
+              defmacro m/0: expanded {y:0} next 1
             """.trimIndent()
         }
 
@@ -814,12 +1164,12 @@ class ModuleExpanderTest : ExpanderTestCase() {
         ) { version ->
             """
             top expanded {} next 0 context ${topContext(version, "Elixir.A")}
-            module Elixir.A stopped `e()`
+            module Elixir.A compiled
               defmacro e/0 line 2 clauses 1
               def f/0 line 3 clauses 1
               body: expanded {} next 0 context [Elixir.A]
               defmacro e/0: expanded {} next 0 value ok
-              def f/0: opaque local_macro Elixir.A.e/0 `e()`
+              def f/0: expanded {} next ${if (isBefore(version, "1.20.0-rc.5")) 0 else 2}
             """.trimIndent()
         }
 
@@ -1091,7 +1441,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
         }
     }
 
-    /** A capture of a macro the module has defined is an `fn` that calls it, so it stops at that macro. */
+    /** A capture of a macro the module has defined is an `fn` that calls it. */
     fun testALocalCaptureOfALocalMacro() =
         assertLevels(
             """
@@ -1102,16 +1452,14 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
             LEVELS,
         ) { version ->
-            val at = if (isBefore(version, "1.14.0-rc.1")) "&m/1" else "m"
-
             """
             top expanded {} next 0 context ${topContext(version, "Elixir.A")}
-            module Elixir.A stopped `$at`
+            module Elixir.A compiled
               defmacro m/1 line 2 clauses 1
               def f/0 line 3 clauses 1
               body: expanded {} next 0 context [Elixir.A]
               defmacro m/1: expanded {x:0} next 1
-              def f/0: opaque local_macro Elixir.A.m/1 `$at`
+              def f/0: expanded {} next ${if (isBefore(version, "1.20.0-rc.5")) 1 else 2}
             """.trimIndent()
         }
 
@@ -1992,5 +2340,14 @@ class ModuleExpanderTest : ExpanderTestCase() {
                 Meta.Value.List(listOf(Meta.Value.Tuple(listOf(Meta.Value.Integer(1), Meta.Value.Atom("Elixir.List"))))),
             ),
         )
+
+        /** The bits of a wide bitstring: far more than the checks the rest of its expansion makes. */
+        const val WIDE = 50_000
+
+        /** The doublings of a one-element list that make a long one: far more elements than the checks of the rest. */
+        const val DOUBLINGS = 12
+
+        /** A list `t` that holds itself twice at every depth: built in [DOUBLINGS] steps, walked in 2^[DOUBLINGS]. */
+        val TREE = "t = []; " + "t = [t, t]; ".repeat(DOUBLINGS)
     }
 }

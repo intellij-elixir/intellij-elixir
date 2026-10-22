@@ -11,7 +11,7 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 class DeprecatedCallTest : ExpanderTestCase() {
     override val kernel = KernelImports(
         AttributeFixtures.KERNEL.functions,
-        AttributeFixtures.KERNEL.macros + NameArity("in", 2) + NameArity("use", 1),
+        AttributeFixtures.KERNEL.macros + listOf(NameArity("in", 2), NameArity("use", 1)),
     )
 
     override val exports = Exports { module ->
@@ -89,6 +89,16 @@ class DeprecatedCallTest : ExpanderTestCase() {
             "defmodule Dep do\n  @deprecated \"d\"\n  def old(a, b \\\\ 1), do: a\nend\n" +
                 "defmodule User do\n  Dep.old(1)\n  Dep.old(1, 2)\nend",
             "Dep: none\nUser: deprecated Dep.old/1 \"d\" line 6; deprecated Dep.old/2 \"d\" line 7",
+        )
+
+    /** A size is expanded once, so its deprecated macro warns once. */
+    fun testADeprecatedMacroInASizeWarnsOnceFrom1_12_2() =
+        assertSplit(
+            "defmodule Dep do\n  @deprecated \"d\"\n  defmacro v(n), do: n\nend\n" +
+                "defmodule User do\n  require Dep\n  def f(n) do\n    <<x::size(Dep.v(n))>> = <<1>>\n    x\n  end\nend",
+            "1.12.2",
+            "Dep: none\nUser: none",
+            "Dep: none\nUser: deprecated Dep.v/1 \"d\" line 8",
         )
 
     /** The check comes before the arguments are expanded. */

@@ -37,5 +37,5 @@ fun quotedValue(escaped: ElixirAst): Quoted? =
         is ElixirAst.Literal.Binary -> Quoted.Binary(escaped.bytes)
         is ElixirAst.ListNode -> Quoted.List(escaped.elements.map { quotedValue(it) ?: return null })
         is ElixirAst.Tuple -> Quoted.Tuple(escaped.elements.map { quotedValue(it) ?: return null })
-        is ElixirAst.Call, is ElixirAst.Alias, is ElixirAst.Block, is ElixirAst.Placeholder -> null
+        is ElixirAst.Call, is ElixirAst.Alias, is ElixirAst.Block, is ElixirAst.Placeholder, is ElixirAst.Value -> null
     }

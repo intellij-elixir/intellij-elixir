@@ -120,7 +120,7 @@ class DefstructMacroTest : ExpanderTestCase() {
 
         val clause = loaded.single().definitions.getValue(NameArity("__struct__", 0)).clauses?.single()
 
-        return clause?.let { inspect(it.body.toOtp()) } ?: "unknown"
+        return clause?.body?.let { inspect(it.toOtp()) } ?: "unknown"
     }
 
     fun testEnforcedKeysThatAreNotKnownStopTheModule() =

@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFDELEGATE_ALL_EACH
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFDELEGATE_GUARD_ERROR
@@ -54,7 +55,9 @@ private fun defdelegate(
         }.pending(funs, opts, queued)
 
         // A definition the loop makes for a head it can name is a statement of the body, as its `def` is once it runs.
-        replacement.filterIsInstance<Pending.Definition>().firstOrNull { it !in queued }
+        val wasQueued = queued.toHashSet()
+
+        replacement.filterIsInstance<Pending.Definition>().firstOrNull { it !in wasQueued }
             ?.let { compiling.rewrote(node, it.node) }
         run.replacePending(from, replacement)
     }
@@ -209,7 +212,7 @@ private class Delegates(
                     else -> return Head.Unread
                 }
             is ElixirAst.Alias -> return Head.Raises("delegate_arg")
-            is ElixirAst.Literal, is ElixirAst.ListNode -> return Head.Raises("delegate_call")
+            is ElixirAst.Literal, is ElixirAst.ListNode, is ElixirAst.Value -> return Head.Raises("delegate_call")
             is ElixirAst.Tuple -> return if (head.elements.size == 2) Head.Raises("delegate_call") else Head.Unread
             is ElixirAst.Block, is ElixirAst.Placeholder -> return Head.Unread
         }
@@ -264,5 +267,8 @@ private class Delegates(
 private val FALSY = setOf("nil", "false")
 
 /** Whether [node] holds an `unquote` or `unquote_splicing`, whose value `Macro.escape/2` puts in its place. */
-private fun mentionsUnquote(node: ElixirAst): Boolean =
-    isCall(node, "unquote", 1) || isCall(node, "unquote_splicing", 1) || children(node).any(::mentionsUnquote)
+private fun mentionsUnquote(node: ElixirAst): Boolean {
+    ProgressManager.checkCanceled()
+
+    return isCall(node, "unquote", 1) || isCall(node, "unquote_splicing", 1) || children(node).any(::mentionsUnquote)
+}

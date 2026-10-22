@@ -25,15 +25,15 @@ internal fun expandEnv(node: ElixirAst, state: ExState, env: Env, run: Run): Exp
         }
 
 /**
- * `__ENV__.field`, with no arguments: the field of the escaped env, or, for a key it lacks, the call on the map, which
- * raises at run time.
+ * `__ENV__.field`, with no arguments: the field of the escaped env, recorded as its value, or, for a key it lacks, the
+ * call on the map, which raises `KeyError` at run time, so has no value to record.
  */
 internal fun expandEnvField(node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
     val (environment, field) = (node.callee as ElixirAst.Call).arguments!!
 
     if (COMPILER_VARIABLES_REFUSED_IN_PATTERN.isSufficient(run.level)) noMatchScope(environment, env)?.let { return it }
 
-    val value = when (val name = (field as ElixirAst.Literal.Atom).name) {
+    val value = when ((field as ElixirAst.Literal.Atom).name) {
         "__struct__" -> Term.Atom("Elixir.Macro.Env")
         "module" -> atom(env.module)
         // `Env` holds no file.
@@ -51,12 +51,13 @@ internal fun expandEnvField(node: ElixirAst.Call, state: ExState, env: Env, run:
         "lexical_tracker" -> if (env.function == null) return Expansion.Unported(node) else NIL
         "tracers" -> if (env.function == null) return Expansion.Unported(node) else Term.List(emptyList())
         in BEFORE_VERSIONED_VARS ->
-            if (MACRO_ENV_VERSIONED_VARS.isSufficient(run.level)) NODE else return Expansion.Unported(node)
-        // `versioned_vars` is a map's AST, and any other name is the call on the map.
-        else -> NODE
-    }
+            if (MACRO_ENV_VERSIONED_VARS.isSufficient(run.level)) null else return Expansion.Unported(node)
+        // A map's AST.
+        "versioned_vars" -> NODE.takeIf { MACRO_ENV_VERSIONED_VARS.isSufficient(run.level) }
+        else -> null
+    } ?: return Expansion.Expanded(state, env, NODE)
 
-    return Expansion.Expanded(state, env, value)
+    return recordingValue(node, env, run, Expansion.Expanded(state, env, value))
 }
 
 private fun atom(name: String?): Term = name?.let(Term::Atom) ?: NIL

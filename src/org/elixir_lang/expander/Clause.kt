@@ -1,13 +1,19 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangExternalFun
+import com.ericsson.otp.erlang.OtpErlangFun
+import com.ericsson.otp.erlang.OtpErlangPid
+import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.expander.ExState.Prematch.Bitsize
 import org.elixir_lang.expander.ExState.Prematch.InMatch
 import org.elixir_lang.expander.ExState.Prematch.OutsideMatch
 import org.elixir_lang.expander.ExState.Write
 import org.elixir_lang.language_level.ElixirLanguageFeature.CURSOR_RAISES
+import org.elixir_lang.language_level.ElixirLanguageFeature.INVALID_TUPLE_CLAUSE
 import org.elixir_lang.language_level.ElixirLanguageFeature.MISPLACED_TYPE_AND_CONS_OPERATORS
 import org.elixir_lang.language_level.ElixirLanguageFeature.PARALLEL_MATCH
 import org.elixir_lang.language_level.ElixirLanguageFeature.PATTERN_SEES_RIGHT_SIDE_ENV
+import org.elixir_lang.language_level.ElixirLanguageFeature.PID_IN_FUNCTION_RAISES_MATCH_ERROR
 import org.elixir_lang.language_level.ElixirLanguageFeature.PIN_IN_BITSTRING_SIZE
 import org.elixir_lang.language_level.ElixirLanguageFeature.REPEATED_PATTERN_VARIABLE_WRITTEN_AT_NEXT_VERSION
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILER_VARIABLES_REFUSED_IN_PATTERN
@@ -28,6 +34,7 @@ internal enum class Clause(vararg val heads: Head) {
     /** `=` inside a pattern from 1.18: `elixir_clauses:parallel_match/4`. */
     MATCH_IN_PATTERN(
         expandHead("{'=',_,[_,_]}"),
+        Head("elixir_clauses", "unpack_match", 1, "{'=',_,[{_,_,_}=V1,V1]}"),
         Head("elixir_clauses", "unpack_match", 1, "{'=',_,[_,_]}"),
         Head("elixir_clauses", "unpack_match", 1, "_"),
     ) {
@@ -190,7 +197,7 @@ internal enum class Clause(vararg val heads: Head) {
                 isMultiAlias((node as ElixirAst.Call).arguments!!.firstOrNull())
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            expandMultiAlias(node as ElixirAst.Call, state, env, run)
+            recordingValue(node, env, run, expandMultiAlias(node as ElixirAst.Call, state, env, run))
     },
 
     ALIAS(expandHead("{alias,_,[_]}"), expandHead("{alias,_,[_,_]}")) {
@@ -198,7 +205,7 @@ internal enum class Clause(vararg val heads: Head) {
             isDirective(node, Directive.ALIAS)
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            expandDirective(Directive.ALIAS, node, state, env, run)
+            recordingValue(node, env, run, expandDirective(Directive.ALIAS, node, state, env, run))
     },
 
     REQUIRE(expandHead("{require,_,[_]}"), expandHead("{require,_,[_,_]}")) {
@@ -206,7 +213,7 @@ internal enum class Clause(vararg val heads: Head) {
             isDirective(node, Directive.REQUIRE)
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            expandDirective(Directive.REQUIRE, node, state, env, run)
+            recordingValue(node, env, run, expandDirective(Directive.REQUIRE, node, state, env, run))
     },
 
     IMPORT(expandHead("{import,_,[_]}"), expandHead("{import,_,[_,_]}")) {
@@ -214,7 +221,7 @@ internal enum class Clause(vararg val heads: Head) {
             isDirective(node, Directive.IMPORT)
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            expandDirective(Directive.IMPORT, node, state, env, run)
+            recordingValue(node, env, run, expandDirective(Directive.IMPORT, node, state, env, run))
     },
 
     MODULE(expandHead("{'__MODULE__',_,V1} when is_atom(V1)")) {
@@ -231,7 +238,7 @@ internal enum class Clause(vararg val heads: Head) {
             isVariableNamed(node, "__DIR__")
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            Expansion.Expanded(state, env, Term.Binary(null))
+            recordingValue(node, env, run, Expansion.Expanded(state, env, Term.Binary(null)))
     },
 
     CALLER(expandHead("{'__CALLER__',_,V1} when is_atom(V1)")) {
@@ -248,7 +255,7 @@ internal enum class Clause(vararg val heads: Head) {
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
             (if (COMPILER_VARIABLES_REFUSED_IN_PATTERN.isSufficient(run.level)) noMatchScope(node, env) else null)
                 ?: if (state.stacktrace) {
-                    Expansion.Expanded(state, env, VARIABLE_NODE)
+                    Expansion.Expanded(state, env, VARIABLE_NODE, node)
                 } else {
                     report(ErrorSite.STACKTRACE_NOT_ALLOWED, node, env, run) { Expansion.Expanded(state, env, NODE) }
                 }
@@ -259,7 +266,8 @@ internal enum class Clause(vararg val heads: Head) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
             isVariableNamed(node, "__ENV__")
 
-        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = expandEnv(node, state, env, run)
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            recordingValue(node, env, run, expandEnv(node, state, env, run))
     },
 
     ENV_FIELD(expandHead("{{'.',_,[{'__ENV__',_,V1},V2]},_,[]} when is_atom(V1), is_atom(V2)")) {
@@ -482,7 +490,7 @@ internal enum class Clause(vararg val heads: Head) {
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
             val version = if (UNDERSCORE_TAKES_VERSION.isSufficient(run.level)) state.version + 1 else state.version
-            val expanded = Expansion.Expanded(state.copy(version = version), env, VARIABLE_NODE)
+            val expanded = Expansion.Expanded(state.copy(version = version), env, VARIABLE_NODE, node)
 
             return if (env.context == Env.Context.MATCH) {
                 expanded
@@ -507,8 +515,10 @@ internal enum class Clause(vararg val heads: Head) {
                     bound
                 }
 
-                Expansion.Expanded(state.copy(write = state.write.plus(variable, written)), env, VARIABLE_NODE)
+                recordVersion(node, bound, env, run)
+                Expansion.Expanded(state.copy(write = state.write.plus(variable, written)), env, VARIABLE_NODE, node)
             } else {
+                recordVersion(node, state.version, env, run)
                 Expansion.Expanded(
                     state.copy(
                         read = state.read + (variable to state.version),
@@ -517,6 +527,7 @@ internal enum class Clause(vararg val heads: Head) {
                     ),
                     env,
                     VARIABLE_NODE,
+                    node,
                 )
             }
         }
@@ -528,10 +539,19 @@ internal enum class Clause(vararg val heads: Head) {
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion =
             when (val outcome = variableOutcome(node as ElixirAst.Call, state, run.level)) {
-                VariableOutcome.Read -> Expansion.Expanded(state, env, VARIABLE_NODE)
-                VariableOutcome.LocalCall -> Expander.expand(zeroArityCall(node), state, env, run)
+                VariableOutcome.Read -> {
+                    recordVersion(node, state.read.getValue(variable(node)), env, run)
+                    Expansion.Expanded(state, env, VARIABLE_NODE, node)
+                }
+                VariableOutcome.LocalCall -> {
+                    val call = zeroArityCall(node)
+
+                    Expander.expand(call, state, env, run).also {
+                        run.compiling[env.module]?.dispatches?.of(call)?.let { recordDispatch(node, it, env, run) }
+                    }
+                }
                 is VariableOutcome.Reported ->
-                    report(outcome.site, node, env, run) { Expansion.Expanded(state, env, VARIABLE_NODE) }
+                    report(outcome.site, node, env, run) { Expansion.Expanded(state, env, VARIABLE_NODE, node) }
                 is VariableOutcome.Error -> Expansion.Error(outcome.kind, node)
             }
     },
@@ -578,6 +598,16 @@ internal enum class Clause(vararg val heads: Head) {
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
             Expansion.Error("invalid_call", node)
+    },
+
+    /** Until 1.13, a 3-tuple no call clause takes, ahead of the pair and the list. */
+    LEGACY_TUPLE(expandHead("{_,_,_}")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            INVALID_TUPLE_CLAUSE.isSufficient(level) &&
+                (isUncalled(node) || ((node as? ElixirAst.Value)?.term as? OtpErlangTuple)?.arity() == 3)
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            Expansion.Error(INVALID_QUOTED_EXPR, node)
     },
 
     PAIR(expandHead("{_,_}")) {
@@ -632,6 +662,41 @@ internal enum class Clause(vararg val heads: Head) {
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
             Expansion.Expanded(state, env, if (node is ElixirAst.Literal) literalValue(node) else NODE)
+    },
+
+    /** A function in a macro's result: a remote capture with no environment is `elixir_quote:fun_to_quoted/1`'s. */
+    FUNCTION(expandHead("V1 when is_function(V1)")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            node is ElixirAst.Value && (node.term is OtpErlangFun || node.term is OtpErlangExternalFun)
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            if ((node as ElixirAst.Value).term is OtpErlangExternalFun) {
+                Expansion.Expanded(state, env, NODE)
+            } else {
+                Expansion.Error(INVALID_QUOTED_EXPR, node)
+            }
+    },
+
+    /** A pid in a macro's result, which Elixir warns of inside a function and keeps. */
+    PID(expandHead("V1 when is_pid(V1)")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            node is ElixirAst.Value && node.term is OtpErlangPid
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            if (env.function != null && PID_IN_FUNCTION_RAISES_MATCH_ERROR.isSufficient(run.level)) {
+                Expansion.Error("invalid_pid_in_function", node).also { run.crash = Crash(it, MATCH_ERROR) }
+            } else {
+                Expansion.Expanded(state, env, NODE)
+            }
+    },
+
+    /** Any other term: a value in a macro's result, or a 3-tuple no call clause takes. */
+    OTHER(expandHead("_")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            node is ElixirAst.Value || isUncalled(node)
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            Expansion.Error(INVALID_QUOTED_EXPR, node)
     };
 
     abstract fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel): Boolean
@@ -652,6 +717,11 @@ internal fun noGuardScope(node: ElixirAst, state: ExState): Expansion.Error =
     Expansion.Error(if (state.prematch is Bitsize) "invalid_expr_in_bitsize" else "invalid_expr_in_guard", node)
 
 private fun expandHead(pattern: String) = Clause.Head("elixir_expand", "expand", 1, pattern)
+
+private const val INVALID_QUOTED_EXPR = "invalid_quoted_expr"
+
+/** `{callee, meta, context}` whose callee isn't a name, so it is neither a variable nor a call: `{1, [], nil}`. */
+private fun isUncalled(node: ElixirAst) = node is ElixirAst.Call && node.arguments == null
 
 private fun isDirective(node: ElixirAst, directive: Directive) =
     isCall(node, directive.atom, 1) || isCall(node, directive.atom, 2)
@@ -755,6 +825,7 @@ private fun isTupleOrAtom(node: ElixirAst): Boolean =
         is ElixirAst.Literal.Atom, is ElixirAst.Call, is ElixirAst.Alias, is ElixirAst.Block, is ElixirAst.Tuple,
         is ElixirAst.Placeholder -> true
         is ElixirAst.Literal, is ElixirAst.ListNode -> false
+        is ElixirAst.Value -> node.term is OtpErlangTuple
     }
 
 /** `{for, _, [_ | _]}`. */

@@ -186,3 +186,4 @@ internal fun reportOrEnd(site: ErrorSite, at: ElixirAst, env: Env, run: Run): Ex
 
 internal const val MATCH_ERROR = "Elixir.MatchError"
 internal const val ARITHMETIC_ERROR = "Elixir.ArithmeticError"
+internal const val FUNCTION_CLAUSE_ERROR = "Elixir.FunctionClauseError"

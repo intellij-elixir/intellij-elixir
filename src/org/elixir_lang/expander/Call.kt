@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.ANONYMOUS_CALL_OF_ATOM_REFUSED
 import org.elixir_lang.language_level.ElixirLanguageFeature.CLAUSES_REFUSED_IN_CALL
@@ -31,18 +32,20 @@ internal fun expandLocalCall(node: ElixirAst.Call, state: ExState, env: Env, run
         node,
         env,
         run,
-        macro = { dispatch -> macro(dispatch, node, state, env, run) },
+        macro = { dispatch -> macro(dispatch, node, state, env, run, stopGenerated = true) },
         function = { receiver, kind ->
             // Before 1.18 the function is dispatched again as a remote call, which traces it where the arm didn't.
             val traced = kind
                 ?: Dispatch.Kind.REMOTE_FUNCTION.takeUnless { IMPORTED_FUNCTION_NOT_REEXPANDED.isSufficient(run.level) }
             val (inlinedReceiver, inlined) = importedFunction(node, receiver, traced, run)
 
+            recordDispatch(node, ModuleClauses.Dispatched.Remote(inlinedReceiver, inlined), env, run)
+
             if (inlinedReceiver == receiver) {
                 checkDeprecated(CalledKind.FUNCTION, node, receiver, name, args.size, env, run)
             }
 
-            stacktrace(inlinedReceiver, inlined, args.size, state, env, run) ?: expandRemote(
+            stacktrace(inlinedReceiver, inlined, node, state, env, run) ?: expandRemote(
                 Term.Atom(inlinedReceiver),
                 inlined,
                 node,
@@ -95,6 +98,28 @@ internal fun importedFunction(
 internal fun recordImport(nameArity: NameArity, receiver: String, env: Env, run: Run) {
     if (env.function != null && receiver != env.module) run.compiling[env.module]?.imports?.put(nameArity, receiver)
 }
+
+/**
+ * Inside a function of a module being compiled, [node] expanded as [dispatched], which the evaluator runs it as when
+ * the function is called.
+ */
+internal fun recordDispatch(node: ElixirAst, dispatched: ModuleClauses.Dispatched, env: Env, run: Run) {
+    if (env.function != null) run.compiling[env.module]?.dispatches?.put(node, dispatched)
+}
+
+/** Inside a function of a module being compiled, [node], a bitstring segment, has [segment]'s spec. */
+internal fun recordSegment(node: ElixirAst, segment: ModuleClauses.Segment, env: Env, run: Run) {
+    if (env.function != null) run.compiling[env.module]?.dispatches?.putSegment(node, segment)
+}
+
+/** Inside a function of a module being compiled, [node], a variable, was bound or read at [version]. */
+internal fun recordVersion(node: ElixirAst, version: Int, env: Env, run: Run) {
+    if (env.function != null) run.compiling[env.module]?.dispatches?.putVersion(node, version)
+}
+
+/** [expansion] of [node], whose value, if it has one, is recorded as what `translate/3` receives in its place. */
+internal fun recordingValue(node: ElixirAst, env: Env, run: Run, expansion: Expansion): Expansion =
+    expansion.also { if (it is Expansion.Expanded) recordDispatch(node, ModuleClauses.Dispatched.Value(it.value), env, run) }
 
 /**
  * `elixir_dispatch:expand_import/7` of [call], a local call or what `Macro.expand/2` reads as one: [macro] gets a quoted
@@ -192,6 +217,7 @@ private fun expandLocal(node: ElixirAst.Call, state: ExState, env: Env, run: Run
     val called = NameArity(name, args.size)
 
     run.observer.dispatched(node, Dispatch(Dispatch.Kind.LOCAL_FUNCTION, env.module ?: "nil", name, args.size))
+    recordDispatch(node, ModuleClauses.Dispatched.Local, env, run)
 
     val inArguments = mutableListOf<LocalCall<ElixirAst>>()
 
@@ -204,7 +230,7 @@ private fun expandLocal(node: ElixirAst.Call, state: ExState, env: Env, run: Run
     }
     recordLocal(node, called, inArguments, env, run)
 
-    return expansion.withValue(NODE)
+    return expansion.withValue(if (called == GENERATOR_CALL) GENERATOR_NODE else NODE)
 }
 
 /**
@@ -219,8 +245,12 @@ internal fun recordLocal(
     run: Run,
 ) {
     val position = location(call.meta)
-    val local = LocalCall(call, called, position?.line ?: 0, position?.column ?: 0, inArguments)
 
+    keepLocal(LocalCall(call, called, position?.line ?: 0, position?.column ?: 0, inArguments), env, run)
+}
+
+/** Keeps [local] in the arguments of the local call it is in, or else in its definition's calls. */
+internal fun keepLocal(local: LocalCall<ElixirAst>, env: Env, run: Run) {
     (run.callArguments.lastOrNull() ?: run.compiling[env.module]?.calls?.getOrPut(env.function!!) { mutableListOf() })
         ?.add(local)
 }
@@ -235,12 +265,15 @@ internal fun expandRemoteCall(node: ElixirAst.Call, state: ExState, env: Env, ru
 
     return Expander.expand(left, receiverState(state, env, run), env, run).thenValue { after, receiverEnv, receiver ->
         run.observer.receiver(left, receiver)
+        // `dispatch_require/7` reads it.
+        unknownStop(receiver, left)?.let { return@thenValue it }
 
         if (receiver is Term.Atom) {
             dispatchRequire(receiver.name, name, node, state, receiverEnv, run) { functionReceiver, functionName ->
                 remoteFunction(functionReceiver, functionName, node, state, after, receiverEnv, run)
             }
         } else {
+            recordDispatch(node, ModuleClauses.Dispatched.Apply, env, run)
             expandRemote(receiver, name, node, state, after, receiverEnv, run)
         }
     }
@@ -255,9 +288,11 @@ internal fun expandAnonymousCall(node: ElixirAst.Call, state: ExState, env: Env,
     val function = (node.callee as ElixirAst.Call).arguments!!.single()
 
     return expandArgs(listOf(function) + node.arguments!!, state, env, run).thenValue { s, e, values ->
-        val callsAnAtom = (values as Term.List).elements.first() is Term.Atom
+        val called = (values as Term.List).elements.first()
 
-        if (callsAnAtom && ANONYMOUS_CALL_OF_ATOM_REFUSED.isSufficient(run.level)) {
+        if (ANONYMOUS_CALL_OF_ATOM_REFUSED.isSufficient(run.level)) unknownStop(called, function)?.let { return@thenValue it }
+
+        if (called is Term.Atom && ANONYMOUS_CALL_OF_ATOM_REFUSED.isSufficient(run.level)) {
             report(ErrorSite.INVALID_FUNCTION_CALL, node, env, run) { Expansion.Expanded(s, e, NODE) }
         } else {
             Expansion.Expanded(s, e, NODE)
@@ -273,11 +308,24 @@ private fun receiverState(state: ExState, env: Env, run: Run): ExState =
         state
     }
 
-/** Inside `rescue` or `catch`, before 1.14, `System.stacktrace()` is rewritten to `__STACKTRACE__`. */
-private fun stacktrace(receiver: String, name: String, arity: Int, state: ExState, env: Env, run: Run): Expansion? =
-    Expansion.Expanded(state, env, VARIABLE_NODE).takeIf {
-        receiver == SYSTEM && name == "stacktrace" && arity == 0 && state.stacktrace &&
-            SYSTEM_STACKTRACE_REWRITTEN.isSufficient(run.level)
+/** Inside `rescue` or `catch`, before 1.14, `System.stacktrace()` is rewritten to `{'__STACKTRACE__', [], nil}`. */
+private fun stacktrace(
+    receiver: String,
+    name: String,
+    node: ElixirAst.Call,
+    state: ExState,
+    env: Env,
+    run: Run,
+): Expansion? =
+    if (receiver == SYSTEM && name == "stacktrace" && node.arguments!!.isEmpty() && state.stacktrace &&
+        SYSTEM_STACKTRACE_REWRITTEN.isSufficient(run.level)
+    ) {
+        val variable = Synthetic(node.meta).variable("__STACKTRACE__", "nil")
+
+        recordDispatch(node, ModuleClauses.Dispatched.Macro(variable), env, run)
+        Expansion.Expanded(state, env, VARIABLE_NODE, variable)
+    } else {
+        null
     }
 
 /**
@@ -295,7 +343,7 @@ internal fun dispatchRequire(
 ): Expansion {
     val arity = node.arguments!!.size
 
-    stacktrace(receiver, name, arity, state, env, run)?.let { return it }
+    stacktrace(receiver, name, node, state, env, run)?.let { return it }
 
     inline(receiver, name, arity, run.level)?.let { (inlinedReceiver, inlinedName) ->
         return function(inlinedReceiver, inlinedName)
@@ -307,7 +355,7 @@ internal fun dispatchRequire(
         node,
         env,
         run,
-        macro = { dispatch -> macro(dispatch, node, state, env, run) },
+        macro = { dispatch -> macro(dispatch, node, state, env, run, stopGenerated = false) },
         function = {
             checkDeprecated(CalledKind.FUNCTION, node, receiver, name, arity, env, run)
 
@@ -378,6 +426,7 @@ private fun remoteFunction(
     run: Run,
 ): Expansion {
     run.observer.dispatched(node, Dispatch(Dispatch.Kind.REMOTE_FUNCTION, receiver, name, node.arguments!!.size))
+    recordDispatch(node, ModuleClauses.Dispatched.Remote(receiver, name), env, run)
 
     return expandRemote(Term.Atom(receiver), name, node, state, after, env, run)
 }
@@ -420,10 +469,8 @@ private fun expandRemote(
     val isSign = (receiver as? Term.Atom)?.name == ERLANG && (name == "+" || name == "-") && args.size == 1
 
     if (env.context != Env.Context.NONE && REMOTE_CALL_IN_PATTERN_EXPANDS_ARGUMENTS_IN_TURN.isSufficient(level)) {
-        val literal = args.singleOrNull()
-
-        if (isSign && (literal is ElixirAst.Literal.Integer || literal is ElixirAst.Literal.Float)) {
-            return Expansion.Expanded(after, env, signed(name, literalValue(literal)))
+        if (isSign && isSignedNumber(name, args)) {
+            return folded(node, name, literalValue(args.single() as ElixirAst.Literal), after, env, run)
         }
 
         return mapfold(args, after, env) { arg, s, e -> Expander.expand(arg, s, e, run) }.thenValue { s, e, values ->
@@ -438,9 +485,11 @@ private fun expandRemote(
         val arg = (values as Term.List).elements.singleOrNull()
         val folds = env.context == Env.Context.MATCH || SIGNED_NUMBER_REWRITTEN_EVERYWHERE.isSufficient(level)
 
+        if (isSign && folds) unknownStop(arg, node)?.let { return@thenValue it }
+
         // Every `NonTuple` the expander gives is a float.
         if (isSign && folds && (arg is Term.Integer || arg is Term.NonTuple)) {
-            Expansion.Expanded(closed, e, signed(name, arg))
+            folded(node, name, arg, closed, e, run)
         } else {
             rewrite(receiver, name, values, node, closed, e, run)
         }
@@ -488,12 +537,23 @@ private fun rewrite(
         // The `String.Chars.to_string/1` fold: a binary is its own string.
         Env.Context.NONE -> {
             val arg = args.elements.singleOrNull()
-            val isToString = atom == STRING_CHARS && name == "to_string" && arg is Term.Binary
+            val isToString = atom == STRING_CHARS && name == "to_string"
 
-            Expansion.Expanded(state, env, if (isToString) arg else callValue(atom, name, args.elements, run.level))
+            if (isToString) unknownStop(arg, node)?.let { return it }
+
+            Expansion.Expanded(
+                state,
+                env,
+                if (isToString && arg is Term.Binary) arg else callValue(atom, name, args.elements, run.level),
+            )
         }
         Env.Context.MATCH ->
             if (atom == ERLANG && name == "++" && args.elements.size == 2) {
+                // `static_append/3` reads each tail of the left side.
+                unknownStop(generateSequence(args.elements[0]) { (it as? Term.List)?.tail }.last(), node)?.let {
+                    return it
+                }
+
                 staticAppend(args.elements[0], args.elements[1])?.let { Expansion.Expanded(state, env, it) }
                     ?: Expansion.Error("invalid_match_append", node)
             } else {
@@ -508,13 +568,33 @@ private fun rewrite(
     }
 }
 
-/** `+N` or `-N`, as [name] signs [number], an integer or a float. */
-private fun signed(name: String, number: Term): Term =
-    if (name == "-" && number is Term.Integer) Term.Integer(number.value.negate()) else number
+/** Whether [name] over [args] is `+` or `-` over one number literal. */
+internal fun isSignedNumber(name: String?, args: List<ElixirAst>): Boolean =
+    (name == "+" || name == "-") && args.singleOrNull().let { it is ElixirAst.Literal.Integer || it is ElixirAst.Literal.Float }
+
+/**
+ * [node], `+N` or `-N` over [number], an integer or a float, folded: `translate/3` receives the signed number in its
+ * place. A float's value isn't held, so its sign is applied to its literal, when the argument is written as one.
+ */
+private fun folded(node: ElixirAst.Call, name: String, number: Term, state: ExState, env: Env, run: Run): Expansion {
+    val negated = name == "-"
+    val dispatched = when (number) {
+        is Term.Integer -> ModuleClauses.Dispatched.Value(if (negated) Term.Integer(number.value.negate()) else number)
+        else -> (node.arguments!!.single() as? ElixirAst.Literal.Float)?.let {
+            ModuleClauses.Dispatched.Macro(ElixirAst.Literal.Float(node.meta, if (negated) -it.value else it.value))
+        }
+    }
+
+    dispatched?.let { recordDispatch(node, it, env, run) }
+
+    return Expansion.Expanded(state, env, (dispatched as? ModuleClauses.Dispatched.Value)?.value ?: number)
+}
 
 /** `assert_no_clauses/4`: whether the last of [args] is a keyword list with `->` clauses as a value. */
 private fun hasClauses(args: List<ElixirAst>): Boolean {
     for (element in (args.lastOrNull() as? ElixirAst.ListNode)?.elements.orEmpty()) {
+        ProgressManager.checkCanceled()
+
         val (key, value) = (element as? ElixirAst.Tuple)?.elements?.takeIf { it.size == 2 } ?: return false
 
         if (key !is ElixirAst.Literal.Atom) return false

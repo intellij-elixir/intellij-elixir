@@ -73,6 +73,9 @@ internal class DefinitionTable {
     val unnamed: List<Unnamed>
         field = mutableListOf()
 
+    /** Whether every definition's name is known, so that a lookup by name finds each definition it may. */
+    val everyNameKnown: Boolean get() = unnamed.isEmpty()
+
     /** Each named definition's kind. */
     val kinds: Map<NameArity, Kind> get() = entries.mapValues { it.value.kind }
 

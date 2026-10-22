@@ -45,9 +45,9 @@ class QuoteExpanderTest : ExpanderTestCase() {
         val name = dotArguments?.get(1)
 
         return if (receiver is ElixirAst.Literal.Atom && name is ElixirAst.Literal.Atom) {
-            val key = (at!!.arguments!!.firstOrNull() as? ElixirAst.Literal.Atom)?.let { " :${it.name}" }.orEmpty()
+            val key = (at.arguments!!.firstOrNull() as? ElixirAst.Literal.Atom)?.let { " :${it.name}" }.orEmpty()
 
-            "$outcome :${receiver.name}.${name.name}/${at.arguments!!.size}$key"
+            "$outcome :${receiver.name}.${name.name}/${at.arguments.size}$key"
         } else {
             super.render(code, expansion)
         }
@@ -208,6 +208,10 @@ class QuoteExpanderTest : ExpanderTestCase() {
     fun testAnotherLocationCrashes() =
         assertEvery("quote(location: :other, do: 1)", "unported `quote(location: :other, do: 1)`")
 
+    /** `__aliases__` is a reserved token Elixir's parser refuses, so a call of it names no alias for the quote. */
+    fun testACallNamedAliasesIsUnported() =
+        assertEvery("quote(do: __aliases__(:Foo))", "unported `__aliases__(:Foo)`")
+
     // A quote in a pattern
 
     fun testAQuoteWithUnquoteInAPattern() =
@@ -297,6 +301,16 @@ class QuoteExpanderTest : ExpanderTestCase() {
             "{:&, [import: Kernel, context: T], [{:/, [context: T, import: Kernel], [{:inspect, [], T}, 1]}]}",
             "{:&, [imports: [{1, Kernel}], context: T], [{:/, [context: T, imports: [{2, Kernel}]], " +
                 "[{:inspect, [context: T, imports: [{1, Kernel}, {2, Kernel}]], T}, 1]}]}",
+        )
+
+    /** An arity past an `Int`'s range, which as an `Int` would be 1, names no import: only the `/` and name are. */
+    fun testACaptureOfAnArityPastAnInt() =
+        assertSplitValue(
+            "quote(do: &inspect/4294967297)",
+            "1.14.0-rc.0",
+            "{:&, [], [{:/, [context: T, import: Kernel], [{:inspect, [], T}, 4294967297]}]}",
+            "{:&, [], [{:/, [context: T, imports: [{2, Kernel}]], " +
+                "[{:inspect, [context: T, imports: [{1, Kernel}, {2, Kernel}]], T}, 4294967297]}]}",
         )
 
     fun testAVariable() = assertValue("quote(do: v)", "{:v, [], T}")

@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_BIND_QUOTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_ESCAPES_STRUCT
 import org.elixir_lang.language_level.ElixirLanguageFeature.ENFORCE_KEYS_MUST_BE_FIELDS
@@ -82,6 +83,8 @@ private fun unreadable(compiling: Compiling): Expansion? {
  * `Kernel`'s `quote` binds is its value in [bound], and the `++` that `quote` builds of two lists is the list of both.
  */
 private fun evaluate(node: ElixirAst, bound: Map<String, ElixirAst>): ElixirAst {
+    ProgressManager.checkCanceled()
+
     if (node !is ElixirAst.Call) return node
 
     val name = (node.callee as? ElixirAst.Literal.Atom)?.name
@@ -221,6 +224,8 @@ private fun defaultOf(part: FieldPart, nil: ElixirAst, escaped: (Term) -> Elixir
 
 /** [node] with the locations of its metadata taken out: `elixir_quote:escape/3` gives a default none. */
 private fun unlocated(node: ElixirAst): ElixirAst {
+    ProgressManager.checkCanceled()
+
     fun meta(meta: Meta) = Meta(meta.origin, meta.start, meta.end, meta.keys.filterNot { it is Meta.Key.Location }, meta.built)
 
     return when (node) {
@@ -244,8 +249,10 @@ private enum class Value { LITERAL, INVALID, DYNAMIC }
  * in the output ([DEFSTRUCT_ESCAPES_STRUCT]) the compiler expands that fun where `__struct__/0` and `/1` read it, which
  * the expander has no value to do, so it isn't followed either.
  */
-private fun evaluated(node: ElixirAst, level: ElixirLanguageLevel): Value =
-    when {
+private fun evaluated(node: ElixirAst, level: ElixirLanguageLevel): Value {
+    ProgressManager.checkCanceled()
+
+    return when {
         node is ElixirAst.Literal -> Value.LITERAL
         node is ElixirAst.ListNode -> combined(node.elements, level)
         node is ElixirAst.Tuple -> combined(node.elements, level)
@@ -272,6 +279,7 @@ private fun evaluated(node: ElixirAst, level: ElixirLanguageLevel): Value =
         }
         else -> Value.DYNAMIC
     }
+}
 
 private fun combined(nodes: List<ElixirAst>, level: ElixirLanguageLevel): Value {
     val values = nodes.map { evaluated(it, level) }
@@ -396,9 +404,12 @@ private fun enforceKeysOf(compiling: Compiling, level: ElixirLanguageLevel): Lis
 
 /** `enforce_keys -- keys`: the enforced keys left once one is taken out for each of [fields]. */
 private fun notFields(enforced: List<String>, fields: Set<String>): List<String> {
-    val left = enforced.toMutableList()
+    val removed = HashSet<String>()
 
-    for (field in fields) left.remove(field)
+    // `--` takes away the first of each.
+    return enforced.filter {
+        ProgressManager.checkCanceled()
 
-    return left
+        !(it in fields && removed.add(it))
+    }
 }

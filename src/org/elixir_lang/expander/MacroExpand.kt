@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_EXPAND_CHECKS_REMOTE_FUNCTION_DEPRECATION
 import org.elixir_lang.lowering.ElixirAst
 
@@ -21,6 +22,8 @@ internal fun macroExpand(node: ElixirAst, state: ExState, env: Env, run: Run): M
     var expanded = false
 
     while (true) {
+        ProgressManager.checkCanceled()
+
         when (val once = macroExpandOnce(current, state, env, run)) {
             is MacroExpanded.Node ->
                 if (once.expanded) {
@@ -52,8 +55,10 @@ internal fun macroExpandLiterals(node: ElixirAst, state: ExState, env: Env, run:
 private class LiteralsStopped(val expansion: Expansion) : RuntimeException(null, null, false, false)
 
 private class LiteralExpander(private val state: ExState, private val env: Env, private val run: Run) {
-    fun expand(node: ElixirAst): ElixirAst =
-        when {
+    fun expand(node: ElixirAst): ElixirAst {
+        ProgressManager.checkCanceled()
+
+        return when {
             node is ElixirAst.Alias -> {
                 val segments = all(node.segments)
                 val rebuilt = if (segments === node.segments) node else ElixirAst.Alias(node.meta, segments)
@@ -79,6 +84,7 @@ private class LiteralExpander(private val state: ExState, private val env: Env, 
             }
             else -> node
         }
+    }
 
     /** [nodes], each expanded, or the list itself where none changed. */
     private fun all(nodes: List<ElixirAst>): List<ElixirAst> {
@@ -108,9 +114,11 @@ private class LiteralExpander(private val state: ExState, private val env: Env, 
 
 /**
  * `Macro.expand_once/2` of [node] in [env], tracing as it does. A macro with no summary is [Expansion.Opaque], and one
- * whose summary isn't a [Summary.Rewrite] is [Expansion.Unported]. An alias's `alias_reference` trace isn't reported.
+ * whose summary is neither a [Summary.Rewrite] nor [ATTRIBUTE] is [Expansion.Unported]. An alias's `alias_reference` trace isn't reported.
  */
 internal fun macroExpandOnce(node: ElixirAst, state: ExState, env: Env, run: Run): MacroExpanded {
+    ProgressManager.checkCanceled()
+
     val unchanged = MacroExpanded.Node(node, expanded = false)
 
     return when {
@@ -152,7 +160,11 @@ private fun expandAlias(alias: ElixirAst.Alias, state: ExState, env: Env, run: R
     return when (val expanded = macroExpandOnce(head, state, env, run)) {
         is MacroExpanded.Node ->
             (expanded.node as? ElixirAst.Literal.Atom)
-                ?.let { MacroExpanded.Node(ElixirAst.Literal.Atom(alias.meta, concat(listOf(it.name) + tail)), true) }
+                ?.let { head ->
+                    concat(listOf(head.name) + tail)
+                        ?.let { MacroExpanded.Node(ElixirAst.Literal.Atom(alias.meta, it), true) }
+                        ?: MacroExpanded.Stopped(Expansion.Unported(alias))
+                }
                 ?: MacroExpanded.Node(alias, expanded = false)
         MacroExpanded.Dir -> MacroExpanded.Node(alias, expanded = false)
         is MacroExpanded.Stopped -> expanded
@@ -246,22 +258,34 @@ private fun expandRemote(
 private fun expandMacro(dispatch: Dispatch, call: ElixirAst.Call, state: ExState, env: Env, run: Run): MacroExpanded {
     checkDeprecated(dispatch, call, env, run)
 
-    return summarised(dispatch, call, opaque = { MacroExpanded.Stopped(it) }) { summary ->
-        when (summary) {
-            is Summary.Rewrite -> {
-                run.observer.dispatched(call, dispatch)
+    // `wrap_expansion/7` gives the macro its arguments through `stop_generated/1`, a remote call's included.
+    return summarised(
+        dispatch,
+        call,
+        state,
+        env,
+        run,
+        stopGenerated = true,
+        opaque = { MacroExpanded.Stopped(it) },
+    ) { summary ->
+        val expanded = { output: () -> Summary.Output ->
+            run.observer.dispatched(call, dispatch)
 
-                when (val output = summary.output(dispatch, call, state, env, run)) {
-                    is Summary.Output.Built -> {
-                        val counter = run.counters.next(env.module)
+            when (val built = output()) {
+                is Summary.Output.Built -> {
+                    val counter = run.counters.next(env.module)
 
-                        MacroExpanded.Node(linifyWithContextCounter(0, dispatch.receiver, counter, output.ast), true)
-                    }
-                    is Summary.Output.Raised -> MacroExpanded.Stopped(Expansion.Error(output.kind, call))
-                    is Summary.Output.Unported -> MacroExpanded.Stopped(Expansion.Unported(output.at))
-                    is Summary.Output.Stopped -> MacroExpanded.Stopped(output.expansion)
+                    MacroExpanded.Node(linifyWithContextCounter(0, dispatch.receiver, counter, run.level, built.ast), true)
                 }
+                is Summary.Output.Raised -> MacroExpanded.Stopped(Expansion.Error(built.kind, call))
+                is Summary.Output.Unported -> MacroExpanded.Stopped(Expansion.Unported(built.at))
+                is Summary.Output.Stopped -> MacroExpanded.Stopped(built.expansion)
             }
+        }
+
+        when (summary) {
+            is Summary.Rewrite -> expanded { summary.output(dispatch, call, state, env, run) }
+            ATTRIBUTE -> expanded { attributeOutput(call, env, run) }
             else -> MacroExpanded.Stopped(Expansion.Unported(call))
         }
     }

@@ -44,6 +44,11 @@ data class Env(
 
         /** `erlang:unique_integer()`: taken outside a module being defined. */
         data class Unique(val n: Long) : Counter()
+
+        companion object {
+            /** The [n]th counter taken in [module], or outside one where it is `null`. */
+            fun of(module: String?, n: Long): Counter = if (module == null) Unique(n) else InModule(module, n)
+        }
     }
 
     enum class Context { NONE, MATCH, GUARD }

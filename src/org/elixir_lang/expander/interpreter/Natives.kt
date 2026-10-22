@@ -1,0 +1,1272 @@
+package org.elixir_lang.expander.interpreter
+
+import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangBinary
+import com.ericsson.otp.erlang.OtpErlangBitstr
+import com.ericsson.otp.erlang.OtpErlangDouble
+import com.ericsson.otp.erlang.OtpErlangExternalFun
+import com.ericsson.otp.erlang.OtpErlangFun
+import com.ericsson.otp.erlang.OtpErlangList
+import com.ericsson.otp.erlang.OtpErlangLong
+import com.ericsson.otp.erlang.OtpErlangMap
+import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpErlangPid
+import com.ericsson.otp.erlang.OtpErlangRef
+import com.ericsson.otp.erlang.OtpErlangString
+import com.ericsson.otp.erlang.OtpErlangTuple
+import com.intellij.openapi.progress.ProgressManager
+import org.elixir_lang.NameArity
+import org.elixir_lang.expander.Annotation
+import org.elixir_lang.expander.EscapeOp
+import org.elixir_lang.expander.EscapeView
+import org.elixir_lang.expander.EscapeResult
+import org.elixir_lang.expander.ModuleExports
+import org.elixir_lang.expander.QuoteEscape
+import org.elixir_lang.expander.Shape
+import org.elixir_lang.expander.TermEscapeBuilder
+import org.elixir_lang.expander.TermEscapeView
+import org.elixir_lang.expander.annotation
+import org.elixir_lang.language_level.ElixirLanguageFeature.ERLANG_ERROR_3
+import org.elixir_lang.language_level.ElixirLanguageFeature.INTEGERS_UP_TO_4_MBIT
+import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
+import org.elixir_lang.language_level.ElixirLanguageFeature.RAISE_FRAME_TAKES_A_CAPTURE
+import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ESCAPE_MARKS_GENERATED
+import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
+import org.elixir_lang.language_level.ElixirLanguageFeature.SPLICE_EMPTY_BEFORE_TAIL_RAISES
+import org.elixir_lang.language_level.ElixirLanguageFeature.STRING_TO_ATOM_REQUIRES_BINARY
+import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
+import org.elixir_lang.lowering.fitsAnAtom
+import java.io.ByteArrayOutputStream
+import java.math.BigInteger
+import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
+import kotlin.math.abs
+
+/** The frames a stacktrace `erlang:raise/3` stores holds at most: the default `backtrace_depth`, which Elixir keeps. */
+private const val BACKTRACE_DEPTH = 8
+
+/** The functions a macro body calls that are answered as their clauses would answer, without reading them. */
+internal class Natives(private val evaluation: Evaluation) {
+    private val level get() = evaluation.run.level
+
+    /**
+     * [module]'s [function] applied to [args], or `null` where it isn't one of these. An Erlang module's function that
+     * isn't one declines, as its clauses are never read.
+     */
+    fun call(module: String, function: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        val key = "$function/${args.size}"
+        val unported = { decline("$module:$key isn't a native") }
+
+        return when (module) {
+            "erlang" -> erlang(key, args) ?: unported()
+            "lists" -> lists(key, args) ?: unported()
+            "maps" -> maps(key, args) ?: unported()
+            "elixir_quote" -> quote(key, args) ?: unported()
+            "Elixir.Keyword" -> keyword(key, args)
+            "Elixir.Enum" -> enum(key, args)
+            "Elixir.Access" -> access(key, args)
+            "Elixir.Macro.Env" -> env(key, args)
+            "Elixir.Module" -> module(key, args)
+            "Elixir.Atom" -> if (key == "to_string/1") erlang("atom_to_binary/1", args) else null
+            "Elixir.String" -> string(key, args)
+            "Elixir.String.Chars" -> if (key == "to_string/1") toString(args[0]) else null
+            "Elixir.Kernel" -> kernel(key, args)
+            "Elixir.Macro" -> macro(key, args)
+            else -> null
+        }
+    }
+
+    /** `erlang:map_get/2`, as a guard's `map.key` reads it. */
+    fun mapGet(key: OtpErlangObject, map: OtpErlangObject): OtpErlangObject = erlang("map_get/2", listOf(key, map))!!
+
+    /** The elements a comprehension's generator takes from [enumerable], a list's or a range's, each after a cancellation check. */
+    fun enumerate(enumerable: OtpErlangObject): Sequence<OtpErlangObject> =
+        properElements(enumerable)?.asSequence()?.onEach { ProgressManager.checkCanceled() } ?: range(enumerable)?.elements()
+            ?: decline("enumerates %s", enumerable)
+
+    private fun erlang(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        val badarg = { evaluation.error(atom("badarg"), frame("erlang", key.substringBefore('/'), list(args))) }
+
+        return when (key) {
+            "++/2" -> cons(properElements(args[0]) ?: badarg(), args[1])
+            "--/2" -> {
+                val left = properElements(args[0])?.toMutableList() ?: badarg()
+
+                for (element in properElements(args[1]) ?: badarg()) {
+                    ProgressManager.checkCanceled()
+
+                    val index = left.indexOfFirst { equal(it, element, true, level) }
+
+                    if (index >= 0) left.removeAt(index)
+                }
+
+                list(left)
+            }
+            "==/2" -> bool(equal(args[0], args[1], false, level))
+            "/=/2" -> bool(!equal(args[0], args[1], false, level))
+            "=:=/2" -> bool(equal(args[0], args[1], true, level))
+            "=/=/2" -> bool(!equal(args[0], args[1], true, level))
+            "self/0" -> SELF
+            "make_ref/0" -> OtpErlangRef(LOCAL_NODE, intArrayOf(evaluation.run.nextRef(), 0, 0), 0)
+            "</2" -> bool(compare(args[0], args[1], level) < 0)
+            ">/2" -> bool(compare(args[0], args[1], level) > 0)
+            "=</2" -> bool(compare(args[0], args[1], level) <= 0)
+            ">=/2" -> bool(compare(args[0], args[1], level) >= 0)
+            "not/1" -> bool(!(boolean(args[0]) ?: badarg()))
+            "and/2" -> bool((boolean(args[0]) ?: badarg()) and (boolean(args[1]) ?: badarg()))
+            "or/2" -> bool((boolean(args[0]) ?: badarg()) or (boolean(args[1]) ?: badarg()))
+            "xor/2" -> bool((boolean(args[0]) ?: badarg()) xor (boolean(args[1]) ?: badarg()))
+            "is_atom/1" -> bool(seen(args[0]) is OtpErlangAtom)
+            "is_list/1" -> bool(seen(args[0]).let { it is OtpErlangList || it is OtpErlangString })
+            "is_binary/1" -> bool(seen(args[0]).let { it is OtpErlangBitstr && it.pad_bits() == 0 })
+            "is_bitstring/1" -> bool(seen(args[0]) is OtpErlangBitstr)
+            "is_integer/1" -> bool(seen(args[0]) is OtpErlangLong)
+            "is_float/1" -> bool(seen(args[0]) is OtpErlangDouble)
+            "is_number/1" -> bool(isNumber(seen(args[0])))
+            "is_tuple/1" -> bool(seen(args[0]) is OtpErlangTuple)
+            "is_map/1" -> bool(seen(args[0]) is OtpErlangMap)
+            "is_boolean/1" -> bool(boolean(args[0]) != null)
+            "is_pid/1" -> bool(seen(args[0]) is OtpErlangPid)
+            "is_function/1" -> bool(arity(args[0]) != null)
+            "is_function/2" -> {
+                val arity = (seen(args[1]) as? OtpErlangLong)?.takeIf { it.signum() >= 0 } ?: badarg()
+
+                bool(arity(args[0])?.toBigInteger() == arity.bigIntegerValue())
+            }
+            "element/2" -> {
+                val tuple = seen(args[1]) as? OtpErlangTuple ?: badarg()
+
+                tuple.elementAt((index(args[0], tuple.arity()) ?: badarg()) - 1)
+            }
+            "tuple_size/1" -> integer((seen(args[0]) as? OtpErlangTuple ?: badarg()).arity().toLong())
+            "bit_size/1" -> integer(bitSize(seen(args[0]) as? OtpErlangBitstr ?: badarg()).toLong())
+            "byte_size/1" -> integer(((bitSize(seen(args[0]) as? OtpErlangBitstr ?: badarg()) + 7) / 8).toLong())
+            "setelement/3" -> {
+                val tuple = seen(args[1]) as? OtpErlangTuple ?: badarg()
+                val elements = tuple.elements()
+
+                elements[(index(args[0], tuple.arity()) ?: badarg()) - 1] = args[2]
+                OtpErlangTuple(elements)
+            }
+            "length/1" -> integer((properElements(args[0]) ?: badarg()).size.toLong())
+            "hd/1" -> cells(args[0])?.first?.firstOrNull() ?: badarg()
+            "tl/1" -> {
+                val (elements, tail) = cells(args[0])?.takeIf { it.first.isNotEmpty() } ?: badarg()
+
+                cons(elements.drop(1), tail ?: EMPTY)
+            }
+            "map_size/1" -> integer(map(args[0]).arity().toLong())
+            "map_get/2" -> valueAt(map(args[1]), args[0], level) ?: evaluation.error(tuple(atom("badkey"), args[0]))
+            "is_map_key/2" -> bool(valueAt(map(args[1]), args[0], level) != null)
+            "+/2", "-/2", "*/2" -> arithmetic(key[0], args[0], args[1])
+            "+/1" -> number(args[0]) ?: badarith()
+            "-/1" -> when (val number = number(args[0])) {
+                is OtpErlangLong -> integer(number.bigIntegerValue().negate())
+                is OtpErlangDouble -> OtpErlangDouble(-number.doubleValue())
+                else -> badarith()
+            }
+            "//2" -> {
+                val (left, right) = args.map { (number(it) ?: badarith()).let(::double) }
+
+                if (right == 0.0) badarith()
+
+                finite(left / right)
+            }
+            "div/2", "rem/2" -> {
+                val (left, right) = args.map { (seen(it) as? OtpErlangLong)?.bigIntegerValue() ?: badarith() }
+
+                if (right.signum() == 0) badarith()
+
+                integer(if (key == "div/2") left.divide(right) else left.rem(right))
+            }
+            "abs/1" -> when (val number = number(args[0])) {
+                is OtpErlangLong -> integer(number.bigIntegerValue().abs())
+                is OtpErlangDouble -> OtpErlangDouble(abs(number.doubleValue()))
+                else -> badarg()
+            }
+            "atom_to_binary/1", "atom_to_binary/2" -> {
+                val text = (seen(args[0]) as? OtpErlangAtom ?: badarg()).atomValue()
+
+                when (encoding(args)) {
+                    Encoding.LATIN1 -> OtpErlangBinary(latin1(text) ?: badarg())
+                    Encoding.UTF8 -> binary(text)
+                    null -> badarg()
+                }
+            }
+            "binary_to_atom/1", "binary_to_atom/2" -> {
+                val text = atomText(args) ?: badarg()
+
+                if (!fitsAnAtom(text)) evaluation.error(atom("system_limit"))
+
+                atom(text).also { evaluation.atoms += text }
+            }
+            "binary_to_existing_atom/1", "binary_to_existing_atom/2" -> {
+                val atom = atom(atomText(args) ?: badarg())
+
+                // Every atom the VM has loaded exists, where the evaluation knows only those it has seen.
+                if (atom.atomValue() !in evaluation.atoms) decline("whether the atom %s exists", atom)
+
+                atom
+            }
+            "list_to_tuple/1" -> OtpErlangTuple((properElements(args[0]) ?: badarg()).toTypedArray())
+            "tuple_to_list/1" -> list((seen(args[0]) as? OtpErlangTuple ?: badarg()).elements().asList())
+            "function_exported/3" -> {
+                val module = seen(args[0]) as? OtpErlangAtom ?: badarg()
+                val function = seen(args[1]) as? OtpErlangAtom ?: badarg()
+                val arity = small(args[2]) ?: badarg()
+
+                when (val exports = evaluation.run.exports.of(module.atomValue())) {
+                    // The VM reads an arity by its low 32 bits.
+                    is ModuleExports.Present -> bool(NameArity(function.atomValue(), arity.toInt()) in exports.exported)
+                    ModuleExports.Absent -> FALSE
+                    ModuleExports.Unreadable -> decline("${module.atomValue()}'s exports aren't known")
+                }
+            }
+            "apply/2" -> evaluation.apply(args[0], properElements(args[1]) ?: badarg())
+            "apply/3" -> {
+                val function = seen(args[1]) as? OtpErlangAtom ?: badarg()
+
+                evaluation.remote(args[0], function.atomValue(), properElements(args[2]) ?: badarg())
+            }
+            "error/1" -> evaluation.raiseAs("error", args[0])
+            "error/2" -> evaluation.error(args[0], args[1], null)
+            "error/3" if ERLANG_ERROR_3.isSufficient(level) -> evaluation.error(args[0], args[1], errorInfo(args[2]))
+            "throw/1" -> evaluation.raiseAs("throw", args[0])
+            "exit/1" -> evaluation.raiseAs("exit", args[0])
+            "raise/3" -> {
+                val kind = (seen(args[0]) as? OtpErlangAtom)?.atomValue()?.takeIf { it in setOf("error", "exit", "throw") }
+
+                // `erlang:raise/3` returns `badarg` where its class or stacktrace is invalid.
+                if (kind == null || !isStacktrace(args[2])) return atom("badarg")
+
+                evaluation.raiseAs(kind, args[1], stored(args[2]))
+            }
+            else -> null
+        }
+    }
+
+    /**
+     * The `error_info` map `error_3` takes from [options]: the last, where every option is `{error_info, Map}` and the
+     * list is proper; `null` otherwise, and `error/3` raises as `error/2` does.
+     */
+    private fun errorInfo(options: OtpErlangObject): OtpErlangMap? {
+        val (elements, tail) = cells(options) ?: return null
+        var info: OtpErlangMap? = null
+
+        for (element in elements) {
+            val option = seen(element) as? OtpErlangTuple
+
+            if (option?.arity() != 2 || seen(option.elementAt(0)) != atom("error_info")) return null
+            info = seen(option.elementAt(1)) as? OtpErlangMap ?: return null
+        }
+
+        return info.takeIf { tail?.let(::seen) == null }
+    }
+
+    private enum class Encoding { LATIN1, UTF8 }
+
+    /** The encoding `erlang`'s atom conversions take as their second argument, `utf8` where there is none. */
+    private fun encoding(args: List<OtpErlangObject>): Encoding? =
+        when ((args.getOrNull(1)?.let(::seen) as? OtpErlangAtom)?.atomValue() ?: if (args.size == 1) "utf8" else null) {
+            "latin1" -> Encoding.LATIN1
+            "utf8", "unicode" -> Encoding.UTF8
+            else -> null
+        }
+
+    /** The atom text a binary is in its encoding, or `null` where either is invalid. */
+    private fun atomText(args: List<OtpErlangObject>): String? =
+        when (encoding(args)) {
+            Encoding.LATIN1 -> (seen(args[0]) as? OtpErlangBinary)?.binaryValue()?.let { String(it, Charsets.ISO_8859_1) }
+            Encoding.UTF8 -> utf8(args[0])
+            null -> null
+        }
+
+    /** [text]'s bytes in Latin-1, or `null` where a character is past it. */
+    private fun latin1(text: String): ByteArray? =
+        text.codePoints().toArray().takeIf { codes -> codes.all { it < 256 } }?.let { codes ->
+            ByteArray(codes.size) { codes[it].toByte() }
+        }
+
+    /** `raise_3`'s check of [stacktrace]: a proper list of the frames [isStackFrame] takes. */
+    private fun isStacktrace(stacktrace: OtpErlangObject): Boolean {
+        val (frames, tail) = cells(stacktrace) ?: return false
+
+        return frames.all(::isStackFrame) && tail?.let(::seen) == null
+    }
+
+    /**
+     * The stacktrace `raise_3` stores for [stacktrace], one it takes: its first [BACKTRACE_DEPTH] frames, each
+     * `{Fun, Args}` and `{M, F, A}` given an empty location.
+     */
+    private fun stored(stacktrace: OtpErlangObject): OtpErlangObject =
+        list(
+            cells(stacktrace)!!.first.take(BACKTRACE_DEPTH).map { frame ->
+                val elements = (seen(frame) as OtpErlangTuple).elements()
+                val short = elements.size == 2 || elements.size == 3 && seen(elements[0]) is OtpErlangAtom
+
+                if (short) OtpErlangTuple(elements + EMPTY) else frame
+            }
+        )
+
+    /**
+     * A frame `raise_3` takes, by its size: `{Fun, Args}`; `{Fun, Args, Location}` or `{M, F, A}`; `{M, F, A, Location}`.
+     * It never reads `Args` or `A`, and takes any list as `Location`.
+     */
+    private fun isStackFrame(frame: OtpErlangObject): Boolean {
+        val elements = (seen(frame) as? OtpErlangTuple)?.elements() ?: return false
+        val isFun = { term: OtpErlangObject ->
+            when (seen(term)) {
+                is OtpErlangFun -> true
+                is OtpErlangExternalFun -> RAISE_FRAME_TAKES_A_CAPTURE.isSufficient(level)
+                else -> false
+            }
+        }
+        val isAtom = { term: OtpErlangObject -> seen(term) is OtpErlangAtom }
+
+        return when (elements.size) {
+            2 -> isFun(elements[0])
+            3 -> if (isFun(elements[0])) isList(elements[2]) else isAtom(elements[0]) && isAtom(elements[1])
+            4 -> isAtom(elements[0]) && isAtom(elements[1]) && isList(elements[3])
+            else -> false
+        }
+    }
+
+    private fun lists(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        val functionClause = { function: String, clauseArgs: List<OtpErlangObject> ->
+            evaluation.error(atom("function_clause"), frame("lists", function, list(clauseArgs)))
+        }
+        val badarg = { function: String -> evaluation.error(atom("badarg"), frame("lists", function, list(args))) }
+
+        return when (key) {
+            "reverse/1" -> {
+                val (elements, tail) = cells(args[0]) ?: functionClause("reverse", args)
+
+                when {
+                    tail == null && elements.size <= 1 -> args[0]
+                    tail == null && elements.size == 2 -> list(elements.reversed())
+                    elements.size >= 2 ->
+                        lists("reverse/2", listOf(cons(elements.drop(2), tail ?: EMPTY), list(elements.take(2).reversed())))
+                    else -> functionClause("reverse", args)
+                }
+            }
+            "reverse/2" -> cons((properElements(args[0]) ?: badarg("reverse")).reversed(), args[1])
+            "member/2" -> {
+                val (elements, tail) = cells(args[1]) ?: badarg("member")
+
+                when {
+                    elements.any { equal(it, args[0], true, level) } -> TRUE
+                    tail != null -> badarg("member")
+                    else -> FALSE
+                }
+            }
+            "keyfind/3" -> keyfind(args) ?: FALSE
+            "keymember/3" -> bool(keyfind(args) != null)
+            "keydelete/3" -> {
+                val n = (seen(args[1]) as? OtpErlangLong)?.bigIntegerValue()?.takeIf { it.signum() > 0 }
+                    ?: functionClause("keydelete", args)
+                val (elements, tail) = cells(args[2]) ?: functionClause("keydelete3", args)
+                val index = elements.indexOfFirst { element ->
+                    (seen(element) as? OtpErlangTuple)?.takeIf { BigInteger.valueOf(it.arity().toLong()) >= n }
+                        ?.let { equal(it.elementAt(n.toInt() - 1), args[0], false, level) } == true
+                }
+
+                when {
+                    index >= 0 -> cons(elements.take(index), cons(elements.drop(index + 1), tail ?: EMPTY))
+                    tail != null -> functionClause("keydelete3", listOf(args[0], args[1], tail))
+                    else -> args[2]
+                }
+            }
+            "append/1" -> {
+                val (lists, tail) = cells(args[0]) ?: functionClause("append", args)
+
+                append(lists, tail)
+            }
+            "append/2" -> erlang("++/2", args)
+            "flatten/1" -> {
+                if (!isList(args[0])) functionClause("flatten", args)
+
+                list(mutableListOf<OtpErlangObject>().also { flatten(args[0], it) }.asReversed())
+            }
+            "map/2" -> {
+                val function = function(args[0], 1) ?: listsError(atom("function_clause"), frame("lists", "map", list(args)))
+                val caseClause = { listsError(tuple(atom("case_clause"), args[1])) }
+
+                list(each(args[1], caseClause, { tail -> frame("lists", "map_1", list(listOf(args[0], tail))) }) { function.call(it) })
+            }
+            "filter/2" -> {
+                val predicate = function(args[0], 1) ?: functionClause("filter", args)
+
+                filter(args[1]) { element ->
+                    when (val keep = predicate.call(element)) {
+                        TRUE -> true
+                        FALSE -> false
+                        else -> evaluation.error(tuple(atom("bad_filter"), seen(keep)))
+                    }
+                }
+            }
+            "foldl/3" -> {
+                val function = function(args[0], 2) ?: listsError(atom("function_clause"), frame("lists", "foldl", list(args)))
+                val caseClause = { listsError(tuple(atom("case_clause"), args[2])) }
+                var acc = args[1]
+
+                each(args[2], caseClause, { tail -> frame("lists", "foldl_1", list(listOf(args[0], acc, tail))) }) { element ->
+                    function.call(element, acc).also { acc = it }
+                }
+
+                acc
+            }
+            "mapfoldl/3" -> {
+                val function = function(args[0], 2) ?: listsError(atom("function_clause"), frame("lists", "mapfoldl", list(args)))
+                var acc = args[1]
+                val helper = { list: OtpErlangObject -> frame("lists", "mapfoldl_1", list(listOf(args[0], acc, list))) }
+                val notList = { listsError(atom("function_clause"), helper(args[2])) }
+                val mapped = each(args[2], notList, helper) { element ->
+                    val result = function.call(element, acc)
+                    val pair = (seen(result) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }
+                        ?: listsError(tuple(atom("badmatch"), result))
+
+                    acc = pair.elementAt(1)
+                    pair.elementAt(0)
+                }
+
+                tuple(list(mapped), acc)
+            }
+            "all/2" -> {
+                val predicate = function(args[0], 1) ?: listsError(atom("function_clause"), frame("lists", "all", list(args)))
+                val (elements, tail) = cells(args[1]) ?: listsError(tuple(atom("case_clause"), args[1]))
+
+                for (element in elements) {
+                    when (val result = predicate.call(element)) {
+                        TRUE -> {}
+                        FALSE -> return FALSE
+                        else -> listsError(tuple(atom("case_clause"), seen(result)))
+                    }
+                }
+
+                if (tail != null) listsError(atom("function_clause"), frame("lists", "all_1", list(listOf(args[0], tail))))
+
+                TRUE
+            }
+            else -> null
+        }
+    }
+
+    /** `lists:append/1` of the list of [lists] and [tail]. */
+    private fun append(lists: List<OtpErlangObject>, tail: OtpErlangObject?): OtpErlangObject {
+        // The innermost `append/1` raises before any `++` runs.
+        if (tail != null) functionClause("lists", "append", listOf(tail))
+
+        return lists.dropLast(1).foldRight(lists.lastOrNull() ?: EMPTY) { list, acc ->
+            ProgressManager.checkCanceled()
+
+            erlang("++/2", listOf(list, acc))!!
+        }
+    }
+
+    /** `lists:keyfind/3`: the first tuple of the list whose element [args]`[1]` is `==` to [args]`[0]`. */
+    private fun keyfind(args: List<OtpErlangObject>): OtpErlangTuple? {
+        val badarg = { evaluation.error(atom("badarg"), frame("lists", "keyfind", list(args))) }
+        val n = small(args[1])?.takeIf { it > 0 } ?: badarg()
+        val (elements, tail) = cells(args[2]) ?: badarg()
+
+        elements.forEach { element ->
+            val tuple = seen(element) as? OtpErlangTuple
+
+            if (tuple != null && tuple.arity() >= n && equal(tuple.elementAt(n.toInt() - 1), args[0], false, level)) return tuple
+        }
+
+        if (tail != null) badarg()
+
+        return null
+    }
+
+    /**
+     * [transform] of each element of the list [term], raising [notList] where it isn't one, and `function_clause` in the
+     * helper whose [helper] frame meets an improper tail.
+     */
+    private fun each(
+        term: OtpErlangObject,
+        notList: () -> Nothing,
+        helper: (OtpErlangObject) -> OtpErlangTuple,
+        transform: (OtpErlangObject) -> OtpErlangObject,
+    ): List<OtpErlangObject> {
+        val (elements, tail) = cells(term) ?: notList()
+        val results = elements.map(transform)
+
+        if (tail != null) listsError(atom("function_clause"), helper(tail))
+
+        return results
+    }
+
+    /** An error `lists:map/2`, `foldl/3`, `mapfoldl/3` or `all/2` raises, which before OTP 25 the VM gave otherwise. */
+    private fun listsError(reason: OtpErlangObject, top: OtpErlangTuple? = null): Nothing {
+        if (!LISTS_CHECK_THE_FUN_FIRST.isSufficient(level)) decline("an error of a lists function before OTP 25")
+
+        evaluation.error(reason, top)
+    }
+
+    /**
+     * `lists:do_flatten/2`: [term] flattened onto the list [reversed] holds back to front. Each cell's rest is flattened
+     * before the list at its head, so an improper tail raises with what follows it already flattened.
+     */
+    private fun flatten(term: OtpErlangObject, reversed: MutableList<OtpErlangObject>) {
+        val (elements, tail) = cells(term)!!
+
+        if (tail != null) {
+            evaluation.error(atom("function_clause"), frame("lists", "do_flatten", list(listOf(tail, list(reversed.reversed())))))
+        }
+
+        for (element in elements.asReversed()) {
+            ProgressManager.checkCanceled()
+
+            if (isList(element)) flatten(element, reversed) else reversed += element
+        }
+    }
+
+    private fun maps(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
+        when (key) {
+            "get/2" -> valueAt(map(args[1]), args[0], level) ?: evaluation.error(tuple(atom("badkey"), args[0]))
+            "get/3" -> valueAt(map(args[1]), args[0], level) ?: args[2]
+            "find/2" -> valueAt(map(args[1]), args[0], level)?.let { tuple(atom("ok"), it) } ?: atom("error")
+            "is_key/2" -> bool(valueAt(map(args[1]), args[0], level) != null)
+            "put/3" -> mapOf(entries(map(args[2])) + (args[0] to args[1]), level)
+            "update/3" -> {
+                val map = map(args[2])
+
+                if (valueAt(map, args[0], level) == null) evaluation.error(tuple(atom("badkey"), args[0]))
+
+                mapOf(entries(map) + (args[0] to args[1]), level)
+            }
+            "merge/2" -> {
+                val left = map(args[0])
+
+                mapOf(entries(left) + entries(map(args[1])), level)
+            }
+            "from_list/1" -> {
+                val badarg = { evaluation.error(atom("badarg"), frame("maps", "from_list", list(args))) }
+
+                mapOf(
+                    (properElements(args[0]) ?: badarg()).map { element ->
+                        val pair = (seen(element) as? OtpErlangTuple)?.takeIf { it.arity() == 2 } ?: badarg()
+
+                        pair.elementAt(0) to pair.elementAt(1)
+                    },
+                    level,
+                )
+            }
+            "to_list/1" -> {
+                val entries = entries(map(args[0]))
+
+                if (entries.size > 32) decline("the order of a map of more than 32 keys")
+                if (MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER.isSufficient(level) && entries.count { it.first is OtpErlangAtom } > 1) {
+                    decline("the order of a map's atom keys")
+                }
+
+                list(entries.sortedWith { left, right -> compare(left.first, right.first, level, true) }.map { tuple(it.first, it.second) })
+            }
+            else -> null
+        }
+
+    /** `elixir_quote`'s run-time helpers, which an expanded `quote` calls. */
+    private fun quote(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        val functionClause = { function: String ->
+            evaluation.error(atom("function_clause"), frame("elixir_quote", function, list(args)))
+        }
+
+        return when (key) {
+            "validate_quote/1" -> args[0]
+            "validate_runtime/2" -> {
+                val value = seen(args[1])
+                val valid = when ((seen(args[0]) as? OtpErlangAtom)?.atomValue()) {
+                    "line" -> value is OtpErlangLong
+                    "file" -> value is OtpErlangBitstr && value.pad_bits() == 0
+                    "context" -> value is OtpErlangAtom && value != NIL
+                    "generated", "unquote" -> boolean(value) != null
+                    else -> functionClause("is_valid")
+                }
+
+                if (valid) value else argumentError()
+            }
+            "dot/5" -> annotate(dot(args[0], args[1], args[2], args[3]), args[4])
+            "dot/4" -> dot(args[0], args[1], args[2], args[3])
+            "list/2" -> {
+                if (!isList(args[1])) functionClause("list")
+
+                validateList(args[0])
+                erlang("++/2", args)!!
+            }
+            "tail_list/3" -> {
+                val (left, right, tail) = args
+
+                when {
+                    isList(right) && isList(tail) -> {
+                        validateList(left)
+                        erlang("++/2", listOf(tail, erlang("++/2", listOf(left, right))!!))!!
+                    }
+                    isList(left) -> {
+                        validateList(left)
+
+                        val reversed = properElements(lists("reverse/1", listOf(erlang("++/2", listOf(tail, left))!!))!!)!!
+
+                        if (reversed.isEmpty()) {
+                            if (SPLICE_EMPTY_BEFORE_TAIL_RAISES.isSufficient(level)) argumentError()
+
+                            evaluation.error(tuple(atom("badmatch"), EMPTY))
+                        }
+
+                        list((listOf(tuple(atom("|"), EMPTY, list(listOf(reversed[0], right)))) + reversed.drop(1)).reversed())
+                    }
+                    else -> functionClause("tail_list")
+                }
+            }
+            "unquote/1", "shallow_validate_ast/1" -> if (shallowValidAst(args[0])) args[0] else argumentError()
+            else -> null
+        }
+    }
+
+    /** `elixir_quote:dot/4`. */
+    private fun dot(meta: OtpErlangObject, left: OtpErlangObject, right: OtpErlangObject, args: OtpErlangObject): OtpErlangObject {
+        val call = { name: OtpErlangObject, callMeta: OtpErlangObject, callArgs: OtpErlangObject ->
+            tuple(tuple(atom("."), meta, list(listOf(left, name))), callMeta, callArgs)
+        }
+        val noParens = { cons(listOf(tuple(atom("no_parens"), TRUE)), meta) }
+        val triple = (seen(right) as? OtpErlangTuple)?.takeIf { it.arity() == 3 }
+        val name = triple?.elementAt(0)?.let(::seen) as? OtpErlangAtom
+        val context = triple?.elementAt(2)
+
+        if (seen(args) == NIL) {
+            return when {
+                name?.atomValue() == "__aliases__" -> tuple(atom("__aliases__"), meta, cons(listOf(left), context!!))
+                right is OtpErlangAtom ->
+                    if (right.atomValue().startsWith("Elixir.")) {
+                        tuple(atom("__aliases__"), meta, list(listOf(left, right)))
+                    } else {
+                        call(right, noParens(), EMPTY)
+                    }
+                name != null && seen(context!!) is OtpErlangAtom -> call(name, noParens(), EMPTY)
+                name != null -> call(name, meta, context!!)
+                else -> argumentError()
+            }
+        }
+
+        return when {
+            right is OtpErlangAtom -> call(right, meta, args)
+            name != null && seen(context!!) is OtpErlangAtom -> call(name, meta, args)
+            else -> argumentError()
+        }
+    }
+
+    /** `elixir_quote:annotate/2`. */
+    private fun annotate(tree: OtpErlangObject, context: OtpErlangObject): OtpErlangObject {
+        val (head, meta, args) = (seen(tree) as? OtpErlangTuple)?.takeIf { it.arity() == 3 }?.elements() ?: return tree
+
+        return when (val annotation = annotation(view, Shape.Tuple(listOf(head, meta, args)), level)) {
+            is Annotation.Definition -> {
+                val target = annotation.head ?: return tree
+                val (elements, tail) = cells(args)!!
+
+                tuple(head, meta, cons(listOf(annotateHead(elements[0], target, context)) + elements.drop(1), tail ?: EMPTY))
+            }
+            Annotation.Lexical -> tuple(head, storeContext(deleteCounter(meta), context), args)
+            Annotation.None -> tree
+        }
+    }
+
+    /** [head] with `context:` stored in the metadata of [target], which [head] is or holds as a `when`'s left. */
+    private fun annotateHead(head: OtpErlangObject, target: OtpErlangObject, context: OtpErlangObject): OtpErlangObject {
+        ProgressManager.checkCanceled()
+
+        val (name, meta, args) = (head as OtpErlangTuple).elements()
+
+        if (head === target) return tuple(name, storeContext(meta, context), args)
+
+        val (left, right) = properElements(args)!!
+
+        return tuple(name, meta, list(listOf(annotateHead(left, target, context), right)))
+    }
+
+    /** `elixir_quote:keystore(context, Meta, Value)`. */
+    private fun storeContext(meta: OtpErlangObject, value: OtpErlangObject): OtpErlangObject {
+        if (seen(value) == NIL) return meta
+
+        val key = atom("context")
+        val elements = properElements(meta) ?: decline("metadata that isn't a list")
+        val index = elements.indexOfFirst { (seen(it) as? OtpErlangTuple)?.takeIf { pair -> pair.arity() >= 1 }?.elementAt(0)?.let(::seen) == key }
+        val entry = tuple(key, value)
+
+        return list(if (index < 0) elements + entry else elements.toMutableList().also { it[index] = entry })
+    }
+
+    /** `lists:keydelete(counter, 1, Meta)`. */
+    private fun deleteCounter(meta: OtpErlangObject): OtpErlangObject =
+        lists("keydelete/3", listOf(atom("counter"), integer(1), meta))!!
+
+    /** `elixir_quote:validate_list/1`. */
+    private fun validateList(term: OtpErlangObject) {
+        val valid = if (UNQUOTE_SHALLOW_VALIDATED.isSufficient(level)) shallowValidList(term) else isList(term)
+
+        if (!valid) argumentError()
+    }
+
+    private fun shallowValidAst(term: OtpErlangObject): Boolean = if (isList(term)) shallowValidList(term) else shallowValidElem(term)
+
+    private fun shallowValidList(term: OtpErlangObject): Boolean {
+        val (elements, tail) = cells(term) ?: return false
+
+        return elements.all(::shallowValidElem) && tail == null
+    }
+
+    private fun shallowValidElem(term: OtpErlangObject): Boolean {
+        ProgressManager.checkCanceled()
+
+        when (seen(term)) {
+            is OtpErlangList, is OtpErlangString, is OtpErlangAtom, is OtpErlangLong, is OtpErlangDouble, is OtpErlangPid,
+            is OtpErlangFun, is OtpErlangExternalFun -> return true
+            is OtpErlangBitstr -> return (term as OtpErlangBitstr).pad_bits() == 0
+        }
+
+        val tuple = term as? OtpErlangTuple ?: return false
+
+        return when (tuple.arity()) {
+            2 -> shallowValidElem(tuple.elementAt(0)) && shallowValidElem(tuple.elementAt(1))
+            3 -> {
+                val (call, meta, args) = tuple.elements()
+
+                when {
+                    !isList(meta) -> false
+                    (seen(args) is OtpErlangAtom || isList(args)) && seen(call) is OtpErlangAtom -> true
+                    isList(args) -> shallowValidAst(call)
+                    else -> false
+                }
+            }
+            else -> false
+        }
+    }
+
+    private fun keyword(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        // `get/2` and `pop/2` are `get/3` and `pop/3` with their `nil` default, as a `FunctionClauseError` names them.
+        if (key == "get/2" || key == "pop/2") return keyword(key.replace("/2", "/3"), args + NIL)
+
+        val functionClause = { function: String ->
+            evaluation.error(atom("function_clause"), frame("Elixir.Keyword", function, list(args)))
+        }
+        val guarded = { function: String ->
+            if (!isList(args[0]) || seen(args[1]) !is OtpErlangAtom) functionClause(function)
+        }
+        val found = { function: String ->
+            guarded(function)
+
+            when (val found = lists("keyfind/3", listOf(args[1], integer(1), args[0]))) {
+                FALSE -> null
+                else -> (found as OtpErlangTuple).takeIf { it.arity() == 2 }?.elementAt(1)
+                    ?: evaluation.error(tuple(atom("case_clause"), found))
+            }
+        }
+
+        return when (key) {
+            "keyword?/1" -> bool(isKeyword(args[0]))
+            "get/3" -> found("get") ?: args[2]
+            "fetch/2" -> found("fetch")?.let { tuple(atom("ok"), it) } ?: atom("error")
+            "fetch!/2" -> found("fetch!") ?: evaluation.raise("Elixir.KeyError", "key" to args[1], "term" to args[0])
+            "has_key?/2" -> {
+                guarded("has_key?")
+                lists("keymember/3", listOf(args[1], integer(1), args[0]))
+            }
+            "delete/2" -> {
+                guarded("delete")
+                delete(args[0], args[1])
+            }
+            "put/3" -> {
+                guarded("put")
+                cons(listOf(tuple(args[1], args[2])), delete(args[0], args[1]))
+            }
+            "put_new/3" -> if (found("put_new") != null) args[0] else cons(listOf(tuple(args[1], args[2])), args[0])
+            "merge/2" -> {
+                val (left, right) = args
+
+                when {
+                    isList(left) && properElements(right)?.isEmpty() == true -> left
+                    properElements(left)?.isEmpty() == true && isList(right) -> right
+                    isList(left) && isList(right) -> {
+                        if (!isKeyword(right)) argumentError()
+
+                        val kept = filter(left) { pair ->
+                            val name = (seen(pair) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elementAt(0)?.let(::seen) as? OtpErlangAtom
+                                ?: argumentError()
+
+                            lists("keymember/3", listOf(name, integer(1), right)) == FALSE
+                        }
+
+                        erlang("++/2", listOf(kept, right))
+                    }
+                    else -> functionClause("merge")
+                }
+            }
+            "take/2", "drop/2" -> {
+                val (keywords, keys) = args
+                val take = key == "take/2"
+
+                if (!isList(keywords) || !isList(keys)) functionClause(key.substringBefore('/'))
+
+                filter(keywords) { pair ->
+                    val name = (seen(pair) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elementAt(0)
+                        ?: evaluation.error(atom("function_clause"), frame("Elixir.Keyword", "-${key.substringBefore('/')}/2-fun-0-", list(listOf(pair))))
+
+                    (lists("member/2", listOf(name, keys)) == TRUE) == take
+                }
+            }
+            "pop/3" -> {
+                val value = found("pop")
+
+                if (value != null) tuple(value, delete(args[0], args[1])) else tuple(args[2], args[0])
+            }
+            else -> null
+        }
+    }
+
+    private fun isKeyword(term: OtpErlangObject): Boolean {
+        val (elements, tail) = cells(term) ?: return false
+
+        return tail == null && elements.all { element ->
+            (seen(element) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elementAt(0)?.let(::seen) is OtpErlangAtom
+        }
+    }
+
+    /** `Keyword.delete/2`'s body, past its guard. */
+    private fun delete(keywords: OtpErlangObject, key: OtpErlangObject): OtpErlangObject {
+        if (lists("keymember/3", listOf(key, integer(1), keywords)) != TRUE) return keywords
+
+        val (elements, tail) = cells(keywords)!!
+        val kept = elements.withIndex().mapNotNull { (index, element) ->
+            // `delete_key/2` is called on the rest of the list, from this cell.
+            val pair = (seen(element) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }
+                ?: evaluation.error(
+                    atom("function_clause"),
+                    frame("Elixir.Keyword", "delete_key", list(listOf(cons(elements.subList(index, elements.size), tail ?: EMPTY), key))),
+                )
+
+            element.takeUnless { equal(pair.elementAt(0), key, true, level) }
+        }
+
+        if (tail != null) evaluation.error(atom("function_clause"), frame("Elixir.Keyword", "delete_key", list(listOf(tail, key))))
+
+        return list(kept)
+    }
+
+    /** `:lists.filter/2` of [keep] over [term]: `[E || E <- List, Pred(E)]`, which calls `Pred` on each cell before the tail. */
+    private fun filter(term: OtpErlangObject, keep: (OtpErlangObject) -> Boolean): OtpErlangObject {
+        val (elements, tail) = cells(term) ?: evaluation.error(tuple(atom("bad_generator"), term))
+        val kept = elements.filter {
+            ProgressManager.checkCanceled()
+            keep(it)
+        }
+
+        if (tail != null) evaluation.error(tuple(atom("bad_generator"), tail))
+
+        return list(kept)
+    }
+
+    private fun enum(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        val enumerable = args.getOrNull(0) ?: return null
+        val elements = { enumerate(enumerable) }
+
+        return when (key) {
+            "map/2" ->
+                if (isList(enumerable)) {
+                    lists("map/2", listOf(args[1], enumerable))
+                } else {
+                    list(elements().map { evaluation.apply(args[1], listOf(it)) }.toList())
+                }
+            "flat_map/2" -> list(elements().flatMap { enumerate(evaluation.apply(args[1], listOf(it))) }.toList())
+            "filter/2", "reject/2" -> {
+                val keep = key == "filter/2"
+
+                list(elements().filter { truthy(evaluation.apply(args[1], listOf(it))) == keep }.toList())
+            }
+            "reduce/3" ->
+                if (isList(enumerable)) {
+                    lists("foldl/3", listOf(args[2], args[1], enumerable))
+                } else {
+                    elements().fold(args[1]) { acc, element -> evaluation.apply(args[2], listOf(element, acc)) }
+                }
+            "any?/1", "all?/1" -> {
+                val any = key == "any?/1"
+
+                bool(if (any) elements().any(::truthy) else elements().all(::truthy))
+            }
+            "any?/2", "all?/2" -> {
+                val initial = key == "all?/2"
+
+                bool(elements().all { truthy(evaluation.apply(args[1], listOf(it))) == initial } == initial)
+            }
+            "member?/2" -> {
+                val range = range(enumerable)
+
+                when {
+                    isList(enumerable) -> lists("member/2", listOf(args[1], enumerable))
+                    range != null -> bool(range.has(args[1]))
+                    else -> bool(elements().any { equal(it, args[1], true, level) })
+                }
+            }
+            "concat/2" ->
+                if (isList(args[0]) && isList(args[1])) erlang("++/2", args) else decline("concatenates enumerables")
+            "reverse/1" ->
+                if (isList(enumerable)) {
+                    val (heads, tail) = cells(enumerable)!!
+
+                    if (tail == null || heads.size >= 2) {
+                        lists("reverse/1", args)
+                    } else {
+                        lists("foldl/3", listOf(Closure(2) { (element, acc) -> cons(listOf(element), acc) }, EMPTY, enumerable))
+                    }
+                } else {
+                    list(elements().toList().reversed())
+                }
+            else -> null
+        }
+    }
+
+    /** [term] where it is a `Range`. */
+    private fun range(term: OtpErlangObject): Range? {
+        val map = term as? OtpErlangMap ?: return null
+
+        if (map.get(atom("__struct__")) != atom("Elixir.Range")) return null
+
+        val first = (map.get(atom("first")) as? OtpErlangLong)?.bigIntegerValue() ?: decline("a range's first")
+        val last = (map.get(atom("last")) as? OtpErlangLong)?.bigIntegerValue() ?: decline("a range's last")
+        val step = map.get(atom("step"))?.let { (it as? OtpErlangLong)?.bigIntegerValue() ?: decline("a range's step") }
+            ?: if (first <= last) BigInteger.ONE else BigInteger.ONE.negate()
+
+        if (step.signum() == 0) decline("a range's step")
+
+        return Range(first, last, step)
+    }
+
+    /** A range's integers, from [first] to [last] by [step], taken as they are read, as Elixir's `Enumerable` does. */
+    private class Range(val first: BigInteger, val last: BigInteger, val step: BigInteger) {
+        fun elements(): Sequence<OtpErlangObject> =
+            generateSequence(first) { it + step }
+                .takeWhile { holds(it) }
+                .map {
+                    ProgressManager.checkCanceled()
+                    integer(it)
+                }
+
+        /** `Enumerable.Range.member?/2`: an integer within the bounds, a whole number of steps from [first]. */
+        fun has(term: OtpErlangObject): Boolean {
+            val value = (seen(term) as? OtpErlangLong)?.bigIntegerValue() ?: return false
+
+            return holds(value) && (value - first).mod(step.abs()) == BigInteger.ZERO
+        }
+
+        private fun holds(value: BigInteger) = if (step.signum() > 0) value in first..last else value in last..first
+    }
+
+    private fun access(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        if (key != "get/2" && key != "get/3") return null
+
+        val (container, accessKey) = args
+        val default = args.getOrElse(2) { NIL }
+
+        return when (val value = seen(container)) {
+            is OtpErlangMap -> {
+                val struct = value.get(atom("__struct__"))?.let(::seen) as? OtpErlangAtom
+
+                if (struct != null) {
+                    when (val fetched = evaluation.remote(struct, "fetch", listOf(container, accessKey))) {
+                        is OtpErlangTuple if fetched.arity() == 2 && seen(fetched.elementAt(0)) == atom("ok") ->
+                            fetched.elementAt(1)
+                        atom("error") -> default
+                        else -> evaluation.error(tuple(atom("try_clause"), seen(fetched)))
+                    }
+                } else {
+                    valueAt(value, accessKey, level) ?: default
+                }
+            }
+            is OtpErlangList, is OtpErlangString ->
+                if (seen(accessKey) is OtpErlangAtom) {
+                    when (val found = lists("keyfind/3", listOf(accessKey, integer(1), container))) {
+                        FALSE -> default
+                        else -> (found as OtpErlangTuple).takeIf { it.arity() == 2 }?.elementAt(1)
+                            ?: evaluation.error(tuple(atom("case_clause"), found))
+                    }
+                } else {
+                    argumentError()
+                }
+            NIL -> default
+            else -> evaluation.error(atom("function_clause"), frame("Elixir.Access", "get", list(listOf(container, accessKey, default))))
+        }
+    }
+
+    private fun env(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        val context = when (key) {
+            "in_guard?/1" -> "guard"
+            "in_match?/1" -> "match"
+            else -> return null
+        }
+        val env = (seen(args[0]) as? OtpErlangMap)
+            ?.takeIf { it.get(atom("__struct__"))?.let(::seen) == atom("Elixir.Macro.Env") }
+            ?.get(atom("context"))
+            ?: evaluation.error(atom("function_clause"), frame("Elixir.Macro.Env", key.substringBefore('/'), list(args)))
+
+        return bool(seen(env) == atom(context))
+    }
+
+    private fun module(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
+        when (key) {
+            "concat/1" -> concat(args[0].takeIf(::isList) ?: functionClause("Elixir.Module", "concat", args))
+            "concat/2" -> {
+                if (!args.all { seen(it) is OtpErlangAtom || isBinary(it) }) functionClause("Elixir.Module", "concat", args)
+
+                concat(list(args))
+            }
+            else -> null
+        }
+
+    /** `elixir_aliases:concat/1` of the list [parts]. */
+    private fun concat(parts: OtpErlangObject): OtpErlangObject {
+        val (elements, tail) = cells(parts)!!
+        val bytes = { part: OtpErlangObject ->
+            when (val seen = seen(part)) {
+                is OtpErlangAtom -> binary(seen.atomValue()).binaryValue()
+                else -> seen.takeIf(::isBinary)?.let { (it as OtpErlangBitstr).binaryValue() }
+            }
+        }
+        val elixir = "Elixir".toByteArray()
+        val first = elements.firstOrNull()?.takeIf { it != NIL }?.let(bytes)
+        // `do_concat/1`: a first part that is already a module name is where the name starts.
+        val start = first?.takeIf { startsWith(it, "Elixir.".toByteArray()) || it.contentEquals(elixir) }
+        val acc = ByteArrayOutputStream().apply { write(start ?: elixir) }
+        val rest = if (start != null) elements.drop(1) else elements
+        val doConcat = { remaining: OtpErlangObject ->
+            functionClause("elixir_aliases", "do_concat", listOf(remaining, OtpErlangBinary(acc.toByteArray())))
+        }
+
+        for ((index, part) in rest.withIndex()) {
+            ProgressManager.checkCanceled()
+
+            if (part == NIL) continue
+
+            val partial = bytes(part) ?: doConcat(cons(rest.drop(index), tail ?: EMPTY))
+            val prefix = listOf("Elixir.", ".").map { it.toByteArray() }.firstOrNull { startsWith(partial, it) }?.size ?: 0
+
+            reserveBits(acc.size() * 8L, (1L + partial.size - prefix) * 8)
+            acc.write('.'.code)
+            acc.write(partial, prefix, partial.size - prefix)
+        }
+
+        if (tail != null) doConcat(tail)
+
+        return erlang("binary_to_atom/2", listOf(OtpErlangBinary(acc.toByteArray()), atom("utf8")))!!
+    }
+
+    private fun startsWith(bytes: ByteArray, prefix: ByteArray) =
+        bytes.size >= prefix.size && prefix.indices.all { bytes[it] == prefix[it] }
+
+    private fun string(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        val function = when (key) {
+            "to_atom/1" -> "binary_to_atom/2"
+            "to_existing_atom/1" -> "binary_to_existing_atom/2"
+            else -> return null
+        }
+
+        if (STRING_TO_ATOM_REQUIRES_BINARY.isSufficient(level) && !isBinary(args[0])) {
+            functionClause("Elixir.String", key.substringBefore('/'), args)
+        }
+
+        return erlang(function, listOf(args[0], atom("utf8")))
+    }
+
+    /** `String.Chars.to_string/1` by its `BitString`, `Atom` and `Integer` implementations; the others aren't read. */
+    private fun toString(term: OtpErlangObject): OtpErlangObject =
+        when {
+            term === UnknownBinary || isBinary(term) -> term
+            term == NIL -> binary("")
+            term is OtpErlangAtom -> binary(term.atomValue())
+            term is OtpErlangLong -> binary(term.bigIntegerValue().toString())
+            else -> decline("String.Chars of %s", term)
+        }
+
+    private fun kernel(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
+        when (key) {
+            "elem/2" -> erlang("element/2", listOf(erlang("+/2", listOf(args[1], integer(1)))!!, args[0]))
+            "put_elem/3" -> erlang("setelement/3", listOf(erlang("+/2", listOf(args[1], integer(1)))!!, args[0], args[2]))
+            "inspect/1" -> UnknownBinary
+            "inspect/2" -> inspect(args[1], args)
+            else -> null
+        }
+
+    /**
+     * `Kernel.inspect/2`, `when is_list(opts)`: with no options, a binary whose bytes aren't known, as `inspect/1` gives.
+     * Options decline: which of them raise is `Inspect.Opts`' and `Inspect.Algebra`'s to say, and those aren't read.
+     */
+    private fun inspect(options: OtpErlangObject, args: List<OtpErlangObject>): OtpErlangObject =
+        when {
+            options == EMPTY -> UnknownBinary
+            !isUnknown(options) && !isList(options) -> functionClause("Elixir.Kernel", "inspect", args)
+            else -> decline("Kernel.inspect/2 with options %s", options)
+        }
+
+    private fun macro(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        when (key) {
+            "expand/2" -> return evaluation.macroExpand(args[0], args[1], once = false)
+            "expand_once/2" -> return evaluation.macroExpand(args[0], args[1], once = true)
+            "escape/1", "escape/2" -> {}
+            else -> return null
+        }
+
+        val options = args.getOrElse(1) { EMPTY }
+        val option = { name: String -> keyword("get/3", listOf(options, atom(name), FALSE))!! }
+        val unquote = seen(option("unquote")) == TRUE
+        val op = if (truthy(option("prune_metadata"))) EscapeOp.EscapeAndPrune else EscapeOp.Escape
+
+        val generated = if (MACRO_ESCAPE_MARKS_GENERATED.isSufficient(level)) option("generated") else FALSE
+        val escape = QuoteEscape(TermEscapeView, TermEscapeBuilder, { it }, level, evaluation.run.exports, op, unquote)
+        val escaped = when (val escaped = escape.escape(args[0])) {
+            is EscapeResult.Built -> escaped.value
+            is EscapeResult.Raised -> evaluation.raise(escaped.exception)
+            is EscapeResult.Declined -> decline("Macro.escape/2 of %s", args[0])
+        }
+        // `{caller, meta, args} when generated and is_list(meta)`.
+        val node = (escaped as? OtpErlangTuple)?.takeIf { it.arity() == 3 && seen(generated) == TRUE && isList(it.elementAt(1)) }
+            ?: return escaped
+
+        return tuple(node.elementAt(0), cons(listOf(tuple(atom("generated"), TRUE)), node.elementAt(1)), node.elementAt(2))
+    }
+
+    private fun functionClause(module: String, function: String, args: List<OtpErlangObject>): Nothing =
+        evaluation.error(atom("function_clause"), frame(module, function, list(args)))
+
+    /** An `ArgumentError`, whose message `inspect` builds. */
+    private fun argumentError(): Nothing = evaluation.raise("Elixir.ArgumentError", "message" to UnknownBinary)
+
+    private fun badarith(): Nothing = evaluation.error(atom("badarith"))
+
+    private fun arithmetic(operator: Char, left: OtpErlangObject, right: OtpErlangObject): OtpErlangObject {
+        val l = number(left) ?: badarith()
+        val r = number(right) ?: badarith()
+
+        if (l is OtpErlangLong && r is OtpErlangLong) {
+            val (a, b) = l.bigIntegerValue() to r.bigIntegerValue()
+
+            return bounded(
+                when (operator) {
+                    '+' -> a + b
+                    '-' -> a - b
+                    else -> a * b
+                }
+            )
+        }
+
+        val (a, b) = double(l) to double(r)
+
+        return finite(
+            when (operator) {
+                '+' -> a + b
+                '-' -> a - b
+                else -> a * b
+            }
+        )
+    }
+
+    /**
+     * [value], or `system_limit` past the VM's largest integer: 65,535 words from [INTEGERS_UP_TO_4_MBIT], 524,287
+     * before. The lower bound came in a patch release of each OTP from 24, so between the two it depends on the patch.
+     */
+    private fun bounded(value: BigInteger): OtpErlangObject {
+        val bits = value.abs().bitLength()
+
+        return when {
+            fitsEveryVmInteger(bits) -> integer(value)
+            bits > OLD_INTEGER_WORDS * Long.SIZE_BITS || INTEGERS_UP_TO_4_MBIT.isSufficient(level) ->
+                evaluation.error(atom("system_limit"))
+            else -> decline("an integer whose limit depends on the OTP patch release")
+        }
+    }
+
+    private fun finite(value: Double): OtpErlangObject =
+        if (value.isNaN() || value.isInfinite()) badarith() else OtpErlangDouble(value)
+
+    /** An integer past the float range raises, as Erlang's conversion does. */
+    private fun double(number: OtpErlangObject): Double =
+        when (number) {
+            is OtpErlangLong -> number.bigIntegerValue().toDouble().also { if (it.isInfinite()) badarith() }
+            else -> (number as OtpErlangDouble).doubleValue()
+        }
+
+    private fun number(term: OtpErlangObject): OtpErlangObject? = seen(term).takeIf(::isNumber)
+
+    private fun boolean(term: OtpErlangObject): Boolean? =
+        when (seen(term)) {
+            TRUE -> true
+            FALSE -> false
+            else -> null
+        }
+
+    /** The arity of the `fun` [term], `null` for any other term. */
+    private fun arity(term: OtpErlangObject): Int? =
+        when (val function = seen(term)) {
+            is Closure -> function.arity
+            is OtpErlangExternalFun -> function.arity
+            is OtpErlangFun -> decline("a fun the evaluator didn't make")
+            else -> null
+        }
+
+    private fun interface Function {
+        fun call(vararg values: OtpErlangObject): OtpErlangObject
+    }
+
+    /** [term] as a function of [arity] arguments, `null` where it isn't one. */
+    private fun function(term: OtpErlangObject, arity: Int): Function? =
+        if (arity(term) == arity) Function { values -> evaluation.apply(term, values.toList()) } else null
+
+    /** [term] as a small integer, the only integer a BIF takes as a position or an arity. */
+    private fun small(term: OtpErlangObject): Long? =
+        (seen(term) as? OtpErlangLong)?.takeIf { it.isLong }?.longValue()?.takeIf { it in SMALL_INTEGERS }
+
+    /** [term] as a 1-based index of a tuple of [size] elements. */
+    private fun index(term: OtpErlangObject, size: Int): Int? =
+        (seen(term) as? OtpErlangLong)?.takeIf { it.isLong }?.longValue()?.takeIf { it in 1..size }?.toInt()
+
+    private fun map(term: OtpErlangObject): OtpErlangMap =
+        seen(term) as? OtpErlangMap ?: evaluation.error(tuple(atom("badmap"), term))
+
+    private fun isList(term: OtpErlangObject) = seen(term) is OtpErlangList || term is OtpErlangString
+
+    private fun bitSize(bitstring: OtpErlangBitstr) = bitstring.binaryValue().size * 8 - bitstring.pad_bits()
+
+    private fun isBinary(term: OtpErlangObject) = seen(term) is OtpErlangBitstr && (term as OtpErlangBitstr).pad_bits() == 0
+
+    /** The text of the binary [term], `null` where it isn't a binary of UTF-8. */
+    private fun utf8(term: OtpErlangObject): String? {
+        if (!isBinary(term)) return null
+
+        return try {
+            Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap((term as OtpErlangBitstr).binaryValue())).toString()
+        } catch (_: CharacterCodingException) {
+            null
+        }
+    }
+
+    /** [TermEscapeView], declining on a value it doesn't know. */
+    private val view = EscapeView<OtpErlangObject> { TermEscapeView.shape(seen(it)) }
+
+}
+
+/** The node of a process or reference the evaluator makes. */
+private const val LOCAL_NODE = "nonode@nohost"
+
+/** `self()`: the one process a macro body runs in. */
+private val SELF = OtpErlangPid(LOCAL_NODE, 0, 0, 0)
+
+/** The small integers of a 64-bit VM. */
+private val SMALL_INTEGERS = -(1L shl 59) until (1L shl 59)
+
+/** The words in the VM's largest integer, `BIG_ARITY_MAX` on a 64-bit VM ([INTEGERS_UP_TO_4_MBIT]). */
+private const val INTEGER_WORDS = (1 shl 16) - 1
+
+/** Whether an integer of [bits] bits, its sign apart, is within the VM's largest on every OTP ([INTEGER_WORDS]). */
+internal fun fitsEveryVmInteger(bits: Int) = bits <= INTEGER_WORDS * Long.SIZE_BITS
+
+/** [INTEGER_WORDS] before [INTEGERS_UP_TO_4_MBIT]. */
+private const val OLD_INTEGER_WORDS = (1 shl 19) - 1

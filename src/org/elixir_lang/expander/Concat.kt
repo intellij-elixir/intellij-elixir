@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.PINNED_BINARY_SEGMENT_INFERS_SIZE
 import org.elixir_lang.lowering.ElixirAst
 
@@ -10,6 +11,8 @@ internal val CONCAT = object : Summary.Rewrite() {
         val operands = listOf(left) + concatenations(right)
         val s = Synthetic(node.meta)
         val parts = operands.mapIndexed { index, operand ->
+            ProgressManager.checkCanceled()
+
             when (operand) {
                 is ElixirAst.Literal.Binary -> operand
                 is ElixirAst.Literal, is ElixirAst.ListNode -> return Summary.Output.Raised("concat_not_binary")
@@ -31,14 +34,21 @@ internal val CONCAT = object : Summary.Rewrite() {
 }
 
 /** `extract_concatenations/2`'s operands of [node]: every local `<>` on the right flattened. */
-private fun concatenations(node: ElixirAst): List<ElixirAst> =
-    if (isCall(node, "<>", 2)) {
-        val (left, right) = (node as ElixirAst.Call).arguments!!
+private fun concatenations(node: ElixirAst): List<ElixirAst> {
+    val operands = mutableListOf<ElixirAst>()
+    var rest = node
 
-        listOf(left) + concatenations(right)
-    } else {
-        listOf(node)
+    while (isCall(rest, "<>", 2)) {
+        ProgressManager.checkCanceled()
+
+        val (left, right) = (rest as ElixirAst.Call).arguments!!
+
+        operands += left
+        rest = right
     }
+
+    return operands.apply { add(rest) }
+}
 
 /** A left operand in a match whose size can't be known: a variable written in source, or before [PINNED_BINARY_SEGMENT_INFERS_SIZE] one pinned. */
 private fun isUnknownSize(node: ElixirAst, run: Run): Boolean =

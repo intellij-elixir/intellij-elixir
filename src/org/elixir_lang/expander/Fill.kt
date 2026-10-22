@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.lowering.ElixirAst
 import java.util.IdentityHashMap
 
@@ -26,6 +27,8 @@ internal fun filled(
     var remaining = false
 
     fun collect(node: ElixirAst) {
+        ProgressManager.checkCanceled()
+
         when {
             isCall(node, "unquote", 1) -> {
                 val replacement = fragment((node as ElixirAst.Call).arguments!!.single())

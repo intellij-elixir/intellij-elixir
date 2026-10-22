@@ -10,6 +10,7 @@ import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
 import com.intellij.testFramework.LightProjectDescriptor
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.reference.Callable
@@ -97,23 +98,48 @@ class EnvIndexTest : PlatformTestCase() {
         assertTrue("${uses.size} uses", uses.size > 200)
     }
 
-    /** The env of the innermost node containing [range] that an expansion of [file] stopping at [range] enters. */
+    /**
+     * The env of the innermost node containing [range] that an expansion of [file] stopping at [range] enters. Where the
+     * expansion doesn't reach [range], and the last node it entered before [range] in that one stopped, as at an error
+     * that ends the module, the env that node was entered in, as [testANodeAfterAStopTakesTheEnvOfItsStoppingStatement]
+     * pins.
+     */
     private fun reexpanded(file: ElixirFile, range: TextRange, inputs: ProjectModules.Inputs): Env {
         var innermost: Pair<TextRange, Env>? = null
-        val observer = ExpansionObserver { node, _, env ->
-            val origin = node.meta.origin
-            if (origin.contains(range)) {
-                val current = innermost?.first
-                if (current == null || (current != origin && current.contains(origin))) innermost = origin to env
-                if (origin == range) throw Reached()
+        var reached = false
+        val entered = LinkedHashMap<TextRange, Env>()
+        val stopped = mutableSetOf<TextRange>()
+        val observer = object : ExpansionObserver {
+            override fun entering(node: ElixirAst, state: ExState, env: Env) {
+                val origin = node.meta.origin
+                entered.putIfAbsent(origin, env)
+                if (origin.contains(range)) {
+                    val current = innermost?.first
+                    if (current == null || (current != origin && current.contains(origin))) innermost = origin to env
+                    if (origin == range) throw Reached()
+                }
+            }
+
+            override fun left(node: ElixirAst, expansion: Expansion) {
+                if (expansion is Expansion.Error || expansion is Expansion.Unported) stopped += node.meta.origin
             }
         }
         try {
             holder.observe(file, inputs, observer)
         } catch (_: Reached) {
+            reached = true
         }
 
-        return innermost?.second ?: Env.empty(inputs.level, inputs.kernel)
+        val container = innermost ?: return Env.empty(inputs.level, inputs.kernel)
+        if (reached) return container.second
+
+        var before: TextRange? = null
+        entered.keys
+            .filter { container.first.contains(it) && it != container.first && it.endOffset <= range.startOffset }
+            .sortedWith(compareBy<TextRange> { it.startOffset }.thenByDescending { it.endOffset })
+            .forEach { if (before?.contains(it) != true) before = it }
+
+        return before?.takeIf { it in stopped }?.let(entered::get) ?: container.second
     }
 
     private class Reached : RuntimeException(null, null, false, false)

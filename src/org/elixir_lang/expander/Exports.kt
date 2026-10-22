@@ -32,12 +32,16 @@ sealed class ModuleExports {
     ) : ModuleExports() {
         /**
          * Every function a remote call reaches: [functions], and with [hasInfo] those of [NOT_IN_INFO] the module
-         * exports, `behaviour_info/1` only for a behaviour.
+         * exports, `behaviour_info/1` only for a behaviour, and each of [macros] as its [macroExport].
          */
         val exported: List<NameArity>
             get() =
                 if (hasInfo) {
-                    functions + NOT_IN_INFO.filter { it != BEHAVIOUR_INFO || behaviour != Behaviour.None }
+                    buildList {
+                        addAll(functions)
+                        addAll(NOT_IN_INFO.filter { it != BEHAVIOUR_INFO || behaviour != Behaviour.None })
+                        macros.mapTo(this, ::macroExport)
+                    }
                 } else {
                     functions
                 }
@@ -73,6 +77,19 @@ sealed class ModuleExports {
 
         /** The exports `__info__(:functions)` leaves out: [INTERNALS] and [INFO]. */
         val NOT_IN_INFO: Set<NameArity> = INTERNALS + INFO
+
+        private const val MACRO_PREFIX = "MACRO-"
+
+        /** The function Elixir compiles [macro] to and exports: `MACRO-<name>`, taking the caller first. */
+        fun macroExport(macro: NameArity): NameArity = NameArity(MACRO_PREFIX + macro.name, macro.arity + 1)
+
+        /** The macro [export] is the [macroExport] of, or `null` where it is a function's. */
+        fun macroOf(export: NameArity): NameArity? =
+            if (export.name.startsWith(MACRO_PREFIX)) {
+                NameArity(export.name.removePrefix(MACRO_PREFIX), export.arity - 1)
+            } else {
+                null
+            }
     }
 }
 

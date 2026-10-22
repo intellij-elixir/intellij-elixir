@@ -72,7 +72,7 @@ class LoweringDifferentialTest : ParsingTestCase() {
             is ElixirAst.Tuple -> node.elements
             is ElixirAst.ListNode -> node.elements
             is ElixirAst.Block -> node.expressions
-            is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
+            is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> emptyList()
         }
 
         return node is ElixirAst.Call && node.context != ElixirAst.VariableContext.Nil ||

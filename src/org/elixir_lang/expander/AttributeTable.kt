@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.AFTER_VERIFY_ACCUMULATES
 import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTES_EXPANDED_LAZILY
@@ -34,8 +35,10 @@ internal fun Term.isTruthy(): Boolean? =
 private fun Term.isExact(): Boolean = isShaped(contentKnown = true)
 
 /** Whether Elixir's checks of [this] can be made: no node or non-tuple anywhere in it, though a binary may be unread. */
-private fun Term.isShaped(contentKnown: Boolean = false): Boolean =
-    when (this) {
+private fun Term.isShaped(contentKnown: Boolean = false): Boolean {
+    ProgressManager.checkCanceled()
+
+    return when (this) {
         is Term.Atom, is Term.Integer -> true
         is Term.Binary -> !contentKnown || bytes != null
         is Term.List -> elements.all { it.isShaped(contentKnown) } && tail?.isShaped(contentKnown) ?: true
@@ -43,6 +46,7 @@ private fun Term.isShaped(contentKnown: Boolean = false): Boolean =
         is Term.Tuple -> elements.all { it.isShaped(contentKnown) }
         is Term.Node, Term.NonTuple, Term.Unexpanded -> false
     }
+}
 
 /** What a call in a module body does to that module's attributes when the body runs. */
 internal sealed interface Effect {
@@ -134,7 +138,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
         when (val value = value(name)) {
             is AttributeValue.Known ->
                 value.term.let { term -> if (name in DOCS && term is Term.Pair) term.second else term }
-            AttributeValue.Unknown -> NODE
+            AttributeValue.Unknown -> Term.Unexpanded
         }
 
     /**

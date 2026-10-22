@@ -6,6 +6,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ENV_VERSIONED_
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
+import org.elixir_lang.lowering.fitsAnAtom
 import org.elixir_lang.psi.Import.Term
 
 /**
@@ -36,9 +37,10 @@ internal fun onlyDefmodule(forms: ElixirAst): Boolean =
 
 /**
  * `Kernel`'s `alias_defmodule/3` (`expand_module/3` before 1.13): what `defmodule` with [name], which expanded to
- * [expanded], defines inside the module [enclosing], or at the top when it is `null`.
+ * [expanded], defines inside the module [enclosing], or at the top when it is `null`. `null` where a name it builds is
+ * past an atom's length, which raises `system_limit`.
  */
-internal fun aliasDefmodule(name: ElixirAst, expanded: String, enclosing: String?): DefmoduleAlias {
+internal fun aliasDefmodule(name: ElixirAst, expanded: String, enclosing: String?): DefmoduleAlias? {
     val segments = (name as? ElixirAst.Alias)?.segments.orEmpty()
     val head = (segments.firstOrNull() as? ElixirAst.Literal.Atom)?.name
 
@@ -46,10 +48,11 @@ internal fun aliasDefmodule(name: ElixirAst, expanded: String, enclosing: String
         return DefmoduleAlias(expanded, expanded, null)
     }
 
-    val module = concat(listOf(enclosing, head))
+    val module = concat(listOf(enclosing, head)) ?: return null
     val tail = segments.drop(1).map { (it as ElixirAst.Literal.Atom).name }
+    val full = (listOf(module) + tail).joinToString(".").takeIf(::fitsAnAtom) ?: return null
 
-    return DefmoduleAlias((listOf(module) + tail).joinToString("."), module, "Elixir.$head")
+    return DefmoduleAlias(full, module, "Elixir.$head")
 }
 
 /**
@@ -85,10 +88,12 @@ internal val DEFMODULE = Summary { _, node, state, env, run ->
                         queueModule(node, name.name, true, body, state, env, run)
                     } else {
                         val defined = aliasDefmodule(nameNode, name.name, env.module)
+                            ?: return@thenValue Expansion.Unported(nameNode)
                         val directive = linifyWithContextCounter(
                             lineOf(node.meta),
                             KERNEL,
                             counter,
+                            level,
                             definingDirective(nameNode, defined, env, level),
                         )
 

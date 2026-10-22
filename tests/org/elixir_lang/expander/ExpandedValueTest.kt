@@ -44,6 +44,9 @@ class ExpandedValueTest : ExpanderTestCase() {
 
     fun testAMatch() = assertValue("x = 1", "node")
 
+    /** A signed number in a pattern is a number, not a macro whose expansion may be a bitstring. */
+    fun testAParallelPatternOfSignedNumbersIsANode() = assertValue("{-1, a} = {-1, b} = {-1, 1}", "node")
+
     fun testAMapAndABitstringAreNodes() {
         assertValue("%{a: 1}", "node")
         assertValue("<<1>>", "node")
@@ -181,6 +184,7 @@ class ExpandedValueTest : ExpanderTestCase() {
                     Term.Node.Kind.VARIABLE -> "node(variable)"
                     Term.Node.Kind.PIN -> "node(pin)"
                     Term.Node.Kind.BOOLEAN -> "node(boolean)"
+                    Term.Node.Kind.GENERATOR -> "node(generator)"
                     Term.Node.Kind.OTHER -> "node"
                 }
             Term.NonTuple -> "non-tuple"

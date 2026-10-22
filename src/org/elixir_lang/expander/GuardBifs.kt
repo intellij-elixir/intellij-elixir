@@ -74,3 +74,34 @@ internal val OTP_24_GUARD_BIFS: Set<NameArity> = setOf(
     NameArity("tuple_size", 1),
     NameArity("xor", 2),
 )
+
+/**
+ * The binary operators `elixir_utils:guard_op/2` holds for on Erlang/OTP 24, which `elixir_erl_pass` translates to an
+ * operator. Generated on OTP 24.3.4.6 by `guard_bifs.exs`.
+ */
+internal val GUARD_OPERATORS: Set<String> = setOf(
+    "*",
+    "+",
+    "-",
+    "/",
+    "/=",
+    "<",
+    "=/=",
+    "=:=",
+    "=<",
+    "==",
+    ">",
+    ">=",
+    "and",
+    "andalso",
+    "band",
+    "bor",
+    "bsl",
+    "bsr",
+    "bxor",
+    "div",
+    "or",
+    "orelse",
+    "rem",
+    "xor",
+)

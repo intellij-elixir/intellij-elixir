@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiCompiledFile
@@ -280,8 +281,10 @@ internal object ExpanderSource : CandidateSource {
         arity: Int?,
         imports: Boolean,
         crossed: Set<Head>,
-    ): List<Reached> =
-        when (val located = at.holder.locate(at.file, module, at.inputs)) {
+    ): List<Reached> {
+        ProgressManager.checkCanceled()
+
+        return when (val located = at.holder.locate(at.file, module, at.inputs)) {
             ProjectModules.Located.Unknown, ProjectModules.Located.None, is ProjectModules.Located.Several -> emptyList()
             is ProjectModules.Located.Source -> {
                 val result = located.result ?: return emptyList()
@@ -295,6 +298,7 @@ internal object ExpanderSource : CandidateSource {
                 compiled(at.file, located, name)
                     .flatMap { reachedFrom(at, it, Reach.OWN, emptyList(), name, arity, remote = true, crossed) }
         }
+    }
 
     /** [defined], looked up as [name] at [arity], and what it reaches when it delegates. */
     private fun reachedFrom(
@@ -307,6 +311,8 @@ internal object ExpanderSource : CandidateSource {
         remote: Boolean,
         crossed: Set<Head>,
     ): List<Reached> {
+        ProgressManager.checkCanceled()
+
         val reached = reached(defined, reach, paths, name, arity, remote)
 
         return listOf(reached) + throughDelegation(at, reached, reached.named, defined.admits(arity), crossed)

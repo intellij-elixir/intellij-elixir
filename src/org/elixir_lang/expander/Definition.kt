@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.io.OSAgnosticPathUtil
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.DefinitionTable.Kind
@@ -90,8 +91,8 @@ internal fun define(
 
     val values = pieces.map {
         when (it) {
-            is Piece.Fragment -> linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, it.call.arguments!!.single())
-            is Piece.Evaluated -> linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, it.expression)
+            is Piece.Fragment -> linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, run.level, it.call.arguments!!.single())
+            is Piece.Evaluated -> linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, run.level, it.expression)
             is Piece.Quoted -> node
         }
     }
@@ -153,8 +154,10 @@ internal fun define(
  * The literal [fragment]'s value [term] is, if it is one a definition can hold: the code `unquote` inserts, in which a
  * tuple of three is a call and one of any other size but two isn't code at all.
  */
-internal fun literalOf(fragment: ElixirAst, term: Term): ElixirAst? =
-    when (term) {
+internal fun literalOf(fragment: ElixirAst, term: Term): ElixirAst? {
+    ProgressManager.checkCanceled()
+
+    return when (term) {
         is Term.Atom -> ElixirAst.Literal.Atom(fragment.meta, term.name)
         is Term.Integer -> ElixirAst.Literal.Integer(fragment.meta, term.value)
         is Term.Binary -> term.bytes?.let { ElixirAst.Literal.Binary(fragment.meta, it) }
@@ -167,6 +170,7 @@ internal fun literalOf(fragment: ElixirAst, term: Term): ElixirAst? =
         )
         else -> null
     }
+}
 
 /**
  * `elixir_quote:has_unquotes/1`: whether [node] makes its definition one with unquote fragments. Before
@@ -175,6 +179,8 @@ internal fun literalOf(fragment: ElixirAst, term: Term): ElixirAst? =
  * `quote` until [HAS_UNQUOTES_NAME_AT_QUOTE_LEVEL], and at the call's own level from it.
  */
 private fun hasUnquotes(node: ElixirAst, level: ElixirLanguageLevel, quoteLevel: Int = 0): Boolean {
+    ProgressManager.checkCanceled()
+
     val arguments = (node as? ElixirAst.Call)?.arguments
     val unquote = isCall(node, "unquote", 1) || isCall(node, "unquote_splicing", 1)
 
@@ -239,6 +245,8 @@ private class Unquotes {
     var stop: ElixirAst? = null
 
     fun collect(node: ElixirAst) {
+        ProgressManager.checkCanceled()
+
         when {
             isCall(node, "unquote", 1) -> (node as ElixirAst.Call).let { fragments[it.arguments!!.single()] = it }
             isCall(node, "quote", 1) -> {}
@@ -264,6 +272,8 @@ private class Unquotes {
      * escape stopped at, and holds only the expressions.
      */
     fun order(output: ElixirAst, pieces: MutableList<Piece>, escaped: Boolean = true) {
+        ProgressManager.checkCanceled()
+
         val fragment = fragments[output]
 
         when {
@@ -295,11 +305,13 @@ internal fun children(node: ElixirAst): List<ElixirAst> =
         is ElixirAst.ListNode -> node.elements
         is ElixirAst.Tuple -> node.elements
         is ElixirAst.Block -> node.expressions
-        is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
+        is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> emptyList()
     }
 
 /** [node] with each node in [replacements] replaced, rebuilding only what holds a replaced node. */
 internal fun substitute(node: ElixirAst, replacements: Map<ElixirAst, ElixirAst>): ElixirAst {
+    ProgressManager.checkCanceled()
+
     replacements[node]?.let { return it }
 
     if (replacements.isEmpty()) return node
@@ -328,7 +340,7 @@ internal fun substitute(node: ElixirAst, replacements: Map<ElixirAst, ElixirAst>
             substituteAll(node.expressions, replacements).let {
                 if (it === node.expressions) node else ElixirAst.Block(node.meta, it)
             }
-        is ElixirAst.Literal, is ElixirAst.Placeholder -> node
+        is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> node
     }
 }
 
@@ -352,8 +364,11 @@ internal fun extractGuards(head: ElixirAst): Pair<ElixirAst, List<ElixirAst>> =
     whenArguments(head)?.takeIf { it.size == 2 }?.let { (call, guards) -> call to orGuards(guards) } ?: (head to emptyList())
 
 /** `elixir_utils:extract_or_guards/1`: each guard of [node]'s `when`s. */
-internal fun orGuards(node: ElixirAst): List<ElixirAst> =
-    whenArguments(node)?.takeIf { it.size == 2 }?.let { (guard, rest) -> listOf(guard) + orGuards(rest) } ?: listOf(node)
+internal fun orGuards(node: ElixirAst): List<ElixirAst> {
+    ProgressManager.checkCanceled()
+
+    return whenArguments(node)?.takeIf { it.size == 2 }?.let { (guard, rest) -> listOf(guard) + orGuards(rest) } ?: listOf(node)
+}
 
 /**
  * Whether `run_with_location_change/3` moves a definition into another file: whether the file of [file], the `@file` it
@@ -461,20 +476,30 @@ internal fun storeDefinition(
 
     reservedNameError(kind, name, arity)?.let { return owner to Expansion.Error(it, node) }
 
-    val defaults = defaultsArgs.mapNotNull { arg -> (arg as? ElixirAst.Call)?.takeIf { isCall(it, "\\\\", 2) } }
-    if (definition.stop != null || !expand) {
+    val defaults = defaultsArgs.mapNotNull { arg -> (arg as? ElixirAst.Call)?.takeIf(::isDefault) }
+    val nameArity = NameArity(name, arity)
+    val args = defaultsArgs.map { arg -> if (isDefault(arg)) (arg as ElixirAst.Call).arguments!![0] else arg }
+
+    /** The definition stored with this clause in its place, stopped at [at]. */
+    fun stopped(at: ElixirAst): Pair<Owner, Expansion> {
+        if (definition.body != null) {
+            compiling.clauses.getOrPut(nameArity) { mutableListOf() } += ModuleClauses.Clause(args, guards, null)
+        }
         store(definition, name, arity, defaults.size, compiling)
 
-        return owner to Expansion.Unported(definition.stop ?: node)
+        return owner to Expansion.Unported(at)
     }
 
-    val nameArity = NameArity(name, arity)
+    if (definition.stop != null || !expand) return stopped(definition.stop ?: node)
+
     val env = definition.env.copy(function = nameArity)
     val fresh = ExState.empty(run.level).copy(caller = kind.macro)
-    val args = defaultsArgs.map { arg -> if (arg in defaults) (arg as ElixirAst.Call).arguments!![0] else arg }
     val body = definition.body?.let { clauseBody(node, it) }
-    val defaulted = expandDefaults(defaults, fresh, env, run, compiling, node)
-    val expansion = defaulted.then { _, _ -> clause(node, args, guards, definition.body, body, fresh, env, run) }
+    val (defaulted, expansion) = unlessTooDeep({ return stopped(node) }) {
+        val defaulted = expandDefaults(defaults, fresh, env, run, compiling, node)
+
+        defaulted to defaulted.then { _, _ -> clause(node, args, guards, definition.body, body, fresh, env, run) }
+    }
 
     if (expansion is Expansion.Error) return owner to expansion
 
@@ -482,7 +507,7 @@ internal fun storeDefinition(
     if (defaulted is Expansion.Expanded) {
         val counter = if (DEFAULT_ARGUMENTS_THREAD_STATE.isSufficient(run.level)) defaulted.state.version else 0
 
-        for (clause in defaultClauses(kind, name, defaultsArgs, defaults, counter)) {
+        for (clause in defaultClauses(kind, name, defaultsArgs, counter, compiling.dispatches)) {
             compiling.clauses.getOrPut(NameArity(name, clause.args.size)) { mutableListOf() } += clause
         }
     }
@@ -543,6 +568,8 @@ private fun expandDefaults(
     var expansion: Expansion = Expansion.Expanded(fresh, env, NODE)
 
     for (default in defaults) {
+        ProgressManager.checkCanceled()
+
         val defaultCalls = mutableListOf<LocalCall<ElixirAst>>()
 
         run.callArguments.addLast(defaultCalls)
@@ -564,6 +591,8 @@ private fun expandDefaults(
         val arities = DefinitionTable.defaultArities(full.arity, defaults.size)
 
         for (arity in arities) {
+            ProgressManager.checkCanceled()
+
             compiling.calls.getOrPut(NameArity(full.name, arity)) { mutableListOf() } +=
                 LocalCall(
                     node,
@@ -582,18 +611,20 @@ private fun expandDefaults(
 }
 
 /**
- * `unpack_expanded/7`: the clause of each default arity of [defaultsArgs], whose [defaults] are expanded. It binds the
+ * `unpack_expanded/7`: the clause of each default arity of [defaultsArgs], whose defaults are expanded. It binds the
  * arguments it is given to variables numbered from [counter], and calls the full arity through `super` with the
- * defaults it lacks.
+ * defaults it lacks. The clause isn't expanded, so each variable's version goes into [dispatches] here.
  */
 private fun defaultClauses(
     kind: Kind,
     name: String,
     defaultsArgs: List<ElixirAst>,
-    defaults: List<ElixirAst.Call>,
     counter: Int,
+    dispatches: ModuleClauses.Dispatches,
 ): List<ModuleClauses.Clause> =
-    defaultsArgs.indices.filter { defaultsArgs[it] in defaults }.map { index ->
+    defaultsArgs.indices.filter { isDefault(defaultsArgs[it]) }.map { index ->
+        ProgressManager.checkCanceled()
+
         val default = defaultsArgs[index] as ElixirAst.Call
         val synthetic = Synthetic(default.meta)
         // `default_var/1`.
@@ -603,12 +634,12 @@ private fun defaultClauses(
                 Meta.Key.Entry("version", Meta.Value.Integer(version.toLong())),
             )
 
-            synthetic.variable("x$version", "elixir_def", keys)
+            synthetic.variable("x$version", "elixir_def", keys).also { dispatches.putVersion(it, version) }
         }
         val base = (0 until index).map { variable(counter + it) }
         var next = counter + index
         val rest = defaultsArgs.drop(index).map { arg ->
-            if (arg in defaults) null to (arg as ElixirAst.Call).arguments!![1] else variable(next++).let { it to it }
+            if (isDefault(arg)) null to (arg as ElixirAst.Call).arguments!![1] else variable(next++).let { it to it }
         }
         val superKeys = listOf(
             Meta.Key.Entry("super", Meta.Value.Tuple(listOf(Meta.Value.Atom(kind.name.lowercase()), Meta.Value.Atom(name)))),
@@ -620,6 +651,9 @@ private fun defaultClauses(
             synthetic.call("super", base + rest.map { it.second }, superKeys),
         )
     }
+
+/** `{'\\\\', Meta, [Arg, Default]}`: an argument with a default. */
+private fun isDefault(arg: ElixirAst): Boolean = isCall(arg, "\\\\", 2)
 
 /** `def_to_clauses/6`'s body of [node]'s [options]: a `do` alone is its body, and with more a `try`; `null` without one. */
 private fun clauseBody(node: ElixirAst.Call, options: ElixirAst): ElixirAst? {

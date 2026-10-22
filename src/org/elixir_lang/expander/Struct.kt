@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.expander.ErrorSite.INVALID_KEY_FOR_STRUCT
 import org.elixir_lang.expander.ErrorSite.UNKNOWN_KEY_FOR_STRUCT
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRUCT_KEYS_IN_FUNCTIONS_LEFT_TO_TYPES
@@ -31,9 +32,17 @@ internal fun expandStruct(node: ElixirAst.Call, state: ExState, env: Env, run: R
         val name = (values as Term.List).elements.first()
         val match = env.context == Env.Context.MATCH
 
+        unknownStop(name, node)?.let { return@thenValue it }
+
         when {
             name is Term.Atom -> {
                 val keys = pairs.map { (it as? Term.Pair)?.first ?: return@thenValue Expansion.Unported(node) }
+
+                keys.zip(pairNodes(map))
+                    .firstNotNullOfOrNull { (key, pair) ->
+                        unknownStop(key, (expandedShape(pair) as ElixirAst.Tuple).elements[0])
+                    }
+                    ?.let { return@thenValue it }
 
                 structError(node, name.name, keys, mapUpdate(map) != null, env, run)
                     ?: traced(keys)?.let { traced ->
@@ -51,7 +60,11 @@ internal fun expandStruct(node: ElixirAst.Call, state: ExState, env: Env, run: R
 
 /** Each of [keys] as the `struct_expansion` trace is compared: an atom by its name, any other by `inspect/1`. */
 private fun traced(keys: List<Term>): List<String>? =
-    keys.map { key -> (key as? Term.Atom)?.name ?: inspected(key) ?: return null }
+    keys.map { key ->
+        ProgressManager.checkCanceled()
+
+        (key as? Term.Atom)?.name ?: inspected(key) ?: return null
+    }
 
 /**
  * What [module]'s struct gives the [keys] written, as their expansions, if anything stops it expanding: the error that
@@ -97,6 +110,7 @@ private fun structError(
     }
     val names = keys.map { (it as? Term.Atom)?.name }
     val unknown = names.filter { it == null || it !in struct.fields }
+    val written = names.toHashSet()
 
     return when {
         !build -> {
@@ -108,8 +122,8 @@ private fun structError(
         unknown.isNotEmpty() -> Expansion.Error("struct_unknown_key", node)
         else -> when (val enforced = struct.enforced) {
             is Enforced.Known ->
-                Expansion.Error("struct_missing_enforced_keys", node).takeUnless { names.containsAll(enforced.keys) }
-            Enforced.Unknown -> Expansion.Unported(node).takeUnless { names.containsAll(struct.fields) }
+                Expansion.Error("struct_missing_enforced_keys", node).takeUnless { written.containsAll(enforced.keys) }
+            Enforced.Unknown -> Expansion.Unported(node).takeUnless { written.containsAll(struct.fields) }
         }
     }
 }
@@ -132,6 +146,10 @@ private fun undefinedStruct(node: ElixirAst, module: String, env: Env): Expansio
     } else {
         Expansion.Error("undefined_struct", node)
     }
+
+/** The pairs [map] writes, each a 2-tuple once `elixir_map:validate_kv/4` has passed. */
+private fun pairNodes(map: ElixirAst.Call): List<ElixirAst> =
+    mapUpdate(map)?.let { (it.arguments!![1] as ElixirAst.ListNode).elements } ?: map.arguments!!
 
 /** [map] without its first `__struct__` pair, which `elixir_map:delete_struct_key/3` takes out before expansion. */
 private fun withoutStructKey(map: ElixirAst.Call): ElixirAst.Call {

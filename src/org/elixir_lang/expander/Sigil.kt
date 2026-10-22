@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_REGEX_IMPORTS_ON_OTP_28_1
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_REGEX_RECOMPILES_ON_OTP_28
 import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_COMPILED_AT_RUN_TIME_ON_OTP_28
@@ -155,10 +156,12 @@ private fun words(node: ElixirAst.Call, modifiers: ElixirAst, string: ElixirAst,
 
 /** `~r`'s modifiers, an unrecognised one raising: the translation `Regex.compile!/2` makes of a modifier. */
 private fun translateOptions(s: Synthetic, letters: ByteArray): List<ElixirAst>? {
-    var options = emptyList<ElixirAst>()
+    val options = mutableListOf<List<ElixirAst>>()
 
     for (letter in letters) {
-        val translated: List<ElixirAst> = when (letter.toInt().toChar()) {
+        ProgressManager.checkCanceled()
+
+        options += when (letter.toInt().toChar()) {
             's' -> listOf(s.atom("dotall"), s.tuple(s.atom("newline"), s.atom("anycrlf")))
             'u' -> listOf(s.atom("unicode"), s.atom("ucp"))
             'i' -> listOf(s.atom("caseless"))
@@ -168,11 +171,10 @@ private fun translateOptions(s: Synthetic, letters: ByteArray): List<ElixirAst>?
             'm' -> listOf(s.atom("multiline"))
             else -> return null
         }
-
-        options = translated + options
     }
 
-    return options
+    // A later letter's options come first.
+    return options.asReversed().flatten()
 }
 
 /** `Kernel.sigil_r/2`: unescaped as `Regex.unescape_map/1` does, and in neither a pattern nor a guard from 1.20. */
@@ -269,6 +271,8 @@ private inline fun unescapedPieces(
     failed: (Summary.Output) -> Nothing,
 ): List<ElixirAst> =
     pieces.map { piece ->
+        ProgressManager.checkCanceled()
+
         if (piece is ElixirAst.Literal.Binary) {
             ElixirAst.Literal.Binary(piece.meta, unescapedBytes(piece, map, level, failed))
         } else {

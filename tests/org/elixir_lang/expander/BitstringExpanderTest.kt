@@ -187,6 +187,22 @@ class BitstringExpanderTest : ExpanderTestCase() {
 
     fun testConflictingSizes() = assertEvery("<<x::8-size(16)>> = <<1>>", "error bittype_mismatch `x::8-size(16)`")
 
+    /** An expression's AST is never the literal's term; before 1.14 a size can't be an expression at all. */
+    fun testASizeConflictingWithAnExpression() =
+        assertSplit(
+            "n = 1; <<x::size(8)-size(:erlang.+(n, 1))>> = <<1>>",
+            "1.14.0-rc.0",
+            "error bad_size_argument `x::size(8)-size(:erlang.+(n, 1))`",
+            "error bittype_mismatch `x::size(8)-size(:erlang.+(n, 1))`",
+        )
+
+    /** A size naming a module past an atom's length, which `elixir_aliases:expand/4` raises `system_limit` on. */
+    fun testASizeNamingAModulePastAnAtomsLength() {
+        val alias = "A".repeat(250)
+
+        assertEvery("x = 1; <<x::size($alias)>>", "unported `$alias`")
+    }
+
     fun testALiteralOfTheWrongType() = assertEvery("<<1::binary>>", "error bittype_mismatch `1::binary`")
 
     fun testAUnitOtherThanOneOnABitstring() =

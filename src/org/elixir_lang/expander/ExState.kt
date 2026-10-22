@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.expander.ExState.Prematch.OutsideMatch.Mode
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNDEFINED_VARIABLE_RAISES
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -116,9 +117,16 @@ data class ExState(
         }
 
         /** `elixir_env:merge_vars/2`: the union, keeping the higher version of a variable in both. */
-        fun mergeVars(into: Map<Variable, Int>, from: Map<Variable, Int>): Map<Variable, Int> =
-            from.entries.fold(into) { acc, (variable, version) ->
-                if ((acc[variable] ?: Int.MIN_VALUE) >= version) acc else acc + (variable to version)
+        fun mergeVars(into: Map<Variable, Int>, from: Map<Variable, Int>): Map<Variable, Int> {
+            val merged = LinkedHashMap(into)
+
+            for ((variable, version) in from) {
+                ProgressManager.checkCanceled()
+
+                merged.merge(variable, version) { mine, theirs -> maxOf(mine, theirs) }
             }
+
+            return merged
+        }
     }
 }

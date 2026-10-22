@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFIMPL_EXPANDS_PROTOCOL
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFIMPL_FOR_EXPANDED_IN_KERNEL
@@ -35,7 +36,8 @@ private class ImplOptions(val forValue: ElixirAst?, val forCount: Int, val rest:
         fun of(written: ElixirAst, doBlock: ElixirAst?): ImplOptions? {
             val first = keyword(written) ?: return null
             val second = doBlock?.let { keyword(it) ?: return null }.orEmpty()
-            val merged = first.filter { (key, _) -> second.none { it.first == key } } + second
+            val secondKeys = second.mapTo(HashSet()) { it.first }
+            val merged = first.filter { (key, _) -> key !in secondKeys } + second
 
             return ImplOptions(
                 merged.firstOrNull { it.first == "for" }?.second,
@@ -109,12 +111,15 @@ private fun defimpl(
     val outputs = mutableListOf<ImplOutput>()
 
     // `for f <- for, do: __impl__(protocol, f, block)`, for each element of a list, however deep.
-    fun output(type: ElixirAst): ElixirAst =
-        if (type is ElixirAst.ListNode) {
+    fun output(type: ElixirAst): ElixirAst {
+        ProgressManager.checkCanceled()
+
+        return if (type is ElixirAst.ListNode) {
             s.list(type.elements.map(::output))
         } else {
             ImplOutput(s, level, expandedProtocol, type, block).also { outputs += it }.output()
         }
+    }
 
     val output = output(expandedFor)
     val protocolName = namedBy(expandedProtocol, state, env, run)
@@ -138,7 +143,7 @@ private fun defimpl(
         for (implementation in outputs) {
             val type = namedBy(implementation.type, state, env, run) ?: continue
 
-            supplied[implementation.name] = Term.Atom(implementationName(level, protocolName, type))
+            supplied[implementation.name] = Term.Atom(implementationName(level, protocolName, type) ?: continue)
         }
 
         // Before v1.19 `@behaviour` is given the variable that holds the protocol.

@@ -5,6 +5,7 @@ import com.ericsson.otp.erlang.OtpErlangBinary
 import com.ericsson.otp.erlang.OtpErlangDouble
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
+import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
@@ -15,7 +16,8 @@ import java.nio.charset.CodingErrorAction
 /**
  * [term] on one line, as Elixir's `inspect` prints it, so an expected term can be pasted from `Code.string_to_quoted`.
  *
- * A list of integers prints as `~c"..."` only when every one is ASCII-printable, as Elixir's `inspect` decides.
+ * A list of integers prints as `~c"..."` only when every one is ASCII-printable, as Elixir's `inspect` decides. A map's
+ * pairs print in the order the term holds them.
  */
 internal fun inspect(term: OtpErlangObject): String =
     when (term) {
@@ -34,8 +36,11 @@ internal fun inspect(term: OtpErlangObject): String =
         }
         is OtpErlangList -> {
             val elements = term.elements().toList()
+            val tail = term.lastTail
 
-            if (elements.isNotEmpty() && elements.all { keyword(it) != null }) {
+            if (tail != null) {
+                elements.joinToString(", ", "[", " | ${inspect(tail)}]") { inspect(it) }
+            } else if (elements.isNotEmpty() && elements.all { keyword(it) != null }) {
                 elements.joinToString(", ", "[", "]") { element ->
                     val pair = element as OtpErlangTuple
 
@@ -46,6 +51,14 @@ internal fun inspect(term: OtpErlangObject): String =
             }
         }
         is OtpErlangTuple -> term.elements().joinToString(", ", "{", "}") { inspect(it) }
+        is OtpErlangMap -> {
+            val pairs = term.keys().map { OtpErlangTuple(arrayOf(it, term.get(it))) }
+
+            pairs.joinToString(", ", "%{", "}") { pair ->
+                keyword(pair)?.let { "$it ${inspect(pair.elementAt(1))}" }
+                    ?: "${inspect(pair.elementAt(0))} => ${inspect(pair.elementAt(1))}"
+            }
+        }
         else -> error("no inspection for ${term.javaClass}")
     }
 

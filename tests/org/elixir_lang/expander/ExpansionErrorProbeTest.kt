@@ -52,6 +52,7 @@ class ExpansionErrorProbeTest : ProbeTestCase() {
             Case("<<:a>>"),
             // Each version's error, or Expanded where a version has none
             Case("<<x>> = <<y>> = <<1>>"),
+            Case("\"a\" <> x = <<y>> = \"ab\""),
             Case("{<<x>> = <<y>>} = {<<1>>}"),
             Case("k = 1\n%{^k => <<x>>} = %{^k => <<y>>} = %{1 => <<1>>}"),
             Case("%{b: <<x>>,\na: <<y>>} = %{b: <<z>>,\na: <<w>>} = %{a: <<1>>, b: <<2>>}"),

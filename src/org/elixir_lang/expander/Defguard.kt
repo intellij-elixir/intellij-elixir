@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.expander.DefinitionTable.Kind
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFGUARD_UNQUOTE_NAMES
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -86,6 +87,12 @@ internal val UTILS_DEFGUARD = Summary { dispatch, node, _, env, run ->
     }
 }
 
-/** `extract_refs_from_args/1`: each variable in [node], in order. */
-private fun refs(node: ElixirAst): List<Variable> =
-    (if (isVariable(node)) listOf(variable(node)) else emptyList()) + children(node).flatMap(::refs)
+/** `extract_refs_from_args/1`: each variable in [node], in order, added to [refs]. */
+private fun refs(node: ElixirAst, refs: MutableList<Variable> = mutableListOf()): List<Variable> {
+    ProgressManager.checkCanceled()
+
+    if (isVariable(node)) refs += variable(node)
+    children(node).forEach { refs(it, refs) }
+
+    return refs
+}

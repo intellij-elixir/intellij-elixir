@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPE_ERRORS_NAME_THE_INVALID_CHARACTER
 import org.elixir_lang.language_level.ElixirLanguageFeature.HEXADECIMAL_ESCAPE_NEEDS_TWO_DIGITS
 import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_KEEPS_ESCAPES
@@ -34,6 +35,8 @@ private class Unescaper(private val string: ByteArray, private val map: EscapeMa
 
     fun unescape(): Unescaped {
         while (at < string.size) {
+            ProgressManager.checkCanceled()
+
             val byte = string[at++].toInt() and 0xFF
 
             if (byte != BACKSLASH || at == string.size) {

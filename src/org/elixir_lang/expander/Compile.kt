@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.expander.ExpansionResult.Owner
@@ -28,6 +29,9 @@ internal class Compiling(body: ElixirAst, level: ElixirLanguageLevel) {
 
     /** Each `quote` the definitions' bodies hold. */
     val quotes = ModuleClauses.Quotes()
+
+    /** What each call and bitstring segment of the definitions' bodies expanded as. */
+    val dispatches = ModuleClauses.Dispatches()
 
     /**
      * The calls a hidden definition's body brought back under the name it was made overridable as, which stay when that
@@ -127,6 +131,8 @@ internal class Compiling(body: ElixirAst, level: ElixirLanguageLevel) {
 
     /** A block's expressions are statements, and so is what a statement that is a match binds, which runs where it does. */
     private fun addStatements(node: ElixirAst) {
+        ProgressManager.checkCanceled()
+
         if (node is ElixirAst.Block) {
             node.expressions.forEach(::addStatements)
         } else {
@@ -295,7 +301,9 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
     run.pending = mutableListOf()
     run.counters.start(name)
 
-    val body = Expander.expand(module.body, module.state, module.env, run)
+    val body = unlessTooDeep({ Expansion.Unported(module.body) }) {
+        Expander.expand(module.body, module.state, module.env, run)
+    }
     var ended = ended(body, run)
 
     units += ExpansionResult.Unit(Owner.ModuleBody, module.body, true, body)
@@ -307,6 +315,8 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
     val queue = ArrayDeque(module.settle?.invoke(run.pending) ?: run.pending)
 
     while (queue.isNotEmpty()) {
+        ProgressManager.checkCanceled()
+
         val unitEnded = when (val pending = queue.removeFirst()) {
             is Pending.Module if raised -> null
             is Pending.Effect if raised -> null
@@ -373,12 +383,12 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
         if (unitEnded?.raises == true) break
     }
 
-    if (ended == null) storeNotOverridden(compiling)?.let { ended = Ended.Raised(it) }
+    storeNotOverridden(compiling, checked = ended == null)?.let { ended = Ended.Raised(it) }
 
     if (ended == null) ended = beforeCompile(module, compiling, (body as Expansion.Expanded).env, run)
 
     // `eval_form/7` stores them again after the callbacks, which may have defined the other kind.
-    if (ended == null) ended = storeNotOverridden(compiling)?.let { Ended.Raised(it) }
+    storeNotOverridden(compiling, checked = ended == null)?.let { ended = Ended.Raised(it) }
 
     if (ended == null) {
         ended = postModule(module, compiling, tainted = run.errors.size > errorsFrom || errors.isNotEmpty(), run)

@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import org.elixir_lang.Module
 import org.elixir_lang.NameArity
@@ -20,6 +21,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.SIGIL_FILTER_TOLERAT
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
+import org.elixir_lang.lowering.fitsAnAtom
 import org.elixir_lang.psi.Import
 import org.elixir_lang.psi.Import.Term
 
@@ -27,7 +29,7 @@ import org.elixir_lang.psi.Import.Term
 internal enum class Directive(val allowed: List<String>) {
     ALIAS(listOf("as", "warn")),
     REQUIRE(listOf("as", "warn")),
-    IMPORT(listOf("only", "except", "warn"));
+    IMPORT(Import.Filter.OPTIONS);
 
     val atom: String = name.lowercase()
 
@@ -38,7 +40,7 @@ internal enum class Directive(val allowed: List<String>) {
 
 /** `expand_aliases/4` for the `__aliases__` clause. */
 internal fun expandAliasesClause(node: ElixirAst.Alias, state: ExState, env: Env, run: Run): Expansion =
-    expandAliases(node, state, env, run) { module, s, e -> Expansion.Expanded(s, e, Term.Atom(module)) }
+    recordingValue(node, env, run, expandAliases(node, state, env, run) { module, s, e -> Expansion.Expanded(s, e, Term.Atom(module)) })
 
 /** `expand_multi_alias_call/7`. */
 internal fun expandMultiAlias(call: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
@@ -58,6 +60,8 @@ internal fun expandMultiAlias(call: ElixirAst.Call, state: ExState, env: Env, ru
     }
 
     return expandWithoutAliasesReport(base, state, env, run) { baseRef, sb, eb ->
+        unknownStop(baseRef, base)?.let { return@expandWithoutAliasesReport it }
+
         when {
             baseRef is Term.Atom ->
                 mapfold(multi.arguments!!, sb, eb) { ref, s, e ->
@@ -69,7 +73,7 @@ internal fun expandMultiAlias(call: ElixirAst.Call, state: ExState, env: Env, ru
                     // `elixir_aliases:concat/1` crashes on a segment that isn't an atom.
                     if (null in segments) return@mapfold Expansion.Unported(ref)
 
-                    val module = concat(listOf(baseRef.name) + segments.filterNotNull())
+                    val module = concat(listOf(baseRef.name) + segments.filterNotNull()) ?: return@mapfold Expansion.Unported(ref)
 
                     expandDirective(directive, call, ElixirAst.Literal.Atom(ref.meta, module), opts, s, e, run)
                 }
@@ -104,6 +108,8 @@ internal fun expandDirective(
 
     return expandWithoutAliasesReport(ref, state, env, run) { eRef, sr, er ->
         expandOpts(directive, call, opts, sr, er, run) { eOpts, st, et ->
+            unknownStop(eRef, call)?.let { return@expandOpts it }
+
             when {
                 eRef !is Term.Atom -> Expansion.Error("expected_compile_time_module", call)
                 // `should_warn/3` crashes on any other `warn:`.
@@ -189,8 +195,10 @@ private fun expandAliases(
     }
 
     return Expander.expand(head, state, env, run).thenValue { s, e, value ->
+        unknownStop(value, head)?.let { return@thenValue it }
+
         if (value is Term.Atom) {
-            next(concat(listOf(value.name) + tail), s, e)
+            concat(listOf(value.name) + tail)?.let { next(it, s, e) } ?: Expansion.Unported(node)
         } else {
             Expansion.Error("invalid_alias", node)
         }
@@ -236,13 +244,14 @@ internal fun aliasExpansion(node: ElixirAst.Alias, env: Env, level: ElixirLangua
             }
         else -> return null
     }
-    val lookup = "Elixir.$head"
+    // `list_to_atom/1` raises `system_limit` on the name looked up too.
+    val lookup = "Elixir.$head".takeIf(::fitsAnAtom) ?: return null
     val module = lookup(lookup, entries, counterOf(node.meta), level) ?: return null
 
     return when {
         module == lookup -> AliasExpansion.Unaliased(names)
         names.size == 1 -> AliasExpansion.Aliased(module)
-        else -> AliasExpansion.Aliased(concat(listOf(module) + names.drop(1)))
+        else -> concat(listOf(module) + names.drop(1))?.let(AliasExpansion::Aliased)
     }
 }
 
@@ -257,6 +266,8 @@ private tailrec fun lookup(
     level: ElixirLanguageLevel,
     seen: Set<String> = emptySet(),
 ): String? {
+    ProgressManager.checkCanceled()
+
     val entry = entries.firstOrNull { it.alias == name } ?: return name
 
     if (entry.counter != null && entry.counter != counter) return name
@@ -270,9 +281,10 @@ private tailrec fun lookup(
 
 /**
  * `elixir_aliases:concat/1` over atom texts: `nil` is skipped, and an `Elixir.` prefix after the first is dropped. The
- * first is a binary when [firstIsBinary], and a binary `"nil"` is a name, not skipped.
+ * first is a binary when [firstIsBinary], and a binary `"nil"` is a name, not skipped. `null` past an atom's length,
+ * where `binary_to_atom/2` raises `system_limit`.
  */
-internal fun concat(names: List<String>, firstIsBinary: Boolean = false): String {
+internal fun concat(names: List<String>, firstIsBinary: Boolean = false): String? {
     val first = names.firstOrNull()
     val tail = names.drop(1).filter { it != "nil" }
     val (start, rest) = when {
@@ -282,7 +294,7 @@ internal fun concat(names: List<String>, firstIsBinary: Boolean = false): String
         else -> "Elixir" to listOf(first) + tail
     }
 
-    return rest.fold(start) { acc, name -> "$acc.${Module.partial(name)}" }
+    return (listOf(start) + rest.map(Module::partial)).joinToString(".").takeIf(::fitsAnAtom)
 }
 
 /**
@@ -301,23 +313,40 @@ private fun expandOpts(
     if (opts == null) return next(Term.List(emptyList()), state, env)
 
     return Expander.expand(opts, state, env, run).thenValue { s, e, value ->
-        if (hasTail(value)) return@thenValue Expansion.Unported(opts)
+        // `validate_opts/5` can't tell what an unexpanded value holds.
+        unknownStop(value, opts)?.let { return@thenValue it }
+        if ((value as? Term.List)?.tail != null) return@thenValue Expansion.Unported(opts)
 
-        val eOpts = if (directive == Directive.IMPORT) value else noAliasOpts(opts, value)
+        val eOpts = if (directive == Directive.IMPORT) value else noAliasOpts(opts, value) ?: return@thenValue Expansion.Unported(opts)
+        val list = eOpts as? Term.List
+        val knownKeys = list?.copy(elements = list.elements.filterNot(Term::hasUnknownKey))
 
-        Import.optionsError(eOpts, directive.allowed)?.let { Expansion.Error(it, call) } ?: next(eOpts, s, e)
+        Import.optionsError(knownKeys ?: eOpts, directive.allowed)?.let { return@thenValue Expansion.Error(it, call) }
+
+        when {
+            !eOpts.hasUnknownPart() -> next(eOpts, s, e)
+            directive == Directive.IMPORT && list != null && raisesWhateverUnknown(list, run.level) -> next(eOpts, s, e)
+            else -> Expansion.Unported(opts)
+        }
     }
 }
 
-/** `no_alias_opts/1`: the first `as:` holding an alias names it as written, not through the aliases. */
-private fun noAliasOpts(opts: ElixirAst, value: Term): Term {
+/** Whether `elixir_import` raises on [options] whatever their unknown parts hold. */
+private fun raisesWhateverUnknown(options: Term.List, level: ElixirLanguageLevel): Boolean =
+    Import.Filter.of(options, level, null).let { it.decided && it.filter is Import.Filter.Invalid }
+
+/**
+ * `no_alias_opts/1`: the first `as:` holding an alias names it as written, not through the aliases; `null` where
+ * [concat] gives no name.
+ */
+private fun noAliasOpts(opts: ElixirAst, value: Term): Term? {
     if (opts !is ElixirAst.ListNode || value !is Term.List) return value
 
     val index = opts.elements.indexOfFirst { keyOf(it) == "as" }.takeIf { it >= 0 } ?: return value
     val alias = (opts.elements[index] as ElixirAst.Tuple).elements[1] as? ElixirAst.Alias ?: return value
     val names = alias.segments.map { (it as? ElixirAst.Literal.Atom)?.name ?: return value }
 
-    val asWritten = Term.Pair(Term.Atom("as"), Term.Atom(concat(names)))
+    val asWritten = Term.Pair(Term.Atom("as"), Term.Atom(concat(names) ?: return null))
 
     return Term.List(value.elements.toMutableList().apply { set(index, asWritten) })
 }
@@ -559,14 +588,6 @@ private inline fun calculateKey(
 
     return listOf(Env.Imports(module, set, origin)) + others
 }
-
-/** Whether [term] is, or holds, a list with a `|` tail. */
-private fun hasTail(term: Term): Boolean =
-    when (term) {
-        is Term.List -> term.tail != null || term.elements.any(::hasTail)
-        is Term.Pair -> hasTail(term.first) || hasTail(term.second)
-        else -> false
-    }
 
 private fun List<NameArity>?.hasDuplicate(): Boolean = this != null && toSet().size != size
 

@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_ARGUMENT_BELOW_ONE_IS_INVALID_ARITY
 import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_ARGUMENT_COUNTER
@@ -45,6 +46,8 @@ internal fun expandCapture(node: ElixirAst.Call, state: ExState, env: Env, run: 
 private enum class Arguments { ARITY, SEQUENTIAL, NON_SEQUENTIAL }
 
 private fun capture(amp: ElixirAst.Call, arg: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
+    ProgressManager.checkCanceled()
+
     val call = arg as? ElixirAst.Call
     val dot = (call?.callee as? ElixirAst.Call)
         ?.takeIf { (it.callee as? ElixirAst.Literal.Atom)?.name == "." }
@@ -78,7 +81,7 @@ private fun capture(amp: ElixirAst.Call, arg: ElixirAst, state: ExState, env: En
         }
         dot?.size == 2 && dot[1] is ElixirAst.Literal.Atom && call.arguments != null ->
             captureRequire(amp, call, arguments(call.arguments), state, env, run)
-        dot?.size == 1 && call.arguments != null -> captureExpr(amp, call, Arguments.NON_SEQUENTIAL, state, env, run)
+        dot?.size == 1 && call.arguments != null -> captureExpr(amp, amp, call, Arguments.NON_SEQUENTIAL, state, env, run)
         arg is ElixirAst.Block && arg.expressions.size == 1 -> capture(amp, arg.expressions.single(), state, env, run)
         arg is ElixirAst.Block -> Expansion.Error("block_expr_in_capture", amp)
         name != null && call.arguments != null -> captureImport(amp, atCall, call, name, call.arguments, state, env, run)
@@ -86,7 +89,7 @@ private fun capture(amp: ElixirAst.Call, arg: ElixirAst, state: ExState, env: En
         arg is ElixirAst.Tuple && arg.elements.size != 2 -> captureImport(amp, atCall, arg, "{}", arg.elements, state, env, run)
         // `{left, right}` becomes `{'{}', Meta, [left, right]}` with the `&`'s metadata.
         arg is ElixirAst.Tuple -> captureImport(amp, amp, arg, "{}", arg.elements, state, env, run)
-        arg is ElixirAst.ListNode -> captureExpr(amp, arg, arguments(arg.elements), state, env, run)
+        arg is ElixirAst.ListNode -> captureExpr(amp, amp, arg, arguments(arg.elements), state, env, run)
         arg is ElixirAst.Literal.Integer -> Expansion.Error("capture_arg_outside_of_capture", amp)
         arg is ElixirAst.Placeholder && arg.stopsExpansion -> Expansion.Unported(arg)
         else -> Expansion.Error("invalid_args_for_capture", amp)
@@ -110,10 +113,10 @@ private fun captureImport(
     arguments: Arguments = arguments(args),
 ): Expansion =
     if (arguments == Arguments.NON_SEQUENTIAL) {
-        captureExpr(at, expr, arguments, state, env, run)
+        captureExpr(amp, at, expr, arguments, state, env, run)
     } else {
         importFunction(amp, expr, name, args.size, state, env, run)
-            ?: captureExpr(at, expr, arguments, state, env, run)
+            ?: captureExpr(amp, at, expr, arguments, state, env, run)
     }
 
 /**
@@ -132,7 +135,10 @@ private fun importFunction(
 ): Expansion? {
     return when (val match = findImportByNameArity(call.meta, name, arity, emptyList(), env, run.level)) {
         is ImportMatch.Function -> {
-            importedFunction(call, match.receiver, name, arity, Dispatch.Kind.IMPORTED_FUNCTION, run)
+            val (inlinedReceiver, inlinedName) =
+                importedFunction(call, match.receiver, name, arity, Dispatch.Kind.IMPORTED_FUNCTION, run)
+
+            recordDispatch(amp, ModuleClauses.Dispatched.Remote(inlinedReceiver, inlinedName), env, run)
             recordImport(NameArity(name, arity), match.receiver, env, run)
             checkDeprecated(CalledKind.FUNCTION, call, match.receiver, name, arity, env, run)
 
@@ -152,6 +158,7 @@ private fun importFunction(
                     val module = env.module ?: "nil"
 
                     run.observer.dispatched(call, Dispatch(Dispatch.Kind.LOCAL_FUNCTION, module, name, arity))
+                    recordDispatch(amp, ModuleClauses.Dispatched.Local, env, run)
 
                     if (env.function == null) {
                         Expansion.Error("undefined_local_capture", amp)
@@ -184,7 +191,7 @@ private fun captureRequire(
     escape.error?.let { return it }
 
     return if (escape.variables.isNotEmpty()) {
-        captureExpr(captureAt(amp, call, run), call, arguments, state, env, run, escape)
+        captureExpr(amp, captureAt(amp, call, run), call, arguments, state, env, run, escape)
     } else {
         Expander.expand(module, state, env, run).thenValue { s, e, value ->
             run.observer.receiver(module, value)
@@ -195,13 +202,20 @@ private fun captureRequire(
                 ?.let { withModule(call, ElixirAst.Literal.Atom(module.meta, it.name)) }
                 ?: call
 
-            when {
-                arguments == Arguments.NON_SEQUENTIAL -> captureExpr(at, expanded, arguments, s, e, run)
-                value == VARIABLE_NODE -> Expansion.Expanded(s, e, NODE)
-                value is Term.Atom ->
+            if (arguments == Arguments.NON_SEQUENTIAL) return@thenValue captureExpr(amp, at, expanded, arguments, s, e, run)
+            // `require_function/5` reads it.
+            unknownStop(value, module)?.let { return@thenValue it }
+
+            when (value) {
+                VARIABLE_NODE -> {
+                    recordDispatch(amp, ModuleClauses.Dispatched.Apply, e, run)
+
+                    Expansion.Expanded(s, e, NODE)
+                }
+                is Term.Atom ->
                     requireFunction(amp, call, value.name, remoteName(call), call.arguments!!.size, s, e, run)
-                        ?: captureExpr(at, expanded, arguments, s, e, run)
-                else -> captureExpr(at, call, arguments, s, e, run)
+                        ?: captureExpr(amp, at, expanded, arguments, s, e, run)
+                else -> captureExpr(amp, at, call, arguments, s, e, run)
             }
         }
     }
@@ -240,6 +254,7 @@ private fun requireFunction(
 
     run.observer.capturing(amp)
     run.observer.dispatched(call, Dispatch(Dispatch.Kind.REMOTE_FUNCTION, inlinedReceiver, inlinedName, arity))
+    recordDispatch(amp, ModuleClauses.Dispatched.Remote(inlinedReceiver, inlinedName), env, run)
 
     return Expansion.Expanded(state, env, NODE)
 }
@@ -274,10 +289,12 @@ private fun captureAt(amp: ElixirAst, call: ElixirAst, run: Run, plainRemote: Bo
  * `capture_expr/6`: [expr] with each `&N` replaced by the variable for `N`, as the body of an `fn` whose parameters are
  * those variables in order, which must be `&1` to the highest `&N`.
  *
+ * @param amp the capture, where the `fn` is recorded for the evaluator
  * @param at where the capture's errors are reported, and the `fn`'s metadata
  * @param escape holding the variables of [expr]'s module part, when `capture_require/4` escaped it first
  */
 private fun captureExpr(
+    amp: ElixirAst,
     at: ElixirAst,
     expr: ElixirAst,
     arguments: Arguments,
@@ -303,7 +320,10 @@ private fun captureExpr(
                 listOf(ElixirAst.ListNode(at.meta, escape.variables.values.toList()), body)
             )
 
-            expandFn(ElixirAst.Call(at.meta, ElixirAst.Literal.Atom(at.meta, "fn"), listOf(clause)), state, env, run)
+            val fn = ElixirAst.Call(at.meta, ElixirAst.Literal.Atom(at.meta, "fn"), listOf(clause))
+
+            recordDispatch(amp, ModuleClauses.Dispatched.Fn(fn), env, run)
+            expandFn(fn, state, env, run)
         }
     }
 }
@@ -319,8 +339,10 @@ private class Escape(private val run: Run, private val module: String?) {
     var error: Expansion.Error? = null
         private set
 
-    fun escape(node: ElixirAst): ElixirAst =
-        if (error != null) {
+    fun escape(node: ElixirAst): ElixirAst {
+        ProgressManager.checkCanceled()
+
+        return if (error != null) {
             node
         } else {
             when (node) {
@@ -334,9 +356,10 @@ private class Escape(private val run: Run, private val module: String?) {
                 is ElixirAst.ListNode -> ElixirAst.ListNode(node.meta, node.elements.map(::escape))
                 is ElixirAst.Block -> ElixirAst.Block(node.meta, node.expressions.map(::escape))
                 is ElixirAst.Alias -> ElixirAst.Alias(node.meta, node.segments.map(::escape))
-                is ElixirAst.Literal, is ElixirAst.Placeholder -> node
+                is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> node
             }
         }
+    }
 
     private fun argument(node: ElixirAst.Call): ElixirAst {
         val position = (node.arguments?.singleOrNull() as? ElixirAst.Literal.Integer)?.value
@@ -397,7 +420,12 @@ private fun argumentsFromArity(amp: ElixirAst, arity: ElixirAst): List<ElixirAst
 
 /** `check_sequential_and_not_empty/1`: [args] are `&1` to `&N` in order, and there is at least one. */
 private fun arguments(args: List<ElixirAst>): Arguments =
-    if (args.isNotEmpty() && args.withIndex().all { (index, arg) -> isCaptureArgument(arg, index + 1) }) {
+    if (args.isNotEmpty() && args.withIndex().all { (index, arg) ->
+            ProgressManager.checkCanceled()
+
+            isCaptureArgument(arg, index + 1)
+        }
+    ) {
         Arguments.SEQUENTIAL
     } else {
         Arguments.NON_SEQUENTIAL

@@ -52,14 +52,19 @@ internal fun makeOverridable(compiling: Compiling, nameArity: NameArity): Overri
     return Overriding.RECORDED
 }
 
-/** `elixir_overridable:store_not_overridden/1`: each overridable definition with no new one is stored back. */
-internal fun storeNotOverridden(compiling: Compiling): Expansion.Error? {
+/**
+ * `elixir_overridable:store_not_overridden/1`: each overridable definition with no new one is stored back. Not
+ * [checked], for a module that stopped or raised, they are stored back all the same, as they are defined up to the
+ * stop, and none raises.
+ */
+internal fun storeNotOverridden(compiling: Compiling, checked: Boolean): Expansion.Error? {
     for ((nameArity, overridable) in compiling.overridable) {
         val defined = compiling.table[nameArity]
 
         when {
             defined == null -> storeOverridable(compiling, nameArity, overridable, hidden = false)
-            defined.kind.macro != overridable.entry.kind.macro -> return Expansion.Error("bad_kind", defined.at)
+            checked && defined.kind.macro != overridable.entry.kind.macro ->
+                return Expansion.Error("bad_kind", defined.at)
         }
     }
 
@@ -177,8 +182,7 @@ private fun makeBehaviourOverridable(compiling: Compiling, behaviour: String, at
 }
 
 /** `Module.Behaviour.callbacks/1`'s `normalize_macro_or_function_callback/1`: a `MACRO-` callback by its macro. */
-private fun macroCallbackNormalised(callback: NameArity): NameArity =
-    if (callback.name.startsWith("MACRO-")) NameArity(callback.name.removePrefix("MACRO-"), callback.arity - 1) else callback
+private fun macroCallbackNormalised(callback: NameArity): NameArity = ModuleExports.macroOf(callback) ?: callback
 
 /** `Kernel.defoverridable/1`: `Module.make_overridable(__MODULE__, definitions)`. */
 internal val DEFOVERRIDABLE = object : Summary.Rewrite() {
@@ -225,6 +229,8 @@ internal fun expandSuper(node: ElixirAst.Call, state: ExState, env: Env, run: Ru
     return when (val resolved = resolveSuper(node, args.size, env, run)) {
         is Resolved.Failed -> resolved.expansion
         is Resolved.Found -> {
+            recordDispatch(node, ModuleClauses.Dispatched.Super(resolved.stored.kind, resolved.stored.name), env, run)
+
             if (SUPER_TRACES_LOCAL_FUNCTION.isSufficient(run.level)) {
                 run.observer.dispatched(
                     node,
@@ -257,9 +263,28 @@ internal fun expandCaptureSuper(
         is Resolved.Found -> when {
             resolved.stored.kind.macro -> expandCapture(node, state, env, run)
             // Before it traces, `&super/arity` of a function is returned renamed and isn't expanded.
-            form == SuperCapture.ARITY && !SUPER_TRACES_LOCAL_FUNCTION.isSufficient(run.level) ->
+            form == SuperCapture.ARITY && !SUPER_TRACES_LOCAL_FUNCTION.isSufficient(run.level) -> {
+                recordDispatch(node, ModuleClauses.Dispatched.Super(resolved.stored.kind, resolved.stored.name), env, run)
+
                 Expansion.Expanded(state, env, NODE)
-            else -> expandCapture(named(node, form, resolved.stored.name), state, env, run)
+            }
+            else -> {
+                val renamed = named(node, form, resolved.stored.name)
+
+                expandCapture(renamed, state, env, run).also {
+                    // The renamed capture's record is the one `translate/3` reads at [node]: a `fn`, or the function.
+                    when (val captured = run.compiling[env.module]?.dispatches?.of(renamed)) {
+                        null -> Unit
+                        is ModuleClauses.Dispatched.Fn -> recordDispatch(node, captured, env, run)
+                        else -> recordDispatch(
+                            node,
+                            ModuleClauses.Dispatched.Super(resolved.stored.kind, resolved.stored.name),
+                            env,
+                            run,
+                        )
+                    }
+                }
+            }
         }
     }
 

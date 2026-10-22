@@ -15,6 +15,7 @@ import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.NameArity
+import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -23,6 +24,7 @@ import java.util.Random
 
 /** Erlang orders atoms by code point, so U+F900 comes before U+20000, though its UTF-16 unit is higher. */
 class TermOrderTest {
+    private val otp29 = ElixirLanguageLevel.of("1.20.4", "29")
     private val bmp = "豈"
     private val supplementary = String(Character.toChars(0x20000))
 
@@ -75,7 +77,7 @@ class TermOrderTest {
         assertEquals(
             listOf(OtpErlangDouble(-0.0), long(0), OtpErlangDouble(0.0), OtpErlangDouble(0.5), OtpErlangDouble(1.0), long(1)),
             listOf(OtpErlangDouble(1.0), long(1), OtpErlangDouble(0.5), OtpErlangDouble(-0.0), long(0), OtpErlangDouble(0.0))
-                .sortedWith(TERM_ORDER),
+                .sortedWith(termOrder(otp29)),
         )
 
     @Test
@@ -121,30 +123,48 @@ class TermOrderTest {
     fun mapKeysPutEveryIntegerBeforeEveryFloat() =
         assertEquals(
             listOf(long(1), long(2), OtpErlangDouble(1.0), OtpErlangDouble(1.5)),
-            listOf(OtpErlangDouble(1.5), long(2), OtpErlangDouble(1.0), long(1)).sortedWith(MAP_KEY_ORDER),
+            listOf(OtpErlangDouble(1.5), long(2), OtpErlangDouble(1.0), long(1)).sortedWith(mapKeyOrder(otp29)),
         )
 
     @Test
     fun mapValuesEqualAsNumbersKeepTheirOrder() {
         val terms = listOf(map(atomTerm("a") to OtpErlangDouble(1.0)), map(atomTerm("a") to long(1)))
 
-        assertEquals(terms, terms.sortedWith(TERM_ORDER))
+        assertEquals(terms, terms.sortedWith(termOrder(otp29)))
+    }
+
+    /** `-0.0` and `0.0` are two map keys from OTP 27, `-0.0` first, so they order the maps that hold them. */
+    @Test
+    fun negativeZeroIsItsOwnMapKeyFromOtp27() {
+        val otp27 = ElixirLanguageLevel.of("1.18.4", "27")
+
+        assertEquals(-1, mapKeyOrder(otp27).compare(OtpErlangDouble(-0.0), OtpErlangDouble(0.0)))
+        assertEquals(0, termOrder(otp27).compare(OtpErlangDouble(-0.0), OtpErlangDouble(0.0)))
+        assertEquals(-1, termOrder(otp27).compare(map(OtpErlangDouble(-0.0) to long(1)), map(OtpErlangDouble(0.0) to long(1))))
+    }
+
+    @Test
+    fun negativeZeroIsZeroBeforeOtp27() {
+        val otp26 = ElixirLanguageLevel.of("1.16.3", "26")
+
+        assertEquals(0, mapKeyOrder(otp26).compare(OtpErlangDouble(-0.0), OtpErlangDouble(0.0)))
+        assertEquals(0, termOrder(otp26).compare(map(OtpErlangDouble(-0.0) to long(1)), map(OtpErlangDouble(0.0) to long(1))))
     }
 
     /** Where two pids, ports, references or closures go is the VM's own choice, which no term here decides. */
     @Test
     fun differentPidsHaveNoOrder() {
-        assertEquals(0, TERM_ORDER.compare(OtpErlangPid("n@h", 1, 0, 0), OtpErlangPid("n@h", 1, 0, 0)))
+        assertEquals(0, termOrder(otp29).compare(OtpErlangPid("n@h", 1, 0, 0), OtpErlangPid("n@h", 1, 0, 0)))
         assertThrows(IllegalArgumentException::class.java) {
-            TERM_ORDER.compare(OtpErlangPid("n@h", 1, 0, 0), OtpErlangPid("n@h", 2, 0, 0))
+            termOrder(otp29).compare(OtpErlangPid("n@h", 1, 0, 0), OtpErlangPid("n@h", 2, 0, 0))
         }
     }
 
     private fun assertSorted(vararg expected: OtpErlangObject) {
         val sorted = expected.toList()
 
-        assertEquals(sorted, sorted.reversed().sortedWith(TERM_ORDER))
-        assertEquals(sorted, sorted.shuffled(Random(0)).sortedWith(TERM_ORDER))
+        assertEquals(sorted, sorted.reversed().sortedWith(termOrder(otp29)))
+        assertEquals(sorted, sorted.shuffled(Random(0)).sortedWith(termOrder(otp29)))
     }
 
     private fun long(value: Long) = OtpErlangLong(value)

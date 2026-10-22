@@ -110,7 +110,7 @@ class OverridableTest {
         define("f", 1, Kind.DEFP, line = 4, clauses = 2)
         makeOverridable(compiling, f)
 
-        assertEquals(null, storeNotOverridden(compiling))
+        assertEquals(null, storeNotOverridden(compiling, checked = true))
         assertEntries("f/1 defp line 4 clauses 2 unchecked")
     }
 
@@ -120,7 +120,7 @@ class OverridableTest {
         makeOverridable(compiling, f)
         store(f)
 
-        assertEquals(null, storeNotOverridden(compiling))
+        assertEquals(null, storeNotOverridden(compiling, checked = true))
         assertEntries("f (overridable 1)/1 defp line 1 clauses 1 unchecked")
     }
 
@@ -130,7 +130,7 @@ class OverridableTest {
         makeOverridable(compiling, f)
         define("f", 1, Kind.DEFP, line = 6)
 
-        assertEquals(null, storeNotOverridden(compiling))
+        assertEquals(null, storeNotOverridden(compiling, checked = true))
         assertEntries("f/1 defp line 6 clauses 1")
     }
 
@@ -142,10 +142,22 @@ class OverridableTest {
 
         compiling.table.define("f", 1, Kind.DEFMACRO, redefined, 1, 0, ordered = true, checksClauses = true)
 
-        val error = storeNotOverridden(compiling)
+        val error = storeNotOverridden(compiling, checked = true)
 
         assertEquals("bad_kind", error?.kind)
         assertEquals(redefined, error?.at)
+    }
+
+    @Test
+    fun `unchecked, as for a module that stopped, the other sort raises nothing and the rest are stored back`() {
+        define("f", 1)
+        makeOverridable(compiling, f)
+        define("g", 0, line = 2)
+        makeOverridable(compiling, NameArity("g", 0))
+        define("f", 1, Kind.DEFMACRO, line = 7)
+
+        assertEquals(null, storeNotOverridden(compiling, checked = false))
+        assertEntries("f/1 defmacro line 7 clauses 1", "g/0 def line 2 clauses 1 unchecked")
     }
 
     private fun store(nameArity: NameArity) =

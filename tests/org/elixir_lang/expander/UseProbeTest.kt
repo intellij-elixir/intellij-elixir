@@ -5,7 +5,8 @@ import org.elixir_lang.psi.ElixirFile
 /**
  * `use` compiled in a case module body on the leg's Elixir: it requires each module it names, in order, and stops at
  * the `__using__` macro of the first, with the env, the variables and the hygiene counters up to there equal to
- * Elixir's, and a `use` of something that is no module raises where the compiler raises.
+ * Elixir's, and a `use` of something that is no module raises where the compiler raises. Each `__using__` declines
+ * by its `receive`, which gives Elixir its `after` value at once.
  */
 class UseProbeTest : ProbeTestCase() {
     private val probes = ExpansionProbes(harness, accounting = true) {
@@ -47,16 +48,18 @@ class UseProbeTest : ProbeTestCase() {
             """
             defmodule {token}.U do
               defmacro __using__(opts) do
-                quote do
-                  def used, do: unquote(opts)
+                receive do
+                  x -> x
+                after
+                  0 -> quote(do: def(used, do: unquote(opts)))
                 end
               end
             end
             defmodule {token}.U.A do
-              defmacro __using__(_opts), do: quote(do: def(used_a, do: 1))
+              defmacro __using__(_opts), do: receive(do: (x -> x), after: (0 -> quote(do: def(used_a, do: 1))))
             end
             defmodule {token}.U.B do
-              defmacro __using__(_opts), do: quote(do: def(used_b, do: 1))
+              defmacro __using__(_opts), do: receive(do: (x -> x), after: (0 -> quote(do: def(used_b, do: 1))))
             end
             """.trimIndent()
 

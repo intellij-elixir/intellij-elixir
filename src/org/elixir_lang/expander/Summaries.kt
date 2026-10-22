@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.declaration.MacroKey
+import org.elixir_lang.expander.interpreter.Interpreter
 import org.elixir_lang.lowering.ElixirAst
 
 /** A macro whose expansion is modelled. */
@@ -21,7 +22,10 @@ internal fun interface Summary {
             run: Run,
         ): Expansion =
             when (val output = output(dispatch, node, state, env, run)) {
-                is Output.Built -> expandQuoted(node, dispatch.receiver, output.ast, state, env, run)
+                is Output.Built ->
+                    unlessTooDeep({ Expansion.Opaque(node, dispatch) }) {
+                        expandQuoted(node, dispatch.receiver, output.ast, state, env, run)
+                    }
                 is Output.Raised -> Expansion.Error(output.kind, node)
                 is Output.Unported -> Expansion.Unported(output.at)
                 is Output.Stopped -> output.expansion
@@ -43,6 +47,17 @@ internal fun interface Summary {
         class Stopped(val expansion: Expansion) : Output()
     }
 }
+
+/**
+ * [block], or [tooDeep] where it overflows the thread's stack. The BEAM's stack grows as code, a macro's body or its
+ * output nests, where the thread's holds a few hundred levels, so a deeper one declines.
+ */
+internal inline fun <T> unlessTooDeep(tooDeep: () -> T, block: () -> T): T =
+    try {
+        block()
+    } catch (_: StackOverflowError) {
+        tooDeep()
+    }
 
 /**
  * [node] through the macro's own `Macro.expand/2`, or [stopped] of the [Summary.Output] the macro gives where that
@@ -129,25 +144,44 @@ internal object Summaries {
 /**
  * A call of a macro, which [node] dispatches as [dispatch]: its summary's expansion, or [Expansion.Opaque] where the
  * macro has none, after the check for a deprecation. The observer is told of the dispatch only when it is modelled.
+ *
+ * @param stopGenerated whether `elixir_dispatch` gives the macro its arguments through `stop_generated/1`, as
+ *   `dispatch_import/6` does and `dispatch_require/7` doesn't
  */
-internal fun macro(dispatch: Dispatch, node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
+internal fun macro(
+    dispatch: Dispatch,
+    node: ElixirAst.Call,
+    state: ExState,
+    env: Env,
+    run: Run,
+    stopGenerated: Boolean,
+): Expansion {
     checkDeprecated(dispatch, node, env, run)
 
-    return summarised(dispatch, node, opaque = { it }) { summary ->
+    return summarised(dispatch, node, state, env, run, stopGenerated, opaque = { it }) { summary ->
         run.observer.dispatched(node, dispatch)
 
         summary.expand(dispatch, node, state, env, run)
     }
 }
 
-/** [summarised] of [dispatch]'s summary, or [opaque] of the [Expansion.Opaque] a call [node] gives where it has none. */
+/**
+ * [summarised] of [dispatch]'s summary, else of the one its macro's clauses give, or [opaque] of the
+ * [Expansion.Opaque] a call [node] gives where neither does.
+ *
+ * @param stopGenerated whether the macro is given its arguments through `stop_generated/1`
+ */
 internal inline fun <T> summarised(
     dispatch: Dispatch,
     node: ElixirAst.Call,
+    state: ExState,
+    env: Env,
+    run: Run,
+    stopGenerated: Boolean,
     opaque: (Expansion.Opaque) -> T,
     summarised: (Summary) -> T,
 ): T =
-    when (val summary = Summaries.of(dispatch)) {
+    when (val summary = Summaries.of(dispatch) ?: Interpreter.summary(dispatch, node, state, env, run, stopGenerated)) {
         null -> opaque(Expansion.Opaque(node, dispatch))
         else -> summarised(summary)
     }

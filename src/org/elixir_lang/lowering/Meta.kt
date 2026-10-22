@@ -6,6 +6,7 @@ import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 
 /**
@@ -72,8 +73,10 @@ class Meta(
                 }.toTypedArray()
             )
 
-        fun toOtp(value: Value, options: ParserOptions): OtpErlangObject =
-            when (value) {
+        fun toOtp(value: Value, options: ParserOptions): OtpErlangObject {
+            ProgressManager.checkCanceled()
+
+            return when (value) {
                 is Value.Atom -> OtpErlangAtom(value.name)
                 is Value.Integer -> OtpErlangLong(value.value)
                 is Value.Binary -> OtpErlangBinary(value.text.toByteArray(Charsets.UTF_8))
@@ -81,6 +84,7 @@ class Meta(
                 is Value.List -> OtpErlangList(value.elements.map { toOtp(it, options) }.toTypedArray())
                 is Value.Tuple -> OtpErlangTuple(value.elements.map { toOtp(it, options) }.toTypedArray())
             }
+        }
 
         fun keyword(key: String, value: OtpErlangObject) = OtpErlangTuple(arrayOf(OtpErlangAtom(key), value))
     }

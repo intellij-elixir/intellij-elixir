@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.DefinitionTable.Kind
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILER_PARSES_COLUMNS
@@ -95,8 +96,11 @@ private fun <At> sorted(
         .distinctBy(key)
 }
 
-private fun <At> LocalCall<At>.withArguments(): List<LocalCall<At>> =
-    listOf(this) + arguments.flatMap { it.withArguments() }
+private fun <At> LocalCall<At>.withArguments(): List<LocalCall<At>> {
+    ProgressManager.checkCanceled()
+
+    return listOf(this) + arguments.flatMap { it.withArguments() }
+}
 
 private data class SortKey(val caller: NameArity?, val position: List<Int>, val called: NameArity) {
     companion object {
@@ -112,7 +116,8 @@ private data class SortKey(val caller: NameArity?, val position: List<Int>, val 
 /**
  * `Module.Types.infer`: each public definition is visited, then each private macro dispatched as a local macro, then
  * each private definition, descending. A call to a defined function visits it there, and each definition is visited
- * once, so every bad call is reported where the walk reaches it.
+ * once, so every bad call is reported where the walk reaches it. The steps wait on a stack rather than the thread's, as a
+ * chain of definitions each calling the next is as long as a macro's output makes it.
  */
 private class Traversal<At>(
     level: ElixirLanguageLevel,
@@ -123,31 +128,54 @@ private class Traversal<At>(
     private val publicAscending = GUARDS_INFER_TYPES.isSufficient(level)
     private val visited = mutableSetOf<NameArity>()
     private val errors = mutableListOf<LocalError<At>>()
+    private val steps = ArrayDeque<Step<At>>()
 
     fun errors(usedPrivate: List<NameArity>): List<LocalError<At>> {
         val (public, private) = kinds.keys.sortedWith(NAME_ARITY_ORDER.reversed()).partition { kinds.getValue(it).public }
 
-        (if (publicAscending) public.reversed() else public).forEach(::visit)
-        usedPrivate.forEach(::visit)
-        private.forEach(::visit)
+        then(((if (publicAscending) public.reversed() else public) + usedPrivate + private).map { Step.Visit(it) })
 
-        return errors
+        while (true) {
+            when (val step = steps.removeLastOrNull() ?: return errors) {
+                is Step.Visit -> visit(step.definition)
+                is Step.Walk -> walk(step.call, step.caller)
+                is Step.Check -> check(step.call, step.caller)
+            }
+        }
     }
 
     private fun visit(definition: NameArity) {
+        ProgressManager.checkCanceled()
+
         if (visited.add(definition)) {
-            calls[definition].orEmpty().forEach { walk(it, definition) }
+            then(calls[definition].orEmpty().map { Step.Walk(it, definition) })
         }
     }
 
     private fun walk(call: LocalCall<At>, caller: NameArity) {
-        if (!callBeforeArguments) call.arguments.forEach { walk(it, caller) }
+        ProgressManager.checkCanceled()
 
+        val arguments = call.arguments.map { Step.Walk(it, caller) }
+        val check = Step.Check(call, caller)
+
+        then(if (callBeforeArguments) listOf(check) + arguments else arguments + check)
+    }
+
+    private fun check(call: LocalCall<At>, caller: NameArity) {
         when (val error = errorOf(kinds, call, caller)) {
-            null -> visit(call.called)
+            null -> then(listOf(Step.Visit(call.called)))
             else -> errors += error
         }
+    }
 
-        if (callBeforeArguments) call.arguments.forEach { walk(it, caller) }
+    /** [next] run in order before any step already waiting. */
+    private fun then(next: List<Step<At>>) {
+        next.asReversed().forEach(steps::addLast)
+    }
+
+    private sealed interface Step<out At> {
+        class Visit(val definition: NameArity) : Step<Nothing>
+        class Walk<At>(val call: LocalCall<At>, val caller: NameArity) : Step<At>
+        class Check<At>(val call: LocalCall<At>, val caller: NameArity) : Step<At>
     }
 }

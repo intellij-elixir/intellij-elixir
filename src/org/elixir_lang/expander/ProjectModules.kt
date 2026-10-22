@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectRootManager
@@ -77,14 +78,40 @@ internal class ProjectModules(private val project: Project) {
      * They are read when asked, and held apart from the answers within their own bound.
      */
     @RequiresReadLock
-    fun clauses(asker: PsiFile, atom: String, inputs: Inputs): ModuleClauses? {
-        val copy = (choose(asker, atom) as? Choice.One)?.copy ?: return null
-        val inProgress = compiling(asker)
+    fun clauses(asker: PsiFile, atom: String, inputs: Inputs): ModuleClauses? =
+        clauses(asker, atom, inputs, compiling(asker)).clauses
 
-        return when (copy) {
-            is Copy.Compiled -> compiledClauses(copy.virtualFile, inputs.level)
-            is Copy.Source if copy.virtualFile in inProgress -> null
-            is Copy.Source -> sourceClauses(copy, inputs, inProgress)[atom]
+    /**
+     * [atom]'s clauses for [asker], none where its copy is one of the source files [inProgress] holds, with the stamps
+     * of what was read for them, as [lookup] gives an answer's.
+     */
+    private fun clauses(
+        asker: PsiFile,
+        atom: String,
+        inputs: Inputs,
+        inProgress: Map<VirtualFile, Map<String, Answer>>,
+    ): ReadClauses {
+        val (choice, stamps) = chosen(asker, atom)
+
+        return when (choice) {
+            Choice.Unknown -> ReadClauses(null, stamps, Transient.DUMB)
+            Choice.None, is Choice.Several -> ReadClauses(null, stamps, Transient.NONE)
+            is Choice.One ->
+                when (val copy = choice.copy) {
+                    is Copy.Compiled ->
+                        ReadClauses(compiledClauses(copy.virtualFile, inputs.level), stamps, Transient.NONE)
+                    is Copy.Source if copy.virtualFile in inProgress -> {
+                        val answer = runningAnswer(inProgress, copy.virtualFile, atom)
+
+                        ReadClauses(null, stamps, Transient(mapOf(copy.virtualFile to mapOf(atom to answer)), false))
+                    }
+                    is Copy.Source -> {
+                        val (loaded, modules, transient) = sourceClauses(copy, inputs, inProgress)
+                        stamps.addAll(loaded.stamps)
+
+                        ReadClauses(modules[atom], stamps, transient)
+                    }
+                }
         }
     }
 
@@ -174,28 +201,16 @@ internal class ProjectModules(private val project: Project) {
         inProgress: Map<VirtualFile, Map<String, Answer>>,
         memo: Memo,
     ): Looked {
-        val choice = choose(asker, atom)
-        val stamps = Stamps()
-        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
-        stamps.track(ModuleNamesTracker.getInstance(project))
-        stamps.track(ProjectRootManager.getInstance(project))
+        val (choice, stamps) = chosen(asker, atom)
 
         var transient = Transient.NONE
         val answer = when (choice) {
-            Choice.Unknown -> return Looked(UNREADABLE, Stamps(), Transient.DUMB)
+            Choice.Unknown -> return Looked(UNREADABLE, stamps, Transient.DUMB)
             Choice.None -> ABSENT
-            is Choice.Several -> {
-                choice.copies.forEach { stamps.copy(it) }
-
-                UNREADABLE
-            }
+            is Choice.Several -> UNREADABLE
             is Choice.One ->
                 when (val copy = choice.copy) {
-                    is Copy.Compiled -> {
-                        stamps.copy(copy)
-
-                        compiled(copy.virtualFile)
-                    }
+                    is Copy.Compiled -> compiled(copy.virtualFile)
                     // Elixir loads each module as its own `defmodule` compiles, so one still compiling isn't loaded yet.
                     is Copy.Source if copy.virtualFile in inProgress -> {
                         val answer = runningAnswer(inProgress, copy.virtualFile, atom)
@@ -214,6 +229,27 @@ internal class ProjectModules(private val project: Project) {
         }
 
         return Looked(answer, stamps, transient)
+    }
+
+    /**
+     * [choose]'s choice, with the stamps that move when it may: none where it is unknown, and a source copy's own
+     * stamps are its expansion's.
+     */
+    private fun chosen(asker: PsiFile, atom: String): Pair<Choice, Stamps> {
+        val choice = choose(asker, atom)
+        val stamps = Stamps()
+        if (choice == Choice.Unknown) return choice to stamps
+        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+        stamps.track(ModuleNamesTracker.getInstance(project))
+        stamps.track(ProjectRootManager.getInstance(project))
+
+        when (choice) {
+            is Choice.Several -> choice.copies.forEach { stamps.copy(it) }
+            is Choice.One -> (choice.copy as? Copy.Compiled)?.let { stamps.copy(it) }
+            Choice.None, Choice.Unknown -> Unit
+        }
+
+        return choice to stamps
     }
 
     /** Which of [atom]'s copies Elixir loads for [asker]: unknown in dumb mode, else none, several or the one. */
@@ -305,15 +341,15 @@ internal class ProjectModules(private val project: Project) {
         return clauses
     }
 
-    /** The clauses of each module [copy] loads, by expanding it again. */
+    /** The clauses of each module [copy] loads, by expanding it again, with the expansion that compiled them. */
     private fun sourceClauses(
         copy: Copy.Source,
         inputs: Inputs,
         inProgress: Map<VirtualFile, Map<String, Answer>>,
-    ): Map<String, ModuleClauses> {
+    ): Triple<Loaded, Map<String, ModuleClauses>, Transient> {
         (clauseCache[copy.virtualFile] as? Clauses.Source)
             ?.takeIf { it.loaded.isCurrent(inputs) && it.loaded.holdsWhile(inProgress) }
-            ?.let { return it.modules }
+            ?.let { return Triple(it.loaded, it.modules, Transient.NONE) }
 
         val modules = HashMap<String, ModuleClauses>()
         val computed = compute(copy.file, inputs, inProgress, Memo(), observer = clausesInto(modules))
@@ -322,7 +358,7 @@ internal class ProjectModules(private val project: Project) {
             clauseCache[copy.virtualFile] = Clauses.Source(computed.loaded, modules)
         }
 
-        return modules
+        return Triple(computed.loaded, modules, computed.transient)
     }
 
     /** An observer putting each module's clauses, as it loads, into [modules], or taking them out where it has none. */
@@ -395,6 +431,7 @@ internal class ProjectModules(private val project: Project) {
         val looked = HashMap<String, Looked>()
         // A re-read answer joins the one it supersedes, as the expansion used both.
         val used = ArrayList<Looked>()
+        val clausesTransients = ArrayList<Transient>()
         val ask = { atom: String ->
             looked[atom]
                 ?.takeIf { it.transient.holdsWhile(within) }
@@ -443,11 +480,17 @@ internal class ProjectModules(private val project: Project) {
                 stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
                 virtualFile?.fileSystem?.findFileByPath(path)?.let(::compileDirectory)
             },
+            clauses = { atom ->
+                clauses(file, atom, inputs, within).also { read ->
+                    stamps.addAll(read.stamps)
+                    clausesTransients += read.transient
+                }.clauses
+            },
         )
         used.forEach { stamps.addAll(it.stamps) }
 
         val uncompiled = Answer(LoadedModules.uncompiledExports(expansion), LoadedModules.uncompiledStruct(expansion))
-        val transient = used.fold(Transient.NONE) { all, it -> all + it.transient }.leaving(compiling)
+        val transient = Transient.merged(clausesTransients + used.map(Looked::transient)).leaving(compiling)
 
         return Held(Loaded(inputs, modules, uncompiled, stamps), expansion, results, lowering, transient, envs, receivers)
     }
@@ -473,6 +516,9 @@ internal class ProjectModules(private val project: Project) {
     private data class Answer(val exports: ModuleExports, val struct: ModuleStruct)
 
     private class Looked(val answer: Answer, val stamps: Stamps, val transient: Transient)
+
+    /** A module's clauses as [clauses] read them, with what they were read from. */
+    private class ReadClauses(val clauses: ModuleClauses?, val stamps: Stamps, val transient: Transient)
 
     /**
      * A source file's modules as its expansion compiled them.
@@ -536,18 +582,25 @@ internal class ProjectModules(private val project: Project) {
                 file in inProgress && answers.all { (atom, answer) -> runningAnswer(inProgress, file, atom) == answer }
             }
 
-        operator fun plus(other: Transient): Transient {
-            val merged = HashMap(reentered)
-            other.reentered.forEach { (file, answers) -> merged.merge(file, answers) { mine, theirs -> mine + theirs } }
-
-            return Transient(merged, dumb || other.dumb)
-        }
-
         /** As the run of [virtualFile] leaves it: that file reads itself as compiling for its own run only. */
         fun leaving(virtualFile: VirtualFile?): Transient = copy(reentered = reentered - setOfNotNull(virtualFile))
 
         companion object {
             val NONE = Transient(emptyMap(), false)
+
+            /** [transients] as one, a later answer for a module replacing an earlier. */
+            fun merged(transients: List<Transient>): Transient {
+                val all = HashMap<VirtualFile, Map<String, Answer>>()
+
+                for ((reentered) in transients) {
+                    ProgressManager.checkCanceled()
+
+                    reentered.forEach { (file, answers) -> all.merge(file, answers) { mine, theirs -> mine + theirs } }
+                }
+
+                return Transient(all, transients.any(Transient::dumb))
+            }
+
             val DUMB = Transient(emptyMap(), true)
         }
     }

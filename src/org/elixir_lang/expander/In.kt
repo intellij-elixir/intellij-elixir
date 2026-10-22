@@ -1,5 +1,7 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangMap
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.GENERATED_ARGUMENTS_ONE_BASED
 import org.elixir_lang.language_level.ElixirLanguageFeature.GUARDS_INFER_TYPES
 import org.elixir_lang.language_level.ElixirLanguageFeature.IN_EMPTY_LISTS_MEMBER
@@ -8,6 +10,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.IN_LIST_LISTS_MEMBER
 import org.elixir_lang.language_level.ElixirLanguageFeature.IN_LITERAL_UNWRAPPED
 import org.elixir_lang.language_level.ElixirLanguageFeature.IN_RANGE_FIELDS_ANY_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.IN_RANGE_LITERAL_GENERATED
+import org.elixir_lang.language_level.ElixirLanguageFeature.IN_REFUSES_UNESCAPED_RIGHT_SIDE
 import org.elixir_lang.language_level.ElixirLanguageFeature.IN_SMALL_LITERAL_LIST
 import org.elixir_lang.language_level.ElixirLanguageFeature.RANGE_GUARD_STEP_COMPUTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.RANGE_STRUCT_SYNTAX
@@ -48,6 +51,8 @@ private class In(private val node: ElixirAst.Call, private val state: ExState, p
                     else -> block(s.call("=", listOf(s.variable("_", KERNEL), left)), s.atom("false"))
                 }
             is ElixirAst.ListNode -> list(left, written, right)
+            is ElixirAst.Value if right.term is OtpErlangMap && IN_REFUSES_UNESCAPED_RIGHT_SIDE.isSufficient(level) ->
+                throw Stop(Summary.Output.Raised("Elixir.ArgumentError"))
             else -> {
                 val fields = rangeFields(right)
 
@@ -94,6 +99,8 @@ private class In(private val node: ElixirAst.Call, private val state: ExState, p
     /** `ensure_evaled/3`: each element not a literal, and each cons tail not a list, bound to an `argN` in [bound]. */
     private fun ensureEvaled(elements: List<ElixirAst>, bound: MutableList<Pair<ElixirAst, ElixirAst>>): List<ElixirAst> =
         elements.map { element ->
+            ProgressManager.checkCanceled()
+
             if (isCall(element, "|", 2)) {
                 element as ElixirAst.Call
                 val (head, tail) = element.arguments!!
@@ -142,6 +149,8 @@ private class In(private val node: ElixirAst.Call, private val state: ExState, p
 
     /** `comp/4`: a cons element compares its head and then its tail, expanded; anything else compares itself. */
     private fun comp(left: ElixirAst, element: ElixirAst): ElixirAst {
+        ProgressManager.checkCanceled()
+
         if (!isCall(element, "|", 2)) return strictlyEqual(left, element)
 
         val (head, tail) = (element as ElixirAst.Call).arguments!!

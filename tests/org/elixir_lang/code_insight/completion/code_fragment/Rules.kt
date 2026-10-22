@@ -484,15 +484,15 @@ private fun isStab(node: ElixirAst): Boolean =
     node is ElixirAst.Call && (node.callee as? ElixirAst.Literal.Atom)?.name == "->"
 
 /**
- * Where [token] is written in [text] after [from], whitespace and the `)` that close a parenthesised form aside, or
+ * Where a `.` is written in [text] after [from], whitespace and the `)` that close a parenthesised form aside, or
  * `null` where something else follows.
  */
-private fun tokenAfter(text: String, from: Int, token: String): Int? {
+private fun dotAfter(text: String, from: Int): Int? {
     var at = from
 
     while (at < text.length && (text[at].isWhitespace() || text[at] == ')')) at++
 
-    return at.takeIf { text.startsWith(token, it) }
+    return at.takeIf { text.startsWith(".", it) }
 }
 
 /**
@@ -509,7 +509,9 @@ private fun ownText(node: ElixirAst): String =
         is ElixirAst.Alias -> node.segments.filterIsInstance<ElixirAst.Literal.Atom>().joinToString(".") { it.name }
         is ElixirAst.Literal.Atom -> node.name
         is ElixirAst.Literal.Binary -> String(node.bytes, Charsets.UTF_8)
-        is ElixirAst.Literal, is ElixirAst.ListNode, is ElixirAst.Tuple, is ElixirAst.Block, is ElixirAst.Placeholder -> ""
+        is ElixirAst.Literal, is ElixirAst.Value, is ElixirAst.ListNode, is ElixirAst.Tuple, is ElixirAst.Block,
+        is ElixirAst.Placeholder,
+        -> ""
     }
 
 /** A sigil call's modifiers, the code points its last argument lists. */
@@ -573,7 +575,7 @@ private fun head(node: ElixirAst): String? =
         is ElixirAst.Alias -> "alias"
         is ElixirAst.ListNode -> "[]"
         is ElixirAst.Tuple -> "{}/${node.elements.size}"
-        is ElixirAst.Literal -> "literal"
+        is ElixirAst.Literal, is ElixirAst.Value -> "literal"
         is ElixirAst.Block -> null
         is ElixirAst.Placeholder -> CURSOR
     }
@@ -586,7 +588,7 @@ private fun slot(node: ElixirAst, next: ElixirAst): Int? =
         is ElixirAst.ListNode -> node.elements
         is ElixirAst.Tuple -> node.elements
         is ElixirAst.Block -> node.expressions
-        is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
+        is ElixirAst.Literal, is ElixirAst.Value, is ElixirAst.Placeholder -> emptyList()
     }.indexOfFirst { it === next }.takeIf { it >= 0 }
 
 /**
@@ -598,7 +600,7 @@ private fun headStart(node: ElixirAst, text: String): Int =
         is ElixirAst.Call -> ((node.callee as? ElixirAst.Call)?.takeIf { dotted(it) != null }?.callee ?: node.callee).meta.origin.startOffset
         is ElixirAst.Alias ->
             node.segments.first().takeUnless { it is ElixirAst.Literal.Atom }
-                ?.let { tokenAfter(text, it.meta.origin.endOffset, ".") }
+                ?.let { dotAfter(text, it.meta.origin.endOffset) }
                 ?: node.meta.origin.startOffset
         else -> node.meta.origin.startOffset
     }
@@ -622,8 +624,7 @@ private fun dotted(callee: ElixirAst.Call): Pair<ElixirAst, String?>? {
 private fun children(node: ElixirAst): List<ElixirAst> =
     when (node) {
         is ElixirAst.Call -> {
-            val callee = node.callee
-            val before = when (callee) {
+            val before = when (val callee = node.callee) {
                 is ElixirAst.Literal.Atom -> emptyList()
                 is ElixirAst.Call -> dotted(callee)?.let { listOf(it.first) } ?: listOf(callee)
                 else -> listOf(callee)
@@ -635,7 +636,7 @@ private fun children(node: ElixirAst): List<ElixirAst> =
         is ElixirAst.ListNode -> node.elements
         is ElixirAst.Tuple -> node.elements
         is ElixirAst.Block -> node.expressions
-        is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
+        is ElixirAst.Literal, is ElixirAst.Value, is ElixirAst.Placeholder -> emptyList()
     }
 
 private const val CURSOR = "cursor"

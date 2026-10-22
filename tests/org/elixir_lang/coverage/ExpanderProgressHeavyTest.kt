@@ -7,7 +7,8 @@ import org.elixir_lang.junit.HeavyTestCase
 import java.io.File
 
 /**
- * Pins the expander progress report over a small Mix project and one dependency.
+ * Pins the expander progress report over a small Mix project and one dependency. `Progress.Macros.wrap/1` declines by
+ * its `receive`, which gives Elixir its `after` value at once.
  */
 class ExpanderProgressHeavyTest : HeavyTestCase() {
     private lateinit var progress: ExpanderProgress

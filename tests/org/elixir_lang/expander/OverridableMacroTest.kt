@@ -77,7 +77,7 @@ class OverridableMacroTest : ExpanderTestCase() {
     fun testASuperCallOfAnotherArityRaises() =
         assertEvery(
             "defmodule A do\n  def f(x), do: x\n  defoverridable f: 1\n  def f(x), do: super()\nend",
-            "module Elixir.A raised wrong_number_of_args_for_super `super()`",
+            "module Elixir.A raised wrong_number_of_args_for_super `super()` | def f/1 line 2 clauses 1",
         )
 
     fun testSuperOfADefinitionNotMadeOverridableRaises() =
@@ -101,7 +101,13 @@ class OverridableMacroTest : ExpanderTestCase() {
     fun testACaptureOfSuperOfAnotherArityRaises() =
         assertEvery(
             "defmodule A do\n  def f(x), do: x\n  defoverridable f: 1\n  def f(x), do: &super/2\nend",
-            "module Elixir.A raised wrong_number_of_args_for_super `&super/2`",
+            "module Elixir.A raised wrong_number_of_args_for_super `&super/2` | def f/1 line 2 clauses 1",
+        )
+
+    fun testAModuleThatRaisesKeepsTheDefinitionsMadeOverridableBeforeIt() =
+        assertEvery(
+            "defmodule R do\n  def g, do: 1\n  defoverridable g: 0\n  def f, do: 1\n  defp f, do: 2\nend",
+            "module Elixir.R raised changed_kind `defp f, do: 2` | def f/0 line 4 clauses 1 | def g/0 line 2 clauses 1",
         )
 
     fun testAnUndefinedDefinitionCannotBeMadeOverridableAndEndsTheBody() =
@@ -120,13 +126,13 @@ class OverridableMacroTest : ExpanderTestCase() {
         assertEvery(
             "defmodule A do\n  def f, do: 1\n  case 1 do\n    1 -> defoverridable f: 0\n" +
                 "    _ -> defoverridable f: 0\n  end\nend",
-            "module Elixir.A stopped `defoverridable f: 0`",
+            "module Elixir.A stopped `defoverridable f: 0` | def f/0 line 2 clauses 1",
         )
 
     fun testAStatementAfterACallThatMayNotRunStopsTheModuleInsteadOfEndingIt() =
         assertEvery(
             "defmodule A do\n  def f, do: 1\n  if false do\n    defoverridable f: 0\n  end\n  defoverridable f: 0\nend",
-            "module Elixir.A stopped `defoverridable f: 0`",
+            "module Elixir.A stopped `defoverridable f: 0` | def f/0 line 2 clauses 1",
         )
 
     fun testEachElementIsAFunctionNameAndArity() =
@@ -144,14 +150,14 @@ class OverridableMacroTest : ExpanderTestCase() {
     fun testTheElementsBeforeTheBadOneAreTaken() =
         assertEvery(
             "defmodule A do\n  def f(x), do: x\n  defoverridable [{:f, 1}, :g]\nend",
-            "module Elixir.A raised overridable_bad_element `defoverridable [{:f, 1}, :g]`",
+            "module Elixir.A raised overridable_bad_element `defoverridable [{:f, 1}, :g]` | def f/1 line 2 clauses 1",
         )
 
     fun testADefinitionRedefinedAsTheOtherKindCannotBeMadeOverridableAgain() =
         assertEvery(
             "defmodule A do\n  def f(x), do: x\n  defoverridable f: 1\n  defmacro f(x), do: x\n" +
                 "  defoverridable f: 1\nend",
-            "module Elixir.A raised bad_kind `defmacro f(x), do: x`",
+            "module Elixir.A raised bad_kind `defmacro f(x), do: x` | def f/1 line 2 clauses 1",
         )
 
     fun testADefinitionRedefinedAsTheOtherKindIsRefusedWhenTheBodyEnds() =

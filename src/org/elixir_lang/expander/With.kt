@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import org.elixir_lang.language_level.ElixirLanguageFeature.GENERATOR_RIGHT_SIDE_SCOPED
 import org.elixir_lang.language_level.ElixirLanguageFeature.WITH_OPTIONS_BEFORE_LAST_ARGUMENT
+import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 
 /** The heads of `elixir_clauses:expand_with/2`, which isn't a clause of `expand`. */
@@ -17,7 +18,7 @@ internal val WITH_HEADS = listOf(
  * left, the `do` from the last, and `else` from the state before the `with`.
  */
 internal fun expandWith(node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
-    val (clauses, options) = splitOptions(node.arguments!!, WITH_OPTIONS_BEFORE_LAST_ARGUMENT.isSufficient(run.level))
+    val (clauses, options) = withOptions(node.arguments!!, run.level)
 
     return mapfold(clauses, state, env) { clause, s, e ->
         if (isCall(clause, "<-", 2)) leftArrow(clause as ElixirAst.Call, s, e, run) else Expander.expand(clause, s, e, run)
@@ -68,6 +69,10 @@ internal fun generatorPattern(
             pattern(rightState, state, env).then { s, _ -> Expansion.Expanded(s, rightEnv, NODE) }
         }
     }
+
+/** A source `with`'s [args] as its clauses and its options, as `expand_with` splits them on [level]. */
+internal fun withOptions(args: List<ElixirAst>, level: ElixirLanguageLevel): Pair<List<ElixirAst>, List<ElixirAst>> =
+    splitOptions(args, WITH_OPTIONS_BEFORE_LAST_ARGUMENT.isSufficient(level))
 
 /**
  * `elixir_utils:split_opts/1` where [inner], and otherwise only the last argument as options: [args] as the cases and

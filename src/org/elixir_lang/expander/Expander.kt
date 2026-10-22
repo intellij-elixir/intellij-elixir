@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangPid
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAST_PATH_ADDS_CONTEXT_MODULE
@@ -55,15 +56,16 @@ object Expander {
         counters: Counters = Counters(),
         file: String? = null,
         directories: CompileDirectories = CompileDirectories.UNKNOWN,
+        clauses: ModuleClauses.Lookup = ModuleClauses.Lookup.NONE,
     ): FileExpansion {
-        val run = Run(level, observer, exports, structs, counters, file, directories)
+        val run = Run(level, observer, exports, structs, counters, file, directories, clauses)
         val state = ExState.empty(level)
 
         if (DEFMODULE_FAST_PATH.isSufficient(level) && env.module == null && onlyDefmodule(forms)) {
             return fastCompile(forms, state, env, run)
         }
 
-        val top = expand(forms, state, env, run)
+        val top = unlessTooDeep({ Expansion.Unported(forms) }) { expand(forms, state, env, run) }
 
         return FileExpansion(top, if (top is Expansion.Error) emptyList() else compilePending(run))
     }
@@ -109,7 +111,7 @@ object Expander {
                 val tail = nameNode.segments.drop(1).map { (it as? ElixirAst.Literal.Atom)?.name ?: return null }
 
                 aliasesModule(nameNode, env, level)?.let { it to true }
-                    ?: if (isModuleVariable(head)) concat(listOf(module) + tail) to true else null
+                    ?: if (isModuleVariable(head)) concat(listOf(module) + tail)?.let { it to true } else null
             }
             isModuleVariable(nameNode) -> module to true
             nameNode is ElixirAst.Literal.Integer -> inspected(Term.Integer(nameNode.value))?.let { it to false }
@@ -156,9 +158,16 @@ internal class Run(
     /** The path of the file the run expands, where it is known. */
     val file: String? = null,
     val directories: CompileDirectories = CompileDirectories.UNKNOWN,
+    private val clauses: ModuleClauses.Lookup = ModuleClauses.Lookup.NONE,
 ) {
     /** The modules whose exports the run read, in the order it read them. */
     val consulted = mutableListOf<String>()
+
+    /** The references `make_ref/0` has made in the run's evaluations, so each is new. */
+    private var refs = 0
+
+    /** The number of a reference no evaluation in the run has made before. */
+    fun nextRef(): Int = ++refs
 
     /** The nodes being expanded whose value a summary reads, by identity, until they are read. */
     val watching = IdentityHashMap<ElixirAst, Watched>()
@@ -186,7 +195,7 @@ internal class Run(
     fun supplied(node: ElixirAst, expansion: Expansion): Expansion {
         val value = supplying.remove(node)
 
-        return if (value != null && expansion is Expansion.Expanded) expansion.copy(value = value) else expansion
+        return if (value != null) expansion.withValue(value) else expansion
     }
 
     /** What each module the run compiled exports, which Elixir loads once `elixir_module:compile` returns. */
@@ -219,6 +228,22 @@ internal class Run(
         return LoadedModules.recorded(inProgress.struct, inProgress.table)
     }
 
+    /** The clauses of each module the run compiled and loaded. */
+    private val loadedClauses = HashMap<String, ModuleClauses>()
+
+    /**
+     * [module]'s clauses: for a [local] macro's call in a module it is compiling, those it has so far, as
+     * `elixir_def:local_for/5` reads them; one the run loaded, those it left; one it is compiling, none otherwise, as
+     * Elixir hasn't loaded it; any other, what [clauses] gives.
+     */
+    fun clausesOf(module: String, local: Boolean = false): ModuleClauses? {
+        if (local) compiling[module]?.let { return ModuleClauses.of(module, it, file) }
+        loadedClauses[module]?.let { return it }
+        if (module in compiling) return null
+
+        return if (module in compiled) null else clauses.of(module)
+    }
+
     /** [result]'s module loaded, as Elixir loads a module once it compiles, with its [clauses]. */
     fun load(result: ExpansionResult, clauses: () -> ModuleClauses) {
         val loadedStruct = LoadedModules.struct(result)
@@ -226,7 +251,10 @@ internal class Run(
         compiledStructs[result.module] = loadedStruct
         compiled[result.module] = loadedExports
         observer.loaded(result, loadedExports, loadedStruct)
-        observer.clausesLoaded(result.module, if (loadedExports is ModuleExports.Present) clauses() else null)
+        val loaded = if (loadedExports is ModuleExports.Present) clauses() else null
+
+        if (loaded == null) loadedClauses.remove(result.module) else loadedClauses[result.module] = loaded
+        observer.clausesLoaded(result.module, loaded)
     }
 
     /** What each bitstring expanded builds, by node, for the bitstring that nests it. */
@@ -263,8 +291,16 @@ internal inline fun Expansion.thenValue(next: (ExState, Env, Term) -> Expansion)
         is Expansion.Error, is Expansion.Unported, is Expansion.Opaque -> this
     }
 
+/**
+ * The stop for a reader that decides by what [value] is, where [value] is an unknown attribute's read: Elixir's answer
+ * depends on a value that isn't known here, so the form stops at [at]. `null` where [value] is known.
+ */
+internal fun unknownStop(value: Term?, at: ElixirAst): Expansion.Unported? =
+    if (value == Term.Unexpanded) Expansion.Unported(at) else null
+
 /** This expansion with [value] in place of its own, if it expanded. */
-internal fun Expansion.withValue(value: Term): Expansion = if (this is Expansion.Expanded) copy(value = value) else this
+internal fun Expansion.withValue(value: Term): Expansion =
+    if (this is Expansion.Expanded) copy(value = value, variable = null) else this
 
 /** `?line(Meta)`: the `line` in [meta], or 0. */
 internal fun line(meta: Meta): Int = location(meta)?.line ?: 0
@@ -281,6 +317,9 @@ internal val VARIABLE_NODE: Term = Term.Node(Term.Node.Kind.VARIABLE)
 
 /** The value of a node other than a boolean that `elixir_utils:returns_boolean/1` holds of. */
 internal val BOOLEAN_NODE: Term = Term.Node(Term.Node.Kind.BOOLEAN)
+
+/** The value of a node that expands to `{'<-', _, [_, _]}`, which `for` takes as a generator. */
+internal val GENERATOR_NODE: Term = Term.Node(Term.Node.Kind.GENERATOR)
 
 internal val NIL = Term.Atom("nil")
 
@@ -300,6 +339,8 @@ internal inline fun mapfold(
     val values = ArrayList<Term>(nodes.size)
 
     for (node in nodes) {
+        ProgressManager.checkCanceled()
+
         when (val expansion = expand(node, accState, accEnv)) {
             is Expansion.Expanded -> {
                 accState = expansion.state
@@ -382,7 +423,7 @@ internal fun expandArg(arg: ElixirAst, acc: ExState, start: ExState, env: Env, r
     expandArg(arg, acc, start, env) { a, s, e -> Expander.expand(a, s, e, run) }
         .also { if (arg is ElixirAst.Literal) run.watched(arg, it) }
 
-/** `elixir_expand:expand_arg/3`, with [expand] for its `expand/3`. */
+/** `elixir_expand:expand_arg/3`, with [expand] for its `expand/3`; a pid in a macro's result isn't expanded either. */
 internal inline fun expandArg(
     arg: ElixirAst,
     acc: ExState,
@@ -390,10 +431,10 @@ internal inline fun expandArg(
     env: Env,
     expand: (ElixirAst, ExState, Env) -> Expansion,
 ): Expansion =
-    if (arg is ElixirAst.Literal) {
-        Expansion.Expanded(acc, env, literalValue(arg))
-    } else {
-        expand(arg, acc.resetRead(start), env)
+    when (arg) {
+        is ElixirAst.Literal -> Expansion.Expanded(acc, env, literalValue(arg))
+        is ElixirAst.Value if arg.term is OtpErlangPid -> Expansion.Expanded(acc, env, NODE)
+        else -> expand(arg, acc.resetRead(start), env)
     }
 
 internal fun literalValue(literal: ElixirAst.Literal): Term =
@@ -436,8 +477,10 @@ internal fun whenArguments(node: ElixirAst): List<ElixirAst>? =
  * [node] in the shape its expansion has, as far as a ported clause's check reads it: a block of one expression is that
  * expression, an empty block is `nil`, and an alias is an atom. Every other ported clause keeps its node's shape.
  */
-internal fun expandedShape(node: ElixirAst): ElixirAst =
-    when (node) {
+internal fun expandedShape(node: ElixirAst): ElixirAst {
+    ProgressManager.checkCanceled()
+
+    return when (node) {
         is ElixirAst.Block ->
             when (node.expressions.size) {
                 0 -> ElixirAst.Literal.Atom(node.meta, "nil")
@@ -448,6 +491,7 @@ internal fun expandedShape(node: ElixirAst): ElixirAst =
         is ElixirAst.Alias ->
             node.segments
                 .map { (it as? ElixirAst.Literal.Atom)?.name ?: return node }
-                .let { ElixirAst.Literal.Atom(node.meta, concat(it)) }
+                .let { concat(it)?.let { name -> ElixirAst.Literal.Atom(node.meta, name) } ?: node }
         else -> node
     }
+}

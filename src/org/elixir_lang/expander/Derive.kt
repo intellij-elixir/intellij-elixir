@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.ModuleExports.Present
 import org.elixir_lang.language_level.ElixirLanguageFeature.PROTOCOL_DERIVING_MACRO
@@ -52,12 +53,15 @@ internal fun derive(node: ElixirAst.Call, derived: List<AttributeValue>, run: Ru
 private fun protocolsOf(value: AttributeValue): List<String>? =
     (value as? AttributeValue.Known)?.let { protocolsOf(it.term) }
 
-private fun protocolsOf(term: Term): List<String>? =
-    when (term) {
+private fun protocolsOf(term: Term): List<String>? {
+    ProgressManager.checkCanceled()
+
+    return when (term) {
         is Term.Atom -> listOf(term.name)
         is Term.Pair -> (term.first as? Term.Atom)?.let { listOf(it.name) }
         is Term.List -> if (term.tail != null) null else flatten(term.elements.map(::protocolsOf))
         else -> null
     }
+}
 
 private fun <T> flatten(parts: List<List<T>?>): List<T>? = if (parts.any { it == null }) null else parts.flatMap { it!! }
