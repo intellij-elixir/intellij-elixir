@@ -61,9 +61,6 @@ abstract class DepsCheckerServiceTestBase : PlatformTestCase() {
 
     override fun setUp() {
         super.setUp()
-        // The service outlives the test in the shared light project, so a debounced check an
-        // earlier test scheduled can still run; with the setting off it returns before touching
-        // the pending roots, the cache or the call counts.
         val state = ElixirExperimentalSettings.instance.state
         originalMixDepsCheckEnabled = state.enableMixDepsCheck
         state.enableMixDepsCheck = false
