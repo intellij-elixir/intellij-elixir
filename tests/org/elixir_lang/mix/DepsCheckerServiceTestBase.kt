@@ -19,9 +19,10 @@ import org.elixir_lang.PackageManager as RootPackageManager
  *
  * Provides:
  * - a fake `packageManager` EP that delegates to [statusByRootUrl] and records call counts,
- * - [setUp] that masks the EP, clears state, and resets the service,
+ * - [setUp] that turns `enableMixDepsCheck` off for the test, masks the EP, waits for a check
+ *   already running, clears state, and resets the service,
  * - [tearDown] that clears the outdated notification and resets the service before delegating
- *   to the platform teardown,
+ *   to the platform teardown, then restores the setting,
  * - [depsStatus], [depsStatusCallCount], [resetDepsStatusCallCounts],
  * - [withMixDepsCheckEnabled] with an `enabled` parameter (defaults `true`),
  * - [runSuspendOnPooledThread] and [waitUntil] wait helpers.
@@ -56,12 +57,24 @@ abstract class DepsCheckerServiceTestBase : PlatformTestCase() {
         }
     }
 
+    private var originalMixDepsCheckEnabled: Boolean? = null
+
     override fun setUp() {
         super.setUp()
+        // The service outlives the test in the shared light project, so a debounced check an
+        // earlier test scheduled can still run; with the setting off it returns before touching
+        // the pending roots, the cache or the call counts.
+        val state = ElixirExperimentalSettings.instance.state
+        originalMixDepsCheckEnabled = state.enableMixDepsCheck
+        state.enableMixDepsCheck = false
         ExtensionTestUtil.maskExtensions(packageManagerEp, listOf(fakePackageManager), testRootDisposable)
+        val service = project.service<DepsCheckerService>()
+        // Queues behind a check that passed the setting gate before it went off: `resetState`
+        // must not race one.
+        runSuspendOnPooledThread { service.checkDepsStatus("settle") }
         statusByRootUrl.clear()
         depsStatusCallCountByRootUrl.clear()
-        project.service<DepsCheckerService>().resetState()
+        service.resetState()
     }
 
     /**
@@ -74,6 +87,8 @@ abstract class DepsCheckerServiceTestBase : PlatformTestCase() {
             { Notifier.clearMixDepsOutdated(project) },
             { project.service<DepsCheckerService>().resetState() },
             { super.tearDown() },
+            // Last, so the shared module's restore and the SDK removals run with the listeners off.
+            { originalMixDepsCheckEnabled?.let { ElixirExperimentalSettings.instance.state.enableMixDepsCheck = it } },
         )
     }
 
@@ -90,18 +105,13 @@ abstract class DepsCheckerServiceTestBase : PlatformTestCase() {
     }
 
     /**
-     * Temporarily overrides the `enableMixDepsCheck` setting for the duration of [block].
+     * Temporarily overrides the `enableMixDepsCheck` setting, which [setUp] turns off, for the
+     * duration of [block].
      *
-     * Pass `enabled = false` to bypass every settings-gated path: the
-     * [DepsCheckerService.runCheck] early-return gate **and** the topology/VFS listener
-     * gates. Use it for tests that drive [DepsCheckerService.checkDepsStatus]
-     * directly without relying on a listener to queue work.
-     *
-     * Pass `enabled = true` (or omit the argument) when the test fires a real
-     * `JDK_TABLE_TOPIC` / `rootsChanged` / VFS event and expects the listener to compute a
-     * delta and queue pending roots, or when testing the full notification pipeline through
-     * [DepsCheckerService.runCheck]. The setting is restored on block exit, so the debounced
-     * collector's deferred `runCheck` becomes a no-op again once the (fast) block completes.
+     * A test that checks the pending roots itself wraps only the event it publishes: the
+     * listener schedules its work before the publish returns, and the debounced check it
+     * schedules then finds the setting off, so the test's own
+     * [DepsCheckerService.checkDepsStatus] is the only check that takes the pending roots.
      */
     protected fun withMixDepsCheckEnabled(enabled: Boolean = true, block: () -> Unit) {
         val state = ElixirExperimentalSettings.instance.state

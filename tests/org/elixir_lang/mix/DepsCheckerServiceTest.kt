@@ -99,17 +99,15 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
         val root = MixTestFixtures.createMixRoot(myFixture, "project_a")
         val service = project.service<DepsCheckerService>()
 
-        withMixDepsCheckEnabled {
-            statusByRootUrl[root.url] = depsStatus(DepState.OUTDATED)
-            service.setPendingRoots(setOf(root))
-            runSuspendOnPooledThread { service.runCheck("outdated") }
-            assertTrue("expected outdated notification to be present", Notifier.hasActiveMixDepsOutdatedNotification(project))
+        statusByRootUrl[root.url] = depsStatus(DepState.OUTDATED)
+        service.setPendingRoots(setOf(root))
+        withMixDepsCheckEnabled { runSuspendOnPooledThread { service.runCheck("outdated") } }
+        assertTrue("expected outdated notification to be present", Notifier.hasActiveMixDepsOutdatedNotification(project))
 
-            statusByRootUrl[root.url] = depsStatus(DepState.OK)
-            service.setPendingRoots(setOf(root))
-            runSuspendOnPooledThread { service.runCheck("clear") }
-            assertFalse("expected outdated notification to be cleared", Notifier.hasActiveMixDepsOutdatedNotification(project))
-        }
+        statusByRootUrl[root.url] = depsStatus(DepState.OK)
+        service.setPendingRoots(setOf(root))
+        withMixDepsCheckEnabled { runSuspendOnPooledThread { service.runCheck("clear") } }
+        assertFalse("expected outdated notification to be cleared", Notifier.hasActiveMixDepsOutdatedNotification(project))
     }
 
     fun testRunCheck_rebindsOutdatedNotificationWhenFailingRootChanges() {
@@ -117,71 +115,65 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
         val rootB = MixTestFixtures.createMixRoot(myFixture, "project_b")
         val service = project.service<DepsCheckerService>()
 
-        withMixDepsCheckEnabled {
-            statusByRootUrl[rootA.url] = depsStatus(DepState.OUTDATED)
-            statusByRootUrl[rootB.url] = depsStatus(DepState.OK)
-            service.setPendingRoots(setOf(rootA, rootB))
-            runSuspendOnPooledThread { service.runCheck("initial outdated") }
+        statusByRootUrl[rootA.url] = depsStatus(DepState.OUTDATED)
+        statusByRootUrl[rootB.url] = depsStatus(DepState.OK)
+        service.setPendingRoots(setOf(rootA, rootB))
+        withMixDepsCheckEnabled { runSuspendOnPooledThread { service.runCheck("initial outdated") } }
 
-            assertEquals(rootA.url, Notifier.activeMixDepsOutdatedRootUrl(project))
+        assertEquals(rootA.url, Notifier.activeMixDepsOutdatedRootUrl(project))
 
-            statusByRootUrl[rootA.url] = depsStatus(DepState.OK)
-            statusByRootUrl[rootB.url] = depsStatus(DepState.OUTDATED)
-            service.setPendingRoots(setOf(rootA, rootB))
-            val notifications = capturedNotifications {
-                runSuspendOnPooledThread { service.runCheck("rebind outdated") }
-            }
-
-            assertTrue(Notifier.hasActiveMixDepsOutdatedNotification(project))
-            assertEquals(rootB.url, Notifier.activeMixDepsOutdatedRootUrl(project))
-
-            val outdated = notifications.lastOrNull { it.title.startsWith(Notifier.MIX_DEPS_OUTDATED_TITLE) }
-            assertNotNull("expected refreshed outdated notification", outdated)
-            assertEquals("${Notifier.MIX_DEPS_OUTDATED_TITLE} (${rootB.name})", outdated!!.title)
+        statusByRootUrl[rootA.url] = depsStatus(DepState.OK)
+        statusByRootUrl[rootB.url] = depsStatus(DepState.OUTDATED)
+        service.setPendingRoots(setOf(rootA, rootB))
+        val notifications = capturedNotifications {
+            withMixDepsCheckEnabled { runSuspendOnPooledThread { service.runCheck("rebind outdated") } }
         }
+
+        assertTrue(Notifier.hasActiveMixDepsOutdatedNotification(project))
+        assertEquals(rootB.url, Notifier.activeMixDepsOutdatedRootUrl(project))
+
+        val outdated = notifications.lastOrNull { it.title.startsWith(Notifier.MIX_DEPS_OUTDATED_TITLE) }
+        assertNotNull("expected refreshed outdated notification", outdated)
+        assertEquals("${Notifier.MIX_DEPS_OUTDATED_TITLE} (${rootB.name})", outdated!!.title)
     }
 
     fun testRunCheck_firesCheckFailedNotificationOnError() {
         val root = MixTestFixtures.createMixRoot(myFixture, "project_a")
         val service = project.service<DepsCheckerService>()
 
-        withMixDepsCheckEnabled {
-            statusByRootUrl[root.url] = DepsStatusResult.Error("boom from mix")
-            service.setPendingRoots(setOf(root))
+        statusByRootUrl[root.url] = DepsStatusResult.Error("boom from mix")
+        service.setPendingRoots(setOf(root))
 
-            val notifications = capturedNotifications {
-                runSuspendOnPooledThread { service.runCheck("error") }
-            }
-
-            val failure = notifications.firstOrNull { it.title.startsWith("Mix deps check failed") }
-            assertNotNull(
-                "expected a 'Mix deps check failed' notification, got ${notifications.map { it.title }}",
-                failure,
-            )
-            assertEquals("Mix deps check failed (${root.name})", failure!!.title)
-            assertEquals("boom from mix", failure.content)
-            assertFalse(
-                "Error path must not create the tracked outdated notification",
-                Notifier.hasActiveMixDepsOutdatedNotification(project),
-            )
+        val notifications = capturedNotifications {
+            withMixDepsCheckEnabled { runSuspendOnPooledThread { service.runCheck("error") } }
         }
+
+        val failure = notifications.firstOrNull { it.title.startsWith("Mix deps check failed") }
+        assertNotNull(
+            "expected a 'Mix deps check failed' notification, got ${notifications.map { it.title }}",
+            failure,
+        )
+        assertEquals("Mix deps check failed (${root.name})", failure!!.title)
+        assertEquals("boom from mix", failure.content)
+        assertFalse(
+            "Error path must not create the tracked outdated notification",
+            Notifier.hasActiveMixDepsOutdatedNotification(project),
+        )
     }
 
     fun testRunCheck_noSupportedRoots_doesNotNotify() {
         val root = MixTestFixtures.createMixRoot(myFixture, "project_a")
         val service = project.service<DepsCheckerService>()
 
-        withMixDepsCheckEnabled {
-            service.setPendingRoots(setOf(root))
-            val notifications = capturedNotifications {
-                runSuspendOnPooledThread { service.runCheck("unsupported") }
-            }
-            assertTrue(
-                "NoSupported verdict must not raise any Mix deps notification, got ${notifications.map { it.title }}",
-                notifications.none { it.title.contains("Mix deps") },
-            )
-            assertFalse(Notifier.hasActiveMixDepsOutdatedNotification(project))
+        service.setPendingRoots(setOf(root))
+        val notifications = capturedNotifications {
+            withMixDepsCheckEnabled { runSuspendOnPooledThread { service.runCheck("unsupported") } }
         }
+        assertTrue(
+            "NoSupported verdict must not raise any Mix deps notification, got ${notifications.map { it.title }}",
+            notifications.none { it.title.contains("Mix deps") },
+        )
+        assertFalse(Notifier.hasActiveMixDepsOutdatedNotification(project))
     }
 
     // ── SDK topology: targeted re-check ──────────────────────────────────────
@@ -193,25 +185,25 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
         statusByRootUrl[rootB.url] = depsStatus(DepState.OK)
 
         val service = project.service<DepsCheckerService>()
-        withMixDepsCheckEnabled(true) {
-            runSuspendOnPooledThread { service.checkDepsStatus("prime") }
-            resetDepsStatusCallCounts()
+        runSuspendOnPooledThread { service.checkDepsStatus("prime") }
+        resetDepsStatusCallCounts()
 
-            service.sdkNameSnapshot = mapOf(rootA.url to null, rootB.url to "stale-sdk-name")
+        service.sdkNameSnapshot = mapOf(rootA.url to null, rootB.url to "stale-sdk-name")
 
-            val triggerSdk = ProjectJdkImpl("Elixir trigger", ElixirSdkType.instance)
+        val triggerSdk = ProjectJdkImpl("Elixir trigger", ElixirSdkType.instance)
+        withMixDepsCheckEnabled {
             ApplicationManager.getApplication().messageBus
                 .syncPublisher(ProjectJdkTable.JDK_TABLE_TOPIC)
                 .jdkAdded(triggerSdk)
-
-            waitUntil("expected only rootB to be marked pending after SDK topic event") {
-                service.pendingRootUrls == setOf(rootB.url)
-            }
-            runSuspendOnPooledThread { service.checkDepsStatus("jdk-topic-targeted-check") }
-
-            assertEquals("rootA should not be re-queried", 0, depsStatusCallCount(rootA))
-            assertEquals("rootB should be re-queried exactly once", 1, depsStatusCallCount(rootB))
         }
+
+        waitUntil("expected only rootB to be marked pending after SDK topic event") {
+            service.pendingRootUrls == setOf(rootB.url)
+        }
+        runSuspendOnPooledThread { service.checkDepsStatus("jdk-topic-targeted-check") }
+
+        assertEquals("rootA should not be re-queried", 0, depsStatusCallCount(rootA))
+        assertEquals("rootB should be re-queried exactly once", 1, depsStatusCallCount(rootB))
     }
 
     fun testJdkTopic_removedAndRenamedTriggerTargetedRecheck() {
@@ -221,36 +213,38 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
         statusByRootUrl[rootB.url] = depsStatus(DepState.OK)
 
         val service = project.service<DepsCheckerService>()
-        withMixDepsCheckEnabled(true) {
-            runSuspendOnPooledThread { service.checkDepsStatus("prime") }
+        runSuspendOnPooledThread { service.checkDepsStatus("prime") }
 
-            resetDepsStatusCallCounts()
-            service.sdkNameSnapshot = mapOf(rootA.url to "stale-sdk-name", rootB.url to null)
-            val triggerSdk = ProjectJdkImpl("Elixir trigger", ElixirSdkType.instance)
+        resetDepsStatusCallCounts()
+        service.sdkNameSnapshot = mapOf(rootA.url to "stale-sdk-name", rootB.url to null)
+        val triggerSdk = ProjectJdkImpl("Elixir trigger", ElixirSdkType.instance)
+        withMixDepsCheckEnabled {
             ApplicationManager.getApplication().messageBus
                 .syncPublisher(ProjectJdkTable.JDK_TABLE_TOPIC)
                 .jdkRemoved(triggerSdk)
+        }
 
-            waitUntil("expected only rootA to be marked pending after jdkRemoved") {
-                service.pendingRootUrls == setOf(rootA.url)
-            }
-            runSuspendOnPooledThread { service.checkDepsStatus("jdk-removed-targeted-check") }
-            assertEquals(1, depsStatusCallCount(rootA))
-            assertEquals(0, depsStatusCallCount(rootB))
+        waitUntil("expected only rootA to be marked pending after jdkRemoved") {
+            service.pendingRootUrls == setOf(rootA.url)
+        }
+        runSuspendOnPooledThread { service.checkDepsStatus("jdk-removed-targeted-check") }
+        assertEquals(1, depsStatusCallCount(rootA))
+        assertEquals(0, depsStatusCallCount(rootB))
 
-            resetDepsStatusCallCounts()
-            service.sdkNameSnapshot = mapOf(rootA.url to null, rootB.url to "stale-sdk-name")
+        resetDepsStatusCallCounts()
+        service.sdkNameSnapshot = mapOf(rootA.url to null, rootB.url to "stale-sdk-name")
+        withMixDepsCheckEnabled {
             ApplicationManager.getApplication().messageBus
                 .syncPublisher(ProjectJdkTable.JDK_TABLE_TOPIC)
                 .jdkNameChanged(triggerSdk, "old-name")
-
-            waitUntil("expected only rootB to be marked pending after jdkNameChanged") {
-                service.pendingRootUrls == setOf(rootB.url)
-            }
-            runSuspendOnPooledThread { service.checkDepsStatus("jdk-renamed-targeted-check") }
-            assertEquals(0, depsStatusCallCount(rootA))
-            assertEquals(1, depsStatusCallCount(rootB))
         }
+
+        waitUntil("expected only rootB to be marked pending after jdkNameChanged") {
+            service.pendingRootUrls == setOf(rootB.url)
+        }
+        runSuspendOnPooledThread { service.checkDepsStatus("jdk-renamed-targeted-check") }
+        assertEquals(0, depsStatusCallCount(rootA))
+        assertEquals(1, depsStatusCallCount(rootB))
     }
 
     fun testJdkTopic_noSdkDeltaDoesNotScheduleRecheck() {
@@ -260,21 +254,21 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
         statusByRootUrl[rootB.url] = depsStatus(DepState.OK)
 
         val service = project.service<DepsCheckerService>()
-        withMixDepsCheckEnabled(true) {
-            runSuspendOnPooledThread { service.checkDepsStatus("prime") }
-            service.sdkNameSnapshot = mapOf(rootA.url to null, rootB.url to null)
-            resetDepsStatusCallCounts()
+        runSuspendOnPooledThread { service.checkDepsStatus("prime") }
+        service.sdkNameSnapshot = mapOf(rootA.url to null, rootB.url to null)
+        resetDepsStatusCallCounts()
 
-            val triggerSdk = ProjectJdkImpl("Elixir trigger", ElixirSdkType.instance)
+        val triggerSdk = ProjectJdkImpl("Elixir trigger", ElixirSdkType.instance)
+        withMixDepsCheckEnabled {
             ApplicationManager.getApplication().messageBus
                 .syncPublisher(ProjectJdkTable.JDK_TABLE_TOPIC)
                 .jdkAdded(triggerSdk)
-
-            spinEventQueue()
-
-            assertTrue("no-op SDK event should not enqueue pending roots", service.pendingRootUrls.isEmpty())
-            assertFalse("no-op SDK event should not switch to cached-only mode", service.cachedOnlyMode)
         }
+
+        spinEventQueue()
+
+        assertTrue("no-op SDK event should not enqueue pending roots", service.pendingRootUrls.isEmpty())
+        assertFalse("no-op SDK event should not switch to cached-only mode", service.cachedOnlyMode)
     }
 
     fun testNonRelevantSdk_eventDoesNotScheduleRecheck() {
@@ -284,21 +278,21 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
         statusByRootUrl[rootB.url] = depsStatus(DepState.OK)
 
         val service = project.service<DepsCheckerService>()
-        withMixDepsCheckEnabled(true) {
-            runSuspendOnPooledThread { service.checkDepsStatus("prime") }
-            service.sdkNameSnapshot = mapOf(rootA.url to "stale-a", rootB.url to "stale-b")
-            resetDepsStatusCallCounts()
+        runSuspendOnPooledThread { service.checkDepsStatus("prime") }
+        service.sdkNameSnapshot = mapOf(rootA.url to "stale-a", rootB.url to "stale-b")
+        resetDepsStatusCallCounts()
 
-            val javaSdk = ProjectJdkImpl("Java Mock", SimpleJavaSdkType())
+        val javaSdk = ProjectJdkImpl("Java Mock", SimpleJavaSdkType())
+        withMixDepsCheckEnabled {
             ApplicationManager.getApplication().messageBus
                 .syncPublisher(ProjectJdkTable.JDK_TABLE_TOPIC)
                 .jdkAdded(javaSdk)
-
-            spinEventQueue()
-
-            assertTrue("non-Elixir/Erlang SDK event must be ignored (no roots queued)", service.pendingRootUrls.isEmpty())
-            assertFalse("non-Elixir/Erlang SDK event must not switch to cached-only mode", service.cachedOnlyMode)
         }
+
+        spinEventQueue()
+
+        assertTrue("non-Elixir/Erlang SDK event must be ignored (no roots queued)", service.pendingRootUrls.isEmpty())
+        assertFalse("non-Elixir/Erlang SDK event must not switch to cached-only mode", service.cachedOnlyMode)
     }
 
     fun testErlangSdk_eventIsTreatedAsRelevant() {
@@ -308,23 +302,23 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
         statusByRootUrl[rootB.url] = depsStatus(DepState.OK)
 
         val service = project.service<DepsCheckerService>()
-        withMixDepsCheckEnabled(true) {
-            runSuspendOnPooledThread { service.checkDepsStatus("prime") }
-            service.sdkNameSnapshot = mapOf(rootA.url to null, rootB.url to "stale-sdk-name")
-            resetDepsStatusCallCounts()
+        runSuspendOnPooledThread { service.checkDepsStatus("prime") }
+        service.sdkNameSnapshot = mapOf(rootA.url to null, rootB.url to "stale-sdk-name")
+        resetDepsStatusCallCounts()
 
-            val erlangSdk = ProjectJdkImpl("Erlang trigger", ErlangSdkType.instance)
+        val erlangSdk = ProjectJdkImpl("Erlang trigger", ErlangSdkType.instance)
+        withMixDepsCheckEnabled {
             ApplicationManager.getApplication().messageBus
                 .syncPublisher(ProjectJdkTable.JDK_TABLE_TOPIC)
                 .jdkAdded(erlangSdk)
-
-            waitUntil("expected an Erlang SDK event to queue the changed root") {
-                service.pendingRootUrls == setOf(rootB.url)
-            }
-            runSuspendOnPooledThread { service.checkDepsStatus("erlang-targeted-check") }
-            assertEquals("unchanged root must not be re-queried", 0, depsStatusCallCount(rootA))
-            assertEquals("changed root must be re-queried exactly once", 1, depsStatusCallCount(rootB))
         }
+
+        waitUntil("expected an Erlang SDK event to queue the changed root") {
+            service.pendingRootUrls == setOf(rootB.url)
+        }
+        runSuspendOnPooledThread { service.checkDepsStatus("erlang-targeted-check") }
+        assertEquals("unchanged root must not be re-queried", 0, depsStatusCallCount(rootA))
+        assertEquals("changed root must be re-queried exactly once", 1, depsStatusCallCount(rootB))
     }
 
     // ── Module-root topology changes ──────────────────────────────────────────
@@ -337,23 +331,21 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
         statusByRootUrl[rootB.url] = depsStatus(DepState.OK)
 
         val service = project.service<DepsCheckerService>()
-        withMixDepsCheckEnabled(true) {
-            runSuspendOnPooledThread { service.checkDepsStatus("prime") }
-            service.sdkNameSnapshot = mapOf(rootA.url to null, rootB.url to "stale-sdk-name")
-            resetDepsStatusCallCounts()
+        runSuspendOnPooledThread { service.checkDepsStatus("prime") }
+        service.sdkNameSnapshot = mapOf(rootA.url to null, rootB.url to "stale-sdk-name")
+        resetDepsStatusCallCounts()
 
-            addContentRoot(rootB)
+        withMixDepsCheckEnabled { addContentRoot(rootB) }
 
-            waitUntil("expected newly-added root to be queued for targeted check") {
-                service.pendingRootUrls.contains(rootB.url)
-            }
-            service.setPendingRoots(setOf(rootB))
-
-            runSuspendOnPooledThread { service.checkDepsStatus("root-added-targeted-check") }
-
-            assertEquals(0, depsStatusCallCount(rootA))
-            assertEquals(1, depsStatusCallCount(rootB))
+        waitUntil("expected newly-added root to be queued for targeted check") {
+            service.pendingRootUrls.contains(rootB.url)
         }
+        service.setPendingRoots(setOf(rootB))
+
+        runSuspendOnPooledThread { service.checkDepsStatus("root-added-targeted-check") }
+
+        assertEquals(0, depsStatusCallCount(rootA))
+        assertEquals(1, depsStatusCallCount(rootB))
     }
 
     fun testRootsChanged_mixedChangedAndRemovedRoots() {
@@ -368,26 +360,24 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
         statusByRootUrl[rootC.url] = depsStatus(DepState.OK)
 
         val service = project.service<DepsCheckerService>()
-        withMixDepsCheckEnabled(true) {
-            runSuspendOnPooledThread { service.checkDepsStatus("prime") }
-            resetDepsStatusCallCounts()
-            service.sdkNameSnapshot = mapOf(
-                rootA.url to sdk.name,
-                rootB.url to "stale-sdk-name",
-                rootC.url to sdk.name,
-            )
+        runSuspendOnPooledThread { service.checkDepsStatus("prime") }
+        resetDepsStatusCallCounts()
+        service.sdkNameSnapshot = mapOf(
+            rootA.url to sdk.name,
+            rootB.url to "stale-sdk-name",
+            rootC.url to sdk.name,
+        )
 
-            removeContentRoot(rootC)
+        withMixDepsCheckEnabled { removeContentRoot(rootC) }
 
-            waitUntil("expected changed root pending and cached-only mode after mixed topology change") {
-                service.pendingRootUrls == setOf(rootB.url) && service.cachedOnlyMode
-            }
-            runSuspendOnPooledThread { service.checkDepsStatus("mixed-topology-check") }
-
-            assertEquals(0, depsStatusCallCount(rootA))
-            assertEquals(1, depsStatusCallCount(rootB))
-            assertFalse("removed root should be evicted from the cache", service.statusCacheKeys.contains(rootC.url))
+        waitUntil("expected changed root pending and cached-only mode after mixed topology change") {
+            service.pendingRootUrls == setOf(rootB.url) && service.cachedOnlyMode
         }
+        runSuspendOnPooledThread { service.checkDepsStatus("mixed-topology-check") }
+
+        assertEquals(0, depsStatusCallCount(rootA))
+        assertEquals(1, depsStatusCallCount(rootB))
+        assertFalse("removed root should be evicted from the cache", service.statusCacheKeys.contains(rootC.url))
     }
 
     fun testRootsChanged_cacheOnlyPathWhenRootRemoved() {
@@ -397,22 +387,20 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
         statusByRootUrl[rootB.url] = depsStatus(DepState.OK)
 
         val service = project.service<DepsCheckerService>()
-        withMixDepsCheckEnabled(true) {
-            runSuspendOnPooledThread { service.checkDepsStatus("prime") }
-            resetDepsStatusCallCounts()
+        runSuspendOnPooledThread { service.checkDepsStatus("prime") }
+        resetDepsStatusCallCounts()
 
-            removeContentRoot(rootB)
+        withMixDepsCheckEnabled { removeContentRoot(rootB) }
 
-            waitUntil("expected cache-only mode after rootsChanged with removed root") {
-                service.cachedOnlyMode
-            }
-            assertTrue("no roots should be pending when only a removal was detected", service.pendingRootUrls.isEmpty())
-
-            runSuspendOnPooledThread { service.checkDepsStatus("roots-changed-cache-only-check") }
-
-            assertEquals("cache-only check should not re-run deps status for cached roots", 0, depsStatusCallCount(rootA))
-            assertFalse("removed root should be evicted from the cache", service.statusCacheKeys.contains(rootB.url))
+        waitUntil("expected cache-only mode after rootsChanged with removed root") {
+            service.cachedOnlyMode
         }
+        assertTrue("no roots should be pending when only a removal was detected", service.pendingRootUrls.isEmpty())
+
+        runSuspendOnPooledThread { service.checkDepsStatus("roots-changed-cache-only-check") }
+
+        assertEquals("cache-only check should not re-run deps status for cached roots", 0, depsStatusCallCount(rootA))
+        assertFalse("removed root should be evicted from the cache", service.statusCacheKeys.contains(rootB.url))
     }
 
     fun testProjectWideSdkChange_queuesAllRoots() {
@@ -422,34 +410,30 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
         statusByRootUrl[rootB.url] = depsStatus(DepState.OK)
 
         val service = project.service<DepsCheckerService>()
-        withMixDepsCheckEnabled(true) {
-            runSuspendOnPooledThread { service.checkDepsStatus("prime") }
-            resetDepsStatusCallCounts()
-            service.sdkNameSnapshot = mapOf(rootA.url to "stale-sdk-name-a", rootB.url to "stale-sdk-name-b")
+        runSuspendOnPooledThread { service.checkDepsStatus("prime") }
+        resetDepsStatusCallCounts()
+        service.sdkNameSnapshot = mapOf(rootA.url to "stale-sdk-name-a", rootB.url to "stale-sdk-name-b")
 
-            val triggerSdk = ProjectJdkImpl("Elixir trigger", ElixirSdkType.instance)
+        val triggerSdk = ProjectJdkImpl("Elixir trigger", ElixirSdkType.instance)
+        withMixDepsCheckEnabled {
             ApplicationManager.getApplication().messageBus
                 .syncPublisher(ProjectJdkTable.JDK_TABLE_TOPIC)
                 .jdkAdded(triggerSdk)
-
-            waitUntil("expected all roots to be queued for broad SDK-impact recheck") {
-                service.pendingRootUrls == setOf(rootA.url, rootB.url)
-            }
-            runSuspendOnPooledThread { service.checkDepsStatus("project-wide-targeted-check") }
-
-            assertEquals(1, depsStatusCallCount(rootA))
-            assertEquals(1, depsStatusCallCount(rootB))
         }
+
+        waitUntil("expected all roots to be queued for broad SDK-impact recheck") {
+            service.pendingRootUrls == setOf(rootA.url, rootB.url)
+        }
+        runSuspendOnPooledThread { service.checkDepsStatus("project-wide-targeted-check") }
+
+        assertEquals(1, depsStatusCallCount(rootA))
+        assertEquals(1, depsStatusCallCount(rootB))
     }
 
     // ── Disabled-setting gating: listeners do no work when the feature is off ──
 
     fun testJdkTopic_disabledSettingSkipsListenerWork() {
         val service = project.service<DepsCheckerService>()
-        // Everything runs inside the disabled block so the listener gate suppresses any
-        // queuing driven by fixture VFS events (e.g. mix.exs creation). In the full suite the
-        // ambient `enableMixDepsCheck` may be left enabled by a prior test class, so creating
-        // roots outside the block could otherwise queue them before the assertion.
         withMixDepsCheckEnabled(false) {
             val rootA = MixTestFixtures.createMixRoot(myFixture, "project_a")
             val rootB = MixTestFixtures.createMixRoot(myFixture, "project_b")
