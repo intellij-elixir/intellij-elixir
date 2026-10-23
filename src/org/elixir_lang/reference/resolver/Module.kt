@@ -89,21 +89,21 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
      *
      * @param name an index name verbatim: `Mod` for `Mod` and `:"Elixir.Mod"`, `:lists` for `:lists`.
      * @param inScope whether to look at the `alias`es in scope first, which a module written as an atom never is.
-     * @param loaded whether to keep only the copies Elixir would load for [element]: see [loadedCopies].
      */
-    @JvmOverloads
     fun resolvePreferred(
         element: PsiElement,
         name: String,
         incompleteCode: Boolean,
         inScope: Boolean,
-        loaded: Boolean = false,
-    ): List<VisitedElementSetResolveResult> {
-        val all = resolveAll(element, name, incompleteCode, inScope)
-        val candidates = if (loaded) loadedCopies(element, all) else all
+    ): List<VisitedElementSetResolveResult> =
+        org.elixir_lang.reference.Resolver.preferred(element, incompleteCode, resolveAll(element, name, incompleteCode, inScope))
 
-        return org.elixir_lang.reference.Resolver.preferred(element, incompleteCode, candidates)
-    }
+    /**
+     * The modulars named [name], an index name as [resolvePreferred] takes it, that Elixir would load for [element]
+     * ([loadedCopies]), with no preference among them.
+     */
+    fun resolveLoadable(element: PsiElement, name: String): List<VisitedElementSetResolveResult> =
+        loadedCopies(element, resolveAll(element, name, incompleteCode = false, inScope = false))
 
     /**
      * Those of [candidates] Elixir would load for [asker]:

@@ -708,8 +708,8 @@ private fun ran(statement: Pending.Statement, values: BodyValues, run: Run): Exp
 private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues): ExpansionResult {
     val name = module.name
     val statement = module.isStatement(enclosing.statements)
-    val compiling =
-        Compiling(module.body, run.level, statement && enclosing.certainAt(module.node), statement && module.placed)
+    val placed = statement && module.placed
+    val compiling = Compiling(module.body, run.level, statement && enclosing.certainAt(module.node), placed)
     val values = compiling.values
 
     for ((version, outer) in module.outer) {
@@ -950,7 +950,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues): Ex
             !compiling.attributes.callsBack("after_compile"),
     )
 
-    run.load(result) { ModuleClauses.of(result.module, compiling, run.virtualFile) }
+    run.load(result, placed) { ModuleClauses.of(result.module, compiling, run.virtualFile) }
 
     return result
 }

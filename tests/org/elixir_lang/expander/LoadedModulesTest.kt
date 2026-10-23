@@ -441,7 +441,8 @@ class LoadedModulesTest : ProbeTestCase() {
 
     /**
      * What [LoadedModules] gives each of [modules] in the file [code] expands to, by class name: `Present`,
-     * `Unreadable` or `Absent`, a module the file didn't compile answered as [LoadedModules.uncompiledExports].
+     * `Unreadable` or `Absent`, a module the file didn't compile as [LoadedModules.uncompiledExports], `Absent` where the
+     * file leaves it no module, as the leg's `.beam`s define none of these names.
      */
     private fun loadings(code: String, vararg modules: String): List<String> {
         val level = legLevel()
@@ -454,7 +455,9 @@ class LoadedModulesTest : ProbeTestCase() {
             .associateBy { it.module.removePrefix("Elixir.") }
 
         return modules.map { module ->
-            (results[module]?.let { LoadedModules.exports(it) } ?: LoadedModules.uncompiledExports(file))::class.simpleName!!
+            results[module]?.let { LoadedModules.exports(it)::class.simpleName!! }
+                ?: LoadedModules.uncompiledExports(file)?.let { it::class.simpleName!! }
+                ?: "Absent"
         }
     }
 

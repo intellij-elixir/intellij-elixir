@@ -98,17 +98,6 @@ internal object LoadedModules {
     fun recorded(struct: ModuleStruct?, table: DefinitionTable): ModuleStruct =
         struct ?: if (table.entries.keys.any(::buildsStruct)) ModuleStruct.Unreadable else ModuleStruct.Absent
 
-    /**
-     * The exports of a module the file defines that [file] didn't compile: none where the run compiled every module it
-     * reached or a certain raise ended it, and unknown where it stopped short of a module Elixir may have compiled.
-     */
-    fun uncompiledExports(file: FileExpansion): ModuleExports =
-        if (stoppedShort(file)) ModuleExports.Unreadable else ModuleExports.Absent
-
-    /** The struct of a module the file defines that [file] didn't compile, as [uncompiledExports]. */
-    fun uncompiledStruct(file: FileExpansion): ModuleStruct =
-        if (stoppedShort(file)) ModuleStruct.Unreadable else ModuleStruct.Absent
-
     private enum class Loading { UNREADABLE, LOADED, ABSENT }
 
     /** How [result]'s module loads, where the project compiles: an error from uncertain inputs is assumed not to raise. */
@@ -119,12 +108,19 @@ internal object LoadedModules {
             else -> Loading.UNREADABLE
         }
 
-    /** Whether [file]'s run may have skipped a module Elixir compiled: its top stopped, or a module's run [skips] one. */
-    fun stoppedShort(file: FileExpansion): Boolean =
-        when (file.top) {
-            is Expansion.Expanded, is Expansion.Error -> file.modules.any(::skips)
-            is Expansion.Unported, is Expansion.Opaque -> true
-        }
+    /**
+     * The exports of a module the index names in [file] that its expansion didn't compile: unreadable where the run
+     * [stoppedShort] of one Elixir may have compiled, and `null` where the file leaves the name no module, so it answers
+     * as it would without the file.
+     */
+    fun uncompiledExports(file: FileExpansion): ModuleExports? = ModuleExports.Unreadable.takeIf { stoppedShort(file) }
+
+    /**
+     * Whether [file]'s run may have skipped a module Elixir compiled: a module's run [skips] one, or its top stopped
+     * where its run went on to the end. A module after where the run [ended][FileExpansion.endsRun] is never compiled.
+     */
+    private fun stoppedShort(file: FileExpansion): Boolean =
+        file.modules.any(::skips) || !file.endsRun && (file.top is Expansion.Unported || file.top is Expansion.Opaque)
 
     /**
      * Whether [result]'s run, or a nested module's, may have skipped a module Elixir compiled: an expansion stopped, the

@@ -5,6 +5,7 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.ModificationTracker
@@ -26,6 +27,7 @@ import org.elixir_lang.mix.Project.MIX_EXS
 import org.elixir_lang.navigation.isDecompiled
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.Import.Term
+import org.elixir_lang.reference.Resolver
 import org.elixir_lang.reference.resolver.Module
 import org.jetbrains.annotations.TestOnly
 import java.io.IOException
@@ -55,36 +57,29 @@ internal class ProjectModules(private val project: Project) {
     /** Per holder, so a new holder computes afresh. */
     private val held = Key.create<Held>("org.elixir_lang.expander.ProjectModules.held")
     private val chosen =
-        Key.create<CachedValue<ConcurrentHashMap<String, List<HeldCopy>>>>("org.elixir_lang.expander.ProjectModules.chosen")
+        Key.create<CachedValue<ConcurrentHashMap<String, HeldCopies>>>("org.elixir_lang.expander.ProjectModules.chosen")
 
-    /**
-     * [atom]'s exports, from the copy Elixir loads for [asker]. [asker]'s own file reads as compiling, so a module it
-     * defines is [ModuleExports.Absent].
-     */
+    /** [atom]'s exports, from the copy Elixir loads for [asker]. */
     @RequiresReadLock
     fun exports(asker: PsiFile, atom: String, inputs: Inputs): ModuleExports =
         lookup(asker, atom, inputs, compiling(asker), Memo()).answer.exports
 
-    /**
-     * [atom]'s struct, from the copy Elixir loads for [asker]. [asker]'s own file reads as compiling, so a module it
-     * defines is [ModuleStruct.Absent].
-     */
+    /** [atom]'s struct, from the copy Elixir loads for [asker]. */
     @RequiresReadLock
     fun struct(asker: PsiFile, atom: String, inputs: Inputs): ModuleStruct =
         lookup(asker, atom, inputs, compiling(asker), Memo()).answer.struct
 
     /**
      * [atom]'s clauses, from the copy Elixir loads for [asker], as [exports] chooses it: none where which copy loads is
-     * unknown, where it is [asker]'s own file, which reads as compiling, or where it doesn't load with readable exports.
-     * They are read when asked, and held apart from the answers within their own bound.
+     * unknown, or where it doesn't load with readable exports. They are read when asked, and held apart from the answers
+     * within their own bound.
      */
     @RequiresReadLock
     fun clauses(asker: PsiFile, atom: String, inputs: Inputs): ModuleClauses? =
         clauses(asker, atom, inputs, compiling(asker)).clauses
 
     /**
-     * [atom]'s clauses for [asker], none where its copy is one of the source files [inProgress] holds, with the stamps
-     * of what was read for them, as [lookup] gives an answer's.
+     * [atom]'s clauses for [asker], with the stamps of what was read for them, as [lookup] gives an answer's.
      */
     private fun clauses(
         asker: PsiFile,
@@ -93,27 +88,35 @@ internal class ProjectModules(private val project: Project) {
         inProgress: Map<VirtualFile, Map<String, Answer>>,
     ): ReadClauses {
         val (choice, stamps) = chosen(asker, atom)
+        var transient = Transient.NONE
 
-        return when (choice) {
-            Choice.Unknown -> ReadClauses(null, stamps, Transient.DUMB)
-            Choice.None, is Choice.Several -> ReadClauses(null, stamps, Transient.NONE)
-            is Choice.One ->
-                when (val copy = choice.copy) {
-                    is Copy.Compiled ->
-                        ReadClauses(compiledClauses(copy.virtualFile, inputs.level), stamps, Transient.NONE)
-                    is Copy.Source if copy.virtualFile in inProgress -> {
-                        val answer = runningAnswer(inProgress, copy.virtualFile, atom)
-
-                        ReadClauses(null, stamps, Transient(mapOf(copy.virtualFile to mapOf(atom to answer)), false))
-                    }
-                    is Copy.Source -> {
-                        val (loaded, modules, transient) = sourceClauses(copy, inputs, inProgress)
-                        stamps.addAll(loaded.stamps)
-
-                        ReadClauses(modules[atom], stamps, transient)
-                    }
+        fun read(choice: Choice): ModuleClauses? =
+            when (choice) {
+                Choice.Unknown -> {
+                    transient = Transient.DUMB
+                    null
                 }
-        }
+                Choice.None, is Choice.Several -> null
+                is Choice.One ->
+                    when (val copy = choice.copy) {
+                        is Copy.Compiled -> compiledClauses(copy.virtualFile, inputs.level)
+                        is Copy.Source if copy.virtualFile in inProgress -> {
+                            val running = runningAnswer(inProgress, copy.virtualFile, atom)
+                            transient = Transient(mapOf(copy.virtualFile to mapOf(atom to running)), false)
+
+                            if (running == null) read(choice.fallingThrough()) else null
+                        }
+                        is Copy.Source -> {
+                            val (loaded, modules, below) = sourceClauses(copy, inputs, inProgress)
+                            transient = below
+                            stamps.addAll(loaded.stamps)
+
+                            modules[atom] ?: if (loaded.answer(atom) == null) read(choice.fallingThrough()) else null
+                        }
+                    }
+            }
+
+        return ReadClauses(read(choice), stamps, transient)
     }
 
     /** Where Elixir loads a module from for a file that asks. */
@@ -134,21 +137,26 @@ internal class ProjectModules(private val project: Project) {
 
     /** The copy of [atom] Elixir loads for [asker], as [exports] and [struct] choose it. */
     @RequiresReadLock
-    fun locate(asker: PsiFile, atom: String, inputs: Inputs): Located =
-        when (val choice = choose(asker, atom)) {
-            Choice.Unknown -> Located.Unknown
-            Choice.None -> Located.None
-            is Choice.Several -> Located.Several(choice.copies.map { it.virtualFile })
-            is Choice.One ->
-                when (val copy = choice.copy) {
-                    is Copy.Compiled -> Located.Compiled(copy.virtualFile, compiled(copy.virtualFile).exports)
-                    is Copy.Source -> {
-                        val file = if (copy.virtualFile == fileOf(asker)) asker as? ElixirFile ?: copy.file else copy.file
+    fun locate(asker: PsiFile, atom: String, inputs: Inputs): Located {
+        fun locate(choice: Choice): Located =
+            when (choice) {
+                Choice.Unknown -> Located.Unknown
+                Choice.None -> Located.None
+                is Choice.Several -> Located.Several(choice.copies.map { it.virtualFile })
+                is Choice.One ->
+                    when (val copy = choice.copy) {
+                        is Copy.Compiled -> Located.Compiled(copy.virtualFile, compiled(copy.virtualFile).exports)
+                        is Copy.Source -> {
+                            val file = if (copy.virtualFile == fileOf(asker)) asker as? ElixirFile ?: copy.file else copy.file
+                            val held = held(file, inputs)
 
-                        Located.Source(file, held(file, inputs).results[atom])
+                            if (held.loaded.answer(atom) == null) locate(choice.fallingThrough()) else Located.Source(file, held.results[atom])
+                        }
                     }
-                }
-        }
+            }
+
+        return locate(choose(asker, atom))
+    }
 
     /** [file]'s expansion, against the modules the other files define, held on [file] while what it read is unchanged. */
     @RequiresReadLock
@@ -203,33 +211,37 @@ internal class ProjectModules(private val project: Project) {
         memo: Memo,
     ): Looked {
         val (choice, stamps) = chosen(asker, atom)
-
         var transient = Transient.NONE
-        val answer = when (choice) {
-            Choice.Unknown -> return Looked(UNREADABLE, stamps, Transient.DUMB)
-            Choice.None -> ABSENT
-            is Choice.Several -> UNREADABLE
-            is Choice.One ->
-                when (val copy = choice.copy) {
-                    is Copy.Compiled -> compiled(copy.virtualFile)
-                    // Elixir loads each module as its own `defmodule` compiles, so one still compiling isn't loaded yet.
-                    is Copy.Source if copy.virtualFile in inProgress -> {
-                        val answer = runningAnswer(inProgress, copy.virtualFile, atom)
-                        transient = Transient(mapOf(copy.virtualFile to mapOf(atom to answer)), false)
 
-                        answer
-                    }
-                    is Copy.Source -> {
-                        val (loaded, below) = loaded(copy, inputs, inProgress, memo)
-                        transient = below
-                        stamps.addAll(loaded.stamps)
-
-                        loaded.modules[atom] ?: loaded.uncompiled
-                    }
+        fun answer(choice: Choice): Answer =
+            when (choice) {
+                Choice.Unknown -> {
+                    transient = Transient.DUMB
+                    UNREADABLE
                 }
-        }
+                Choice.None -> ABSENT
+                is Choice.Several -> UNREADABLE
+                is Choice.One ->
+                    when (val copy = choice.copy) {
+                        is Copy.Compiled -> compiled(copy.virtualFile)
+                        // Elixir loads each module as its own `defmodule` compiles, so one still compiling isn't loaded yet.
+                        is Copy.Source if copy.virtualFile in inProgress -> {
+                            val running = runningAnswer(inProgress, copy.virtualFile, atom)
+                            transient = Transient(mapOf(copy.virtualFile to mapOf(atom to running)), false)
 
-        return Looked(answer, stamps, transient)
+                            running ?: answer(choice.fallingThrough())
+                        }
+                        is Copy.Source -> {
+                            val (loaded, below) = loaded(copy, inputs, inProgress, memo)
+                            transient = below
+                            stamps.addAll(loaded.stamps)
+
+                            loaded.answer(atom) ?: answer(choice.fallingThrough())
+                        }
+                    }
+            }
+
+        return Looked(answer(choice), stamps, transient)
     }
 
     /**
@@ -246,7 +258,10 @@ internal class ProjectModules(private val project: Project) {
 
         when (choice) {
             is Choice.Several -> choice.copies.forEach { stamps.copy(it) }
-            is Choice.One -> (choice.copy as? Copy.Compiled)?.let { stamps.copy(it) }
+            is Choice.One -> {
+                (choice.copy as? Copy.Compiled)?.let { stamps.copy(it) }
+                choice.fallback.forEach { stamps.copy(it) }
+            }
             Choice.None, Choice.Unknown -> Unit
         }
 
@@ -256,11 +271,11 @@ internal class ProjectModules(private val project: Project) {
     /** Which of [atom]'s copies Elixir loads for [asker]: unknown in dumb mode, else none, several or the one. */
     private fun choose(asker: PsiFile, atom: String): Choice {
         if (DumbService.isDumb(project)) return Choice.Unknown
-        val copies = copies(asker, atom)
+        val (chosen, fallback) = copies(asker, atom)
 
-        return when (val copy = copies.singleOrNull()) {
-            null -> if (copies.isEmpty()) Choice.None else Choice.Several(copies)
-            else -> Choice.One(copy)
+        return when (val copy = chosen.singleOrNull()) {
+            null -> if (chosen.isEmpty()) Choice.None else Choice.Several(chosen)
+            else -> Choice.One(copy, fallback)
         }
     }
 
@@ -268,29 +283,46 @@ internal class ProjectModules(private val project: Project) {
         data object Unknown : Choice
         data object None : Choice
         class Several(val copies: List<Copy>) : Choice
-        class One(val copy: Copy) : Choice
+
+        /**
+         * @property fallback the `.beam`s of the libraries and the SDK outside the project's content, which Elixir loads
+         *   from the code path where [copy], a source file, defines no module under the name after all
+         */
+        class One(val copy: Copy, val fallback: List<Copy.Compiled>) : Choice {
+            /** Where Elixir loads the name from once [copy], a source file, leaves it no module: the code path's `.beam`s, as [choose] reads copies. */
+            fun fallingThrough(): Choice =
+                when (val beam = fallback.singleOrNull()) {
+                    null -> if (fallback.isEmpty()) None else Several(fallback)
+                    else -> One(beam, emptyList())
+                }
+        }
     }
 
     /**
      * The copies of [atom] Elixir may load for [asker], held on [asker] by file while the trackers [lookup] stamps are
-     * unchanged. A reparse replaces a file's PSI and moves none of them, so each source copy's PSI is found again.
+     * unchanged: the preferred ones, then the `.beam`s of the libraries and the SDK outside the project's content not
+     * among them. A reparse replaces a file's PSI and moves none of them, so each source copy's PSI is found again.
      */
-    private fun copies(asker: PsiFile, atom: String): List<Copy> =
-        heldCopies(asker, atom).mapNotNull { held ->
-            if (held.compiled) {
-                Copy.Compiled(held.virtualFile)
+    private fun copies(asker: PsiFile, atom: String): Pair<List<Copy>, List<Copy.Compiled>> {
+        val held = heldCopies(asker, atom)
+        val chosen = held.chosen.mapNotNull { copy ->
+            if (copy.compiled) {
+                Copy.Compiled(copy.virtualFile)
             } else {
-                (PsiManager.getInstance(project).findFile(held.virtualFile) as? ElixirFile)?.let { Copy.Source(it, held.virtualFile) }
+                (PsiManager.getInstance(project).findFile(copy.virtualFile) as? ElixirFile)?.let { Copy.Source(it, copy.virtualFile) }
             }
         }
 
-    private fun heldCopies(asker: PsiFile, atom: String): List<HeldCopy> {
+        return chosen to held.fallback.map { Copy.Compiled(it.virtualFile) }
+    }
+
+    private fun heldCopies(asker: PsiFile, atom: String): HeldCopies {
         val byAtom = CachedValuesManager.getManager(project).getCachedValue(
             asker,
             chosen,
             {
                 CachedValueProvider.Result.create(
-                    ConcurrentHashMap<String, List<HeldCopy>>(),
+                    ConcurrentHashMap<String, HeldCopies>(),
                     VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS,
                     ModuleNamesTracker.getInstance(project),
                     ProjectRootManager.getInstance(project),
@@ -300,10 +332,19 @@ internal class ProjectModules(private val project: Project) {
         )
         byAtom[atom]?.let { return it }
 
-        val copies = Module
-            .resolvePreferred(asker, org.elixir_lang.Module.indexName(atom), false, inScope = false, loaded = true)
-            .mapNotNull { copy(it.element) }
+        val loadable = Module.resolveLoadable(asker, org.elixir_lang.Module.indexName(atom))
+        val chosen = Resolver.preferred(asker, false, loadable).mapNotNull { copy(it.element) }.distinctBy { it.virtualFile }
+        val chosenFiles = chosen.mapTo(HashSet()) { it.virtualFile }
+        val index = ProjectFileIndex.getInstance(project)
+        // A `.beam` in the project's content is its own build output: Mix removes an app's stale ones before compiling it,
+        // and adds its consolidated protocols only once it has compiled.
+        val fallback = loadable.mapNotNull { copy(it.element) }
+            .filter {
+                it.compiled && it.virtualFile !in chosenFiles &&
+                    index.isInLibraryClasses(it.virtualFile) && !index.isInContent(it.virtualFile)
+            }
             .distinctBy { it.virtualFile }
+        val copies = HeldCopies(chosen, fallback)
 
         return byAtom.putIfAbsent(atom, copies) ?: copies
     }
@@ -478,9 +519,15 @@ internal class ProjectModules(private val project: Project) {
                 }
 
                 override fun loaded(result: ExpansionResult, exports: ModuleExports, struct: ModuleStruct) {
-                    modules[result.module] = Answer(exports, struct)
-                    // A module that loads as absent, as one whose body raised does, has nothing for another to reach.
-                    if (exports == ModuleExports.Absent) results.remove(result.module) else results[result.module] = result
+                    // A module that loads as absent, as one whose body raised does, leaves the name no module of this
+                    // file's and nothing for another to reach.
+                    if (exports == ModuleExports.Absent) {
+                        modules.remove(result.module)
+                        results.remove(result.module)
+                    } else {
+                        modules[result.module] = Answer(exports, struct)
+                        results[result.module] = result
+                    }
                     observer.loaded(result, exports, struct)
                 }
             },
@@ -500,7 +547,7 @@ internal class ProjectModules(private val project: Project) {
         )
         used.forEach { stamps.addAll(it.stamps) }
 
-        val uncompiled = Answer(LoadedModules.uncompiledExports(expansion), LoadedModules.uncompiledStruct(expansion))
+        val uncompiled = LoadedModules.uncompiledExports(expansion)?.let { Answer(it, ModuleStruct.Unreadable) }
         val transient = Transient.merged(clausesTransients + used.map(Looked::transient)).leaving(compiling)
 
         return Held(Loaded(inputs, modules, uncompiled, stamps), expansion, results, lowering, transient, envs, receivers)
@@ -515,6 +562,12 @@ internal class ProjectModules(private val project: Project) {
 
     /** A [Copy] as held: its file, and whether it is a `.beam`. */
     private class HeldCopy(val virtualFile: VirtualFile, val compiled: Boolean)
+
+    /**
+     * A name's copies as held: the [chosen], as [Resolver.preferred] orders them, and the [fallback], the `.beam`s of the
+     * libraries and the SDK outside the project's content not among them.
+     */
+    private class HeldCopies(val chosen: List<HeldCopy>, val fallback: List<HeldCopy>)
 
     /** Where Elixir loads a module from. */
     private sealed interface Copy {
@@ -534,15 +587,23 @@ internal class ProjectModules(private val project: Project) {
     /**
      * A source file's modules as its expansion compiled them.
      *
-     * @property uncompiled the answer for a module the index names in the file that its expansion didn't compile
+     * @property uncompiled the answer for a module the index names in the file that its expansion didn't compile:
+     *   unreadable where the run stopped short of one Elixir may have compiled, and `null` where the file leaves the
+     *   name no module, so it answers as it would without the file
      */
     private class Loaded(
         val inputs: Inputs,
         val modules: Map<String, Answer>,
-        val uncompiled: Answer,
+        val uncompiled: Answer?,
         val stamps: Stamps,
     ) {
         fun isCurrent(inputs: Inputs): Boolean = inputs == this.inputs && stamps.isCurrent()
+
+        /**
+         * The file's answer for [atom]: the module it compiled under the name, [uncompiled] where it didn't, and `null`
+         * where it leaves the name no module.
+         */
+        fun answer(atom: String): Answer? = modules[atom] ?: uncompiled
 
         /** Whether this value can stand in a run below [inProgress]: it read none of those files as loaded. */
         fun holdsWhile(inProgress: Map<VirtualFile, Map<String, Answer>>): Boolean = inProgress.keys.none(stamps::reads)
@@ -581,10 +642,10 @@ internal class ProjectModules(private val project: Project) {
      * What an answer read that holds only for the run that read it, so a value that read any is not stored.
      *
      * @property reentered the files in progress above the run, which it read as compiling, each with the answer it
-     *   read for each module
+     *   read for each module, `null` where that file had loaded none under the name
      * @property dumb whether it asked for a copy while the index couldn't be read
      */
-    private data class Transient(val reentered: Map<VirtualFile, Map<String, Answer>>, val dumb: Boolean) {
+    private data class Transient(val reentered: Map<VirtualFile, Map<String, Answer?>>, val dumb: Boolean) {
         val isNone: Boolean get() = reentered.isEmpty() && !dumb
 
         /** Whether each module this read from a file in progress still has, below [inProgress], the answer it read. */
@@ -601,7 +662,7 @@ internal class ProjectModules(private val project: Project) {
 
             /** [transients] as one, a later answer for a module replacing an earlier. */
             fun merged(transients: List<Transient>): Transient {
-                val all = HashMap<VirtualFile, Map<String, Answer>>()
+                val all = HashMap<VirtualFile, Map<String, Answer?>>()
 
                 for ((reentered) in transients) {
                     ProgressManager.checkCanceled()
@@ -714,11 +775,14 @@ internal class ProjectModules(private val project: Project) {
         private val ABSENT = Answer(ModuleExports.Absent, ModuleStruct.Absent)
         private val UNREADABLE = Answer(ModuleExports.Unreadable, ModuleStruct.Unreadable)
 
-        /** [atom]'s answer from [file], whose expansion is in progress: loaded once its `defmodule` has finished. */
+        /**
+         * [atom]'s answer from [file], whose expansion is in progress: loaded once its `defmodule` has finished, and
+         * `null` while the file has loaded no module under the name.
+         */
         private fun runningAnswer(
             inProgress: Map<VirtualFile, Map<String, Answer>>,
             file: VirtualFile,
             atom: String,
-        ): Answer = inProgress.getValue(file)[atom] ?: ABSENT
+        ): Answer? = inProgress.getValue(file)[atom]
     }
 }

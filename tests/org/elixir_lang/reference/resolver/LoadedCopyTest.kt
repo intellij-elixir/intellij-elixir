@@ -4,6 +4,7 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
+import org.elixir_lang.reference.Resolver
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -211,7 +212,13 @@ class LoadedCopyTest : PlatformTestCase() {
             val askerFile = PsiManager.getInstance(project).findFile(file(asker))!!
             val base = FileUtil.toSystemIndependentName(top.path)
 
-            Module.resolvePreferred(askerFile, name, incompleteCode = false, inScope = false, loaded = loaded)
+            val results = if (loaded) {
+                Resolver.preferred(askerFile, false, Module.resolveLoadable(askerFile, name))
+            } else {
+                Module.resolvePreferred(askerFile, name, incompleteCode = false, inScope = false)
+            }
+
+            results
                 .map { result ->
                     val path = FileUtil.toSystemIndependentName(result.element.containingFile.originalFile.virtualFile.path)
 

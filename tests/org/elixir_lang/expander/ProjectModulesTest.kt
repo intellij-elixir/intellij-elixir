@@ -24,6 +24,7 @@ import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPE_HEADS_NEED_LIST_META
+import org.elixir_lang.language_level.ElixirLanguageFeature.FAILED_COMPILE_PURGES_MODULE
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED_AS_MACRO
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.Meta
@@ -176,9 +177,170 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
-     * Elixir expands a `@before_compile` callback's whole output before it runs any of it, so where that expansion
-     * stops, nothing in it is known to have run: a module the output defines before the stop may never have been
-     * defined, and its raise never reached, so another file can't read it.
+     * From v1.20.0-rc.4 a module whose compile raises is purged, so a redefinition that raises leaves no module under
+     * the name; before it, the module the run loaded first stays, with the struct it defined.
+     */
+    fun testARedefinitionThatRaisesKeepsTheLoadedModuleBeforeThePurge() {
+        addLegElixir()
+        add("a.ex", "defmodule A do\n  defstruct [:x]\nend\ndefmodule A do\n  defstruct [:y]\n  :ok = :bad\nend\n")
+        val b = add("b.ex", "defmodule B do\n  def f, do: %A{}\nend\n")
+
+        val rendered = render(b, expansion(holder, b))
+        val struct = ReadAction.nonBlocking(Callable { holder.struct(b, "Elixir.A", legInputs) }).executeSynchronously()
+
+        if (FAILED_COMPILE_PURGES_MODULE.isSufficient(legLevel())) {
+            assertEquals(ModuleStruct.Absent, struct)
+            assertFalse(rendered, rendered.contains("Elixir.B compiled"))
+        } else {
+            assertEquals(struct.toString(), setOf("x"), (struct as? ModuleStruct.Present)?.fields)
+            assertTrue(rendered, rendered.contains("Elixir.B compiled"))
+        }
+    }
+
+    /**
+     * Before the purge, the module a failed redefinition leaves loaded keeps its clauses, so its macros still expand
+     * in other files; from the purge on, the name has none.
+     */
+    fun testARedefinitionThatRaisesKeepsTheLoadedModulesClausesBeforeThePurge() {
+        addLegElixir()
+        add("a.ex", "defmodule A do\n  defmacro m, do: :from_v1\n  def f, do: 1\nend\ndefmodule A do\n  defmacro m, do: :from_v2\n  :ok = :bad\nend\n")
+        val b = add("b.ex", "defmodule B do\n  require A\n  def g, do: A.m()\nend\n")
+
+        val rendered = render(b, expansion(holder, b))
+        val clauses = ReadAction.nonBlocking(Callable { holder.clauses(b, "Elixir.A", legInputs) }).executeSynchronously()
+
+        if (FAILED_COMPILE_PURGES_MODULE.isSufficient(legLevel())) {
+            assertNull(rendered, clauses)
+            assertFalse(rendered, rendered.contains("Elixir.B compiled"))
+        } else {
+            assertEquals(rendered, setOf(NameArity("m", 0), NameArity("f", 0)), clauses?.definitions?.keys)
+            assertTrue(rendered, rendered.contains("Elixir.B compiled"))
+        }
+    }
+
+    /**
+     * A redefinition that raises in a branch Elixir may not run purges nothing on any release: where the project
+     * compiles, the branch didn't run, so the module the run loaded first stays, with its struct and its clauses.
+     */
+    fun testARedefinitionThatRaisesWhereItMayNotRunKeepsTheLoadedModule() {
+        addLegElixir()
+        add(
+            "a.ex",
+            "defmodule A do\n  defstruct [:x]\n  defmacro m, do: :from_v1\nend\n" +
+                "if false do\n  defmodule A do\n    defstruct [:y]\n    :ok = :bad\n  end\nend\n",
+        )
+        val b = add("b.ex", "defmodule B do\n  require A\n  def f, do: %A{}\n  def g, do: A.m()\nend\n")
+
+        val rendered = render(b, expansion(holder, b))
+        val struct = ReadAction.nonBlocking(Callable { holder.struct(b, "Elixir.A", legInputs) }).executeSynchronously()
+        val clauses = ReadAction.nonBlocking(Callable { holder.clauses(b, "Elixir.A", legInputs) }).executeSynchronously()
+
+        assertEquals(struct.toString(), setOf("x"), (struct as? ModuleStruct.Present)?.fields)
+        assertTrue(rendered, clauses?.definitions?.keys.orEmpty().contains(NameArity("m", 0)))
+        assertTrue(rendered, rendered.contains("Elixir.B compiled"))
+    }
+
+    /**
+     * A definition that raises shadows nothing: the name answers as it would without it. A project module that defines
+     * one a library ships as a `.beam` again, and raises, leaves the library's copy to answer on every release: before
+     * the purge nothing replaced it, and from the purge on it is loaded again from the code path.
+     */
+    fun testAFailedRedefinitionOfALibraryModuleShadowsNothing() {
+        addLegElixir()
+        add("a.ex", "defmodule IO.Stream do\n  defstruct [:y]\n  :ok = :bad\nend\n")
+        // Every field is written: the `.beam`s of 1.18 and 1.19.0-rc.0 record no enforced keys.
+        val b = add("b.ex", "defmodule B do\n  def f, do: %IO.Stream{device: nil, raw: true, line_or_bytes: :line}\nend\n")
+
+        val rendered = render(b, expansion(holder, b))
+        val struct = ReadAction.nonBlocking(Callable { holder.struct(b, "Elixir.IO.Stream", legInputs) }).executeSynchronously()
+
+        assertEquals(struct.toString(), setOf("device", "raw", "line_or_bytes"), (struct as? ModuleStruct.Present)?.fields)
+        assertTrue(rendered, rendered.contains("Elixir.B compiled"))
+    }
+
+    /**
+     * Where the chosen source copy leaves the name no module, Elixir loads it from the code path, and with two `.beam`s
+     * there which one is as unknown as it is for two source copies.
+     */
+    fun testAFailedRedefinitionWithTwoBeamsOnTheCodePathIsSeveral() {
+        addLegElixir()
+        val beam = File("testData/org/elixir_lang/expander/loaded_copy/Elixir.LoadedCopy.Dep.beam")
+        val first = copiedLibrary(beam, "first_ebin")
+        val second = copiedLibrary(beam, "second_ebin")
+        add("dep.ex", "defmodule LoadedCopy.Dep do\n  :ok = :bad\nend\n")
+        val a = add("a.ex", "defmodule A do\nend\n")
+
+        val located = ReadAction.nonBlocking(Callable { holder.locate(a, "Elixir.LoadedCopy.Dep", legInputs) }).executeSynchronously()
+
+        assertEquals(
+            located.toString(),
+            setOf(first.findChild(beam.name), second.findChild(beam.name)),
+            (located as? ProjectModules.Located.Several)?.copies?.toSet(),
+        )
+        assertEquals(ModuleExports.Unreadable, exports(holder, a, "Elixir.LoadedCopy.Dep"))
+    }
+
+    /**
+     * The project's own build output is never on the code path while Elixir compiles the project's sources, as Mix
+     * deletes a stale `.beam` before it compiles its source, so a name the project's sources leave no module is absent
+     * whatever `_build` still holds: after a failed redefinition, and before its `defmodule` has run.
+     */
+    fun testTheProjectsOwnBuildOutputIsNeverWhereANameFallsThrough() {
+        addLegElixir()
+        built("_build/dev/lib/app/ebin/$DEP_BEAM", DEP_BEAM)
+        val dep = add("dep.ex", "defmodule LoadedCopy.Dep do\n  :ok = :bad\nend\n")
+        val a = add("a.ex", "defmodule A do\nend\n")
+
+        val exports = exports(holder, a, "Elixir.LoadedCopy.Dep")
+        val located = ReadAction.nonBlocking(Callable { holder.locate(a, "Elixir.LoadedCopy.Dep", legInputs) }).executeSynchronously()
+        edit(project, dep, "defmodule B do\n  import LoadedCopy.Dep\nend\ndefmodule LoadedCopy.Dep do\n  def f, do: 1\nend\n")
+        val rendered = render(dep, expansion(holder, dep))
+
+        assertEquals(
+            "exports Absent\nlocated None\nB raised",
+            "exports $exports\nlocated $located\n" + if (rendered.contains("Elixir.B raised unloaded_module")) "B raised" else rendered,
+        )
+    }
+
+    /**
+     * The project's consolidated protocols are its own build output too, though their directory is a library: Mix puts
+     * them on the code path only once the project has compiled, so a protocol the project's sources define later is
+     * absent.
+     */
+    fun testTheProjectsConsolidatedProtocolsAreNeverWhereANameFallsThrough() {
+        addLegElixir()
+        val consolidated = built("_build/dev/lib/app/consolidated/$PROTOCOL_BEAM", PROTOCOL_BEAM).parent
+        BeamLibraryFixture.addLibrary(project, module, "app_consolidated", listOf(consolidated), emptyList())
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
+        val x = add("x.ex", "defmodule B do\n  import LoadedCopy.Protocol\nend\ndefprotocol LoadedCopy.Protocol do\n  def p(t)\nend\n")
+
+        val rendered = render(x, expansion(holder, x))
+
+        assertTrue(rendered, rendered.contains("Elixir.B raised unloaded_module"))
+    }
+
+    /**
+     * A module a file defines after the module that asks for it isn't loaded from that file yet, so Elixir loads it from
+     * the code path: a library's `.beam`, its exports and its clauses.
+     */
+    fun testAModuleNotYetDefinedInTheRunningFileIsALibrarysBeam() {
+        addLegElixir()
+        copiedLibrary(File("testData/org/elixir_lang/expander/loaded_copy/$DEP_BEAM"))
+        val x = add("x.ex", "defmodule B do\n  import LoadedCopy.Dep\nend\ndefmodule LoadedCopy.Dep do\n  def f, do: 2\nend\n")
+
+        val renderedImport = render(x, expansion(holder, x))
+
+        assertTrue(renderedImport, renderedImport.contains("Elixir.B compiled"))
+
+        edit(project, x, "defmodule B do\n  :ok = LoadedCopy.Dep.f()\nend\ndefmodule LoadedCopy.Dep do\n  def f, do: 2\nend\n")
+        val renderedCall = render(x, expansion(holder, x))
+
+        assertTrue(renderedCall, renderedCall.contains("Elixir.B raised Elixir.MatchError"))
+    }
+
+    /**
+     * A stop in the expansion of a `@before_compile` callback's output, after a module the output defines, can't change
+     * what that module defined: it loads, while the module the callback ran in stopped.
      */
     fun testAModuleABeforeCompileCallbacksOutputDefinesBeforeTheStopInItsExpansionLoads() {
         addLegElixir()
@@ -2009,12 +2171,23 @@ class ProjectModulesTest : PlatformTestCase() {
     /** The leg's Elixir `.beam`s as a library, which a `defstruct` dispatches to. */
     private fun addLegElixir() = addLibrary("leg_elixir", LegManifest.ebin())
 
-    /** A library holding a copy of [beam], whose `ebin` the test may rewrite. */
-    private fun copiedLibrary(beam: File): VirtualFile {
-        val directory = FileUtil.createTempDirectory("project_modules_ebin", null, true)
+    /** A library [name] holding a copy of [beam], whose `ebin` the test may rewrite. */
+    private fun copiedLibrary(beam: File, name: String = "project_modules_ebin"): VirtualFile {
+        val directory = FileUtil.createTempDirectory(name, null, true)
         beam.copyTo(File(directory, beam.name))
 
-        return addLibrary("project_modules_ebin", directory)
+        return addLibrary(name, directory)
+    }
+
+    /** The loaded-copy fixture's [beam] at [path] in the project's own build output, as a build writes it. */
+    private fun built(path: String, beam: String): VirtualFile {
+        val file = add(path, "").virtualFile
+        val bytes = File("testData/org/elixir_lang/expander/loaded_copy/$beam").readBytes()
+
+        WriteAction.runAndWait<Throwable> { file.setBinaryContent(bytes) }
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
+
+        return file
     }
 
     /** A library of the `.beam`s in [classes], with [sources] attached when given; its classes root is returned. */
@@ -2124,6 +2297,10 @@ class ProjectModulesTest : PlatformTestCase() {
 
         /** `B`, which reads the `Foo` a callback's output defines. */
         const val IMPORTS_FOO = "defmodule B do\n  import Foo\n  def g, do: f()\nend\n"
+
+        const val DEP_BEAM = "Elixir.LoadedCopy.Dep.beam"
+
+        const val PROTOCOL_BEAM = "Elixir.LoadedCopy.Protocol.beam"
 
         /** How many runs `testCancelledCachesNothing` counts the checks of. */
         const val MEASURED_RUNS = 3

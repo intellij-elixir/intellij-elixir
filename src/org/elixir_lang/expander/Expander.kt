@@ -6,6 +6,7 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
 import org.elixir_lang.expander.interpreter.Given
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
+import org.elixir_lang.language_level.ElixirLanguageFeature.FAILED_COMPILE_PURGES_MODULE
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAST_PATH_ADDS_CONTEXT_MODULE
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
@@ -390,10 +391,29 @@ internal class Run(
         return if (module in compiled) null else clauses.of(module)
     }
 
-    /** [result]'s module loaded, as Elixir loads a module once it compiles, with its [clauses]. */
-    fun load(result: ExpansionResult, clauses: () -> ModuleClauses) {
-        val loadedStruct = LoadedModules.struct(result)
+    /**
+     * [result]'s module loaded, as Elixir loads a module once it compiles, with its [clauses]. A module whose compile
+     * raised loads nothing, and the name answers as it would without it: where its `defmodule` isn't [placed] where
+     * Elixir runs it, so that where the project compiles it never ran, or before `elixir_module:compile/6` purges such a
+     * module, the one the run loaded under the name before stays; otherwise the name has no module of this run's, and
+     * [exports] answers it from the code path.
+     */
+    fun load(result: ExpansionResult, placed: Boolean, clauses: () -> ModuleClauses) {
         val loadedExports = LoadedModules.exports(result)
+
+        if (loadedExports == ModuleExports.Absent) {
+            if (result.module in compiled && (!placed || !FAILED_COMPILE_PURGES_MODULE.isSufficient(level))) return
+
+            compiled.remove(result.module)
+            compiledStructs.remove(result.module)
+            loadedClauses.remove(result.module)
+            observer.loaded(result, loadedExports, ModuleStruct.Absent)
+            observer.clausesLoaded(result.module, null)
+
+            return
+        }
+
+        val loadedStruct = LoadedModules.struct(result)
         compiledStructs[result.module] = loadedStruct
         compiled[result.module] = loadedExports
         observer.loaded(result, loadedExports, loadedStruct)

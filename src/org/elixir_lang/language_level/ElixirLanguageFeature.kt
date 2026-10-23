@@ -2418,6 +2418,15 @@ enum class ElixirLanguageFeature(
     RESCUE_EXCEPTION_KEY_PRESENT(sinceElixir = "1.20.0-rc.5"),
 
     /**
+     * `elixir_module:compile/6` purges and deletes the module where compiling it raises, whatever raised, so a module
+     * loaded under that name before is gone. Before it, that module stays loaded.
+     *
+     * `elixir-lang/elixir@a58a40ce4` ("Purge and delete modules if after_verify/2 callback fails", #15220), first
+     * released in v1.20.0-rc.4.
+     */
+    FAILED_COMPILE_PURGES_MODULE(sinceElixir = "1.20.0-rc.4"),
+
+    /**
      * `:elixir_quote.tail_list/3` raises an `ArgumentError` where the list spliced before a tail is empty. Before it, it
      * raised `{badmatch, []}`.
      *
