@@ -756,6 +756,8 @@
 
 ### Build / CI
 
+- [#4530](https://github.com/intellij-elixir/intellij-elixir/pull/4530) [@sh41](https://github.com/sh41)
+  - **Light tests no longer fail now and then, in batches, with `AlreadyDisposedException` when a platform startup activity reaches the shared project after the test that opened it has closed it.**
 - [#4528](https://github.com/intellij-elixir/intellij-elixir/pull/4528) [@sh41](https://github.com/sh41)
   - **The Mix deps check's tests no longer fail now and then when the check the service schedules for itself runs in the middle of the test's own.** Fixes [#4501](https://github.com/intellij-elixir/intellij-elixir/issues/4501).
 - [#4524](https://github.com/intellij-elixir/intellij-elixir/pull/4524) [@sh41](https://github.com/sh41)
