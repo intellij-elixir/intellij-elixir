@@ -39,6 +39,21 @@ class DispatchEventsTest {
         )
     }
 
+    /** A module that a traced environment names is a traced module, whether or not the event is a dispatch. */
+    @Test
+    fun `the traced modules are those of every event's environment`() {
+        val other = tuple(
+            tuple(OtpErlangAtom("alias_expansion")),
+            OtpErlangMap(arrayOf(OtpErlangAtom("module")), arrayOf(OtpErlangAtom("Elixir.T.D.Nested"))),
+        )
+        val outside = tuple(tuple(OtpErlangAtom("alias_expansion")), OtpErlangMap())
+
+        assertEquals(
+            setOf(MODULE, "Elixir.T.D.Nested"),
+            DispatchEvents.modules(listOf(event("remote_function", 3, CALLBACK, "on_def", 6, "six", 6), other, outside)),
+        )
+    }
+
     private companion object {
         const val MODULE = "Elixir.T.D"
         const val CALLBACK = "Elixir.T.Cb"

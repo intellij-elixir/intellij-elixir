@@ -14,6 +14,7 @@ import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
+import org.elixir_lang.lowering.Meta
 import org.elixir_lang.lowering.expressionNodes
 import org.elixir_lang.lowering.inspect
 import org.elixir_lang.psi.ElixirFile
@@ -33,9 +34,9 @@ import kotlin.time.Duration.Companion.seconds
  * defining the same module at once would make Elixir raise. So a case body may define only modules nested in its case
  * module.
  *
- * With a [Hook], the harness hooks the case module and every `defmodule` a case body holds, at any depth, outside a
- * `quote`, by one call to the probe module's `hook/0` as the first thing in the module's body. A case never names the
- * hook.
+ * With a [Hook], the harness hooks the case module and every `defmodule` a case body holds, at any depth, outside the
+ * quoted code of a `quote`, by one call to the probe module's `hook/0` as the first thing in the module's body. A case
+ * never names the hook.
  *
  * @param parse parses source text into a file, whose top-level expressions are the statements
  */
@@ -384,8 +385,9 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
         }
 
     /**
-     * The call to [probeModule]'s hook for each module [file] defines outside a `quote`: first in a `do` block, and
-     * around a keyword `do:` value, which the call and the value would otherwise not share.
+     * The call to [probeModule]'s hook for each module [file] defines where a `quote` evaluates it or outside one: first
+     * in a `do` block, which has `do` and `end` tokens, and around any other `do` value, such as a keyword `do:`'s or a
+     * tuple's, which the call and the value would otherwise not share.
      */
     private fun hookCalls(probeModule: String, file: ElixirFile): Hooks {
         val statements = ReadAction.computeBlocking<List<ElixirAst>, Throwable> {
@@ -400,16 +402,15 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
         statements.flatMap { modules(it) }.forEach { module ->
             val value = (module.arguments!!.last() as? ElixirAst.ListNode)?.elements
                 ?.firstOrNull { keyOf(it) == "do" }?.let(::valueOf)
-            val range = value?.meta?.origin
 
             when {
                 value == null -> Unit
-                range != null && !range.isEmpty && isKeywordValue(file, range.startOffset) -> {
-                    insertions += Insertion(range.startOffset, -1, "($call; ")
-                    insertions += Insertion(range.endOffset, 2, ")")
-                    wrapped += range
+                !hasDoBlock(module) -> {
+                    insertions += Insertion(value.meta.origin.startOffset, -1, "($call; ")
+                    insertions += Insertion(value.meta.origin.endOffset, 2, ")")
+                    wrapped += value.meta.origin
                 }
-                value is ElixirAst.Block && value.expressions.isEmpty() || range!!.isEmpty ->
+                value is ElixirAst.Block && value.expressions.isEmpty() ->
                     insertions += Insertion(module.meta.origin.endOffset - "end".length, -1, "$call ")
                 else -> {
                     val first = (value as? ElixirAst.Block)?.expressions?.first() ?: value
@@ -493,12 +494,12 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
             |""".trimMargin()
 
         /**
-         * The `defmodule` calls in [node], outermost first, outside any `quote` and any definition's head, where
-         * `defmodule` is a name being defined, except in what the head unquotes. `defmodule` and the definers are
-         * written local or as `Kernel.<name>`.
+         * The `defmodule` calls in [node], outermost first, outside the quoted code of any `quote` and any definition's
+         * head, where `defmodule` is a name being defined, except in what a head or a `quote` evaluates. `defmodule` and
+         * the definers are written local or as `Kernel.<name>`.
          */
         fun modules(node: ElixirAst): List<ElixirAst.Call> {
-            if (isNamedCall(node, "quote")) return emptyList()
+            if (isNamedCall(node, "quote")) return evaluatedInQuote(node as ElixirAst.Call).flatMap { modules(it) }
 
             val call = node as? ElixirAst.Call ?: return children(node).flatMap { modules(it) }
             val parts = children(call)
@@ -755,13 +756,44 @@ private fun isKernelCall(call: ElixirAst.Call, name: String): Boolean {
 /** Whether [node] is a call of `def`, `defp`, `defmacro` or `defmacrop`, written local or as `Kernel.<name>`. */
 internal fun isDefiner(node: ElixirAst): Boolean = node is ElixirAst.Call && DEFINERS.any { isKernelCall(node, it) }
 
-/** The expressions [node] unquotes, outside any `quote` nested in it. */
-internal fun unquoted(node: ElixirAst): List<ElixirAst> =
-    when {
-        isNamedCall(node, "quote") -> emptyList()
-        isCall(node, "unquote", 1) || isCall(node, "unquote_splicing", 1) -> (node as ElixirAst.Call).arguments!!
-        else -> children(node).flatMap(::unquoted)
+/** Whether [call] has a `do` block, whose `do` and `end` tokens its metadata records. */
+private fun hasDoBlock(call: ElixirAst.Call): Boolean =
+    call.meta.keys.any { it is Meta.Key.Entry && it.name == "do" }
+
+/**
+ * The expressions of [quote] that run where it is written, as Elixir reads them: its options other than `do`, and the
+ * expressions its `do` body unquotes, when `unquote:` is true, or is absent and there is no `bind_quoted`.
+ */
+internal fun evaluatedInQuote(quote: ElixirAst.Call): List<ElixirAst> {
+    val options = quote.arguments.orEmpty().flatMap { (it as? ElixirAst.ListNode)?.elements.orEmpty() }
+    val body = options.firstOrNull { keyOf(it) == "do" }?.let(::valueOf)
+    val unquote = options.firstOrNull { keyOf(it) == "unquote" }?.let(::valueOf)
+    val unquotes =
+        if (unquote != null) (unquote as? ElixirAst.Literal.Atom)?.name != "false"
+        else options.none { keyOf(it) == "bind_quoted" }
+
+    return options.filter { keyOf(it) != null && keyOf(it) != "do" }.map(::valueOf) +
+        body?.takeIf { unquotes }?.let(::unquoted).orEmpty()
+}
+
+/**
+ * The expressions [node] unquotes, in a call's name too. A `quote` nested in it unquotes nothing but the options it is
+ * given as a separate argument.
+ */
+internal fun unquoted(node: ElixirAst): List<ElixirAst> {
+    val receiver = (node as? ElixirAst.Call)?.takeIf { it.arguments?.size == 1 }?.let { call ->
+        dotArguments(call.callee)?.takeIf { it.size == 2 && (it[1] as? ElixirAst.Literal.Atom)?.name == "unquote" }?.first()
     }
+
+    return when {
+        isNamedCall(node, "quote") ->
+            (node as ElixirAst.Call).arguments?.takeIf { it.size == 2 }?.let { unquoted(it.first()) }.orEmpty()
+        isCall(node, "unquote", 1) || isCall(node, "unquote_splicing", 1) -> (node as ElixirAst.Call).arguments!!
+        // `Left.unquote(expr)`, whose `expr` names the call.
+        receiver != null -> (node as ElixirAst.Call).arguments!! + unquoted(receiver)
+        else -> (listOfNotNull((node as? ElixirAst.Call)?.callee) + children(node)).flatMap(::unquoted)
+    }
+}
 
 private const val TOKEN_PREFIX = "ProbeCase"
 private const val CASE_SEGMENT = "Case"

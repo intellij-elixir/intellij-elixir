@@ -40,6 +40,46 @@ class DefinitionTableProbeTest : ProbeTestCase() {
         assertTrue("a row for Fixture's f/1 in\n$rendered", rendered.contains(".Fixture f/1 def"))
     }
 
+    /** A module that compiled before the case module failed is compared, though the case module's hook never ran. */
+    fun testANestedModuleThatCompiledBeforeTheCaseModuleFailedIsCompared() {
+        val case = "defmodule M do\n  def f(a), do: a\nend\nraise \"boom\""
+        val rendered = assertTablesMatch(listOf(case)) { _, attempt, module ->
+            assertFalse("the hook ran in $module", module in attempt.batch.hooks)
+            assertTrue("the hook ran in $module.M", "$module.M" in attempt.batch.hooks)
+        }
+
+        assertTrue("a row for M's f/1 in\n$rendered", rendered.contains(".M f/1 def"))
+    }
+
+    /** A module Elixir compiled under the case module that the hook never reached fails the comparison, naming it. */
+    fun testAModuleTheHookMissedFailsTheComparison() {
+        val case = "Module.create(__MODULE__.Made, quote(do: def(f, do: :ok)), __ENV__)"
+        val expansions = probes.expandAll(listOf(case), hook = ProbeHarness.Hook())
+        val attempt = harness.attempt(expansions.layout)
+        val module = expansions.layout.caseModule(0)
+
+        assertEquals(OtpErlangAtom("ok"), attempt.compiled.status)
+        assertEquals(listOf(module), attempt.batch.hooks.keys.toList())
+
+        val failure = try {
+            DefinitionTables.compare(
+                module,
+                attempt.batch.hooks,
+                expansions.cases.single().result,
+                expansions.layout.bodyLines[0],
+                attempt.compiled,
+            )
+
+            null
+        } catch (failure: AssertionError) {
+            failure
+        }
+
+        assertNotNull("the comparison failed", failure)
+        assertTrue("the failure names $module.Made: ${failure!!.message}", failure.message!!.contains("$module.Made"))
+        assertLeftNothingBehind(attempt)
+    }
+
     /**
      * What a macro's effect does to the table: a guard's macro, a definition made overridable, `super`'s hidden entry
      * and a definition in a branch that may not run, each last in the module body.
@@ -88,7 +128,13 @@ class DefinitionTableProbeTest : ProbeTestCase() {
             ran(case, attempt, module)
             assertLeftNothingBehind(attempt)
 
-            DefinitionTables.compare(module, attempt.batch.hooks, expansion.result, expansions.layout.bodyLines[0])
+            DefinitionTables.compare(
+                module,
+                attempt.batch.hooks,
+                expansion.result,
+                expansions.layout.bodyLines[0],
+                attempt.compiled,
+            )
                 ?.let { rows ->
                     expected += DefinitionTables.render(case, rows.elixir)
                     actual += DefinitionTables.render(case, rows.expander)

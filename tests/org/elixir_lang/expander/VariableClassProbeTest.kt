@@ -1,6 +1,5 @@
 package org.elixir_lang.expander
 
-import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.expander.differential.ProbeOutcomes
 import org.elixir_lang.psi.ElixirFile
 import java.io.File
@@ -33,30 +32,7 @@ class VariableClassProbeTest : ProbeTestCase() {
             .sortedBy { it.name }
             .associate { it.name to it.readLines().drop(HEADER_LINES).joinToString("\n") }
         val expansions = cases.mapValues { (_, body) -> probes.expand(body, PLACEHOLDER, hook = ProbeHarness.Hook()) }
-        val rows = outcomes.of(expansions)
-        val matched = rows.values.count { it.matches }
-
-        println(
-            "$context: ${rows.size} cases, $matched match, " +
-                "${rows.values.count { it.status.startsWith("unported") }} unported, " +
-                "${rows.values.count { it.status.startsWith("stops at") }} stop at a macro, " +
-                "${rows.values.count { it.status == "diff" }} diverge"
-        )
-
-        val elixirVersion = LegManifest.environment("ELIXIR_VERSION")
-
-        LegManifest.assertMatchesFile(
-            GOLDENS,
-            elixirVersion,
-            "$context.txt",
-            outcomes.golden(rows),
-            LegManifest.regenerateCommand(
-                VariableClassProbeTest::class,
-                elixirVersion,
-                LegManifest.environment("ERLANG_VERSION"),
-            ),
-        )
-        assertTrue("$context: $matched cases match, below $floor", matched >= floor)
+        outcomes.assertGolden(context, expansions, floor, VariableClassProbeTest::class)
     }
 
     fun testOwnCases() {
@@ -78,8 +54,6 @@ class VariableClassProbeTest : ProbeTestCase() {
 
         /** Stands for the module Elixir compiles each case body in, whose hygiene counters are `{Module, N}`. */
         const val PLACEHOLDER = "Elixir.VariableCase"
-
-        const val GOLDENS = "testData/org/elixir_lang/expander/differential"
 
         /** The `top` context's lowest count of `match` rows over the legs; it may only grow. */
         const val TOP_FLOOR = 1066

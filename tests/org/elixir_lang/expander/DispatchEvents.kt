@@ -49,11 +49,18 @@ internal object DispatchEvents {
         clauses: Map<String, List<ProbeHarness.ClauseAttributes>> = emptyMap(),
     ): List<String> =
         normalised(events, bodyLine, clauses) { event ->
-            (event.module == module || event.module?.startsWith("$module.") == true) &&
+            atOrUnder(event.module, module) &&
                 (event.line == null || event.line >= bodyLine) &&
                 event.receiver != probeModule &&
                 event.receiver != hookModule
         }
+
+    /** The module of each environment [events] traced, whatever the event. */
+    fun modules(events: List<OtpErlangObject>): Set<String> = events.mapNotNull { module(env(it)) }.toSet()
+
+    /** Whether [module] is [caseModule] or a module nested in it. */
+    fun atOrUnder(module: String?, caseModule: String): Boolean =
+        module == caseModule || module?.startsWith("$caseModule.") == true
 
     /** The normalised dispatches in [events] outside any module, before [endLine] if there is one, keyed by line. */
     fun top(events: List<OtpErlangObject>, endLine: Int?): List<String> =
@@ -191,12 +198,15 @@ internal object DispatchEvents {
         }
     }
 
+    private fun env(pair: OtpErlangObject): OtpErlangMap = (pair as OtpErlangTuple).elementAt(1) as OtpErlangMap
+
+    private fun module(env: OtpErlangMap): String? = (env.get(OtpErlangAtom("module")) as? OtpErlangAtom)?.atomValue()
+
     private fun event(pair: OtpErlangObject): Event? {
-        val (event, env) = (pair as OtpErlangTuple).elements()
-        val tuple = event as? OtpErlangTuple ?: return null
+        val tuple = (pair as OtpErlangTuple).elementAt(0) as? OtpErlangTuple ?: return null
         val kind = (tuple.elementAt(0) as? OtpErlangAtom)?.atomValue() ?: return null
-        val envMap = env as OtpErlangMap
-        val module = (envMap.get(OtpErlangAtom("module")) as? OtpErlangAtom)?.atomValue()
+        val envMap = env(pair)
+        val module = module(envMap)
         val function = envMap.get(OtpErlangAtom("function"))?.let(::function) ?: "nil"
         // Code a macro generates has line 0, which the expander's keys give as no line.
         val line = ((tuple.elementAt(1) as? OtpErlangList)?.let { lineKeyword(it) } as? OtpErlangLong)?.intValue()

@@ -509,6 +509,7 @@ internal class ExpansionProbes(
             attempt.batch.hooks,
             expansion.result,
             attempt.bodyLines[index],
+            attempt.compiled,
         ) ?: return null
 
         return "\n" + DefinitionTables.render("definitions", rows.expander) to
@@ -1737,22 +1738,18 @@ internal class ExpansionProbes(
                     }?.let { clauses + it }
                 }
                 // Only the options and the unquoted expressions are expanded.
-                "quote" -> {
-                    val options = arguments.flatMap { (it as? ElixirAst.ListNode)?.elements.orEmpty() }
-                    val body = options.firstOrNull { keyOf(it) == "do" }?.let(::valueOf)
-                    val unquotes = options.none {
-                        keyOf(it) == "bind_quoted" ||
-                            keyOf(it) == "unquote" && (valueOf(it) as? ElixirAst.Literal.Atom)?.name == "false"
-                    }
-
-                    options.filter { keyOf(it) != null && keyOf(it) != "do" }.map { Part.EXPRESSION to valueOf(it) } +
-                        body?.takeIf { unquotes }?.let(::unquoted).orEmpty().map { Part.EXPRESSION to it }
-                }
+                "quote" -> evaluatedInQuote(node).map { Part.EXPRESSION to it }
                 else -> null
             }
         }
 
+        /**
+         * Whether [node] holds a `receive` that runs when the module compiles: a definition's body does not, but what it
+         * unquotes does.
+         */
         fun hasReceiveWithoutAfterZero(node: ElixirAst): Boolean {
+            if (isDefiner(node)) return unquoted(node).any(::hasReceiveWithoutAfterZero)
+
             val options = (node as? ElixirAst.Call)?.arguments?.singleOrNull() as? ElixirAst.ListNode
             val isReceive = isNamedCall(node, "receive") &&
                 !options?.elements.isNullOrEmpty() &&
