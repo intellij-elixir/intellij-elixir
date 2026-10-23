@@ -1,5 +1,6 @@
 package org.elixir_lang.junit
 
+import com.intellij.testFramework.StartupActivityTestUtil
 import com.intellij.testFramework.common.runAll
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.util.ThrowableRunnable
@@ -27,6 +28,10 @@ abstract class LightTestCase : BasePlatformTestCase() {
     @Throws(Exception::class)
     override fun setUp() {
         super.setUp()
+        // A light project's startup activities outlive the test that opens it, and one that reaches the project after
+        // that test closes it caches its service's failure for the rest of the fork.
+        @Suppress("DEPRECATION")
+        StartupActivityTestUtil.waitForProjectActivitiesToComplete(project)
         // The fixture's tear-down deletes the previous test's files, which queues syncs after the restore.
         MixSyncTestHelpers.awaitMixDepsSyncs(project)
         resetSharedState()
