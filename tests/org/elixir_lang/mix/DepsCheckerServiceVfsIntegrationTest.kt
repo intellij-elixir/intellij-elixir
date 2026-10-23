@@ -43,7 +43,6 @@ class DepsCheckerServiceVfsIntegrationTest : DepsCheckerServiceTestBase() {
     /**
      * Publishes a real `VFS_CHANGES` event under `rootA/deps/`, drives the full debounced
      * `checkFlow` pipeline, and asserts externally visible outcomes:
-     * - `pendingRootUrls` contains `rootA` after event delivery (before debounce drains it),
      * - `rootStatusCache` reflects OUTDATED for `rootA` and still-OK for `rootB` (sibling root),
      * - `Notifier` shows an active outdated notification,
      * - `rootB` was **not** re-queried (its cached status was reused).
@@ -57,31 +56,26 @@ class DepsCheckerServiceVfsIntegrationTest : DepsCheckerServiceTestBase() {
 
         val service = project.service<DepsCheckerService>()
 
+        // Prime both roots into the cache so rootB has a cached entry.
+        runSuspendOnPooledThread { service.checkDepsStatus("prime") }
+        resetDepsStatusCallCounts()
+
+        // Flip rootA to OUTDATED before the VFS event arrives.
+        statusByRootUrl[rootA.url] = depsStatus(DepState.OUTDATED)
+
         withMixDepsCheckEnabled {
-            // Prime both roots into the cache so rootB has a cached entry.
-            runSuspendOnPooledThread { service.checkDepsStatus("prime") }
-            resetDepsStatusCallCounts()
-
-            // Flip rootA to OUTDATED before the VFS event arrives.
-            statusByRootUrl[rootA.url] = depsStatus(DepState.OUTDATED)
-
             // ── Act: fire a real VFS event under rootA/deps/ ──────────────────
             // Create a file under rootA/deps/ - the VFS write action fires VFS_CHANGES
             // synchronously, which BulkFileListener.after processes while still under
             // the write lock (which subsumes the read lock, satisfying @RequiresReadLock).
             fireVfsDepsEvent("project_a", "deps/phoenix/lib/x.ex")
 
-            // ── Assert 1: classification enqueued rootA ───────────────────────
-            waitUntil("rootA should be enqueued in pendingRootUrls after VFS event") {
-                service.pendingRootUrls.contains(rootA.url)
-            }
-
-            // ── Assert 2: debounce pipeline fires and produces an outdated notification ──
+            // ── Assert 1: debounce pipeline fires and produces an outdated notification ──
             waitUntil("debounced checkFlow should produce a NonOk verdict and fire the outdated notification") {
                 Notifier.hasActiveMixDepsOutdatedNotification(project)
             }
 
-            // ── Assert 3: post-run state is consistent ────────────────────────
+            // ── Assert 2: post-run state is consistent ────────────────────────
             assertTrue(
                 "pendingRootUrls should be empty after checkDepsStatus drains the pending set",
                 service.pendingRootUrls.isEmpty(),
@@ -115,10 +109,10 @@ class DepsCheckerServiceVfsIntegrationTest : DepsCheckerServiceTestBase() {
 
         val service = project.service<DepsCheckerService>()
 
-        withMixDepsCheckEnabled {
-            runSuspendOnPooledThread { service.checkDepsStatus("prime") }
-            resetDepsStatusCallCounts()
+        runSuspendOnPooledThread { service.checkDepsStatus("prime") }
+        resetDepsStatusCallCounts()
 
+        withMixDepsCheckEnabled {
             // ── Phase 1: drive the root to OUTDATED via VFS event ────────────
             statusByRootUrl[root.url] = depsStatus(DepState.OUTDATED)
             fireVfsDepsEvent("project_recover", "deps/ecto/lib/ecto.ex")

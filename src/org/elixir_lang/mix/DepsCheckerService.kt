@@ -28,6 +28,7 @@ import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 import org.elixir_lang.sdk.elixir.findElixirSdkForRoot
 import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
 import org.elixir_lang.settings.ElixirExperimentalSettings
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -57,10 +58,17 @@ class DepsCheckerService(private val project: Project, private val cs: Coroutine
      * Mutated only inside [checkMutex]; no additional synchronisation needed.
      */
     private val rootStatusCache = HashMap<String, CachedRootStatus>()
-    private val checkFlow = MutableSharedFlow<String>(
+    /**
+     * `debounce` holds its pending value out of reach, so [resetState] bumps this and the
+     * collector drops a value requested before the bump.
+     */
+    private val checkGeneration = AtomicLong()
+    private val checkFlow = MutableSharedFlow<DebouncedCheck>(
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
+
+    private data class DebouncedCheck(val reason: String, val generation: Long)
 
     // ── Internal accessors (test seam) ────────────────────────────────────────
 
@@ -91,12 +99,14 @@ class DepsCheckerService(private val project: Project, private val cs: Coroutine
     internal fun cachedStatusForUrl(url: String): CachedRootStatus? = rootStatusCache[url]
 
     /**
-     * Resets all mutable scheduling state.
+     * Resets all mutable scheduling state, and discards a debounced check that is still waiting
+     * out its delay without running it.
      *
      * Intended for test `setUp`/`tearDown` only.  **Not** mutex-protected - only safe when no
      * concurrent check is running (which is always the case in test tear-down).
      */
     internal fun resetState() {
+        checkGeneration.incrementAndGet()
         pendingRoots.set(emptySet())
         useCachedOnlyWhenNoPending.set(false)
         rootSdkNameSnapshot.set(emptyMap())
@@ -155,7 +165,8 @@ class DepsCheckerService(private val project: Project, private val cs: Coroutine
         cs.launch {
             checkFlow
                 .debounce(DEPS_CHECK_DEBOUNCE_MS.milliseconds)
-                .collect { reason ->
+                .collect { (reason, generation) ->
+                    if (generation != checkGeneration.get()) return@collect
                     supervisorScope {
                         val checkAttempt = async { runCheck(reason) }
 
@@ -188,7 +199,7 @@ class DepsCheckerService(private val project: Project, private val cs: Coroutine
         if (cachedOnlyWhenNoPending) {
             useCachedOnlyWhenNoPending.set(true)
         }
-        checkFlow.tryEmit(reason)
+        checkFlow.tryEmit(DebouncedCheck(reason, checkGeneration.get()))
     }
 
     private fun isRelevantSdk(sdk: Sdk): Boolean = sdk.sdkType is ElixirSdkType || sdk.sdkType is ErlangSdkType
