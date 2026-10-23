@@ -645,7 +645,9 @@ class ProjectModulesTest : PlatformTestCase() {
         val x = add("x.ex", "defmodule X do\nend\n")
         // The first run also loads what later runs find cached, so it makes more checks.
         expandUnder(ProjectModules(project), a, cancelAt = 0)
-        val checks = expandUnder(ProjectModules(project), a, cancelAt = 0)
+        // A run's count varies (one that finds what an earlier run loaded gone loads it again), so the cancels stay
+        // below the least of several runs' counts.
+        val checks = (1..MEASURED_RUNS).minOf { expandUnder(ProjectModules(project), a, cancelAt = 0) }
 
         for (n in 1 until checks step maxOf(1, checks / 12)) {
             val holder = ProjectModules(project)
@@ -829,6 +831,9 @@ class ProjectModulesTest : PlatformTestCase() {
     private companion object {
         const val A_CALLS_B = "defmodule A do\n  require B\n  B.m()\nend\n"
         const val MIX_EXS = "defmodule MixProject do\nend\n"
+
+        /** How many runs `testCancelledCachesNothing` counts the checks of. */
+        const val MEASURED_RUNS = 3
 
         const val DEPRECATED =
             "defmodule A do\n  @deprecated \"Use A.new/0 instead\"\n  def old, do: 1\n" +
