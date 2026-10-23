@@ -756,6 +756,8 @@
 
 ### Build / CI
 
+- [#4528](https://github.com/intellij-elixir/intellij-elixir/pull/4528) [@sh41](https://github.com/sh41)
+  - **The Mix deps check's tests no longer fail now and then when the check the service schedules for itself runs in the middle of the test's own.** Fixes [#4501](https://github.com/intellij-elixir/intellij-elixir/issues/4501).
 - [#4524](https://github.com/intellij-elixir/intellij-elixir/pull/4524) [@sh41](https://github.com/sh41)
   - **The expander's differential test now also runs the programs from Elixir's own expansion tests on every supported Elixir version, and records each program's outcome per version in a committed file.** Refs [#4513](https://github.com/intellij-elixir/intellij-elixir/issues/4513) and [#4520](https://github.com/intellij-elixir/intellij-elixir/issues/4520).
 - [#4516](https://github.com/intellij-elixir/intellij-elixir/pull/4516) [@sh41](https://github.com/sh41)
