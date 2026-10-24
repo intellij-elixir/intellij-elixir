@@ -17,15 +17,12 @@ object Mix {
         environment: Map<String, String>,
         workingDirectory: String?,
         elixirSdk: Sdk,
-        erlParameters: kotlin.collections.List<String> = emptyList(),
-        elixirParameters: kotlin.collections.List<String> = emptyList(),
+        erlParameters: List<String> = emptyList(),
+        elixirParameters: List<String> = emptyList(),
         pty: Boolean = false,
         project: Project? = null,
         ansiEnabled: Boolean = true
     ): GeneralCommandLine {
-        val updatedEnvironment = environment.toMutableMap()
-        SdkPaths.maybeUpdateMixHome(updatedEnvironment, elixirSdk.homePath)
-
         val args: CliArgs =
             CliArguments.argsOrThrow(
                 elixirSdk,
@@ -35,7 +32,13 @@ object Mix {
                 project = project,
                 ansiEnabled = ansiEnabled,
             )
-        val commandLine = baseCommandLine(pty, updatedEnvironment, workingDirectory)
+        val commandLine = baseCommandLine(
+            pty,
+            environment,
+            workingDirectory,
+            project,
+            SdkPaths.mixHomeEnvironment(elixirSdk.homePath),
+        )
         commandLine.exePath = args.exePath
         commandLine.addParameters(args.arguments)
         return commandLine

@@ -17,16 +17,14 @@ object Mix {
             iexArgumentList: List<String>,
             project: Project? = null,
     ): GeneralCommandLine {
-        val updatedEnvironment = environment.toMutableMap()
-        SdkPaths.maybeUpdateMixHome(updatedEnvironment, elixirSdk.homePath)
-
         val commandLine =
             org.elixir_lang.IEx.commandLine(
-                updatedEnvironment,
+                environment,
                 workingDirectory,
                 elixirSdk,
                 erlArgumentList,
                 project,
+                SdkPaths.mixHomeEnvironment(elixirSdk.homePath),
             )
         commandLine.addParameters(iexArgumentList)
         addMix(commandLine, elixirSdk)

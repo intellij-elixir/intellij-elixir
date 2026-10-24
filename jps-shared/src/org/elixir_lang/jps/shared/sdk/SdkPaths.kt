@@ -1,8 +1,9 @@
 package org.elixir_lang.jps.shared.sdk
 
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.diagnostic.debug
+import com.intellij.openapi.diagnostic.trace
 import com.intellij.openapi.util.io.FileUtil
+import org.elixir_lang.jps.shared.tool_manager.SdkEnvironment
 import java.io.File
 import java.util.*
 
@@ -163,23 +164,49 @@ object SdkPaths {
     private fun containsIgnoreCase(text: String, fragment: String): Boolean =
         text.lowercase(Locale.ROOT).contains(fragment.lowercase(Locale.ROOT))
 
+    /** The `MIX_HOME` and `MIX_ARCHIVES` for a process that runs the SDK at [homePath]. */
+    @JvmStatic
+    fun mixHomeEnvironment(homePath: String?): SdkEnvironment =
+        SdkEnvironment { launchVariables, toolManagerVariables ->
+            mixHomeVariables(launchVariables, toolManagerVariables, homePath)
+        }
+
     /**
-     * Updates MIX_HOME and MIX_ARCHIVES when the existing values are missing or still under the
-     * current version manager's default install prefix. If the user configured custom values
-     * elsewhere, keep them intact.
+     * The `MIX_HOME` and `MIX_ARCHIVES` for a process that runs the SDK at [homePath], both taken from whichever sets
+     * `MIX_HOME`: the launch, then the tool manager, then the SDK. The launch's `MIX_HOME` gives way to the SDK's
+     * while it is under the version manager's install prefix and the tool manager sets none.
      */
     @JvmStatic
-    fun maybeUpdateMixHome(environment: MutableMap<String, String>, homePath: String?) {
-        val mixHome = mixHome(homePath) ?: return
-        val source = detectSource(homePath ?: return)
-        val expected = expectedMixHomePrefix(source, homePath)
-        val existingMixHome = environment["MIX_HOME"]
-        if (shouldReplaceMixHomeIfExpectedPrefixMatches(existingMixHome, expected)) {
-            environment["MIX_HOME"] = mixHome.absolutePath
-            environment["MIX_ARCHIVES"] = mixHome.resolve("archives").absolutePath
-            logger.info("Updated mix environment variables (MIX_HOME=${environment["MIX_HOME"]}, MIX_ARCHIVES=${environment["MIX_ARCHIVES"]})")
-        } else {
-            logger.debug { "Using existing mix environment variables (MIX_HOME=${environment["MIX_HOME"]}, MIX_ARCHIVES=${environment["MIX_ARCHIVES"]})" }
+    fun mixHomeVariables(
+        launchVariables: Map<String, String>,
+        toolManagerVariables: Map<String, String>,
+        homePath: String?,
+    ): Map<String, String> {
+        val launchMixHome = launchVariables["MIX_HOME"]?.takeIf { it.isNotEmpty() }
+        val launchMixArchives = launchVariables["MIX_ARCHIVES"]?.takeIf { it.isNotEmpty() }
+        val toolManagerMixHome = toolManagerVariables["MIX_HOME"]?.takeIf { it.isNotEmpty() }
+        val toolManagerMixArchives = toolManagerVariables["MIX_ARCHIVES"]?.takeIf { it.isNotEmpty() }
+        val mixHome = mixHome(homePath)
+
+        val variables = when {
+            launchMixHome != null && (toolManagerMixHome != null || !sdkReplaces(launchMixHome, homePath)) ->
+                mixHomeVariables(launchMixHome, launchMixArchives)
+            toolManagerMixHome != null -> mixHomeVariables(toolManagerMixHome, launchMixArchives ?: toolManagerMixArchives)
+            mixHome != null -> mixHomeVariables(
+                mixHome.absolutePath,
+                toolManagerMixArchives?.let { launchMixArchives ?: it } ?: mixHome.resolve("archives").absolutePath,
+            )
+            else -> emptyMap()
         }
+        logger.trace { "SDK mix environment variables: $variables" }
+        return variables
+    }
+
+    private fun sdkReplaces(launchMixHome: String, homePath: String?): Boolean =
+        homePath != null && shouldReplaceMixHomeIfExpectedPrefixMatches(launchMixHome, expectedMixHomePrefix(detectSource(homePath), homePath))
+
+    private fun mixHomeVariables(mixHome: String, mixArchives: String?): Map<String, String> {
+        val separator = if ('\\' in mixHome && '/' !in mixHome) '\\' else '/'
+        return mapOf("MIX_HOME" to mixHome, "MIX_ARCHIVES" to (mixArchives ?: "${mixHome.trimEnd(separator)}${separator}archives"))
     }
 }

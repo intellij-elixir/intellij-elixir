@@ -4925,6 +4925,8 @@ If you use [mise](https://mise.jdx.dev/) to manage your Elixir versions, the plu
 
 One click creates the Elixir and Erlang SDKs from your mise installation and selects them for that module.  Other modules are left alone, so different modules can use different versions.
 
+**Apply mise environment**, under mise on the Tool Managers page, gives run configurations, builds, the formatter, Credo, Dialyzer and Mix tasks the environment mise gives your shell: the variables from its `[env]` and the paths of every tool it manages.  A dependency that needs another tool to compile, such as Rust for a Rustler NIF, then builds from the IDE as it does in your terminal.  Variables a run configuration sets itself take precedence, and mise sees them too, so a run configuration can set `MISE_ENV` to pick a mise profile.  If mise cannot be run or reports an error, such as a config that is not trusted or does not parse, the process does not start and shows why.
+
 ##### Elixir SDKs
 
 In Small IDEs, Elixir SDKs are tracked as Application Preferences, so any Elixir SDK you create in one project will be usable in another and you won't have to create the SDK in each project, just [select it](#elixir-facet-sdk).

@@ -10,6 +10,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
+import org.elixir_lang.jps.shared.tool_manager.mise.MiseEnvironment
 import org.elixir_lang.sdk.wsl.wslCompat
 import org.jetbrains.annotations.VisibleForTesting
 import java.nio.file.Path
@@ -58,8 +59,8 @@ sealed interface MiseResult {
  */
 private data class RawMiseEntry(
     val version: String?,
-    val requested_version: String?,
-    val install_path: String?,
+    val requestedVersion: String?,
+    val installPath: String?,
     val source: RawMiseSource?,
     val installed: Boolean?,
     val active: Boolean?,
@@ -265,10 +266,8 @@ object Mise {
      * We match the second line to extract the untrusted config path.
      */
     @VisibleForTesting
-    internal fun parseTrustError(stderr: String): MiseResult.UntrustedConfig? {
-        val match = Regex("""Config files in (.+) are not trusted\.""").find(stderr) ?: return null
-        return MiseResult.UntrustedConfig(match.groupValues[1].trim())
-    }
+    internal fun parseTrustError(stderr: String): MiseResult.UntrustedConfig? =
+        MiseEnvironment.untrustedConfigPath(stderr)?.let { MiseResult.UntrustedConfig(it) }
 
     /**
      * Parses the JSON output of `mise ls --local --json` into a [MiseVersions] result.
@@ -307,12 +306,12 @@ object Mise {
     private fun RawMiseEntry.toMiseToolEntry(workDir: Path): MiseToolEntry? {
         val v = version ?: return null
         val workDirString = workDir.toString()
-        val ip = install_path?.let {
+        val ip = installPath?.let {
             wslCompat.maybeConvertLinuxPathToWindowsUncFromContext(workDirString, it)
         } ?: return null
         return MiseToolEntry(
             version = v,
-            requestedVersion = requested_version ?: v,
+            requestedVersion = requestedVersion ?: v,
             installPath = ip,
             sourceType = source?.type,
             sourcePath = source?.path?.let {

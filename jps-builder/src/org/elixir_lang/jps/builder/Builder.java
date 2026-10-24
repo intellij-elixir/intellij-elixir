@@ -18,11 +18,13 @@ import org.elixir_lang.jps.builder.model.SdkProperties;
 import org.elixir_lang.jps.builder.sdk_type.MissingHomePath;
 import org.elixir_lang.jps.builder.target.BuilderUtil;
 import org.elixir_lang.jps.builder.target.Type;
+import org.elixir_lang.jps.builder.tool_manager.Environment;
 import org.elixir_lang.jps.shared.CompilerOptions;
 import org.elixir_lang.jps.shared.cli.CliArgs;
 import org.elixir_lang.jps.shared.cli.CliArguments;
 import org.elixir_lang.jps.shared.cli.CliTool;
 import org.elixir_lang.jps.shared.sdk.SdkPaths;
+import org.elixir_lang.jps.shared.tool_manager.SdkEnvironment;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jps.builders.BuildOutputConsumer;
@@ -132,7 +134,11 @@ public class Builder extends TargetBuilder<SourceRootDescriptor, Target> {
     private static void runElixirc(Target target, CompileContext context, CompilerOptions compilerOptions, Set<String> absolutePaths, File outputDirectory) throws ProjectBuildException, MissingSdkProperties, ErlangSdkNameMissing, LibraryNotFound {
         GeneralCommandLine commandLine = getElixircCommandLine(target, context, compilerOptions, absolutePaths, outputDirectory);
 
-        run(commandLine, context, ElIXIRC_NAME, compilerOptions);
+        // elixirc runs in the output directory, which a module's own tool manager config may not cover.
+        List<String> contentRootUrls = target.getModule().getContentRootsList().getUrls();
+        File toolManagerDirectory = contentRootUrls.isEmpty() ? outputDirectory : new File(extractPath(contentRootUrls.get(0)));
+
+        run(commandLine, toolManagerDirectory, null, context, ElIXIRC_NAME, compilerOptions);
     }
 
     private static GeneralCommandLine getElixircCommandLine(Target target, CompileContext context, CompilerOptions compilerOptions, Set<String> absolutePaths, File outputDirectory) throws ProjectBuildException, MissingSdkProperties, ErlangSdkNameMissing, LibraryNotFound {
@@ -251,7 +257,6 @@ public class Builder extends TargetBuilder<SourceRootDescriptor, Target> {
     private static GeneralCommandLine mixCommandLine(@NotNull JpsSdk<SdkProperties> sdk, @NotNull JpsModule module, @Nullable String workingDirectory, @NotNull String task, @NotNull CompilerOptions compilerOptions) throws FileNotFoundException, ErlangSdkNameMissing, LibraryNotFound, AccessDeniedException, MissingHomePath, MissingSdkProperties {
         CliArgs args = cliArguments(CliTool.MIX, sdk, module);
         GeneralCommandLine commandLine = new GeneralCommandLine();
-        SdkPaths.maybeUpdateMixHome(commandLine.getEnvironment(), sdk.getHomePath());
         commandLine.withWorkDirectory(workingDirectory);
         commandLine.setExePath(args.getExePath());
         commandLine.addParameters(args.getArguments());
@@ -271,10 +276,12 @@ public class Builder extends TargetBuilder<SourceRootDescriptor, Target> {
             throw new ProjectBuildException("Couldn't construct command line for mix: " + exception.getMessage(), exception);
         }
 
-        run(commandLine, context, MIX_NAME, compilerOptions);
+        run(commandLine, commandLine.getWorkDirectory(), SdkPaths.mixHomeEnvironment(sdk.getHomePath()), context, MIX_NAME, compilerOptions);
     }
 
-    private static void run(@NotNull GeneralCommandLine commandLine, @NotNull CompileContext context, @NotNull String builderName, @NotNull CompilerOptions compilerOptions) throws ProjectBuildException {
+    private static void run(@NotNull GeneralCommandLine commandLine, @Nullable File toolManagerDirectory, @Nullable SdkEnvironment sdkEnvironment, @NotNull CompileContext context, @NotNull String builderName, @NotNull CompilerOptions compilerOptions) throws ProjectBuildException {
+        Environment.apply(context.getProjectDescriptor().getProject(), commandLine, toolManagerDirectory, sdkEnvironment);
+
         Process process;
 
         try {

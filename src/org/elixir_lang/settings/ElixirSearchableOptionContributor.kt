@@ -61,7 +61,7 @@ internal class ElixirSearchableOptionContributor : SearchableOptionContributor()
             configurableId = SettingsPageId.TOOL_MANAGERS.id,
             configurableDisplayName = "Tool Managers",
             hit = "Tool Managers",
-            text = "elixir tool manager mise asdf sdk version automatic configure experimental"
+            text = "elixir tool manager mise asdf sdk version automatic configure experimental environment variables env path"
         )
     }
 

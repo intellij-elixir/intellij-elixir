@@ -63,6 +63,10 @@ public class SerializerExtension extends JpsModelSerializerExtension {
     @NotNull
     @Override
     public List<? extends JpsProjectExtensionSerializer> getProjectExtensionSerializers() {
-        return Arrays.asList(new SettingsSerializer(), new Serializer());
+        return Arrays.asList(
+                new SettingsSerializer(),
+                new Serializer(),
+                new org.elixir_lang.jps.builder.tool_manager.SettingsSerializer()
+        );
     }
 }

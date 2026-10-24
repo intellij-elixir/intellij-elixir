@@ -42,7 +42,7 @@ internal class PackageManager : org.elixir_lang.PackageManager {
         // -> resolveErlangSdkResult() -> findErlangSdkByHomePath() which asserts a read lock.
         // Build the command line under a cancellable read action, then run the process outside it.
         val commandLine = try {
-            ReadAction.nonBlocking(Callable { Mix.commandLine(emptyMap(), workingDirectory, sdk) })
+            ReadAction.nonBlocking(Callable { Mix.commandLine(emptyMap(), workingDirectory, sdk, project = project) })
                 .executeSynchronously()
         } catch (e: ExecutionException) {
             // Erlang SDK missing or misconfigured (CantRunException extends ExecutionException);

@@ -7,6 +7,7 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.cli.CliArguments
 import org.elixir_lang.jps.shared.cli.CliArgs
 import org.elixir_lang.jps.shared.cli.CliTool
+import org.elixir_lang.jps.shared.tool_manager.SdkEnvironment
 import org.elixir_lang.run.baseCommandLine
 
 object IEx {
@@ -15,8 +16,9 @@ object IEx {
         environment: Map<String, String>,
         workingDirectory: String?,
         elixirSdk: Sdk,
-        erlArgumentList: kotlin.collections.List<String>,
+        erlArgumentList: List<String>,
         project: Project? = null,
+        sdkEnvironment: SdkEnvironment? = null,
     ): GeneralCommandLine {
         val args: CliArgs =
             CliArguments.argsOrThrow(
@@ -25,7 +27,7 @@ object IEx {
                 extraErlangArguments = erlArgumentList,
                 project = project,
             )
-        val commandLine = baseCommandLine(true, environment, workingDirectory)
+        val commandLine = baseCommandLine(true, environment, workingDirectory, project, sdkEnvironment)
         commandLine.exePath = args.exePath
         commandLine.addParameters(args.arguments)
         return commandLine

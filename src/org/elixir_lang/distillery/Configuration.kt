@@ -176,7 +176,8 @@ class Configuration(name: String, project: Project, configurationFactory: Config
             pty = pty,
             environment = envs,
             workingDirectory = workingDirectory,
-            exePath = releaseCLIPath!!
+            exePath = releaseCLIPath!!,
+            project = project,
         )
         commandLine.addParameters(releaseCLIArgumentList)
 
