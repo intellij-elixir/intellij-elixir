@@ -1,6 +1,7 @@
 package org.elixir_lang.jps.builder.tool_manager;
 
 import com.intellij.openapi.util.JDOMUtil;
+import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.util.xmlb.XmlSerializer;
 import org.elixir_lang.jps.builder.JpsBuildTestCase;
 import org.elixir_lang.jps.builder.execution.GeneralCommandLine;
@@ -11,8 +12,11 @@ import org.elixir_lang.jps.shared.tool_manager.SdkEnvironment;
 import org.elixir_lang.jps.shared.tool_manager.ToolManagerSettingsState;
 import org.jdom.Element;
 import org.jetbrains.jps.incremental.ProjectBuildException;
+import org.jetbrains.jps.model.JpsProject;
+import org.jetbrains.jps.model.serialization.JpsSerializationManager;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -21,6 +25,27 @@ public class EnvironmentTest extends JpsBuildTestCase {
     private static final File WORK_DIRECTORY = new File("/home/u/project");
     private static final String SDK_HOME = "/home/u/.asdf/installs/elixir/1.18.4";
     private static final SdkEnvironment SDK_ENVIRONMENT = SdkPaths.mixHomeEnvironment(SDK_HOME);
+
+    public void testTheBuildReadsTheSettingsFromTheUsersWorkspace() throws Exception {
+        Path projectDir = Files.createTempDirectory("tool-manager-settings");
+        try {
+            Path idea = Files.createDirectories(projectDir.resolve(".idea"));
+            Files.writeString(idea.resolve("misc.xml"), "<project version=\"4\" />");
+            Files.writeString(idea.resolve("workspace.xml"), """
+                    <project version="4">
+                      <component name="ElixirToolManagerSettings">
+                        <option name="enabledManagers"><set><option value="mise" /></set></option>
+                        <option name="environmentManagers"><set><option value="mise" /></set></option>
+                      </component>
+                    </project>""");
+
+            JpsProject project = JpsSerializationManager.getInstance().loadProject(projectDir.toString(), Map.of());
+
+            assertTrue(SettingsExtension.getState(project).appliesEnvironment("mise"));
+        } finally {
+            FileUtil.delete(projectDir.toFile());
+        }
+    }
 
     public void testTheBuildReadsTheSettingsTheIdeSaves() throws Exception {
         Element component = JDOMUtil.load("""

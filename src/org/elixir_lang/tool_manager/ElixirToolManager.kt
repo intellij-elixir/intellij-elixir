@@ -15,7 +15,7 @@ import java.nio.file.Path
  * - Return [ToolManagerResult.Success] when versions were successfully resolved.
  * - Be stateless with respect to the project; all context is provided through [resolveVersions].
  *
- * [name] is the **stable persistence key** written to `elixir.xml` via [ToolManagerSettings].
+ * [name] is the **stable persistence key** written to the workspace file via [ToolManagerSettings].
  * Do not change it after the first release that ships this tool manager.
  */
 interface ElixirToolManager {

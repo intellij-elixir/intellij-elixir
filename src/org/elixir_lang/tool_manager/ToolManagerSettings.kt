@@ -3,6 +3,7 @@ package org.elixir_lang.tool_manager
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
+import com.intellij.openapi.components.StoragePathMacros
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.util.messages.Topic
@@ -14,9 +15,9 @@ fun interface ToolManagerSettingsListener {
 }
 
 /**
- * Project-level settings controlling which tool managers are active.
- *
- * Persisted in `.idea/elixir.xml` under the key `ElixirToolManagerSettings`.
+ * Settings controlling which tool managers are active in a project, kept per user in the project's workspace file
+ * rather than shared with the project: applying a manager's environment fails every launch where that manager is
+ * missing. Settings saved by earlier versions in the shared `.idea/elixir.xml` are read from there and moved on save.
  *
  * Registered in the base `plugin.xml`, so available in every IDE including small IDEs
  * (RubyMine, etc.); SDK configuration is small-IDE-safe (see
@@ -34,7 +35,10 @@ fun interface ToolManagerSettingsListener {
 @Suppress("LightServiceMigrationCode")
 @State(
     name = ToolManagerSettingsState.COMPONENT_NAME,
-    storages = [Storage(ToolManagerSettingsState.FILE_NAME)]
+    storages = [
+        Storage(StoragePathMacros.WORKSPACE_FILE),
+        Storage(value = ToolManagerSettingsState.SHARED_FILE_NAME, deprecated = true),
+    ]
 )
 internal class ToolManagerSettings : PersistentStateComponent<ToolManagerSettingsState> {
 

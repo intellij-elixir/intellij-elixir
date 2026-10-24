@@ -31,6 +31,9 @@ internal class ToolManagerConfigurable(private val project: Project) : Configura
     override fun createComponent(): JComponent {
         panel = panel {
             group("Experimental Tool Manager Integrations") {
+                row {
+                    comment("Saved for you in this project, not shared with others who open it.")
+                }
                 for (manager in allBuiltInToolManagers) {
                     lateinit var enabled: Cell<JBCheckBox>
                     row {
