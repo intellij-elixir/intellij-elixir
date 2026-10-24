@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4532](https://github.com/intellij-elixir/intellij-elixir/pull/4532) [@sh41](https://github.com/sh41)
+  - **The mise integration can apply mise's environment, including the tools it puts on `PATH`, to the run configurations, builds and other processes the plugin starts.** Tick Apply mise environment under Preferences > Languages & Frameworks > Elixir > Tool Managers.
+
 - [#4489](https://github.com/intellij-elixir/intellij-elixir/pull/4489) [@sh41](https://github.com/sh41)
   - **The Elixir references inspection (off by default) names the arities a wrong-arity call could mean, suggests near names for a misspelled remote call, and no longer reports inside documentation samples.** Refs [#4483](https://github.com/intellij-elixir/intellij-elixir/issues/4483) and [#4150](https://github.com/intellij-elixir/intellij-elixir/issues/4150).
 

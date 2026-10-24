@@ -1,6 +1,7 @@
 package org.elixir_lang.tool_manager.mise
 
 import com.intellij.openapi.util.text.StringUtil
+import org.elixir_lang.jps.shared.tool_manager.mise.MiseEnvironment
 import org.elixir_lang.mise.Mise
 import org.elixir_lang.mise.MiseResult
 import org.elixir_lang.tool_manager.ElixirToolManager
@@ -43,7 +44,7 @@ class MiseToolManager : ElixirToolManager {
 
     companion object {
         /** Stable persistence key - do not rename after first release. */
-        const val NAME = "mise"
+        const val NAME = MiseEnvironment.NAME
 
         internal fun untrustedConfigDescription(configFilePath: String): String =
             "Config file '${StringUtil.escapeXmlEntities(configFilePath)}' is not trusted. " +

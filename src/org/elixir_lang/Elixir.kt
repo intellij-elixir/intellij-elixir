@@ -29,7 +29,7 @@ object Elixir {
                 extraErlangArguments = erlArgumentList,
                 project = project,
             )
-        val commandLine = baseCommandLine(false, environment, workingDirectory)
+        val commandLine = baseCommandLine(false, environment, workingDirectory, project)
         commandLine.exePath = args.exePath
         commandLine.addParameters(args.arguments)
         return commandLine

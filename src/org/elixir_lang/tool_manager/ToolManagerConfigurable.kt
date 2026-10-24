@@ -3,12 +3,15 @@ package org.elixir_lang.tool_manager
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogPanel
+import com.intellij.ui.components.JBCheckBox
+import com.intellij.ui.dsl.builder.Cell
 import com.intellij.ui.dsl.builder.bindSelected
+import com.intellij.ui.dsl.builder.selected
 import com.intellij.ui.dsl.builder.panel
 import javax.swing.JComponent
 
 /**
- * Project-level settings page for Tool Managers (under Settings → Elixir → Tool Managers).
+ * Project-level settings page for Tool Managers (under Settings -> Elixir -> Tool Managers).
  *
  * Registered in the base `plugin.xml`, so available in every IDE including small IDEs
  * (RubyMine, etc.), letting those users opt in to a tool manager. SDK configuration is
@@ -29,8 +32,9 @@ internal class ToolManagerConfigurable(private val project: Project) : Configura
         panel = panel {
             group("Experimental Tool Manager Integrations") {
                 for (manager in allBuiltInToolManagers) {
+                    lateinit var enabled: Cell<JBCheckBox>
                     row {
-                        checkBox(manager.displayName)
+                        enabled = checkBox(manager.displayName)
                             .comment(
                                 "When enabled, ${manager.displayName} is queried for Elixir/Erlang " +
                                     "version information and the status-bar widget will compare it " +
@@ -40,6 +44,23 @@ internal class ToolManagerConfigurable(private val project: Project) : Configura
                                 getter = { settings.isEnabled(manager) },
                                 setter = { settings.setEnabled(manager, it) }
                             )
+                    }
+                    if (providesEnvironment(manager)) {
+                        indent {
+                            row {
+                                checkBox("Apply ${manager.displayName} environment")
+                                    .comment(
+                                        "Adds the environment variables ${manager.displayName} sets for the " +
+                                            "project directory to run configurations, builds, the formatter, " +
+                                            "Credo, Dialyzer, Mix tasks and dependency checks."
+                                    )
+                                    .enabledIf(enabled.selected)
+                                    .bindSelected(
+                                        getter = { settings.isEnvironmentEnabled(manager) },
+                                        setter = { settings.setEnvironmentEnabled(manager, it) }
+                                    )
+                            }
+                        }
                     }
                 }
             }

@@ -6,6 +6,7 @@ import com.intellij.openapi.components.Storage
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.util.messages.Topic
+import org.elixir_lang.jps.shared.tool_manager.ToolManagerSettingsState
 
 /** Listener notified whenever a tool manager is enabled or disabled. */
 fun interface ToolManagerSettingsListener {
@@ -28,25 +29,20 @@ fun interface ToolManagerSettingsListener {
  * during the SDK notification scan.  This ensures that experimental managers
  * (such as mise) do not run without user consent.
  *
- * An empty [State.enabledManagers] set therefore means "no tool managers are active".
+ * An empty [ToolManagerSettingsState.enabledManagers] set therefore means "no tool managers are active".
  */
 @Suppress("LightServiceMigrationCode")
 @State(
-    name = "ElixirToolManagerSettings",
-    storages = [Storage("elixir.xml")]
+    name = ToolManagerSettingsState.COMPONENT_NAME,
+    storages = [Storage(ToolManagerSettingsState.FILE_NAME)]
 )
-internal class ToolManagerSettings : PersistentStateComponent<ToolManagerSettings.State> {
+internal class ToolManagerSettings : PersistentStateComponent<ToolManagerSettingsState> {
 
-    /** XML-serialisable state.  Fields must be `var` for IntelliJ's reflection-based serialiser. */
-    class State {
-        var enabledManagers: MutableSet<String> = mutableSetOf()
-    }
+    private var myState = ToolManagerSettingsState()
 
-    private var myState = State()
+    override fun getState(): ToolManagerSettingsState = myState
 
-    override fun getState(): State = myState
-
-    override fun loadState(state: State) {
+    override fun loadState(state: ToolManagerSettingsState) {
         myState = state
     }
 
@@ -57,6 +53,15 @@ internal class ToolManagerSettings : PersistentStateComponent<ToolManagerSetting
     fun setEnabled(manager: ElixirToolManager, enabled: Boolean) {
         if (enabled) myState.enabledManagers.add(manager.name)
         else myState.enabledManagers.remove(manager.name)
+    }
+
+    /** Whether the user asked for [manager]'s environment, which applies only while the manager is also enabled. */
+    fun isEnvironmentEnabled(manager: ElixirToolManager): Boolean =
+        manager.name in myState.environmentManagers
+
+    fun setEnvironmentEnabled(manager: ElixirToolManager, enabled: Boolean) {
+        if (enabled) myState.environmentManagers.add(manager.name)
+        else myState.environmentManagers.remove(manager.name)
     }
 
     companion object {

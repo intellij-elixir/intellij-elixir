@@ -4,6 +4,11 @@ import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.diagnostic.trace
 import org.elixir_lang.sdk.wsl.wslCompat
+import org.elixir_lang.jps.shared.tool_manager.SdkEnvironment
+import org.elixir_lang.jps.shared.tool_manager.ToolManagerEnvironmentResolver
+import org.elixir_lang.jps.shared.tool_manager.putToolManagerEnvironment
+import org.elixir_lang.tool_manager.ignoresVariableCase
+import org.elixir_lang.tool_manager.toolManagerVariables
 import java.io.IOException
 
 private val LOG = Logger.getInstance(WslAwareCommandLine::class.java)
@@ -50,8 +55,29 @@ private val LOG = Logger.getInstance(WslAwareCommandLine::class.java)
 open class WslAwareCommandLine : GeneralCommandLine {
     constructor() : super()
 
+    /** Resolves the tool manager environment added when the process starts. */
+    var toolManagerEnvironment: ToolManagerEnvironmentResolver? = null
+
+    /** The variables derived from the SDK, added after the tool manager's. */
+    var sdkEnvironment: SdkEnvironment? = null
+
+    private var resolvedToolManagerVariables: Map<String, String> = emptyMap()
+
+    override fun setupEnvironment(environment: MutableMap<String, String>) {
+        super.setupEnvironment(environment)
+        putToolManagerEnvironment(
+            environment, resolvedToolManagerVariables, this.environment, sdkEnvironment, ignoresVariableCase()
+        )
+    }
+
     @Throws(IOException::class)
     override fun createProcess(processBuilder: ProcessBuilder): Process {
+        val resolved = toolManagerVariables(toolManagerEnvironment, workingDirectory, environment)
+        if (resolved != resolvedToolManagerVariables) {
+            resolvedToolManagerVariables = resolved
+            // The builder's environment was set up before the variables were resolved.
+            setupEnvironment(processBuilder.environment())
+        }
         wslCompat.convertProcessBuilderArgumentsForWsl(processBuilder, this)
         LOG.trace  { formatCommandLineForLogging(processBuilder, "Command line") }
         return super.createProcess(processBuilder)
