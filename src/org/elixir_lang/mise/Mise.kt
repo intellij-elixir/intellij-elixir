@@ -58,8 +58,8 @@ sealed interface MiseResult {
  */
 private data class RawMiseEntry(
     val version: String?,
-    val requested_version: String?,
-    val install_path: String?,
+    val requestedVersion: String?,
+    val installPath: String?,
     val source: RawMiseSource?,
     val installed: Boolean?,
     val active: Boolean?,
@@ -307,12 +307,12 @@ object Mise {
     private fun RawMiseEntry.toMiseToolEntry(workDir: Path): MiseToolEntry? {
         val v = version ?: return null
         val workDirString = workDir.toString()
-        val ip = install_path?.let {
+        val ip = installPath?.let {
             wslCompat.maybeConvertLinuxPathToWindowsUncFromContext(workDirString, it)
         } ?: return null
         return MiseToolEntry(
             version = v,
-            requestedVersion = requested_version ?: v,
+            requestedVersion = requestedVersion ?: v,
             installPath = ip,
             sourceType = source?.type,
             sourcePath = source?.path?.let {
