@@ -204,7 +204,7 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
     fun testADefinitionsFragmentsAreChecked() =
         assertChecked(
             listOf(
-                "${EXPANDER}DefinitionKt" to "hasUnquotes",
+                "${EXPANDER}HasUnquotes" to "has",
                 "${EXPANDER}Unquotes" to "collect",
                 "${EXPANDER}Unquotes" to "order",
                 "${EXPANDER}DefinitionKt" to "literalOf",
@@ -260,9 +260,17 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
     /** A `quote` in a pattern checks as its body is read for an unquote. */
     fun testAQuoteInAPatternIsChecked() =
         assertChecked(
-            listOf("${EXPANDER}Quote" to "hasUnquotes"),
+            listOf("${EXPANDER}HasUnquotes" to "has"),
             LISTS / 2,
             "defmacro m, do: ($TREE {:case, [], [1, [do: [{:->, [], [[{:quote, [], [[do: [t, {:unquote, [], [{:y, [], nil}]}]]]}], :ok]}]]]})",
+        )
+
+    /** A `quote` with many options checks as they are read for one that disables unquoting. */
+    fun testAQuotesOptionsAreCheckedAsTheyAreReadForUnquoting() =
+        assertChecked(
+            listOf("${EXPANDER}HasUnquotes" to "disablesUnquote"),
+            LISTS / 2,
+            "defmacro m, do: (o = [[]]; ${"o = o ++ o; ".repeat(DOUBLINGS)}{:def, [], [{:f, [], []}, [do: {:quote, [], [o, [do: :ok]]}]]})",
         )
 
     /** A quoted call whose metadata holds a large value checks as the metadata is quoted. */
@@ -507,6 +515,61 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
             "Elixir.A Compiled, Elixir.B Stopped",
             expanding(
                 "defmacro m, do: (t = []; ${"t = [t, t]; ".repeat(SHARED)} Macro.escape(%{1 => inspect(:a), 1.0 => t}))",
+                "A.m()",
+                "1.20.4",
+            )(),
+        )
+
+    /** The same map with `t` first, so `t` is walked before the value only Elixir knows, ends too. */
+    fun testAnUnorderedComparisonWithALargeSharedTermFirstEnds() =
+        assertEquals(
+            "Elixir.A Compiled, Elixir.B Stopped",
+            expanding(
+                "defmacro m, do: (t = []; ${"t = [t, t]; ".repeat(SHARED)} Macro.escape(%{1.0 => t, 1 => inspect(:a)}))",
+                "A.m()",
+                "1.20.4",
+            )(),
+        )
+
+    /**
+     * A list holding a value only Elixir knows and then `t`, too large to write out, ends: `t` is walked for what it
+     * raises, and isn't written out.
+     */
+    fun testALargeSharedTermAfterAnUnreadTermEnds() =
+        assertEquals(
+            "Elixir.A Compiled, Elixir.B Stopped",
+            expanding(
+                "defmacro m, do: (t = []; ${"t = [t, t]; ".repeat(SHARED)} Macro.escape([inspect(:a), t]))",
+                "A.m()",
+                "1.20.4",
+            )(),
+        )
+
+    /**
+     * A definition a macro builds, whose body holds an `unquote` and then a value only Elixir knows beside `t`, ends:
+     * `Kernel.define/4` escapes the body, walking `t` after the unknown value, and `t` isn't written out.
+     */
+    fun testALargeSharedTermInAMacroBuiltDefinitionAfterAnUnreadTermEnds() =
+        assertEquals(
+            "Elixir.A Compiled, Elixir.B Stopped",
+            expanding(
+                "defmacro m, do: (t = []; ${"t = [t, t]; ".repeat(SHARED)} " +
+                    "{:def, [], [{:f, [], nil}, [do: {:__block__, [], [{:unquote, [], [:ok]}, {1, 2, t, inspect(:a)}]}]]})",
+                "A.m()",
+                "1.20.4",
+            )(),
+        )
+
+    /**
+     * A definition a macro builds, whose body is a value holding `t`, raises as Elixir does at any size it finishes:
+     * `Kernel.define/4` reads the value for its unquotes, each part of `t` once where Elixir reads every copy, and the
+     * body is no valid code.
+     */
+    fun testALargeSharedTermInAMacroBuiltDefinitionsValueRaises() =
+        assertEquals(
+            "Elixir.A Compiled, Elixir.B Raised",
+            expanding(
+                "defmacro m, do: (t = []; ${"t = [t, t]; ".repeat(SHARED)} {:def, [], [{:f, [], nil}, [do: {1, 2, [t]}]]})",
                 "A.m()",
                 "1.20.4",
             )(),

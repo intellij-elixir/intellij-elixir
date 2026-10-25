@@ -1932,6 +1932,80 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """.trimIndent()
         }
 
+    /**
+     * An `unquote` that unquotes past a `quote` whose options disable unquoting is that `quote`'s, so a `quote` in a
+     * pattern holding it doesn't raise, as one holding it past a `quote` that doesn't disable it does.
+     */
+    fun testAQuoteInAPatternHoldingAQuoteThatDisablesUnquote() =
+        assertLevels(
+            """
+            defmodule A do
+              def f(v), do: (quote(do: quote([bind_quoted: [x: 1]], do: unquote(unquote(y)))) = v)
+              def g(v), do: (quote(do: quote([unquote: false], do: unquote(unquote(y)))) = v)
+            end
+
+            defmodule B do
+              def h(v), do: (quote(do: quote([], do: unquote(unquote(y)))) = v)
+            end
+            """.trimIndent(),
+            listOf("1.20.4"),
+        ) {
+            """
+            top expanded {} next 0 context []
+            module Elixir.A compiled
+              def f/1 line 2 clauses 1
+              def g/1 line 3 clauses 1
+              body: expanded {} next 0 context [Elixir.A]
+              def f/1: expanded {v:0} next 1
+              def g/1: expanded {v:0} next 1
+            module Elixir.B raised quote_in_pattern_with_unquote `quote(do: quote([], do: unquote(unquote(y))))`
+              body: expanded {} next 0 context [Elixir.B]
+              def h/1: error quote_in_pattern_with_unquote `quote(do: quote([], do: unquote(unquote(y))))`
+            """.trimIndent()
+        }
+
+    /**
+     * A macro's term at a `quote` in a pattern is read as a term, as `elixir_quote:has_unquotes/1` reads it: an
+     * `unquote` in it is `quote_in_pattern_with_unquote`, and an improper list with none before its tail raises
+     * `FunctionClauseError`.
+     */
+    fun testAMacrosTermAtAQuoteInAPatternIsReadAsATerm() {
+        val mac = """
+            defmodule Mac do
+              defmacro m do
+                {:def, [context: Elixir, imports: [{1, Kernel}, {2, Kernel}]],
+                 [{:f, [], [{:=, [], [{:quote, [], [[do: {1, 2, [{:unquote, [], [{:y, [], nil}]}]}]]}, {:v, [], nil}]}]}, [do: :ok]]}
+              end
+
+              defmacro n, do: {:=, [], [{:quote, [], [[do: {1, 2, [:a | :b]}]]}, :ok]}
+            end
+        """.trimIndent()
+
+        val compiled = """
+            top expanded {} next 0 context []
+            module Elixir.Mac compiled
+              defmacro m/0 line 2 clauses 1
+              defmacro n/0 line 7 clauses 1
+              body: expanded {} next 0 context [Elixir.Mac]
+              defmacro m/0: expanded {} next 0
+              defmacro n/0: expanded {} next 0
+        """.trimIndent()
+
+        assertLevels("$mac\n\ndefmodule A do\n  require Mac\n  Mac.m()\nend", listOf("1.20.4")) {
+            compiled + "\n" + """
+                module Elixir.A raised quote_in_pattern_with_unquote `Mac.m()`
+                  body: expanded {} next 0 context [Elixir.A]
+                  def f/1: error quote_in_pattern_with_unquote `Mac.m()`
+            """.trimIndent()
+        }
+        assertLevels("$mac\n\ndefmodule A do\n  require Mac\n  Mac.n()\nend", listOf("1.20.4")) {
+            compiled + "\n" + """
+                module Elixir.A raised Elixir.FunctionClauseError `Mac.n()`
+                  body: error Elixir.FunctionClauseError `Mac.n()`
+            """.trimIndent()
+        }
+    }
+
     fun testALiteralFragmentIsItsValue() =
         assertLevels("defmodule A do\n  def f, do: unquote(:a)\nend", LEVELS) { version ->
             """

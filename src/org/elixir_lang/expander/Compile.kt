@@ -234,6 +234,16 @@ internal class BodyValues(
     }
 
     /**
+     * A definition of the body holds code the port can't read, escaped as it is with any `unquote` in it, whose
+     * expression Elixir expands with the body before any of it runs. Whether Elixir runs the body isn't known.
+     */
+    fun unread() {
+        known = false
+        placed = false
+        unread = true
+    }
+
+    /**
      * The walk ran the unit at [site], which gave [raw], classified once: its raise is the body's only where the body
      * is certain at it. Elixir ran the unit where the expander did when it is [ordered], and its outcome is Elixir's
      * when it is [known] as well, it didn't stop, and the evaluator declined none of its code and assumed no raise away.

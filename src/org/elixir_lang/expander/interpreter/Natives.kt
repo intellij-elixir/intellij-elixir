@@ -1522,7 +1522,7 @@ internal class Natives(private val evaluation: Evaluation) {
         val escaped = when (val escaped = escape.escape(args[0])) {
             is EscapeResult.Built -> escaped.value
             is EscapeResult.Raised -> evaluation.raise(escaped.exception)
-            is EscapeResult.Declined -> decline("Macro.escape/2 of %s", args[0])
+            is EscapeResult.Unread, EscapeResult.Declined -> decline("Macro.escape/2 of %s", args[0])
         }
         // `{caller, meta, args} when generated and is_list(meta)`.
         val node = (escaped as? OtpErlangTuple)?.takeIf { it.arity() == 3 && seen(generated) == TRUE && isList(it.elementAt(1)) }

@@ -25,6 +25,8 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINITION_ESCAPES_H
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_ESCAPES_STRUCT
 import org.elixir_lang.language_level.ElixirLanguageFeature.DUPLICATE_MATCH_UNPACKED_ONCE
+import org.elixir_lang.language_level.ElixirLanguageFeature.ELLIPSIS_NULLARY_CALL
+import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_QUOTED_APART
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_SORTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_IN_VM_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.FIELD_OF_NON_MAP_RAISES_BADKEY
@@ -473,6 +475,137 @@ class InterpreterTest : PlatformTestCase() {
     fun testASpliceInAnAliasSegmentIsSpliced() {
         assertFile("defmodule A do\n  xs = [Bar]\n  def f, do: unquote_splicing(xs).Baz\nend", "top expanded\nmodule Elixir.A compiled")
         assertFile("defmodule A do\n  xs = [Bar]\n  def f(unquote_splicing(xs).Baz), do: 1\nend", "top expanded\nmodule Elixir.A compiled")
+    }
+
+    /**
+     * A splice as a call's callee escapes to a `{}` call `Kernel.def/2` rejects, which the port declines while the `def`
+     * expands, before any statement of the body runs: the body's expansion ends there, so no statement before it ran
+     * for certain, and a raise in one isn't the module's.
+     */
+    fun testAnEscapeThatDeclinesEndsTheBodysExpansion() {
+        val def = "def f, do: unquote_splicing(xs)(1)"
+
+        assertFile("defmodule A do\n  xs = [:foo]\n  def foo(x), do: x + 1\n  $def\nend", "top expanded\nmodule Elixir.A stopped `$def`")
+        assertFile(
+            "defmodule A do\n  _ = 1 + :a\n  xs = [:foo]\n  def foo(x), do: x + 1\n  $def\nend",
+            "top unported `$def`\nmodule Elixir.A stopped `$def`",
+        )
+
+        // Code the port can't read after the splice doesn't hide it: the escape walks on to the splice. A string escaping
+        // past the last code point is broken code on every release; `...` before an operand is left unlowered from v1.17.
+        listOf(UNREAD, "...(2)").forEach { unread ->
+            val block = "def f do\n    unquote_splicing(xs)(1)\n    $unread\n  end"
+
+            assertFile("defmodule A do\n  xs = [:foo]\n  def foo(x), do: x + 1\n  $block\nend", "top expanded\nmodule Elixir.A stopped `$block`")
+            assertFile(
+                "defmodule A do\n  xs = [:foo]\n  _ = 1 + :a\n  $block\nend",
+                "top unported `$block`\nmodule Elixir.A stopped `$block`",
+            )
+        }
+    }
+
+    /**
+     * A macro-built definition whose head holds a value the evaluator doesn't know, then one Elixir can't escape: the
+     * escape walks on past the unknown to the raise, which is the module's before any statement runs, so neither the
+     * module nor the one nested before the definition is ever defined.
+     */
+    fun testAnUnknownInAMacroBuiltDefinitionDoesNotHideWhatElixirCantEscape() {
+        listOf("__CALLER__.aliases" to "", "@a" to "  @a 1.5\n").forEach { (unknown, attribute) ->
+            assertFile(
+                "defmodule Mac do\n$attribute  defmacro m do\n    t = {$unknown, fn -> 1 end, $unknown, 0}\n" +
+                    "    {:def, [context: Elixir, imports: [{1, Kernel}, {2, Kernel}]], [{:f, [], [t]}, [do: {:unquote, [], [1]}]]}\n  end\nend\n" +
+                    "defmodule U do\n  defmodule I do\n    def g, do: 1\n  end\n  require Mac\n  Mac.m()\nend",
+                "top expanded\nmodule Elixir.Mac compiled\nmodule Elixir.U raised Elixir.ArgumentError `Mac.m()`",
+            )
+        }
+    }
+
+    /**
+     * A map's entries are escaped first to last but under `unquote: true`, where before v1.18.4 they are escaped last to
+     * first, so a raise in an earlier entry is the escape's.
+     */
+    fun testAMapsEntriesAreEscapedInOrderWithoutUnquote() {
+        val statement = "v =\n    try do\n      Macro.escape(%{a: {:x, [1 | 2], :y}, b: fn -> 1 end}, prune_metadata: true)\n" +
+            "    rescue\n      ArgumentError -> :arg\n    end"
+
+        assertFile(
+            "defmodule A do\n  $statement\n\n  def unquote(v)(), do: 1\nend",
+            "top expanded\nmodule Elixir.A raised Elixir.ErlangError `$statement`",
+        )
+    }
+
+    /**
+     * Under `unquote: true`, before [ESCAPED_MAP_ENTRIES_QUOTED_APART], a map's entries are escaped as one list, last to
+     * first, so the raise is the last entry's, which the body rescues.
+     */
+    fun testAMapsEntriesAreEscapedLastFirstUnderUnquote() {
+        val statement = "v =\n    try do\n      Macro.escape(%{a: {:x, [1 | 2], :y}, b: fn -> 1 end}, prune_metadata: true, unquote: true)\n" +
+            "    rescue\n      ArgumentError -> :arg\n    end"
+
+        assertFile(
+            "defmodule A do\n  $statement\n\n  def unquote(v)(), do: 1\nend",
+            if (ESCAPED_MAP_ENTRIES_QUOTED_APART.isSufficient(legLevel())) "top expanded\nmodule Elixir.A raised Elixir.ErlangError `$statement`"
+            else "top expanded\nmodule Elixir.A compiled",
+        )
+    }
+
+    /**
+     * Code the port can't read may hold an `unquote`, whose expression Elixir expands with the body before any statement
+     * runs. Whether Elixir runs the body isn't known, so no raise in it is the module's, wherever in a definition the code
+     * is, and whether or not the definition has another `unquote`.
+     */
+    fun testAnUnreadDefinitionLeavesTheBodyUncertain() {
+        // A string escaping past the last code point is broken code on every release; `...` before an operand is left
+        // unlowered from v1.17, where it is an operator.
+        val ellipsis = ELLIPSIS_NULLARY_CALL.isSufficient(legLevel())
+        val definitions = listOfNotNull(
+            "def f(unquote(:x), $UNREAD) do\n    y\n  end",
+            "def f(unquote(:x)) do\n    unquote(:y)\n    $UNREAD\n  end",
+            "def f(unquote(:x)) do\n    ...(unquote(y))\n  end".takeIf { ellipsis },
+            "def f(unquote(:x)) do\n    ...(y)\n  end".takeIf { ellipsis },
+            "def f do\n    $UNREAD\n  end",
+            "def f do\n    ...(unquote(y))\n  end".takeIf { ellipsis },
+            "def f do\n    ...(y)\n  end".takeIf { ellipsis },
+        )
+
+        definitions.forEach { definition ->
+            assertFile(
+                "defmodule A do\n  _ = 1 + :a\n  $definition\nend",
+                "top unported `_ = 1 + :a`\nmodule Elixir.A stopped `_ = 1 + :a`",
+            )
+        }
+    }
+
+    /**
+     * `Kernel.define/4` escapes a definition while the `def` expands, before any statement of the body runs, so what
+     * the escape raises is the module's error ahead of a raise in an earlier statement. Before v1.15 the head is
+     * escaped whether or not it has unquotes; from it, only a definition with unquotes is.
+     */
+    fun testAnEscapeThatRaisesIsTheModulesBeforeItsBodyRuns() {
+        val together = DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER.isSufficient(legLevel())
+
+        listOf(
+            "{:unquote, [], [:ok]}" to "raised Elixir.ArgumentError `Mac.m()`",
+            "{:x, [], nil}" to if (together) "raised Elixir.ArithmeticError `_ = 1 + :a`" else "raised Elixir.ArgumentError `Mac.m()`",
+        ).forEach { (body, u) ->
+            assertFile(
+                """
+                defmodule Mac do
+                  defmacro m do
+                    head = {:g, [], [{:\\, [], [{:x, [], nil}, fn -> 1 end]}]}
+
+                    {:def, [context: Elixir, imports: [{1, Kernel}, {2, Kernel}]], [head, [do: $body]]}
+                  end
+                end
+                defmodule U do
+                  require Mac
+                  _ = 1 + :a
+                  Mac.m()
+                end
+                """.trimIndent(),
+                "top expanded\nmodule Elixir.Mac compiled\nmodule Elixir.U $u",
+            )
+        }
     }
 
     /**
@@ -1233,6 +1366,9 @@ class InterpreterTest : PlatformTestCase() {
 
     private companion object {
         const val TOKEN = "{token}"
+
+        /** Broken code on every release, which the lowering leaves as a placeholder the port can't read. */
+        const val UNREAD = "\"\\u{110000}\""
         const val ROW = "{row}"
         const val OPAQUE = "opaque"
         const val UNPORTED = "unported"
@@ -5947,13 +6083,101 @@ class InterpreterTest : PlatformTestCase() {
             ),
             macro(
                 "fragment:splice",
-                "defmacro m, do: Macro.escape({{row}.FS.f(1, 2), {row}.FS.g()})",
+                "defmacro m, do: Macro.escape({{row}.FS.f(1, 2), {row}.FS.g(), {row}.FS.h(), {row}.FS.k([4]), {row}.FS.l([4]), {row}.FS.p([0, 1, 2, 3])})",
                 helper = """
                 defmodule {row}.FS do
                   args = [{:a, [], nil}, {:b, [], nil}]
                   xs = [1, 2]
+                  ys = [7]
                   def f(unquote_splicing(args)), do: {a, b}
                   def g, do: [0, unquote_splicing(xs), 3]
+                  def h, do: [0, unquote_splicing(xs) | [3]]
+                  def k(t), do: [0, unquote_splicing(xs) | t]
+                  def l(t), do: [unquote_splicing(ys), 9, unquote_splicing(xs) | t]
+                  def p([0, unquote_splicing(xs) | [3]]), do: :ok
+                end
+                """,
+            ),
+            // A call's arguments, a called name's, a `{}` tuple's elements, a splicing pair's and a block's expressions
+            // splice before a tail as a list does.
+            macro(
+                "fragment:splice-before-tail-elements",
+                "defmacro m, do: Macro.escape({{row}.FT.g(), {row}.FT.t(), {row}.FT.f(1, 2, 3), {row}.FT.b(), {row}.FT.sp(), {row}.FT.one(), {row}.FT.cn()})",
+                helper = """
+                defmodule {row}.FT do
+                  xs = [1, 2]
+                  vs = [{:a, [], nil}, {:b, [], nil}]
+                  def foo(a, b, c), do: a + b + c
+                  def g, do: foo(unquote_splicing(xs) | [3])
+                  def t, do: {0, 9, unquote_splicing(xs) | [3]}
+                  def f(unquote_splicing(vs) | [c]), do: {a, b, c}
+                  def b, do: (0; unquote_splicing(xs) | [3])
+                  def sp, do: {unquote_splicing([0]), unquote_splicing(xs) | [3]}
+                  def one, do: {unquote_splicing(xs) | [3]}
+                  def cn, do: :erlang.unquote(:+)(unquote_splicing(xs) | [])
+                end
+                """,
+            ),
+            // A pair splices as a `{}` tuple, a pair that doesn't still holds fragments, and so does an alias.
+            macro(
+                "fragment:splice-pair-and-alias",
+                "defmacro m, do: Macro.escape({{row}.FP.p(), {row}.FP.q(), {row}.FP.r(), {row}.FP.a(), {row}.FP.n()})",
+                helper = """
+                defmodule {row}.FP do
+                  xs = [1, 2]
+                  m = Enum
+                  def p, do: {unquote_splicing(xs), 3}
+                  def q, do: {0, unquote_splicing(xs)}
+                  def r, do: {unquote_splicing([1]), 2}
+                  def a, do: unquote(m).Bar
+                  def n, do: {[unquote_splicing(xs)], 9}
+                end
+                """,
+            ),
+            // A `{}` tuple whose splices leave two elements is quoted as a `{}` call, not a pair, so a macro reading
+            // it as a keyword list doesn't find the key.
+            macro(
+                "fragment:splice-to-two",
+                "defmacro m, do: Macro.escape({{row}.FK.g(), {row}.FK.h(), {row}.FK.i()})",
+                helper = """
+                defmodule {row}.KW do
+                  defmacro k(opts), do: Keyword.get(opts, :k, :no)
+                end
+
+                defmodule {row}.FK do
+                  require {row}.KW
+                  ys = []
+                  zs = [:k]
+                  ws = [:k, 3]
+                  def g, do: {row}.KW.k([{:k, unquote_splicing(ys), 1}])
+                  def h, do: {row}.KW.k([{unquote_splicing(zs), 2}])
+                  def i, do: {row}.KW.k([{unquote_splicing(ws)}])
+                end
+                """,
+            ),
+            // A `{}` call of two expands as that node, not as a pair, so a directive's options don't read it as one.
+            macro(
+                "fragment:splice-to-two-option",
+                "defmacro m, do: Macro.escape({{row}.FI.l(), {row}.FI.l2(), {row}.FI.l3()})",
+                helper = """
+                defmodule {row}.FI do
+                  x = [Foo]
+                  y = [:as, Bar]
+
+                  def l do
+                    alias List, [{:as, unquote_splicing(x)}]
+                    Foo
+                  end
+
+                  def l2 do
+                    alias List, [{unquote_splicing(y)}]
+                    Bar
+                  end
+
+                  def l3 do
+                    import List, [{:only, unquote_splicing([[first: 1]])}]
+                    last([1, 2])
+                  end
                 end
                 """,
             ),

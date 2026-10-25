@@ -23,6 +23,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
+import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPE_HEADS_NEED_LIST_META
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED_AS_MACRO
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.Meta
@@ -681,11 +682,28 @@ class ProjectModulesTest : PlatformTestCase() {
         assertSharedValueConvertsInBoundedWork("  x = {:f, [], [t]}\n  require B\n  B.m()\n")
     }
 
+    /** A shared value a macro's body unquotes in a map in a definition converts in bounded work. */
+    fun testASharedValueAMacroUnquotesInAMapConvertsInBoundedWork() {
+        assertSharedValueAMacroBuildsConvertsInBoundedWork("{:def, [], [{:f, [], []}, [do: {{:unquote, [], [:a]}, %{a: {:unquote, [], [t]}}}]]}")
+    }
+
     /** A module body that applies [doubling] forty times to `t = []`, then runs [after], expands in [SHARED_VALUE_CHECKS]. */
     private fun assertSharedValueConvertsInBoundedWork(after: String, doubling: String = "t = {t, t}") {
         addLegElixir()
         val doubled = "  $doubling\n".repeat(40)
         val a = add("a.ex", "defmodule A do\n  t = []\n$doubled$after  def g, do: 1\nend\n")
+
+        val checks = expandUnder(ProjectModules(project), a, SHARED_VALUE_CHECKS)
+
+        assertTrue("$checks", checks < SHARED_VALUE_CHECKS)
+    }
+
+    /** A macro whose body doubles `t` forty times, then ends in [last], expands where it is called in [SHARED_VALUE_CHECKS]. */
+    private fun assertSharedValueAMacroBuildsConvertsInBoundedWork(last: String) {
+        addLegElixir()
+        val doubled = "    t = {t, t}\n".repeat(40)
+        add("b.ex", "defmodule B do\n  defmacro m do\n    t = []\n$doubled    $last\n  end\nend\n")
+        val a = add("a.ex", "defmodule A do\n  require B\n  B.m()\n  def g, do: 1\nend\n")
 
         val checks = expandUnder(ProjectModules(project), a, SHARED_VALUE_CHECKS)
 
@@ -1059,6 +1077,264 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
+     * A macro can build a definition whose body holds an `unquote` as a value, not as code: Elixir reads its expression
+     * as code and expands it with the module body, before any statement runs, so an unbound variable there raises before
+     * a module nested in the body is defined, before or after the definition. With no `unquote` the definition isn't
+     * escaped, and the raise its body gives is the module's when the definition runs: a module nested before it loads,
+     * one after it is never defined.
+     */
+    fun testADefinitionAMacroBuildsWithAnUnquoteInItsValueRaisesAsTheBodyExpands() {
+        addLegElixir()
+        val raised = "Elixir.B raised unloaded_module `import A.I`"
+
+        assertEquals(
+            listOf(
+                listOf(raised, raised, raised),
+                listOf(raised, raised, "Elixir.B compiled"),
+            ),
+            nestedAround(listOf("unquote", "unquote_splicing", "x").map { "[{:$it, [], [{:y, [], nil}]}]" }),
+        )
+    }
+
+    /**
+     * `elixir_quote:has_unquotes/1` reads a macro's value as a term, whatever its metadata: an `unquote` among an
+     * improper list's elements, or under a call whose metadata isn't a list, makes the definition one with unquotes,
+     * whose unbound variable raises as the body expands, and an improper list with none before its tail raises
+     * `FunctionClauseError` as the `def` expands, a tail that is a binary whose bytes aren't known included, so neither
+     * the module nor one nested in it loads. From [ESCAPE_HEADS_NEED_LIST_META] the escape reads an `unquote` whose
+     * metadata isn't a list as a tuple, so the definition's raise is the module's when it runs: a module nested before
+     * it loads, one after it is never defined.
+     */
+    fun testADefinitionAMacroBuildsReadsItsValueAsATerm() {
+        addLegElixir()
+        val raised = "Elixir.B raised unloaded_module `import A.I`"
+        val tuple = ESCAPE_HEADS_NEED_LIST_META.isSufficient(legLevel())
+
+        assertEquals(
+            listOf(
+                listOf(raised, raised, raised, raised, raised, raised),
+                listOf(raised, raised, if (tuple) "Elixir.B compiled" else raised, raised, raised, raised),
+            ),
+            nestedAround(
+                listOf(
+                    "[[{:unquote, [], [{:y, [], nil}]} | :t]]",
+                    "[{:x, 1, [{:unquote, [], [{:y, [], nil}]}]}]",
+                    "[{:unquote, 1, [{:y, [], nil}]}]",
+                    "[:a | :b]",
+                    "[[:a | :b]]",
+                    "[:a | inspect(1)]",
+                ),
+            ),
+        )
+    }
+
+    /**
+     * An `unquote` of a term that is code, in a definition a macro builds, expands with the body, so a module nested
+     * before it loads.
+     */
+    fun testAnUnquoteOfCodeInADefinitionAMacroBuildsLoadsAModuleNestedBeforeIt() {
+        addLegElixir()
+
+        assertEquals(listOf(listOf("Elixir.B compiled")), nestedAround(listOf("[{:unquote, [], [1]}]"), positions = listOf(true)))
+    }
+
+    /**
+     * An `unquote` in a node's metadata, in a definition a macro builds, is read as code, as `elixir_quote` reads it:
+     * an unbound variable there raises as the body expands, so neither the module nor one nested in it loads. Code
+     * that expands builds the node, and both load.
+     */
+    fun testAnUnquoteInTheMetadataOfANodeAMacroBuildsIsReadAsCode() {
+        addLegElixir()
+        val raised = "Elixir.B raised unloaded_module `import A.I`"
+
+        assertEquals(
+            listOf(listOf(raised, "Elixir.B compiled"), listOf(raised, "Elixir.B compiled")),
+            nestedAround(
+                listOf("{:y, [], nil}", "{:+, [], [1, 2]}"),
+                body = { "{:foo, [k: {:unquote, [], [$it]}], [{:unquote, [], [1]}]}" },
+                after = "  def foo(x), do: x\n",
+            ),
+        )
+    }
+
+    /**
+     * An `unquote` read as code from a node's metadata is evaluated with the definition's other fragments, in escape
+     * order, and checked as its place gives: where it, or another fragment, raises, or a splice there isn't a list or
+     * a name isn't an atom, an alias or a quoted call, the raise is the module's when the definition runs, so a module
+     * nested before it loads and one after it is never defined.
+     */
+    fun testARaiseBesideAnUnquoteInTheMetadataOfANodeAMacroBuildsIsTheDefinitions() {
+        addLegElixir()
+        val raised = "Elixir.B raised unloaded_module `import A.I`"
+
+        assertEquals(
+            listOf(
+                listOf(raised, raised, raised, raised, "Elixir.B compiled", raised, "Elixir.B compiled") +
+                    List(5) { raised } + List(4) { "Elixir.B compiled" } + List(3) { "Elixir.B compiled" } + raised,
+                List(20) { "Elixir.B compiled" },
+            ),
+            nestedAround(
+                listOf(
+                    "[k: {:unquote, [], [:ok]}], [{:unquote, [], [{:+, [], [1, :a]}]}]",
+                    "[k: {:unquote, [], [{:+, [], [1, :a]}]}], [{:unquote, [], [1]}]",
+                    "[k: [{:unquote_splicing, [], [:ok]}]], [{:unquote, [], [1]}]",
+                    "[k: {{:., [], [Kernel, :unquote]}, [], [1]}], [{:unquote, [], [1]}]",
+                    "[k: [{:unquote_splicing, [], [[1]]}]], [{:unquote, [], [1]}]",
+                    "[k: [{:|, [], [{:unquote_splicing, [], [[]]}, :t]}]], [{:unquote, [], [1]}]",
+                    "[k: [{:|, [], [{:unquote_splicing, [], [[1]]}, :t]}]], [{:unquote, [], [1]}]",
+                    "[k: [{:|, [], [{:unquote_splicing, [], [[]]}, {:unquote, [], [{:-, [], [1]}]}]}]], [{:unquote, [], [1]}]",
+                    "[k: [{:|, [], [{:unquote_splicing, [], [:ok]}, {:unquote, [], [{:-, [], [1]}]}]}]], [{:unquote, [], [1]}]",
+                    "[k: [{:|, [], [{:unquote_splicing, [], [[]]}, {:unquote, [], [{:+, [], [1, 2]}]}]}]], [{:unquote, [], [1]}]",
+                    "[k: [{:unquote_splicing, [], [[]]}, {:|, [], [{:unquote_splicing, [], [[]]}, :t]}]], [{:unquote, [], [1]}]",
+                    "[k: [{:unquote, [], [{:+, [], [1, 2]}]}, {:|, [], [{:unquote_splicing, [], [:ok]}, :t]}]], [{:unquote, [], [1]}]",
+                    "[k: [{:|, [], [{:unquote_splicing, [], [[1]]}, {:unquote, [], [{:-, [], [1]}]}]}]], [{:unquote, [], [1]}]",
+                    "[k: [{:|, [], [{:unquote_splicing, [], [[1]]}, {:unquote, [], [{:+, [], [1, 2]}]}]}]], [{:unquote, [], [1]}]",
+                    "[k: [{:unquote_splicing, [], [[]]}, {:|, [], [{:unquote_splicing, [], [[1]]}, :t]}]], [{:unquote, [], [1]}]",
+                    "[k: [{:unquote, [], [{:+, [], [1, 2]}]}, {:|, [], [{:unquote_splicing, [], [[1]]}, :t]}]], [{:unquote, [], [1]}]",
+                    "[k: [{:unquote_splicing, [], [[]]}, :b, {:|, [], [{:unquote_splicing, [], [[]]}, :t]}]], [{:unquote, [], [1]}]",
+                    "[k: [{:unquote_splicing, [], [[]]}, :b, :c, {:|, [], [{:unquote_splicing, [], [[]]}, :t]}]], [{:unquote, [], [1]}]",
+                    "[k: [{:unquote_splicing, [], [[]]}, {:unquote, [], [{:+, [], [1, 2]}]}, {:|, [], [{:unquote_splicing, [], [[]]}, :t]}]], [{:unquote, [], [1]}]",
+                    "[k: [{:unquote_splicing, [], [:ok]}, :b, {:|, [], [{:unquote_splicing, [], [[]]}, :t]}]], [{:unquote, [], [1]}]",
+                ),
+                body = { "{:foo, $it}" },
+                after = "  def foo(x), do: x\n",
+            ),
+        )
+    }
+
+    /**
+     * A splice a macro's term holds before a list's tail is checked by `tail_list/3` with the tail the escape's code
+     * builds, whatever term that is: splicing an empty list there raises when the definition runs, so a module nested
+     * after it is never defined.
+     */
+    fun testASpliceBeforeATailAMacroBuildsIsCheckedWithTheTailTheEscapeBuilds() {
+        addLegElixir()
+
+        assertEquals(
+            listOf(List(4) { "Elixir.B raised unloaded_module `import A.I`" }),
+            nestedAround(
+                listOf(":t", "{:a, :b, :c}", "%{}", "%{a: 1}").map { tail ->
+                    "[], [%{k: [{:|, [], [{:unquote_splicing, [], [[]]}, $tail]}]}, {:unquote, [], [1]}]"
+                },
+                positions = listOf(false),
+                body = { "{:foo, $it}" },
+                after = "  def foo(x, y), do: {x, y}\n",
+            ),
+        )
+    }
+
+    /**
+     * A name a macro's term unquotes is checked as the helper the escape calls checks it: given an atom for arguments,
+     * it is a called name, so a call of no context raises when the definition runs, and a module nested after it is
+     * never defined.
+     */
+    fun testANameAMacroBuildsIsCheckedAsTheEscapeCallsIt() {
+        addLegElixir()
+
+        assertEquals(
+            listOf(listOf("Elixir.B raised unloaded_module `import A.I`"), listOf("Elixir.B compiled")),
+            nestedAround(
+                listOf("{{{:., [], [Kernel, :unquote]}, [], [{:{}, [], [:node, [], []]}]}, [], Elixir}"),
+                body = { "{$it, {:unquote, [], [1]}}" },
+            ),
+        )
+    }
+
+    /**
+     * An uncalled name, `Left.unquote(x)`, stops its definition where the escape reaches it, and the escape goes on:
+     * the fragments before and after it, its own expression and the check that its value is an atom, an alias or a
+     * quoted call are evaluated, so where one raises, the raise is the module's when the definition runs, and a module
+     * nested after it is never defined.
+     */
+    fun testAnUncalledNameStopsItsDefinitionWhereItsEscapeReachesIt() {
+        addLegElixir()
+        val a = add("a.ex", "")
+        val b = add("b.ex", "defmodule B do\n  import A.I\n  def h, do: g()\nend\n")
+        val nested = "  defmodule I do\n    def g, do: 1\n  end\n"
+        val raised = "Elixir.B raised unloaded_module `import A.I`"
+
+        val answers = listOf(
+            "  def f(unquote(1 + :a)), do: Kernel.unquote(:node)\n",
+            "  def f(unquote(:x)), do: Kernel.unquote(1 + :a)\n",
+            "  def f(unquote(:x)), do: Kernel.unquote(:node)\n  def h, do: unquote(1 + :a)\n",
+            "  def f, do: {Kernel.unquote(:node), unquote(1 + :a)}\n",
+            "  def f, do: Kernel.unquote(1)\n",
+            "  def f, do: {Kernel.unquote(:node), [unquote_splicing(:ok)]}\n",
+            "  def f(unquote(:x)), do: {Kernel.unquote(:node), Kernel.unquote(1)}\n",
+            "  def f(Kernel.unquote(:node)), do: unquote(1 + :a)\n",
+            "  def f(unquote(:x)), do: Kernel.unquote(:node)\n",
+            "  def f, do: {Kernel.unquote(:node), 1}\n",
+        ).map { definition ->
+            listOf(nested + definition, definition + nested).map { body ->
+                edit(project, a, "defmodule A do\n${body}end\n")
+                render(b, expansion(holder, b)).lines().first { it.startsWith("Elixir.B ") }.substringBefore(" errors")
+            }
+        }
+
+        val compiled = "Elixir.B compiled"
+
+        assertEquals(List(8) { listOf(compiled, raised) } + List(2) { listOf(compiled, compiled) }, answers)
+    }
+
+    /**
+     * Whether a macro's bang read of the application's environment finds its key isn't known, so its raise is assumed
+     * not to happen, and an error after it stops the module: at the call where the macro raises, and at the error
+     * where the module does, as after a bang read in the module body.
+     */
+    fun testAnErrorAfterAMacrosAssumedApplicationReadStopsTheModule() {
+        addLegElixir()
+        val a = add("a.ex", "")
+        val read = "Application.fetch_env!(:nope, :k)"
+
+        assertEquals(
+            listOf("Elixir.A stopped `:ok = :bad`", "Elixir.A stopped `Mac.m()`"),
+            listOf("($read; :ok)" to "  :ok = :bad\n", "($read; raise \"after the read\")" to "").map { (body, after) ->
+                edit(project, a, "defmodule Mac do\n  defmacro m, do: $body\nend\ndefmodule A do\n  require Mac\n  Mac.m()\n${after}end\n")
+                render(a, expansion(holder, a)).lines().first { it.startsWith("Elixir.A ") }.substringBefore("` ") + "`"
+            },
+        )
+    }
+
+    /**
+     * A certain error after a macro's bang read of the application's environment, which is assumed not to raise, ends
+     * the run as Elixir's raise does, in the macro, in the module or in a `@before_compile` callback's output: the
+     * module and the next one in the file are absent, and so is a module nested before a macro that raises as the body
+     * expands. One nested before an error the body's run reaches loads.
+     */
+    fun testAnErrorAfterAMacrosAssumedApplicationReadEndsTheRun() {
+        addLegElixir()
+        val a = add("a.ex", "")
+        val read = "Application.fetch_env!(:nope, :k)"
+        val mac = "defmodule Mac do\n  defmacro m, do: ($read; :ok)\n  defmacro r, do: ($read; raise \"after the read\")\nend\n"
+        val nested = "  defmodule I do\n    def g, do: 1\n  end\n"
+        val callback = "defmodule CB do\n  defmacro __before_compile__(_) do\n    quote do\n      require Mac\n      Mac.m()\n" +
+            "      :ok = :bad\n    end\n  end\nend\n"
+        val names = listOf("A", "A.I", "C")
+        val importers = names.map { name ->
+            val importer = "B" + name.replace(".", "")
+
+            importer to add("${importer.lowercase()}.ex", "defmodule $importer do\n  import $name\nend\n")
+        }
+        val raised = names.zip(importers) { name, (importer, _) -> "Elixir.$importer raised unloaded_module `import $name`" }
+        val nestedLoads = raised.toMutableList().also { it[1] = "Elixir.BAI compiled" }
+
+        assertEquals(
+            listOf(raised, raised, nestedLoads, nestedLoads),
+            listOf(
+                mac + "defmodule A do\n  require Mac\n  Mac.m()\n  :ok = :bad\nend\n",
+                mac + "defmodule A do\n${nested}  require Mac\n  Mac.r()\nend\n",
+                mac + "defmodule A do\n${nested}  require Mac\n  Mac.m()\n  :ok = :bad\nend\n",
+                mac + callback + "defmodule A do\n  @before_compile CB\n${nested}end\n",
+            ).map { text ->
+                edit(project, a, text + "defmodule C do\n  def g, do: 1\nend\n")
+                importers.map { (importer, file) ->
+                    render(file, expansion(holder, file)).lines().first { it.startsWith("Elixir.$importer ") }.substringBefore(" errors")
+                }
+            },
+        )
+    }
+
+    /**
      * An error after a macro's bang read of the application's environment, which is assumed not to raise, stops where
      * it is, at the file's top as in a module body, in a definition's clause body as the body expands, and in a
      * `@before_compile` callback's output: what Elixir defines before the raise loads, and nothing after it does.
@@ -1112,6 +1388,25 @@ class ProjectModulesTest : PlatformTestCase() {
                 listOf("top unported `defmodule A do`", "Elixir.CB compiled") + inA("defmodule A do", "=") + loading(setOf("BAI")),
             ),
             answers,
+        )
+    }
+
+    /**
+     * A definition a macro builds whose term holds an improper list with no `unquote` before its tail raises at the
+     * definition, from `elixir_quote:has_unquotes/1`.
+     */
+    fun testADefinitionAMacroBuildsWithAnImproperListRaisesAtTheDefinition() {
+        addLegElixir()
+        val a = add(
+            "a.ex",
+            "defmodule Mac do\n  defmacro m do\n    {:def, [context: Elixir, imports: [{1, Kernel}, {2, Kernel}]], " +
+                "[{:f, [], []}, [do: {1, 2, [:a | :b]}]]}\n  end\nend\n" +
+                "defmodule A do\n  require Mac\n  Mac.m()\nend\n",
+        )
+
+        assertEquals(
+            "Elixir.A raised Elixir.FunctionClauseError `Mac.m()` errors[] loads Absent",
+            render(a, expansion(holder, a)).lines().first { it.startsWith("Elixir.A ") },
         )
     }
 
@@ -1739,6 +2034,36 @@ class ProjectModulesTest : PlatformTestCase() {
 
     /** A module [name] with a macro whose `quote` keeps its location. */
     private fun kept(name: String) = "defmodule $name do\n  defmacro m do\n    quote location: :keep, do: f()\n  end\nend\n"
+
+    /**
+     * How `B`, importing `A.I`, ends for each of [arguments], from which [body] builds what a macro-built `def f` of `A`
+     * returns (by default, the third element of a tuple): at each of [positions], with `A.I` nested after the macro's
+     * call (`false`) or before it (`true`), and [after] following both.
+     */
+    private fun nestedAround(
+        arguments: List<String>,
+        positions: List<Boolean> = listOf(false, true),
+        body: (String) -> String = { "{1, 2, $it}" },
+        after: String = "",
+    ): List<List<String>> {
+        val a = add("a.ex", "")
+        val b = add("b.ex", "defmodule B do\n  import A.I\n  def h, do: g()\nend\n")
+        val nested = "  defmodule I do\n    def g, do: 1\n  end\n"
+        val call = "  require Mac\n  Mac.m()\n"
+
+        return positions.map { before ->
+            arguments.map { arguments ->
+                edit(
+                    project,
+                    a,
+                    "defmodule Mac do\n  defmacro m do\n    {:def, [context: Elixir, imports: [{1, Kernel}, {2, Kernel}]], " +
+                        "[{:f, [], []}, [do: ${body(arguments)}]]}\n  end\nend\n" +
+                        "defmodule A do\n${if (before) nested + call else call + nested}${after}end\n",
+                )
+                render(b, expansion(holder, b)).lines().first { it.startsWith("Elixir.B ") }.substringBefore(" errors")
+            }
+        }
+    }
 
     /** A module calling [name]'s `m`. */
     private fun caller(name: String) = "defmodule ${name}Caller do\n  require $name\n  def f, do: $name.m()\nend\n"

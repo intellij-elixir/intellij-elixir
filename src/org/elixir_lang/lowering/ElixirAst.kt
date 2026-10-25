@@ -75,7 +75,8 @@ sealed class ElixirAst {
     /**
      * A term in a macro's result that Elixir's expansion takes for no AST: a pid, a function, a reference, a port, a
      * map, a bitstring that isn't a binary, a tuple of neither two nor three elements, or a 3-tuple that is neither a
-     * form nor a call, as `{1, 2, 3}` is. Only [fromOtp] builds it, for the evaluator's result, so it is never lowered.
+     * form nor a call, as `{1, 2, 3}` is; or, in a definition's escape code that only the evaluator runs, a term it has
+     * already evaluated.
      */
     class Value(override val meta: Meta, val term: OtpErlangObject) : ElixirAst()
 
@@ -149,6 +150,13 @@ sealed class ElixirAst {
     }
 
     companion object {
+        /**
+         * The node `{:{}, meta, elements}` is: a [Tuple], but for a pair, which [toOtp] writes as `{a, b}`, so it stays a
+         * call to [callee].
+         */
+        inline fun tupleCall(meta: Meta, elements: List<ElixirAst>, callee: () -> ElixirAst = { Literal.Atom(meta, "{}") }): ElixirAst =
+            if (elements.size != 2) Tuple(meta, elements) else Call(meta, callee(), elements)
+
         /**
          * The node quoted [term] is, with [origin] as every node's origin: [toOtp]'s inverse under
          * [ParserOptions.DEFAULT]. Null for a term no quoted expression is, such as a map or a bitstring, unless
@@ -264,8 +272,7 @@ sealed class ElixirAst {
             val arguments = elements(last, origin, values, known, onNode, budget) ?: return null
 
             return when (head) {
-                // `toOtp` writes a pair as `{a, b}`, so `{:{}, meta, [a, b]}` stays a call.
-                TUPLE if arguments.size != 2 -> Tuple(meta, arguments)
+                TUPLE -> tupleCall(meta, arguments) { converted(head, origin, values, known, onNode, budget) ?: return null }
                 // An alias of no segments has no clause in `elixir_aliases:expand`.
                 ALIASES -> if (arguments.isEmpty()) null else Alias(meta, arguments)
                 BLOCK -> Block(meta, arguments)

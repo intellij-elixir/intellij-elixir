@@ -41,7 +41,9 @@ private fun defdelegate(
     val (funs, written) = arguments
     val escaped = when (val escape = Quote.escape(funs, node.meta, run)) {
         is Quote.Escaped.Built -> escape.node
+        is Quote.Escaped.Unread -> return escape.expansion
         is Quote.Escaped.Stopped -> return escape.expansion
+        is Quote.Escaped.Raised -> return Expansion.Error(escape.exception, node)
     }
     val opts = when (val options = options(written, state, env, run)) {
         is MacroExpanded.Node -> options.node
