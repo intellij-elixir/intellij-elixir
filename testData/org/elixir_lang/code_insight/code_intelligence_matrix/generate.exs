@@ -715,6 +715,13 @@ defmodule Matrix do
               {"undeclared", 0, "undeclared", 2, :qualified}
             ]
       },
+      # An embed-shaped call that is not one, whose atom names a module: Go To from the atom must land on the module,
+      # where an atom naming no module could not tell a lookalike read as an embed from the ordinary function it is.
+      "x_lookalike_module_atom" => %{
+        modules: [[snoc_2]],
+        calls: [{"lookalike_qualified", 0, "target", 0, :lookalike_qualified}, {"lookalike_local", 0, "target", 0, :lookalike_local}],
+        atom_modules: ["target"]
+      },
       # Quoted atoms with interpolation, which the plugin resolves by matching a pattern against every indexed name.
       # The caller also declares `atom_modules`; what each atom evaluates to is the module it must reach, and `bare_extra`
       # is a longer name `bare`'s atom must not.
@@ -1884,10 +1891,10 @@ defmodule Matrix do
   @not_atom_named [:apply_interpolated, :mfa_interpolated, :apply_nested, :apply_nested_quoted]
 
   # The shapes that are not calls of the definition at all, so no arity can be wrong for them.
-  @not_calls [:variable, :atom, :keyword, :interpolated_atom, :module_atom]
+  @not_calls [:variable, :atom, :keyword, :interpolated_atom, :module_atom, :lookalike_qualified, :lookalike_local]
 
   # The shapes whose atom names a module the caller declares, where Go To Declaration must land.
-  @module_atoms [:interpolated_atom, :module_atom]
+  @module_atoms [:interpolated_atom, :module_atom, :lookalike_qualified, :lookalike_local]
 
   defp defined?({_id, _module, _name, _arity, shape}, _modules) when shape in @not_calls or shape in [:module_defimpl | @module_shapes], do: true
 
@@ -3119,9 +3126,11 @@ defmodule Matrix do
   end
 
   defp pick(calls) do
-    if Enum.any?(calls, &(elem(&1, 4) in [:apply_nested, :apply_nested_quoted])),
-      do: "\n\n  defp pick(opts, key), do: opts[key]",
-      else: ""
+    cond do
+      Enum.any?(calls, &(elem(&1, 4) in [:apply_nested, :apply_nested_quoted])) -> "\n\n  defp pick(opts, key), do: opts[key]"
+      Enum.any?(calls, &(elem(&1, 4) in [:lookalike_qualified, :lookalike_local])) -> "\n\n  def embed_text(name, contents), do: {name, contents}"
+      true -> ""
+    end
   end
 
   # No argument list at all. A different shape in the parser, and the only one the unresolved inspection looks at.
@@ -3152,6 +3161,9 @@ defmodule Matrix do
   defp call(:keyword, _backing, _module, name, _arity), do: "[#{name}: a, b: b]"
   defp call(:interpolated_atom, _backing, _module, name, _arity), do: ~s({:"#{name}", a, b})
   defp call(:module_atom, _backing, _module, name, _arity), do: "{:#{name}, a, b}"
+  # An ordinary `embed_text/2` whose first argument is the atom of a module: not an embed, so it declares nothing.
+  defp call(:lookalike_qualified, _backing, _module, name, _arity), do: ~s[__MODULE__.embed_text(:#{name}, "x")]
+  defp call(:lookalike_local, _backing, _module, name, _arity), do: ~s[embed_text(:#{name}, "x")]
   defp call(:module, _backing, module, _name, _arity), do: module
   defp call(:module_aliased, _backing, module, _name, _arity), do: last_segment(module)
 

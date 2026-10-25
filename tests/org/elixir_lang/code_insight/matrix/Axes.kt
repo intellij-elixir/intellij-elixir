@@ -147,6 +147,12 @@ const val LOOKALIKE_ABSENT = "x_lookalike_absent"
  */
 const val INTERPOLATED_ATOM = "x_interpolated_atom"
 
+/**
+ * The world whose sites are an ordinary `embed_text/2` called with the atom of a module. It is not an embed, so only
+ * Go To Declaration from the atom asks anything: it must land on the module.
+ */
+const val LOOKALIKE_MODULE_ATOM = "x_lookalike_module_atom"
+
 /** The form whose subject is a module attribute: `@name value` writes it and `@name` reads it. */
 const val ATTRIBUTE_FORM = "attribute"
 
@@ -222,9 +228,9 @@ object Crossing {
                 Applicability.NotApplicable("a call made only to keep an arity used; it is a use to find and rename, but asks nothing `local` does not")
             scenario.world == LOOKALIKE_ABSENT && !rejected(scenario, place) ->
                 Applicability.NotApplicable("$LOOKALIKE_ABSENT asks only where the compiler rejected a call; everywhere else it is w3's question again")
-            scenario.world == INTERPOLATED_ATOM &&
+            (scenario.world == INTERPOLATED_ATOM || scenario.world == LOOKALIKE_MODULE_ATOM) &&
                 !(feature == Feature.GO_TO_DECLARATION && place is Place.Marked && scenario.sites.any { it.id == place.id && it.targets != null }) ->
-                Applicability.NotApplicable("$INTERPOLATED_ATOM asks only where Go To Declaration from an interpolated atom lands")
+                Applicability.NotApplicable("${scenario.world} asks only where Go To Declaration from an atom lands")
             place is Place.Marked && place.id == LOCAL && !backing.hasBodies ->
                 Applicability.NotApplicable("the ${backing.id} mirror has no bodies, so no local call")
             place is Place.Marked && place.id == LOCAL && !hasLocalCall(scenario) ->
