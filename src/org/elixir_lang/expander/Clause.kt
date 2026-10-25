@@ -86,11 +86,14 @@ internal enum class Clause(vararg val heads: Head) {
 
     TUPLE(expandHead("{'{}',_,_}")) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
-            node is ElixirAst.Tuple && node.elements.size != 2
+            node is ElixirAst.Tuple && node.elements.size != 2 || isNamedCall(node, "{}")
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            expandArgs((node as ElixirAst.Tuple).elements, state, env, run).thenValue { s, e, values ->
-                Expansion.Expanded(s, e, Term.Tuple((values as Term.List).elements))
+            expandArgs((node as? ElixirAst.Tuple)?.elements ?: (node as ElixirAst.Call).arguments!!, state, env, run).thenValue { s, e, values ->
+                val elements = (values as Term.List).elements
+
+                // `elixir_expand` keeps `{:{}, meta, [a, b]}` as that node, not as the pair `{a, b}`.
+                Expansion.Expanded(s, e, if (elements.size == 2) NODE else Term.Tuple(elements))
             }
     },
 

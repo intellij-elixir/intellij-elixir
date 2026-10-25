@@ -37,6 +37,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.GET_ATTRIBUTE_DEFAUL
 import org.elixir_lang.language_level.ElixirLanguageFeature.GET_ATTRIBUTE_DEFAULT_ONLY_UNSET
 import org.elixir_lang.language_level.ElixirLanguageFeature.INTEGERS_UP_TO_4_MBIT
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
+import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_SORT_KEEPS_EQUAL_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.RAISE_FRAME_TAKES_A_CAPTURE
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ESCAPE_MARKS_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
@@ -524,7 +525,161 @@ internal class Natives(private val evaluation: Evaluation) {
 
                 TRUE
             }
+            "sort/1" -> sort(args[0], functionClause)
             else -> null
+        }
+    }
+
+    /**
+     * `lists:sort/1` (`lists.erl:1084–1124`, `:3006–3050` at OTP-29.0.6; `:484–515` at OTP-24.3.4.6): a proper list is the
+     * stable sort of its elements in term order, which its merge gives. An improper list raises `function_clause` in the
+     * helper whose walk meets the tail, with the runs split so far, so that walk is ported clause by clause. Before
+     * [LISTS_SORT_KEEPS_EQUAL_ORDER], elements that compare equal but differ, such as `1` and `1.0`, are in the old
+     * split's order, and the walk's clauses are others, so both decline.
+     */
+    private fun sort(term: OtpErlangObject, functionClause: (String, List<OtpErlangObject>) -> Nothing): OtpErlangObject {
+        val (elements, tail) = cells(term) ?: functionClause("sort", listOf(term))
+
+        if (tail == null) {
+            val sorted = elements.sortedWith { left, right ->
+                ProgressManager.checkCanceled()
+
+                compare(left, right, level)
+            }
+
+            if (!LISTS_SORT_KEEPS_EQUAL_ORDER.isSufficient(level)) {
+                for (index in 1 until sorted.size) {
+                    ProgressManager.checkCanceled()
+
+                    val (left, right) = sorted[index - 1] to sorted[index]
+
+                    if (compare(left, right, level) == 0 && !equal(left, right, true, level)) {
+                        decline("lists:sort/1 of elements that compare equal before OTP 29")
+                    }
+                }
+            }
+
+            return list(sorted)
+        }
+
+        if (elements.size < 2) functionClause("sort", listOf(term))
+        if (!LISTS_SORT_KEEPS_EQUAL_ORDER.isSufficient(level)) decline("lists:sort/1 of an improper list before OTP 29")
+
+        val split = SortSplit(elements[0], elements[1])
+
+        for (z in elements.drop(2)) {
+            ProgressManager.checkCanceled()
+
+            split.next(z)
+        }
+
+        functionClause(split.helper, split.arguments(tail))
+    }
+
+    /**
+     * The state of `lists:sort/1`'s split walk: [helper], the function the walk is in, with its `X`, `Y`, `R`, `Rs` and
+     * `S`, from `sort/1`'s first two clauses of [first] and [second].
+     */
+    private inner class SortSplit(first: OtpErlangObject, second: OtpErlangObject) {
+        var helper: String
+        private var x = first
+        private var y = second
+        private var s: OtpErlangObject = EMPTY
+
+        // `R` and `Rs`, each with its head last.
+        private val r = mutableListOf<OtpErlangObject>()
+        private val rs = mutableListOf<OtpErlangObject>()
+
+        init {
+            val order = compare(x, y, level)
+
+            helper = when {
+                order < 0 -> "split_1"
+                order > 0 -> "split_2"
+                else -> {
+                    r += x
+                    x = y
+                    "sort_1"
+                }
+            }
+        }
+
+        /** The walk's clause for the next element, [z]. */
+        fun next(z: OtpErlangObject) {
+            when (helper) {
+                "sort_1" -> {
+                    val order = compare(x, z, level)
+
+                    when {
+                        order == 0 -> push(z)
+                        order < 0 -> {
+                            y = z
+                            helper = "split_1"
+                        }
+                        else -> {
+                            rs.add(list(r.toList()))
+                            r.clear()
+                            y = z
+                            helper = "split_2"
+                        }
+                    }
+                }
+                "split_1", "split_1_1" -> when {
+                    compare(z, y, level) >= 0 -> {
+                        push(y)
+                        y = z
+                    }
+                    compare(z, x, level) >= 0 -> push(z)
+                    helper == "split_1" && r.isEmpty() -> r += z
+                    helper == "split_1" -> {
+                        s = z
+                        helper = "split_1_1"
+                    }
+                    compare(z, s, level) >= 0 -> split("split_1", s, z)
+                    else -> split("split_1", z, s)
+                }
+                else -> when {
+                    compare(y, z, level) > 0 -> {
+                        push(y)
+                        y = z
+                    }
+                    compare(x, z, level) > 0 -> push(z)
+                    helper == "split_2" && r.isEmpty() -> r += z
+                    helper == "split_2" -> {
+                        s = z
+                        helper = "split_2_1"
+                    }
+                    compare(s, z, level) > 0 -> split("split_2", s, z)
+                    else -> split("split_2", z, s)
+                }
+            }
+        }
+
+        /** The helper's arguments where its list is [tail]. */
+        fun arguments(tail: OtpErlangObject): List<OtpErlangObject> {
+            val rTerm = list(r.asReversed())
+            val rsTerm = list(rs.asReversed())
+
+            return when (helper) {
+                "sort_1" -> listOf(x, tail, rTerm)
+                "split_1", "split_2" -> listOf(x, y, tail, rTerm, rsTerm)
+                else -> listOf(x, y, tail, rTerm, rsTerm, s)
+            }
+        }
+
+        /** `X` onto `R`, and [next] as `X`. */
+        private fun push(next: OtpErlangObject) {
+            r += x
+            x = next
+        }
+
+        /** `[Y, X | R]` onto `Rs`, and [helper] from [x] and [y] with an empty `R`. */
+        private fun split(helper: String, x: OtpErlangObject, y: OtpErlangObject) {
+            rs.add(cons(listOf(this.y, this.x), list(r.asReversed())))
+            r.clear()
+            this.helper = helper
+            this.x = x
+            this.y = y
         }
     }
 

@@ -214,13 +214,13 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
             "defmacro m, do: ($TREE {:def, [], [{:f, [], []}, [do: [t, {:unquote, [], [t]}]]]})",
         )
 
-    /** An implementation's definition stopped at a fragment checks as its fragments are filled. */
-    fun testAnImplementationsStoppedDefinitionIsChecked() =
+    /** An implementation's definition with a fragment checks as the walk finds and fills the fragment. */
+    fun testAnImplementationsDefinitionsFragmentsAreChecked() =
         assertChecked(
-            listOf("${EXPANDER}FillKt" to "collect"),
+            listOf("${EXPANDER}Unquotes" to "collect", "${EXPANDER}DefinitionKt" to "substitute"),
             LISTS / 2,
             "defmacro m, do: ($TREE {:defimpl, [], [Enumerable, [for: Integer], [do: {:def, [], [{:f, [], [{:_, [], nil}]}, " +
-                "[do: [t, {:unquote, [], [{:{}, [], [:a, :b, :c]}]}]]]}]]})",
+                "[do: [t, {:unquote, [], [:a]}]]]}]]})",
         )
 
     /** A delegation's large head checks as it is read for an unquote. */

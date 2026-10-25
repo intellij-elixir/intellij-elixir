@@ -298,6 +298,14 @@ internal class SplicedList<I, O>(
         tuple.elements.size == 3 && (view.shape(tuple.elements[0]) as? Shape.Atom)?.name == name
 }
 
+/** Whether [input] is a tuple whose first element is `unquote_splicing`. */
+internal fun <I> isSplicing(view: EscapeView<I>, input: I): Boolean =
+    (view.shape(input) as? Shape.Tuple)?.elements?.firstOrNull()?.let { (view.shape(it) as? Shape.Atom)?.name } == "unquote_splicing"
+
+/** `do_quote/2`'s pair rule: `{Left, Right}` is quoted as `{:{}, [], [Left, Right]}` where either [isSplicing]. */
+internal fun <I> isSplicingPair(view: EscapeView<I>, left: I, right: I): Boolean =
+    isSplicing(view, left) || isSplicing(view, right)
+
 /** The elements of [input] where it is a proper list. */
 private fun <I> properList(view: EscapeView<I>, input: I): List<I>? =
     (view.shape(input) as? Shape.List)?.takeIf { it.tail == null }?.elements
@@ -548,7 +556,7 @@ internal class QuoteEscape<I, O> private constructor(
 
     /** The two-element tuple heads of `do_quote/2`, [input] the pair where it is an input. */
     private fun pair(left: I, right: I, at: Meta?, unquote: Boolean, input: I? = null): O {
-        if (unquote && (isSplicing(left) || isSplicing(right))) {
+        if (unquote && isSplicingPair(view, left, right)) {
             // `do_quote({'{}', [], [Left, Right]}, Q)`, which `quote` reaches through the import head.
             val meta = quote?.let { q -> meta(q, q.importMeta(checkNotNull(input), emptyList(), "{}", 2)) } ?: build.list(emptyList())
             val quoted = lists.built(escapeList(listOf(left, right), null, unquote = true))
@@ -560,10 +568,6 @@ internal class QuoteEscape<I, O> private constructor(
 
         return build.tuple(listOf(tLeft, doQuote(right, unquote)))
     }
-
-    /** Whether [input] is a tuple whose first element is `unquote_splicing`. */
-    private fun isSplicing(input: I): Boolean =
-        (view.shape(input) as? Shape.Tuple)?.elements?.firstOrNull()?.let(::atomOf) == "unquote_splicing"
 
     /** `do_escape/2`. */
     private fun doEscape(input: I, shape: Shape<I>, unquote: Boolean): O =

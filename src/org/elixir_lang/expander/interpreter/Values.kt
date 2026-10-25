@@ -328,7 +328,10 @@ internal fun list(elements: List<OtpErlangObject>) = OtpErlangList(elements.toTy
  */
 internal fun cons(heads: List<OtpErlangObject>, tail: OtpErlangObject): OtpErlangObject =
     when {
-        heads.isEmpty() || tail === Unknown -> tail
+        heads.isEmpty() -> tail
+        tail is UnknownValue -> unknownOf(heads + tail)
+        // A list of bytes decodes as a string, which is as proper a tail as the list it is.
+        tail is OtpErlangString -> list(heads + cells(tail)!!.first)
         tail is OtpErlangList && tail.lastTail == null -> list(heads + tail.elements())
         tail is OtpErlangList -> OtpErlangList((heads + tail.elements()).toTypedArray(), tail.lastTail)
         else -> OtpErlangList(heads.toTypedArray(), tail)
@@ -525,8 +528,12 @@ internal fun truthy(term: OtpErlangObject): Boolean {
  * The code [value] is, as [ElixirAst.fromOtp] reads it, or `null` where it isn't code or the code would hold more than
  * [COPY_NODES] nodes.
  */
-internal fun codeOf(value: OtpErlangObject, origin: TextRange, values: Boolean = false): ElixirAst? =
-    ElixirAst.fromOtp(value, origin, values, nodes = COPY_NODES)
+internal fun codeOf(
+    value: OtpErlangObject,
+    origin: TextRange,
+    values: Boolean = false,
+    known: (OtpErlangObject) -> ElixirAst? = { null },
+): ElixirAst? = ElixirAst.fromOtp(value, origin, values, known, COPY_NODES)
 
 /**
  * [value] as the expander's [Term]: a float is [Term.NonTuple], and what a [Term] can't hold, an unknown value
@@ -546,8 +553,7 @@ private fun copiedTerm(value: OtpErlangObject): Term {
         is OtpErlangString ->
             Term.List(value.stringValue().codePoints().toArray().map { Term.Integer(BigInteger.valueOf(it.toLong())) })
         is OtpErlangList -> Term.List(value.elements().map(::copiedTerm), value.lastTail?.let(::copiedTerm))
-        is OtpErlangTuple ->
-            value.elements().map(::copiedTerm).let { if (it.size == 2) Term.Pair(it[0], it[1]) else Term.Tuple(it) }
+        is OtpErlangTuple -> tupleTerm(value.elements().map(::copiedTerm))
         else -> Term.Unexpanded
     }
 }
@@ -578,6 +584,10 @@ internal fun copyable(value: OtpErlangObject): Boolean {
 
 /** The most nodes a copy of an evaluated value may build. */
 private const val COPY_NODES = 1 shl 20
+
+/** A tuple of [elements] as the expander's [Term]: a [Term.Pair] of two, else a [Term.Tuple]. */
+internal fun tupleTerm(elements: List<Term>): Term =
+    if (elements.size == 2) Term.Pair(elements[0], elements[1]) else Term.Tuple(elements)
 
 /** An `{M, F, ArgsOrArity, []}` stacktrace entry. */
 internal fun frame(module: String, function: String, argsOrArity: OtpErlangObject): OtpErlangTuple =

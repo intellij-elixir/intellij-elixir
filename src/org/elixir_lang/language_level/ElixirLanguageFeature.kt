@@ -1678,6 +1678,14 @@ enum class ElixirLanguageFeature(
     HAS_UNQUOTES_NAME_AT_QUOTE_LEVEL(sinceElixir = "1.20.0-rc.5"),
 
     /**
+     * A definition's head and body are escaped together, as one tuple, when either has unquote fragments. Before it,
+     * the head is always escaped and the body only when the body itself has them.
+     *
+     * `elixir-lang/elixir@ee4e0be94` ("Reduce AST metadata compiled in definitions"), first released in v1.15.0-rc.0.
+     */
+    DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER(sinceElixir = "1.15.0-rc.0"),
+
+    /**
      * A bitstring segment whose value expands to a list or an atom raises `invalid_literal`.
      *
      * Removed by `elixir-lang/elixir@860f485bd` ("Inference of patterns", #13909), first released in v1.18.0-rc.0.
@@ -2473,6 +2481,15 @@ enum class ElixirLanguageFeature(
      * `erlang/otp@3346acf491` ("stdlib: Optimize fun usage"), first released in OTP 25.0-rc1.
      */
     LISTS_CHECK_THE_FUN_FIRST(sinceOtp = "25.0-rc1"),
+
+    /**
+     * `lists:sort/1` keeps elements that compare equal, such as `1` and `1.0`, in their order. Before it, its descending
+     * split took equal elements as descending, so a later one could come first, and its split walk's clauses differ.
+     *
+     * `erlang/otp@ef70fb039e` ("Fix stability in sort/1"), released in OTP 26.2.5.14, 27.3.4.2 and 28.0.2, and from
+     * 29.0-rc1. The patch releases are taken as without it, so they decline where they could answer.
+     */
+    LISTS_SORT_KEEPS_EQUAL_ORDER(sinceOtp = "29.0-rc1"),
 
     /**
      * `=:=` and matching tell `-0.0` from `0.0`, so a map holds both as keys, `-0.0` first.

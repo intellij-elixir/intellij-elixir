@@ -345,8 +345,11 @@ internal object Quote {
         Clause.entries.firstOrNull { it.matches(node, state, env, level) } == Clause.VARIABLE &&
             variableOutcome(node, state, level) == VariableOutcome.LocalCall
 
-    /** [node] with each node in it marked [Meta.built], for an expansion the observer is told of once already. */
-    private fun builtCopy(node: ElixirAst): ElixirAst {
+    /**
+     * [node] with each node in it marked [Meta.built]: an expansion the observer is told of once already, or code the
+     * expander made from a value.
+     */
+    fun builtCopy(node: ElixirAst): ElixirAst {
         ProgressManager.checkCanceled()
 
         val meta = node.meta.let { Meta(it.origin, it.start, it.end, it.keys, built = true) }

@@ -118,14 +118,13 @@ object Expander {
      * up to the first whose name isn't ported, where the file stops, unless a module before it ended the file's run.
      */
     private fun fastCompile(forms: ElixirAst, state: ExState, env: Env, run: Run): FileExpansion {
-        var stop: Expansion? = null
-
         run.fileStatements.add(forms)
 
         for (form in defmodules(forms)) {
             val (nameNode, options) = form.arguments!!
             val (name, isAtom) = fastName(nameNode, env, run.level) ?: run {
-                stop = Expansion.Unported(nameNode)
+                // The file stops at the name where its run reaches the `defmodule`.
+                run.pending += Pending.Check(form, ordered = true) { Expansion.Unported(nameNode) }
                 break
             }
             val contextModules =
@@ -138,9 +137,8 @@ object Expander {
         }
 
         val walked = compilePending(run)
-        val raised = walked.modules.lastOrNull()?.ended?.raises == true
 
-        return FileExpansion(walked.ended ?: stop?.takeUnless { raised } ?: Expansion.Expanded(state, env, NODE), walked.modules, walked.endsRun)
+        return FileExpansion(walked.ended ?: Expansion.Expanded(state, env, NODE), walked.modules, walked.endsRun)
     }
 
     /** `expand_defmodule/2`'s walk: each `defmodule` in [forms], into nested blocks. */

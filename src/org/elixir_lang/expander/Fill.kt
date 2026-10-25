@@ -5,16 +5,15 @@ import org.elixir_lang.lowering.ElixirAst
 import java.util.IdentityHashMap
 
 /**
- * [definition] with the unquote fragments the module body's variables hold, which the expander doesn't evaluate, replaced
- * by what the macro that queued it knows they hold: each `unquote(x)` whose [fragment] of `x` is a node is that node, and
- * each unquoted call name `Receiver.unquote(x)(...)` whose [name] of the call is an atom is `Receiver.atom(...)`. The
- * walk evaluates each fragment it has no value for, a splice or call name it has none for keeps the definition stuck,
- * and a [certain] one is a statement of the module body, as its `def` is where the macro runs it.
+ * [definition], which a `fn` of the macro's output defines, with the unquote fragments the `fn`'s variables hold replaced
+ * by what the macro that queued it knows they hold for one call: each `unquote(x)` whose [fragment] of `x` is a node is
+ * that node, and each unquoted call name `Receiver.unquote(x)(...)` whose [name] of the call is an atom is
+ * `Receiver.atom(...)`. The walk evaluates each fragment it has no value for, a splice or call name it has none for
+ * keeps the definition stuck, and the definition is a statement of the module body, as its `def` is where the `fn` runs.
  */
 internal fun filled(
     definition: Pending.Definition,
-    certain: Boolean = false,
-    name: (ElixirAst.Call) -> String? = { null },
+    name: (ElixirAst.Call) -> String?,
     fragment: (ElixirAst) -> ElixirAst?,
 ): Pending.Definition {
     val fragments = definition.fragments
@@ -56,9 +55,9 @@ internal fun filled(
         definition.node,
         definition.head,
         definition.body,
-        fragments?.let { Fragments(it.values, it.stop?.let { stop }, it.state, replacements) },
+        fragments?.let { Fragments(it.values, it.stop?.let { stop }, it.state, it.escapesBody, replacements, it.pairIsCall) },
         definition.env,
-        certain || definition.statement,
+        statement = true,
         definition.checksClauses,
         definition.delegatesTo,
         definition.injectedBy,

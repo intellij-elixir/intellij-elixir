@@ -1350,8 +1350,8 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
         )
 
-    /** A head with a splice has no arity the expander can read, so its `@doc` is an unnamed definition's. */
-    fun testADocBeforeASplicedHeadIsUnnamed() =
+    /** A head with a splice has the arity its value gives, so its `@doc` is that definition's. */
+    fun testADocBeforeASplicedHeadIsItsDefinitions() =
         assertEvery(
             """
             defmodule S do
@@ -1362,10 +1362,10 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
             """
             top expanded {} next 0
-            module Elixir.S stopped `unquote_splicing(args)`
+            module Elixir.S compiled
               write doc {3, "s"} `@doc "s"`
               final doc: :nil
-              attributes unnamed: doc "s"
+              attributes spliced/2: doc "s"
             """.trimIndent(),
         )
 

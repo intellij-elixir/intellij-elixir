@@ -324,6 +324,10 @@ internal class BodyValues(
             is PartsOutcome.Raises -> outcome.raise
         }
 
+    /** `elixir_quote:[function]/n` of [args], which the escape of a definition at [node] calls. */
+    fun quoteHelper(function: String, args: List<OtpErlangObject>, node: ElixirAst, state: ExState, env: Env, run: Run) =
+        recorded(Interpreter.quoteHelper(function, args, node, state, env, run), node, run)
+
     private fun recorded(evaluated: Evaluated, node: ElixirAst, run: Run): Evaluated =
         evaluated.also {
             if (it is Evaluated.Declined && !run.isPorted(node)) {
@@ -461,7 +465,7 @@ internal sealed interface Pending {
      * @property node the `def*` call
      * @property head the call and guard being defined
      * @property body the options, or `null` for a bodiless head
-     * @property fragments what the escape of [head] and [body] evaluates, or `null` where they have no unquotes
+     * @property fragments what the escape of [head] and [body] evaluates, or `null` where neither is escaped
      * @property env the env at [node]
      * @property statement whether [node] is a statement of the module body
      * @property checksClauses whether Elixir checks the definition for clauses: it has no unquotes, and its head
@@ -544,6 +548,14 @@ internal sealed interface Pending {
         val resolve: ((AttributeTable) -> org.elixir_lang.expander.Effect)? = null,
     ) : Pending
 
+    /**
+     * A check that reads no table, run where the walk reaches [node], in a module body or the file's top level.
+     *
+     * @property ordered whether [node] is a statement of the body or the file
+     * @property check gives `null`, or how the body ends there: the error it raises, or where it stops
+     */
+    class Check(val node: ElixirAst, val ordered: Boolean, val check: () -> Expansion?) : Pending
+
     /** `=`, a statement of a module body or of the file's top level, which the walk runs, binding what it matches. */
     class Match(val node: ElixirAst, val state: ExState, val env: Env) : Pending
 
@@ -560,6 +572,7 @@ internal fun Pending.isStatement(statements: Statements): Boolean =
     when (this) {
         is Pending.Definition -> statement
         is Pending.Effect -> ordered
+        is Pending.Check -> ordered
         is Pending.Attribute -> statement
         is Pending.Module -> statements.contains(node)
         is Pending.Match, is Pending.Statement -> true
@@ -572,6 +585,7 @@ internal val Pending.site: ElixirAst
         is Pending.Effect -> node
         is Pending.Module -> node
         is Pending.Attribute -> at
+        is Pending.Check -> node
         is Pending.Match -> node
         is Pending.Statement -> node
     }
@@ -583,6 +597,7 @@ internal fun Pending.asStatement(): Pending =
             Pending.Definition(kind, node, head, body, fragments, env, true, checksClauses, delegatesTo, injectedBy)
         is Pending.Effect -> Pending.Effect(node, true, queued, apply)
         is Pending.Attribute -> Pending.Attribute(effect, at, true, raises, resolve)
+        is Pending.Check -> Pending.Check(node, true, check)
         is Pending.Module, is Pending.Match, is Pending.Statement -> this
     }
 
@@ -599,8 +614,8 @@ internal fun Run.replacePending(from: Int, replacement: List<Pending>) {
 internal class Walked(val ended: Expansion?, val modules: List<ExpansionResult>, val endsRun: Boolean)
 
 /**
- * Each module [run]'s expansion so far defined, compiled in turn, and each `=` of the file's top level run in its place,
- * until one raises or reaches a raise from certain inputs, after which none is defined.
+ * Each module [run]'s expansion so far defined, compiled in turn, and each `=` and check of the file's top level run in
+ * its place, until one raises or reaches a raise from certain inputs, after which none is defined.
  */
 internal fun compilePending(run: Run): Walked {
     val modules = mutableListOf<ExpansionResult>()
@@ -611,6 +626,7 @@ internal fun compilePending(run: Run): Walked {
         ProgressManager.checkCanceled()
 
         val statement = pending.isStatement(values.statements)
+        var ordered = true
         var known = true
         val (raw, assumed) = run.assuming { when (pending) {
             is Pending.Module -> {
@@ -627,16 +643,21 @@ internal fun compilePending(run: Run): Walked {
                 null
             }
             is Pending.Match -> matched(pending, values, run)
+            is Pending.Check -> {
+                ordered = pending.ordered
+
+                pending.check()
+            }
             is Pending.Statement -> ran(pending, values, run)
             is Pending.Definition, is Pending.Effect, is Pending.Attribute -> null
         } }
 
         if (assumed) values.assumed(pending)
 
-        val ended = values.outcome(pending.site, raw, ordered = true, known)
+        val ended = values.outcome(pending.site, raw, ordered, known)
 
         // Nothing after a raise at a statement runs, whether or not Elixir raised where the file stopped before it.
-        if (raw is Expansion.Error) return Walked(stopped ?: ended, modules, true)
+        if (raw is Expansion.Error && statement) return Walked(stopped ?: ended, modules, true)
         if (ended is Expansion.Unported || ended is Expansion.Opaque) stopped = stopped ?: ended
     }
 
@@ -754,6 +775,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues): Ex
             val (raw, assumed) = run.assuming { when (pending) {
                 is Pending.Module if runEnded() -> null
                 is Pending.Effect if runEnded() -> null
+                is Pending.Check if runEnded() -> null
                 is Pending.Definition -> stoppedIfTooDeep(pending.node) {
                     val unquoted = unquoted(pending, compiling, run, evaluates = !runEnded())
 
@@ -800,6 +822,11 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues): Ex
                     }
                 }
                 is Pending.Match -> if (runEnded()) null else matched(pending, values, run)
+                is Pending.Check -> {
+                    ordered = pending.ordered
+
+                    pending.check()
+                }
                 is Pending.Statement -> if (runEnded()) null else ran(pending, values, run)
                 is Pending.Effect -> stoppedIfTooDeep(pending.node) {
                     ordered = pending.ordered
@@ -838,7 +865,8 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues): Ex
             // An error computed from the tables, where code Elixir may have run otherwise changed them, is assumed not to
             // happen: the walk goes on.
             val inputsCertain =
-                pending !is Pending.Definition && pending !is Pending.Effect || compiling.tablesCertain()
+                pending !is Pending.Definition && pending !is Pending.Effect && pending !is Pending.Check ||
+                    compiling.tablesCertain()
             val expansion = values.outcome(pending.site, raw, ordered, known)
             val unitEnded = expansion?.let { ended(it, run) }
 

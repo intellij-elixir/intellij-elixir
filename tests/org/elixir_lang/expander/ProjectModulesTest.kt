@@ -657,6 +657,25 @@ class ProjectModulesTest : PlatformTestCase() {
         assertSharedValueConvertsInBoundedWork("  def f, do: unquote(t)\n")
     }
 
+    /** A shared module-body value a definition splices converts in bounded work. */
+    fun testASharedValueADefinitionSplicesConvertsInBoundedWork() {
+        assertSharedValueConvertsInBoundedWork("  def f, do: [unquote_splicing([{:f, [], [t]}])]\n")
+    }
+
+    /**
+     * A shared module-body value in the call a definition's `Left.unquote(x)` names converts in bounded work. The
+     * definition is a macro's output, as a `Left.unquote(x)` with no parentheses can only be built.
+     */
+    fun testASharedValueADefinitionDotsConvertsInBoundedWork() {
+        add(
+            "b.ex",
+            "defmodule B do\n  defmacro m do\n" +
+                "    {:def, [], [{:f, [], []}, [do: {{:unquote, [], [:a]}, {{{:., [], [B, :unquote]}, [], [{:x, [], nil}]}, [], nil}}]]}\n" +
+                "  end\nend\n",
+        )
+        assertSharedValueConvertsInBoundedWork("  x = {:f, [], [t]}\n  require B\n  B.m()\n")
+    }
+
     /** A module body that applies [doubling] forty times to `t = []`, then runs [after], expands in [SHARED_VALUE_CHECKS]. */
     private fun assertSharedValueConvertsInBoundedWork(after: String, doubling: String = "t = {t, t}") {
         addLegElixir()

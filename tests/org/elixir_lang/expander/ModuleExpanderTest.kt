@@ -1053,7 +1053,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
         assertLevels(
             """
             defmodule A do
-              defmacrop m(:a), do: [unquote_splicing([1, 2])]
+              defmacrop m(:a), do: unquote(receive do after 0 -> 1 end)
               defmacrop m(x), do: x
               def f, do: m(:a)
               def g, do: m(:b)
@@ -1063,12 +1063,12 @@ class ModuleExpanderTest : ExpanderTestCase() {
         ) { version ->
             """
             top expanded {} next 0 context ${topContext(version, "Elixir.A")}
-            module Elixir.A stopped `unquote_splicing([1, 2])`
+            module Elixir.A stopped `unquote(receive do after 0 -> 1 end)`
               defmacrop m/1 line 2 clauses 2
               def f/0 line 4 clauses 1
               def g/0 line 5 clauses 1
-              body: expanded {} next 0 context [Elixir.A]
-              defmacrop m/1: unported `unquote_splicing([1, 2])`
+              body: expanded {} next ${if (isBefore(version, "1.20.0-rc.5")) 0 else 1} context [Elixir.A]
+              defmacrop m/1: unported `unquote(receive do after 0 -> 1 end)`
               defmacrop m/1: expanded {x:0} next 1
               def f/0: opaque local_macro Elixir.A.m/1 `m(:a)`
               def g/0: expanded {} next 0 value b
@@ -1976,6 +1976,17 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """.trimIndent()
         }
 
+    /** `store_definition/5` reads the name only after the head is unquoted: a head fragment that isn't a call raises. */
+    fun testAHeadFragmentThatIsNotACallRaises() =
+        assertLevels("defmodule S do\n  h = :h\n  def unquote(h)\nend", LEVELS) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.S")}
+            module Elixir.S raised invalid_def `def unquote(h)`
+              body: expanded {h:0} next 1 context [Elixir.S]
+              def unnamed: error invalid_def `def unquote(h)`
+            """.trimIndent()
+        }
+
     /**
      * After a match the evaluator can't run, which may have raised first, a later raise isn't the module's error, and
      * it ends the file's run as a raise does.
@@ -2005,6 +2016,21 @@ class ModuleExpanderTest : ExpanderTestCase() {
               def f/0 line 5 clauses 1
               body: expanded {l:17} next 21 context [Elixir.S]
               def f/0: expanded {} next 0
+            """.trimIndent()
+        }
+
+    /** A fragment whose value nests too deeply to convert stops its definition, as the evaluator's own overflow does. */
+    fun testAFragmentNestedTooDeeplyStops() =
+        assertLevels(
+            "defmodule S do\n  l = [1]\n  ${"l = l ++ l; ".repeat(DEEP_DOUBLINGS)}\n  t = :lists.foldl(fn x, acc -> {x, acc} end, nil, l)\n  def f, do: unquote(t)\nend",
+            listOf("1.20.4"),
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.S")}
+            module Elixir.S stopped `unquote(t)`
+              def f/0 line 5 clauses 1
+              body: expanded {l:17 t:21} next 22 context [Elixir.S]
+              def f/0: unported `unquote(t)`
             """.trimIndent()
         }
 
@@ -2058,11 +2084,41 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """.trimIndent()
         }
 
+    /** A macro's output holding a call whose name is an `unquote` and whose arguments are an atom raises, as Elixir rejects it as code. */
+    fun testAnUnquotedCallNameWithNoArgumentsRaises() =
+        assertLevels(
+            """
+            defmodule M do
+              defmacro m, do: {:def, [], [{:f, [], []}, [do: {{{:., [], [String, :unquote]}, [], [:upcase]}, [], nil}]]}
+            end
+
+            defmodule S do
+              require M
+              M.m()
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.S, Elixir.M")}
+            module Elixir.M compiled
+              defmacro m/0 line 2 clauses 1
+              body: expanded {} next 0 context [Elixir.M]
+              defmacro m/0: expanded {} next 0
+            module Elixir.S raised invalid_quoted_expr `M.m()`
+              body: expanded {} next 0 context ${if (isBefore(version, "1.13.0-rc.0")) "[Elixir.S, Elixir.M]" else "[Elixir.S]"}
+              def f/0: error invalid_quoted_expr `M.m()`
+            """.trimIndent()
+        }
+
     /**
      * `store_definition/5` reads the name and `length(Args)` after the splice, so a head one of whose arguments is a
-     * splice has no arity the expander can read. An `unquote` argument is still one.
+     * splice has the arity of the splice's value. A splice that is the whole head is a bodiless head of
+     * `unquote_splicing/1` before v1.15, skipped before 1.12; from v1.15 the head is an argument of the `{}` call
+     * `do_quote/2` makes of the pair, whose value a helper the light fixture can't run checks, and the store defines
+     * nothing.
      */
-    fun testAHeadWithASpliceRecordsNoArity() =
+    fun testAHeadWithASpliceTakesItsArityFromItsValue() =
         assertLevels(
             """
             defmodule S do
@@ -2072,7 +2128,6 @@ class ModuleExpanderTest : ExpanderTestCase() {
               def spliced(unquote_splicing(args)), do: :ok
               def spliced_after(a, unquote_splicing(args)), do: a
               def k(x, unquote_splicing([1, 2])), do: x
-              def unquote(h)
               def unquote_splicing(h)
               def f(a, unquote(b)), do: a
               def guarded(unquote_splicing(args)) when true, do: :ok
@@ -2081,26 +2136,48 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
             LEVELS,
         ) { version ->
-            """
-            top expanded {} next 0 context ${topContext(version, "Elixir.S")}
-            module Elixir.S stopped `unquote_splicing(args)`
-              def f/2 line 10 clauses 1
-              def g/2 line 12 clauses 1
-              def unnamed
-              def unnamed
-              def unnamed
-              def unnamed
-              def unnamed
-              body: expanded {args:0 b:2 h:1} next 3 context [Elixir.S]
-              def unnamed unordered: unported `unquote_splicing(args)`
-              def unnamed unordered: unported `unquote_splicing(args)`
-              def unnamed unordered: unported `unquote_splicing([1, 2])`
-              def unnamed unordered: unported `def unquote(h)`
-              def unnamed unordered: unported `unquote_splicing(h)`
-              def f/2 unordered: expanded {a:0} next 1
-              def unnamed unordered: unported `unquote_splicing(args)`
-              def g/2 unordered: expanded {a:0} next 1
-            """.trimIndent()
+            if (isBefore(version, "1.15.0-rc.0")) {
+                val ended = if (isBefore(version, "1.12.0-rc.1")) "compiled" else "raised function_head `def unquote_splicing(h)`"
+
+                """
+                top expanded {} next 0 context ${topContext(version, "Elixir.S")}
+                module Elixir.S $ended
+                  def spliced/2 line 5 clauses 1
+                  def spliced_after/3 line 6 clauses 1
+                  def k/3 line 7 clauses 1
+                  def unquote_splicing/1 line 8 clauses 0
+                  def f/2 line 9 clauses 1
+                  def guarded/2 line 10 clauses 1
+                  def g/2 line 11 clauses 1
+                  body: expanded {args:0 b:2 h:1} next 3 context [Elixir.S]
+                  def spliced/2: expanded {} next 0 value ok
+                  def spliced_after/3: expanded {a:0} next 1
+                  def k/3: expanded {x:0} next 1
+                  def unquote_splicing/1: expanded {} next 0
+                  def f/2: expanded {a:0} next 1
+                  def guarded/2: expanded {} next 0 value ok
+                  def g/2: expanded {a:0} next 1
+                """.trimIndent()
+            } else {
+                """
+                top expanded {} next 0 context ${topContext(version, "Elixir.S")}
+                module Elixir.S stopped `unquote_splicing(h)`
+                  def spliced/2 line 5 clauses 1
+                  def spliced_after/3 line 6 clauses 1
+                  def k/3 line 7 clauses 1
+                  def f/2 line 9 clauses 1
+                  def guarded/2 line 10 clauses 1
+                  def g/2 line 11 clauses 1
+                  body: expanded {args:0 b:2 h:1} next 3 context [Elixir.S]
+                  def spliced/2: expanded {} next 0 value ok
+                  def spliced_after/3: expanded {a:0} next 1
+                  def k/3: expanded {x:0} next 1
+                  def unnamed unordered: unported `unquote_splicing(h)`
+                  def f/2 unordered: expanded {a:0} next 1
+                  def guarded/2 unordered: expanded {} next 0 value ok
+                  def g/2 unordered: expanded {a:0} next 1
+                """.trimIndent()
+            }
         }
 
     /**
@@ -2162,11 +2239,24 @@ class ModuleExpanderTest : ExpanderTestCase() {
             "elixir_quote.dot/5, Elixir.Enum.max/1",
         )
 
+    /** The definition stops at the `receive`, so its body, which calls `Enum.max/1` when it runs, isn't expanded. */
     fun testTheReceiverOfAnUnquotedCallNameIsQuoted() =
         assertQuoteCalls(
-            "defmodule A do\n  def h(x), do: Enum.max([:a]).unquote(:b)(x)\nend",
+            "defmodule A do\n  def h(x), do: {Enum.max([:a]).unquote(:b)(x), unquote(receive do after 0 -> :u end)}\nend",
             "elixir_quote.dot/5",
         )
+
+    /** `do_quote_call` quotes the receiver of an unquoted call name, so a receiver that raises isn't run when the `def` is. */
+    fun testAQuotedReceiverOfAnUnquotedCallNameIsNotRun() =
+        assertLevels("defmodule A do\n  def h(x), do: :erlang.hd([]).unquote(:b)(x)\nend", LEVELS) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            module Elixir.A compiled
+              def h/1 line 2 clauses 1
+              body: expanded {} next 0 context [Elixir.A]
+              def h/1: expanded {x:0} next 1
+            """.trimIndent()
+        }
 
     /** A placeholder that stops expansion stops the definition holding it, as it does without the `unquote`, not the module body. */
     fun testAStoppingPlaceholderInADefinitionWithUnquotesStopsOnlyThatDefinition() {

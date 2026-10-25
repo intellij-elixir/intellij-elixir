@@ -130,6 +130,13 @@ internal object Interpreter {
             evaluation.bind(pattern, value, Frame(run.bodyClauses(env.module), values))
         }
 
+    /**
+     * `elixir_quote:[function]/n` of [args], the run-time helper the escape of a definition at [node] calls for a splice
+     * or an unquoted call name.
+     */
+    fun quoteHelper(function: String, args: List<OtpErlangObject>, node: ElixirAst, state: ExState, env: Env, run: Run): Evaluated =
+        evaluated(node, state, env, run) { evaluation -> evaluation.remote(atom("elixir_quote"), function, args) }
+
     private fun evaluated(node: ElixirAst, state: ExState, env: Env, run: Run, value: (Evaluation) -> OtpErlangObject): Evaluated =
         declining(run) { evaluatedIn(Evaluation(node, state, env, run), value) }
 
@@ -147,7 +154,8 @@ internal object Interpreter {
 
     private fun evaluatedIn(evaluation: Evaluation, value: (Evaluation) -> OtpErlangObject): Evaluated {
         return try {
-            unlessTooDeep({ Evaluated.Declined(Given()) }) {
+            // Where the stack overflows, which calls were given what isn't known.
+            unlessTooDeep({ Evaluated.Declined(Given().apply { all() }) }) {
                 Evaluated.Value(value(evaluation))
             }
         } catch (declined: Declined) {
