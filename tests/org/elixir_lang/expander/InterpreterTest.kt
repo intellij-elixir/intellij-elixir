@@ -4021,6 +4021,19 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "pure:lists-function-clause",
                 """
+            // Each iteration's definitions read the attribute as it is in that iteration.
+            macro(
+                "body:for-attribute-per-iteration",
+                """
+                for x <- [1, 2] do
+                  @v x
+                  defmacro unquote(:"m#{x}")(), do: @v
+                  def unquote(:"f#{x}")(), do: @v
+                end
+
+                defmacro m, do: [m1(), m2(), f1()]
+                """,
+            ),
                 defmacro m do
                   try do
                     :lists.map(fn x -> x end, [1 | 2])
@@ -6243,6 +6256,42 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
                 legs = { DEFSTRUCT_ESCAPES_STRUCT.isSufficient(it) },
+            ),
+            // A `for` in the module body defines once per element, each `def` with that element's bindings.
+            use(
+                "body:for-defines",
+                """
+                defmacro __using__(fields) do
+                  quote bind_quoted: [fields: fields] do
+                    for {name, default} <- fields do
+                      def unquote(name)(), do: unquote(default)
+                      def unquote(:"#{name}_or")(value), do: value || unquote(default)
+                    end
+                  end
+                end
+                """,
+                options = "port: 4000, host: \"localhost\"",
+            ),
+            // A `for` over a call the evaluator can't produce stops the module at the `for`: `__setup__/2` writes the
+            // module, and what the `for` defines isn't known.
+            use(
+                "body:for-setup-stop",
+                """
+                def __setup__(module, opts) do
+                  Module.register_attribute(module, :names, accumulate: true)
+                  Keyword.keys(opts)
+                end
+
+                defmacro __using__(opts) do
+                  quote bind_quoted: [opts: opts] do
+                    for name <- {row}.__setup__(__MODULE__, opts) do
+                      def unquote(name)(), do: unquote(name)
+                    end
+                  end
+                end
+                """,
+                options = "a: 1, b: 2",
+                stopsAfter = "{:for, [], [{:<-, [], [{:name, [], {token}.",
             ),
             // `elixir_quote:dot/5` joins the receiver, whose fragments are evaluated, to the evaluated name.
             use(
