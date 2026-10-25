@@ -843,7 +843,7 @@ class InterpreterTest : PlatformTestCase() {
         )
         assertFile(
             "defmodule A do\n  x = \"l\"\n  for e <- [1, 2], do: e + x\nend",
-            "top expanded\nmodule Elixir.A raised Elixir.ArithmeticError `for e <- [1, 2], do: e + x`",
+            "top expanded\nmodule Elixir.A raised Elixir.ArithmeticError `e + x`",
         )
     }
 
@@ -4692,7 +4692,6 @@ class InterpreterTest : PlatformTestCase() {
                   [conditional, imports]
                 end
                 """,
-                stopsAfter = "{:unquote, [], [{:prefix_match",
             ),
             use(
                 "use:helpers",

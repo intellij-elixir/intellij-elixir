@@ -1,9 +1,11 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangPid
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
+import org.elixir_lang.expander.interpreter.Binding
 import org.elixir_lang.expander.interpreter.Given
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAILED_COMPILE_PURGES_MODULE
@@ -56,18 +58,23 @@ object Expander {
      */
     private fun queueStatement(node: ElixirAst, expansion: Expansion.Expanded, from: Int, state: ExState, env: Env, run: Run) {
         val statements = run.statementsAt(env)
-            ?.takeIf { env.function == null && env.context == Env.Context.NONE && it.contains(node) }
+            ?.takeIf { env.function == null && env.context == Env.Context.NONE && (it.contains(node) || it.follows(node)) }
             ?: return
+        // A unit of a body the walk follows runs where the evaluator reaches it as the statement runs; one of a body it
+        // doesn't runs before the statement, from the body's own bindings.
+        val queued = run.pending.subList(from, run.pending.size).toList()
+        val (inner, before) = queued.partition { statements.follows(it.site) }
+        val statement = statements.contains(node)
 
         when {
-            isCall(node, "=", 2) -> run.pending += Pending.Match(node, state, env)
+            isCall(node, "=", 2) -> run.replacePending(from, before + Pending.Match(node, state, env, statement, inner))
             !statements.isWhole(node) || statements.isRewritten(node) -> Unit
-            run.pending.subList(from, run.pending.size).any { it.site === node } -> Unit
+            queued.any { it.site === node } -> Unit
             expansion.value == VARIABLE_NODE || isKnown(expansion.value) -> statements.inert(node)
             (run.dispatchesAt(env)?.of(node) as? ModuleClauses.Dispatched.Value)?.value?.let(::isKnown) == true ->
                 statements.inert(node)
             run.isPorted(node) -> statements.inert(node)
-            else -> run.pending += Pending.Statement(node, state, env)
+            else -> run.replacePending(from, before + Pending.Statement(node, state, env, statement, inner))
         }
     }
 
@@ -440,6 +447,18 @@ internal class Run(
 
     /** The definitions and modules the body being expanded defines, in the order it reached them. */
     var pending = mutableListOf<Pending>()
+
+    /**
+     * Each unit of a statement being run, by its node, to what runs it where the evaluator reaches the node, from the
+     * bindings the evaluator has there, giving the value the unit's code gives the code around it.
+     */
+    val reached = IdentityHashMap<ElixirAst, (HashMap<Binding, OtpErlangObject>) -> OtpErlangObject>()
+
+    /**
+     * How many declines the evaluator has gone on after, in a loop whose later iterations still run: Elixir may have
+     * raised in the iteration that declined, so a unit reached after one may never run.
+     */
+    var continuedDeclines = 0
 
     /**
      * What each call, bitstring segment and variable of a module body or the file's top level expanded as, which the

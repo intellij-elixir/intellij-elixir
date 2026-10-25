@@ -832,7 +832,7 @@ private fun isTupleOrAtom(node: ElixirAst): Boolean =
     }
 
 /** `{for, _, [_ | _]}`. */
-private fun isFor(node: ElixirAst): Boolean =
+internal fun isFor(node: ElixirAst): Boolean =
     node is ElixirAst.Call && (node.callee as? ElixirAst.Literal.Atom)?.name == "for" && !node.arguments.isNullOrEmpty()
 
 /**

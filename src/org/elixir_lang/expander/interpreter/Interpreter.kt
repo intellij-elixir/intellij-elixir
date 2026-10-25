@@ -159,7 +159,7 @@ internal object Interpreter {
                 Evaluated.Value(value(evaluation))
             }
         } catch (declined: Declined) {
-            Evaluated.Declined(declined.given, declined.holds)
+            Evaluated.Declined(declined.given, declined.holds, declined)
         } catch (thrown: Thrown) {
             val exception = try {
                 thrown.takeIf { it.kind == "error" }?.let(evaluation::exceptionModule)
@@ -182,8 +182,14 @@ internal sealed interface Evaluated {
     /**
      * The evaluator declined it, in calls [given] the modules being compiled they may have written. The value it didn't
      * give may hold what [holds] does ([Declined.holds][org.elixir_lang.expander.interpreter.Declined.holds]).
+     *
+     * @property declined the decline as the evaluator threw it, where it did: code after it may have [Declined.ended] it
      */
-    class Declined(val given: Given, val holds: List<OtpErlangObject> = emptyList()) : Evaluated
+    class Declined(
+        val given: Given,
+        val holds: List<OtpErlangObject> = emptyList(),
+        val declined: org.elixir_lang.expander.interpreter.Declined? = null,
+    ) : Evaluated
 }
 
 /**
@@ -537,6 +543,9 @@ internal class Evaluation(
     internal fun eval(node: ElixirAst, frame: Frame): OtpErlangObject {
         ProgressManager.checkCanceled()
 
+        // A unit of the statement being run, which the walk runs where the evaluator reaches it.
+        run.reached[node]?.let { return it(frame.vars) }
+
         return when (node) {
             is ElixirAst.Literal.Atom -> atom(node.name).also { atoms += node.name }
             is ElixirAst.Literal.Integer -> integer(node.value)
@@ -635,6 +644,7 @@ internal class Evaluation(
         try {
             iteration()
         } catch (declined: Declined) {
+            run.continuedDeclines++
             declines(declined)
             take(PartOutcome.Declines(declined))
         } catch (thrown: Thrown) {
