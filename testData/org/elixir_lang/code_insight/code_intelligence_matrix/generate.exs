@@ -176,7 +176,11 @@ defmodule Matrix do
   @use_quote_shapes %{
     "x_use_quote_location_keep" => {{"quote(location: :keep, do: (", "))"}, {"quote(unquote: false, location: :keep, do: (", "))"}},
     "x_use_quote_do_block" => {{"quote do: (", ")"}, {"quote do: (", "), unquote: false"}},
-    "x_use_quote_quoted_do" => {{~s[quote "do": (], ")"}, {~s[quote "do": (], "), unquote: false"}}
+    "x_use_quote_quoted_do" => {{~s[quote "do": (], ")"}, {~s[quote "do": (], "), unquote: false"}},
+    # A `bind_quoted` that is not a list written out: Elixir expands the options before it reads them, so the macro
+    # `binding()` is as good as a literal. A remote call around it or a variable is rejected. `bind_quoted` leaves
+    # `unquote` off, which a macro's quote wants as well.
+    "x_use_quote_bind_quoted_binding" => {{"quote bind_quoted: binding() do", "end"}, {"quote bind_quoted: binding() do", "end"}}
   }
   @use_quote_shape_worlds Map.keys(@use_quote_shapes)
   @use_rewritten_worlds @use_parens_worlds ++ @use_quote_wrapper_worlds ++ @use_quote_shape_worlds
