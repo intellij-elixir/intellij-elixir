@@ -116,6 +116,13 @@ internal class Compiling(
      */
     var written = false
 
+    /**
+     * Whether a module nested in it stopped ([Run.stopped]), or a callback that stop alone made possible may have run
+     * ([Run.calledBack]): what Elixir ran after the stop isn't followed, so its tables are read as unknown and what it
+     * defines isn't known, while a raise it computes from its tables still counts ([tablesCertain]).
+     */
+    var stoppedWithin = false
+
     /** Whether a definition's clauses read an attribute that an effect that may not run may have changed. */
     var readChanged = false
 
@@ -1208,7 +1215,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
     nameError(name, module.isAtom, run)?.let { kind ->
         return ExpansionResult(
             name, compiling.table, emptyList(), emptyList(), emptyList(),
-            ended(Expansion.Error(kind, module.node), values.known, run)!!,
+            ended(Expansion.Error(kind, module.node), values.known, compiling, run)!!,
             emptyList(), emptySet(), emptyList(), AttributeLog.EMPTY, null, certain = false,
             definitionsKnown = false,
         )
@@ -1237,7 +1244,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
 
     val body = expanded.certain(values.known)
 
-    compiling.ended = ended(expanded, values.known, run).skipping()
+    compiling.ended = ended(expanded, values.known, compiling, run).skipping()
     units += ExpansionResult.Unit(Owner.ModuleBody, module.body, true, body)
 
     // A body or callback that raised, or reached a raise that may be Elixir's, keeps the definitions it queued before
@@ -1293,9 +1300,6 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
                 if (stored !is Expansion.Error) {
                     takeDefinitionAttributes(pending, unquoted.head, owner as Owner.Definition, compiling)
                 }
-
-                // `run_on_definition_callbacks`: a user entry's code isn't followed.
-                if (!stepping.known && !runEnded()) run.unfollowed()
 
                 if (runEnded()) {
                     null
@@ -1382,17 +1386,23 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
         val inputsCertain =
             pending !is Pending.Definition && pending !is Pending.Effect && pending !is Pending.Check ||
                 compiling.tablesCertain()
-        // A definition's store raises before it runs the `@on_definition` callbacks, whose code isn't followed.
+        // A raise from certain inputs: Elixir raised there or before it.
+        val raised = raw is Expansion.Error && inputsCertain
+        // A definition's store raises before it runs the `@on_definition` callbacks, whose code isn't followed
+        // (`run_on_definition_callbacks`), and runs none where it raised.
         val raiseKnown = stepping.known || pending is Pending.Definition
+        if (pending is Pending.Definition && !stepping.known && !raised && !runEnded()) {
+            run.calledBack(compiling, "on_definition")
+        }
         val expansion = values.outcome(pending.site, raw, ordered, stepping.known, raiseKnown).stoppingAt(stopsAt)
-        val unitEnded = expansion?.let { ended(it, run) }
+        val unitEnded = expansion?.let { ended(it, compiling, run) }
 
         unit?.let { units += it(expansion!!) }
         compiling.ended = compiling.ended ?: unitEnded
 
         // A raise at a statement from certain inputs ends the module body's run, even after an earlier unit stopped:
         // Elixir raised there or before it, so a module that stopped may raise.
-        if (statement && raw is Expansion.Error && inputsCertain || stepping.ends) {
+        if (statement && raised || stepping.ends) {
             compiling.ended = (compiling.ended as? Ended.Stopped)?.copy(mayRaise = true) ?: compiling.ended
 
             return stepping.stepped(ends = true, endedDecline = null)
@@ -1430,7 +1440,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
         }
     }
 
-    storeNotOverridden(compiling, checked = compiling.ended == null)?.let { compiling.ended = ended(it, sure(), run, compiling.tablesCertain()) }
+    storeNotOverridden(compiling, checked = compiling.ended == null)?.let { compiling.ended = ended(it, sure(), compiling, run, compiling.tablesCertain()) }
 
     compiling.ended = when (val ended = compiling.ended) {
         null -> beforeCompile(module, compiling, (body as Expansion.Expanded).env, run, ::walk)
@@ -1439,11 +1449,11 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
     }
 
     // `eval_form/7` stores them again after the callbacks, which may have defined the other kind.
-    storeNotOverridden(compiling, checked = compiling.ended == null)?.let { compiling.ended = ended(it, sure(), run, compiling.tablesCertain()) }
+    storeNotOverridden(compiling, checked = compiling.ended == null)?.let { compiling.ended = ended(it, sure(), compiling, run, compiling.tablesCertain()) }
 
     if (compiling.ended == null) {
         compiling.ended =
-            postModule(module, compiling, tainted = run.errors.size > errorsFrom || errors.isNotEmpty(), run) { ended(it, sure(), run, compiling.tablesCertain()) }
+            postModule(module, compiling, tainted = run.errors.size > errorsFrom || errors.isNotEmpty(), run) { ended(it, sure(), compiling, run, compiling.tablesCertain()) }
     }
 
     errors += run.errors.subList(errorsFrom, run.errors.size)
@@ -1456,12 +1466,12 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
     val ended = compiling.ended ?: when {
         errors.isEmpty() -> Ended.Compiled
         sure() -> Ended.Tainted
-        else -> Ended.Stopped(errors.first().at, mayRaise = compiling.tablesCertain())
+        else -> run.stopped(compiling, errors.first().at, mayRaise = compiling.tablesCertain())
     }
 
     // `compile/6`'s `@after_compile` entries are code the expander doesn't follow.
     if ((ended == Ended.Compiled || ended is Ended.Stopped) && compiling.attributes.callsBack("after_compile")) {
-        run.unfollowed()
+        run.calledBack(compiling, "after_compile")
     }
 
     val result = ExpansionResult(
@@ -1480,7 +1490,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
         // run once the whole file has compiled.
         certain = ended == Ended.Compiled && sure() && !compiling.attributes.callsBack("after_compile"),
         definitionsKnown = ended == Ended.Compiled && values.placed && compiling.tablesCertain() &&
-            !compiling.attributes.callsBack("after_compile"),
+            !compiling.stoppedWithin && !compiling.attributes.callsBack("after_compile"),
     )
 
     run.load(result, placed) { ModuleClauses.of(result.module, compiling, run.virtualFile) }
@@ -1531,15 +1541,15 @@ private fun applied(effect: Effect, statement: Boolean, compiling: Compiling, ru
 internal fun Expansion.certain(isCertain: Boolean, node: ElixirAst? = null): Expansion =
     if (!isCertain && this is Expansion.Error) Expansion.Unported(node ?: at) else this
 
-/** How a unit's [expansion] ends its module, if it does. */
-private fun ended(expansion: Expansion, run: Run): Ended? =
+/** How a unit's [expansion] ends its module, [compiling], if it does. */
+private fun ended(expansion: Expansion, compiling: Compiling, run: Run): Ended? =
     when (expansion) {
         is Expansion.Expanded -> null
         is Expansion.Error ->
             run.crash?.takeIf { it.error === expansion }?.let { Ended.Crashed(expansion, it.exception) }
                 ?: Ended.Raised(expansion)
-        is Expansion.Unported -> Ended.Stopped(expansion.at)
-        is Expansion.Opaque -> Ended.Stopped(expansion.at)
+        is Expansion.Unported -> run.stopped(compiling, expansion.at)
+        is Expansion.Opaque -> run.stopped(compiling, expansion.at)
     }
 
 /**
@@ -1547,11 +1557,11 @@ private fun ended(expansion: Expansion, run: Run): Ended? =
  * module's only where it [isCertain]; otherwise the module stops at it, and may raise there where it is computed from
  * certain inputs ([inputsCertain]).
  */
-private fun ended(expansion: Expansion, isCertain: Boolean, run: Run, inputsCertain: Boolean = true): Ended? =
+private fun ended(expansion: Expansion, isCertain: Boolean, compiling: Compiling, run: Run, inputsCertain: Boolean = true): Ended? =
     if (!isCertain && expansion is Expansion.Error) {
-        Ended.Stopped(expansion.at, mayRaise = inputsCertain)
+        run.stopped(compiling, expansion.at, mayRaise = inputsCertain)
     } else {
-        ended(expansion, run)
+        ended(expansion, compiling, run)
     }
 
 /** This ending, where it is a stop, as one that [skipped][Ended.Stopped.skipped] what Elixir runs after it. */
@@ -1590,12 +1600,12 @@ private fun beforeCompile(
     val atom = { name: String -> ElixirAst.Literal.Atom(meta, name) }
     var callbackEnv = env
 
-    for ((index, entry) in (entries ?: return Ended.Stopped(write() ?: module.node).skipping()).withIndex()) {
+    for ((index, entry) in (entries ?: return run.stopped(compiling, write() ?: module.node).skipping()).withIndex()) {
         val pair = entry as? Term.Pair
         val receiver = (pair?.first as? Term.Atom)?.name
         val name = (pair?.second as? Term.Atom)?.name
 
-        if (receiver == null || name == null) return Ended.Stopped(write() ?: module.node).skipping()
+        if (receiver == null || name == null) return run.stopped(compiling, write() ?: module.node).skipping()
 
         if (receiver to name in module.applied) continue
 
@@ -1613,7 +1623,7 @@ private fun beforeCompile(
         }
 
         compiling.values.expanded(expansion, assumed)
-        compiling.ended = ended(expansion, compiling.values.certainAt(call), run).skipping()
+        compiling.ended = ended(expansion, compiling.values.certainAt(call), compiling, run).skipping()
         walk(run.pending)
         // A stop in what the output queued leaves the callbacks after it unrun.
         compiling.ended?.let { return if (index < entries.lastIndex) it.skipping() else it }
@@ -1626,12 +1636,12 @@ private fun beforeCompile(
 /**
  * [module], being compiled, where its table and attributes are Elixir's at this point in its body, or `null` where they
  * may differ. They may for a module not being compiled, for which Elixir raises; after code the expander doesn't follow
- * may have written it ([Compiling.written]); and after a stop of the module itself, which may hide a change to them.
- * Another module's stop leaves them known, unless the call it stopped at was given this module, as a macro expanded
- * while this module compiles is through its caller's env ([Run.unfollowed]).
+ * may have written it ([Compiling.written]); after a module nested in it stopped ([Compiling.stoppedWithin]); and after
+ * a stop of the module itself, which may hide a change to them. A sibling's or an earlier module's stop leaves them
+ * known: its body ran before this one's.
  */
 internal fun Run.compilingKnown(module: String): Compiling? =
-    compiling[module]?.takeUnless { it.written || it.ended != null }
+    compiling[module]?.takeUnless { it.written || it.stoppedWithin || it.ended != null }
 
 /**
  * The modules being compiled that a call's module argument reaches: the one named [module], `null` for it where it isn't
@@ -1645,13 +1655,44 @@ internal fun Run.compilingNamed(module: String?): List<Compiling?> =
  * expansion nests too deeply to follow, may have written every module being compiled: each encloses it, since a run
  * compiles one file and a module that finished compiling can't be written, and a module it was given is one of them.
  */
-internal fun Run.unfollowed() = mayHaveWritten(compiling.values)
+internal fun Run.unfollowed() = mayHaveWritten(open())
+
+/** The modules being compiled, each enclosing the code running now, with [except] left out. */
+private fun Run.open(except: Compiling? = null): List<Compiling> = compiling.values.filter { it !== except }
+
+/**
+ * Code a stop left unfollowed may have run while the modules being compiled, [except] one, were open: their tables are
+ * read as unknown and what they define isn't known ([Compiling.stoppedWithin]), while a raise one computes from its
+ * tables still counts.
+ */
+private fun Run.stoppedWithin(except: Compiling? = null) {
+    for (module in open(except = except)) {
+        module.attributes.stopped()
+        module.stoppedWithin = true
+    }
+}
+
+/**
+ * [compiling]'s callbacks through [name] ran, code the expander doesn't follow: where its body's own writes make an
+ * entry possible, they may have written every module being compiled ([unfollowed]); where an entry is possible only
+ * because a stop left the attributes unknown, they are that stop's unfollowed code ([stoppedWithin]).
+ */
+private fun Run.calledBack(compiling: Compiling, name: String) =
+    if (compiling.attributes.callsBackByItsWrites(name)) unfollowed() else stoppedWithin()
 
 /**
  * [block], code Elixir runs while it compiles, or [gaveUp] where that code nests too deeply for the thread's stack
  * ([unlessTooDeep]): the code never run may have written every module being compiled ([unfollowed]).
  */
 internal inline fun <T> Run.unlessTooDeepToRun(gaveUp: () -> T, block: () -> T): T = unlessTooDeep({ unfollowed(); gaveUp() }, block)
+
+/**
+ * A stop of [stopping] at [at], which [mayRaise] there: what Elixir runs after it in the module isn't followed, so every
+ * module whose body encloses the module, the ones being compiled around it, is marked ([stoppedWithin]); the module's
+ * own tables are unknown through the stop itself ([compilingKnown]).
+ */
+private fun Run.stopped(stopping: Compiling, at: ElixirAst, mayRaise: Boolean = false): Ended.Stopped =
+    Ended.Stopped(at, mayRaise).also { stoppedWithin(except = stopping) }
 
 /**
  * Code the expander doesn't follow may have written each of [modules], being compiled: none of their attributes or
@@ -1715,7 +1756,7 @@ private fun postModule(
 
                 reportOrEnd(check.site, check.at, env, run)?.let { return ending(it) }
             }
-            PostModuleCheck.Stop -> return Ended.Stopped(module.node)
+            PostModuleCheck.Stop -> return run.stopped(compiling, module.node)
         }
     }
 

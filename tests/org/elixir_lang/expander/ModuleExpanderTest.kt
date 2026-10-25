@@ -2588,6 +2588,116 @@ class ModuleExpanderTest : ExpanderTestCase() {
         }
 
     /**
+     * A module nested in another stops, and the enclosing module's first definition then raises. The nested module's
+     * stop leaves what Elixir runs after it unfollowed, so the enclosing module's tables are read as unknown and what
+     * it defines isn't known, but Elixir raises at that definition all the same: the file's run ends there and the
+     * module after it is never compiled.
+     */
+    fun testANestedModulesStopLeavesTheEnclosingModulesRaiseCertain() =
+        assertLevels(
+            """
+            defmodule M do
+              defmodule N do
+                def $UNNAMED(), do: 1
+              end
+              def __info__(x), do: 1
+            end
+
+            defmodule L do
+              def h, do: 1
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top unported `$UNNAMED`
+            module Elixir.M stopped `$UNNAMED`
+              body: expanded {} next 0 context [Elixir.M.N, Elixir.M]
+              def __info__/1: unported `def __info__(x), do: 1`
+            """.trimIndent() + "\n" + nestedStopped(version)
+        }
+
+    /**
+     * After a module nested in it stops, the enclosing module's `@on_definition` entries aren't known, so a definition
+     * it stores after the stop may run a callback the expander doesn't follow. That callback is possible only through
+     * the stop, so it marks the module as the stop does: a raise computed from its tables after that definition is still
+     * certain, as Elixir's at the `defmacro` is, and the module after it is never compiled.
+     */
+    fun testADefinitionStoredAfterANestedStopLeavesALaterRaiseFromTheTableCertain() =
+        assertLevels(
+            """
+            defmodule M do
+              defmodule N do
+                def $UNNAMED(), do: 1
+              end
+              def f, do: 1
+              defmacro f, do: 1
+            end
+
+            defmodule L do
+              def h, do: 1
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top unported `$UNNAMED`
+            module Elixir.M stopped `$UNNAMED`
+              def f/0 line 5 clauses 1
+              body: expanded {} next 0 context [Elixir.M.N, Elixir.M]
+              def f/0: expanded {} next 0
+              defmacro f/0: unported `defmacro f, do: 1`
+            """.trimIndent() + "\n" + nestedStopped(version)
+        }
+
+    /**
+     * After a module nested in it stops, a module's `@after_compile` entries aren't known, so its end may run a callback
+     * the expander doesn't follow, possible only through the stop: it marks the modules enclosing it as the stop does,
+     * and the outermost module's raise at its first definition is still certain, so the module after it is never
+     * compiled.
+     */
+    fun testANestedModulesPossibleAfterCompileCallbackLeavesTheEnclosingModulesRaiseCertain() =
+        assertLevels(
+            """
+            defmodule O do
+              defmodule M do
+                defmodule N do
+                  def $UNNAMED(), do: 1
+                end
+              end
+              def __info__(x), do: 1
+            end
+
+            defmodule L do
+              def h, do: 1
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top unported `$UNNAMED`
+            module Elixir.O stopped `$UNNAMED`
+              body: expanded {} next 0 context [Elixir.O.M, Elixir.O]
+              def __info__/1: unported `def __info__(x), do: 1`
+              module Elixir.O.M stopped `$UNNAMED`
+                body: expanded {} next 0 context [Elixir.O.M.N, Elixir.O.M, Elixir.O]
+                module Elixir.O.M.N stopped `$UNNAMED`
+                  def unnamed
+                  body: expanded {} next ${if (isBefore(version, "1.20.0-rc.5")) 0 else 1} context [Elixir.O.M.N, Elixir.O.M, Elixir.O]
+                  def unnamed unordered: unported `$UNNAMED`
+            """.trimIndent()
+        }
+
+    /** `M.N`'s rendering where it stops at [UNNAMED]: from 1.20.0-rc.5 its body's counter counts the definition. */
+    private fun nestedStopped(version: String) =
+        """
+          module Elixir.M.N stopped `$UNNAMED`
+            def unnamed
+            body: expanded {} next ${if (isBefore(version, "1.20.0-rc.5")) 0 else 1} context [Elixir.M.N, Elixir.M]
+            def unnamed unordered: unported `$UNNAMED`
+        """.trimIndent().prependIndent("  ")
+
+    /**
      * A body that raises stores its definitions with no clause expanded, so no macro of theirs runs, as Elixir raises
      * `CompileError` for the module before it evaluates any of the body.
      */
@@ -3243,6 +3353,9 @@ class ModuleExpanderTest : ExpanderTestCase() {
     private fun source(code: String, node: ElixirAst) = node.meta.origin.substring(code)
 
     /** The file's `context_modules` after only [module]: empty on the fast path from 1.13. */
+    /** A definition whose name the evaluator can't produce, which stops the module. */
+    private val UNNAMED = "unquote((receive do after 0 -> :g end))"
+
     private fun topContext(version: String, module: String) =
         if (isBefore(version, "1.13.0-rc.0")) "[$module]" else "[]"
 

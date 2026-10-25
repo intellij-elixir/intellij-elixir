@@ -103,6 +103,12 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
     private val unknown = mutableSetOf<String>()
     private var everyUnknown = false
 
+    /**
+     * Whether a module nested in the body stopped ([stopped]): what Elixir ran after it may have written every
+     * attribute.
+     */
+    private var stopped = false
+
     // What an effect that may not run may have written or deleted: a subset of what is unknown, which also holds what a
     // statement wrote that the expander can't hold.
     private val changed = mutableSetOf<String>()
@@ -159,6 +165,16 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
         callbackFunction(name) != null &&
             values(name).any { (it as? AttributeValue.Known)?.term != COMPILE_DEFINITION_ATTRIBUTES }
 
+    /**
+     * Whether the body's own writes have Elixir call back through [name] ([callsBack]): an entry it wrote, or a write
+     * the expander didn't follow may have written ([unknownByWrite]). A stop of a module nested in the body alone also
+     * leaves an entry possible, which this leaves aside.
+     */
+    fun callsBackByItsWrites(name: String): Boolean =
+        callbackFunction(name) != null &&
+            (unknownByWrite(name) ||
+                written(name).any { (it as? AttributeValue.Known)?.term != COMPILE_DEFINITION_ATTRIBUTES })
+
     /** The function Elixir calls on a module written to `@name`, `null` where `@name` is no callback at this level. */
     private fun callbackFunction(name: String): String? =
         CALLBACKS[name]?.takeIf { name != "after_verify" || AFTER_VERIFY_ACCUMULATES.isSufficient(level) }
@@ -184,7 +200,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
 
     /** [name]'s row at this point, as `Module.get_attribute/3` and `Module.__get_attribute__` read it. */
     fun lookup(name: String): Lookup {
-        if (everyUnknown || name in unknown) return Lookup.Holds(AttributeValue.Unknown)
+        if (isUnknown(name)) return Lookup.Holds(AttributeValue.Unknown)
 
         return when (entries[name]) {
             null -> Lookup.Absent
@@ -197,7 +213,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
      * Whether [name] has a row at this point, as `Module.has_attribute?/2` finds it (`:ets.member/2`), or `null` where an
      * effect that may not run may have written or deleted it.
      */
-    fun has(name: String): Boolean? = if (everyUnknown || name in unknown) null else name in entries
+    fun has(name: String): Boolean? = if (isUnknown(name)) null else name in entries
 
     /** Whether an effect that may not run may have written or deleted [name]. */
     fun mayHaveChanged(name: String): Boolean = everyChanged || name in changed
@@ -219,7 +235,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
      * may still set it.
      */
     fun take(name: String): AttributeValue? {
-        if (everyUnknown || name in unknown) return AttributeValue.Unknown
+        if (isUnknown(name)) return AttributeValue.Unknown
         if (name !in entries) return null
 
         return value(name).also { entries.remove(name) }
@@ -229,14 +245,31 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
      * `lookup_attribute`, as the checks after the module body read [name]: each value written, oldest first, none where
      * it isn't set, and one unknown value where it may have been written.
      */
-    fun values(name: String): List<AttributeValue> {
-        if (everyUnknown || name in unknown) return listOf(AttributeValue.Unknown)
+    fun values(name: String): List<AttributeValue> =
+        if (isUnknown(name)) listOf(AttributeValue.Unknown) else written(name)
 
-        return when (val entry = entries[name]) {
+    /** Each value the body wrote to [name], oldest first, none where it isn't set. */
+    private fun written(name: String): List<AttributeValue> =
+        when (val entry = entries[name]) {
             null, Entry.Unset -> emptyList()
             is Entry.Set -> listOf(entry.value)
             is Entry.Accumulate -> entry.values
         }
+
+    /**
+     * Whether [name]'s value may differ from what the table holds: a module nested in the body stopped, or code the
+     * expander didn't follow may have written it ([unknownByWrite]).
+     */
+    private fun isUnknown(name: String): Boolean = stopped || unknownByWrite(name)
+
+    /** Whether a write the expander didn't follow, to [name] or to every attribute, may have changed it. */
+    private fun unknownByWrite(name: String): Boolean = everyUnknown || name in unknown
+
+    /**
+     * A module nested in the body stopped: what Elixir ran after it, which may write every attribute, isn't followed.
+     */
+    fun stopped() {
+        stopped = true
     }
 
     /**
@@ -245,7 +278,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
      * whose values are in the bag.
      */
     fun row(name: String): AttributeValue? {
-        if (everyUnknown || name in unknown) return AttributeValue.Unknown
+        if (isUnknown(name)) return AttributeValue.Unknown
 
         return when (val entry = entries[name]) {
             null -> null
@@ -260,7 +293,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
      * accumulating attribute stops accumulating, and holds the row's `[]`.
      */
     fun used(name: String) {
-        if (everyUnknown || name in unknown) return
+        if (isUnknown(name)) return
 
         if (entries[name] is Entry.Accumulate) entries[name] = Entry.Set(AttributeValue.Known(Term.List(emptyList())))
     }
@@ -270,7 +303,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
      * of them, or whether a write ran, isn't known.
      */
     fun heads(name: String): List<NameArity>? {
-        if (everyUnknown || name in unknown) return null
+        if (isUnknown(name)) return null
 
         return heads[name].orEmpty().map { it ?: return null }
     }
@@ -281,7 +314,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
     }
 
     private fun value(name: String): AttributeValue {
-        if (everyUnknown || name in unknown) return AttributeValue.Unknown
+        if (isUnknown(name)) return AttributeValue.Unknown
 
         return when (val entry = entries[name]) {
             null, Entry.Unset -> AttributeValue.Known(NIL)
@@ -420,7 +453,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
 
         return when {
             // A write that may run more than once, or follow one that may not have run, may or may not be the second.
-            !statement || everyUnknown || "on_load" in unknown -> Prepared.Store.Unchecked(prepared)
+            !statement || isUnknown("on_load") -> Prepared.Store.Unchecked(prepared)
             "on_load" in entries -> Prepared.Raise
             term == null -> Prepared.Store.Unchecked(prepared)
             else -> Prepared.Store.Checked(prepared)

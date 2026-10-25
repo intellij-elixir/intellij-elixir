@@ -1266,24 +1266,23 @@ class ProjectModulesTest : PlatformTestCase() {
 
     /**
      * A module that stops with no `@before_compile` callbacks, at code given no module, leaves none unrun: a module its
-     * file holds only in a quote that nothing runs is absent.
+     * file holds only in a quote that nothing runs is absent. A module nested in it that stops marks it as possibly
+     * written, as what Elixir runs after the stop isn't followed, so the name is then unreadable, not absent.
      */
-    fun testAStopInAModuleWithNoBeforeCompileCallbacksLeavesOtherNamesAbsent() {
+    fun testAStopLeavesANameItsQuoteHoldsAbsentUnlessANestedModuleStops() {
         addLegElixir()
         val a = add("a.ex", "")
         val b = add("b.ex", IMPORTS_FOO)
 
         val wrong = listOf(
-            "  def unquote((receive do after 0 -> :g end))(), do: 1\n",
-            "  defmodule I do\n    def unquote((receive do after 0 -> :g end))(), do: 1\n  end\n",
-        ).mapNotNull { body ->
+            "  def unquote((receive do after 0 -> :g end))(), do: 1\n" to "Elixir.B raised unloaded_module `import Foo`",
+            "  defmodule I do\n    def unquote((receive do after 0 -> :g end))(), do: 1\n  end\n" to "Elixir.B stopped `import Foo`",
+        ).mapNotNull { (body, endedB) ->
             edit(project, a, "defmodule O do\n  def q do\n    quote do\n${foo("def f, do: 1")}    end\n  end\n${body}end\n")
             val renderedA = render(a, expansion(holder, a))
             val renderedB = render(b, expansion(holder, b))
 
-            "$renderedA\n$renderedB".takeUnless {
-                renderedA.contains("\nElixir.O stopped `") && renderedB.contains("Elixir.B raised unloaded_module `import Foo`")
-            }
+            "$renderedA\n$renderedB".takeUnless { renderedA.contains("\nElixir.O stopped `") && renderedB.contains(endedB) }
         }
 
         assertEquals("", wrong.joinToString("\n\n"))
@@ -2364,6 +2363,38 @@ class ProjectModulesTest : PlatformTestCase() {
 
         edit(project, a, "defmodule A do\n  x = true\n  if x do\n    defstruct [:a]\n  end\nend\n")
         assertEquals("if-defstruct-loaded", "Present [__struct__/0, __struct__/1]", describe(exports(ProjectModules(project), b, "Elixir.A")))
+    }
+
+    /**
+     * A module nested in another stops at `require W` where `W`'s exports can't be read, before the clause's `W.w()` is
+     * expanded. Elixir runs `W.w()`, which writes the enclosing module, so from there on the enclosing module's tables
+     * aren't known, and a later read of them declines rather than giving the value from before.
+     */
+    fun testAStopAtAnUnreadableModuleMarksTheEnclosingModules() {
+        addLegElixir()
+        add("sw.ex", "defmodule SW do\n  cond do\n    true -> def f, do: 1\n  end\n\n  defmacro w, do: Module.put_attribute(Enum.at(__CALLER__.context_modules, 1), :x, :b)\nend\n")
+        add("sr.ex", "defmodule SR do\n  defmacro r(module, key), do: Module.get_attribute(module, key)\nend\n")
+        val two = "defmodule Two do\n    require SR\n    def unquote(SR.r(:\"Elixir.SM\", :x))(), do: 1\n  end"
+        val stopping = "defmodule N do\n    def f do\n      require SW\n      SW.w()\n    end\n  end"
+        val unnamed = "defmodule N do\n    def unquote((receive do after 0 -> :g end))(), do: 1\n    Module.put_attribute(:\"Elixir.SM\", :x, :b)\n  end"
+        val m = add("sm.ex", "defmodule SM do\n  Module.put_attribute(__MODULE__, :x, :a)\n\n  $two\nend\n")
+        val b = add("sb.ex", "defmodule SB do\n  def f, do: SM.Two.b()\nend\n")
+
+        assertEquals("Unreadable", describe(exports(ProjectModules(project), b, "Elixir.SW")))
+        // The control: with nothing writing `SM`, `Two` reads `:a`, Elixir's answer.
+        assertEquals("Present [a/0]", describe(exports(ProjectModules(project), b, "Elixir.SM.Two")))
+
+        // `Two` a sibling of `N`: `N`'s unit of `SM`'s body isn't certain, so the read after it declined before too.
+        for ((label, nested) in listOf("clause stop" to stopping, "body stop" to unnamed)) {
+            edit(project, m, "defmodule SM do\n  Module.put_attribute(__MODULE__, :x, :a)\n\n  $nested\n\n  $two\nend\n")
+            assertEquals(label, "Unreadable", describe(exports(ProjectModules(project), b, "Elixir.SM.Two")))
+        }
+
+        // `Two` nested in `N` after the stop, where `N`'s run goes on: only the mark declines the read.
+        for ((label, nested) in listOf("clause stop" to stopping, "body stop" to unnamed)) {
+            edit(project, m, "defmodule SM do\n  Module.put_attribute(__MODULE__, :x, :a)\n\n  ${nested.removeSuffix("\n  end")}\n\n    $two\n  end\nend\n")
+            assertEquals("$label, nested read", "Unreadable", describe(exports(ProjectModules(project), b, "Elixir.SM.N.Two")))
+        }
     }
 
     /**
