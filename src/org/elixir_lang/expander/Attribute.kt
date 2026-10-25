@@ -79,7 +79,9 @@ private fun typespec(name: String, args: List<ElixirAst>, node: ElixirAst.Call, 
     val spec = args.firstOrNull() ?: return Returned.Ended(Expansion.Unported(node))
     val escaped = when (val escape = Quote.escape(spec, node.meta, run)) {
         is Quote.Escaped.Built -> escape.node
+        is Quote.Escaped.Unread -> return Returned.Ended(escape.expansion)
         is Quote.Escaped.Stopped -> return Returned.Ended(escape.expansion)
+        is Quote.Escaped.Raised -> return Returned.Ended(Expansion.Error(escape.exception, node))
     }
     val built = Built(node.meta)
 
@@ -145,6 +147,7 @@ private fun read(name: String, node: ElixirAst.Call, env: Env, run: Run): Return
         val compiling = run.compiling[module] ?: return Returned.Ended(Expansion.Unported(node))
         val value = compiling.attributes.read(name)
 
+        if (compiling.attributes.mayHaveChanged(name)) compiling.readChanged = true
         compiling.read(name, node, value)
 
         return Returned.Value(value)
@@ -214,11 +217,16 @@ internal fun takeFile(definition: Pending.Definition, compiling: Compiling): Att
 }
 
 /**
- * `Module.compile_definition_attributes/6` (`Mod:1852–1977`), which Elixir runs once [definition] is stored: its
- * `@impl`, `@deprecated` and `@doc` taken and recorded against it. A definition that isn't a statement of the module
- * body may be stored at any point, so every later read of what it takes is unknown.
+ * `Module.compile_definition_attributes/6` (`Mod:1852–1977`), which Elixir runs once [definition] is stored with
+ * [head], its fragments evaluated: its `@impl`, `@deprecated` and `@doc` taken and recorded against it. A definition
+ * that isn't a statement of the module body may be stored at any point, so every later read of what it takes is unknown.
  */
-internal fun takeDefinitionAttributes(definition: Pending.Definition, owner: Owner.Definition, compiling: Compiling) {
+internal fun takeDefinitionAttributes(
+    definition: Pending.Definition,
+    head: ElixirAst,
+    owner: Owner.Definition,
+    compiling: Compiling,
+) {
     val attributes = compiling.attributes
     val kind = owner.kind
     val impl = attributes.take("impl")
@@ -269,7 +277,7 @@ internal fun takeDefinitionAttributes(definition: Pending.Definition, owner: Own
     }
 
     if (deprecated != null) {
-        val call = extractGuards(definition.head).first
+        val call = extractGuards(head).first
         val defaults = (call as? ElixirAst.Call)?.arguments.orEmpty().count { isCall(it, "\\\\", 2) }
 
         for (defaultArity in arity - 1 downTo arity - defaults) {

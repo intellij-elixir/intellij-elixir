@@ -15,6 +15,7 @@ import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.util.TextRange
 import org.elixir_lang.NameArity
+import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
@@ -74,14 +75,17 @@ class EscapePortTest {
         )
     }
 
-    /** Before 1.15 a map of more than 32 keys is in its hashes' order, which no term decides. */
+    /**
+     * Before 1.15 a map of more than 32 keys is in its hashes' order, which no term decides: Elixir escapes it, in an
+     * order the port can't give.
+     */
     @Test
-    fun aMapOfMoreThan32KeysDeclinesBefore115() {
+    fun aMapOfMoreThan32KeysIsUnreadBefore115() {
         val entries = { size: Int -> (1..size).map { long(it.toLong()) to long(it.toLong()) }.toTypedArray() }
         val written = { size: Int -> (1..size).joinToString(",", "{'%{}',[],[", "]}") { "{$it,$it}" } }
 
         assertEscaped(map(*entries(32)), written(32))
-        assertEscaped(map(*entries(33)), "declined", "1.15.0-rc.1" to written(33))
+        assertEscaped(map(*entries(33)), "unread", "1.15.0-rc.1" to written(33))
     }
 
     @Test
@@ -126,16 +130,58 @@ class EscapePortTest {
         assertEscaped(map(PID to long(1), OtpErlangPid("nonode@nohost", 2, 0, 0) to tuple(REF)), "raise ArgumentError")
     }
 
-    /** Keys with no order decline where nothing raises. */
+    /** Keys with no order are escaped in an order the port can't give, where nothing raises. */
     @Test
-    fun aMapKeyedByPidsDeclines() =
-        assertEscaped(map(PID to long(1), OtpErlangPid("nonode@nohost", 2, 0, 0) to long(2)), "declined")
+    fun aMapKeyedByPidsIsUnread() =
+        assertEscaped(map(PID to long(1), OtpErlangPid("nonode@nohost", 2, 0, 0) to long(2)), "unread")
 
     @Test
     fun aPidIsItself() =
         LEGS.forEach { leg ->
             assertEquals(leg, EscapeResult.Built(PID), terms(leg).escape(PID))
         }
+
+    /** Elixir's output holds the pid itself; code can't, so the escape into code reads what it can't write. */
+    @Test
+    fun aPidIsUnreadWhereTheOutputIsCode() = assertEquals("unread", code(PID))
+
+    /**
+     * The escape walks past a term it can't read to what comes later in Elixir's order, where Elixir raises or the port
+     * declines; it is unread only where nothing else happens.
+     */
+    @Test
+    fun anUnreadTermDoesNotHideALaterRaiseOrDecline() {
+        assertEquals("raise ArgumentError", code(tuple(Unknown, long(1), REF)))
+        assertEquals("declined", code(tuple(splicing(atom("xs")), long(1), Unknown), unquote = true))
+        assertEquals("unread", code(tuple(long(1), long(2), Unknown)))
+    }
+
+    /** An unread term before a map with no order doesn't hide what the map's own entries raise. */
+    @Test
+    fun anUnreadTermBeforeAMapWithNoOrderDoesNotHideItsRaise() =
+        assertEscaped(tuple(Unknown, long(1), map(PID to long(1), OtpErlangPid("nonode@nohost", 2, 0, 0) to tuple(REF))), "raise ArgumentError")
+
+    /**
+     * A map with no order whose entries hold a term the port can't read and one that raises declines: the unread term
+     * may raise too, first. The raise is the map's own, so a later term's raise isn't what Elixir raises.
+     */
+    @Test
+    fun aMapWithNoOrderHoldingAnUnreadTermAndARaiseDeclines() {
+        val unordered = map(long(1) to Unknown, OtpErlangDouble(1.0) to FUN)
+
+        assertEquals("declined", code(unordered))
+        assertEquals("declined", code(tuple(improper(splicing(list(long(1))), tail = atom("t")), long(0), unordered), unquote = true))
+    }
+
+    /**
+     * From 1.19 a map whose `__struct__` isn't known escapes as `__escape__/1` or as a plain map, so where an entry
+     * raises, which happens isn't known.
+     */
+    @Test
+    fun aMapWhoseStructIsUnknownDeclinesWhereAnEntryRaises() {
+        assertEquals("declined", code(map(atom("__struct__") to Unknown, atom("a") to FUN)))
+        assertEquals("unread", code(map(atom("__struct__") to Unknown, atom("a") to long(1))))
+    }
 
     @Test
     fun pruningKeepsLineAndNoParensAndFrom118Delimiter() =
@@ -358,11 +404,11 @@ class EscapePortTest {
         assertEquals("[{'|',[],[1,2]}]", code(Term.List(listOf(Term.Integer(1.toBigInteger())), tail = Term.Integer(2.toBigInteger()))))
 
     @Test
-    fun aDefaultsUnknownPartDeclines() {
-        assertEquals("declined", code(Term.List(listOf(Term.Node(Term.Node.Kind.VARIABLE)))))
-        assertEquals("declined", code(Term.Binary(null)))
-        assertEquals("declined", code(Term.NonTuple))
-        assertEquals("declined", code(Term.Unexpanded))
+    fun aDefaultsUnknownPartIsUnread() {
+        assertEquals("unread", code(Term.List(listOf(Term.Node(Term.Node.Kind.VARIABLE)))))
+        assertEquals("unread", code(Term.Binary(null)))
+        assertEquals("unread", code(Term.NonTuple))
+        assertEquals("unread", code(Term.Unexpanded))
     }
 
     @Test
@@ -400,11 +446,18 @@ class EscapePortTest {
             written(it.toOtp())
         }
 
+    /** [term], an interpreter value, escaped into code at 1.20.4. */
+    private fun code(term: OtpErlangObject, unquote: Boolean = false): String =
+        rendered(QuoteEscape(TermEscapeView, AstEscapeBuilder(S), { null }, ElixirLanguageLevel.of("1.20.4"), EXPORTS, unquote = unquote).escape(term)) {
+            written(it.toOtp())
+        }
+
     private fun <O> rendered(result: EscapeResult<O>, write: (O) -> String = { written(it as OtpErlangObject) }): String =
         when (result) {
             is EscapeResult.Built -> write(result.value)
             is EscapeResult.Raised -> "raise " + result.exception.removePrefix("Elixir.")
-            is EscapeResult.Declined -> "declined"
+            is EscapeResult.Unread -> "unread"
+            EscapeResult.Declined -> "declined"
         }
 
     private fun splicing(expr: OtpErlangObject) = tuple(atom("unquote_splicing"), list(), list(expr))
@@ -419,6 +472,8 @@ class EscapePortTest {
         val PID = OtpErlangPid("nonode@nohost", 1, 0, 0)
 
         val REF = OtpErlangRef("nonode@nohost", intArrayOf(1, 2, 3), 0)
+
+        val FUN = OtpErlangFun(PID, "Elixir.M", 0, 0, emptyArray())
 
         val REGEX = map(atom("__struct__") to atom("Elixir.Regex"), atom("source") to binary("a"))
 

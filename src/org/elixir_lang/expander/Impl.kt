@@ -13,8 +13,7 @@ import java.util.IdentityHashMap
 /**
  * `Kernel.defimpl/2,3`, which is `Protocol.__impl__/4`: the options merged and `:for` taken from them, the protocol and
  * the type expanded as literals, and one `defmodule` of the output for each type a list names. The module's name is
- * computed by `Protocol.__concat__/2` when the body runs, which the macro supplies to `defmodule`; and the definitions
- * that unquote the protocol and the type, which only the body running binds, are settled with their atoms.
+ * computed by `Protocol.__concat__/2` when the body runs, which the macro supplies to `defmodule`.
  */
 internal val DEFIMPL = Summary { _, node, state, env, run ->
     val arguments = node.arguments!!
@@ -23,7 +22,7 @@ internal val DEFIMPL = Summary { _, node, state, env, run ->
 
     when {
         options == null || env.context != Env.Context.NONE || compiling == null && env.module != null -> Expansion.Unported(node)
-        else -> defimpl(node, arguments[0], options, compiling, state, env, run)
+        else -> defimpl(node, arguments[0], options, state, env, run)
     }
 }
 
@@ -55,7 +54,6 @@ private fun defimpl(
     node: ElixirAst.Call,
     protocol: ElixirAst,
     options: ImplOptions,
-    compiling: Compiling?,
     state: ExState,
     env: Env,
     run: Run,
@@ -123,18 +121,6 @@ private fun defimpl(
 
     val output = output(expandedFor)
     val protocolName = namedBy(expandedProtocol, state, env, run)
-    val protocolNode = protocolName?.let(s::atom) ?: expandedProtocol
-
-    if (compiling == null && protocolName != null) {
-        // Elixir expands the whole file and then runs it, so the check comes after the forms before the call, which aren't
-        // compiled yet and one of which can make the protocol available, and after the forms after it expand: a check that
-        // fails isn't answered.
-        if (run.pending.any { it is Pending.Module && it.name == protocolName }) return Expansion.Unported(node)
-
-        if (assertProtocol(protocolName, node, run, "impl_not_available", "impl_not_a_protocol") is Asserted.Failed) {
-            return Expansion.Unported(node)
-        }
-    }
 
     // `Protocol.__concat__/2` runs when the body does; the macro knows its value where both are atoms.
     val supplied = IdentityHashMap<ElixirAst, Term>()
@@ -151,26 +137,13 @@ private fun defimpl(
     }
 
     val from = run.pending.size
-    val expansion = expandQuoted(node, KERNEL, output, state, env, run, supplied = supplied)
+    val expansion = expandQuoted(node, KERNEL, output, state, env, run, supplied = supplied, ports = true)
 
     if (expansion is Expansion.Expanded && protocolName != null) {
         val queued = run.pending.subList(from, run.pending.size).toList()
-        var next = 0
+        val ordered = run.statementsAt(env)?.contains(node) == true
 
-        if (queued.count { it is Pending.Module } == outputs.size) {
-            run.replacePending(
-                from,
-                queued.flatMap { entry ->
-                    if (entry is Pending.Module) {
-                        val type = outputs[next++].type
-
-                        implemented(entry, node, protocolName, protocolNode, namedBy(type, state, env, run)?.let(s::atom) ?: type, compiling, run)
-                    } else {
-                        listOf(entry)
-                    }
-                },
-            )
-        }
+        run.replacePending(from, queued.flatMap { entry -> if (entry is Pending.Module) checked(entry, node, protocolName, ordered, run) else listOf(entry) })
     }
 
     return expansion
@@ -197,50 +170,13 @@ private fun namedBy(node: ElixirAst, state: ExState, env: Env, run: Run): String
 }
 
 /**
- * The entries the output queued for one implementation: the module, settled with the protocol and the type its
- * definitions unquote, and, in a module body, the check of the protocol that runs before it.
+ * One implementation's module, after the check of the protocol that runs before it, where the body or the file runs
+ * it, so after the modules before it compile, one of which can make the protocol available.
  */
-private fun implemented(
-    module: Pending.Module,
-    node: ElixirAst.Call,
-    protocolName: String,
-    protocol: ElixirAst,
-    type: ElixirAst,
-    compiling: Compiling?,
-    run: Run,
-): List<Pending> {
-    val settled = Pending.Module(
-        module.node, module.name, module.isAtom, module.body, module.env, module.state,
-        settle = { pending -> ImplTail(protocol, type).settled(pending) },
-        applied = module.applied,
-        injectedBy = module.injectedBy,
-    )
+private fun checked(module: Pending.Module, node: ElixirAst.Call, protocolName: String, ordered: Boolean, run: Run): List<Pending> {
+    val check = Pending.Check(node, ordered) {
+        (assertProtocol(protocolName, node, run, "impl_not_available", "impl_not_a_protocol") as? Asserted.Failed)?.expansion
+    }
 
-    if (compiling == null) return listOf(settled)
-
-    val check = Pending.Effect(
-        node,
-        ordered = compiling.isStatement(node),
-        apply = { _, _ -> (assertProtocol(protocolName, node, run, "impl_not_available", "impl_not_a_protocol") as? Asserted.Failed)?.expansion },
-    )
-
-    return listOf(check, settled)
-}
-
-/** What the implementation module queued that unquotes the protocol and the type, the body's own variables. */
-private class ImplTail(private val protocol: ElixirAst, private val type: ElixirAst) {
-    fun settled(pending: List<Pending>): List<Pending> =
-        pending.map { entry ->
-            if (entry is Pending.Definition && entry.stop != null) {
-                filled(entry) { argument ->
-                    when {
-                        isProtocolVariable(argument, "protocol") -> protocol
-                        isProtocolVariable(argument, "for") -> type
-                        else -> null
-                    }
-                }
-            } else {
-                entry
-            }
-        }
+    return listOf(check, module)
 }

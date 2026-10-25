@@ -207,7 +207,7 @@ class AttributeTableTest {
         assertTrace(
             "1.20.4",
             Write("x", int(1)) to null,
-            UnknownEffect to null,
+            UnknownEffect to UNCHECKED,
             read("x") to "unexpanded",
             read("never") to "unexpanded",
         )

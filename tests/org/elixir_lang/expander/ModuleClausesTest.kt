@@ -324,7 +324,8 @@ class ModuleClausesTest : ExpanderTestCase() {
             """,
         )
 
-    fun testADefinitionThatMayNotBeElixirsIsUnknown() =
+    /** Elixir may not define a definition the body may not run, so what the module defines isn't read. */
+    fun testAModuleWithADefinitionThatMayNotBeElixirsHasNoClauses() =
         assertClauses(
             """
             defmodule A do
@@ -335,11 +336,7 @@ class ModuleClausesTest : ExpanderTestCase() {
               def g, do: 2
             end
             """,
-            """
-            module Elixir.A from a.ex
-              def f/0 unknown
-              def g/0: () -> 2
-            """,
+            "",
         )
 
     fun testAModuleThatDoesNotLoadHasNoClauses() =

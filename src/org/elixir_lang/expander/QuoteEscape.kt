@@ -17,11 +17,16 @@ import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
+import org.elixir_lang.expander.interpreter.COPY_NODES
+import org.elixir_lang.expander.interpreter.UnknownBinary
+import org.elixir_lang.expander.interpreter.codeOf
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_BINARY_SPEC_IS_A_NAME
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_QUOTED_APART
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_SORTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPE_HEADS_NEED_LIST_META
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPE_PRUNE_KEEPS_DELIMITER
+import org.elixir_lang.language_level.ElixirLanguageFeature.HAS_UNQUOTES_NAME_AT_QUOTE_LEVEL
+import org.elixir_lang.language_level.ElixirLanguageFeature.HAS_UNQUOTES_QUOTE_AWARE
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_EXTENSION_META_ESCAPED
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_META_DROPS_COLUMN
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTED_DEF_CONTEXT_SKIPS_GUARD
@@ -32,6 +37,8 @@ import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
 import java.math.BigInteger
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /** What a term is, as the heads of `elixir_quote`'s escape match on it, with its parts as the input [I] holds them. */
 internal sealed interface Shape<out I> {
@@ -62,8 +69,12 @@ internal sealed interface Shape<out I> {
     /** A value only a compiler builds, put in the output as it is. */
     data object Verbatim : Shape<Nothing>
 
-    /** A term the input doesn't know, at the node [at] where it has one. */
-    class Unknown(val at: ElixirAst? = null) : Shape<Nothing>
+    /**
+     * A term the input doesn't know, at the node [at] where it has one.
+     *
+     * @property list whether it may be a list
+     */
+    class Unknown(val at: ElixirAst? = null, val list: Boolean = true) : Shape<Nothing>
 }
 
 /** A map's entry, with the terms its key and value are, which order it. */
@@ -72,6 +83,15 @@ internal class MapEntry<I>(val key: I, val value: I, val keyTerm: OtpErlangObjec
 /** Reads an input as the [Shape] of the term it stands for. */
 internal fun interface EscapeView<I> {
     fun shape(input: I): Shape<I>
+
+    /** What [input] is the same term as wherever it is met: itself, unless [shape] wraps the parts it gives afresh. */
+    fun identity(input: I): Any? = input
+
+    /**
+     * [input] as the code `unquote` puts in: itself, or for a term the port holds only as a term, that term read as
+     * code; `null` where the term isn't code or is too large to copy.
+     */
+    fun code(input: I): I? = input
 }
 
 /** Builds the escape's output, the code that evaluates to the escaped term. A builder decides nothing. */
@@ -112,8 +132,14 @@ internal sealed interface EscapeResult<out O> {
     /** Elixir raises [exception], the text of its module's atom, such as `Elixir.ArgumentError`. */
     data class Raised(val exception: String) : EscapeResult<Nothing>
 
-    /** The input holds a term the escape doesn't know, at the node [at] where it has one. */
-    data class Declined(val at: ElixirAst?) : EscapeResult<Nothing>
+    /**
+     * The input holds a term the port can't read, or one the output can't hold, at the node [at] where it has one;
+     * Elixir escapes it as it is, and nothing it escapes after it raises or is declined.
+     */
+    data class Unread(val at: ElixirAst?) : EscapeResult<Nothing>
+
+    /** The escape builds what the port doesn't: a `{}` call of a spliced tuple, or a struct's own `__escape__/1`. */
+    data object Declined : EscapeResult<Nothing>
 }
 
 /** `#elixir_quote.op` for an escape. */
@@ -231,12 +257,14 @@ internal sealed interface Listed<out O> {
 
 /**
  * `do_quote_tail/2`, `do_quote_splice/4` and `do_list_concat/2`, which `quote` and an escape with `unquote` share:
- * the `quote` each method is given quotes an element that isn't spliced, and [insert] puts an unquoted expression or metadata in as it is.
+ * the `quote` each method is given quotes an element that isn't spliced, [insert] puts metadata in as it is, and
+ * [expression] a spliced expression.
  */
 internal class SplicedList<I, O>(
     private val view: EscapeView<I>,
     private val build: EscapeBuilder<O>,
     private val insert: (I) -> O,
+    private val expression: (I) -> O,
 ) {
     /** `do_quote_tail/2` over [reversed], a list's elements last first. */
     fun tail(reversed: List<I>, quote: (I) -> O): Listed<O> {
@@ -246,7 +274,7 @@ internal class SplicedList<I, O>(
         val tt = splice(reversed.drop(1), quote)
         val tr = quote(barArgs[1])
 
-        return Listed.Expression(runtime(bar, "tail_list", listOf(insert(left), tr, built(tt))))
+        return Listed.Expression(runtime(bar, "tail_list", listOf(expression(left), tr, built(tt))))
     }
 
     /** `do_quote_splice/4` over [reversed], a list's elements last first. */
@@ -259,7 +287,7 @@ internal class SplicedList<I, O>(
             val expr = splicing?.let(::splicedExpr)
 
             if (expr != null) {
-                acc = runtime(splicing, "list", listOf(insert(expr), built(concat(buffer, acc))))
+                acc = runtime(splicing, "list", listOf(expression(expr), built(concat(buffer, acc))))
                 buffer = ArrayDeque()
             } else {
                 buffer.addFirst(quote(element))
@@ -298,9 +326,105 @@ internal class SplicedList<I, O>(
         tuple.elements.size == 3 && (view.shape(tuple.elements[0]) as? Shape.Atom)?.name == name
 }
 
+/** Whether [input] is a tuple whose first element is `unquote_splicing`. */
+internal fun <I> isSplicing(view: EscapeView<I>, input: I): Boolean =
+    (view.shape(input) as? Shape.Tuple)?.elements?.firstOrNull()?.let { (view.shape(it) as? Shape.Atom)?.name } == "unquote_splicing"
+
+/** `do_quote/2`'s pair rule: `{Left, Right}` is quoted as `{:{}, [], [Left, Right]}` where either [isSplicing]. */
+internal fun <I> isSplicingPair(view: EscapeView<I>, left: I, right: I): Boolean =
+    isSplicing(view, left) || isSplicing(view, right)
+
 /** The elements of [input] where it is a proper list. */
 private fun <I> properList(view: EscapeView<I>, input: I): List<I>? =
     (view.shape(input) as? Shape.List)?.takeIf { it.tail == null }?.elements
+
+/** `lists:any/2`'s `FunctionClauseError` on an improper list none of whose elements holds an unquote. */
+internal class ImproperList : RuntimeException(null, null, false, false)
+
+/**
+ * `elixir_quote:has_unquotes/1` over the terms [view] reads, code and a macro's terms alike. A call with no argument
+ * list holds none. Before [HAS_UNQUOTES_QUOTE_AWARE] any `unquote` does. From it, one inside a `quote` does only if it
+ * unquotes past it, a `quote` whose options disable unquoting holds none, and the options aren't read; a call's name is
+ * read outside any `quote` until [HAS_UNQUOTES_NAME_AT_QUOTE_LEVEL], and at the call's own level from it. A tuple or
+ * list is read once at each quote level, as a macro's term may hold one many times. An improper list raises
+ * [ImproperList] unless an element before its tail holds an unquote. A term the input doesn't know holds none.
+ */
+internal class HasUnquotes<I>(private val view: EscapeView<I>, level: ElixirLanguageLevel) {
+    private val quoteAware = HAS_UNQUOTES_QUOTE_AWARE.isSufficient(level)
+    private val nameAtQuoteLevel = HAS_UNQUOTES_NAME_AT_QUOTE_LEVEL.isSufficient(level)
+    private val read = IdentityHashMap<Any, MutableMap<Int, Boolean>>()
+
+    fun has(input: I, quoteLevel: Int = 0): Boolean {
+        ProgressManager.checkCanceled()
+
+        val identity = view.identity(input)
+
+        identity?.let { read[it]?.get(quoteLevel) }?.let { return it }
+
+        val shape = view.shape(input)
+
+        if (shape !is Shape.Tuple && shape !is Shape.List) return false
+
+        val has = if (shape is Shape.Tuple) tuple(shape.elements, quoteLevel) else any(shape as Shape.List, quoteLevel)
+
+        identity?.let { read.getOrPut(it, ::HashMap)[quoteLevel] = has }
+
+        return has
+    }
+
+    private fun tuple(elements: List<I>, quoteLevel: Int): Boolean {
+        if (elements.size == 2) return has(elements[0], quoteLevel) || has(elements[1], quoteLevel)
+        if (elements.size != 3) return false
+
+        val name = elements[0]
+        val atom = atomName(name)
+        val arguments = view.shape(elements[2])
+        val list = arguments as? Shape.List
+        val proper = list?.takeIf { it.tail == null }?.elements
+        val single = proper?.singleOrNull()
+
+        return when {
+            quoteAware && atom == "quote" && single != null -> has(single, quoteLevel + 1)
+            quoteAware && atom == "quote" && proper?.size == 2 -> !disablesUnquote(proper[0]) && has(proper[1], quoteLevel + 1)
+            (atom == "unquote" || atom == "unquote_splicing") && single != null -> quoteLevel == 0 || has(single, quoteLevel - 1)
+            single != null && isUnquotedName(name) -> true
+            atom != null && arguments is Shape.Atom -> false
+            list != null -> has(name, if (nameAtQuoteLevel) quoteLevel else 0) || any(list, quoteLevel)
+            else -> false
+        }
+    }
+
+    /** `lists:any/2` over [list]'s elements, then its tail. */
+    private fun any(list: Shape.List<I>, quoteLevel: Int): Boolean {
+        if (list.elements.any { has(it, quoteLevel) }) return true
+        if (list.tail != null && (view.shape(list.tail) as? Shape.Unknown)?.list != true) throw ImproperList()
+
+        return false
+    }
+
+    /** `{'.', _, [_, unquote]}`. */
+    private fun isUnquotedName(name: I): Boolean {
+        val dot = (view.shape(name) as? Shape.Tuple)?.elements?.takeIf { it.size == 3 && atomName(it[0]) == "." } ?: return false
+
+        return properList(view, dot[2])?.takeIf { it.size == 2 }?.let { atomName(it[1]) } == "unquote"
+    }
+
+    /** `disables_unquote/1`: whether the options hold `unquote: false` or `bind_quoted:`, read up to any improper tail. */
+    private fun disablesUnquote(options: I): Boolean =
+        (view.shape(options) as? Shape.List)?.elements.orEmpty().any { option ->
+            ProgressManager.checkCanceled()
+
+            val pair = (view.shape(option) as? Shape.Tuple)?.elements?.takeIf { it.size == 2 }
+
+            when (pair?.let { atomName(it[0]) }) {
+                "unquote" -> atomName(pair[1]) == "false"
+                "bind_quoted" -> true
+                else -> false
+            }
+        }
+
+    private fun atomName(input: I) = (view.shape(input) as? Shape.Atom)?.name
+}
 
 /**
  * `elixir_quote:do_quote/2` from `escape/3`, or from `quote/2` where [quote] is given: [view] reads each input, [build]
@@ -339,25 +463,100 @@ internal class QuoteEscape<I, O> private constructor(
         unquote: Boolean,
     ) : this(view, build, insert, level, exports, EscapeOp.Escape, quote, unquote)
 
-    private val lists = SplicedList(view, build, ::inserted)
+    private val lists = SplicedList(view, build, ::inserted, ::expression)
 
-    fun escape(input: I): EscapeResult<O> =
-        try {
-            EscapeResult.Built(doQuote(input, unquote))
+    fun escape(input: I): EscapeResult<O> {
+        unread = false
+        unreadAt = null
+        unreads = 0
+        probing = 0
+        built = 0
+        visited.forEach { it.clear() }
+
+        return try {
+            val built = doQuote(input, unquote)
+
+            if (unread) EscapeResult.Unread(unreadAt) else EscapeResult.Built(built)
         } catch (raise: Raise) {
             EscapeResult.Raised(raise.exception)
-        } catch (decline: Decline) {
-            EscapeResult.Declined(decline.at)
+        } catch (_: Decline) {
+            EscapeResult.Declined
         }
+    }
 
     private class Raise(val exception: String) : RuntimeException(null, null, false, false)
 
-    private class Decline(val at: ElixirAst?) : RuntimeException(null, null, false, false)
+    private class Decline : RuntimeException(null, null, false, false)
+
+    /** Whether the input holds a term the port can't read or the output can't hold, and the node the first met has. */
+    private var unread = false
+    private var unreadAt: ElixirAst? = null
+
+    /** How many times a term the port can't read was met, a visit [walked] again counting those its first met. */
+    private var unreads = 0
+
+    /**
+     * How many inputs [doQuote] and [doEscape] have built output for: past [COPY_NODES], the escape declines, as an
+     * evaluated value's shared parts are built again each time they appear.
+     */
+    private var built = 0
+
+    /** How many [raised] probes are running, whose output is dropped. */
+    private var probing = 0
+
+    /**
+     * The inputs [doQuote] and [doEscape] visited while the output was dropped, by function and `unquote`, each by its
+     * view's [identity][EscapeView.identity] with whether the visit met a term the port can't read.
+     */
+    private val visited = Array(4) { IdentityHashMap<Any?, Boolean>() }
+
+    /**
+     * The output for a term the port can't read, or the output can't hold, at [at]: a stand-in, as the escape goes on to
+     * what Elixir escapes after the term, where it may raise or the port decline.
+     */
+    private fun unread(at: ElixirAst?): O {
+        if (!unread) {
+            unread = true
+            unreadAt = at
+        }
+        unreads++
+
+        return build.atom("nil")
+    }
+
+    /**
+     * [visit] of [input], or where the output is dropped, once a term is unread or in a probe, and [visits] holds
+     * [input], a stand-in: visited again it raises, declines and meets what the port can't read as it did, and a term
+     * that holds another many times over is walked once.
+     */
+    private fun walked(visits: IdentityHashMap<Any?, Boolean>, input: I, visit: () -> O): O {
+        val dropped = unread || probing > 0
+        val identity = view.identity(input)
+
+        if (dropped) {
+            visits[identity]?.let { metUnread ->
+                if (metUnread) unreads++
+
+                return build.atom("nil")
+            }
+        }
+
+        val before = unreads
+        val output = visit()
+
+        if (unread || probing > 0) visits[identity] = unreads > before
+
+        return output
+    }
 
     /** `do_quote/2`, its heads in Elixir's order. */
     private fun doQuote(input: I, unquote: Boolean): O {
         ProgressManager.checkCanceled()
 
+        return walked(visited[if (unquote) 1 else 0], input) { build(); quoted(input, unquote) }
+    }
+
+    private fun quoted(input: I, unquote: Boolean): O {
         val shape = view.shape(input)
         val tuple = shape as? Shape.Tuple
         val q = quote
@@ -404,7 +603,8 @@ internal class QuoteEscape<I, O> private constructor(
         return properList(view, args)?.singleOrNull()?.let { unquoted(tuple.at, it) }
     }
 
-    private fun unquoted(at: Meta?, expr: I): O = quote?.unquoted(at, expr) ?: inserted(expr)
+    private fun unquoted(at: Meta?, expr: I): O =
+        view.code(expr)?.let { code -> quote?.unquoted(at, code) ?: inserted(code) } ?: unread(null)
 
     /**
      * The alias head, `{'__aliases__', Meta, [H | T]}` with `H` an atom other than `Elixir`, and the variable head,
@@ -548,7 +748,7 @@ internal class QuoteEscape<I, O> private constructor(
 
     /** The two-element tuple heads of `do_quote/2`, [input] the pair where it is an input. */
     private fun pair(left: I, right: I, at: Meta?, unquote: Boolean, input: I? = null): O {
-        if (unquote && (isSplicing(left) || isSplicing(right))) {
+        if (unquote && isSplicingPair(view, left, right)) {
             // `do_quote({'{}', [], [Left, Right]}, Q)`, which `quote` reaches through the import head.
             val meta = quote?.let { q -> meta(q, q.importMeta(checkNotNull(input), emptyList(), "{}", 2)) } ?: build.list(emptyList())
             val quoted = lists.built(escapeList(listOf(left, right), null, unquote = true))
@@ -561,12 +761,15 @@ internal class QuoteEscape<I, O> private constructor(
         return build.tuple(listOf(tLeft, doQuote(right, unquote)))
     }
 
-    /** Whether [input] is a tuple whose first element is `unquote_splicing`. */
-    private fun isSplicing(input: I): Boolean =
-        (view.shape(input) as? Shape.Tuple)?.elements?.firstOrNull()?.let(::atomOf) == "unquote_splicing"
-
     /** `do_escape/2`. */
     private fun doEscape(input: I, shape: Shape<I>, unquote: Boolean): O =
+        walked(visited[if (unquote) 3 else 2], input) { build(); escaped(input, shape, unquote) }
+
+    private fun build() {
+        if (++built > COPY_NODES) throw Decline()
+    }
+
+    private fun escaped(input: I, shape: Shape<I>, unquote: Boolean): O =
         when (shape) {
             is Shape.Tuple -> {
                 val elements = shape.elements
@@ -580,7 +783,7 @@ internal class QuoteEscape<I, O> private constructor(
                     }
                     else -> when (val listed = escapeList(elements, null, unquote)) {
                         is Listed.Plain -> build.tuple(listed.elements, shape.at)
-                        is Listed.Expression -> build.tupleOf(listed.value) ?: throw Decline(null)
+                        is Listed.Expression -> build.tupleOf(listed.value) ?: throw Decline()
                     }
                 }
             }
@@ -590,11 +793,11 @@ internal class QuoteEscape<I, O> private constructor(
             is Shape.Atom -> build.atom(shape.name)
             is Shape.Integer -> build.integer(shape.value)
             is Shape.Float -> build.float(shape.value)
-            is Shape.Pid -> build.pid(shape.pid) ?: throw Decline(null)
+            is Shape.Pid -> build.pid(shape.pid) ?: unread(null)
             is Shape.ExternalFun -> funToQuoted(shape)
             Shape.Unescapable -> throw Raise(ARGUMENT_ERROR)
             Shape.Verbatim -> inserted(input)
-            is Shape.Unknown -> throw Decline(shape.at)
+            is Shape.Unknown -> unread(shape.at)
         }
 
     /** The prune clause: only the `line`, `no_parens` and `delimiter` pairs of the metadata, as they are. */
@@ -633,13 +836,27 @@ internal class QuoteEscape<I, O> private constructor(
     }
 
     private fun map(shape: Shape.Map<I>, unquote: Boolean): O {
-        if (REGEX_ESCAPED_IN_FIXED_FIELD_ORDER.isSufficient(level)) structEscape(shape)
+        val inputs = { shape.entries.flatMap { listOf(it.key, it.value) } }
+
+        if (REGEX_ESCAPED_IN_FIXED_FIELD_ORDER.isSufficient(level)) {
+            structEscape(shape)?.let { hidden ->
+                // Either `__escape__/1` escapes the map, or the map is escaped as one with no struct.
+                if (inputs().any { raised(it, unquote) != null }) throw Decline()
+
+                return unread(hidden.at)
+            }
+        }
         val entries = listed(shape.entries, level, MapEntry<I>::keyTerm, MapEntry<I>::valueTerm) ?: run {
             // Every key and value is escaped, in an order no term decides, so the escape raises only what each that
-            // raises does, and only where every other is known not to.
-            val raised = shape.entries.flatMap { listOf(it.key, it.value) }.mapNotNull { raised(it, unquote) }
+            // raises does, and only where every other is known not to: an entry the port can't read isn't. Where none
+            // does, Elixir escapes the map in an order the port can't give.
+            val before = unreads
+            val raised = inputs().mapNotNull { raised(it, unquote) }
 
-            throw raised.distinctBy(Raise::exception).singleOrNull() ?: Decline(null)
+            if (unreads == before) raised.distinctBy(Raise::exception).singleOrNull()?.let { throw it }
+            if (raised.isNotEmpty()) throw Decline()
+
+            return unread(null)
         }
         val quoted = if (ESCAPED_MAP_ENTRIES_QUOTED_APART.isSufficient(level)) {
             entries.map { entry ->
@@ -647,40 +864,52 @@ internal class QuoteEscape<I, O> private constructor(
 
                 build.tuple(listOf(tKey, doQuote(entry.value, unquote)))
             }
+        } else if (unquote) {
+            // The entries are quoted as one list, which `unquote: true` quotes last first.
+            entries.asReversed().map { pair(it.key, it.value, null, unquote = true) }.asReversed()
         } else {
-            // The entries are quoted as one list, which is quoted last first.
-            entries.asReversed().map { pair(it.key, it.value, null, unquote) }.asReversed()
+            entries.map { pair(it.key, it.value, null, unquote = false) }
         }
 
         return build.call(build.atom("%{}"), quoted)
     }
 
     /** What escaping [input] raises, `null` where it doesn't. Throws [Decline] where that isn't known. */
-    private fun raised(input: I, unquote: Boolean): Raise? =
-        try {
+    private fun raised(input: I, unquote: Boolean): Raise? {
+        probing++
+
+        return try {
             doQuote(input, unquote)
             null
         } catch (raise: Raise) {
             raise
+        } finally {
+            probing--
         }
+    }
 
-    /** A struct whose module exports `__escape__/1`, which escapes it with code the escape doesn't run. */
-    private fun structEscape(shape: Shape.Map<I>) {
-        // `__escape__` is looked for before any entry is escaped, so where the module isn't known, nor is the escape.
+    /**
+     * A struct whose module exports `__escape__/1`, which escapes it with code the escape doesn't run. `__escape__` is
+     * looked for before any entry is escaped, so where the module isn't known, nor is what the map escapes to: the
+     * unknown term that hides it, where one does.
+     */
+    private fun structEscape(shape: Shape.Map<I>): Shape.Unknown? {
         val struct = shape.entries.firstOrNull { (it.keyTerm as? OtpErlangAtom)?.atomValue() == "__struct__" }
         val unknown = if (struct == null) shape.entries.map(MapEntry<I>::key) else listOf(struct.value)
 
-        unknown.firstNotNullOfOrNull { view.shape(it) as? Shape.Unknown }?.let { throw Decline(it.at) }
+        unknown.firstNotNullOfOrNull { view.shape(it) as? Shape.Unknown }?.let { return it }
 
-        val module = (struct?.valueTerm as? OtpErlangAtom)?.atomValue() ?: return
+        val module = (struct?.valueTerm as? OtpErlangAtom)?.atomValue() ?: return null
 
         val escapes = when (val exported = exports.of(module)) {
             is ModuleExports.Present -> ESCAPE in exported.exported
             ModuleExports.Absent -> false
-            ModuleExports.Unreadable -> throw Decline(null)
+            ModuleExports.Unreadable -> throw Decline()
         }
 
-        if (escapes) throw Decline(null)
+        if (escapes) throw Decline()
+
+        return null
     }
 
     /** The list clauses of `do_escape/2`, over [elements] ending in [tail] where the list is improper. */
@@ -754,7 +983,10 @@ internal class QuoteEscape<I, O> private constructor(
 
     private fun atomOf(input: I): String? = (view.shape(input) as? Shape.Atom)?.name
 
-    private fun inserted(input: I): O = insert(input) ?: throw Decline((view.shape(input) as? Shape.Unknown)?.at)
+    private fun inserted(input: I): O = insert(input) ?: unread((view.shape(input) as? Shape.Unknown)?.at)
+
+    /** An `unquote_splicing` call's [expr], put in as it is. */
+    private fun expression(expr: I): O = view.code(expr)?.let(::inserted) ?: unread(null)
 
     companion object {
         /** The escape of a map whose keys are the atoms [entries] name, each with its value already escaped. */
@@ -809,7 +1041,7 @@ internal object ImportTermEscapeView : EscapeView<Term> {
         when (input) {
             is Term.Atom -> Shape.Atom(input.name)
             is Term.Integer -> Shape.Integer(input.value)
-            is Term.Binary -> input.bytes?.let { Shape.Bitstring(it, 0) } ?: Shape.Unknown()
+            is Term.Binary -> input.bytes?.let { Shape.Bitstring(it, 0) } ?: Shape.Unknown(list = false)
             is Term.List -> Shape.List(input.elements, input.tail)
             is Term.Pair -> Shape.Tuple(listOf(input.first, input.second))
             is Term.Tuple -> Shape.Tuple(input.elements)
@@ -832,6 +1064,7 @@ internal object TermEscapeView : EscapeView<OtpErlangObject> {
             is OtpErlangPid -> Shape.Pid(input)
             is OtpErlangExternalFun -> Shape.ExternalFun(input.module, input.function, input.arity.toLong())
             is OtpErlangFun, is OtpErlangRef, is OtpErlangPort -> Shape.Unescapable
+            UnknownBinary -> Shape.Unknown(list = false)
             else -> Shape.Unknown()
         }
 }
@@ -876,6 +1109,21 @@ internal class ParsedMeta(private val columns: Boolean, private val lineOffset: 
         }
     }
 
+    /** The term [value] is. */
+    fun term(value: Meta.Value): OtpErlangObject {
+        ProgressManager.checkCanceled()
+
+        return when (value) {
+            is Meta.Value.Atom -> OtpErlangAtom(value.name)
+            is Meta.Value.Integer -> OtpErlangLong(value.value)
+            is Meta.Value.Binary -> OtpErlangBinary(value.text.toByteArray(Charsets.UTF_8))
+            is Meta.Value.Keywords ->
+                OtpErlangList(pairs(value.keys).map { (key, entry) -> OtpErlangTuple(arrayOf(OtpErlangAtom(key), term(entry))) }.toTypedArray())
+            is Meta.Value.List -> OtpErlangList(value.elements.map(::term).toTypedArray())
+            is Meta.Value.Tuple -> OtpErlangTuple(value.elements.map(::term).toTypedArray())
+        }
+    }
+
     fun shape(value: Meta.Value): Shape<AstTerm> =
         when (value) {
             is Meta.Value.Atom -> Shape.Atom(value.name)
@@ -889,6 +1137,21 @@ internal class ParsedMeta(private val columns: Boolean, private val lineOffset: 
 }
 
 /**
+ * The elements [AstEscapeView] quotes [node] with as one list, the list `do_quote/2` hands `do_quote_tail/2`: a list's,
+ * a call's arguments, a `{}` tuple's, an alias's segments or a block's expressions. `null` for a leaf, a variable and a
+ * pair, which `do_quote/2` quotes as `{:{}, [], [Left, Right]}` only where it [isSplicingPair].
+ */
+internal fun quotedElements(node: ElixirAst): List<ElixirAst>? =
+    when (node) {
+        is ElixirAst.ListNode -> node.elements
+        is ElixirAst.Tuple -> node.elements.takeIf { it.size != 2 }
+        is ElixirAst.Alias -> node.segments
+        is ElixirAst.Block -> node.expressions
+        is ElixirAst.Call -> node.arguments
+        is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> null
+    }
+
+/**
  * An [ElixirAst] node as the term it quotes, its metadata as [parsed]. A node's tuple is placed at the node, but for a
  * variable.
  */
@@ -897,6 +1160,29 @@ internal class AstEscapeView(private val s: Synthetic, private val parsed: Parse
         when (input) {
             is AstTerm.Node -> node(input.node)
             is AstTerm.Value -> parsed.shape(input.value)
+        }
+
+    /** The code each macro's [ElixirAst.Value] read by [code] became, by identity. */
+    val readAsCode: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
+
+    /** A macro's [ElixirAst.Value] or a metadata value, whose term Elixir reads as code, as [codeOf] reads it. */
+    override fun code(input: AstTerm): AstTerm? {
+        val (term, origin) = when (input) {
+            is AstTerm.Node -> (input.node as? ElixirAst.Value ?: return input).let { it.term to it.meta.origin }
+            is AstTerm.Value -> parsed.term(input.value) to s.meta().origin
+        }
+
+        return codeOf(term, origin)?.let {
+            readAsCode += it
+            AstTerm.Node(it)
+        }
+    }
+
+    /** The node, or a [ElixirAst.Value]'s term, each part's [AstTerm] wrapping afresh. */
+    override fun identity(input: AstTerm): Any =
+        when (input) {
+            is AstTerm.Node -> (input.node as? ElixirAst.Value)?.term ?: input.node
+            is AstTerm.Value -> input.value
         }
 
     /** [term] as it is, as `unquote` puts its expression in. */
@@ -914,14 +1200,14 @@ internal class AstEscapeView(private val s: Synthetic, private val parsed: Parse
             is ElixirAst.Literal.Binary -> Shape.Bitstring(node.bytes, 0)
             is ElixirAst.ListNode -> Shape.List(node.elements.map(AstTerm::Node))
             is ElixirAst.Tuple ->
-                if (node.elements.size == 2) Shape.Tuple(node.elements.map(AstTerm::Node), node.meta) else named(node, "{}", node.elements)
+                quotedElements(node)?.let { named(node, "{}", it) } ?: Shape.Tuple(node.elements.map(AstTerm::Node), node.meta)
             is ElixirAst.Alias -> named(node, "__aliases__", node.segments)
             is ElixirAst.Block -> named(node, "__block__", node.expressions)
             is ElixirAst.Call -> {
                 val meta = AstTerm.Value(Meta.Value.Keywords(node.meta.keys))
 
-                when {
-                    node.arguments == null -> {
+                when (val arguments = quotedElements(node)) {
+                    null -> {
                         val context = when (val context = node.context) {
                             ElixirAst.VariableContext.Nil -> "nil"
                             is ElixirAst.VariableContext.Atom -> context.name
@@ -929,7 +1215,7 @@ internal class AstEscapeView(private val s: Synthetic, private val parsed: Parse
 
                         Shape.Tuple(listOf(AstTerm.Node(node.callee), meta, AstTerm.Node(s.atom(context))))
                     }
-                    else -> Shape.Tuple(listOf(AstTerm.Node(node.callee), meta, AstTerm.Node(s.list(node.arguments))), node.meta)
+                    else -> Shape.Tuple(listOf(AstTerm.Node(node.callee), meta, AstTerm.Node(s.list(arguments))), node.meta)
                 }
             }
             is ElixirAst.Placeholder -> if (node.stopsExpansion) Shape.Unknown(node) else Shape.Verbatim

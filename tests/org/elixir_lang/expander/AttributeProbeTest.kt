@@ -140,8 +140,8 @@ class AttributeProbeTest : ProbeTestCase() {
                 end
                 """.trimIndent(),
                 attributes = listOf("x", "acc", "p", "behaviour"),
-                // A map and a module-body read have no Term.
-                unknown = setOf("r_map", "r_y"),
+                // A map has no Term.
+                unknown = setOf("r_map"),
             ),
             preamble = "\ndefmodule {token}.Beh do\n  @callback cb() :: any\nend\n",
         )

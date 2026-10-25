@@ -75,7 +75,8 @@ sealed class ElixirAst {
     /**
      * A term in a macro's result that Elixir's expansion takes for no AST: a pid, a function, a reference, a port, a
      * map, a bitstring that isn't a binary, a tuple of neither two nor three elements, or a 3-tuple that is neither a
-     * form nor a call, as `{1, 2, 3}` is. Only [fromOtp] builds it, for the evaluator's result, so it is never lowered.
+     * form nor a call, as `{1, 2, 3}` is; or, in a definition's escape code that only the evaluator runs, a term it has
+     * already evaluated.
      */
     class Value(override val meta: Meta, val term: OtpErlangObject) : ElixirAst()
 
@@ -150,10 +151,18 @@ sealed class ElixirAst {
 
     companion object {
         /**
+         * The node `{:{}, meta, elements}` is: a [Tuple], but for a pair, which [toOtp] writes as `{a, b}`, so it stays a
+         * call to [callee].
+         */
+        inline fun tupleCall(meta: Meta, elements: List<ElixirAst>, callee: () -> ElixirAst = { Literal.Atom(meta, "{}") }): ElixirAst =
+            if (elements.size != 2) Tuple(meta, elements) else Call(meta, callee(), elements)
+
+        /**
          * The node quoted [term] is, with [origin] as every node's origin: [toOtp]'s inverse under
          * [ParserOptions.DEFAULT]. Null for a term no quoted expression is, such as a map or a bitstring, unless
-         * [values]. A term [known] gives a node for is that node, origin and all. [onNode] is told each other term and
-         * the node it became.
+         * [values], or where the node would hold more than [nodes] nodes, its metadata's parts and a string's code
+         * points each counted. A term [known] gives a node for is that node, origin and all, and counts for none.
+         * [onNode] is told each other term and the node it became.
          *
          * @param values whether a term Elixir's expansion takes for no AST is a [Value], as in a macro's result
          */
@@ -162,11 +171,31 @@ sealed class ElixirAst {
             origin: TextRange,
             values: Boolean = false,
             known: (OtpErlangObject) -> ElixirAst? = { null },
+            nodes: Int = Int.MAX_VALUE,
             onNode: ((OtpErlangObject, ElixirAst) -> Unit)? = null,
+        ): ElixirAst? = converted(term, origin, values, known, onNode, Budget(nodes))
+
+        /** The nodes a [fromOtp] conversion has [left] to build. */
+        private class Budget(private var left: Int) {
+            /** Whether [n] more nodes fit, which are then spent. */
+            fun spend(n: Int = 1): Boolean {
+                left -= n
+
+                return left >= 0
+            }
+        }
+
+        private fun converted(
+            term: OtpErlangObject,
+            origin: TextRange,
+            values: Boolean,
+            known: (OtpErlangObject) -> ElixirAst?,
+            onNode: ((OtpErlangObject, ElixirAst) -> Unit)?,
+            budget: Budget,
         ): ElixirAst? {
             ProgressManager.checkCanceled()
             known(term)?.let { return it }
-            if (TermKind.of(term) == null) return null
+            if (TermKind.of(term) == null || !budget.spend()) return null
 
             val bare = { Meta(origin, NO_POSITION, NO_POSITION) }
             val node = when (term) {
@@ -175,8 +204,8 @@ sealed class ElixirAst {
                 is OtpErlangDouble -> Literal.Float(bare(), term.doubleValue())
                 is OtpErlangBinary -> Literal.Binary(bare(), term.binaryValue())
                 is OtpErlangString, is OtpErlangList ->
-                    elements(term, origin, values, known, onNode)?.let { ListNode(bare(), it) }
-                is OtpErlangTuple -> fromTuple(term, origin, values, known, onNode)
+                    elements(term, origin, values, known, onNode, budget)?.let { ListNode(bare(), it) }
+                is OtpErlangTuple -> fromTuple(term, origin, values, known, onNode, budget)
                 else -> if (values) Value(bare(), term) else null
             }
 
@@ -190,15 +219,16 @@ sealed class ElixirAst {
             values: Boolean,
             known: (OtpErlangObject) -> ElixirAst?,
             onNode: ((OtpErlangObject, ElixirAst) -> Unit)?,
+            budget: Budget,
         ): List<ElixirAst>? =
             when (term) {
                 is OtpErlangString ->
-                    term.stringValue().codePoints().toArray().map {
+                    term.stringValue().codePoints().toArray().takeIf { budget.spend(it.size) }?.map {
                         Literal.Integer(Meta(origin, NO_POSITION, NO_POSITION), it.toBigInteger())
                     }
                 is OtpErlangList ->
                     term.takeIf { it.lastTail == null }?.elements()?.map {
-                        fromOtp(it, origin, values, known, onNode) ?: return null
+                        converted(it, origin, values, known, onNode, budget) ?: return null
                     }
                 else -> null
             }
@@ -209,11 +239,12 @@ sealed class ElixirAst {
             values: Boolean,
             known: (OtpErlangObject) -> ElixirAst?,
             onNode: ((OtpErlangObject, ElixirAst) -> Unit)?,
+            budget: Budget,
         ): ElixirAst? {
             val bare = Meta(origin, NO_POSITION, NO_POSITION)
 
             if (tuple.arity() == 2) {
-                return Tuple(bare, tuple.elements().map { fromOtp(it, origin, values, known, onNode) ?: return null })
+                return Tuple(bare, tuple.elements().map { converted(it, origin, values, known, onNode, budget) ?: return null })
             }
             if (tuple.arity() != 3) return if (values) Value(bare, tuple) else null
 
@@ -225,28 +256,27 @@ sealed class ElixirAst {
             // 3-tuple, whatever the metadata holds.
             val isForm = metaTerm is OtpErlangList || metaTerm is OtpErlangString || head is OtpErlangAtom ||
                 (head as? OtpErlangTuple)?.arity() == 3
-            val meta = meta(metaTerm, origin) ?: return if (values && !isForm) Value(bare, tuple) else null
+            val meta = meta(metaTerm, origin, budget) ?: return if (values && !isForm) Value(bare, tuple) else null
 
             if (last is OtpErlangAtom) {
                 val context = last.atomValue()
 
                 return Call(
                     meta,
-                    fromOtp(head, origin, values, known, onNode) ?: return null,
+                    converted(head, origin, values, known, onNode, budget) ?: return null,
                     null,
                     if (context == "nil") VariableContext.Nil else VariableContext.Atom(context),
                 )
             }
 
-            val arguments = elements(last, origin, values, known, onNode) ?: return null
+            val arguments = elements(last, origin, values, known, onNode, budget) ?: return null
 
             return when (head) {
-                // `toOtp` writes a pair as `{a, b}`, so `{:{}, meta, [a, b]}` stays a call.
-                TUPLE if arguments.size != 2 -> Tuple(meta, arguments)
+                TUPLE -> tupleCall(meta, arguments) { converted(head, origin, values, known, onNode, budget) ?: return null }
                 // An alias of no segments has no clause in `elixir_aliases:expand`.
                 ALIASES -> if (arguments.isEmpty()) null else Alias(meta, arguments)
                 BLOCK -> Block(meta, arguments)
-                else -> Call(meta, fromOtp(head, origin, values, known, onNode) ?: return null, arguments)
+                else -> Call(meta, converted(head, origin, values, known, onNode, budget) ?: return null, arguments)
             }
         }
 
@@ -254,8 +284,8 @@ sealed class ElixirAst {
          * [term]'s keys, with its `line` as a [Meta.Key.Location] where the line is, as a lowered node's, so its
          * location reads the same. `column` stays an entry: [ParserOptions.DEFAULT] writes a location's line only.
          */
-        private fun meta(term: OtpErlangObject, origin: TextRange): Meta? {
-            val keys = keywords(term)
+        private fun meta(term: OtpErlangObject, origin: TextRange, budget: Budget): Meta? {
+            val keys = keywords(term, budget)
                 ?.takeIf { keys -> keys.none { it.name == "counter" && counter(it.value) == null } }
                 ?: return null
             val integer = { name: String ->
@@ -294,24 +324,25 @@ sealed class ElixirAst {
             }
 
         /** Each entry of the keyword list [term], or null for any other term. */
-        private fun keywords(term: OtpErlangObject): List<Meta.Key.Entry>? =
+        private fun keywords(term: OtpErlangObject, budget: Budget): List<Meta.Key.Entry>? =
             (term as? OtpErlangList)?.takeIf { it.lastTail == null }?.elements()?.map { element ->
                 val (key, value) = (element as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elements() ?: return null
 
-                Meta.Key.Entry((key as? OtpErlangAtom)?.atomValue() ?: return null, value(value) ?: return null)
+                Meta.Key.Entry((key as? OtpErlangAtom)?.atomValue() ?: return null, value(value, budget) ?: return null)
             }
 
-        private fun value(term: OtpErlangObject): Meta.Value? {
+        private fun value(term: OtpErlangObject, budget: Budget): Meta.Value? {
             ProgressManager.checkCanceled()
+            if (!budget.spend()) return null
 
             return when (term) {
                 is OtpErlangAtom -> Meta.Value.Atom(term.atomValue())
                 is OtpErlangLong -> term.takeIf { it.isLong }?.let { Meta.Value.Integer(it.longValue()) }
                 is OtpErlangBinary -> utf8(term.binaryValue())?.let(Meta.Value::Binary)
                 is OtpErlangList ->
-                    keywords(term)?.let(Meta.Value::Keywords)
-                        ?: term.takeIf { it.lastTail == null }?.elements()?.map { value(it) ?: return null }?.let(Meta.Value::List)
-                is OtpErlangTuple -> Meta.Value.Tuple(term.elements().map { value(it) ?: return null })
+                    keywords(term, budget)?.let(Meta.Value::Keywords)
+                        ?: term.takeIf { it.lastTail == null }?.elements()?.map { value(it, budget) ?: return null }?.let(Meta.Value::List)
+                is OtpErlangTuple -> Meta.Value.Tuple(term.elements().map { value(it, budget) ?: return null })
                 else -> null
             }
         }

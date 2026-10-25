@@ -732,6 +732,15 @@ enum class ElixirLanguageFeature(
     ATTRIBUTES_EXPANDED_LAZILY(sinceElixir = "1.14.0-rc.0"),
 
     /**
+     * `Application.compile_env/3` calls `Application.compile_env/4`, and `compile_env!/2` calls `compile_env!/3`, the
+     * env first. Before it, they call `Application.__compile_env__/4` and `__compile_env__!/3`, the env last.
+     *
+     * `elixir-lang/elixir@d12326ed5` ("Add Application.compile_env/4 and Application.compile_env!/3"), first released in
+     * v1.14.0-rc.0.
+     */
+    COMPILE_ENV_TAKES_ENV_FIRST(sinceElixir = "1.14.0-rc.0"),
+
+    /**
      * `Module.delete_definition/2` takes a definition out of the module being compiled. Before it, a module body that
      * calls it raises `UndefinedFunctionError`.
      *
@@ -747,6 +756,21 @@ enum class ElixirLanguageFeature(
      * v1.18.4.
      */
     MODULE_BODY_DOC_READ_BINDS_VALUE(sinceElixir = "1.18.4"),
+
+    /**
+     * `Module.get_attribute/3` gives its default only for an attribute that isn't set, and an attribute registered and
+     * never written gives `nil`. Before it, it gives its default for any `nil`.
+     *
+     * `elixir-lang/elixir@ea185b82f` ("Add `Module.get_last_attribute/3`"), first released in v1.15.0-rc.1.
+     */
+    GET_ATTRIBUTE_DEFAULT_ONLY_UNSET(sinceElixir = "1.15.0-rc.1"),
+
+    /**
+     * `Module.get_attribute/3` gives its default for an attribute registered and never written.
+     *
+     * `elixir-lang/elixir@fb0356372` ("Return default value for persisted attributes"), first released in v1.17.0-rc.0.
+     */
+    GET_ATTRIBUTE_DEFAULT_FOR_REGISTERED(sinceElixir = "1.17.0-rc.0"),
 
     /**
      * `@after_verify` accumulates, and a module given to it is called as `__after_verify__/1`. Before it, it is an
@@ -1654,6 +1678,14 @@ enum class ElixirLanguageFeature(
     HAS_UNQUOTES_NAME_AT_QUOTE_LEVEL(sinceElixir = "1.20.0-rc.5"),
 
     /**
+     * A definition's head and body are escaped together, as one tuple, when either has unquote fragments. Before it,
+     * the head is always escaped and the body only when the body itself has them.
+     *
+     * `elixir-lang/elixir@ee4e0be94` ("Reduce AST metadata compiled in definitions"), first released in v1.15.0-rc.0.
+     */
+    DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER(sinceElixir = "1.15.0-rc.0"),
+
+    /**
      * A bitstring segment whose value expands to a list or an atom raises `invalid_literal`.
      *
      * Removed by `elixir-lang/elixir@860f485bd` ("Inference of patterns", #13909), first released in v1.18.0-rc.0.
@@ -2386,6 +2418,15 @@ enum class ElixirLanguageFeature(
     RESCUE_EXCEPTION_KEY_PRESENT(sinceElixir = "1.20.0-rc.5"),
 
     /**
+     * `elixir_module:compile/6` purges and deletes the module where compiling it raises, whatever raised, so a module
+     * loaded under that name before is gone. Before it, that module stays loaded.
+     *
+     * `elixir-lang/elixir@a58a40ce4` ("Purge and delete modules if after_verify/2 callback fails", #15220), first
+     * released in v1.20.0-rc.4.
+     */
+    FAILED_COMPILE_PURGES_MODULE(sinceElixir = "1.20.0-rc.4"),
+
+    /**
      * `:elixir_quote.tail_list/3` raises an `ArgumentError` where the list spliced before a tail is empty. Before it, it
      * raised `{badmatch, []}`.
      *
@@ -2449,6 +2490,15 @@ enum class ElixirLanguageFeature(
      * `erlang/otp@3346acf491` ("stdlib: Optimize fun usage"), first released in OTP 25.0-rc1.
      */
     LISTS_CHECK_THE_FUN_FIRST(sinceOtp = "25.0-rc1"),
+
+    /**
+     * `lists:sort/1` keeps elements that compare equal, such as `1` and `1.0`, in their order. Before it, its descending
+     * split took equal elements as descending, so a later one could come first, and its split walk's clauses differ.
+     *
+     * `erlang/otp@ef70fb039e` ("Fix stability in sort/1"), released in OTP 26.2.5.14, 27.3.4.2 and 28.0.2, and from
+     * 29.0-rc1. The patch releases are taken as without it, so they decline where they could answer.
+     */
+    LISTS_SORT_KEEPS_EQUAL_ORDER(sinceOtp = "29.0-rc1"),
 
     /**
      * `=:=` and matching tell `-0.0` from `0.0`, so a map holds both as keys, `-0.0` first.

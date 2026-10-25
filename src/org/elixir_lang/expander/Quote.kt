@@ -36,14 +36,14 @@ internal object Quote {
         when (val built = build(call, state, env, run, 0)) {
             is Built.Stopped -> built.expansion
             is Built.Escaped -> {
-                if (env.function != null && built.known) {
+                if (built.known) {
                     val evaluated = if (built.bindings.isEmpty()) {
                         built.block
                     } else {
                         ElixirAst.Block(call.meta, built.bindings + built.block)
                     }
 
-                    run.compiling[env.module]?.quotes?.put(written, evaluated)
+                    run.quotesAt(env)?.put(written, evaluated)
                 }
 
                 Expander.expand(built.quoted, built.state, built.env, run).let {
@@ -72,11 +72,22 @@ internal object Quote {
         return (build(body, state, env, run, lineOffset) as? Built.Escaped)?.takeIf { it.known && it.bindings.isEmpty() }?.block
     }
 
-    /** What [escape] gives: the expression that builds the escaped node, or where building it stops. */
+    /**
+     * What [escape] gives: the expression that builds the escaped node, the node the port can't read, where building
+     * stops, or what it raises.
+     */
     sealed interface Escaped {
-        data class Built(val node: ElixirAst) : Escaped
+        /** [readAsCode] is the code each `unquote` in a macro's term became, which [node] holds as it is. */
+        data class Built(val node: ElixirAst, val readAsCode: Set<ElixirAst> = emptySet()) : Escaped
 
+        /** The node holds code the port can't read, which Elixir escapes as it is; [expansion] is the stop at it. */
+        data class Unread(val expansion: Expansion) : Escaped
+
+        /** The escape builds what the port doesn't, so what Elixir does from here isn't known. */
         data class Stopped(val expansion: Expansion) : Escaped
+
+        /** Elixir raises [exception], the text of its module's atom. */
+        data class Raised(val exception: String) : Escaped
     }
 
     /**
@@ -90,9 +101,10 @@ internal object Quote {
         val escape = QuoteEscape(view, AstEscapeBuilder(s), view::inserted, run.level, run.exports, unquote = true)
 
         return when (val escaped = escape.escape(AstTerm.Node(node))) {
-            is EscapeResult.Built -> Escaped.Built(escaped.value)
-            is EscapeResult.Declined -> Escaped.Stopped(Expansion.Unported(escaped.at ?: node))
-            is EscapeResult.Raised -> Escaped.Stopped(Expansion.Unported(node))
+            is EscapeResult.Built -> Escaped.Built(escaped.value, view.readAsCode)
+            is EscapeResult.Unread -> Escaped.Unread(Expansion.Unported(escaped.at ?: node))
+            EscapeResult.Declined -> Escaped.Stopped(Expansion.Unported(node))
+            is EscapeResult.Raised -> Escaped.Raised(escaped.exception)
         }
     }
 
@@ -166,7 +178,7 @@ internal object Quote {
         if (env.context != Env.Context.NONE && QUOTE_IN_PATTERN_WITH_UNQUOTE_RAISES.isSufficient(level)) {
             when (unquote) {
                 is Option.Static ->
-                    if (unquote.value && hasUnquotes(exprs, 0)) {
+                    if (unquote.value && hasUnquotes(exprs, call, level)) {
                         throw Stop(Expansion.Error("quote_in_pattern_with_unquote", call))
                     }
                 // `andalso` raises `badarg` on a value that isn't a boolean.
@@ -345,8 +357,11 @@ internal object Quote {
         Clause.entries.firstOrNull { it.matches(node, state, env, level) } == Clause.VARIABLE &&
             variableOutcome(node, state, level) == VariableOutcome.LocalCall
 
-    /** [node] with each node in it marked [Meta.built], for an expansion the observer is told of once already. */
-    private fun builtCopy(node: ElixirAst): ElixirAst {
+    /**
+     * [node] with each node in it marked [Meta.built]: an expansion the observer is told of once already, or code the
+     * expander made from a value.
+     */
+    fun builtCopy(node: ElixirAst): ElixirAst {
         ProgressManager.checkCanceled()
 
         val meta = node.meta.let { Meta(it.origin, it.start, it.end, it.keys, built = true) }
@@ -494,43 +509,13 @@ internal object Quote {
         (value as? ElixirAst.Alias)?.let { aliasesModule(it, env, level) }?.let { ElixirAst.Literal.Atom(value.meta, it) }
             ?: value
 
-    /** `elixir_quote:has_unquotes/2`. */
-    private fun hasUnquotes(node: ElixirAst, level: Int): Boolean {
-        ProgressManager.checkCanceled()
-
-        return when {
-            isCall(node, "quote", 1) -> hasUnquotes((node as ElixirAst.Call).arguments!!.single(), level + 1)
-            isCall(node, "quote", 2) -> {
-                val (opts, child) = (node as ElixirAst.Call).arguments!!
-
-                !disablesUnquote(opts) && hasUnquotes(child, level + 1)
-            }
-            isCall(node, "unquote", 1) || isCall(node, "unquote_splicing", 1) ->
-                level == 0 || hasUnquotes((node as ElixirAst.Call).arguments!!.single(), level - 1)
-            node is ElixirAst.Call && node.arguments?.size == 1 && isUnquoteDot(node.callee) -> true
-            node is ElixirAst.Call ->
-                node.arguments != null &&
-                    (hasUnquotes(node.callee, level) || node.arguments.any { hasUnquotes(it, level) })
-            node is ElixirAst.Alias -> node.segments.any { hasUnquotes(it, level) }
-            node is ElixirAst.Block -> node.expressions.any { hasUnquotes(it, level) }
-            node is ElixirAst.Tuple -> node.elements.any { hasUnquotes(it, level) }
-            node is ElixirAst.ListNode -> node.elements.any { hasUnquotes(it, level) }
-            else -> false
+    /** `elixir_quote:has_unquotes/1` over [exprs], `quote`'s body, raising where it raises. */
+    private fun hasUnquotes(exprs: ElixirAst, call: ElixirAst.Call, level: ElixirLanguageLevel): Boolean =
+        try {
+            HasUnquotes(AstEscapeView(Synthetic(call.meta), ParsedMeta(columns = false)), level).has(AstTerm.Node(exprs))
+        } catch (_: ImproperList) {
+            throw Stop(Expansion.Error("Elixir.FunctionClauseError", call))
         }
-    }
-
-    /** `disables_unquote/1`: `unquote: false` or any `bind_quoted:` in a list of options. */
-    private fun disablesUnquote(opts: ElixirAst): Boolean =
-        (opts as? ElixirAst.ListNode)?.elements.orEmpty().any { element ->
-            val pair = (element as? ElixirAst.Tuple)?.takeIf { it.elements.size == 2 }
-            val key = (pair?.elements?.get(0) as? ElixirAst.Literal.Atom)?.name
-
-            key == "bind_quoted" || key == "unquote" && (pair.elements[1] as? ElixirAst.Literal.Atom)?.name == "false"
-        }
-
-    /** `{'.', _, [_, unquote]}`. */
-    private fun isUnquoteDot(node: ElixirAst): Boolean =
-        isCall(node, ".", 2) && ((node as ElixirAst.Call).arguments!![1] as? ElixirAst.Literal.Atom)?.name == "unquote"
 
     private val QUOTE_OPTIONS = listOf("context", "location", "line", "file", "unquote", "bind_quoted", "generated")
 
@@ -563,8 +548,8 @@ internal object Quote {
         fun doQuote(node: ElixirAst): ElixirAst =
             when (val built = QuoteEscape(view, AstEscapeBuilder(s), view::inserted, level, exports, this, unquote).escape(AstTerm.Node(node))) {
                 is EscapeResult.Built -> built.value
-                is EscapeResult.Declined -> throw Stop(Expansion.Unported(built.at ?: node))
-                is EscapeResult.Raised -> throw Stop(Expansion.Unported(node))
+                is EscapeResult.Unread -> throw Stop(Expansion.Unported(built.at ?: node))
+                EscapeResult.Declined, is EscapeResult.Raised -> throw Stop(Expansion.Unported(node))
             }
 
         /** `Q#elixir_quote.context`. */

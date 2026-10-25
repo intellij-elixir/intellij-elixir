@@ -7,6 +7,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.CATCH_WHEN_ARITY_CHE
 import org.elixir_lang.language_level.ElixirLanguageFeature.CLAUSES_TAKE_VERSION
 import org.elixir_lang.language_level.ElixirLanguageFeature.PARALLEL_MATCH
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED_AS_MACRO
+import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
@@ -274,23 +275,43 @@ private fun expandRescue(run: Run): HeadExpansion = { arrow, args, state, env ->
 
 /** `elixir_clauses:expand_rescue/3`, with its `false` as `invalid_rescue_clause` at [arrow]. */
 private fun rescue(arrow: ElixirAst, arg: ElixirAst, state: ExState, env: Env, run: Run): Expansion =
+    when (val head = rescueHead(arg, run.level)) {
+        is RescueHead.Variable -> match(head.variable, state, state, env, run, head.variable)
+        is RescueHead.In -> rescueIn(arrow, arg, head.left, head.right, state, env, run)
+        RescueHead.Expanded -> rescueExpandedOnce(arrow, arg, state, env, run)
+        RescueHead.Stopped -> Expansion.Unported(arg)
+    }
+
+/** Which clause of `elixir_clauses:expand_rescue/3` a `rescue` argument takes. */
+internal sealed interface RescueHead {
+    /** A variable, alone or `in _`, which rescues every error. */
+    class Variable(val variable: ElixirAst) : RescueHead
+
+    /** `left in right`, where any other argument is `_ in` it. */
+    class In(val left: ElixirAst, val right: ElixirAst) : RescueHead
+
+    /** A call, expanded once and taken again. */
+    data object Expanded : RescueHead
+
+    /** An argument the expander stops at. */
+    data object Stopped : RescueHead
+}
+
+/** The clause of `elixir_clauses:expand_rescue/3` that [arg] takes at [level]. */
+internal fun rescueHead(arg: ElixirAst, level: ElixirLanguageLevel): RescueHead =
     when {
-        isVariable(arg) -> match(arg, state, state, env, run, arg)
+        isVariable(arg) -> RescueHead.Variable(arg)
         isCall(arg, "in", 2) -> {
             val (left, right) = (arg as ElixirAst.Call).arguments!!
 
-            if (isUnderscore(right) && isVariable(left)) {
-                match(left, state, state, env, run, left)
-            } else {
-                rescueIn(arrow, arg, left, right, state, env, run)
-            }
+            if (isUnderscore(right) && isVariable(left)) RescueHead.Variable(left) else RescueHead.In(left, right)
         }
-        arg is ElixirAst.Placeholder && arg.stopsExpansion -> Expansion.Unported(arg)
+        arg is ElixirAst.Placeholder && arg.stopsExpansion -> RescueHead.Stopped
         // Elixir's `{_, _, _}` shape: a call, a block, a tuple not of two, or a value that is a 3-tuple.
         (arg is ElixirAst.Call || arg is ElixirAst.Block || arg is ElixirAst.Tuple && arg.elements.size != 2 ||
             arg is ElixirAst.Value && (arg.term as? OtpErlangTuple)?.arity() == 3) &&
-            RESCUE_CALL_EXPANDED_AS_MACRO.isSufficient(run.level) -> rescueExpandedOnce(arrow, arg, state, env, run)
-        else -> rescueIn(arrow, arg, underscore(arg), arg, state, env, run)
+            RESCUE_CALL_EXPANDED_AS_MACRO.isSufficient(level) -> RescueHead.Expanded
+        else -> RescueHead.In(underscore(arg), arg)
     }
 
 /**
@@ -304,6 +325,7 @@ private fun rescueExpandedOnce(arrow: ElixirAst, arg: ElixirAst, state: ExState,
     } else when (val expanded = macroExpandOnce(arg, state, env, run)) {
         is MacroExpanded.Node ->
             if (expanded.expanded) {
+                recordDispatch(arg, ModuleClauses.Dispatched.Macro(expanded.node), env, run)
                 rescue(arrow, expanded.node, state, env, run)
             } else {
                 Expansion.Error("invalid_rescue_clause", arrow)

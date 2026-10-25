@@ -1,23 +1,21 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.NameArity
-import org.elixir_lang.language_level.ElixirLanguageFeature.PROTOCOL_BEFORE_COMPILE
-import org.elixir_lang.psi.ElixirFile
 
 /**
  * `defprotocol`, `Protocol.def/1` and `defimpl` compiled in module bodies on the leg's Elixir: at each probe the env,
  * the variables and the hygiene counters taken, each error they raise, the definitions they store and the dispatches
  * of the output Elixir expands them to.
  */
-class ProtocolProbeTest : ProbeTestCase() {
-    private val probes = ExpansionProbes(harness, accounting = true) {
-        createPsiFile(getTestName(false), it) as ElixirFile
-    }
-
+class ProtocolProbeTest : SdkProbeTestCase(accounting = true) {
     /** Each case ends as the compiler ends it, whether it compiles or raises, and ports every macro it calls. */
     fun testEachCaseMatchesElixir() {
-        val bodies = PROTOCOLS + IMPLEMENTATIONS + RAISING
-        val expansions = bodies.associateWith { probes.expand(it, PREAMBLE) }
+        val bodies = buildList {
+            addAll(PROTOCOLS)
+            addAll(IMPLEMENTATIONS)
+            addAll(RAISING)
+        }
+        val expansions = bodies.associateWith { expand(it, PREAMBLE) }
 
         assertEquals(
             "",
@@ -30,7 +28,7 @@ class ProtocolProbeTest : ProbeTestCase() {
 
     /** The dispatches of each case that compiles, as the compiler traces them. */
     fun testEachCompilingCaseTracesAsTheCompilerDoes() {
-        printed { probes.assertTracesMatchElixir(probes.expandAll(PROTOCOLS + OWN_PROTOCOL, PREAMBLE)) }
+        printed { probes.assertTracesMatchElixir(probes.expandAll(PROTOCOLS + OWN_PROTOCOL, PREAMBLE, clauses = sdk)) }
     }
 
     /** `Protocol.__impl__/4` unrolls a list: one module each, in order. */
@@ -38,6 +36,7 @@ class ProtocolProbeTest : ProbeTestCase() {
         val modules = probes.expandAll(
             listOf("defimpl {token}.Proto, for: [Integer, Atom, Float] do\n  def f(x), do: x\nend"),
             PREAMBLE,
+            clauses = sdk,
         ).modules.flatMap(::compiled).map { it.module }
 
         assertEquals(
@@ -49,7 +48,7 @@ class ProtocolProbeTest : ProbeTestCase() {
     /** The module is named by `Protocol.__concat__/2` from the protocol and the type, each as the file's aliases expand it. */
     fun testAnImplementationIsNamedByTheProtocolAndTheType() {
         NAMES.forEachIndexed { index, (body, expected) ->
-            val expansions = probes.expandAll(listOf(body), PREAMBLE)
+            val expansions = probes.expandAll(listOf(body), PREAMBLE, clauses = sdk)
             val token = expansions.layout.token
             val case = expansions.layout.caseModule(0).removePrefix("Elixir.")
 
@@ -70,55 +69,54 @@ class ProtocolProbeTest : ProbeTestCase() {
     fun testAnImplementationForNilIsNamedAsTheCompilerNamesIt() {
         val body = "defimpl {token}.Proto, for: nil do\n  def f(x), do: x\nend"
 
-        printed { probes.assertMatchesElixir(mapOf(body to probes.expand(body, PREAMBLE))) }
+        printed { probes.assertMatchesElixir(mapOf(body to expand(body, PREAMBLE))) }
     }
 
     /** A name the expander can't compute stops the module at the `defimpl`, as every unevaluated definition does. */
     fun testAComputedNameIsNotFollowed() {
         UNPORTED.forEach { body ->
-            val expansion = probes.expand(body, PREAMBLE)
+            val expansion = expand(body, PREAMBLE)
 
             assertTrue("$body: ${expansion.outcome}", expansion.outcome is Expansion.Unported)
         }
     }
 
-    /**
-     * A definition the body gives an unquote the expander can't evaluate isn't one the macro that made the module
-     * knows: only the macro's own are settled with what it knows, the user's stay stuck.
-     */
-    fun testAStuckDefinitionTheBodyWritesIsNotSettled() {
-        STUCK.forEach { body ->
-            val expansion = probes.expand(body, PREAMBLE)
-
-            assertTrue("$body: ${expansion.ended}", expansion.ended is ExpansionResult.Ended.Stopped)
-        }
-    }
+    /** A definition the body writes with an unquote of the body's values is defined, or raises, as Elixir does it. */
+    fun testADefinitionTheBodyUnquotesIntoEndsAsElixirEndsIt() = assertEndsAsElixirEndsIt(UNQUOTED)
 
     /**
      * Only the loop of `defprotocol`'s own `impl_for/1` is run for each built-in type. A definition of the body with an
-     * unquoted call in its head, whose value the expander can't compute, is one definition stuck, not eleven.
+     * unquoted call in its head is one definition, not eleven.
      */
     fun testAUserHeadWithAnUnquotedCallIsNotTheBuiltInLoop() {
         val body = "defprotocol P do\n  def f(x)\n  Kernel.def g(x) when :erlang.unquote(String.to_atom(\"is_atom\"))(x), do: x\nend"
-        val modules = probes.expandAll(listOf(body), PREAMBLE).modules.flatMap(::compiled)
+        val modules = probes.expandAll(listOf(body), PREAMBLE, clauses = sdk).modules.flatMap(::compiled)
 
         assertEquals(1, modules.single { it.module.endsWith(".P") }.table.entries.getValue(NameArity("g", 1)).clauses)
     }
 
     /**
-     * Before v1.13 the functions a protocol declares are in `@functions`, which the body can write too; `:lists.sort/1`
-     * takes anything in it, so what isn't `{name, arity}` is Elixir's to sort and the module stops there. From v1.13 the
-     * attribute is `@__functions__`, which the body can't write, so there is nothing to compare.
+     * Before v1.13 the functions a protocol declares are in `@functions`, which the body can write too, and
+     * `__protocol__(:functions)` unquotes them sorted: what isn't a quoted expression raises, in Elixir and in the
+     * expander. From v1.13 the attribute is `@__functions__`, which the body can't write, and the module compiles.
      */
-    fun testFunctionsThatAreNotNamesAndAritiesAreNotFollowed() {
-        listOf("[{1, 2, 3}]", "[{:a}]", "[{:a, 1} | :x]").forEach { value ->
-            val body = "defprotocol P do\n  @functions $value\n  def f(x)\nend"
-            val expansion = probes.expand(body, PREAMBLE)
+    fun testFunctionsThatAreNotQuotedExpressionsEndAsElixirEndsThem() =
+        assertEndsAsElixirEndsIt(listOf("[{1, 2, 3}]", "[{:a}]").map { "defprotocol P do\n  @functions $it\n  def f(x)\nend" })
 
-            if (!PROTOCOL_BEFORE_COMPILE.isSufficient(legLevel())) {
-                assertTrue("$body: ${expansion.ended}", expansion.ended is ExpansionResult.Ended.Stopped)
-            }
-        }
+    /** Each of [bodies] compiles or raises as Elixir does, with no stop, which [ExpansionProbes.assertMatchesElixir] passes over. */
+    private fun assertEndsAsElixirEndsIt(bodies: List<String>) {
+        val expansions = bodies.associateWith { expand(it, PREAMBLE) }
+
+        assertEquals(
+            "",
+            expansions.mapNotNull { (body, expansion) ->
+                (expansion.ended as? ExpansionResult.Ended.Stopped)?.let { stopped ->
+                    val at = if (stopped.at.meta.built) "built ${stopped.at}" else expansion.source(stopped.at)
+                    "${body.replace("\n", "; ")}: stopped at `$at`"
+                }
+            }.joinToString("\n"),
+        )
+        printed { probes.assertMatchesElixir(expansions) }
     }
 
     /** [result] and the modules it compiled inside it, outermost first. */
@@ -240,8 +238,8 @@ class ProtocolProbeTest : ProbeTestCase() {
             "defprotocol P do\n  Kernel.def(g(x))\n  def f(x)\nend",
         )
 
-        /** Definitions the body writes with an unquote it evaluates, which Elixir raises at or defines differently. */
-        val STUCK = listOf(
+        /** Definitions the body writes with an unquote of its values: one defined, one raising in `:lists.sort/1`. */
+        val UNQUOTED = listOf(
             "defimpl {token}.Proto, for: Integer do\n  args = [Macro.var(:a, nil)]\n  def f(unquote_splicing(args)), do: :ok\nend",
             "defprotocol P do\n  def f(x)\n  l = :x\n  Kernel.def g(y), do: unquote(:lists.sort(l))\nend",
         )

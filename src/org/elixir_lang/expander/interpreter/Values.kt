@@ -4,6 +4,7 @@ import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangBinary
 import com.ericsson.otp.erlang.OtpErlangBitstr
 import com.ericsson.otp.erlang.OtpErlangDouble
+import com.ericsson.otp.erlang.OtpErlangExternalFun
 import com.ericsson.otp.erlang.OtpErlangFun
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
@@ -14,16 +15,136 @@ import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.ericsson.otp.erlang.OtpOutputStream
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.util.TextRange
 import org.elixir_lang.expander.differInSign
 import org.elixir_lang.expander.UnorderedTerms
 import org.elixir_lang.expander.termOrder
 import org.elixir_lang.expander.termsEqual
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.fitsAnAtom
+import org.elixir_lang.psi.Import.Term
 import java.math.BigInteger
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /** The evaluator can't follow the macro body any further, for [reason]. */
-internal class Declined(val reason: String) : RuntimeException(reason, null, false, false)
+internal class Declined(val reason: String) : RuntimeException(reason, null, false, false) {
+    /** The modules being compiled that the calls it declined in were given, any of which those calls may have written. */
+    val given = Given()
+
+    /**
+     * What the value it didn't give may hold: an unknown value it declined on that came from a module being compiled
+     * ([unknownOf]), the arguments a native that declined can return, and the other parts of a value it was a part of.
+     */
+    val holds = ArrayList<OtpErlangObject>()
+
+    /** Whether code after it raised ([InTurn]), which ends whatever holds it, as Elixir's raise would. */
+    var ended = false
+        private set
+
+    /** The raise that [ended] it, where the evaluator ran it: a `rescue` or `catch` clause can take it. */
+    var endedBy: Thrown? = null
+        private set
+
+    /** It [ended], by [raise]. */
+    fun end(raise: Thrown?) {
+        ended = true
+        endedBy = raise
+    }
+
+    /** A clause took the raise that [ended] it, so it ends nothing. */
+    fun caught() {
+        ended = false
+        endedBy = null
+    }
+}
+
+/**
+ * The modules being compiled that calls were given: each whose atom an argument is or holds, or whose function an
+ * external fun it holds is, and [every] one where an argument is or holds a [ModuleUnknown]. Any other unknown value,
+ * which didn't come from a module, gives none.
+ */
+internal class Given {
+    val modules = HashSet<String>()
+
+    var every = false
+        private set
+
+    /** Every module being compiled: a value that counts as giving them ([ModuleUnknown]) couldn't be produced. */
+    fun all() {
+        every = true
+    }
+
+    // Each term walked, by identity, so one that several calls a decline left share is walked once.
+    private val walked: MutableSet<OtpErlangObject> = Collections.newSetFromMap(IdentityHashMap())
+
+    /** Adds what [other] was given. */
+    fun add(other: Given) {
+        every = every || other.every
+        modules += other.modules
+    }
+
+    /** Whether [module] is one of these. */
+    operator fun contains(module: String) = every || module in modules
+
+    /** Each of [compiling], by name, that these are. */
+    fun <T> of(compiling: Map<String, T>): Collection<T> = if (every) compiling.values else modules.mapNotNull(compiling::get)
+
+    /** Adds the modules of [compiling] that [args], a call's, give it. */
+    fun add(args: List<OtpErlangObject>, compiling: Set<String>) {
+        if (compiling.isEmpty()) return
+
+        anyHeld(args, walked) { term ->
+            when (term) {
+                ModuleUnknown -> every = true
+                is OtpErlangAtom -> term.atomValue().takeIf { it in compiling }?.let(modules::add)
+                is OtpErlangExternalFun -> term.module.takeIf { it in compiling }?.let(modules::add)
+                else -> {}
+            }
+
+            every
+        }
+    }
+}
+
+/**
+ * Whether [visit] gives `true` for a term [terms] hold, each walked once in [walked]: the terms themselves, a
+ * [Holding]'s parts, a [Closure]'s [marks][Closure.marks], and the elements of a tuple, list or map.
+ */
+internal inline fun anyHeld(
+    terms: List<OtpErlangObject>,
+    walked: MutableSet<OtpErlangObject> = Collections.newSetFromMap(IdentityHashMap()),
+    visit: (OtpErlangObject) -> Boolean,
+): Boolean {
+    val pending = ArrayDeque(terms)
+
+    while (pending.isNotEmpty()) {
+        ProgressManager.checkCanceled()
+
+        val term = pending.removeLast()
+
+        if (!walked.add(term)) continue
+        if (visit(term)) return true
+
+        when (term) {
+            is Holding -> pending.addAll(term.parts)
+            is Closure -> pending.addAll(term.marks())
+            is OtpErlangTuple -> pending.addAll(term.elements())
+            is OtpErlangList -> {
+                pending.addAll(term.elements())
+                term.lastTail?.let(pending::add)
+            }
+            is OtpErlangMap -> {
+                pending.addAll(term.keys())
+                pending.addAll(term.values())
+            }
+            else -> {}
+        }
+    }
+
+    return false
+}
 
 /** Declines for [reason], each `%s` in which names the next of [terms]. */
 internal fun decline(reason: String, vararg terms: OtpErlangObject): Nothing =
@@ -31,7 +152,8 @@ internal fun decline(reason: String, vararg terms: OtpErlangObject): Nothing =
 
 /**
  * [term] as Erlang writes it, cut short with `...` after its first [NAMED_NODES] nodes: a term can hold one part in
- * many places, so writing it whole can take as long as walking it.
+ * many places, so writing it whole can take as long as walking it. An integer wider than [NAMED_BITS] is `...` too:
+ * writing its digits costs more than its width, 167 ms at 2^21 bits.
  */
 private class Named(term: OtpErlangObject) {
     private val written = StringBuilder()
@@ -65,6 +187,7 @@ private class Named(term: OtpErlangObject) {
 
                 written.append("}")
             }
+            is OtpErlangLong if term.bitLength() > NAMED_BITS -> written.append("...")
             else -> written.append(term)
         }
     }
@@ -91,16 +214,15 @@ private class Named(term: OtpErlangObject) {
 /** The nodes of a term a decline names: enough to tell the term, far fewer than one sharing its parts can hold. */
 private const val NAMED_NODES = 32
 
+/** The widest integer a decline writes, whose digits take less time to write than the longest atom's 255 characters. */
+private const val NAMED_BITS = 1024
+
 /** An exception of class [kind] (`error`, `throw` or `exit`) the body raised, with its [reason] and [stacktrace]. */
 internal class Thrown(val kind: String, val reason: OtpErlangObject, val stacktrace: OtpErlangObject) :
     RuntimeException(null, null, false, false)
 
-/** A value the evaluator doesn't know, such as a `__CALLER__` field [Env][org.elixir_lang.expander.Env] doesn't hold. */
-internal object Unknown : OtpErlangObject() {
-    // Java serialization calls it.
-    @Suppress("unused")
-    private fun readResolve(): Any = Unknown
-
+/** A value the evaluator doesn't know, of any type: an [Unknown], a [Holding] or a [ModuleUnknown]. */
+internal sealed class UnknownValue : OtpErlangObject() {
     override fun encode(buf: OtpOutputStream) = decline("an unknown value has no external form")
 
     override fun equals(other: Any?) = this === other
@@ -109,6 +231,34 @@ internal object Unknown : OtpErlangObject() {
 
     override fun toString() = "#Unknown"
 }
+
+/** A value the evaluator doesn't know that came from no module, such as an attribute's map. */
+internal object Unknown : UnknownValue() {
+    // Java serialization calls it.
+    @Suppress("unused")
+    private fun readResolve(): Any = Unknown
+}
+
+/**
+ * A value the evaluator doesn't know that came from a module being compiled, as a `__CALLER__` or `__ENV__` field
+ * [Env][org.elixir_lang.expander.Env] doesn't hold does: it may be or hold any of them ([Given]).
+ */
+internal object ModuleUnknown : UnknownValue() {
+    // Java serialization calls it.
+    @Suppress("unused")
+    private fun readResolve(): Any = ModuleUnknown
+}
+
+/** A value the evaluator doesn't know, built from [parts] it does, any of which may be or hold a module being compiled. */
+internal class Holding(val parts: List<OtpErlangObject>) : UnknownValue()
+
+/** A value the evaluator doesn't know, built from [parts]: it came from a module being compiled where one of them did. */
+internal fun unknownOf(parts: List<OtpErlangObject>): UnknownValue =
+    when {
+        parts.any { it === ModuleUnknown } -> ModuleUnknown
+        parts.all { it === Unknown || it === UnknownBinary } -> Unknown
+        else -> Holding(parts)
+    }
 
 /**
  * A binary whose bytes the evaluator doesn't know, such as a message built by `inspect`: a binary segment takes it, as
@@ -128,11 +278,18 @@ internal object UnknownBinary : OtpErlangObject() {
     override fun toString() = "#UnknownBinary"
 }
 
-/** Whether [term] is [Unknown] or [UnknownBinary]. */
-internal fun isUnknown(term: OtpErlangObject) = term === Unknown || term === UnknownBinary
+/** Whether [term] is an [UnknownValue] or [UnknownBinary]. */
+internal fun isUnknown(term: OtpErlangObject) = term is UnknownValue || term === UnknownBinary
 
-/** An `fn`, or a capture of a local function, that [invoke]s its clauses with [arity] arguments. */
-internal class Closure(val arity: Int, val invoke: (List<OtpErlangObject>) -> OtpErlangObject) :
+/**
+ * An `fn`, or a capture, that [invoke]s its clauses with [arity] arguments, and the values it holds ([marks]), so a call
+ * given it is given them ([Given]).
+ */
+internal class Closure(
+    val arity: Int,
+    val marks: () -> List<OtpErlangObject> = { emptyList() },
+    val invoke: (List<OtpErlangObject>) -> OtpErlangObject,
+) :
     OtpErlangFun(OtpErlangPid("nonode@nohost", 0, 0, 0), "erl_eval", 0L, 0L, arrayOf()) {
     override fun equals(other: Any?) = this === other
 
@@ -165,10 +322,16 @@ internal fun tuple(vararg elements: OtpErlangObject) = OtpErlangTuple(arrayOf(*e
 
 internal fun list(elements: List<OtpErlangObject>) = OtpErlangList(elements.toTypedArray())
 
-/** `[heads | tail]`, [Unknown] where [tail] is: how many cells follow, and whether the list is proper, aren't known. */
+/**
+ * `[heads | tail]`, unknown where [tail] is: how many cells follow, and whether the list is proper, aren't known, but it
+ * holds [heads].
+ */
 internal fun cons(heads: List<OtpErlangObject>, tail: OtpErlangObject): OtpErlangObject =
     when {
-        heads.isEmpty() || tail === Unknown -> tail
+        heads.isEmpty() -> tail
+        tail is UnknownValue -> unknownOf(heads + tail)
+        // A list of bytes decodes as a string, which is as proper a tail as the list it is.
+        tail is OtpErlangString -> list(heads + cells(tail)!!.first)
         tail is OtpErlangList && tail.lastTail == null -> list(heads + tail.elements())
         tail is OtpErlangList -> OtpErlangList((heads + tail.elements()).toTypedArray(), tail.lastTail)
         else -> OtpErlangList(heads.toTypedArray(), tail)
@@ -281,7 +444,7 @@ internal fun known(term: OtpErlangObject): OtpErlangObject {
     ProgressManager.checkCanceled()
 
     when (term) {
-        Unknown, UnknownBinary -> decline("an unknown value")
+        is UnknownValue, UnknownBinary -> decline("an unknown value")
         is OtpErlangTuple -> term.elements().forEach(::known)
         is OtpErlangList -> {
             term.elements().forEach(::known)
@@ -313,7 +476,7 @@ internal fun cells(term: OtpErlangObject): Pair<List<OtpErlangObject>, OtpErlang
     when (term) {
         is OtpErlangList -> term.elements().asList() to term.lastTail
         is OtpErlangString -> term.stringValue().codePoints().toArray().map { integer(it.toLong()) } to null
-        Unknown -> decline("an unknown value")
+        is UnknownValue -> unknown(term)
         else -> null
     }
 
@@ -349,13 +512,83 @@ private inline fun <T> ordered(left: OtpErlangObject, right: OtpErlangObject, sa
 }
 
 /** [term], declining where it is unknown ([isUnknown]), before its type or value is tested. */
-internal fun seen(term: OtpErlangObject): OtpErlangObject = if (isUnknown(term)) decline("an unknown value") else term
+internal fun seen(term: OtpErlangObject): OtpErlangObject = if (isUnknown(term)) unknown(term) else term
+
+/** Declines on [term], an unknown value, keeping it where it came from a module being compiled ([Declined.holds]). */
+private fun unknown(term: OtpErlangObject): Nothing =
+    throw Declined("an unknown value").apply { if (term is Holding || term === ModuleUnknown) holds += term }
 
 internal fun truthy(term: OtpErlangObject): Boolean {
-    if (term === Unknown) decline("an unknown value")
+    if (term is UnknownValue) unknown(term)
 
     return term != FALSE && term != NIL
 }
+
+/**
+ * The code [value] is, as [ElixirAst.fromOtp] reads it, or `null` where it isn't code or the code would hold more than
+ * [COPY_NODES] nodes. [onNode] is told each term and the node it became.
+ */
+internal fun codeOf(
+    value: OtpErlangObject,
+    origin: TextRange,
+    values: Boolean = false,
+    known: (OtpErlangObject) -> ElixirAst? = { null },
+    onNode: ((OtpErlangObject, ElixirAst) -> Unit)? = null,
+): ElixirAst? = ElixirAst.fromOtp(value, origin, values, known, COPY_NODES, onNode)
+
+/**
+ * [value] as the expander's [Term]: a float is [Term.NonTuple], and what a [Term] can't hold, an unknown value
+ * included, is [Term.Unexpanded], as is a value too large to copy ([copyable]).
+ */
+internal fun termOf(value: OtpErlangObject): Term = if (copyable(value)) copiedTerm(value) else Term.Unexpanded
+
+private fun copiedTerm(value: OtpErlangObject): Term {
+    ProgressManager.checkCanceled()
+
+    return when (value) {
+        is OtpErlangAtom -> Term.Atom(value.atomValue())
+        is OtpErlangLong -> Term.Integer(value.bigIntegerValue())
+        is OtpErlangDouble -> Term.NonTuple
+        is OtpErlangBinary -> Term.Binary(value.binaryValue())
+        UnknownBinary -> Term.Binary(null)
+        is OtpErlangString ->
+            Term.List(value.stringValue().codePoints().toArray().map { Term.Integer(BigInteger.valueOf(it.toLong())) })
+        is OtpErlangList -> Term.List(value.elements().map(::copiedTerm), value.lastTail?.let(::copiedTerm))
+        is OtpErlangTuple -> tupleTerm(value.elements().map(::copiedTerm))
+        else -> Term.Unexpanded
+    }
+}
+
+/**
+ * Whether a copy of [value], part by part, holds at most [COPY_NODES] nodes, each of its shared parts counted each time
+ * it appears and a string's code points one each. The evaluator shares a value's parts, as the VM does, so a value it
+ * holds in a few nodes can take more than the IDE's heap once every part is copied.
+ */
+internal fun copyable(value: OtpErlangObject): Boolean {
+    var nodes = 0
+
+    fun fits(value: OtpErlangObject): Boolean {
+        ProgressManager.checkCanceled()
+
+        nodes += if (value is OtpErlangString) 1 + value.stringValue().let { it.codePointCount(0, it.length) } else 1
+
+        return nodes <= COPY_NODES &&
+            when (value) {
+                is OtpErlangList -> value.elements().all { fits(it) } && value.lastTail?.let { fits(it) } != false
+                is OtpErlangTuple -> value.elements().all { fits(it) }
+                else -> true
+            }
+    }
+
+    return fits(value)
+}
+
+/** The most nodes a copy of an evaluated value may build. */
+internal const val COPY_NODES = 1 shl 20
+
+/** A tuple of [elements] as the expander's [Term]: a [Term.Pair] of two, else a [Term.Tuple]. */
+internal fun tupleTerm(elements: List<Term>): Term =
+    if (elements.size == 2) Term.Pair(elements[0], elements[1]) else Term.Tuple(elements)
 
 /** An `{M, F, ArgsOrArity, []}` stacktrace entry. */
 internal fun frame(module: String, function: String, argsOrArity: OtpErlangObject): OtpErlangTuple =

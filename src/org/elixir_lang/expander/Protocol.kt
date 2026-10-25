@@ -5,7 +5,6 @@ import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
-import org.elixir_lang.language_level.ElixirLanguageFeature.PROTOCOL_BEFORE_COMPILE
 import org.elixir_lang.language_level.ElixirLanguageFeature.PROTOCOL_CONCAT
 import org.elixir_lang.language_level.ElixirLanguageFeature.PROTOCOL_DISPATCHES_BY_IMPL_TARGET
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -17,8 +16,8 @@ import java.math.BigInteger
 
 /**
  * `Kernel.defprotocol/2`: `Protocol.__protocol__/2`'s output is expanded where the call is. What the module it defines
- * queues for the definitions that depend on `@fallback_to_any` and the functions it declares is settled once its body has
- * run, and `Protocol.__before_compile__/1`, which only warns, is applied by the macro.
+ * queues for its loop over the built-in types and its `impl_for!/1` is settled once its body has run, and
+ * `Protocol.__before_compile__/1`, which only warns, is applied by the macro.
  */
 internal val DEFPROTOCOL = Summary { _, node, state, env, run ->
     val (name, options) = node.arguments!!
@@ -29,7 +28,7 @@ internal val DEFPROTOCOL = Summary { _, node, state, env, run ->
         Expansion.Unported(node)
     } else {
         val from = run.pending.size
-        val expansion = expandQuoted(node, KERNEL, ProtocolOutput(Synthetic(node.meta), run.level, name, block).output(), state, env, run)
+        val expansion = expandQuoted(node, KERNEL, ProtocolOutput(Synthetic(node.meta), run.level, name, block).output(), state, env, run, ports = true)
         val index = (from until run.pending.size).firstOrNull { run.pending[it] is Pending.Module }
 
         if (expansion is Expansion.Expanded && index != null) {
@@ -40,6 +39,8 @@ internal val DEFPROTOCOL = Summary { _, node, state, env, run ->
                 settle = { pending -> ProtocolTail(module.name, module.node.meta, run.level).settled(pending) },
                 applied = setOf(PROTOCOL to "__before_compile__"),
                 injectedBy = module.injectedBy,
+                outer = module.outer,
+                placed = module.placed,
             )
         }
 
@@ -58,7 +59,7 @@ internal val PROTOCOL_DEF = Summary { _, node, state, env, run ->
         is ProtocolFunction.Declared -> {
             val from = run.pending.size
             val output = ProtocolDefOutput(Synthetic(node.meta), run.level, shape.name, shape.arguments).output()
-            val expansion = expandQuoted(node, PROTOCOL, output, state, env, run)
+            val expansion = expandQuoted(node, PROTOCOL, output, state, env, run, ports = true)
 
             if (expansion is Expansion.Expanded) knowFunctions(shape, from, run)
 
@@ -118,10 +119,14 @@ private fun knowFunctions(shape: ProtocolFunction.Declared, from: Int, run: Run)
 
     val declared = Term.Pair(Term.Atom(shape.name), Term.Integer(BigInteger.valueOf(shape.arguments.size.toLong())))
 
-    run.pending[index] = Pending.Attribute(write.effect, write.at, statement = true) { attributes ->
+    run.pending[index] = Pending.Attribute(write.effect, write.at, statement = true, write.raises) { attributes ->
         val before = attributes.read(attribute) as? Term.List
 
-        if (before == null || before.tail != null) write.effect else Effect.Write(attribute, Term.List(listOf(declared) + before.elements))
+        if (before == null || before.tail != null) {
+            write.resolve?.invoke(attributes) ?: write.effect
+        } else {
+            Effect.Write(attribute, Term.List(listOf(declared) + before.elements))
+        }
     }
 }
 
@@ -165,22 +170,21 @@ private fun protocolConcat(left: String, right: String): String =
     "${left.takeIf { it.startsWith("Elixir.") } ?: "Elixir.$left"}.${right.removePrefix("Elixir.")}"
 
 /**
- * What the protocol module [module] queued that depends on values only the body running gives, which the expander
- * doesn't evaluate: `@fallback_to_any`, which decides the `Any` implementation `impl_for/1` answers, and the functions
- * declared, which `__protocol__(:functions)` lists. Each such definition, and each branch of the `if` that chooses
- * `impl_for!/1`, is an effect in the queue that reads those attributes where the walk reaches it, as Elixir does, and
- * queues what the definition holds then.
+ * What the protocol module [module] queued that the expander doesn't run as the body does: the `impl_for/1` defined in
+ * the `fn` that `:lists.foreach/2` calls for each built-in type, and the two branches of the `if` that chooses
+ * `impl_for!/1` by `@fallback_to_any`. Each is an effect in the queue that reads `@fallback_to_any` where the walk
+ * reaches it, as Elixir does, and queues what the definition holds then.
  */
 internal class ProtocolTail(private val module: String, meta: Meta, private val level: ElixirLanguageLevel) {
     private val s = Synthetic(meta)
 
-    /** [pending] with each definition that waits on the body's values, or is a branch of `impl_for!/1`, an effect. */
+    /** [pending] with the loop's definition and each branch of `impl_for!/1` an effect. */
     fun settled(pending: List<Pending>): List<Pending> {
         val branches = pending.filter { it is Pending.Definition && !it.statement && isImplFor(it) }
             .takeIf { it.size == 2 }.orEmpty()
 
         return pending.map { entry ->
-            if (entry is Pending.Definition && (entry.stop != null || entry in branches)) {
+            if (entry is Pending.Definition && (callsGuard(entry.head) || entry in branches)) {
                 waiting(entry, branches.indexOf(entry))
             } else {
                 entry
@@ -199,14 +203,16 @@ internal class ProtocolTail(private val module: String, meta: Meta, private val 
     }
 
     /**
-     * What [definition] holds with the attributes as [attributes] has them: itself when they aren't known, and, for a
+     * What [definition] holds with `@fallback_to_any` as [attributes] has it: itself when it isn't known, and, for a
      * branch, nothing unless it is the one `if any_impl_for` takes.
      */
     private fun filling(definition: Pending.Definition, branch: Int, attributes: AttributeTable): List<Pending> {
         val fallback = fallbackToAny(attributes) ?: return listOf(definition)
-        val functions = declared(attributes) ?: return listOf(definition)
-        val fragments = Fragments(anyImplFor(fallback) ?: return listOf(definition), functions, description(attributes))
-        val filled = if (definition.stop != null) fill(definition, fragments) else listOf(definition)
+        val filled = if (callsGuard(definition.head)) {
+            loop(definition, anyImplFor(fallback) ?: return listOf(definition))
+        } else {
+            listOf(definition)
+        }
 
         if (branch < 0) return filled
 
@@ -215,9 +221,6 @@ internal class ProtocolTail(private val module: String, meta: Meta, private val 
         // implementation, otherwise the first.
         return if (branch == (if (fallback) 1 else 0)) filled.map(Pending::asStatement) else emptyList()
     }
-
-    /** What the body's variables hold: the `Any` implementation, the sorted functions, and the undefined-implementation text. */
-    private class Fragments(val anyImplFor: ElixirAst, val functions: ElixirAst, val description: ElixirAst?)
 
     /**
      * `any_impl_for`: `nil`, the `Any` module, or before [PROTOCOL_DISPATCHES_BY_IMPL_TARGET] the quoted call of that
@@ -235,74 +238,25 @@ internal class ProtocolTail(private val module: String, meta: Meta, private val 
         }
     }
 
-    /** The text of `@undefined_impl_description`, `""` where it isn't set, or `null` where it isn't known. */
-    private fun description(attributes: AttributeTable): ElixirAst? {
-        val value = attributes.row("undefined_impl_description") ?: return ElixirAst.Literal.Binary(s.meta(), ByteArray(0))
-        val bytes = ((value as? AttributeValue.Known)?.term as? Term.Binary)?.bytes ?: return null
-
-        return ElixirAst.Literal.Binary(s.meta(), bytes)
-    }
-
     /** Whether `@fallback_to_any` is true, if it is known. */
     private fun fallbackToAny(attributes: AttributeTable): Boolean? = attributes.read("fallback_to_any").isTruthy()
 
-    /** The functions declared, `{name, arity}` as `:lists.sort/1` orders them, if `@__functions__` is known. */
-    private fun declared(attributes: AttributeTable): ElixirAst? {
-        val list = attributes.read(functionsAttribute(level)) as? Term.List ?: return null
-        // Before `PROTOCOL_BEFORE_COMPILE` the body can write `@functions`, and `:lists.sort/1` takes any term in it.
-        val functions = list.elements.map { element ->
-            ProgressManager.checkCanceled()
-
-            val pair = element as? Term.Pair ?: return null
-
-            ((pair.first as? Term.Atom)?.name ?: return null) to ((pair.second as? Term.Integer)?.value ?: return null)
-        }
-
-        return s.list(
-            functions
-                .sortedWith { a, b -> compareCodePoints(a.first, b.first).takeIf { it != 0 } ?: a.second.compareTo(b.second) }
-                .map { (name, arity) -> s.tuple(s.atom(name), s.integer(arity)) },
-        )
-    }
-
-    /** [stuck], which waits on values of the body, once for each type if it is `defprotocol`'s loop over them. */
-    private fun fill(stuck: Pending.Definition, fragments: Fragments): List<Pending> {
-        if (!callsGuard(stuck.head)) {
-            return listOf(filled(stuck) { fragment(it, fragments) })
-        }
-
-        // The loop's `fn` body is expanded once, and runs for each of the built-in types.
-        return BUILT_IN.map { (type, guard) ->
+    /**
+     * The loop's definition [stuck], once for each built-in type: the `fn` body is expanded once, and runs for each, with
+     * the body's `any_impl_for` as [anyImplFor].
+     */
+    private fun loop(stuck: Pending.Definition, anyImplFor: ElixirAst): List<Pending> =
+        BUILT_IN.map { (type, guard) ->
             val target = s.atom(implementationName(level, module, "Elixir.$type") ?: return listOf(stuck))
 
-            filled(
-                stuck,
-                certain = true,
-                name = { call -> guard.takeIf { isGuardCall(call) } },
-            ) { argument -> fragment(argument, fragments) ?: target.takeIf { isProtocolVariable(argument, "target") } }
+            filled(stuck, name = { call -> guard.takeIf { isGuardCall(call) } }) { argument ->
+                when {
+                    isProtocolVariable(argument, "any_impl_for") -> anyImplFor
+                    isProtocolVariable(argument, "target") -> target
+                    else -> null
+                }
+            }
         }
-    }
-
-    private fun fragment(argument: ElixirAst, fragments: Fragments): ElixirAst? =
-        when {
-            isProtocolVariable(argument, "any_impl_for") -> fragments.anyImplFor
-            isProtocolVariable(argument, "undefined_impl_description") -> fragments.description
-            isSortedFunctions(argument) -> fragments.functions
-            else -> null
-        }
-
-    /** `:lists.sort(@__functions__)`, or `@functions` before [PROTOCOL_BEFORE_COMPILE]. */
-    private fun isSortedFunctions(argument: ElixirAst): Boolean {
-        val call = argument as? ElixirAst.Call ?: return false
-        val dot = dotArguments(call.callee) ?: return false
-
-        val sorted = call.arguments?.singleOrNull()
-
-        return dot.size == 2 && (dot[0] as? ElixirAst.Literal.Atom)?.name == "lists" &&
-            (dot[1] as? ElixirAst.Literal.Atom)?.name == "sort" &&
-            sorted != null && isCall(sorted, "@", 1) &&
-            isVariableNamed((sorted as ElixirAst.Call).arguments!!.single(), functionsAttribute(level))
-    }
 
     /** Whether [node] holds a call of `Protocol`'s own `guard`, the name the loop over the built-in types gives a head. */
     private fun callsGuard(node: ElixirAst): Boolean {

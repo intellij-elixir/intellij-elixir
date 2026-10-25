@@ -2,6 +2,8 @@ package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
+import org.elixir_lang.expander.interpreter.Evaluated
+import org.elixir_lang.expander.interpreter.codeOf
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFDELEGATE_ALL_EACH
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFDELEGATE_GUARD_ERROR
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFDELEGATE_SELF_CHECK
@@ -13,9 +15,10 @@ import java.math.BigInteger
 
 /**
  * `Kernel.defdelegate/2`: its output is expanded where the call is, and what the output queued for its one `for`
- * iteration is replaced by what the loop does for each head: the `@doc` and a `def` named for the head, or the error
- * that taking the head apart raises. A head or an option the expander can't read leaves the output's own entries, the
- * `def` of a name it doesn't know, which stops the module there.
+ * iteration is replaced, where the walk reaches it, by what the loop does for each head with the options `opts` is bound
+ * to then: the `@doc` and a `def` named for the head, or the error that taking the head apart raises. A head or an option
+ * the expander can't read leaves the output's own entries, the `def` of a name it doesn't know, which stops the module
+ * there.
  */
 internal val DEFDELEGATE = Summary { _, node, state, env, run ->
     val compiling = moduleBody(env, run)
@@ -38,7 +41,9 @@ private fun defdelegate(
     val (funs, written) = arguments
     val escaped = when (val escape = Quote.escape(funs, node.meta, run)) {
         is Quote.Escaped.Built -> escape.node
+        is Quote.Escaped.Unread -> return escape.expansion
         is Quote.Escaped.Stopped -> return escape.expansion
+        is Quote.Escaped.Raised -> return Expansion.Error(escape.exception, node)
     }
     val opts = when (val options = options(written, state, env, run)) {
         is MacroExpanded.Node -> options.node
@@ -46,23 +51,50 @@ private fun defdelegate(
         MacroExpanded.Dir -> written
     }
     val from = run.pending.size
-    val expansion = expandQuoted(node, KERNEL, DelegateOutput(Synthetic(node.meta), run.level, escaped, opts).output(), state, env, run)
+    val expansion = expandQuoted(node, KERNEL, DelegateOutput(Synthetic(node.meta), run.level, escaped, opts).output(), state, env, run, ports = true)
 
     if (expansion is Expansion.Expanded && compiling.isStatement(node)) {
-        val queued = run.pending.subList(from, run.pending.size).toList()
-        val replacement = Delegates(node, env, run.level) { variable ->
-            (macroExpandOnce(variable, state, env, run) as? MacroExpanded.Node)?.node ?: variable
-        }.pending(funs, opts, queued)
+        // The `bind_quoted` matches run first, then the iteration, which checks the options as `Kernel.Utils` does: the
+        // output's own `target =` match isn't run.
+        val (matches, iteration) = run.pending.subList(from, run.pending.size).toList().partition { it is Pending.Match }
+        val binds = matches.filter { binds(it, "funs") || binds(it, "opts") }
+        val bound = binds.firstOrNull { binds(it, "opts") } as Pending.Match?
+        val delegates = Delegates(node, env, run.level)
+        var entries = iteration
 
-        // A definition the loop makes for a head it can name is a statement of the body, as its `def` is once it runs.
-        val wasQueued = queued.toHashSet()
+        run.replacePending(
+            from,
+            binds + Pending.Effect(node, ordered = true, queued = { entries }) { body, _ ->
+                entries = bound?.let { optionsOf(it, body, run) }?.let { delegates.each(funs, it, iteration) } ?: iteration
 
-        replacement.filterIsInstance<Pending.Definition>().firstOrNull { it !in wasQueued }
-            ?.let { compiling.rewrote(node, it.node) }
-        run.replacePending(from, replacement)
+                // A definition the loop makes for a head it can name is a statement of the body, as its `def` is once it runs.
+                entries.filterIsInstance<Pending.Definition>().firstOrNull { it !in iteration }?.let { body.rewrote(node, it.node) }
+                null
+            },
+        )
     }
 
     return expansion
+}
+
+/** Whether [pending] is the `bind_quoted` match of the variable [name]. */
+private fun binds(pending: Pending, name: String): Boolean {
+    val left = ((pending as? Pending.Match)?.node as? ElixirAst.Call)?.arguments?.firstOrNull() ?: return false
+
+    return isVariableNamed(left, name)
+}
+
+/**
+ * What the variable [match] binds holds where the walk is in [body], as code, or `null` where it isn't known or is too
+ * large to copy.
+ */
+private fun optionsOf(match: Pending.Match, body: Compiling, run: Run): ElixirAst? {
+    val variable = (match.node as ElixirAst.Call).arguments!![0]
+    val value = body.values.evaluate(variable, match.state, match.env, run) as? Evaluated.Value ?: return null
+
+    return unlessTooDeep({ null }) {
+        codeOf(value.value, match.node.meta.origin)
+    }
 }
 
 /**
@@ -118,16 +150,11 @@ private sealed interface Head {
  * What the output's loop does when the module body runs it, for a `defdelegate` at [node]: `defdelegate_all`'s checks,
  * then for each head `defdelegate_each`'s, the `@doc`, and the `def`.
  */
-private class Delegates(
-    private val node: ElixirAst.Call,
-    private val env: Env,
-    private val level: ElixirLanguageLevel,
-    private val variableValue: (ElixirAst) -> ElixirAst,
-) {
+private class Delegates(private val node: ElixirAst.Call, private val env: Env, private val level: ElixirLanguageLevel) {
     private val s = Synthetic(node.meta)
 
-    /** [queued], what the output queued for one iteration, replaced by what each head queues. */
-    fun pending(funs: ElixirAst, opts: ElixirAst, queued: List<Pending>): List<Pending> {
+    /** [queued], what the output queued for one iteration, replaced by what each head of [funs] queues with [opts]. */
+    fun each(funs: ElixirAst, opts: ElixirAst, queued: List<Pending>): List<Pending> {
         val attribute = queued.getOrNull(0) as? Pending.Attribute
         val definition = queued.getOrNull(1) as? Pending.Definition
 
@@ -144,8 +171,7 @@ private class Delegates(
 
         if (to == null || to is ElixirAst.Literal.Atom && to.name in FALSY) return listOf(raises("delegate_no_to"))
 
-        // Before `DEFDELEGATE_ALL_EACH` only an alias is expanded in the options; a `__MODULE__` is read when the loop runs.
-        val target = ((if (isVariable(to)) variableValue(to) else to) as? ElixirAst.Literal.Atom)?.name ?: return queued
+        val target = (to as? ElixirAst.Literal.Atom)?.name ?: return queued
         val function = asValue?.let { (it as? ElixirAst.Literal.Atom)?.name ?: return queued }
 
         if (DEFDELEGATE_SELF_CHECK.isSufficient(level) && target == env.module && (function == null || function == "nil")) {
@@ -253,8 +279,7 @@ private class Delegates(
         val body = s.keywords(listOf("do" to s.remoteCall(head.target, head.function, head.calls, listOf(line))))
 
         return Pending.Definition(
-            queued.kind, queued.node, call, body, unnamedAt = null, stop = null, queued.env,
-            ordered = true, statement = true, checksClauses = false,
+            queued.kind, queued.node, call, body, fragments = null, queued.env, statement = true, checksClauses = false,
             delegatesTo = DefinitionTable.Delegation(head.target, head.function),
             injectedBy = queued.injectedBy,
         )

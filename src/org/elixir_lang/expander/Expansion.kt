@@ -21,9 +21,10 @@ sealed class Expansion {
     /**
      * Elixir's expander raises at [at], the node whose metadata it reports.
      *
-     * @property kind the error's reason as atom text, such as `undefined_var`
+     * @property kind the error's reason as atom text, such as `undefined_var`, or `null` for a raise the evaluator
+     *   computed whose exception isn't known
      */
-    data class Error(val kind: String, val at: ElixirAst) : Expansion()
+    data class Error(val kind: String?, val at: ElixirAst) : Expansion()
 
     /** [at] reaches a clause, or a branch of one, that isn't ported. */
     data class Unported(val at: ElixirAst) : Expansion()

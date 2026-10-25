@@ -22,7 +22,10 @@ class DeepOutputTest : ExpanderTestCase() {
     fun testAnOutputTooDeepToExpandStopsItsModuleAtTheCall() =
         assertStopsAtTheCall({ depth -> "defmacro m, do: (c = 1; ${nested(depth)}c)" }, "def f(x), do: x\n  def g, do: A.m()")
 
-    /** `@x 1 + 1 + ...`, written in the source: its module stops at its body, as at a macro's call. */
+    /**
+     * `@x 1 + 1 + ...`, written in the source: its module stops at its body, as at a macro's call, or at its `defmodule`
+     * where the walk's evaluation of the attribute is too deep before its expansion is.
+     */
     fun testAnAttributeTooDeepToExpandStopsItsModuleAtItsBody() {
         val level = ElixirLanguageLevel.of("1.20.4")
         var depth = FIRST_DEPTH
@@ -33,7 +36,9 @@ class DeepOutputTest : ExpanderTestCase() {
             val ended = expandedOnADefaultStack(code, level, depth).modules.single { it.module == "Elixir.B" }.ended
 
             if (ended is ExpansionResult.Ended.Stopped) {
-                assertEquals("at depth $depth", body, ended.at.meta.origin.substring(code))
+                val at = ended.at.meta.origin.substring(code)
+
+                assertTrue("at depth $depth: $at", at == body || at == code.trimEnd())
 
                 return
             }

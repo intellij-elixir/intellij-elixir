@@ -659,6 +659,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#4533](https://github.com/intellij-elixir/intellij-elixir/pull/4533) [@sh41](https://github.com/sh41)
+  - **The expander runs a module body's `=` matches and attribute reads as Elixir does, so a definition built with `unquote` from those values, a `defstruct` of computed fields and a `defdelegate` whose options are an attribute or a variable are expanded; nothing uses it yet.** Refs [#4441](https://github.com/intellij-elixir/intellij-elixir/issues/4441).
 - [#4497](https://github.com/intellij-elixir/intellij-elixir/pull/4497) [@sh41](https://github.com/sh41)
   - **A Mix deps sync whose quiet period ends while a light test project is closed between tests now still completes, so the next light test no longer waits forever for it.** Fixes [#4440](https://github.com/intellij-elixir/intellij-elixir/issues/4440).
 - [#4491](https://github.com/intellij-elixir/intellij-elixir/pull/4491) [@sh41](https://github.com/sh41)

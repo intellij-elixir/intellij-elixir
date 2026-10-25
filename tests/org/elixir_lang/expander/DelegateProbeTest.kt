@@ -1,20 +1,14 @@
 package org.elixir_lang.expander
 
-import org.elixir_lang.psi.ElixirFile
-
 /**
  * `defdelegate` compiled in module bodies on the leg's Elixir: at each probe the env, the variables and the hygiene
  * counters taken, each error it raises, the definitions it stores and the dispatches of the output Elixir expands it to.
  */
-class DelegateProbeTest : ProbeTestCase() {
-    private val probes = ExpansionProbes(harness, accounting = true) {
-        createPsiFile(getTestName(false), it) as ElixirFile
-    }
-
+class DelegateProbeTest : SdkProbeTestCase(accounting = true) {
     /** Each case ends as the compiler ends it, whether it compiles or raises, and ports every macro it calls. */
     fun testEachCaseMatchesElixir() {
         val bodies = COMPILING + RAISING
-        val expansions = bodies.associateWith { probes.expand(it, PREAMBLE) }
+        val expansions = bodies.associateWith { expand(it, PREAMBLE) }
 
         assertEquals(
             "",
@@ -27,7 +21,7 @@ class DelegateProbeTest : ProbeTestCase() {
 
     /** Up to the `defdelegate` the module stops at, each case is as the compiler has it. */
     fun testAnOptionThatIsNotReadStopsTheModule() {
-        val expansions = STOPPING.associateWith { probes.expand(it, PREAMBLE) }
+        val expansions = STOPPING.associateWith { expand(it, PREAMBLE) }
 
         assertEquals(
             "",
@@ -40,14 +34,14 @@ class DelegateProbeTest : ProbeTestCase() {
 
     /** The dispatches of each case that compiles, as the compiler traces them. */
     fun testEachCompilingCaseTracesAsTheCompilerDoes() {
-        printed { probes.assertTracesMatchElixir(probes.expandAll(COMPILING, PREAMBLE)) }
+        printed { probes.assertTracesMatchElixir(probes.expandAll(COMPILING, PREAMBLE, clauses = sdk)) }
     }
 
     /** A delegate is a `def` of its own, so each head runs the module's `@on_definition` callbacks. */
     fun testEachHeadRunsTheDefinitionCallbacks() {
         printed {
             probes.assertTracesMatchElixir(
-                probes.expandAll(CALLBACKS, PREAMBLE + CALLBACK_PREAMBLE, hook = ProbeHarness.Hook())
+                probes.expandAll(CALLBACKS, PREAMBLE + CALLBACK_PREAMBLE, hook = ProbeHarness.Hook(), clauses = sdk)
             )
         }
     }
@@ -55,7 +49,7 @@ class DelegateProbeTest : ProbeTestCase() {
     /** A head the expander can't name stops the module at the `defdelegate`, as every unevaluated definition does. */
     fun testAHeadWithAnUnquotedNameIsNotFollowed() {
         val body = "defdelegate unquote(String.to_atom(\"a\"))(x), to: M"
-        val expansion = probes.expand(body, PREAMBLE)
+        val expansion = expand(body, PREAMBLE)
 
         assertTrue("$body: ${expansion.outcome}", expansion.outcome is Expansion.Unported)
     }
@@ -86,6 +80,9 @@ class DelegateProbeTest : ProbeTestCase() {
             "defdelegate count(x), to: Enum, as: :map",
             "defdelegate count(x), to: M, as: :count",
             "defdelegate count(x), to: __MODULE__, as: :other",
+            // options as the body binds them
+            "@t Enum\ndefdelegate count(x), to: @t",
+            "defdelegate f(x), to: Enum, as: String.to_atom(\"count\")",
             // delegate_list
             "defdelegate [a(x), b(y)], to: M",
             "defdelegate [a(x), b(y)], to: M, as: :c",
@@ -112,10 +109,8 @@ class DelegateProbeTest : ProbeTestCase() {
         /** A `to:` or an `as:` the expander can't read stops the module at the `defdelegate`, as every unevaluated definition does. */
         val STOPPING = listOf(
             "defdelegate count(x), to: Application.get_env(:a, :b) || Enum",
-            "@t Enum\ndefdelegate count(x), to: @t",
             // an `as:` that isn't an atom is the function the delegate calls, or raises as the `delegate_to` metadata does
             "defdelegate f(x), to: Enum, as: \"count\"",
-            "defdelegate f(x), to: Enum, as: String.to_atom(\"count\")",
         )
 
         val RAISING = listOf(

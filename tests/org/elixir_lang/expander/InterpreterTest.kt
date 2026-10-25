@@ -12,17 +12,20 @@ import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.io.FileUtil
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
-import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiFileFactory
-import com.intellij.psi.PsiManager
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
+import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINER_REFUSED_IN_MATCH_OR_GUARD
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_ESCAPES_STRUCT
 import org.elixir_lang.language_level.ElixirLanguageFeature.DUPLICATE_MATCH_UNPACKED_ONCE
+import org.elixir_lang.language_level.ElixirLanguageFeature.ELLIPSIS_NULLARY_CALL
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_QUOTED_APART
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_SORTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_IN_VM_ORDER
@@ -30,11 +33,13 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.FIELD_OF_NON_MAP_RAI
 import org.elixir_lang.language_level.ElixirLanguageFeature.FIELD_OF_NON_MAP_RAISES_BADMAP
 import org.elixir_lang.language_level.ElixirLanguageFeature.FN_CLAUSE_ERROR_IS_FUNCTION_CLAUSE
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
+import org.elixir_lang.language_level.ElixirLanguageFeature.GENERATED_HEADS_CHECKED
 import org.elixir_lang.language_level.ElixirLanguageFeature.GENERATOR_RIGHT_SIDE_SCOPED
 import org.elixir_lang.language_level.ElixirLanguageFeature.INTEGERS_UP_TO_4_MBIT
 import org.elixir_lang.language_level.ElixirLanguageFeature.IN_REFUSES_UNESCAPED_RIGHT_SIDE
 import org.elixir_lang.language_level.ElixirLanguageFeature.KEY_ERROR_MESSAGE_INSPECTED_WITH_OPTIONS
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
+import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_SORT_KEEPS_EQUAL_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ARGUMENTS_STOP_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ESCAPE_MARKS_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
@@ -43,12 +48,14 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.NEGATIVE_ZERO_IS_DIS
 import org.elixir_lang.language_level.ElixirLanguageFeature.PID_IN_FUNCTION_RAISES_MATCH_ERROR
 import org.elixir_lang.language_level.ElixirLanguageFeature.PINNED_BINARY_SEGMENT_INFERS_SIZE
 import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CHECKS_TYPED
+import org.elixir_lang.language_level.ElixirLanguageFeature.PROTOCOL_BEFORE_COMPILE
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_IMPORTS_EVERY_ARITY
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_KEEPS_IMPORTS_META
 import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_ESCAPED_IN_FIXED_FIELD_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED_AS_MACRO
-import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_EXCEPTION_KEY_PRESENT
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUED_ERROR_MESSAGE_FROM_ERROR_INFO
+import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_EXCEPTION_KEY_PRESENT
+import org.elixir_lang.language_level.ElixirLanguageFeature.SPLICE_EMPTY_BEFORE_TAIL_RAISES
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNREQUIRED_MACRO_CALLED_AS_FUNCTION
 import org.elixir_lang.language_level.ElixirLanguageFeature.WITH_OPTIONS_BEFORE_LAST_ARGUMENT
@@ -75,24 +82,831 @@ class InterpreterTest : PlatformTestCase() {
     }
     private val harness = ProbeHarness(parse)
     private val probes = ExpansionProbes(harness, parse = parse)
-    private val sdkClauses = HashMap<String, ModuleClauses?>()
-
-    /** The leg's modules' clauses, read from their `.beam`s as `ProjectModules` reads an SDK's. */
-    private val sdk = ModuleClauses.Lookup { module ->
-        sdkClauses.getOrPut(module) { appBeams[module]?.let(::clausesOf) }
-    }
+    private lateinit var sdk: ModuleClauses.Lookup
 
     override fun setUp() {
         super.setUp()
 
-        appBeams.values.map { it.parentFile.parentFile.parentFile.path }.distinct().forEach {
-            VfsRootAccess.allowRootAccess(testRootDisposable, it)
-        }
+        sdk = sdkClauses(project, testRootDisposable)
     }
 
     fun testFromSource() = assertRows(Source.SOURCE)
 
     fun testFromDebugInfo() = assertRows(Source.DBGI)
+
+    // A raise is the module's, or the file's, only where everything Elixir ran before it had an outcome the evaluator
+    // produced. Each file's ending is Elixir's on 1.11.4 and 1.20.4, run.
+
+    /** A block's statements before its last run before it, so a raise in one is the module's. */
+    fun testARaiseInABlocksEarlierStatementIsTheModules() =
+        assertFile(
+            "defmodule A do\n  x = (raise ArgumentError; :ok)\n  @a raise(KeyError)\nend",
+            "top expanded\nmodule Elixir.A raised Elixir.ArgumentError `raise ArgumentError`",
+        )
+
+    /** Elixir raises `KeyError` in the block, so the later raise stops. */
+    fun testARaiseAfterABlocksEarlierStatementTheEvaluatorCannotRunStops() =
+        assertFile(
+            "defmodule A do\n  x = (receive do after 0 -> raise KeyError end; :ok)\n  @a raise(ArgumentError)\nend",
+            "top unported `@a raise(ArgumentError)`\nmodule Elixir.A stopped `@a raise(ArgumentError)`",
+        )
+
+    /** A statement the evaluator can't run may have raised, as `Map.fetch!/2` does here. */
+    fun testARaiseAfterAStatementTheEvaluatorCannotRunStops() =
+        assertFile(
+            "defmodule A do\n  receive do\n    after 0 -> Map.fetch!(%{}, :k)\n  end\n  @a raise(ArgumentError)\nend",
+            "top unported `@a raise(ArgumentError)`\nmodule Elixir.A stopped `@a raise(ArgumentError)`",
+        )
+
+    /** A `case` the evaluator can't run may have raised, as its `Map.fetch!/2` does here. */
+    fun testARaiseAfterACaseTheEvaluatorCannotRunStops() =
+        assertFile(
+            "defmodule A do\n  case (receive do after 0 -> %{} end) do\n    m -> Map.fetch!(m, :k)\n  end\n  @a raise(ArgumentError)\nend",
+            "top unported `@a raise(ArgumentError)`\nmodule Elixir.A stopped `@a raise(ArgumentError)`",
+        )
+
+    /** A `case` the evaluator runs raises where Elixir does. */
+    fun testACaseTheEvaluatorRunsThatRaisesIsTheModules() =
+        assertFile(
+            "defmodule A do\n  case Map.fetch!(%{}, :k) do\n    _ -> :ok\n  end\n  @a raise(ArgumentError)\nend",
+            "top expanded\nmodule Elixir.A raised Elixir.KeyError `case Map.fetch!(%{}, :k) do\n    _ -> :ok\n  end`",
+        )
+
+    /** A statement no other unit runs is run by the evaluator where the body runs it. */
+    fun testARaiseAfterAStatementTheEvaluatorRunsIsTheModules() =
+        assertFile(
+            "defmodule A do\n  f = fn _ -> 1 end\n  f.(1)\n  @a raise(ArgumentError)\nend",
+            "top expanded\nmodule Elixir.A raised Elixir.ArgumentError `raise(ArgumentError)`",
+        )
+
+    fun testAStatementTheEvaluatorRunsThatRaisesIsTheModules() =
+        assertFile(
+            "defmodule A do\n  f = fn _ -> raise KeyError end\n  f.(1)\n  @a raise(ArgumentError)\nend",
+            "top expanded\nmodule Elixir.A raised Elixir.KeyError `f.(1)`",
+        )
+
+    fun testAFileMatchThatRaisesAfterAStatementTheEvaluatorRunsIsTheFilesError() =
+        assertFile("x = 0\nf = fn _e -> x = 1 end\nf.(1)\n^x = 1", "top error Elixir.MatchError `^x = 1`")
+
+    /** A match whose block ends in a definition the walk ran as its own unit holds that definition's value. */
+    fun testARaiseAfterAMatchOfABlockEndingInADefinitionIsTheModules() =
+        assertFile(
+            "defmodule A do\n  x = (:ok\n  def f(y), do: y)\n  @a raise(ArgumentError)\nend",
+            "top expanded\nmodule Elixir.A raised Elixir.ArgumentError `raise(ArgumentError)`",
+        )
+
+    /** A `case` no clause of matches raises `CaseClauseError`, which `Exception.normalize/3` names from its clauses. */
+    fun testACaseNoClauseMatchesIsTheModules() =
+        assertFile(
+            "defmodule A do\n  case 1 do\n    2 -> :ok\n  end\nend",
+            "top expanded\nmodule Elixir.A raised Elixir.CaseClauseError `case 1 do\n    2 -> :ok\n  end`",
+        )
+
+    /** A statement whose value the expansion knows ran with that outcome. */
+    fun testARaiseAfterStatementsWithKnownValuesIsTheModules() =
+        assertFile(
+            "defmodule A do\n  alias Foo.Bar\n  import Kernel\n  require Integer\n  :ok\n  @a raise(ArgumentError)\nend",
+            "top expanded\nmodule Elixir.A raised Elixir.ArgumentError `raise(ArgumentError)`",
+        )
+
+    /** A port's output says where it raises, the macros it calls included, so a raise after it is the module's. */
+    fun testARaiseAfterAPortsOutputIsTheModules() =
+        assertFile(
+            "defmodule A do\n  defexception [:reason]\n  @a raise(ArgumentError)\nend",
+            "top expanded\nmodule Elixir.A raised Elixir.ArgumentError `raise(ArgumentError)`",
+        )
+
+    /** A directive's value is its module, which a match takes. */
+    fun testADirectiveInAMatchIsItsModule() =
+        assertFile(
+            "defmodule A do\n  Foo.Bar = alias Foo.Bar\n  Integer = require Integer\n  Kernel = import Kernel\n  @a raise(ArgumentError)\nend",
+            "top expanded\nmodule Elixir.A raised Elixir.ArgumentError `raise(ArgumentError)`",
+        )
+
+    /** A decline in a nested module's body is one in the body around it. */
+    fun testARaiseAfterANestedModulesDeclineStops() =
+        assertFile(
+            """
+            defmodule Outer do
+              defmodule Inner do
+                _ = receive do after 0 -> raise KeyError end
+              end
+              @a raise(ArgumentError)
+            end
+            """.trimIndent(),
+            "top unported `@a raise(ArgumentError)`\nmodule Elixir.Outer stopped `@a raise(ArgumentError)`\n  module Elixir.Outer.Inner compiled",
+        )
+
+    /** A decline in a module's body is one in the file, for the modules after it, of only modules or not. */
+    fun testARaiseAfterAnEarlierModulesDeclineStops() {
+        val modules = """
+            defmodule A do
+              _ = receive do after 0 -> raise KeyError end
+            end
+            defmodule B do
+              @a raise(ArgumentError)
+            end
+        """.trimIndent()
+        val expected = "top unported `@a raise(ArgumentError)`\nmodule Elixir.A compiled\nmodule Elixir.B stopped `@a raise(ArgumentError)`"
+
+        assertFile(modules, expected)
+        assertFile("$modules\n:ok", expected)
+    }
+
+    /** A match of the file that raises is the file's error, and no module after it is compiled. */
+    fun testAFileMatchThatRaisesIsTheFilesError() =
+        assertFile("x = 1\n2 = x\ndefmodule M do\nend", "top error Elixir.MatchError `2 = x`")
+
+    /** The checks after the body run after it, so after a decline they stop. */
+    fun testAPostModuleCheckAfterADeclineStops() =
+        assertFile(
+            "defmodule A do\n  _ = receive do after 0 -> raise KeyError end\n  def f, do: u()\nend",
+            "top unported `u()`\nmodule Elixir.A stopped `u()`",
+        )
+
+    /** A nested module's name, body and checks are run after the outer body's statements before it. */
+    fun testANestedModuleAfterADeclineStops() {
+        val decline = "_ = receive do after 0 -> raise KeyError end"
+
+        assertFile(
+            "defmodule O do\n  $decline\n  defmodule nil do\n  end\nend",
+            "top unported `defmodule nil do\n  end`\nmodule Elixir.O stopped `defmodule nil do\n  end`\n  module nil stopped `defmodule nil do\n  end`",
+        )
+        assertFile(
+            "defmodule O do\n  $decline\n  defmodule I do\n    @x 1, 2\n  end\nend",
+            "top unported `@x 1, 2`\nmodule Elixir.O stopped `@x 1, 2`\n  module Elixir.O.I stopped `@x 1, 2`",
+        )
+        assertFile(
+            "defmodule O do\n  $decline\n  defmodule I do\n    def f, do: u()\n  end\nend",
+            "top unported `u()`\nmodule Elixir.O stopped `u()`\n  module Elixir.O.I stopped `u()`",
+        )
+    }
+
+    /** Elixir raises for a module that isn't being compiled, or another file's process may be compiling it. */
+    fun testAWriteToAModuleNotBeingCompiledStops() =
+        assertFile(
+            "defmodule A do\n  Module.put_attribute(String, :a, 1)\n  @b raise(KeyError)\nend",
+            "top unported `Module.put_attribute(String, :a, 1)`\nmodule Elixir.A stopped `Module.put_attribute(String, :a, 1)`",
+        )
+
+    /** A nested module the body may not run may not have written the attribute, so the body's read of it stops. */
+    fun testAWriteFromANestedModuleTheBodyMayNotRunIsUnknown() =
+        assertFile(
+            """
+            defmodule Outer do
+              if false do
+                defmodule Inner do
+                  Module.put_attribute(Outer, :a, 1)
+                end
+              end
+              def unquote(:"f#{Module.get_attribute(__MODULE__, :a)}")(), do: 1
+            end
+            """.trimIndent(),
+            """
+            top expanded
+            module Elixir.Outer stopped `unquote(:"f#{Module.get_attribute(__MODULE__, :a)}")`
+              module Elixir.Outer.Inner compiled
+            """.trimIndent(),
+        )
+
+    /** A nested module the body may not run may not raise. */
+    fun testARaiseInANestedModuleTheBodyMayNotRunStops() =
+        assertFile(
+            """
+            defmodule Outer do
+              if false do
+                defmodule Inner do
+                  @a raise(KeyError)
+                end
+              end
+              @a 1
+            end
+            """.trimIndent(),
+            """
+            top expanded
+            module Elixir.Outer stopped `@a raise(KeyError)`
+              module Elixir.Outer.Inner stopped `@a raise(KeyError)`
+            """.trimIndent(),
+        )
+
+    /** A match's right side runs its earlier statements before the match nested in it, so a decline in one stops it. */
+    fun testARaiseInAMatchNestedAfterAStatementTheEvaluatorCannotRunStops() =
+        assertFile(
+            "defmodule M do\n  x = (receive do after 0 -> raise KeyError end; y = raise(ArgumentError))\nend",
+            "top unported `y = raise(ArgumentError)`\nmodule Elixir.M stopped `y = raise(ArgumentError)`",
+        )
+
+    /** A list statement ending in `[h | t]` runs its head, so a decline there stops a later raise. */
+    fun testARaiseAfterAnImproperListStatementStops() {
+        val declines = "receive do after 0 -> raise ArgumentError end"
+
+        assertFile(
+            "defmodule A do\n  [$declines | []]\n  @a raise(ArgumentError)\nend",
+            "top unported `@a raise(ArgumentError)`\nmodule Elixir.A stopped `@a raise(ArgumentError)`",
+        )
+        assertFile("x = 0\n[$declines | []]\n^x = 1", "top unported `^x = 1`")
+    }
+
+    /** `_ = for ...` runs its `for`, so a decline there stops a later raise. */
+    fun testARaiseAfterADiscardedForStops() =
+        assertFile(
+            "defmodule A do\n  _ = for x <- [:k] do\n    receive do after 0 -> raise ArgumentError end\n  end\n  @a raise(ArgumentError)\nend",
+            "top unported `@a raise(ArgumentError)`\nmodule Elixir.A stopped `@a raise(ArgumentError)`",
+        )
+
+    /**
+     * Elixir raises in a module that stops, so no later raise is the file's for certain. It ends the file all the same:
+     * Elixir ran nothing after it if it ran the file as the expander did, so no module after it is compiled.
+     */
+    fun testARaiseAfterAModuleThatStopsStopsAndEndsTheFile() {
+        val stopped = "defmodule A1 do\n  Module.put_attribute(String, :a, 1)\nend"
+        val a1 = "module Elixir.A1 stopped `Module.put_attribute(String, :a, 1)`"
+
+        assertFile("$stopped\nx = raise KeyError\ndefmodule C do\n  def f, do: 1\nend", "top unported `x = raise KeyError`\n$a1")
+        assertFile(
+            "$stopped\ndefmodule B2 do\n  @a raise(KeyError)\nend\ndefmodule C do\n  def f, do: 1\nend",
+            "top unported `@a raise(KeyError)`\n$a1\nmodule Elixir.B2 stopped `@a raise(KeyError)`",
+        )
+    }
+
+    /**
+     * A raise after a decline isn't the module's for certain, but it ends the module's run as a raise does, and the
+     * file's, or the module's it is nested in as a statement: nothing after it ran if Elixir ran the body as the
+     * expander did.
+     */
+    fun testARaiseThatMayNotBeTheModulesEndsItsRun() {
+        val declines = "receive do after 0 -> :ok end"
+
+        assertFile(
+            "defmodule A do\n  $declines\n  raise ArgumentError\nend\ndefmodule C do\n  defstruct [:x]\nend",
+            "top unported `raise ArgumentError`\nmodule Elixir.A stopped `raise ArgumentError`",
+        )
+        assertFile(
+            "defmodule A do\n  def target(a), do: a\n  defmodule I do\n    $declines\n    raise ArgumentError\n  end\n  def after_it, do: 1\nend",
+            "top unported `raise ArgumentError`\nmodule Elixir.A stopped `raise ArgumentError`\n  module Elixir.A.I stopped `raise ArgumentError`",
+        )
+        // A module that stopped before the nested raise keeps its first stop, and its run still ends.
+        assertFile(
+            "defmodule O5 do\n  Module.put_attribute(String, :a, 1)\n  defmodule I do\n    @a raise(ArgumentError)\n  end\n  def f, do: 1\nend\ndefmodule P do\nend",
+            "top unported `Module.put_attribute(String, :a, 1)`\nmodule Elixir.O5 stopped `Module.put_attribute(String, :a, 1)`\n  module Elixir.O5.I stopped `@a raise(ArgumentError)`",
+        )
+    }
+
+    /**
+     * An error that reads what an unordered unit may have changed isn't the module's for certain: the table entry
+     * Elixir never stored. The module stops there, and as the project is taken to compile, the run goes on: the module
+     * that reads its struct, which isn't readable, stops. A declined call given the module may have written any of its
+     * attributes, so `@x` isn't known after it, nor are the `@before_compile` callbacks: the module stops at its end.
+     */
+    fun testAnErrorAfterAnUnorderedUnitOrADeclineStopsAndTheRunGoesOn() {
+        val b = "defmodule B do\n  def g, do: %A{}\nend"
+        val stopsB = "\nmodule Elixir.B stopped `%A{}`"
+
+        assertFile(
+            "defmodule A do\n  defstruct [:x]\n  if false do\n    defmacro f, do: 1\n  end\n  def f, do: 2\nend\n$b",
+            "top expanded\nmodule Elixir.A stopped `def f, do: 2`$stopsB",
+        )
+        val given = "defmodule A do\n  defstruct [:x]\n  @x :bad\n  H.set(__MODULE__)\n  :ok = @x\nend"
+        assertFile(
+            "defmodule H do\n  def set(m), do: Module.put_attribute(m, :x, :ok)\nend\n$given\n$b",
+            "top expanded\nmodule Elixir.H compiled\nmodule Elixir.A stopped `$given`$stopsB",
+        )
+        assertFile(
+            "defmodule A do\n  def f, do: 1\n  defoverridable f: 0\n  if false do\n    defmacro f, do: 1\n  end\n  def g, do: 2\nend\n$b",
+            "top expanded\nmodule Elixir.A stopped `defmacro f, do: 1`$stopsB",
+        )
+        // From 1.15 the error in `g`'s body is reported, so the module raises once its body has run if Elixir stores
+        // `g`. Before, it raises where it is, in a definition Elixir may not store, so the module only stops there.
+        assertFile(
+            "defmodule A do\n  defstruct [:x]\n  if false do\n    def g, do: __STACKTRACE__\n  end\nend\n$b",
+            if (FUNCTION_ERRORS_CONTINUE.isSufficient(legLevel())) {
+                "top expanded\nmodule Elixir.A stopped `__STACKTRACE__`$stopsB"
+            } else {
+                "top expanded\nmodule Elixir.A stopped `def g, do: __STACKTRACE__`\nmodule Elixir.B stopped `%A{}`"
+            },
+        )
+    }
+
+    /**
+     * A file of only modules stops at a name the fast path can't give, once the modules before it have compiled, and
+     * ends at a raise before it, as any file ends at a raise.
+     */
+    fun testTheFastPathEndsAtARaise() {
+        if (!DEFMODULE_FAST_PATH.isSufficient(legLevel())) return
+
+        assertFile(
+            "defmodule FA do\nend\ndefmodule x do\nend\ndefmodule FC do\nend",
+            "top unported `x`\nmodule Elixir.FA compiled",
+        )
+        assertFile(
+            "defmodule FA do\n  @a raise(ArgumentError)\nend\ndefmodule x do\nend\ndefmodule FC do\nend",
+            "top expanded\nmodule Elixir.FA raised Elixir.ArgumentError `raise(ArgumentError)`",
+        )
+    }
+
+    /**
+     * A user `@on_definition` callback runs code the expander doesn't follow as each definition is stored, which may
+     * write any attribute of any module being compiled, so every later read is unknown: a match of one doesn't raise,
+     * and the module stops at its `defmodule` once its `@before_compile` is read.
+     */
+    fun testADefinitionAnOnDefinitionCallbackSeesMakesLaterAttributeReadsUnknown() {
+        val cb = "defmodule CB do\n  def on_def(env, _kind, _name, _args, _guards, _body), do: Module.put_attribute(env.module, :x, 2)\nend"
+        val matches = "defmodule M do\n  @on_definition {CB, :on_def}\n  @x 1\n  def f, do: 1\n  2 = @x\nend"
+
+        assertFile("$cb\n$matches", "top expanded\nmodule Elixir.CB compiled\nmodule Elixir.M stopped `$matches`")
+        assertFile(
+            "$cb\ndefmodule M do\n  @on_definition {CB, :on_def}\n  @x 1\n  def f, do: 1\n  def unquote(:\"g#{Module.get_attribute(__MODULE__, :x)}\")(), do: 1\nend",
+            "top expanded\nmodule Elixir.CB compiled\nmodule Elixir.M stopped `unquote(:\"g#{Module.get_attribute(__MODULE__, :x)}\")`",
+        )
+    }
+
+    /**
+     * A declined call given the module may write its attributes and remove its definitions, so a read of either after
+     * it is unknown, and the definition whose name reads one stops.
+     */
+    fun testAStateReadAfterADeclinedCallGivenTheModuleIsUnknown() {
+        val h = "defmodule H do\n  def set(m) do\n    receive(do: (x -> x), after: (0 -> :ok))\n    Module.put_attribute(m, :x, 2)\n  end\nend"
+        val attribute = "unquote(:\"g#{Module.get_attribute(__MODULE__, :x)}\")"
+        val defines = "unquote(if Module.defines?(__MODULE__, {:f, 0}), do: :y, else: :n)"
+
+        for (read in listOf(attribute, defines)) {
+            assertFile(
+                "$h\ndefmodule M do\n  @x 1\n  def f, do: 1\n  H.set(__MODULE__)\n  def $read(), do: 1\nend",
+                "top expanded\nmodule Elixir.H compiled\nmodule Elixir.M stopped `$read`",
+            )
+        }
+    }
+
+    /**
+     * A user `@on_definition` callback may write an attribute of any module being compiled, the module around its own
+     * included, so a later read of one isn't known either: a match of it doesn't raise.
+     */
+    fun testADefinitionAnOnDefinitionCallbackSeesMakesAnEnclosingModulesAttributeReadsUnknown() {
+        val inner = "defmodule In do\n    @on_definition {CB, :on_outer}\n    def f, do: 1\n    2 = Module.get_attribute(Outer, :x)\n  end"
+
+        assertFile(
+            "defmodule CB do\n  def on_outer(_env, _kind, _name, _args, _guards, _body), do: Module.put_attribute(Outer, :x, 2)\nend\n" +
+                "defmodule Outer do\n  @x 1\n  $inner\nend",
+            "top expanded\nmodule Elixir.CB compiled\nmodule Elixir.Outer stopped `$inner`\n  module Elixir.Outer.In stopped `$inner`",
+        )
+    }
+
+    /**
+     * Elixir expands a whole body before it runs any of it, so where the body's expansion stops, nothing in it is known
+     * to have run: a module nested before the stop may never have been defined, and its raise never reached. The file's
+     * top is a body too.
+     */
+    fun testAModuleRunAfterItsBodysExpansionStoppedMayNotHaveRun() {
+        val m = "defmodule M do\n  defmacro m, do: receive(do: (x -> x), after: (0 -> raise ArgumentError))\nend\n"
+
+        assertFile(
+            "${m}defmodule O do\n  defmodule I do\n    raise KeyError\n  end\n  require M\n  M.m()\nend",
+            "top unported `M.m()`\nmodule Elixir.M compiled\nmodule Elixir.O stopped `M.m()`\n  module Elixir.O.I stopped `raise KeyError`",
+        )
+        if (!DEFINER_REFUSED_IN_MATCH_OR_GUARD.isSufficient(legLevel())) {
+            assertFile(
+                "defmodule A do\n  raise KeyError\nend\ndefmodule(B, do: 1) = 1",
+                "top unported `defmodule(B, do: 1)`\nmodule Elixir.A stopped `raise KeyError`",
+            )
+        }
+    }
+
+    /** `do_escape/3` lists an alias's segments, so an `unquote_splicing` among them is spliced, in a body or a head. */
+    fun testASpliceInAnAliasSegmentIsSpliced() {
+        assertFile("defmodule A do\n  xs = [Bar]\n  def f, do: unquote_splicing(xs).Baz\nend", "top expanded\nmodule Elixir.A compiled")
+        assertFile("defmodule A do\n  xs = [Bar]\n  def f(unquote_splicing(xs).Baz), do: 1\nend", "top expanded\nmodule Elixir.A compiled")
+    }
+
+    /**
+     * A splice as a call's callee escapes to a `{}` call `Kernel.def/2` rejects, which the port declines while the `def`
+     * expands, before any statement of the body runs: the body's expansion ends there, so no statement before it ran
+     * for certain, and a raise in one isn't the module's.
+     */
+    fun testAnEscapeThatDeclinesEndsTheBodysExpansion() {
+        val def = "def f, do: unquote_splicing(xs)(1)"
+
+        assertFile("defmodule A do\n  xs = [:foo]\n  def foo(x), do: x + 1\n  $def\nend", "top expanded\nmodule Elixir.A stopped `$def`")
+        assertFile(
+            "defmodule A do\n  _ = 1 + :a\n  xs = [:foo]\n  def foo(x), do: x + 1\n  $def\nend",
+            "top unported `$def`\nmodule Elixir.A stopped `$def`",
+        )
+
+        // Code the port can't read after the splice doesn't hide it: the escape walks on to the splice. A string escaping
+        // past the last code point is broken code on every release; `...` before an operand is left unlowered from v1.17.
+        listOf(UNREAD, "...(2)").forEach { unread ->
+            val block = "def f do\n    unquote_splicing(xs)(1)\n    $unread\n  end"
+
+            assertFile("defmodule A do\n  xs = [:foo]\n  def foo(x), do: x + 1\n  $block\nend", "top expanded\nmodule Elixir.A stopped `$block`")
+            assertFile(
+                "defmodule A do\n  xs = [:foo]\n  _ = 1 + :a\n  $block\nend",
+                "top unported `$block`\nmodule Elixir.A stopped `$block`",
+            )
+        }
+    }
+
+    /**
+     * A macro-built definition whose head holds a value the evaluator doesn't know, then one Elixir can't escape: the
+     * escape walks on past the unknown to the raise, which is the module's before any statement runs, so neither the
+     * module nor the one nested before the definition is ever defined.
+     */
+    fun testAnUnknownInAMacroBuiltDefinitionDoesNotHideWhatElixirCantEscape() {
+        listOf("__CALLER__.aliases" to "", "@a" to "  @a 1.5\n").forEach { (unknown, attribute) ->
+            assertFile(
+                "defmodule Mac do\n$attribute  defmacro m do\n    t = {$unknown, fn -> 1 end, $unknown, 0}\n" +
+                    "    {:def, [context: Elixir, imports: [{1, Kernel}, {2, Kernel}]], [{:f, [], [t]}, [do: {:unquote, [], [1]}]]}\n  end\nend\n" +
+                    "defmodule U do\n  defmodule I do\n    def g, do: 1\n  end\n  require Mac\n  Mac.m()\nend",
+                "top expanded\nmodule Elixir.Mac compiled\nmodule Elixir.U raised Elixir.ArgumentError `Mac.m()`",
+            )
+        }
+    }
+
+    /**
+     * A map's entries are escaped first to last but under `unquote: true`, where before v1.18.4 they are escaped last to
+     * first, so a raise in an earlier entry is the escape's.
+     */
+    fun testAMapsEntriesAreEscapedInOrderWithoutUnquote() {
+        val statement = "v =\n    try do\n      Macro.escape(%{a: {:x, [1 | 2], :y}, b: fn -> 1 end}, prune_metadata: true)\n" +
+            "    rescue\n      ArgumentError -> :arg\n    end"
+
+        assertFile(
+            "defmodule A do\n  $statement\n\n  def unquote(v)(), do: 1\nend",
+            "top expanded\nmodule Elixir.A raised Elixir.ErlangError `$statement`",
+        )
+    }
+
+    /**
+     * Under `unquote: true`, before [ESCAPED_MAP_ENTRIES_QUOTED_APART], a map's entries are escaped as one list, last to
+     * first, so the raise is the last entry's, which the body rescues.
+     */
+    fun testAMapsEntriesAreEscapedLastFirstUnderUnquote() {
+        val statement = "v =\n    try do\n      Macro.escape(%{a: {:x, [1 | 2], :y}, b: fn -> 1 end}, prune_metadata: true, unquote: true)\n" +
+            "    rescue\n      ArgumentError -> :arg\n    end"
+
+        assertFile(
+            "defmodule A do\n  $statement\n\n  def unquote(v)(), do: 1\nend",
+            if (ESCAPED_MAP_ENTRIES_QUOTED_APART.isSufficient(legLevel())) "top expanded\nmodule Elixir.A raised Elixir.ErlangError `$statement`"
+            else "top expanded\nmodule Elixir.A compiled",
+        )
+    }
+
+    /**
+     * Code the port can't read may hold an `unquote`, whose expression Elixir expands with the body before any statement
+     * runs. Whether Elixir runs the body isn't known, so no raise in it is the module's, wherever in a definition the code
+     * is, and whether or not the definition has another `unquote`.
+     */
+    fun testAnUnreadDefinitionLeavesTheBodyUncertain() {
+        // A string escaping past the last code point is broken code on every release; `...` before an operand is left
+        // unlowered from v1.17, where it is an operator.
+        val ellipsis = ELLIPSIS_NULLARY_CALL.isSufficient(legLevel())
+        val definitions = listOfNotNull(
+            "def f(unquote(:x), $UNREAD) do\n    y\n  end",
+            "def f(unquote(:x)) do\n    unquote(:y)\n    $UNREAD\n  end",
+            "def f(unquote(:x)) do\n    ...(unquote(y))\n  end".takeIf { ellipsis },
+            "def f(unquote(:x)) do\n    ...(y)\n  end".takeIf { ellipsis },
+            "def f do\n    $UNREAD\n  end",
+            "def f do\n    ...(unquote(y))\n  end".takeIf { ellipsis },
+            "def f do\n    ...(y)\n  end".takeIf { ellipsis },
+        )
+
+        definitions.forEach { definition ->
+            assertFile(
+                "defmodule A do\n  _ = 1 + :a\n  $definition\nend",
+                "top unported `_ = 1 + :a`\nmodule Elixir.A stopped `_ = 1 + :a`",
+            )
+        }
+    }
+
+    /**
+     * `Kernel.define/4` escapes a definition while the `def` expands, before any statement of the body runs, so what
+     * the escape raises is the module's error ahead of a raise in an earlier statement. Before v1.15 the head is
+     * escaped whether or not it has unquotes; from it, only a definition with unquotes is.
+     */
+    fun testAnEscapeThatRaisesIsTheModulesBeforeItsBodyRuns() {
+        val together = DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER.isSufficient(legLevel())
+
+        listOf(
+            "{:unquote, [], [:ok]}" to "raised Elixir.ArgumentError `Mac.m()`",
+            "{:x, [], nil}" to if (together) "raised Elixir.ArithmeticError `_ = 1 + :a`" else "raised Elixir.ArgumentError `Mac.m()`",
+        ).forEach { (body, u) ->
+            assertFile(
+                """
+                defmodule Mac do
+                  defmacro m do
+                    head = {:g, [], [{:\\, [], [{:x, [], nil}, fn -> 1 end]}]}
+
+                    {:def, [context: Elixir, imports: [{1, Kernel}, {2, Kernel}]], [head, [do: $body]]}
+                  end
+                end
+                defmodule U do
+                  require Mac
+                  _ = 1 + :a
+                  Mac.m()
+                end
+                """.trimIndent(),
+                "top expanded\nmodule Elixir.Mac compiled\nmodule Elixir.U $u",
+            )
+        }
+    }
+
+    /**
+     * `eval_form/7` stores the overridable definitions not overridden again after the `@before_compile` callbacks,
+     * which may have defined one as the other kind.
+     */
+    fun testAnOverridableACallbackRedefinesAsAMacroRaises() =
+        assertFile(
+            """
+            defmodule CB do
+              defmacro __before_compile__(_env), do: quote(do: (defoverridable f: 0; defmacro f, do: 1))
+            end
+            defmodule A do @before_compile CB; def f, do: 1; defoverridable f: 0 end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.CB compiled\n" +
+                "module Elixir.A raised bad_kind `defmodule A do @before_compile CB; def f, do: 1; defoverridable f: 0 end`",
+        )
+
+    /** Elixir raises for a write whose target or key isn't an atom, or whose receiver isn't known. */
+    fun testAWriteElixirMayRejectStops() {
+        listOf(
+            "Module.put_attribute(1, :a, 1)",
+            "Module.put_attribute(__MODULE__, \"a\", 1)",
+        ).forEach { write ->
+            assertFile("defmodule A do\n  $write\n  @b raise(KeyError)\nend", "top unported `$write`\nmodule Elixir.A stopped `$write`")
+        }
+        assertFile(
+            "defmodule A do\n  mod = String\n  mod.put_attribute(__MODULE__, :a, 1)\n  @b raise(KeyError)\nend",
+            "top unported `mod.put_attribute(__MODULE__, :a, 1)`\nmodule Elixir.A stopped `mod.put_attribute(__MODULE__, :a, 1)`",
+        )
+    }
+
+    /**
+     * A definition the body may not run may not be there for the module's checks: Elixir compiles this, and the
+     * conflict the expander reports isn't the module's for certain.
+     */
+    fun testAPostModuleCheckAfterADefinitionTheBodyMayNotRunStops() =
+        assertFile(
+            "defmodule A do\n  if false do\n    def inspect(x), do: x\n  end\n  def f(x), do: inspect(x)\nend",
+            "top expanded\nmodule Elixir.A stopped `def inspect(x), do: x`",
+        )
+
+    /** A module whose `defmodule` may not run may not be defined: Elixir raises `UndefinedFunctionError`. */
+    fun testAModuleWhoseDefmoduleMayNotRunIsNotCalled() {
+        assertFile(
+            "case :b do\n  :a ->\n    defmodule A do\n      def f, do: raise(ArgumentError)\n    end\n  _ -> :ok\nend\nA.f()",
+            "top expanded\nmodule Elixir.A compiled",
+        )
+        assertFile(
+            "defmodule Outer do\n  fn ->\n    defmodule Inner do\n      def f, do: raise(ArgumentError)\n    end\n  end\n  Outer.Inner.f()\nend",
+            "top expanded\nmodule Elixir.Outer compiled\n  module Elixir.Outer.Inner compiled",
+        )
+    }
+
+    /** A raise in a module whose `defmodule` may not run may not have happened, so the modules after it compile. */
+    fun testARaiseInAModuleWhoseDefmoduleMayNotRunDoesNotEndTheFile() =
+        assertFile(
+            "case :b do\n  :a ->\n    defmodule A do\n      @a raise(KeyError)\n    end\n  _ -> :ok\nend\ndefmodule C do\nend",
+            "top expanded\nmodule Elixir.A stopped `@a raise(KeyError)`\nmodule Elixir.C compiled",
+        )
+
+    /** A struct whose `defmodule` may not run may not be defined. */
+    fun testAStructWhoseDefmoduleMayNotRunIsNotRead() =
+        assertFile(
+            "defmodule S0 do\n  if false do\n    defmodule A do\n      defstruct [:a]\n    end\n  end\nend\ndefmodule B do\n  @a %S0.A{}\nend",
+            "top expanded\nmodule Elixir.S0 compiled\n  module Elixir.S0.A compiled\nmodule Elixir.B stopped `%S0.A{}`",
+        )
+
+    /**
+     * Before v1.15 `Kernel.define/4` escapes the head whether or not it has unquotes, so the escape rewrites a
+     * `Left.unquote(name)` the head holds; from v1.15 a head with none reaches the compiler as it is.
+     */
+    fun testAHeadWithoutUnquotesIsEscaped() {
+        val u =
+            if (DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER.isSufficient(legLevel())) "raised invalid_quoted_expr `Mac.m()`"
+            else "compiled"
+
+        assertFile(
+            """
+            defmodule Mac do
+              defmacro m do
+                arg = {:\\, [], [{:x, [], nil}, {{{:., [], [String, :unquote]}, [], [:upcase]}, [], nil}]}
+
+                {:def, [context: Elixir, imports: [{1, Kernel}, {2, Kernel}]], [{:g, [], [arg]}, [do: {:x, [], nil}]]}
+              end
+            end
+            defmodule U do
+              require Mac
+              Mac.m()
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.Mac compiled\nmodule Elixir.U $u",
+        )
+    }
+
+    /**
+     * From v1.15 the head and body are escaped as one pair, which `do_quote/2` quotes as `{:{}, ...}` around a splice,
+     * whose value is checked as that call's argument: `list/2` raises for a value that isn't a list, and the store for
+     * the call. Before it, the head is escaped alone, so a splice that is the whole head is a bodiless head of
+     * `unquote_splicing/1`: a pattern argument raises, and a variable one is skipped before [GENERATED_HEADS_CHECKED].
+     */
+    fun testASplicingHeadRaisesWhereTheStoreDoes() {
+        val together = DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER.isSufficient(legLevel())
+        val checksGenerated = GENERATED_HEADS_CHECKED.isSufficient(legLevel())
+
+        listOf(
+            Triple("def unquote_splicing(a, b), do: unquote(x)", null, "compiled"),
+            Triple("def unquote_splicing(), do: unquote(x)", null, "compiled"),
+            Triple("def unquote_splicing([x])", null, "raised invalid_function_head `def unquote_splicing([x])`"),
+            Triple(
+                "def unquote_splicing(x)",
+                "unquote_splicing(x)",
+                if (checksGenerated) "raised function_head `def unquote_splicing(x)`" else "compiled",
+            ),
+        ).forEach { (def, raisedAt, before) ->
+            val ended = if (together) "raised Elixir.ArgumentError `${raisedAt ?: def}`" else before
+
+            assertFile("defmodule B3 do\n  x = 1\n  $def\nend", "top expanded\nmodule Elixir.B3 $ended")
+        }
+    }
+
+    /**
+     * A body is escaped only where it has unquotes, or, from v1.15, where the head has. A dot-unquote call with no
+     * arguments is no unquote, so a body holding one reaches the compiler as it is, which rejects it, unless the head's
+     * unquotes have the pair escaped.
+     */
+    fun testABodyIsEscapedOnlyWithUnquotes() {
+        val together = DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER.isSufficient(legLevel())
+        val raised = "raised invalid_quoted_expr `Mac.m()`"
+
+        listOf(
+            "{{:unquote, [], [:g]}, [], []}" to if (together) "compiled" else raised,
+            "{:g, [], []}" to raised,
+        ).forEach { (head, u) ->
+            assertFile(
+                """
+                defmodule Mac do
+                  defmacro m do
+                    body = {{{:., [], [String, :unquote]}, [], [:upcase]}, [], nil}
+
+                    {:def, [context: Elixir, imports: [{1, Kernel}, {2, Kernel}]], [$head, [do: body]]}
+                  end
+                end
+                defmodule U do
+                  require Mac
+                  Mac.m()
+                end
+                """.trimIndent(),
+                "top expanded\nmodule Elixir.Mac compiled\nmodule Elixir.U $u",
+            )
+        }
+    }
+
+    /** Elixir runs an `@on_definition` callback as each definition is stored, and it may raise. */
+    fun testARaiseAfterADefinitionAnOnDefinitionCallbackSeesStops() =
+        assertFile(
+            """
+            defmodule CB do
+              def on_def(_env, _kind, _name, _args, _guards, _body), do: Map.fetch!(%{}, :k)
+            end
+            defmodule M do
+              @on_definition {CB, :on_def}
+              def f, do: 1
+              @a raise(ArgumentError)
+            end
+            """.trimIndent(),
+            "top unported `@a raise(ArgumentError)`\nmodule Elixir.CB compiled\nmodule Elixir.M stopped `@a raise(ArgumentError)`",
+        )
+
+    /** Elixir runs an `@after_compile` callback once the module compiles, and it may raise and end the file. */
+    fun testARaiseAfterAModuleWithAnAfterCompileCallbackStops() =
+        assertFile(
+            """
+            defmodule CB do
+              def __after_compile__(_env, _bytecode), do: Map.fetch!(%{}, :k)
+            end
+            defmodule A do
+              @after_compile CB
+            end
+            defmodule B do
+              @a raise(ArgumentError)
+            end
+            """.trimIndent(),
+            "top unported `@a raise(ArgumentError)`\nmodule Elixir.CB compiled\nmodule Elixir.A compiled\nmodule Elixir.B stopped `@a raise(ArgumentError)`",
+        )
+
+    /**
+     * From 1.14 Elixir runs an `@after_verify` callback once the module is verified, which every compile entry point
+     * does for the whole file at once, after every module has compiled, so a raise in a later module comes first and
+     * is the file's. Before it, `@after_verify` is a plain attribute.
+     */
+    fun testARaiseAfterAModuleWithAnAfterVerifyCallbackIsTheFiles() =
+        assertFile(
+            """
+            defmodule CB do
+              def __after_verify__(_module), do: Map.fetch!(%{}, :k)
+            end
+            defmodule A do
+              @after_verify CB
+            end
+            defmodule B do
+              @a raise(ArgumentError)
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.CB compiled\nmodule Elixir.A compiled\nmodule Elixir.B raised Elixir.ArgumentError `raise(ArgumentError)`",
+        )
+
+    /** A `@before_compile` callback runs after the body, so after a decline its raise stops. */
+    fun testABeforeCompileCallbackThatRaisesAfterADeclineStops() =
+        assertFile(
+            """
+            defmodule CB do
+              defmacro __before_compile__(_env), do: raise(KeyError)
+            end
+            defmodule A do
+              @before_compile CB
+              _ = receive do after 0 -> raise ArgumentError end
+            end
+            """.trimIndent(),
+            "top unported `defmodule A do\n  @before_compile CB\n  _ = receive do after 0 -> raise ArgumentError end\nend`\nmodule Elixir.CB compiled\nmodule Elixir.A stopped `defmodule A do\n  @before_compile CB\n  _ = receive do after 0 -> raise ArgumentError end\nend`",
+        )
+
+    /** An overridable function defined again as a macro raises once the body has run, so after a decline it stops. */
+    fun testAnOverridableRedefinedAsAMacroAfterADeclineStops() =
+        assertFile(
+            "defmodule A do\n  _ = receive do after 0 -> raise ArgumentError end\n  def f, do: 1\n  defoverridable f: 0\n  defmacro f, do: 1\nend",
+            "top unported `defmacro f, do: 1`\nmodule Elixir.A stopped `defmacro f, do: 1`",
+        )
+
+    /** The errors these raise follow no statement the evaluator declines. */
+    fun testRaisesWithNoDeclineBeforeThemAreTheModules() {
+        assertFile(
+            "defmodule A do\n  f = &IO.inspect(1, &1)\n  f.(1)\nend",
+            "top expanded\nmodule Elixir.A raised Elixir.FunctionClauseError `f.(1)`",
+        )
+        assertFile(
+            "defmodule A do\n  x = \"l\"\n  for e <- [1, 2], do: e + x\nend",
+            "top expanded\nmodule Elixir.A raised Elixir.ArithmeticError `for e <- [1, 2], do: e + x`",
+        )
+    }
+
+    /**
+     * Whether a bang read of the application's environment finds its key isn't known, nor whether a path's value holds
+     * its next key, nor whether `compile_env` is given an env, so each raise is assumed not to happen and the error after
+     * it stops the module, or the file at its top level.
+     */
+    fun testAnErrorAfterAnAssumedApplicationReadStops() {
+        val compileEnv =
+            if (COMPILE_ENV_TAKES_ENV_FIRST.isSufficient(legLevel())) "Application.compile_env(env, :nope, :k, nil)"
+            else "Application.__compile_env__(:nope, :k, nil, env)"
+        val stopped = "top unported `:ok = :bad`\nmodule Elixir.A stopped `:ok = :bad`"
+
+        assertFile("defmodule A do\n  @x Application.compile_env!(:nope, :k)\n  :ok = :bad\nend", stopped)
+        assertFile("defmodule A do\n  @x Application.compile_env(:nope, [:k, :sub])\n  :ok = :bad\nend", stopped)
+        assertFile("defmodule A do\n  _ = Application.fetch_env!(:nope, :k)\n  :ok = :bad\nend", stopped)
+        assertFile("defmodule A do\n  env = Application.get_env(:nope, :env)\n  _ = $compileEnv\n  :ok = :bad\nend", stopped)
+        assertFile("defmodule A do\n  read = fn k -> Application.fetch_env!(:nope, k) end\n  _ = read.(:k)\n  :ok = :bad\nend", stopped)
+        assertFile("defmodule A do\n  read = &Application.fetch_env!(:nope, &1)\n  @a read.(:k)\n  :ok = :bad\nend", stopped)
+        assertFile("_ = Application.fetch_env!(:nope, :k)\n:ok = :bad", "top unported `:ok = :bad`")
+        assertFile(
+            "defmodule A do\n  _ = {Application.fetch_env!(:nope, :k), :ok = :bad}\nend",
+            "top unported `_ = {Application.fetch_env!(:nope, :k), :ok = :bad}`\n" +
+                "module Elixir.A stopped `_ = {Application.fetch_env!(:nope, :k), :ok = :bad}`",
+        )
+    }
+
+    /** The reads that raise only on a guard raise nothing here, so the error after them is the module's. */
+    fun testAnErrorAfterAnApplicationReadIsTheModules() =
+        assertFile(
+            "defmodule A do\n  @x Application.compile_env(:nope, :k)\n  _ = Application.fetch_env(:nope, :k)\n  :ok = :bad\nend",
+            "top expanded\nmodule Elixir.A raised Elixir.MatchError `:ok = :bad`",
+        )
+
+    /** [code], a file expanded at the leg's level with the leg's clauses, as [expected] shows its top and each module's end. */
+    private fun assertFile(code: String, expected: String) {
+        val level = legLevel()
+        val file = Expander.expandFile(lowered(code, level), Env.empty(level, legKernel), level, legExports, legStructs, clauses = sdk)
+
+        fun source(node: ElixirAst) = node.meta.origin.substring(code)
+
+        fun ended(result: ExpansionResult, indent: String): List<String> {
+            val ended = when (val ended = result.ended) {
+                Ended.Compiled -> "compiled"
+                Ended.Tainted -> "tainted"
+                is Ended.Raised -> "raised ${ended.error.kind} `${source(ended.error.at)}`"
+                is Ended.Crashed -> "crashed ${ended.exception}"
+                is Ended.Stopped -> "stopped `${source(ended.at)}`"
+            }
+
+            return listOf("${indent}module ${result.module} $ended") + result.nested.flatMap { ended(it, "$indent  ") }
+        }
+
+        val top = when (val top = file.top) {
+            is Expansion.Expanded -> "expanded"
+            is Expansion.Error -> "error ${top.kind} `${source(top.at)}`"
+            is Expansion.Unported -> "unported `${source(top.at)}`"
+            is Expansion.Opaque -> "opaque `${source(top.at)}`"
+        }
+
+        assertEquals(expected, (listOf("top $top") + file.modules.flatMap { ended(it, "") }).joinToString("\n"))
+    }
 
     /**
      * Each row that runs from [source] on the leg: its output, how its case module ended and its definition table,
@@ -229,7 +1043,9 @@ class InterpreterTest : PlatformTestCase() {
             is Ended.Raised -> "raised ${ended.error.kind}"
             is Ended.Crashed -> "crashed ${ended.exception}"
             is Ended.Stopped -> {
-                val range = expansion.range(ended.at)
+                // A callback's call, which no source holds, has an origin before the case body.
+                val start = expansion.origin.layout.bodyStarts[expansion.origin.index]
+                val range = ended.at.takeIf { it.meta.origin.startOffset >= start }?.let(expansion::range)
                 val body = expansion.case.body
                 val at = rendered(ended.at.toOtp(), tokens, legLevel(), row.unordered)
                 val after = row.stopsAfter?.takeIf { at.startsWith(it) }
@@ -237,7 +1053,7 @@ class InterpreterTest : PlatformTestCase() {
                 when {
                     // A node of the macro's output has the call's origin.
                     after != null -> "stopped at $after"
-                    range.startOffset >= 0 && range.endOffset <= body.length ->
+                    range != null && range.endOffset <= body.length ->
                         "stopped at `${detokened(range.substring(body), tokens)}`"
                     else -> "stopped at $at"
                 }
@@ -247,7 +1063,8 @@ class InterpreterTest : PlatformTestCase() {
 
     /**
      * Each of [rows]' calls expanded once as `Macro.expand_once/2` expands it, in a `{token}.Case` that requires the
-     * row's modules, with those modules as [source] holds them: compiled from the preamble, or [copies].
+     * row's modules, with those modules as [source] holds them: compiled from the preamble, each row's in a file of its
+     * own, as [assertRows] compiles them, or [copies].
      */
     private fun outputs(rows: List<Row>, token: String, source: Source, copies: Map<String, Copy>): List<String> {
         val level = legLevel()
@@ -267,17 +1084,23 @@ class InterpreterTest : PlatformTestCase() {
                 }
             }
 
-            Expander.expandFile(
-                lowered(preamble(rows, token), level),
-                Env.empty(level, legKernel),
-                level,
-                legExports,
-                legStructs,
-                observer,
-                file = FILE,
-                directories = DIRECTORIES,
-                clauses = sdk,
-            )
+            for (index in rows.indices) {
+                val file = preamble(rows, token, only = listOf(index))
+
+                if (file.isEmpty()) continue
+
+                Expander.expandFile(
+                    lowered(file, level),
+                    Env.empty(level, legKernel),
+                    level,
+                    legExports,
+                    legStructs,
+                    observer,
+                    file = FILE,
+                    directories = DIRECTORIES,
+                    clauses = sdk,
+                )
+            }
         }
 
         val exports = Exports { module -> loaded[module] ?: copies[module]?.exports ?: legExports.of(module) }
@@ -397,24 +1220,11 @@ class InterpreterTest : PlatformTestCase() {
             val beam = File(directory, "$module.beam").apply { writeBytes(binary) }
 
             Copy(
-                clausesOf(beam) ?: throw AssertionError("$module's clauses aren't read"),
+                clausesOf(project, beam) ?: throw AssertionError("$module's clauses aren't read"),
                 LoadedModules.exports(binary, beam.path),
             )
         }
     }
-
-    private fun clausesOf(beam: File): ModuleClauses? =
-        ReadAction.computeBlocking<ModuleClauses?, Throwable> {
-            val file = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(beam)!!
-            val compiled = PsiManager.getInstance(project).findFile(file) as PsiCompiledFile
-            val mirror = compiled.decompiledPsiFile as ElixirFile
-            val bytes = beam.readBytes()
-            val deprecations = (LoadedModules.exports(bytes, beam.path) as? ModuleExports.Present)?.deprecated
-
-            deprecations
-                ?.let { CompiledModule.of(bytes, beam.path, mirror, legLevel(), it) }
-                ?.let { ModuleClauses.of(it, file) }
-        }
 
     private enum class Source { SOURCE, DBGI }
 
@@ -556,6 +1366,9 @@ class InterpreterTest : PlatformTestCase() {
 
     private companion object {
         const val TOKEN = "{token}"
+
+        /** Broken code on every release, which the lowering leaves as a placeholder the port can't read. */
+        const val UNREAD = "\"\\u{110000}\""
         const val ROW = "{row}"
         const val OPAQUE = "opaque"
         const val UNPORTED = "unported"
@@ -616,6 +1429,14 @@ class InterpreterTest : PlatformTestCase() {
         /** The OTP 25 `lists` functions check their fun first, so below it an error is the VM's to say. */
         val LISTS_ERROR_BELOW_OTP_25: (Source, ElixirLanguageLevel) -> String? = { _, level ->
             OPAQUE.takeUnless { LISTS_CHECK_THE_FUN_FIRST.isSufficient(level) }
+        }
+
+        /**
+         * Before `lists:sort/1`'s stability fix, the order it gives elements that compare equal, and the clause it raises
+         * in for an improper list, are its old split's.
+         */
+        val SORT_BEFORE_ITS_STABILITY_FIX: (Source, ElixirLanguageLevel) -> String? = { _, level ->
+            OPAQUE.takeUnless { LISTS_SORT_KEEPS_EQUAL_ORDER.isSufficient(level) }
         }
 
         /**
@@ -681,15 +1502,17 @@ class InterpreterTest : PlatformTestCase() {
             options: String = "",
             source: SourceRun = SourceRun.ANSWERS,
             stopsAfter: String? = null,
+            legs: (ElixirLanguageLevel) -> Boolean = EVERY_LEG,
+            ends: (ElixirLanguageLevel) -> String? = { null },
         ): Row {
             val use = "use $ROW" + if (options.isEmpty()) "" else ", $options"
             val call = "$ROW.__using__(${options.ifEmpty { "[]" }})"
 
-            return Row(id, defs.trimIndent(), call, use, use, listOf(ROW), source, EVERY_LEG, UNPINNED, stopsAfter)
+            return Row(id, defs.trimIndent(), call, use, use, listOf(ROW), source, legs, UNPINNED, stopsAfter, ends = ends)
         }
 
-        /** A row whose case body `use`s the leg's [module]. */
-        fun leg(module: String, options: String = "", stopsAfter: String? = null): Row {
+        /** A row whose case body `use`s the leg's [module], then holds [after]. */
+        fun leg(module: String, options: String = "", after: String = "", stopsAfter: String? = null): Row {
             val use = "use $module" + if (options.isEmpty()) "" else ", $options"
             val call = "$module.__using__(${options.ifEmpty { "[]" }})"
 
@@ -697,7 +1520,7 @@ class InterpreterTest : PlatformTestCase() {
                 "use:leg-" + module.lowercase(),
                 "",
                 call,
-                use,
+                if (after.isEmpty()) use else "$use\n$after",
                 use,
                 listOf(module),
                 SourceRun.NONE,
@@ -772,8 +1595,11 @@ class InterpreterTest : PlatformTestCase() {
             end
         """.trimIndent()
 
-        /** A `def` whose body unquotes `Macro.escape(opts)`, a fragment the walk doesn't evaluate. */
-        const val UNQUOTE_ESCAPED_OPTS = "{:unquote, [], [{{:., [], [{:__aliases__, [], [:Macro]}, :escape]}"
+        /**
+         * `GenServer.__before_compile__/1`, which warns through functions the evaluator doesn't port where the module
+         * doesn't define `init/1`.
+         */
+        const val GENSERVER_CALLBACK = "{{:., [], [GenServer, :__before_compile__]}"
 
         val ROWS: List<Row> = listOf(
             // `elixir_erl_pass:translate/3`
@@ -866,7 +1692,7 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "form:struct-pattern-unknown-name",
                 """
-                @s :erlang.hd([URI])
+                @s (receive do after 0 -> URI end)
                 defmacro m do
                   case %{__struct__: @s} do
                     %name{} -> name
@@ -1125,7 +1951,7 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "form:rescue-unknown-record-tag",
                 """
-                @r :erlang.hd([:badmatch])
+                @r (receive do after 0 -> :badmatch end)
                 defmacro m do
                   try do
                     :erlang.error({@r, 1})
@@ -2438,7 +3264,7 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "quote:unquote-invalid-unknown-call",
                 """
-                @c :erlang.hd([:g])
+                @c Application.compile_env(:nope, :c, :g)
                 defmacro m do
                   x = {@c, [], 1}
                   quote do: f(unquote(x))
@@ -3005,7 +3831,7 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "pure:keyfind-unknown-element",
                 """
-                @x :erlang.hd([{:a, :first}])
+                @x (receive do after 0 -> {:a, :first} end)
                 defmacro m, do: :lists.keyfind(:a, 1, [@x, {:a, :fallback}])
                 """,
                 pins = DECLINED_FROM_SOURCE,
@@ -3013,7 +3839,7 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "pure:keydelete-unknown-element",
                 """
-                @x :erlang.hd([{:a, :first}])
+                @x (receive do after 0 -> {:a, :first} end)
                 defmacro m, do: :erlang.length(:lists.keydelete(:a, 1, [@x, {:b, 1}]))
                 """,
                 pins = DECLINED_FROM_SOURCE,
@@ -3021,7 +3847,7 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "pure:range-member-unknown",
                 """
-                @x :erlang.hd([2])
+                @x (receive do after 0 -> 2 end)
                 defmacro m, do: Enum.member?(1..3, @x)
                 """,
                 pins = DECLINED_FROM_SOURCE,
@@ -3029,7 +3855,7 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "pure:keyword-merge-unknown-pair",
                 """
-                @x :erlang.hd([{:a, 1}])
+                @x (receive do after 0 -> {:a, 1} end)
                 defmacro m, do: Keyword.merge([@x], b: 2)
                 """,
                 pins = DECLINED_FROM_SOURCE,
@@ -3037,7 +3863,7 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "pure:keyword-merge-unknown-key",
                 """
-                @k :erlang.hd([:a])
+                @k (receive do after 0 -> :a end)
                 defmacro m, do: Keyword.merge([{@k, 1}], b: 2)
                 """,
                 pins = DECLINED_FROM_SOURCE,
@@ -3045,7 +3871,7 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "pure:escape-generated-unknown",
                 """
-                @g :erlang.hd([true])
+                @g (receive do after 0 -> true end)
                 defmacro m, do: Macro.escape({:f, [], []}, generated: @g)
                 """,
                 pins = { source, level -> DECLINED_FROM_SOURCE(source, level)?.takeIf { MACRO_ESCAPE_MARKS_GENERATED.isSufficient(level) } },
@@ -3053,7 +3879,7 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "pure:env-in-match-unknown-struct",
                 """
-                @s :erlang.hd([Macro.Env])
+                @s (receive do after 0 -> Macro.Env end)
                 defmacro m, do: Macro.Env.in_match?(%{__struct__: @s, context: :match})
                 """,
                 pins = DECLINED_FROM_SOURCE,
@@ -3061,7 +3887,7 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "pure:dot-unknown-name",
                 """
-                @n :erlang.hd([:b])
+                @n (receive do after 0 -> :b end)
                 defmacro m do
                   x = {@n, [], nil}
                   Macro.escape(quote(do: :lists.unquote(x)))
@@ -3072,7 +3898,7 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "pure:access-unknown-struct",
                 """
-                @s :erlang.hd([{row}.S])
+                @s (receive do after 0 -> {row}.S end)
                 defmacro m, do: %{__struct__: @s, a: 2}[:a]
                 """,
                 pins = DECLINED_FROM_SOURCE,
@@ -3082,7 +3908,7 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "pure:length-unknown-tail",
                 """
-                @t :erlang.hd([[2]])
+                @t (receive do after 0 -> [2] end)
                 defmacro m do
                   try do
                     length([1 | @t])
@@ -3096,7 +3922,7 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "pure:match-unknown-tail",
                 """
-                @t :erlang.hd([[2]])
+                @t (receive do after 0 -> [2] end)
                 defmacro m do
                   case [1 | @t] do
                     [_, b] -> b
@@ -3110,7 +3936,7 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "form:bitstring-unknown-segment",
                 """
-                @v :erlang.hd([:bad])
+                @v (receive do after 0 -> :bad end)
                 defmacro m do
                   v = @v
                   _ = <<v::8>>
@@ -3122,7 +3948,7 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "form:bitstring-unknown-size",
                 """
-                @s :erlang.hd([:bad])
+                @s (receive do after 0 -> :bad end)
                 defmacro m do
                   s = @s
                   _ = <<1::size(s)>>
@@ -3210,6 +4036,47 @@ class InterpreterTest : PlatformTestCase() {
                 "defmacro m, do: [:lists.all(fn x -> :erlang.is_atom(x) end, [:a, :b]), :lists.all(fn x -> :erlang.is_atom(x) end, [:a, 1])]",
             ),
             macro("pure:all-case-clause", "defmacro m, do: :lists.all(fn _ -> 1 end, [1])", pins = LISTS_ERROR_BELOW_OTP_25),
+            // Ascending and descending runs.
+            macro(
+                "pure:sort",
+                """
+                defmacro m do
+                  for l <- [[], [5], [4, 1, 3, 2], [:a, 4, 3, :b, 9], [1, 1, 0], [3, 1, 2, 1, 5, 4, 0, 2, 7, 6],
+                            [9, 8, 7, 1, 2, 3, 6, 5, 4, 4], [{:g, 2}, {:f, 1}, {:f, 0}]] do
+                    :lists.sort(l)
+                  end
+                end
+                """,
+            ),
+            // Elements that compare equal, which keep their order.
+            macro(
+                "pure:sort-equal",
+                """
+                defmacro m do
+                  for l <- [[1.0, 1], [1, 1.0], [1, 1.0, 1, 0], [3, 1, 2, 1.0, 5, 4, 0, 2.0, 7, 6], [9, 8, 7, 1, 2, 3, 6, 5, 4.0, 4]] do
+                    :lists.sort(l)
+                  end
+                end
+                """,
+                pins = SORT_BEFORE_ITS_STABILITY_FIX,
+            ),
+            // An improper tail raises in the helper that meets it, with the runs split so far.
+            macro(
+                "pure:sort-improper",
+                """
+                defmacro m do
+                  for l <- [:x, [{:a, 1} | :x], [1, 2 | :x], [2, 1 | :x], [1, 1 | :x], [1, 1, 1 | :x], [1, 3, 2 | :x],
+                            [3, 1, 2 | :x], [1, 2, 3, 0, 5 | :x], [5, 4, 3, 6, 1 | :x], [1, 2, 0, 3, 1.0 | :x]] do
+                    try do
+                      :lists.sort(l)
+                    rescue
+                      e in FunctionClauseError -> Macro.escape({e.module, e.function, e.arity, e.args})
+                    end
+                  end
+                end
+                """,
+                pins = SORT_BEFORE_ITS_STABILITY_FIX,
+            ),
 
             // The natives: `maps`
             macro(
@@ -3379,6 +4246,43 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
                 pins = DECLINED,
+            ),
+            // An `unquote` checks that its value is code, which any binary is, whatever its bytes.
+            macro(
+                "quote:unquote-unknown-binary",
+                """
+                defmacro m do
+                  _ = quote(do: unquote(Kernel.inspect(:a)))
+                  _ = quote(do: [unquote_splicing([Kernel.inspect(:a)])])
+                  :ok
+                end
+                """,
+            ),
+            // A binary whose bytes aren't known is no boolean, number or fun, and is a quote's file.
+            macro(
+                "pure:type-tests-unknown-binary",
+                """
+                defmacro m do
+                  x = Kernel.inspect(:a)
+                  raised = fn f ->
+                    try do
+                      f.()
+                    rescue
+                      e -> e.__struct__
+                    end
+                  end
+
+                  [
+                    is_boolean(x),
+                    is_function(x),
+                    is_function(x, 1),
+                    quote(file: x, do: :ok),
+                    raised.(fn -> not x end),
+                    raised.(fn -> +x end),
+                    raised.(fn -> :erlang.raise(:error, :x, [{x, []}]) end)
+                  ]
+                end
+                """,
             ),
             macro("pure:to-string-interpolated", """defmacro m(name), do: :"#{name}?"""", "m(:a)"),
             macro(
@@ -3856,7 +4760,7 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
                 "restart: :transient",
-                stopsAfter = UNQUOTE_ESCAPED_OPTS,
+                stopsAfter = GENSERVER_CALLBACK,
             ),
             use(
                 "use:backend",
@@ -3873,11 +4777,11 @@ class InterpreterTest : PlatformTestCase() {
                 """,
                 "otp_app: :demo",
             ),
-            leg("GenServer", stopsAfter = UNQUOTE_ESCAPED_OPTS),
-            leg("Supervisor", stopsAfter = UNQUOTE_ESCAPED_OPTS),
-            leg("Agent", stopsAfter = UNQUOTE_ESCAPED_OPTS),
-            leg("Task", stopsAfter = UNQUOTE_ESCAPED_OPTS),
-            leg("DynamicSupervisor", stopsAfter = UNQUOTE_ESCAPED_OPTS),
+            leg("GenServer", after = "def init(x), do: {:ok, x}"),
+            leg("Supervisor"),
+            leg("Agent"),
+            leg("Task"),
+            leg("DynamicSupervisor"),
             leg("Application"),
             leg("Bitwise", "only_operators: true"),
             // A result's term that isn't AST reaches `elixir_expand`'s value clauses where expansion meets it.
@@ -4022,7 +4926,7 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "rescue:unknown-exception-flag",
                 """
-                @flag Enum.member?([1], 1)
+                @flag (receive do after 0 -> true end)
                 defmacro m do
                   try do
                     :erlang.error(%{__struct__: ArgumentError, __exception__: @flag, message: "x"})
@@ -4096,7 +5000,7 @@ class InterpreterTest : PlatformTestCase() {
                 pins = DECLINED_FROM_SOURCE,
                 helper = """
                 defmodule {row}.S do
-                  @ok String.to_atom("ok")
+                  @ok (receive do after 0 -> :ok end)
                   def fetch(_, _), do: {@ok, 1}
                 end
                 """,
@@ -4105,7 +5009,7 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "quote:def-head-unknown-context",
                 """
-                @c List.to_tuple([:context, Foo])
+                @c (receive do after 0 -> {:context, Foo} end)
                 defmacro m do
                   {_, _, [{:f, meta, _} | _]} =
                     quote context: Bar, do: unquote(Kernel).unquote(:def)(unquote({:f, [@c], []}), do: 1)
@@ -4190,19 +5094,14 @@ class InterpreterTest : PlatformTestCase() {
                 """,
             ),
             // A struct whose module isn't known may escape itself, so its module is needed before `A:`, which sorts
-            // first. From `Dbgi` its module is known. Before entries are quoted apart, the last is quoted first.
+            // first. Before structs escape themselves, the `fn` raises whatever the module is.
             macro(
                 "escape:unknown-struct-escapes-itself",
                 """
                 @mod Application.compile_env(:app, :mod, {row}.W)
                 defmacro m, do: Macro.escape(%{A: fn -> :ok end, __struct__: @mod})
                 """,
-                pins = { source, level ->
-                    OPAQUE.takeIf {
-                        REGEX_ESCAPED_IN_FIXED_FIELD_ORDER.isSufficient(level) ||
-                            source == Source.SOURCE && !ESCAPED_MAP_ENTRIES_QUOTED_APART.isSufficient(level)
-                    }
-                },
+                pins = { _, level -> OPAQUE.takeIf { REGEX_ESCAPED_IN_FIXED_FIELD_ORDER.isSufficient(level) } },
                 helper = """
                 defmodule {row}.W do
                   defstruct [:f]
@@ -4335,6 +5234,8 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
             ),
+            // `{:{}, meta, [a, b]}` is expanded as the pair it builds.
+            macro("head:tuple-call-pair", "defmacro m, do: {:{}, [], [1, 2]}"),
             // An alias of no segments has no clause in `elixir_aliases:expand`.
             macro("head:empty-alias", "defmacro m, do: {:__aliases__, [], []}", pins = DECLINED),
             macro("form:macro-expand-empty-alias", "defmacro m, do: Macro.expand({:__aliases__, [], []}, __CALLER__)", pins = DECLINED),
@@ -4607,8 +5508,7 @@ class InterpreterTest : PlatformTestCase() {
                     "TU" to "  m = Application.get_env(:app, :mod, :elixir_def)\n  m.take_definition(__MODULE__, {:f, 0})",
                 ),
             ),
-            // `GenServer.__before_compile__` asks `Module.defines?/2` whether the module defines `init/1`. It is named
-            // without `use GenServer`, whose fragments stop from source before the callback.
+            // `GenServer.__before_compile__` asks `Module.defines?/2` whether the module defines `init/1`.
             macro(
                 "before_compile:genserver",
                 "defmacro m, do: Macro.escape({row}.B.init(1))",
@@ -4629,6 +5529,925 @@ class InterpreterTest : PlatformTestCase() {
                   @before_compile GenServer
                 end
                 """,
+            ),
+            macro(
+                "body:bind-quoted",
+                "defmacro m, do: Macro.escape({row}.BQ.r())",
+                helper = """
+                defmodule {row}.U do
+                  defmacro __using__(opts) do
+                    quote bind_quoted: [opts: opts] do
+                      @v opts
+                      def r, do: @v
+                    end
+                  end
+                end
+
+                defmodule {row}.BQ do
+                  use {row}.U, v: 7
+                end
+                """,
+            ),
+            macro(
+                "body:match",
+                "defmacro m, do: Macro.escape({row}.MA.r())",
+                helper = """
+                defmodule {row}.MA do
+                  x = {1, [2, 3]}
+                  {a, [b | c]} = x
+                  @r {a, b, c}
+                  def r, do: @r
+                end
+                """,
+            ),
+            // The evaluator doesn't read the application environment, so `x` has no value.
+            macro(
+                "body:match-unknown",
+                "defmacro m, do: Macro.escape({row}.MU.r())",
+                pins = DECLINED_FROM_SOURCE,
+                helper = """
+                defmodule {row}.MU do
+                  x = Application.get_env(:app, :k, 1)
+                  @r x
+                  def r, do: @r
+                end
+                """,
+            ),
+            macro(
+                "body:attribute",
+                "defmacro m, do: Macro.escape({row}.AT.r())",
+                helper = """
+                defmodule {row}.AT do
+                  @a 1
+                  @b {@a, 2}
+                  @a 3
+                  def r, do: {@a, @b}
+                end
+                """,
+            ),
+            macro(
+                "body:attribute-doc",
+                "defmacro m, do: Macro.escape({row}.AD.r())",
+                helper = """
+                defmodule {row}.AD do
+                  @moduledoc "m"
+                  @c @moduledoc
+                  @doc "d"
+                  @b @doc
+                  def f, do: 1
+                  def r, do: {@b, @c}
+                end
+                """,
+            ),
+            macro(
+                "body:attribute-accumulate",
+                "defmacro m, do: Macro.escape({row}.AA.r())",
+                helper = """
+                defmodule {row}.AA do
+                  Module.register_attribute(__MODULE__, :a, accumulate: true)
+                  @a 1
+                  @a 2
+                  @b @a
+                  def r, do: @b
+                end
+                """,
+            ),
+            macro(
+                "body:attribute-unset",
+                "defmacro m, do: Macro.escape({row}.AU.r())",
+                helper = """
+                defmodule {row}.AU do
+                  Module.register_attribute(__MODULE__, :a, [])
+                  @b @a
+                  def r, do: @b
+                end
+                """,
+            ),
+            macro(
+                "body:attribute-default",
+                "defmacro m, do: Macro.escape({row}.AF.r())",
+                helper = """
+                defmodule {row}.AF do
+                  @k1 1
+                  Module.register_attribute(__MODULE__, :k3, [])
+                  @r {
+                    Module.get_attribute(__MODULE__, :k1, ""),
+                    Module.get_attribute(__MODULE__, :k2, ""),
+                    Module.get_attribute(__MODULE__, :k3, "")
+                  }
+                  def r, do: @r
+                end
+                """,
+            ),
+            // A module starts with rows for `@moduledoc` and the attributes that always accumulate, and `@doc` has one
+            // until the next definition takes it.
+            macro(
+                "body:has-attribute",
+                "defmacro m, do: Macro.escape({row}.HA.r())",
+                helper = """
+                defmodule {row}.HA do
+                  @start {
+                    Module.has_attribute?(__MODULE__, :moduledoc),
+                    Module.has_attribute?(__MODULE__, :after_compile),
+                    Module.has_attribute?(__MODULE__, :doc)
+                  }
+                  @k1 1
+                  Module.register_attribute(__MODULE__, :k3, [])
+                  @doc "f"
+                  @doc_before Module.has_attribute?(__MODULE__, :doc)
+                  def f, do: 1
+                  @r {
+                    @start,
+                    Module.has_attribute?(__MODULE__, :k1),
+                    Module.has_attribute?(__MODULE__, :k2),
+                    Module.has_attribute?(__MODULE__, :k3),
+                    @doc_before,
+                    Module.has_attribute?(__MODULE__, :doc)
+                  }
+                  def r, do: @r
+                end
+                """,
+            ),
+            macro(
+                "body:has-attribute-guard",
+                """
+                defmacro m do
+                  try do
+                    Module.has_attribute?(__CALLER__.module, "k")
+                  rescue
+                    e in FunctionClauseError -> {e.function, e.arity}
+                  end
+                end
+                """,
+            ),
+            // A type takes `@typedoc`, and a callback `@doc` the first time its name and arity is written; a spec takes
+            // neither.
+            macro(
+                "body:has-attribute-after-typespec",
+                "defmacro m, do: Macro.escape({row}.HT.r())",
+                helper = """
+                defmodule {row}.HT do
+                  @typedoc "t"
+                  @type t :: integer
+                  @t Module.has_attribute?(__MODULE__, :typedoc)
+                  @typedoc "p"
+                  @typep p :: integer
+                  @p Module.has_attribute?(__MODULE__, :typedoc)
+                  @typedoc "o"
+                  @opaque o :: integer
+                  @o Module.has_attribute?(__MODULE__, :typedoc)
+                  @doc "c"
+                  @callback c() :: any
+                  @c Module.has_attribute?(__MODULE__, :doc)
+                  @doc "again"
+                  @callback c() :: any
+                  @again Module.has_attribute?(__MODULE__, :doc)
+                  @macrocallback mc() :: any
+                  @mc Module.has_attribute?(__MODULE__, :doc)
+                  @typedoc "s"
+                  @spec r() :: p
+                  @s Module.has_attribute?(__MODULE__, :typedoc)
+                  def r, do: {@t, @p, @o, @c, @again, @mc, @s}
+                end
+                """,
+            ),
+            // Elixir gives `false` in each: the key was deleted where the expander doesn't know it was, so it declines.
+            macro(
+                "body:has-attribute-after-stop",
+                "defmacro m, do: Macro.escape({row}.HS.r())",
+                helper = """
+                defmodule {row}.HS do
+                  @c 1
+                  d = Application.compile_env(:nope, :k2, :c)
+                  Module.delete_attribute(__MODULE__, d)
+                  v = Module.has_attribute?(__MODULE__, :c)
+                  def r, do: unquote(v)
+                end
+                """,
+                pins = CALLS_A_STOPPED_MODULE,
+            ),
+            macro(
+                "body:has-attribute-conditional-delete",
+                "defmacro m, do: Macro.escape({row}.HU.r())",
+                helper = """
+                defmodule {row}.HU do
+                  @u 1
+                  x = Application.compile_env(:nope, :k3, true)
+
+                  if x do
+                    Module.delete_attribute(__MODULE__, :u)
+                  end
+
+                  v = Module.has_attribute?(__MODULE__, :u)
+                  def r, do: unquote(v)
+                end
+                """,
+                pins = CALLS_A_STOPPED_MODULE,
+            ),
+            macro(
+                "body:has-attribute-given-module",
+                "defmacro m, do: Macro.escape({row}.HG.r())",
+                helper = """
+                defmodule {row}.H do
+                  def drop(m), do: Module.delete_attribute(m, :e)
+                end
+
+                defmodule {row}.HG do
+                  @e 1
+                  {row}.H.drop(__MODULE__)
+                  v = Module.has_attribute?(__MODULE__, :e)
+                  def r, do: unquote(v)
+                end
+                """,
+                pins = CALLS_A_STOPPED_MODULE,
+            ),
+            // The application's environment isn't known, so neither is what these read, and whether `compile_env!` or
+            // `fetch_env!` finds the key isn't either: none stops the module, which loads as compiled.
+            macro(
+                "body:compile-env",
+                "defmacro m, do: Macro.escape({row}.CE.f())",
+                helper = """
+                defmodule {row}.CE do
+                  _ = Application.compile_env(:nope, :k, :d)
+                  _ = Application.compile_env!(:elixir, :check_endianness)
+                  def f, do: 1
+                end
+                """,
+            ),
+            macro(
+                "body:fetch-env",
+                "defmacro m, do: Macro.escape({row}.FE.f())",
+                helper = """
+                defmodule {row}.FE do
+                  _ = Application.get_env(:nope, __MODULE__)
+                  _ = Application.fetch_env(:nope, __MODULE__)
+                  def f, do: 1
+                end
+                """,
+            ),
+            // Named for a key the `:elixir` application sets, so that the call is given the module and Elixir doesn't
+            // raise.
+            macro(
+                "body:fetch-env-bang",
+                "defmacro m, do: Macro.escape(:check_endianness.f())",
+                helper = """
+                defmodule :check_endianness do
+                  _ = Application.fetch_env!(:elixir, __MODULE__)
+                  def f, do: 1
+                end
+                """,
+            ),
+            macro(
+                "body:compile-env-guard",
+                "defmacro m, do: Macro.escape({row}.CG.r())",
+                helper = """
+                defmodule {row}.CG do
+                  @e (try do
+                    Application.compile_env(:kernel, "k")
+                  rescue
+                    e in FunctionClauseError -> {e.function, e.arity}
+                  end)
+                  def r, do: @e
+                end
+                """,
+            ),
+            // `get_env/2` calls `get_env/3`, whose clause the app fails.
+            macro(
+                "body:env-app-guard",
+                "defmacro m, do: Macro.escape({row}.AG.r())",
+                helper = """
+                defmodule {row}.AG do
+                  @g (try do
+                    Application.get_env("app", :k)
+                  rescue
+                    e in FunctionClauseError -> {e.module, e.function, e.arity}
+                  end)
+                  @f (try do
+                    Application.fetch_env("app", :k)
+                  rescue
+                    e in FunctionClauseError -> {e.module, e.function, e.arity}
+                  end)
+                  def r, do: {@g, @f}
+                end
+                """,
+            ),
+            // `fetch_compile_env` reads the app through `fetch_env/2`, and from 1.14 `compile_env/4` matches its env.
+            macro(
+                "body:compile-env-app-and-env-guards",
+                "defmacro m, do: Macro.escape({row}.CA.r())",
+                helper = """
+                defmodule {row}.CA do
+                  @a (try do
+                    Application.compile_env("app", :k)
+                  rescue
+                    e in FunctionClauseError -> {e.module, e.function, e.arity}
+                  end)
+                  @e (try do
+                    Application.compile_env(__ENV__.file, :app, :k, nil)
+                  rescue
+                    e in FunctionClauseError -> {e.module, e.function, e.arity}
+                  end)
+                  def r, do: {@a, @e}
+                end
+                """,
+                legs = COMPILE_ENV_TAKES_ENV_FIRST::isSufficient,
+            ),
+            // Before 1.14 `__compile_env__/4` reads the app through `fetch_env/2`, then the env's tracers.
+            macro(
+                "body:compile-env-app-and-env-guards-env-last",
+                "defmacro m, do: Macro.escape({row}.CA.r())",
+                helper = """
+                defmodule {row}.CA do
+                  @a (try do
+                    Application.__compile_env__("app", :k, nil, __ENV__)
+                  rescue
+                    e in FunctionClauseError -> {e.module, e.function, e.arity}
+                  end)
+                  @e (try do
+                    Application.__compile_env__(:app, :k, nil, __ENV__.file)
+                  rescue
+                    ArgumentError -> :argument_error
+                  end)
+                  def r, do: {@a, @e}
+                end
+                """,
+                legs = { !COMPILE_ENV_TAKES_ENV_FIRST.isSufficient(it) },
+            ),
+            macro(
+                "body:attribute-point",
+                "defmacro m, do: Macro.escape({{row}.A.f(), {row}.P.__protocol__(:functions), " +
+                    "{row}.Q.__protocol__(:functions), {row}.P.Any.g(1)})",
+                helper = """
+                defmodule {row}.A do
+                  @x 1
+                  @x 2
+                  def f, do: unquote(@x)
+                  @x 3
+                end
+
+                defprotocol {row}.P do
+                  @fallback_to_any true
+                  def g(t)
+                end
+
+                defimpl {row}.P, for: Any do
+                  def g(_), do: :any
+                end
+
+                defprotocol {row}.Q do
+                  def h(t)
+                  def k(t, u)
+                end
+                """,
+            ),
+            // Every `defimpl` body is `res = (...)` from v1.14, so the body's own `=` runs once, inside it.
+            macro(
+                "body:impl-match",
+                "defmacro m, do: Macro.escape({row}.P.Atom.f(:a))",
+                helper = """
+                defprotocol {row}.P do
+                  def f(a)
+                end
+
+                defimpl {row}.P, for: Atom do
+                  y = Module.get_attribute(__MODULE__, :x)
+                  @x {y}
+                  def f(_), do: @x
+                end
+                """,
+            ),
+            // `get_attribute/2` is `get_attribute/3` with its default, whose guard is the one that fails.
+            macro(
+                "body:get-attribute-guard",
+                """
+                defmacro m do
+                  try do
+                    Module.get_attribute(__CALLER__.module, "k")
+                  rescue
+                    e in FunctionClauseError -> {e.function, e.arity}
+                  end
+                end
+                """,
+            ),
+            macro(
+                "body:attribute-from-binding",
+                "defmacro m, do: Macro.escape({{row}.AB.f(), {row}.AB.g()})",
+                helper = """
+                defmodule {row}.AB do
+                  x = 1
+                  @a x
+                  def f, do: unquote(@a)
+                  def g, do: @a
+                end
+                """,
+            ),
+            // A file's variables are seen by every module after them in the file, so the name is the row's own.
+            macro(
+                "body:outer-binding",
+                "defmacro m, do: Macro.escape({row}.OB.f())",
+                helper = """
+                outer_binding = :top
+
+                defmodule {row}.OB do
+                  def f, do: unquote(outer_binding)
+                end
+                """,
+            ),
+            macro(
+                "body:nested-binding",
+                "defmacro m, do: Macro.escape({row}.NB.C.g())",
+                helper = """
+                defmodule {row}.NB do
+                  y = :outer
+
+                  defmodule C do
+                    def g, do: unquote(y)
+                  end
+                end
+                """,
+            ),
+            // A macro's output at the file's top level binds there: `defimpl`'s `for`, which `__impl__/1` unquotes.
+            macro(
+                "body:file-macro-match",
+                "defmacro m, do: Macro.escape(String.Chars.{row}.FM.__impl__(:for))",
+                helper = """
+                defimpl String.Chars, for: {row}.FM do
+                  def to_string(_), do: "fm"
+                end
+                """,
+            ),
+            macro(
+                "body:defines-value",
+                "defmacro m, do: Macro.escape({row}.W.r())",
+                helper = """
+                defmodule {row}.W do
+                  @pre Module.defines?(__MODULE__, {:f, 0})
+                  def f, do: 1
+                  @post Module.defines?(__MODULE__, {:f, 0})
+                  def r, do: {@pre, @post}
+                end
+                """,
+            ),
+            macro(
+                "body:overridable-from-binding",
+                "defmacro m, do: Macro.escape({row}.OV.f())",
+                helper = """
+                defmodule {row}.OV do
+                  def f, do: 1
+                  fs = [f: 0]
+                  defoverridable fs
+                  def f, do: super() + 1
+                end
+                """,
+            ),
+            // Before `__struct__/0` returns the escaped struct, it reads the struct from an attribute, a map the
+            // expander holds no term for.
+            macro(
+                "body:defstruct-binding",
+                "defmacro m, do: Macro.escape({{row}.S.__struct__(), {row}.E.exception([]).code, " +
+                    "Exception.message({row}.E.exception([]))})",
+                pins = { source, level ->
+                    DECLINED_FROM_SOURCE(source, level)?.takeUnless { DEFSTRUCT_ESCAPES_STRUCT.isSufficient(level) }
+                },
+                helper = """
+                defmodule {row}.S do
+                  fields = [a: 1, b: 2]
+                  defstruct fields
+                end
+
+                defmodule {row}.E do
+                  f = [message: "boom", code: 7]
+                  defexception f
+                end
+                """,
+            ),
+            // `defdelegate`'s options are read where the body runs it: `as: @a` at its point, and a variable's list.
+            macro(
+                "defdelegate:as-attribute-point",
+                "defmacro m, do: Macro.escape({{row}.DA.f(1), {row}.DA.g(2)})",
+                helper = """
+                defmodule {row}.DM do
+                  def foo(x), do: {:foo, x}
+                  def bar(x), do: {:bar, x}
+                end
+
+                defmodule {row}.DA do
+                  @a :foo
+                  defdelegate f(x), to: {row}.DM, as: @a
+                  @a :bar
+                  opts = [to: {row}.DM, as: :bar]
+                  defdelegate g(x), opts
+                end
+                """,
+            ),
+            macro(
+                "fragment:name",
+                "defmacro m, do: Macro.escape({row}.FN.f())",
+                helper = """
+                defmodule {row}.FN do
+                  n = :f
+                  def unquote(n)(), do: 1
+                end
+                """,
+            ),
+            macro(
+                "fragment:head",
+                "defmacro m, do: Macro.escape({row}.FH.g(3))",
+                helper = """
+                defmodule {row}.FH do
+                  h = quote(do: g(_))
+                  def unquote(h), do: 2
+                end
+                """,
+            ),
+            macro(
+                "fragment:args",
+                "defmacro m, do: Macro.escape({{row}.FA.f(2), {row}.FA.f(3)})",
+                helper = """
+                defmodule {row}.FA do
+                  n = 2
+                  def f(unquote(n)), do: :two
+                  def f(_), do: :other
+                end
+                """,
+            ),
+            macro(
+                "fragment:body",
+                "defmacro m, do: Macro.escape({row}.FB.b())",
+                helper = """
+                defmodule {row}.FB do
+                  x = {1, [:a]}
+                  def b, do: unquote(Macro.escape(x))
+                end
+                """,
+            ),
+            macro(
+                "fragment:splice",
+                "defmacro m, do: Macro.escape({{row}.FS.f(1, 2), {row}.FS.g(), {row}.FS.h(), {row}.FS.k([4]), {row}.FS.l([4]), {row}.FS.p([0, 1, 2, 3])})",
+                helper = """
+                defmodule {row}.FS do
+                  args = [{:a, [], nil}, {:b, [], nil}]
+                  xs = [1, 2]
+                  ys = [7]
+                  def f(unquote_splicing(args)), do: {a, b}
+                  def g, do: [0, unquote_splicing(xs), 3]
+                  def h, do: [0, unquote_splicing(xs) | [3]]
+                  def k(t), do: [0, unquote_splicing(xs) | t]
+                  def l(t), do: [unquote_splicing(ys), 9, unquote_splicing(xs) | t]
+                  def p([0, unquote_splicing(xs) | [3]]), do: :ok
+                end
+                """,
+            ),
+            // A call's arguments, a called name's, a `{}` tuple's elements, a splicing pair's and a block's expressions
+            // splice before a tail as a list does.
+            macro(
+                "fragment:splice-before-tail-elements",
+                "defmacro m, do: Macro.escape({{row}.FT.g(), {row}.FT.t(), {row}.FT.f(1, 2, 3), {row}.FT.b(), {row}.FT.sp(), {row}.FT.one(), {row}.FT.cn()})",
+                helper = """
+                defmodule {row}.FT do
+                  xs = [1, 2]
+                  vs = [{:a, [], nil}, {:b, [], nil}]
+                  def foo(a, b, c), do: a + b + c
+                  def g, do: foo(unquote_splicing(xs) | [3])
+                  def t, do: {0, 9, unquote_splicing(xs) | [3]}
+                  def f(unquote_splicing(vs) | [c]), do: {a, b, c}
+                  def b, do: (0; unquote_splicing(xs) | [3])
+                  def sp, do: {unquote_splicing([0]), unquote_splicing(xs) | [3]}
+                  def one, do: {unquote_splicing(xs) | [3]}
+                  def cn, do: :erlang.unquote(:+)(unquote_splicing(xs) | [])
+                end
+                """,
+            ),
+            // A pair splices as a `{}` tuple, a pair that doesn't still holds fragments, and so does an alias.
+            macro(
+                "fragment:splice-pair-and-alias",
+                "defmacro m, do: Macro.escape({{row}.FP.p(), {row}.FP.q(), {row}.FP.r(), {row}.FP.a(), {row}.FP.n()})",
+                helper = """
+                defmodule {row}.FP do
+                  xs = [1, 2]
+                  m = Enum
+                  def p, do: {unquote_splicing(xs), 3}
+                  def q, do: {0, unquote_splicing(xs)}
+                  def r, do: {unquote_splicing([1]), 2}
+                  def a, do: unquote(m).Bar
+                  def n, do: {[unquote_splicing(xs)], 9}
+                end
+                """,
+            ),
+            // A `{}` tuple whose splices leave two elements is quoted as a `{}` call, not a pair, so a macro reading
+            // it as a keyword list doesn't find the key.
+            macro(
+                "fragment:splice-to-two",
+                "defmacro m, do: Macro.escape({{row}.FK.g(), {row}.FK.h(), {row}.FK.i()})",
+                helper = """
+                defmodule {row}.KW do
+                  defmacro k(opts), do: Keyword.get(opts, :k, :no)
+                end
+
+                defmodule {row}.FK do
+                  require {row}.KW
+                  ys = []
+                  zs = [:k]
+                  ws = [:k, 3]
+                  def g, do: {row}.KW.k([{:k, unquote_splicing(ys), 1}])
+                  def h, do: {row}.KW.k([{unquote_splicing(zs), 2}])
+                  def i, do: {row}.KW.k([{unquote_splicing(ws)}])
+                end
+                """,
+            ),
+            // A `{}` call of two expands as that node, not as a pair, so a directive's options don't read it as one.
+            macro(
+                "fragment:splice-to-two-option",
+                "defmacro m, do: Macro.escape({{row}.FI.l(), {row}.FI.l2(), {row}.FI.l3()})",
+                helper = """
+                defmodule {row}.FI do
+                  x = [Foo]
+                  y = [:as, Bar]
+
+                  def l do
+                    alias List, [{:as, unquote_splicing(x)}]
+                    Foo
+                  end
+
+                  def l2 do
+                    alias List, [{unquote_splicing(y)}]
+                    Bar
+                  end
+
+                  def l3 do
+                    import List, [{:only, unquote_splicing([[first: 1]])}]
+                    last([1, 2])
+                  end
+                end
+                """,
+            ),
+            macro(
+                "fragment:call-name",
+                "defmacro m, do: Macro.escape({{row}.FC.f(:a), {row}.FC.f(1)})",
+                helper = """
+                defmodule {row}.FC do
+                  guard = :is_atom
+                  def f(x) when :erlang.unquote(guard)(x), do: :atom
+                  def f(_), do: :other
+                end
+                """,
+            ),
+            // The rows from here to `fragment:splice-in-tuple` write their module-body code into the case module by
+            // `use`, so the run from `Dbgi` evaluates the body as the run from source does.
+            use(
+                "body:use-match-fragment",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    x = {1, [:a]}
+                    {a, [b]} = x
+                    def unquote(elem({:f, :g}, a))(), do: unquote(Macro.escape({x, b}))
+                  end
+                end
+                """,
+            ),
+            use(
+                "body:use-attribute-point",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    @x 1
+                    @x 2
+                    def unquote(elem({:f0, :f1, :f2, :f3}, @x))(), do: 1
+                    @x 3
+                    def unquote(elem({:g0, :g1, :g2, :g3}, @x))(), do: 1
+                  end
+                end
+                """,
+            ),
+            use(
+                "body:use-defdelegate-options",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    opts = [to: Kernel, as: :abs]
+                    defdelegate g(x), opts
+                  end
+                end
+                """,
+            ),
+            // Below `DEFSTRUCT_ESCAPES_STRUCT` the struct is read from a map the expander holds no term for.
+            use(
+                "body:use-defstruct-binding",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    fields = [a: 1, b: 2]
+                    defstruct fields
+                  end
+                end
+                """,
+                legs = { DEFSTRUCT_ESCAPES_STRUCT.isSufficient(it) },
+            ),
+            // `elixir_quote:dot/5` joins the receiver, whose fragments are evaluated, to the evaluated name.
+            use(
+                "fragment:call-name-receiver",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    mod = String
+                    fun = :upcase
+                    def f(x), do: unquote(mod).unquote(fun)(x)
+                    def g, do: f("a")
+                  end
+                end
+                """,
+            ),
+            // A splice is checked by `list/2` once every fragment after it in its list is evaluated.
+            use(
+                "fragment:splice-before-raise",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    args = :not_a_list
+                    def foo(unquote_splicing(args), unquote(raise "boom")), do: 1
+                  end
+                end
+                """,
+                ends = { "raised Elixir.RuntimeError" },
+            ),
+            // An unquoted call name is checked by `dot/5` once the call's arguments are evaluated.
+            use(
+                "fragment:call-name-before-raise",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    def foo, do: :erlang.unquote("bad")(unquote(raise "boom"))
+                  end
+                end
+                """,
+                ends = { "raised Elixir.RuntimeError" },
+            ),
+            // `raise` is `:erlang.error/2,3` on some legs, which names the caller's frame: here the body's own.
+            use(
+                "body:raise",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    @a raise(ArgumentError)
+                  end
+                end
+                """,
+                ends = { "raised Elixir.ArgumentError" },
+            ),
+            // Elixir may raise at a value the evaluator can't produce, before any later raise.
+            use(
+                "body:raise-after-declined-argument",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    Module.put_attribute(__MODULE__, (receive do after 0 -> raise KeyError end), raise(ArgumentError))
+                  end
+                end
+                """,
+                ends = { "stopped at `use {row}`" },
+            ),
+            use(
+                "body:raise-after-declined-match",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    _ = receive do after 0 -> raise KeyError end
+                    @a raise(ArgumentError)
+                  end
+                end
+                """,
+                ends = { "stopped at `use {row}`" },
+            ),
+            // The head's splice is checked before the body's fragments are evaluated.
+            use(
+                "fragment:head-splice-before-body",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    bad = :bad
+                    def foo(unquote_splicing(bad)), do: unquote(raise "body")
+                  end
+                end
+                """,
+                ends = { "raised Elixir.ArgumentError" },
+            ),
+            // `do: unquote_splicing(x)` is `[{:do, ...}]`, a pair holding a splice, which Elixir quotes as `{:{}, [], [:do, 1]}`.
+            use(
+                "fragment:splice-in-tuple",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    x = [1]
+                    def foo, do: unquote_splicing(x)
+                  end
+                end
+                """,
+                ends = { "raised missing_option" },
+            ),
+            // `[..., unquote_splicing(xs) | tail]` is `tail_list/3`, spliced where it is.
+            use(
+                "fragment:splice-before-tail",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    xs = [1, 2]
+                    def foo, do: [0, unquote_splicing(xs) | [3]]
+                  end
+                end
+                """,
+            ),
+            // `tail_list/3` needs an element to pair with the tail.
+            use(
+                "fragment:splice-empty-before-tail",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    xs = []
+                    def foo(t), do: [unquote_splicing(xs) | t]
+                  end
+                end
+                """,
+                ends = { if (SPLICE_EMPTY_BEFORE_TAIL_RAISES.isSufficient(it)) "raised Elixir.ArgumentError" else "raised Elixir.MatchError" },
+            ),
+            // `tail_list/3` has no clause for a value that isn't a list, where `list/2` raises `ArgumentError`.
+            use(
+                "fragment:splice-non-list-before-tail",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    xs = 1
+                    def foo(t), do: [0, unquote_splicing(xs) | t]
+                  end
+                end
+                """,
+                ends = { "raised Elixir.FunctionClauseError" },
+            ),
+            // `do_quote/2` quotes a pair as `{:{}, [], [...]}` when either element is a call to `unquote_splicing` of
+            // any arity. Before v1.15 the body is the call, which is undefined.
+            use(
+                "fragment:pair-with-splicing-call",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    x = 1
+                    def foo(unquote(x)), do: unquote_splicing(1, 2)
+                  end
+                end
+                """,
+                ends = { if (FUNCTION_ERRORS_CONTINUE.isSufficient(it)) "raised missing_option" else "raised undefined_function" },
+            ),
+            // A call written without parentheses has no arguments: `elixir_quote:dot/5` of `nil` builds one with none.
+            use(
+                "fragment:call-name-without-parentheses",
+                """
+                defmacro __using__(_) do
+                  {:def, [], [{:g, [], []}, [do: {{:unquote, [], [:a]}, {{{:., [], [String, :unquote]}, [], [:upcase]}, [], nil}}]]}
+                end
+                """,
+            ),
+            // `dot/5` of `nil` reads a quoted call as the name and its arguments.
+            use(
+                "fragment:call-name-quoted-call",
+                """
+                defmacro __using__(_) do
+                  {:def, [], [{:g, [], []}, [do: {{:unquote, [], [:a]}, {{{:., [], [String, :unquote]}, [], [{:{}, [], [:upcase, [], [1]]}]}, [], nil}}]]}
+                end
+                """,
+            ),
+            // An implementation's body is the user's code where a macro's output carries it: where the evaluator can't
+            // run it, Elixir may have raised, so a later raise stops.
+            use(
+                "impl:raise-after-declined-body",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    defimpl Inspect, for: {row}.X do
+                      _ = receive do after 0 -> raise KeyError end
+                      @a raise(ArgumentError)
+                      def inspect(_, _), do: ""
+                    end
+                  end
+                end
+                """,
+                ends = { "stopped at `use {row}`" },
+            ),
+            // Before v1.13 the body can write `@functions`, which `__protocol__(:functions)` unquotes sorted, and
+            // `:lists.sort/1` of an improper list before OTP 29 declines.
+            macro(
+                "protocol:functions-improper",
+                """
+                defmacro m do
+                  quote do
+                    defprotocol P do
+                      @functions [{:a, 1} | :x]
+                      def f(x)
+                    end
+                  end
+                end
+                """,
+                legs = { !PROTOCOL_BEFORE_COMPILE.isSufficient(it) },
+                ends = { "stopped at `$ROW.m()`" },
             ),
         )
     }

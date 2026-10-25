@@ -6,17 +6,23 @@ import org.elixir_lang.NameArity
 import org.elixir_lang.expander.DefinitionTable.Injected
 import org.elixir_lang.expander.DefinitionTable.Kind
 import org.elixir_lang.expander.ExpansionResult.Owner
+import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangList
+import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpErlangTuple
+import org.elixir_lang.expander.interpreter.EMPTY
+import org.elixir_lang.expander.interpreter.Evaluated
+import org.elixir_lang.expander.interpreter.NIL
+import org.elixir_lang.expander.interpreter.codeOf
+import org.elixir_lang.expander.interpreter.properElements
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFAULT_ARGUMENTS_THREAD_STATE
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINER_REFUSED_IN_MATCH_OR_GUARD
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_HEAD_GUARDS_CONTINUE
-import org.elixir_lang.language_level.ElixirLanguageFeature.HAS_UNQUOTES_NAME_AT_QUOTE_LEVEL
-import org.elixir_lang.language_level.ElixirLanguageFeature.HAS_UNQUOTES_QUOTE_AWARE
 import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CHECKS_TYPED
-import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
-import java.util.Collections
 import java.util.IdentityHashMap
 
 /**
@@ -75,21 +81,66 @@ internal fun define(
     env: Env,
     run: Run,
 ): Expansion {
-    val unquotes = hasUnquotes(head, run.level) || body != null && hasUnquotes(body, run.level)
+    val view = AstEscapeView(Synthetic(node.meta), ParsedMeta(columns = false))
+    val hasUnquotes = HasUnquotes(view, run.level)
+    // `Kernel.define/4` reads the head, then the body.
+    val headUnquotes: Boolean
+    val bodyUnquotes: Boolean
+
+    try {
+        headUnquotes = hasUnquotes.has(AstTerm.Node(head))
+        bodyUnquotes = body != null && hasUnquotes.has(AstTerm.Node(body))
+    } catch (_: ImproperList) {
+        return Expansion.Error("Elixir.FunctionClauseError", node)
+    }
+
+    val unquotes = bodyUnquotes || headUnquotes
+    val together = DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER.isSufficient(run.level)
+    // Before the head and body are escaped together, `Kernel.define/4` escapes the head whether or not it has unquotes.
+    val escapesHead = unquotes || !together
+    val escapesBody = bodyUnquotes || unquotes && together
+    // `Kernel.define/4` escapes `{call, expr}` as one pair, which `do_quote/2` quotes as a `{}` call where either
+    // holds an `unquote_splicing` call. The parts are then that call's arguments: a splice that is a whole part is
+    // spliced into them, and the store reads the call as a cache key.
+    val pairBody = body ?: ElixirAst.Literal.Atom(node.meta, "nil")
+    val pairIsCall = unquotes && together && isSplicingPair(view, AstTerm.Node(head), AstTerm.Node(pairBody))
     val fragments = Unquotes()
     val pieces = mutableListOf<Piece>()
+    val parts = listOfNotNull(head.takeIf { escapesHead }, body?.takeIf { escapesBody })
 
-    for (part in listOfNotNull(head, body).takeIf { unquotes }.orEmpty()) {
-        fragments.collect(part)
+    parts.forEach { fragments.collect(it, listed = pairIsCall) }
 
+    val escaped = if (pairIsCall) listOf(ElixirAst.Tuple(node.meta, listOf(head, pairBody))) else parts
+    // Code the port can't read may hold an `unquote`, which Elixir expands with the body whether or not the definition
+    // is escaped, so where the definition holds any, whether Elixir runs the body isn't known.
+    var holdsUnread = listOfNotNull(head.takeUnless { escapesHead }, body?.takeUnless { escapesBody }).any(::holdsUnreadCode)
+
+    for (part in escaped) {
         when (val escape = Quote.escape(part, node.meta, run)) {
-            is Quote.Escaped.Built -> fragments.order(escape.node, pieces)
-            // Code the port stops at stops the definition when it is expanded, not the module body that holds it. The
-            // source holds no calls of the escape, and its own `:erlang` calls are the body's to dispatch.
-            is Quote.Escaped.Stopped -> fragments.order(part, pieces, escaped = false)
+            is Quote.Escaped.Built -> {
+                escape.readAsCode.forEach(fragments::readAsCode)
+                fragments.order(escape.node, pieces)
+            }
+            // Elixir escapes code the port can't read as it is, so that code stops the definition when it is expanded, not
+            // the module body that holds it. The source holds no calls of the escape, and its own `:erlang` calls are the
+            // body's to dispatch.
+            is Quote.Escaped.Unread -> {
+                holdsUnread = true
+                fragments.order(part, pieces, escaped = false)
+            }
+            // `Kernel.define/4` escapes as the `def` expands, before any statement of the body runs, so where the escape
+            // stops the body's expansion stops at the `def`, and what it raises is the module's there.
+            is Quote.Escaped.Stopped -> return Expansion.Unported(node)
+            is Quote.Escaped.Raised -> return Expansion.Error(escape.exception, node)
         }
     }
 
+    if (holdsUnread) env.module?.let(run.compiling::get)?.values?.unread()
+
+    // The fragments before each piece, and so the index of each piece's own.
+    val before = pieces.runningFold(0) { count, piece ->
+        count + if (piece is Piece.Quoted) 0 else 1
+    }
     val values = pieces.map {
         when (it) {
             is Piece.Fragment -> linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, run.level, it.call.arguments!!.single())
@@ -111,38 +162,28 @@ internal fun define(
             }
         }
     }.thenValue { s, e, terms ->
-        val call = extractGuards(head).first
-        val nameFragment = (call as? ElixirAst.Call)?.callee?.takeIf { isCall(it, "unquote", 1) }
-        val replacements = IdentityHashMap<ElixirAst, ElixirAst>()
-        var unnamedAt: ElixirAst? = null
-        var stop = fragments.stop
+        val evaluated = pieces.indices.mapNotNull { i ->
+            val term = (terms as Term.List).elements[i]
 
-        for ((piece, term) in pieces.zip((terms as Term.List).elements)) {
-            val fragment = (piece as? Piece.Fragment)?.call ?: continue
-            val literal = literalOf(fragment, term)
+            when (val piece = pieces[i]) {
+                is Piece.Fragment -> Fragment(piece.call, values[i], term, piece.call.arguments!!.single())
+                is Piece.Evaluated -> piece.placement.let {
+                    val checkedAfter = (piece.helper?.end?.let(before::get) ?: before[i + 1]) - 1
 
-            when {
-                literal != null -> replacements[fragment] = literal
-                fragment === nameFragment -> unnamedAt = fragment
-                else -> stop = stop ?: fragment
+                    Fragment(it.call, values[i], term, piece.expression, it.kind, checkedAfter, it.named, it.list, checkOf(piece), piece.helper?.call, piece.helper?.name)
+                }
+                is Piece.Quoted -> null
             }
         }
-
-        val statement = run.compiling[env.module]?.isStatement(node) == true
-        val substituted = substitute(head, replacements)
-
-        if (!isReadWhole(extractGuards(substituted).first)) unnamedAt = unnamedAt ?: stop
 
         run.pending += Pending.Definition(
             kind,
             node,
-            substituted,
-            body?.let { substitute(it, replacements) },
-            unnamedAt,
-            stop,
+            head,
+            body,
+            Fragments(evaluated, state, escapesBody, pairIsCall = pairIsCall).takeIf { escapesHead },
             env,
-            statement && unnamedAt == null,
-            statement,
+            run.compiling[env.module]?.isStatement(node) == true,
             // `elixir_def:store_definition/5`: a head with unquotes or from a quote isn't checked for clauses.
             checksClauses = !unquotes && !hasMetaKey(extractGuards(head).first.meta, "context"),
             injectedBy = run.injecting?.takeIf { builtBy(node, it) },
@@ -151,6 +192,307 @@ internal fun define(
         Expansion.Expanded(s, e, NODE)
     }
 }
+
+/**
+ * What the escape of a definition's head and body evaluates when the `def` runs: each `unquote(x)`, splice and unquoted
+ * call name, in order.
+ *
+ * @property state the state at the `def*` call, from which the fragments are evaluated
+ * @property escapesBody whether the body is escaped with the head, and so holds fragments: before
+ *   [DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER], only where the body itself has unquotes
+ * @property pairIsCall whether the head and body, escaped together, are quoted as a `{}` call rather than a pair, as
+ *   `do_quote/2` quotes a pair holding an `unquote_splicing` call: the store then reads a cache key where it expects
+ *   `{Call, Body}`, and raises
+ * @property supplied the code a summary knows a fragment, splice or unquoted call name holds, by the node it replaces
+ */
+internal class Fragments(
+    val values: List<Fragment>,
+    val state: ExState,
+    val escapesBody: Boolean,
+    val supplied: Map<ElixirAst, ElixirAst> = emptyMap(),
+    val pairIsCall: Boolean = false,
+)
+
+/**
+ * An `unquote(x)`, `unquote_splicing(x)` or `Left.unquote(x)` of a definition, or an expression read as code, the
+ * [call] of a [Kind.CODE], with [expanded], the `x` the module body expanded, and the [term] it expanded to.
+ *
+ * @property escaped the `x` in the escape's code, which its value stands for
+ * @property checkedAfter for a value its helper checks ([check]), the index of the last fragment that helper's
+ *   arguments hold, all of which are evaluated before it runs
+ * @property named for a call name, the call it names
+ * @property list for a splice before a tail, the elements of the list, arguments, tuple or block it is in, whose others
+ *   and tail `tail_list/3` takes
+ * @property check what the helper the escape hands the value to checks before the value is placed, if it checks it
+ * @property helper that helper's call, where the escape built one
+ * @property helperName that helper's function
+ */
+internal class Fragment(
+    val call: ElixirAst,
+    val expanded: ElixirAst,
+    val term: Term,
+    val escaped: ElixirAst,
+    val kind: Kind = Kind.UNQUOTE,
+    val checkedAfter: Int = -1,
+    val named: ElixirAst.Call? = null,
+    val list: List<ElixirAst>? = null,
+    val check: Check? = null,
+    val helper: ElixirAst.Call? = null,
+    val helperName: String? = null,
+) {
+    enum class Kind {
+        UNQUOTE,
+
+        /**
+         * A splice into the list, arguments, tuple or block that holds it, which `elixir_quote:list/2` checks, or
+         * `tail_list/3` before their tail.
+         */
+        SPLICE,
+
+        /** A called name, `Left.unquote(x)(...)`, which `elixir_quote:dot/4` makes. */
+        NAME,
+
+        /**
+         * An uncalled name's expression, `Left.unquote(x)`, which `elixir_quote:dot/5` checks and builds a call from
+         * that the walk doesn't port: the definition stops there, while what comes after it still runs.
+         */
+        STOP,
+
+        /**
+         * An `unquote`'s expression that the escape read as code from a macro's term, checked as its place gives
+         * ([check]): the port places its value nowhere, so the definition stops there, while what comes after it still
+         * runs.
+         */
+        CODE,
+    }
+
+    /** What an `elixir_quote` helper checks of the value it is handed, which raises where the check fails. */
+    enum class Check {
+        /**
+         * `list/2`, or `tail_list/3` before a tail ([list]): a splice's value is a list of quoted expressions.
+         */
+        LIST,
+
+        /** `dot/5` given arguments: a called name's value is an atom or a call, whose name it takes. */
+        CALLED,
+
+        /** `dot/5` given `nil`: an uncalled name's value is an atom, an alias or a quoted call. */
+        UNCALLED,
+    }
+}
+
+/**
+ * A definition's head and body as the `def` runs them, each fragment replaced by its value.
+ *
+ * @property unnamedAt the name's fragment, when its value isn't an atom, or the first fragment that stops a head whose
+ *   name or argument count a fragment decides
+ * @property stop the first other fragment whose value isn't code, or is placed nowhere
+ * @property ordered whether the `def*` call is a statement of the module body, and named
+ * @property raised what the escape raises, which ends the module body before the definition is stored
+ */
+internal class Unquoted(
+    val head: ElixirAst,
+    val body: ElixirAst?,
+    val unnamedAt: ElixirAst?,
+    val stop: ElixirAst?,
+    val ordered: Boolean,
+    val raised: Expansion? = null,
+)
+
+/**
+ * [definition] as the `def` runs it: each fragment's value is what a summary supplied, or what its expansion knows,
+ * or, if [evaluates], what the evaluator gives from the values [compiling]'s body has bound. A value a helper checks
+ * ([Fragment.check]) is checked once the fragments the helper's arguments hold are evaluated. The definition stops at
+ * the first value that isn't known, or that it places nowhere, and a fragment or helper raises only where every value
+ * evaluated before it is known.
+ */
+internal fun unquoted(
+    definition: Pending.Definition,
+    compiling: Compiling,
+    run: Run,
+    evaluates: Boolean = true,
+): Unquoted {
+    val fragments = definition.fragments
+        ?: return Unquoted(definition.head, definition.body, null, null, definition.statement)
+    val name = nameFragment(definition.head)
+    val replacements = IdentityHashMap(fragments.supplied)
+    val splices = IdentityHashMap<ElixirAst, List<ElixirAst>>()
+    var unnamedAt: ElixirAst? = null
+    // The first fragment whose value isn't known, after which none is evaluated.
+    var stop: ElixirAst? = null
+    // The first fragment the definition stops at: the stop, or one read as code whose value is placed nowhere.
+    var stopsAt: ElixirAst? = null
+
+    // The values whose helpers are still to run, the innermost last.
+    val held = ArrayDeque<Held>()
+    // Each fragment's value and each helper's result, by the node of the escape's code that gives it.
+    val escapedValues = IdentityHashMap<ElixirAst, ElixirAst>()
+
+    fun place(fragment: Fragment, placed: Any?) {
+        when {
+            placed != null -> {}
+            fragment.call === name -> unnamedAt = fragment.call
+            else -> {
+                stop = stop ?: fragment.call
+                stopsAt = stopsAt ?: fragment.call
+            }
+        }
+    }
+
+    // A value the walk places nowhere, at which the definition stops.
+    fun nowhere(fragment: Fragment, value: Any?): Any? = value?.also { stopsAt = stopsAt ?: fragment.call }
+
+    // The helper the escape hands a value to, with the value and a name's `Left`, which never decides whether it
+    // raises.
+    fun checked(held: Held, left: OtpErlangObject?): Evaluated? {
+        val fragment = held.fragment
+        val term = held.term ?: return held.evaluated
+        if (!evaluates || stop != null || unnamedAt != null) return null
+        val (function, args) = when (fragment.check!!) {
+            Fragment.Check.LIST -> fragment.helper?.arguments?.let { arguments ->
+                // The helper the escape built: its arguments after the value are the escape's code, run with the values
+                // of the fragments and helpers they hold.
+                fragment.helperName!! to listOf(term) + arguments.drop(1).map { node ->
+                    val code = substitute(node, escapedValues)
+
+                    when (val ran = compiling.values.evaluate(code, fragments.state, definition.env, run)) {
+                        is Evaluated.Value -> ran.value
+                        else -> return ran
+                    }
+                }
+            } ?: fragment.list?.let { list ->
+                // `tail_list(Left, Right, Tail)`: the tail and the elements before the splice, quoted.
+                val bar = list.last() as ElixirAst.Call
+                val right = substitute(bar.arguments!![1], replacements, splices).toOtp()
+                val tail = substituteAll(list.dropLast(1), replacements, splices).map { it.toOtp() }
+
+                "tail_list" to listOf(term, right, OtpErlangList(tail.toTypedArray()))
+            } ?: ("list" to listOf(term, EMPTY))
+            Fragment.Check.CALLED -> "dot" to listOf(EMPTY, left ?: NIL, term, EMPTY)
+            Fragment.Check.UNCALLED -> "dot" to listOf(EMPTY, left ?: NIL, term, NIL)
+        }
+
+        return compiling.values.quoteHelper(function, args, fragment.call, fragments.state, definition.env, run)
+    }
+
+    for ((index, fragment) in fragments.values.withIndex()) {
+        ProgressManager.checkCanceled()
+
+        if (fragment.call !in replacements) {
+            val known = literalOf(fragment.call, fragment.term)
+            val evaluated = if (known == null && evaluates && stop == null && unnamedAt == null) {
+                compiling.values.evaluate(fragment.expanded, fragments.state, definition.env, run)
+            } else {
+                null
+            }
+
+            if (evaluated is Evaluated.Raised) {
+                return Unquoted(definition.head, definition.body, null, null, definition.statement, Expansion.Error(evaluated.exception, fragment.call))
+            }
+
+            val holding = Held(fragment, known, evaluated)
+
+            holding.term?.let { value -> escapedValues[fragment.escaped] = ElixirAst.Value(fragment.escaped.meta, value) }
+
+            when {
+                fragment.check != null -> held.addLast(holding)
+                fragment.kind == Fragment.Kind.UNQUOTE ->
+                    place(fragment, (known ?: holding.term?.let { valueNode(it, fragment.call) })
+                        ?.let { replacements[fragment.call] = it })
+                else -> place(fragment, nowhere(fragment, holding.term))
+            }
+        }
+
+        while (held.lastOrNull()?.fragment?.checkedAfter?.let { it <= index } == true) {
+            val checking = held.removeLast()
+            val call = checking.fragment.call
+            // Only a called name's placement reads its `Left`.
+            val left = ((call as? ElixirAst.Call)?.callee as? ElixirAst.Call)
+                ?.takeIf { checking.fragment.kind == Fragment.Kind.NAME }
+                ?.let { substitute(it.arguments!![0], replacements, splices) }
+            val leftTerm = left?.toOtp()
+            val escaped = checked(checking, leftTerm)
+
+            if (escaped is Evaluated.Raised) {
+                return Unquoted(definition.head, definition.body, null, null, definition.statement, Expansion.Error(escaped.exception, call))
+            }
+
+            val value = (escaped as? Evaluated.Value)?.value
+
+            if (value != null) checking.fragment.helper?.let { escapedValues[it] = ElixirAst.Value(it.meta, value) }
+
+            val placed = when (checking.fragment.kind) {
+                Fragment.Kind.SPLICE ->
+                    // Before a tail the splice stands, at its `|`, for the whole list `tail_list/3` gives; elsewhere for
+                    // the value the helper took, as the elements beside it are placed by their own nodes.
+                    value?.let { if (checking.fragment.list != null) it else checking.term }
+                        ?.let(::properElements)
+                        ?.map { valueNode(it, call) }
+                        ?.takeIf { elements -> elements.all { it != null } }
+                        ?.let { elements -> splices[checking.fragment.list?.last() ?: call] = elements.filterNotNull() }
+                Fragment.Kind.NAME -> value?.let { dotted(checking.fragment, it, left!!, leftTerm!!) }
+                    ?.let { (at, node) -> replacements[at] = node }
+                else -> nowhere(checking.fragment, value)
+            }
+
+            place(checking.fragment, placed)
+        }
+    }
+
+    val head = substitute(definition.head, replacements, splices)
+
+    if (!isReadWhole(extractGuards(head).first)) unnamedAt = unnamedAt ?: stopsAt
+
+    return Unquoted(
+        head,
+        if (fragments.escapesBody) definition.body?.let { substitute(it, replacements, splices) } else definition.body,
+        unnamedAt,
+        stopsAt,
+        definition.statement && unnamedAt == null,
+    )
+}
+
+/** A fragment's value, [known] from its expansion or [evaluated], held until its helper runs where one checks it. */
+private data class Held(val fragment: Fragment, val known: ElixirAst?, val evaluated: Evaluated?) {
+    /** The value, `null` where it isn't known. */
+    val term: OtpErlangObject? = known?.toOtp() ?: (evaluated as? Evaluated.Value)?.value
+}
+
+/**
+ * The code [value] is, as a macro's result is read, for [call]: marked built, as no observer is to take it for a node of
+ * the source. It is `null` where the value nests too deeply to convert on the thread's stack or is too large to copy.
+ */
+private fun valueNode(value: OtpErlangObject, call: ElixirAst): ElixirAst? =
+    unlessTooDeep({ null }) { codeOf(value, call.meta.origin, values = true)?.let(Quote::builtCopy) }
+
+/** The name in `{{:., _, [_, name]}, _, _}`, the call `elixir_quote:dot/4` made. */
+private fun calledName(call: OtpErlangObject): String? {
+    val dot = ((call as? OtpErlangTuple)?.elementAt(0) as? OtpErlangTuple)?.takeIf { it.arity() == 3 }
+
+    return (dot?.elementAt(2)?.let(::properElements)?.getOrNull(1) as? OtpErlangAtom)?.atomValue()
+}
+
+/**
+ * What [value], the call `elixir_quote:dot/5` made for [fragment], `Left.unquote(x)`, replaces, with the node it is:
+ * where the call [Fragment.named] has arguments, [fragment] as `Left.name`; where it has none, that call as `dot/5`
+ * built it from `nil` arguments, with [left] where it holds [leftTerm].
+ */
+private fun dotted(fragment: Fragment, value: OtpErlangObject, left: ElixirAst, leftTerm: OtpErlangObject): Pair<ElixirAst, ElixirAst>? {
+    val call = fragment.call as ElixirAst.Call
+    val dot = call.callee as ElixirAst.Call
+    val named = fragment.named!!
+
+    return if (named.arguments != null) {
+        calledName(value)?.let { call to ElixirAst.Call(dot.meta, dot.callee, listOf(left, ElixirAst.Literal.Atom(dot.meta, it))) }
+    } else {
+        codeOf(value, call.meta.origin, values = true, known = { if (it === leftTerm) left else null })
+            ?.let { named to it }
+    }
+}
+
+/** The `unquote` that names [head]'s call, if one does. */
+private fun nameFragment(head: ElixirAst): ElixirAst? =
+    (extractGuards(head).first as? ElixirAst.Call)?.callee?.takeIf { isCall(it, "unquote", 1) }
 
 /**
  * The literal [fragment]'s value [term] is, if it is one a definition can hold: the code `unquote` inserts, in which a
@@ -174,34 +516,11 @@ internal fun literalOf(fragment: ElixirAst, term: Term): ElixirAst? {
     }
 }
 
-/**
- * `elixir_quote:has_unquotes/1`: whether [node] makes its definition one with unquote fragments. Before
- * [HAS_UNQUOTES_QUOTE_AWARE] any `unquote` does. From it, one inside a `quote` does only if it unquotes past it, a
- * `quote` whose options disable unquoting holds none, and the options aren't read; a call's name is read outside any
- * `quote` until [HAS_UNQUOTES_NAME_AT_QUOTE_LEVEL], and at the call's own level from it.
- */
-private fun hasUnquotes(node: ElixirAst, level: ElixirLanguageLevel, quoteLevel: Int = 0): Boolean {
+/** Whether [node] holds code the port can't read, which the escape reads as an unknown term. */
+private fun holdsUnreadCode(node: ElixirAst): Boolean {
     ProgressManager.checkCanceled()
 
-    val arguments = (node as? ElixirAst.Call)?.arguments
-    val unquote = isCall(node, "unquote", 1) || isCall(node, "unquote_splicing", 1)
-
-    if (!HAS_UNQUOTES_QUOTE_AWARE.isSufficient(level)) {
-        return unquote || isUnquotedCall(node) || children(node).any { hasUnquotes(it, level) }
-    }
-
-    return when {
-        isCall(node, "quote", 1) -> hasUnquotes(arguments!![0], level, quoteLevel + 1)
-        isCall(node, "quote", 2) -> !disablesUnquote(arguments!![0]) && hasUnquotes(arguments[1], level, quoteLevel + 1)
-        unquote -> quoteLevel == 0 || hasUnquotes(arguments!![0], level, quoteLevel - 1)
-        isUnquotedCall(node) -> true
-        node is ElixirAst.Call && arguments != null -> {
-            val nameLevel = if (HAS_UNQUOTES_NAME_AT_QUOTE_LEVEL.isSufficient(level)) quoteLevel else 0
-
-            hasUnquotes(node.callee, level, nameLevel) || arguments.any { hasUnquotes(it, level, quoteLevel) }
-        }
-        else -> children(node).any { hasUnquotes(it, level, quoteLevel) }
-    }
+    return node is ElixirAst.Placeholder && node.stopsExpansion || children(node).any(::holdsUnreadCode)
 }
 
 /** `{{'.', _, [_, unquote]}, _, [_]}`: a call of one argument whose name is unquoted. */
@@ -212,87 +531,181 @@ internal fun isUnquotedCall(node: ElixirAst): Boolean =
 internal fun isUnquotedCallName(node: ElixirAst): Boolean =
     isCall(node, ".", 2) && ((node as ElixirAst.Call).arguments!![1] as? ElixirAst.Literal.Atom)?.name == "unquote"
 
-/** `disables_unquote/1`: whether a `quote`'s [options] hold `unquote: false` or `bind_quoted:`. */
-private fun disablesUnquote(options: ElixirAst): Boolean =
-    (options as? ElixirAst.ListNode)?.elements.orEmpty().any { option ->
-        val pair = (option as? ElixirAst.Tuple)?.elements?.takeIf { it.size == 2 }
-
-        when ((pair?.get(0) as? ElixirAst.Literal.Atom)?.name) {
-            "unquote" -> (pair[1] as? ElixirAst.Literal.Atom)?.name == "false"
-            "bind_quoted" -> true
-            else -> false
-        }
-    }
-
 /** What the output of `elixir_quote:escape/3` does when the `def` runs it, in order. */
 private sealed interface Piece {
     /** An `unquote(x)`, whose `x` is evaluated. */
     class Fragment(val call: ElixirAst.Call) : Piece
 
-    /** The expression of an `unquote_splicing` or of an unquoted call name, evaluated, whose value isn't spliced. */
-    class Evaluated(val expression: ElixirAst) : Piece
+    /**
+     * The expression of an `unquote_splicing`, of an unquoted call name or read as code, evaluated, with its [placement],
+     * where the walk places the value, and the [helper] call it is an argument of, if the escape built one.
+     */
+    class Evaluated(val expression: ElixirAst, val placement: Placement, val helper: Quoted?) : Piece
 
-    /** A call the escape makes into `elixir_quote` or `:erlang`, for a splice or an unquoted call name. */
-    class Quoted(val receiver: String, val name: String, val arity: Int) : Piece
+    /**
+     * A call the escape makes into `elixir_quote` or `:erlang`, [call], for a splice or an unquoted call name.
+     *
+     * @property end the index just past its arguments' pieces
+     */
+    class Quoted(val call: ElixirAst.Call, val receiver: String, val name: String) : Piece {
+        val arity get() = call.arguments!!.size
+
+        var end = 0
+    }
 }
 
 /**
+ * What the helper checks of [piece]'s value: the helper call the escape built, or where it built none, as the source
+ * escaped as it is places the value.
+ */
+private fun checkOf(piece: Piece.Evaluated): Fragment.Check? {
+    piece.helper?.let { return checkOf(it, piece.expression) }
+
+    return when (piece.placement.kind) {
+        Fragment.Kind.UNQUOTE, Fragment.Kind.CODE -> null
+        Fragment.Kind.SPLICE -> Fragment.Check.LIST
+        Fragment.Kind.NAME ->
+            if (piece.placement.named!!.arguments != null) Fragment.Check.CALLED else Fragment.Check.UNCALLED
+        Fragment.Kind.STOP -> Fragment.Check.UNCALLED
+    }
+}
+
+/** What [helper] checks of [argument], one of its arguments: `list/2`'s and `tail_list/3`'s first, `dot/5`'s third. */
+private fun checkOf(helper: Piece.Quoted, argument: ElixirAst): Fragment.Check? {
+    val arguments = helper.call.arguments!!
+
+    return when {
+        helper.receiver != "elixir_quote" -> null
+        (helper.name == "list" || helper.name == "tail_list") && arguments[0] === argument -> Fragment.Check.LIST
+        helper.name == "dot" && arguments.getOrNull(2) === argument ->
+            if ((arguments[3] as? ElixirAst.Literal.Atom)?.name == "nil") {
+                Fragment.Check.UNCALLED
+            } else {
+                Fragment.Check.CALLED
+            }
+        else -> null
+    }
+}
+
+/**
+ * Where the walk places the value of a splice, an unquoted call name or an expression read as code, [call], as its
+ * [kind] says; [named] is the call a called name names, and [list] the elements whose tail a splice precedes.
+ */
+private class Placement(
+    val call: ElixirAst,
+    val kind: Fragment.Kind,
+    val named: ElixirAst.Call? = null,
+    val list: List<ElixirAst>? = null,
+)
+
+/**
  * The expressions `elixir_quote:escape/3` evaluates rather than quotes, in a head or body: the `unquote(x)` fragments
- * outside a `quote`'s body, the expressions of an `unquote_splicing` and of an unquoted call name, and the first splice
- * or call name, whose value the expander can't splice. A `quote`'s options are unquoted as the rest is.
+ * outside a `quote`'s body, and the expressions of an `unquote_splicing` and of an unquoted call name. A `quote`'s
+ * options are unquoted as the rest is.
  */
 private class Unquotes {
     private val fragments = IdentityHashMap<ElixirAst, ElixirAst.Call>()
-    private val evaluated = Collections.newSetFromMap(IdentityHashMap<ElixirAst, Boolean>())
-    var stop: ElixirAst? = null
+    private val evaluated = IdentityHashMap<ElixirAst, Placement>()
 
-    fun collect(node: ElixirAst) {
+    /**
+     * @param listed whether [node] is one of the [quotedElements] of the node that holds it, or of a pair that
+     * [isSplicingPair], where `do_quote/2` splices an `unquote_splicing` call; anywhere else that call is a call like any
+     * other
+     */
+    fun collect(node: ElixirAst, listed: Boolean = false) {
         ProgressManager.checkCanceled()
 
         when {
             isCall(node, "unquote", 1) -> (node as ElixirAst.Call).let { fragments[it.arguments!!.single()] = it }
             isCall(node, "quote", 1) -> {}
             isCall(node, "quote", 2) -> collect((node as ElixirAst.Call).arguments!![0])
-            isCall(node, "unquote_splicing", 1) -> {
-                evaluated += (node as ElixirAst.Call).arguments!!.single()
-                stop = stop ?: node
+            listed && isCall(node, "unquote_splicing", 1) -> {
+                val call = node as ElixirAst.Call
+
+                evaluated[call.arguments!!.single()] = Placement(call, Fragment.Kind.SPLICE)
             }
             isUnquotedCall(node) -> {
                 val call = node as ElixirAst.Call
 
-                evaluated += call.arguments!!.single()
-                stop = stop ?: node
+                evaluated[call.arguments!!.single()] = Placement(call, Fragment.Kind.STOP)
                 collect((call.callee as ElixirAst.Call).arguments!![0])
             }
-            else -> children(node).forEach(::collect)
+            node is ElixirAst.Call && isUnquotedCall(node.callee) -> {
+                val name = node.callee as ElixirAst.Call
+
+                evaluated[name.arguments!!.single()] = Placement(name, Fragment.Kind.NAME, node)
+                collect((name.callee as ElixirAst.Call).arguments!![0])
+                collectAll(quotedElements(node).orEmpty())
+            }
+            else -> {
+                if (node is ElixirAst.Call) collect(node.callee)
+
+                val elements = quotedElements(node)
+
+                when {
+                    elements != null -> collectAll(elements)
+                    // A pair is quoted as `{:{}, [], [Left, Right]}` where it splices, else as its two elements.
+                    node is ElixirAst.Tuple ->
+                        if (isSplicingPair(node)) collectAll(node.elements) else node.elements.forEach { collect(it) }
+                }
+            }
+        }
+    }
+
+    /**
+     * [elements], of a list, a call's arguments, a `{}` tuple or a block, as `do_quote_tail/2` quotes them: a splice
+     * before their tail, `[..., unquote_splicing(x) | tail]`, is `tail_list/3`'s.
+     */
+    private fun collectAll(elements: List<ElixirAst>) {
+        val splice = (elements.lastOrNull() as? ElixirAst.Call)
+            ?.takeIf { isCall(it, "|", 2) }
+            ?.arguments?.first()
+            ?.takeIf { isCall(it, "unquote_splicing", 1) } as ElixirAst.Call?
+
+        if (splice == null) {
+            elements.forEach { collect(it, listed = true) }
+        } else {
+            elements.dropLast(1).forEach { collect(it, listed = true) }
+            evaluated[splice.arguments!!.single()] = Placement(splice, Fragment.Kind.SPLICE, list = elements)
+            collect((elements.last() as ElixirAst.Call).arguments!![1], listed = true)
         }
     }
 
     /**
      * The pieces of [output], the expression the escape built, as the compiler expands it: its `elixir_quote` and
      * `:erlang` calls, and each expression it evaluates, in order. When [escaped] is false, [output] is the source the
-     * escape stopped at, and holds only the expressions.
+     * escape couldn't read, and holds only the expressions.
      */
-    fun order(output: ElixirAst, pieces: MutableList<Piece>, escaped: Boolean = true) {
+    fun order(output: ElixirAst, pieces: MutableList<Piece>, escaped: Boolean = true, helper: Piece.Quoted? = null) {
         ProgressManager.checkCanceled()
 
         val fragment = fragments[output]
 
         when {
             fragment != null -> pieces += Piece.Fragment(fragment)
-            output in evaluated -> pieces += Piece.Evaluated(output)
+            output in evaluated -> pieces += Piece.Evaluated(output, evaluated[output]!!, helper)
             else -> {
-                if (escaped) quotedCall(output)?.let { pieces += it }
-                children(output).forEach { order(it, pieces, escaped) }
+                val quoted = if (escaped) quotedCall(output)?.also { pieces += it } else null
+
+                children(output).forEach { order(it, pieces, escaped, quoted ?: helper) }
+                quoted?.end = pieces.size
             }
         }
+    }
+
+    /**
+     * [expression], an `unquote`'s expression that the escape read as code from a macro's term: Elixir expands it with
+     * the definition, and it is evaluated with the fragments in escape order.
+     */
+    fun readAsCode(expression: ElixirAst) {
+        evaluated[expression] = Placement(expression, Fragment.Kind.CODE)
     }
 
     private fun quotedCall(node: ElixirAst): Piece.Quoted? {
         val remote = (node as? ElixirAst.Call)?.callee?.takeIf { isCall(it, ".", 2) } as? ElixirAst.Call ?: return null
         val receiver = (remote.arguments!![0] as? ElixirAst.Literal.Atom)?.name?.takeIf { it in QUOTE_RECEIVERS } ?: return null
 
-        return Piece.Quoted(receiver, (remote.arguments[1] as ElixirAst.Literal.Atom).name, node.arguments!!.size)
+        return Piece.Quoted(node, receiver, (remote.arguments[1] as ElixirAst.Literal.Atom).name)
     }
 
     private companion object {
@@ -310,46 +723,77 @@ internal fun children(node: ElixirAst): List<ElixirAst> =
         is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> emptyList()
     }
 
-/** [node] with each node in [replacements] replaced, rebuilding only what holds a replaced node. */
-internal fun substitute(node: ElixirAst, replacements: Map<ElixirAst, ElixirAst>): ElixirAst {
+/**
+ * [node] with each node in [replacements] replaced, each in [splices] replaced by its elements in the list that holds
+ * it, the elements of a list, arguments, tuple or block whose `|` before the tail is in [splices] by the whole list
+ * `tail_list/3` built, and each pair
+ * [isSplicing] holds as `{:{}, [], [Left, Right]}`, as `do_quote/2` quotes it, but in a nested `quote`'s body,
+ * rebuilding only what holds a changed node.
+ */
+internal fun substitute(
+    node: ElixirAst,
+    replacements: Map<ElixirAst, ElixirAst>,
+    splices: Map<ElixirAst, List<ElixirAst>> = emptyMap(),
+): ElixirAst {
     ProgressManager.checkCanceled()
 
     replacements[node]?.let { return it }
 
-    if (replacements.isEmpty()) return node
-
     return when (node) {
         is ElixirAst.Call -> {
-            val callee = substitute(node.callee, replacements)
-            val arguments = node.arguments?.let { substituteAll(it, replacements) }
+            val callee = substitute(node.callee, replacements, splices)
+            val arguments = node.arguments?.let { arguments ->
+                if (isCall(node, "quote", 1) || isCall(node, "quote", 2)) {
+                    // `do_quote/2` quotes a nested `quote`'s body with `unquote` off, so nothing in it changes.
+                    val options = arguments.dropLast(1)
+                    val substituted = substituteAll(options, replacements, splices)
+
+                    if (substituted === options) arguments else substituted + arguments.last()
+                } else {
+                    substituteAll(arguments, replacements, splices)
+                }
+            }
 
             if (callee === node.callee && arguments === node.arguments) node
             else ElixirAst.Call(node.meta, callee, arguments)
         }
         is ElixirAst.Alias ->
-            substituteAll(node.segments, replacements).let {
+            substituteAll(node.segments, replacements, splices).let {
                 if (it === node.segments) node else ElixirAst.Alias(node.meta, it)
             }
         is ElixirAst.ListNode ->
-            substituteAll(node.elements, replacements).let {
+            substituteAll(node.elements, replacements, splices).let {
                 if (it === node.elements) node else ElixirAst.ListNode(node.meta, it)
             }
         is ElixirAst.Tuple ->
-            substituteAll(node.elements, replacements).let {
-                if (it === node.elements) node else ElixirAst.Tuple(node.meta, it)
+            substituteAll(node.elements, replacements, splices).let {
+                when {
+                    quotedElements(node) == null && isSplicingPair(node) -> ElixirAst.tupleCall(node.meta, it)
+                    it === node.elements -> node
+                    // A tuple quoted as `{:{}, meta, elements}` stays a `{}` call where its splices leave two elements.
+                    quotedElements(node) != null -> ElixirAst.tupleCall(node.meta, it)
+                    else -> ElixirAst.Tuple(node.meta, it)
+                }
             }
         is ElixirAst.Block ->
-            substituteAll(node.expressions, replacements).let {
+            substituteAll(node.expressions, replacements, splices).let {
                 if (it === node.expressions) node else ElixirAst.Block(node.meta, it)
             }
         is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> node
     }
 }
 
-private fun substituteAll(nodes: List<ElixirAst>, replacements: Map<ElixirAst, ElixirAst>): List<ElixirAst> {
-    val substituted = nodes.map { substitute(it, replacements) }
+private fun substituteAll(
+    nodes: List<ElixirAst>,
+    replacements: Map<ElixirAst, ElixirAst>,
+    splices: Map<ElixirAst, List<ElixirAst>>,
+): List<ElixirAst> {
+    // A splice before the tail stands for the whole list `tail_list/3` gave, keyed by its `|`.
+    (nodes.lastOrNull() as? ElixirAst.Call)?.takeIf { isCall(it, "|", 2) }?.let { splices[it] }?.let { return it }
 
-    return if (substituted.indices.all { substituted[it] === nodes[it] }) nodes else substituted
+    val substituted = nodes.flatMap { splices[it] ?: listOf(substitute(it, replacements, splices)) }
+
+    return if (substituted.size == nodes.size && substituted.indices.all { substituted[it] === nodes[it] }) nodes else substituted
 }
 
 /**
@@ -436,24 +880,35 @@ private fun fileOf(term: Term): String? =
     }
 
 /**
- * `elixir_def:store_definition/5`: [definition]'s name checked, its defaults and clause expanded in the env where it
- * was defined, and the definition stored unless that raised. The owner names the definition as far as it is known.
+ * `elixir_def:store_definition/5`: [definition], [unquoted] as the `def` ran it, its name checked, its defaults and
+ * clause expanded in the env where it was defined, and the definition stored unless that raised. The owner names the
+ * definition as far as it is known.
  *
  * @param expand whether the defaults and clause are expanded; where they aren't, the definition is stored as one that
  *   stops at its node
  */
 internal fun storeDefinition(
     definition: Pending.Definition,
+    unquoted: Unquoted,
     compiling: Compiling,
     run: Run,
     expand: Boolean = true,
 ): Pair<Owner, Expansion> {
     val kind = definition.kind
     val node = definition.node
-    val unnamedAt = definition.unnamedAt
+    val unnamedAt = unquoted.unnamedAt
+
+    unquoted.raised?.let { return Owner.Definition(kind, null, 0) to it }
+
+    // `store_definition/3`: a `{}` call isn't `{Call, Body}`, so it is read as a cache key, which raises once the
+    // fragments have run. Nothing is defined.
+    if (definition.fragments?.pairIsCall == true) {
+        return Owner.Definition(kind, null, 0) to
+            (unquoted.stop?.let { Expansion.Unported(it) } ?: Expansion.Error("Elixir.ArgumentError", node))
+    }
 
     // `retrieve_location/2`, before the name is checked. Only `invalid_def` comes before it in Elixir, and it raises.
-    compiling.definitionMoved = moved(takeFile(definition, compiling), definition.head, run)
+    compiling.definitionMoved = moved(takeFile(definition, compiling), unquoted.head, run)
 
     if (unnamedAt != null) {
         compiling.table.define(null, 0, kind, node, 0, 0, definition.statement, definition.checksClauses)
@@ -461,7 +916,7 @@ internal fun storeDefinition(
         return Owner.Definition(kind, null, 0) to Expansion.Unported(unnamedAt)
     }
 
-    val (call, guards) = extractGuards(definition.head)
+    val (call, guards) = extractGuards(unquoted.head)
     val (name, defaultsArgs) = when (call) {
         is ElixirAst.Call if call.callee is ElixirAst.Literal.Atom -> call.callee.name to call.arguments.orEmpty()
         // `{'__aliases__', Meta, Segments}`: a name `assert_no_aliases_name/4` refuses for one segment.
@@ -484,23 +939,23 @@ internal fun storeDefinition(
 
     /** The definition stored with this clause in its place, stopped at [at]. */
     fun stopped(at: ElixirAst): Pair<Owner, Expansion> {
-        if (definition.body != null) {
+        if (unquoted.body != null) {
             compiling.clauses.getOrPut(nameArity) { mutableListOf() } += ModuleClauses.Clause(args, guards, null)
         }
-        store(definition, name, arity, defaults.size, compiling, run)
+        store(definition, unquoted, name, arity, defaults.size, compiling, run)
 
         return owner to Expansion.Unported(at)
     }
 
-    if (definition.stop != null || !expand) return stopped(definition.stop ?: node)
+    if (unquoted.stop != null || !expand) return stopped(unquoted.stop ?: node)
 
     val env = definition.env.copy(function = nameArity)
     val fresh = ExState.empty(run.level).copy(caller = kind.macro)
-    val body = definition.body?.let { clauseBody(node, it) }
+    val body = unquoted.body?.let { clauseBody(node, it) }
     val (defaulted, expansion) = unlessTooDeep({ return stopped(node) }) {
         val defaulted = expandDefaults(defaults, fresh, env, run, compiling, node)
 
-        defaulted to defaulted.then { _, _ -> clause(node, args, guards, definition.body, body, fresh, env, run) }
+        defaulted to defaulted.then { _, _ -> clause(node, args, guards, unquoted.body, body, fresh, env, run) }
     }
 
     if (expansion is Expansion.Error) return owner to expansion
@@ -516,18 +971,21 @@ internal fun storeDefinition(
 
     // The store follows the expansion, so from 1.15 the body's errors are reported before the store raises. A body
     // that isn't expanded may raise before the store does.
-    val raised = store(definition, name, arity, defaults.size, compiling, run)?.takeIf { expansion is Expansion.Expanded }
+    val raised = store(definition, unquoted, name, arity, defaults.size, compiling, run)
+        ?.takeIf { expansion is Expansion.Expanded }
 
     return owner to (raised?.let { Expansion.Error(it, node) } ?: expansion)
 }
 
 /**
- * [definition] stored as [name] and [arity] with [defaults] defaults: the kind of the error the store raises, if any.
+ * [definition], [unquoted] as the `def` ran it, stored as [name] and [arity] with [defaults] defaults: the kind of the
+ * error the store raises, if any.
  * A definition whose `def*` call a macro's output built is recorded as injected by the call that injected it, and
  * placed where its `def*` call was built.
  */
 private fun store(
     definition: Pending.Definition,
+    unquoted: Unquoted,
     name: String,
     arity: Int,
     defaults: Int,
@@ -539,9 +997,9 @@ private fun store(
         arity,
         definition.kind,
         definition.node,
-        if (definition.body == null) 0 else 1,
+        if (unquoted.body == null) 0 else 1,
         defaults,
-        definition.ordered,
+        unquoted.ordered,
         definition.checksClauses,
         definition.delegatesTo,
         definition.injectedBy?.let { Injected(it, run.placedAt[definition.node]) },
@@ -714,3 +1172,10 @@ private fun clause(
 }
 
 private const val ALIASES = "__aliases__"
+
+/** Whether [pair], a two-element tuple, splices, so that `do_quote/2` quotes it as `{:{}, [], [Left, Right]}`. */
+private fun isSplicingPair(pair: ElixirAst.Tuple): Boolean {
+    val view = AstEscapeView(Synthetic(pair.meta), ParsedMeta(columns = false))
+
+    return isSplicingPair(view, AstTerm.Node(pair.elements[0]), AstTerm.Node(pair.elements[1]))
+}

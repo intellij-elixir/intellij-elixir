@@ -3,15 +3,12 @@ package org.elixir_lang.expander
 import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.lowering.ElixirAst
-import org.elixir_lang.psi.ElixirFile
 
 /**
  * `quote` and `unquote` compiled as module bodies on the leg's Elixir: the variables a quote binds where it is
  * written, its errors, and the value it builds, sent back at run time.
  */
-class QuoteProbeTest : ProbeTestCase() {
-    private val probes = ExpansionProbes(harness) { createPsiFile(getTestName(false), it) as ElixirFile }
-
+class QuoteProbeTest : SdkProbeTestCase() {
     fun testQuoteSiteVariables() {
         val expansions = SITE_FORMS.associateWith { probes.expand("l = 3\nf = \"x.ex\"\n$it") }
 
@@ -47,8 +44,9 @@ class QuoteProbeTest : ProbeTestCase() {
         )
     }
 
+    /** With the leg's modules' clauses, from which `Exception.normalize/3` names an error raised when the body runs. */
     fun testErrors() {
-        val expansions = ERRORS.associateWith { probes.expand(it) }
+        val expansions = ERRORS.associateWith { expand(it, "") }
 
         assertUnported(expansions, emptyList())
         probes.assertMatchesElixir(expansions)

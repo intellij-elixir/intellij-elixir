@@ -459,7 +459,8 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
 
     /**
      * A module body that stops, raising or at what isn't ported, answers what it defined before the stop. Elixir loads
-     * no module whose body raised, nor one with an error in a function, so another module reaches none of either.
+     * no module whose body raised for certain, nor one with an error in a function, so another module reaches neither;
+     * a module that may have been loaded answers what it defined.
      */
     fun testAStoppedModuleBodyAnswersWhatItDefinedBeforeTheStop() {
         val file = file(
@@ -504,7 +505,9 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             """
         )
 
-        assertEquals(mapOf("M" to "Compiled", "Stopped" to "Stopped", "Raised" to "Raised"), ended(file))
+        // Raised follows Stopped in its file, where Elixir may have raised, so its own raise isn't certain. Its error is
+        // computed from what is known, so either it or Stopped raised, and Elixir loaded no Raised.
+        assertEquals(mapOf("M" to "Compiled", "Stopped" to "Stopped", "Raised" to "Stopped"), ended(file))
         // Before 1.15 the error in a function raises where it is.
         assertEquals(
             mapOf("Tainted" to if (FUNCTION_ERRORS_CONTINUE.isSufficient(legLevel())) "Tainted" else "Raised"),

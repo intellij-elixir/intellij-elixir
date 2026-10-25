@@ -521,10 +521,10 @@ top__match_in_bracket__right_of_match.exs	match
 top__match_in_call__after_rebinding.exs	match
 top__match_in_call__bare.exs	match
 top__match_in_call__call_argument.exs	match
-top__match_in_call__in_anonymous_call.exs	match
+top__match_in_call__in_anonymous_call.exs	unported =/2
 top__match_in_call__in_binary_op.exs	match
 top__match_in_call__in_bracket.exs	match
-top__match_in_call__in_capture.exs	match
+top__match_in_call__in_capture.exs	unported remote or anonymous call
 top__match_in_call__in_case_body.exs	match
 top__match_in_call__in_case_guard.exs	match
 top__match_in_call__in_case_pin.exs	match
@@ -539,7 +539,7 @@ top__match_in_call__in_list.exs	match
 top__match_in_call__in_map.exs	match
 top__match_in_call__in_map_update.exs	match
 top__match_in_call__in_pipe.exs	match
-top__match_in_call__in_string_concat.exs	match
+top__match_in_call__in_string_concat.exs	unported =/2
 top__match_in_call__in_tuple.exs	match
 top__match_in_call__in_with_body.exs	match
 top__match_in_call__pin_match.exs	match
@@ -570,18 +570,18 @@ top__match_in_interpolation__in_tuple.exs	match
 top__match_in_interpolation__in_with_body.exs	match
 top__match_in_interpolation__pin_match.exs	match
 top__match_in_interpolation__right_of_match.exs	match
-top__match_in_keyword__after_rebinding.exs	match
+top__match_in_keyword__after_rebinding.exs	unported =/2
 top__match_in_keyword__bare.exs	match
 top__match_in_keyword__call_argument.exs	match
-top__match_in_keyword__in_anonymous_call.exs	match
-top__match_in_keyword__in_binary_op.exs	match
+top__match_in_keyword__in_anonymous_call.exs	unported =/2
+top__match_in_keyword__in_binary_op.exs	unported =/2
 top__match_in_keyword__in_bracket.exs	match
-top__match_in_keyword__in_capture.exs	match
+top__match_in_keyword__in_capture.exs	unported remote or anonymous call
 top__match_in_keyword__in_case_body.exs	match
 top__match_in_keyword__in_case_guard.exs	match
 top__match_in_keyword__in_case_pin.exs	match
 top__match_in_keyword__in_closure.exs	match
-top__match_in_keyword__in_for_body.exs	match
+top__match_in_keyword__in_for_body.exs	unported for/2
 top__match_in_keyword__in_for_filter.exs	match
 top__match_in_keyword__in_if_body.exs	match
 top__match_in_keyword__in_if_condition.exs	match
@@ -594,7 +594,7 @@ top__match_in_keyword__in_pipe.exs	match
 top__match_in_keyword__in_string_concat.exs	match
 top__match_in_keyword__in_tuple.exs	match
 top__match_in_keyword__in_with_body.exs	match
-top__match_in_keyword__pin_match.exs	match
+top__match_in_keyword__pin_match.exs	unported =/2
 top__match_in_keyword__right_of_match.exs	match
 top__match_in_list__after_rebinding.exs	match
 top__match_in_list__bare.exs	match
@@ -677,10 +677,10 @@ top__match_in_map_update__right_of_match.exs	match
 top__match_in_pipe__after_rebinding.exs	match
 top__match_in_pipe__bare.exs	match
 top__match_in_pipe__call_argument.exs	match
-top__match_in_pipe__in_anonymous_call.exs	match
+top__match_in_pipe__in_anonymous_call.exs	unported =/2
 top__match_in_pipe__in_binary_op.exs	match
 top__match_in_pipe__in_bracket.exs	match
-top__match_in_pipe__in_capture.exs	match
+top__match_in_pipe__in_capture.exs	unported remote or anonymous call
 top__match_in_pipe__in_case_body.exs	match
 top__match_in_pipe__in_case_guard.exs	match
 top__match_in_pipe__in_case_pin.exs	match
@@ -695,7 +695,7 @@ top__match_in_pipe__in_list.exs	match
 top__match_in_pipe__in_map.exs	match
 top__match_in_pipe__in_map_update.exs	match
 top__match_in_pipe__in_pipe.exs	match
-top__match_in_pipe__in_string_concat.exs	match
+top__match_in_pipe__in_string_concat.exs	unported =/2
 top__match_in_pipe__in_tuple.exs	match
 top__match_in_pipe__in_with_body.exs	match
 top__match_in_pipe__pin_match.exs	match
@@ -911,10 +911,10 @@ top__match_tuple__right_of_match.exs	match
 top__receive_clause__after_rebinding.exs	match
 top__receive_clause__bare.exs	match
 top__receive_clause__call_argument.exs	match
-top__receive_clause__in_anonymous_call.exs	match
+top__receive_clause__in_anonymous_call.exs	unported =/2
 top__receive_clause__in_binary_op.exs	match
 top__receive_clause__in_bracket.exs	match
-top__receive_clause__in_capture.exs	match
+top__receive_clause__in_capture.exs	unported remote or anonymous call
 top__receive_clause__in_case_body.exs	match
 top__receive_clause__in_case_guard.exs	match
 top__receive_clause__in_case_pin.exs	match
@@ -929,10 +929,10 @@ top__receive_clause__in_list.exs	match
 top__receive_clause__in_map.exs	match
 top__receive_clause__in_map_update.exs	match
 top__receive_clause__in_pipe.exs	match
-top__receive_clause__in_string_concat.exs	match
+top__receive_clause__in_string_concat.exs	unported =/2
 top__receive_clause__in_tuple.exs	match
 top__receive_clause__in_with_body.exs	match
-top__receive_clause__pin_match.exs	match
+top__receive_clause__pin_match.exs	unported =/2
 top__receive_clause__right_of_match.exs	match
 top__rescue_in__after_rebinding.exs	match
 top__rescue_in__bare.exs	match

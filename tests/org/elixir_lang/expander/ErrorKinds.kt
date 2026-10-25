@@ -415,20 +415,23 @@ object ErrorKinds {
         "range_zero_step",
     )
 
-    fun pattern(kind: String): Regex = PATTERNS[kind] ?: throw AssertionError("no message pattern for error $kind")
+    fun pattern(kind: String?): Regex = PATTERNS[kind] ?: throw AssertionError("no message pattern for error $kind")
 
-    /** Whether [kind] is the module of the exception an evaluated macro body raised, which has no message pattern. */
-    fun isException(kind: String): Boolean = kind.startsWith("Elixir.")
+    /**
+     * Whether [kind] is the module of the exception an evaluated macro body raised, or `null` where that module isn't
+     * known, which has no message pattern.
+     */
+    fun isException(kind: String?): Boolean = kind == null || kind.startsWith("Elixir.")
 
     /** Whether Elixir at [level] reports [kind] with a line. */
-    fun hasLine(kind: String, level: ElixirLanguageLevel): Boolean =
+    fun hasLine(kind: String?, level: ElixirLanguageLevel): Boolean =
         kind !in AT_LINE_ZERO && isCompileError(kind, level)
 
     /**
      * Whether Elixir at [level] raises [kind] as a `CompileError`: an invalid module name is one up to 1.14, and an
      * `ArgumentError` from 1.15.
      */
-    fun isCompileError(kind: String, level: ElixirLanguageLevel): Boolean =
+    fun isCompileError(kind: String?, level: ElixirLanguageLevel): Boolean =
         kind !in WITHOUT_LINE && !isException(kind) &&
             !(kind == "invalid_module_name" && FUNCTION_ERRORS_CONTINUE.isSufficient(level))
 }

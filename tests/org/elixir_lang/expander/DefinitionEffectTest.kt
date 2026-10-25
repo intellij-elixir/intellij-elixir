@@ -146,10 +146,13 @@ class DefinitionEffectTest : ExpanderTestCase() {
             }
         }
 
-        run = Run(level, observer, exports, structs)
-        Expander.expand(lower(code, level), ExState.empty(level), Env.empty(level, kernel), run)
+        val forms = lower(code, level)
 
-        return Compiled(log, compilePending(run).single())
+        run = Run(level, observer, exports, structs)
+        run.fileStatements.add(forms)
+        Expander.expand(forms, ExState.empty(level), Env.empty(level, kernel), run)
+
+        return Compiled(log, compilePending(run).modules.single())
     }
 
     private companion object {

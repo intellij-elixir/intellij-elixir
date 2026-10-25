@@ -2,6 +2,8 @@ package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
+import org.elixir_lang.expander.interpreter.Evaluated
+import org.elixir_lang.expander.interpreter.termOf
 import org.elixir_lang.language_level.ElixirLanguageFeature.ANONYMOUS_CALL_OF_ATOM_REFUSED
 import org.elixir_lang.language_level.ElixirLanguageFeature.CLAUSES_REFUSED_IN_CALL
 import org.elixir_lang.language_level.ElixirLanguageFeature.IMPORTED_FUNCTION_NOT_REEXPANDED
@@ -100,21 +102,21 @@ internal fun recordImport(nameArity: NameArity, receiver: String, env: Env, run:
 }
 
 /**
- * Inside a function of a module being compiled, [node] expanded as [dispatched], which the evaluator runs it as when
- * the function is called.
+ * [node] expanded as [dispatched], which the evaluator runs it as: when its function is called, or where the walk
+ * runs the body it is in.
  */
 internal fun recordDispatch(node: ElixirAst, dispatched: ModuleClauses.Dispatched, env: Env, run: Run) {
-    if (env.function != null) run.compiling[env.module]?.dispatches?.put(node, dispatched)
+    run.dispatchesAt(env)?.put(node, dispatched)
 }
 
-/** Inside a function of a module being compiled, [node], a bitstring segment, has [segment]'s spec. */
+/** [node], a bitstring segment, has [segment]'s spec. */
 internal fun recordSegment(node: ElixirAst, segment: ModuleClauses.Segment, env: Env, run: Run) {
-    if (env.function != null) run.compiling[env.module]?.dispatches?.putSegment(node, segment)
+    run.dispatchesAt(env)?.putSegment(node, segment)
 }
 
-/** Inside a function of a module being compiled, [node], a variable, was bound or read at [version]. */
+/** [node], a variable, was bound or read at [version]. */
 internal fun recordVersion(node: ElixirAst, version: Int, env: Env, run: Run) {
-    if (env.function != null) run.compiling[env.module]?.dispatches?.putVersion(node, version)
+    run.dispatchesAt(env)?.putVersion(node, version)
 }
 
 /** [expansion] of [node], whose value, if it has one, is recorded as what `translate/3` receives in its place. */
@@ -479,7 +481,7 @@ private fun expandRemote(
     }
 
     return mapfold(args, after, env) { arg, s, e -> expandArg(arg, s, state, e, run) }.thenValue { s, e, values ->
-        if (env.context == Env.Context.NONE) queueEffect(receiver, name, node, values as Term.List, env, run)
+        if (env.context == Env.Context.NONE) queueEffect(receiver, name, node, values as Term.List, state, env, run)
 
         val closed = s.closeWrite(state)
         val arg = (values as Term.List).elements.singleOrNull()
@@ -498,9 +500,18 @@ private fun expandRemote(
 
 /**
  * What a call of [receiver] with [values] in a module body does to the module's attributes or definitions, if anything,
- * queued at its place in the order the body runs. A call in a function runs only when the function does.
+ * queued at its place in the order the body runs. A call in a function runs only when the function does. Where the
+ * call is a statement, each argument whose value its expansion doesn't know is evaluated where the walk reaches it.
  */
-private fun queueEffect(receiver: Term, name: String, node: ElixirAst.Call, values: Term.List, env: Env, run: Run) {
+private fun queueEffect(
+    receiver: Term,
+    name: String,
+    node: ElixirAst.Call,
+    values: Term.List,
+    state: ExState,
+    env: Env,
+    run: Run,
+) {
     val module = env.module ?: return
     val compiling = run.compiling[module] ?: return
 
@@ -508,15 +519,82 @@ private fun queueEffect(receiver: Term, name: String, node: ElixirAst.Call, valu
 
     val at = compiling.site(node)
     val statement = compiling.isStatement(at)
+    val nodes = node.arguments.orEmpty()
+    val change = ModuleEffects.of(receiver, name, values.elements, nodes, module, run.level) ?: return
 
-    when (val change = ModuleEffects.of(receiver, name, values.elements, node.arguments.orEmpty(), module, run.level)) {
-        null -> Unit
-        is ModuleEffects.Change.Attributes -> run.pending += Pending.Attribute(change.effect, at, statement)
+    run.effects += node
+    val evaluates = statement && values.elements.any { AttributeValue.of(it) is AttributeValue.Unknown }
+    val arguments by lazy { evaluatedArguments(values.elements, nodes, compiling, state, env, run) }
+    val evaluated = {
+        (arguments as? ArgumentValues.Evaluated)?.let {
+            ModuleEffects.of(receiver, name, it.terms, nodes, module, run.level)
+        }
+    }
+
+    when (change) {
+        is ModuleEffects.Change.Attributes ->
+            run.pending += if (evaluates) {
+                Pending.Attribute(
+                    change.effect,
+                    at,
+                    statement = true,
+                    raises = { (arguments as? ArgumentValues.Raised)?.expansion },
+                    resolve = { (evaluated() as? ModuleEffects.Change.Attributes)?.effect ?: Effect.UnknownEffect },
+                )
+            } else {
+                Pending.Attribute(change.effect, at, statement)
+            }
         is ModuleEffects.Change.Definitions ->
             run.pending += Pending.Effect(node, statement) { compiling, ordered ->
-                change.apply(compiling, node, run.exports, ordered)
+                val resolved = if (evaluates) arguments else null
+
+                if (resolved is ArgumentValues.Raised) {
+                    resolved.expansion
+                } else {
+                    val definitions = resolved?.let { evaluated() } as? ModuleEffects.Change.Definitions ?: change
+
+                    definitions.apply(compiling, node, run.exports, ordered)
+                }
             }
     }
+}
+
+/** A call's arguments, evaluated where the walk reaches it. */
+internal sealed interface ArgumentValues {
+    class Evaluated(val terms: List<Term>) : ArgumentValues
+
+    /** Evaluating one of them raises, ending the module body with [expansion]. */
+    class Raised(val expansion: Expansion) : ArgumentValues
+}
+
+/**
+ * [terms], the values [nodes] expanded to, each one that isn't known evaluated from the values [compiling]'s body has
+ * bound, or kept where the evaluator can't produce it.
+ */
+internal fun evaluatedArguments(
+    terms: List<Term>,
+    nodes: List<ElixirAst>,
+    compiling: Compiling,
+    state: ExState,
+    env: Env,
+    run: Run,
+): ArgumentValues {
+    val evaluated = ArrayList<Term>(terms.size)
+
+    for ((term, node) in terms.zip(nodes)) {
+        if (AttributeValue.of(term) is AttributeValue.Known) {
+            evaluated += term
+            continue
+        }
+
+        evaluated += when (val value = compiling.values.evaluate(node, state, env, run)) {
+            is Evaluated.Value -> termOf(value.value).takeIf { AttributeValue.of(it) is AttributeValue.Known } ?: term
+            is Evaluated.Declined -> term
+            is Evaluated.Raised -> return ArgumentValues.Raised(Expansion.Error(value.exception, node))
+        }
+    }
+
+    return ArgumentValues.Evaluated(evaluated)
 }
 
 /**

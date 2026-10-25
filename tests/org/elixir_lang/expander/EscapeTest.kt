@@ -98,7 +98,9 @@ class EscapeTest : ExpanderTestCase() {
 
         return when (val escape = Quote.escape(node, node.meta, run)) {
             is Quote.Escaped.Built -> written(escape.node.toOtp(ParserOptions(columns = COMPILER_PARSES_COLUMNS.isSufficient(level))))
+            is Quote.Escaped.Unread -> "unread ${escape.expansion}"
             is Quote.Escaped.Stopped -> "stopped ${escape.expansion}"
+            is Quote.Escaped.Raised -> "raised ${escape.exception}"
         }
     }
 }

@@ -390,11 +390,17 @@ internal class ExpansionProbes(
     }
 
     /**
-     * Compares the traces of [expansions], whose cases all expand, with the events the leg's compiler traces for the
-     * same case module bodies, as [DispatchEvents] normalises them.
+     * Compares the traces of [expansions], whose cases all expand, or stop only at their module's end, where a user
+     * `@on_definition` callback left `@before_compile` unknown, with the events the leg's compiler traces for the same
+     * case module bodies, as [DispatchEvents] normalises them.
      */
     fun assertTracesMatchElixir(expansions: Expansions) {
-        expansions.cases.forEach { assertTrue("${it.case.body}: ${it.outcome}", it.outcome is Expansion.Expanded) }
+        expansions.cases.forEach {
+            val start = it.origin.layout.bodyStarts[it.origin.index]
+            val atEnd = (it.ended as? Ended.Stopped)?.at?.meta?.origin?.startOffset?.let { at -> at < start } == true
+
+            assertTrue("${it.case.body}: ${it.outcome}", it.outcome is Expansion.Expanded || atEnd)
+        }
 
         val attempt = harness.attempt(expansions.layout)
         val raised = (attempt.compiled.status as? OtpErlangTuple)?.elementAt(2)?.let(::utf8)
@@ -580,8 +586,8 @@ internal class ExpansionProbes(
     }
 
     /** An error the expander expects Elixir to report, or how it expects the compile to end. */
-    private class ExpectedError(val kind: String, val line: Int?, val status: String? = null) {
-        fun render(): String = status ?: "error $kind${line?.let { " at line $it" } ?: ""}"
+    private class ExpectedError(val kind: String?, val line: Int?, val status: String? = null) {
+        fun render(): String = status ?: "error${kind?.let { " $it" } ?: ""}${line?.let { " at line $it" } ?: ""}"
     }
 
     /**
@@ -614,7 +620,7 @@ internal class ExpansionProbes(
         }
 
         val logged = collapsed(timeline(result, expansion.takeIf { it.unordered }), level) { error ->
-            error.kind.takeIf { it in LOCAL_CHECK_KINDS }?.let { Triple(it, line(error.at), column(error.at)) }
+            error.kind?.takeIf { it in LOCAL_CHECK_KINDS }?.let { Triple(it, line(error.at), column(error.at)) }
         }
             .filter { ErrorKinds.isCompileError(it.kind, level) }
             .map { error -> ExpectedError(error.kind, line(error.at).takeIf { ErrorKinds.hasLine(error.kind, level) }) }
@@ -628,7 +634,7 @@ internal class ExpansionProbes(
                 } else if (ended.error.kind == NESTED_RAISED || ErrorKinds.isCompileError(ended.error.kind, level)) {
                     "raise CompileError"
                 } else {
-                    "raise ${ended.error.kind}"
+                    ended.error.kind?.let { "raise $it" } ?: RAISED
                 }
             is Ended.Crashed -> "raise ${ended.exception}"
             Ended.Tainted -> "raise CompileError"
@@ -643,15 +649,16 @@ internal class ExpansionProbes(
      * module's in the order the body defines them, then the checks once the body has run, then the error that raised,
      * when it raised in this module. With [unordered], only those before the first body Elixir may expand elsewhere.
      */
-    private fun timeline(result: ExpansionResult, unordered: CaseExpansion? = null): List<Reported> {
+    private fun timeline(result: ExpansionResult, unordered: CaseExpansion? = null): List<Expansion.Error> {
         val definitions = result.units.filter { it.owner is Owner.Definition }
 
-        fun unit(error: Reported) = definitions.firstOrNull { it.node.meta.origin.contains(error.at.meta.origin) }
+        fun unit(error: Expansion.Error) = definitions.firstOrNull { it.node.meta.origin.contains(error.at.meta.origin) }
 
-        val after = result.errors.filter {
+        val errors = result.errors.map { Expansion.Error(it.kind, it.at) }
+        val after = errors.filter {
             it.kind in POST_MODULE_KINDS && (it.kind !in LOCAL_CHECK_KINDS || unit(it) != null)
         }
-        val during = result.errors.filterNot { error -> after.any { it === error } }
+        val during = errors.filterNot { error -> after.any { it === error } }
         // A nested module whose name raised has no body, and its error is at its `defmodule`.
         val placed = definitions.map { unit -> start(unit.node) to during.filter { unit(it) === unit } } +
             result.nested.map { nested ->
@@ -666,7 +673,7 @@ internal class ExpansionProbes(
         val ordered = during.filter { unit(it) == null } +
             placed.sortedBy { it.first }.filter { stop == null || it.first < stop }.flatMap { it.second }
 
-        return if (stop != null) ordered else listOf(ordered, after, listOfNotNull(raised?.let { Reported(it.kind, it.at) })).flatten()
+        return if (stop != null) ordered else listOf(ordered, after, listOfNotNull(raised)).flatten()
     }
 
     /**
@@ -718,11 +725,12 @@ internal class ExpansionProbes(
         val message = utf8(raised.elementAt(2))
 
         return when {
+            expected.status == RAISED -> RAISED
             exception == COMPILE_ERROR && expected.status == FILE_NOT_COMPILED && message.contains(FILE_NOT_COMPILED_MESSAGE) ->
                 FILE_NOT_COMPILED
             exception == COMPILE_ERROR -> "raise CompileError"
             "raise $exception" == expected.status -> expected.status
-            expected.kind.isNotEmpty() && !ErrorKinds.isException(expected.kind) &&
+            expected.kind != "" && !ErrorKinds.isException(expected.kind) &&
                 ErrorKinds.pattern(expected.kind).containsMatchIn(message) ->
                 "raise ${expected.kind}"
             else -> "raise $exception: $message"
@@ -747,8 +755,8 @@ internal class ExpansionProbes(
         }
 
         if (ErrorKinds.isException(expected.kind)) {
-            return if (status.elementAt(1) == OtpErlangAtom(expected.kind)) {
-                "error ${expected.kind}"
+            return if (expected.kind == null || status.elementAt(1) == OtpErlangAtom(expected.kind)) {
+                expected.render()
             } else {
                 "error ${inspect(status.elementAt(1))}: $message"
             }
@@ -1441,6 +1449,9 @@ internal class ExpansionProbes(
 
         /** What a module raises once a module nested in it has logged errors. */
         const val NESTED_RAISED = "compile_error"
+
+        /** How a raise whose exception isn't known ends the compile: it matches whatever Elixir raises there. */
+        const val RAISED = "raise"
 
         /** The errors of the checks of a module's local calls once its body has run, which its body can also report. */
         val LOCAL_CHECK_KINDS = setOf("undefined_function", "incorrect_dispatch")

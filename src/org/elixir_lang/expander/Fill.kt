@@ -4,48 +4,33 @@ import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.lowering.ElixirAst
 import java.util.IdentityHashMap
 
-/** [definition] with each `unquote` of a name in [fragments] replaced by that name's AST. */
-internal fun filled(definition: Pending.Definition, fragments: Map<String, ElixirAst>): Pending.Definition =
-    filled(definition) { argument ->
-        (argument as? ElixirAst.Call)?.takeIf { isVariable(it) }?.let { fragments[(it.callee as ElixirAst.Literal.Atom).name] }
-    }
-
 /**
- * [definition] with the unquote fragments the module body's variables hold, which the expander doesn't evaluate, replaced
- * by what the macro that queued it knows they hold: each `unquote(x)` whose [fragment] of `x` is a node is that node, and
- * each unquoted call name `Receiver.unquote(x)(...)` whose [name] of the call is an atom is `Receiver.atom(...)`. A
- * fragment it has no value for keeps the definition stuck, and a [certain] one is a statement of the module body, as its
- * `def` is where the macro runs it.
+ * [definition], which a `fn` of the macro's output defines, with the unquote fragments the `fn`'s variables hold replaced
+ * by what the macro that queued it knows they hold for one call: each `unquote(x)` whose [fragment] of `x` is a node is
+ * that node, and each unquoted call name `Receiver.unquote(x)(...)` whose [name] of the call is an atom is
+ * `Receiver.atom(...)`. The walk evaluates each fragment it has no value for, and the definition is a statement of the
+ * module body, as its `def` is where the `fn` runs.
  */
 internal fun filled(
     definition: Pending.Definition,
-    certain: Boolean = false,
-    name: (ElixirAst.Call) -> String? = { null },
+    name: (ElixirAst.Call) -> String?,
     fragment: (ElixirAst) -> ElixirAst?,
 ): Pending.Definition {
-    val replacements = IdentityHashMap<ElixirAst, ElixirAst>()
-    var remaining = false
+    val fragments = definition.fragments
+    val replacements = IdentityHashMap(fragments?.supplied.orEmpty())
 
     fun collect(node: ElixirAst) {
         ProgressManager.checkCanceled()
 
         when {
-            isCall(node, "unquote", 1) -> {
-                val replacement = fragment((node as ElixirAst.Call).arguments!!.single())
-
-                if (replacement == null) remaining = true else replacements[node] = replacement
-            }
-            isCall(node, "unquote_splicing", 1) -> remaining = true
-            isCall(node, "quote", 1) -> {}
+            isCall(node, "unquote", 1) -> fragment((node as ElixirAst.Call).arguments!!.single())?.let { replacements[node] = it }
+            isCall(node, "unquote_splicing", 1) || isCall(node, "quote", 1) -> {}
             isCall(node, "quote", 2) -> collect((node as ElixirAst.Call).arguments!![0])
             isUnquotedCall(node) -> {
                 val call = node as ElixirAst.Call
                 val dot = call.callee as ElixirAst.Call
-                val atom = name(call)
 
-                if (atom == null) {
-                    remaining = true
-                } else {
+                name(call)?.let { atom ->
                     replacements[call] = ElixirAst.Call(
                         dot.meta,
                         dot.callee,
@@ -63,14 +48,13 @@ internal fun filled(
     return Pending.Definition(
         definition.kind,
         definition.node,
-        substitute(definition.head, replacements),
-        definition.body?.let { substitute(it, replacements) },
-        definition.unnamedAt,
-        stop = definition.stop.takeIf { remaining },
+        definition.head,
+        definition.body,
+        fragments?.let { Fragments(it.values, it.state, it.escapesBody, replacements, it.pairIsCall) },
         definition.env,
-        certain && definition.unnamedAt == null || definition.ordered,
-        certain || definition.statement,
+        statement = true,
         definition.checksClauses,
-        injectedBy = definition.injectedBy,
+        definition.delegatesTo,
+        definition.injectedBy,
     )
 }

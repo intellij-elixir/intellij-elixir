@@ -5,12 +5,19 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 
 /**
  * `defimpl` where the expander ends it before the implementation's module is compiled: the options and the protocol it
- * can't read, and the errors the options and the protocol raise, each at the releases that differ.
+ * can't read, and the errors the options and the protocol raise, each at the releases that differ. At the file's top
+ * level, the protocol is checked where the file runs the call, and the implementation compiles after the check.
  */
 class ImplMacroTest : ExpanderTestCase() {
     override val kernel = KernelImports(
         functions = emptyList(),
-        macros = listOf(NameArity("defimpl", 2), NameArity("defimpl", 3), NameArity("defmodule", 2), NameArity("def", 2)),
+        macros = listOf(
+            NameArity("defimpl", 2),
+            NameArity("defimpl", 3),
+            NameArity("defmodule", 2),
+            NameArity("def", 2),
+            NameArity("@", 1),
+        ),
     )
 
     override val exports = Exports { module ->
@@ -83,33 +90,69 @@ class ImplMacroTest : ExpanderTestCase() {
      * nested ones among them, so a protocol one of them defines isn't refused when the call is expanded.
      */
     fun testATopLevelImplementationOfAProtocolANestedModuleDefinesIsNotRefused() {
-        val code = "defmodule A do\n  defmodule P do\n    def __protocol__(x), do: x\n  end\nend\n" +
-            "defimpl A.P, for: Integer do\nend"
+        val code = "defmodule A do\n  defmodule P do\n    def __protocol__(:functions), do: []\n" +
+            "    def __protocol__(_), do: nil\n  end\nend\ndefimpl A.P, for: Integer do\nend"
+        val implementation = "module Elixir.A compiled\nmodule Elixir.A.P.Integer compiled | def __impl__/1 line 7 clauses"
 
-        assertEvery(code, "module Elixir.A compiled")
+        assertSplit(code, IMPL_TARGET_REMOVED, "$implementation 3", "$implementation 2")
     }
 
     /** What the earlier modules define decides the check, so one that raises isn't reported before they are compiled. */
-    fun testATopLevelImplementationAfterAModuleIsNotRefused() {
+    fun testATopLevelImplementationAfterAModuleIsTheFilesErrorAfterIt() {
         val code = "defmodule B do\nend\ndefimpl NoSuch, for: Integer do\nend"
 
-        assertEvery(code, "module Elixir.B compiled")
+        assertEvery(code, "module Elixir.B compiled\ntop error impl_not_available `defimpl NoSuch, for: Integer do\nend`")
+    }
+
+    /** The check runs where the file reaches the call, so the modules after it aren't defined. */
+    fun testATopLevelImplementationOfAMissingProtocolEndsTheFileWhereItRuns() {
+        val code = "defmodule B do\nend\ndefimpl NoSuch, for: Integer do\nend\ndefmodule C do\nend"
+
+        assertEvery(code, "module Elixir.B compiled\ntop error impl_not_available `defimpl NoSuch, for: Integer do\nend`")
+    }
+
+    /** A file whose only form is the call raises where the file runs it. */
+    fun testATopLevelImplementationOfAMissingProtocolRaises() {
+        val code = "defimpl NoSuch, for: Integer do\nend"
+
+        assertEvery(code, "error impl_not_available `$code`")
     }
 
     /**
-     * The file is expanded whole before any of it runs, so a form after the call that fails to expand is reported first,
-     * and code before it that runs can define the protocol: a check that fails is not answered at top level.
+     * Where the file may not run the call, a check that fails stops the file and the implementation, and the modules
+     * after it compile. From v1.19 the implementation's `@behaviour` requires the protocol, before `__impl__/1`.
      */
-    fun testATopLevelImplementationOfAMissingProtocolIsNotRefused() {
-        val code = "defimpl NoSuch, for: Integer do\nend"
+    fun testATopLevelImplementationTheFileMayNotRunStops() {
+        val implementation = "defimpl NoSuch, for: Integer do\n  end"
+        val code = "defmodule B do\nend\ncase 1 do\n  2 -> $implementation\n  _ -> :ok\nend\ndefmodule C do\nend"
 
-        assertEvery(code, "unported `$code`")
+        assertLevels(code, LEVELS) { version ->
+            val definitions = when {
+                isBefore(version, IMPL_TARGET_REMOVED) -> " | def __impl__/1 line 4 clauses 3"
+                isBefore(version, "1.19.0-rc.0") -> " | def __impl__/1 line 4 clauses 2"
+                else -> ""
+            }
+
+            "module Elixir.B compiled\nmodule Elixir.NoSuch.Integer stopped `$implementation`$definitions\n" +
+                "module Elixir.C compiled\ntop unported `$implementation`"
+        }
     }
 
+    /**
+     * The implementation's body is the user's code: where the evaluator can't run it, Elixir may have raised, so a later
+     * raise stops, and ends the file's run as a raise does, before `__impl__/1` is defined after the body.
+     */
+    fun testARaiseAfterBodyCodeTheEvaluatorCannotRunStops() {
+        val code = "defimpl Proto, for: Integer do\n  x = (receive do after 0 -> 1 end)\n  def f(_), do: %Missing{}\nend"
+
+        assertEvery(code, "module Elixir.Proto.Integer stopped `def f(_), do: %Missing{}`\ntop unported `def f(_), do: %Missing{}`")
+    }
+
+    /** The file is expanded whole before any of it runs, so a form after the call that fails to expand is reported. */
     fun testATopLevelImplementationBeforeAFormThatCannotExpandIsNotRefused() {
         val code = "defimpl NoSuch, for: Integer do\nend\nfoo()"
 
-        assertEvery(code, "unported `defimpl NoSuch, for: Integer do\nend`")
+        assertEvery(code, "error undefined_function `foo()`")
     }
 
     /**
@@ -148,6 +191,15 @@ class ImplMacroTest : ExpanderTestCase() {
         val result = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
         val modules = result.modules.map { ModuleRendering.render(code, it) }
 
-        return if (modules.isEmpty()) render(code, result.top) else modules.joinToString("\n")
+        return when {
+            modules.isEmpty() -> render(code, result.top)
+            result.top is Expansion.Expanded -> modules.joinToString("\n")
+            else -> (modules + "top ${render(code, result.top)}").joinToString("\n")
+        }
+    }
+
+    private companion object {
+        /** The release whose implementations define no `__impl__(:target)`. */
+        const val IMPL_TARGET_REMOVED = "1.16.0-rc.0"
     }
 }

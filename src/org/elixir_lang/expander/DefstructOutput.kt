@@ -203,23 +203,31 @@ internal class StructOutput(
         )
 
     /**
-     * The definitions the output queued, [queued], with the placeholders of `__struct__/0` and `__struct__/1` filled
-     * from what `Kernel.Utils.defstruct` gave: [entries], the fields in order, and the [enforced] keys.
+     * The definitions the output queued, [queued]: up to 1.13, the clause of `__struct__/1` the `case` on the
+     * [enforced] keys chooses.
      */
-    fun definitions(
-        queued: List<Pending.Definition>,
-        enforced: List<String>?,
-        entries: List<Pair<String, ElixirAst>>?,
-    ): List<Pending> {
-        if (!bound) return listOf(queued[0], queued[if (enforced.isNullOrEmpty()) 1 else 2])
+    fun definitions(queued: List<Pending.Definition>, enforced: List<String>?): List<Pending> =
+        if (bound) queued else listOf(queued[0], queued[if (enforced.isNullOrEmpty()) 1 else 2])
 
-        if (enforced == null || entries == null) return queued
+    /** The variables [match] binds by name, where it is the output's `=` of what `Kernel.Utils.defstruct` gives. */
+    fun results(match: ElixirAst): Map<String, ElixirAst>? {
+        val pattern = (match as? ElixirAst.Call)?.takeIf { bound && isCall(it, "=", 2) }?.arguments?.get(0)
+        val variables = (pattern as? ElixirAst.Tuple)?.elements.orEmpty().filter(::isVariable)
 
-        val struct = if (escaped) struct(entries) ?: return queued else null
-        val clause = bodyOf(enforced, struct)
-        val fragments = mapOf("kv" to plainUtils.v("kv"), "body" to clause) + listOfNotNull(struct?.let { "escaped_struct" to it })
+        return variables.associateBy { (it as ElixirAst.Call).callee.let { name -> (name as ElixirAst.Literal.Atom).name } }
+            .takeIf { "kv" in it }
+    }
 
-        return queued.map { filled(it, fragments) }
+    /**
+     * What `Kernel.Utils.defstruct` gives for [entries], the fields in order, and the [enforced] keys, which the output
+     * unquotes, by the variable it binds: `kv`, `body`, and from 1.18 `escaped_struct`. `null` where the struct can't
+     * be escaped.
+     */
+    fun values(enforced: List<String>, entries: List<Pair<String, ElixirAst>>): Map<String, ElixirAst>? {
+        val struct = if (escaped) struct(entries) ?: return null else null
+
+        return mapOf("kv" to plainUtils.v("kv"), "body" to bodyOf(enforced, struct)) +
+            listOfNotNull(struct?.let { "escaped_struct" to it })
     }
 
     /** `Kernel.Utils.defstruct`'s `body`: what `__struct__/1` does with its keyword list, from [struct] where escaped. */

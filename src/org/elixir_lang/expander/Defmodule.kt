@@ -130,6 +130,8 @@ private fun queueModule(
             run.pending += Pending.Module(
                 node, name, isAtom, body, env.copy(module = name), moduleState,
                 injectedBy = run.injecting?.takeIf { builtBy(node, it) },
+                outer = moduleState.read.entries.mapNotNull { (variable, inner) -> state.read[variable]?.let { inner to it } }.toMap(),
+                placed = (env.module?.let(run.compiling::get)?.values ?: run.fileValues).placed,
             )
 
             Expansion.Expanded(state, env, NODE)

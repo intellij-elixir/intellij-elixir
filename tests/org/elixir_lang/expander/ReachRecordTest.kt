@@ -3,7 +3,6 @@ package org.elixir_lang.expander
 import com.intellij.psi.PsiElement
 import com.intellij.testFramework.LightProjectDescriptor
 import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.snapshot.LegElixirProjectDescriptor
@@ -17,7 +16,7 @@ class ReachRecordTest : PlatformTestCase() {
     fun testAnImportKeepsItsCall() {
         val file = file("import.ex", "defmodule A do\n  import Map, only: [keys: 1]\n  def f(m), do: keys(m)\nend\n")
 
-        onBothLevels { inputs ->
+        onTheLeg { inputs ->
             assertEquals(
                 "Elixir.Map `import Map, only: [keys: 1]` | Elixir.Kernel none",
                 imports(file, "keys(m)", inputs),
@@ -31,7 +30,7 @@ class ReachRecordTest : PlatformTestCase() {
             "defmodule A do\n  import Map, only: [keys: 1]\n  import Map, only: [values: 1]\n  def f(m), do: values(m)\nend\n",
         )
 
-        onBothLevels { inputs ->
+        onTheLeg { inputs ->
             assertEquals(
                 "Elixir.Map `import Map, only: [values: 1]` | Elixir.Kernel none",
                 imports(file, "values(m)", inputs),
@@ -42,7 +41,7 @@ class ReachRecordTest : PlatformTestCase() {
     fun testTheKernelImportADefprotocolBuildsKeepsTheDefprotocol() {
         val file = file("protocol.ex", "defprotocol P do\n  @doc \"a\" <> \"b\"\n  def f(x)\nend\n")
 
-        onBothLevels { inputs ->
+        onTheLeg { inputs ->
             assertEquals(
                 "Elixir.Kernel `defprotocol P do\n  @doc \"a\" <> \"b\"\n  def f(x)\nend`",
                 imports(file, "\"a\" <> \"b\"", inputs),
@@ -63,7 +62,7 @@ class ReachRecordTest : PlatformTestCase() {
             """.trimIndent(),
         )
 
-        onBothLevels { inputs ->
+        onTheLeg { inputs ->
             assertEquals(
                 "keys/1: Elixir.Map.keys\nsize/1: Elixir.Map.map_size\npad/2: Elixir.Target.pad\npad/1: -\nplain/1: -",
                 heads(file, "Elixir.A", inputs),
@@ -74,7 +73,7 @@ class ReachRecordTest : PlatformTestCase() {
     fun testADelegatingClauseAfterADefKeepsItsTarget() {
         val file = file("clauses.ex", "defmodule A do\n  def g(:a), do: :own\n  defdelegate g(x), to: Target, as: :f\nend\n")
 
-        onBothLevels { inputs -> assertEquals("g/1: -, Elixir.Target.f", heads(file, "Elixir.A", inputs)) }
+        onTheLeg { inputs -> assertEquals("g/1: -, Elixir.Target.f", heads(file, "Elixir.A", inputs)) }
     }
 
     /** Elixir 1.20.4 runs the override, `{:mine, 1}`, and through `super` the delegation, `{:wrapped, {:target, 1}}`. */
@@ -96,7 +95,7 @@ class ReachRecordTest : PlatformTestCase() {
             """.trimIndent(),
         )
 
-        onBothLevels { inputs ->
+        onTheLeg { inputs ->
             assertEquals("f/1: -", heads(file, "Elixir.D", inputs))
             assertEquals("f (overridable 1)/1: Elixir.Target.f\nf/1: -", heads(file, "Elixir.S", inputs))
         }
@@ -105,7 +104,7 @@ class ReachRecordTest : PlatformTestCase() {
     fun testADelegationWhoseStoreRaisesIsNotKept() {
         val file = file("raises.ex", "defmodule A do\n  defmacro f(x), do: x\n  defdelegate f(x), to: Target\nend\n")
 
-        onBothLevels { inputs ->
+        onTheLeg { inputs ->
             val module = holder.expansion(file, inputs).modules.single()
 
             assertEquals("changed_kind", (module.ended as ExpansionResult.Ended.Raised).error.kind)
@@ -126,11 +125,7 @@ class ReachRecordTest : PlatformTestCase() {
                 entry.heads.joinToString(", ") { head -> head.delegation?.let { "${it.module}.${it.function}" } ?: "-" }
         }
 
-    private fun onBothLevels(assertion: (ProjectModules.Inputs) -> Unit) {
-        for (version in listOf("1.20.4", "1.11.4")) {
-            assertion(ProjectModules.Inputs(ElixirLanguageLevel.of(version), legKernel))
-        }
-    }
+    private fun onTheLeg(assertion: (ProjectModules.Inputs) -> Unit) = assertion(ProjectModules.Inputs(legLevel(), legKernel))
 
     private fun file(name: String, text: String): ElixirFile = myFixture.addFileToProject(name, text) as ElixirFile
 
