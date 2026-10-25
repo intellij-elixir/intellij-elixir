@@ -436,8 +436,8 @@ internal class HasUnquotes<I>(private val view: EscapeView<I>, level: ElixirLang
 /**
  * `elixir_quote:do_quote/2` from `escape/3`, or from `quote/2` where [quote] is given: [view] reads each input, [build]
  * writes the output, and [insert] puts an input in it as it is, as `unquote` puts its expression, or gives `null` where
- * the output can't hold it. Where [generated], `Macro.escape/2`'s `generated: true` marks a call the escape gives, from
- * [MACRO_ESCAPE_MARKS_GENERATED].
+ * the output can't hold it. Where [generated], `Macro.escape/2`'s `generated: true` marks the node the escape gives where
+ * it has metadata of its own, from [MACRO_ESCAPE_MARKS_GENERATED].
  */
 internal class QuoteEscape<I, O> private constructor(
     private val view: EscapeView<I>,
@@ -452,7 +452,8 @@ internal class QuoteEscape<I, O> private constructor(
 ) {
     /**
      * `escape/3` with [op], and `Macro.escape/2`'s step after it: [generated] reads the `generated:` option before the
-     * escape, from the release that reads it, and what it gives says whether a call is marked, read only for a call.
+     * escape, from the release that reads it, and what it gives says whether the node is marked, read only for a node
+     * with metadata of its own.
      */
     constructor(
         view: EscapeView<I>,
@@ -1337,10 +1338,18 @@ internal class AstEscapeBuilder(private val s: Synthetic) : EscapeBuilder<Elixir
     override fun pid(pid: OtpErlangPid): ElixirAst? = null
 
     override fun generated(value: ElixirAst, marks: () -> Boolean): ElixirAst {
-        if (value !is ElixirAst.Call || !marks()) return value
+        if (!value.hasMetadata() || !marks()) return value
 
         val meta = value.meta
+        val marked = Meta(meta.origin, meta.start, meta.end, GENERATED + meta.keys, meta.built)
 
-        return ElixirAst.Call(Meta(meta.origin, meta.start, meta.end, GENERATED + meta.keys, meta.built), value.callee, value.arguments, value.context)
+        return when (value) {
+            is ElixirAst.Call -> ElixirAst.Call(marked, value.callee, value.arguments, value.context)
+            is ElixirAst.Alias -> ElixirAst.Alias(marked, value.segments)
+            is ElixirAst.Block -> ElixirAst.Block(marked, value.expressions)
+            is ElixirAst.Placeholder -> ElixirAst.Placeholder(marked, value.reason)
+            is ElixirAst.Tuple -> ElixirAst.Tuple(marked, value.elements)
+            is ElixirAst.Literal, is ElixirAst.ListNode, is ElixirAst.Value -> value
+        }
     }
 }

@@ -6256,6 +6256,23 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
             ),
+            // `@tuple` in a function is the attribute's value escaped, and a three-tuple's node carries the escape's own
+            // metadata, marked as the escape marks a call's.
+            macro(
+                "attribute:in-function-tuple-meta",
+                "defmacro m, do: Macro.escape({row}.TG.f())",
+                helper = """
+                defmodule {row}.TGM do
+                  defmacro meta(x), do: Macro.escape(elem(Macro.expand(x, __CALLER__), 1))
+                end
+
+                defmodule {row}.TG do
+                  require {row}.TGM
+                  @tuple {1, 2, 3}
+                  def f, do: {row}.TGM.meta(@tuple)
+                end
+                """,
+            ),
             // The rows from here to `fragment:splice-in-tuple` write their module-body code into the case module by
             // `use`, so the run from `Dbgi` evaluates the body as the run from source does.
             use(
