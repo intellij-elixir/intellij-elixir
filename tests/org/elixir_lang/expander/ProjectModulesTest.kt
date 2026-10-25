@@ -23,6 +23,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFDELEGATE_ALL_EACH
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPE_HEADS_NEED_LIST_META
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAILED_COMPILE_PURGES_MODULE
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED_AS_MACRO
@@ -652,6 +653,49 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
+     * Code the expander doesn't follow, an `@on_definition` callback or a macro that declines before it writes, may have
+     * written every module being compiled around it, a `defimpl`'s included: Elixir defines `b/0` from the write; the
+     * expander can't read `P.Foo`'s attribute after the give-up, so the definition's name stops it. With no give-up, both
+     * define `a/0`.
+     */
+    fun testUnfollowedCodeMayHaveWrittenAnImplAroundIt() {
+        addLegElixir()
+        add(
+            "h.ex",
+            "defmodule H do\n  def cb(_env, _kind, name, _args, _guards, _body) do\n    if name == :h, do: Module.put_attribute(:\"Elixir.P.Foo\", :x, :b)\n  end\nend\n",
+        )
+        add(
+            "w.ex",
+            "defmodule W do\n  defmacro w(m) do\n    receive do after 0 -> :ok end\n    Module.put_attribute(m, :x, :b)\n  end\n  defmacro r(module, key), do: Module.get_attribute(module, key)\nend\n",
+        )
+        add("p.ex", "defprotocol P do\n  def f(x)\nend\n")
+        val b = add("b.ex", "defmodule B do\n  def f, do: P.Foo.Inner.b()\nend\n")
+        val read = "def unquote(Module.get_attribute(:\"Elixir.P.Foo\", :x))(), do: 1"
+        val shapes = listOf(
+            Triple("callback-expander-unreadable", "@on_definition {H, :cb}\n        def h, do: :ok\n        $read", "Unreadable Stopped"),
+            Triple("macro-expander-unreadable", "def h, do: W.w(:\"Elixir.P.Foo\")\n        $read", "Unreadable Stopped"),
+            Triple("none-loaded", "def h, do: :ok\n        $read", "Present [a/0, h/0] Compiled"),
+        )
+        val a = add("a.ex", "")
+
+        assertEquals(
+            shapes.joinToString("\n") { (label, _, expected) -> "$label: $expected" },
+            shapes.joinToString("\n") { (label, body, _) ->
+                edit(
+                    project,
+                    a,
+                    "defmodule Foo do\n  defstruct [:a]\n  defimpl P do\n    @x :a\n    def f(_), do: :ok\n    defmodule Inner do\n      require W\n" +
+                        "        $body\n    end\n  end\nend\n",
+                )
+
+                val inner = expansion(holder, a).modules.flatMap { it.withNested() }.single { it.module == "Elixir.P.Foo.Inner" }
+
+                "$label: ${describe(exports(ProjectModules(project), b, "Elixir.P.Foo.Inner"))} ${inner.ended::class.simpleName}"
+            },
+        )
+    }
+
+    /**
      * A nested module's `@after_compile` callback, which the expander doesn't follow, is given the env, so it may have
      * written the module around it: Elixir's callback writes `@x :ok`, so `def unquote(@x)` stops rather than define
      * `bad/0`, and another file can't read the outer module.
@@ -1221,10 +1265,35 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
-     * A module that stops with no `@before_compile` callbacks leaves none unrun: a module its file holds only in a quote
-     * that nothing runs is absent.
+     * A module that stops with no `@before_compile` callbacks, at code given no module, leaves none unrun: a module its
+     * file holds only in a quote that nothing runs is absent.
      */
     fun testAStopInAModuleWithNoBeforeCompileCallbacksLeavesOtherNamesAbsent() {
+        addLegElixir()
+        val a = add("a.ex", "")
+        val b = add("b.ex", IMPORTS_FOO)
+
+        val wrong = listOf(
+            "  def unquote((receive do after 0 -> :g end))(), do: 1\n",
+            "  defmodule I do\n    def unquote((receive do after 0 -> :g end))(), do: 1\n  end\n",
+        ).mapNotNull { body ->
+            edit(project, a, "defmodule O do\n  def q do\n    quote do\n${foo("def f, do: 1")}    end\n  end\n${body}end\n")
+            val renderedA = render(a, expansion(holder, a))
+            val renderedB = render(b, expansion(holder, b))
+
+            "$renderedA\n$renderedB".takeUnless {
+                renderedA.contains("\nElixir.O stopped `") && renderedB.contains("Elixir.B raised unloaded_module `import Foo`")
+            }
+        }
+
+        assertEquals("", wrong.joinToString("\n\n"))
+    }
+
+    /**
+     * A module that stops at a macro the expander can't follow may have registered a `@before_compile` callback on
+     * itself through the macro's caller env, whose output may define the name: unreadable to another file, not absent.
+     */
+    fun testAStopAtAnUnfollowedMacroLeavesOtherNamesUnreadable() {
         addLegElixir()
         val a = add("a.ex", "")
         val b = add("b.ex", IMPORTS_FOO)
@@ -1238,7 +1307,7 @@ class ProjectModulesTest : PlatformTestCase() {
             val renderedB = render(b, expansion(holder, b))
 
             "$renderedA\n$renderedB".takeUnless {
-                renderedA.contains("\nElixir.O stopped `") && renderedB.contains("Elixir.B raised unloaded_module `import Foo`")
+                renderedA.contains("\nElixir.O stopped `") && renderedB.contains("Elixir.B stopped `import Foo`")
             }
         }
 
@@ -2203,7 +2272,8 @@ class ProjectModulesTest : PlatformTestCase() {
             Triple("if-unnamed-expander-unreadable", "x = true\n  if x do\n    def unquote((receive do after 0 -> :f end))(), do: 1\n  end", "Unreadable Stopped"),
             Triple("for-unnamed-expander-unreadable", "for n <- [:f] do\n    def unquote((receive do after 0 -> n end))(), do: 1\n  end", "Unreadable Stopped"),
             Triple("each-unnamed-expander-unreadable", "Enum.each([:f], fn n ->\n    def unquote((receive do after 0 -> n end))(), do: 1\n  end)", "Unreadable Stopped"),
-            // `defdelegate`'s output reads `__ENV__`, which the evaluator doesn't give, so only on the statement path is it followed (#4508).
+            // From 1.14 `defdelegate`'s output reads `env.module` from `__ENV__`, which the evaluator doesn't give, so only on the statement path is it followed (#4508).
+            Triple("if-defdelegate-expander-unreadable", "x = true\n  if x do\n    defdelegate f(l), to: :erlang, as: :length\n  end", if (DEFDELEGATE_ALL_EACH.isSufficient(legLevel())) "Unreadable Stopped" else "Present [f/1] Compiled"),
             // Controls the walk doesn't follow: Elixir loads `f/0` from the `cond` and the `case` (#4508), none from the `fn`.
             Triple("cond-expander-unreadable", "cond do\n    true -> def f, do: 1\n  end", "Unreadable Compiled"),
             Triple("case-declined-expander-unreadable", "case (receive do after 0 -> :a end) do\n    :a -> def f, do: 1\n    _ -> :ok\n  end", "Unreadable Compiled"),
@@ -2260,6 +2330,9 @@ class ProjectModulesTest : PlatformTestCase() {
             Triple("each-rewritten-discarded-match-loaded", "require M\n  Enum.each([1], fn _ -> _ = M.m(Enum.reduce([:a], fn x -> def unquote(x)(), do: 1 end, fn x, g -> g.(x); g end)) end)", "Present [a/0] Compiled"),
             // A match a followed body discards keeps nothing either.
             Triple("each-discarded-nested-match-loaded", "Enum.each([1], fn _ -> _ = (_ = Enum.reduce([:a], fn x -> def unquote(x)(), do: 1 end, fn x, g -> g.(x); g end)) end)", "Present [a/0] Compiled"),
+            // A second `defstruct` or `defexception`, in a later run of the body, raises.
+            Triple("for-defexception-twice-raised", "for _ <- [1, 2], do: defexception [:message]", "Absent Raised"),
+            Triple("for-defstruct-twice-raised", "for _ <- [1, 2], do: (s = defstruct [:a])", "Absent Raised"),
             // A raise in a followed unit is rescued by the code that ran it.
             Triple("try-rescue-each-loaded", "try do\n    Enum.each([1], fn _ -> @a hd([]) end)\n  rescue\n    _ -> :ok\n  end\n  def f, do: 1", "Present [f/0] Compiled"),
             // A decline in the statement's run leaves every later raise uncertain.
@@ -2268,6 +2341,13 @@ class ProjectModulesTest : PlatformTestCase() {
             Triple("for-filter-later-raise-stopped", "for x <- [:a, :b], x == :b or (receive do after 0 -> raise \"boom\" end), do: hd([])", "Absent Stopped"),
             // A `for` whose `do:` is a list literal runs that list.
             Triple("for-list-body-loaded", "for n <- [:a, :b], do: [def(unquote(n)(), do: 1)]", "Present [a/0, b/0] Compiled"),
+            // A match nested in a followed match's right side binds afresh on each run of the body.
+            Triple("for-rebinding-loaded", "for n <- [:a, :b] do\n    x = y = n\n    def unquote(x)(), do: 1\n  end", "Present [a/0, b/0] Compiled"),
+            Triple("each-rebinding-loaded", "Enum.each([:a, :b], fn n ->\n    x = y = n\n    def unquote(x)(), do: 1\n  end)", "Present [a/0, b/0] Compiled"),
+            Triple("for-block-rebinding-loaded", "for n <- [:a, :b] do\n    x = (y = n; y)\n    def unquote(x)(), do: 1\n  end", "Present [a/0, b/0] Compiled"),
+            // A `defexception` in a followed body gives its struct to the output's `if`, which selects the branch.
+            Triple("if-defexception-loaded", "x = true\n  if x do\n    defexception [:message]\n  end", "Present [__struct__/0, __struct__/1, exception/1, message/1] Compiled"),
+            Triple("for-defexception-loaded", "for _ <- [1], do: defexception [:message]", "Present [__struct__/0, __struct__/1, exception/1, message/1] Compiled"),
         ).map { (label, body, expected) -> Triple(label, "defmodule A do\n  $body\nend\n", expected) }
 
         assertEquals(
@@ -2281,6 +2361,9 @@ class ProjectModulesTest : PlatformTestCase() {
 
         edit(project, a, "defmodule A do\n  x = true\n  if x do\n    defmodule Inner do\n      def f, do: 1\n    end\n  end\nend\n")
         assertEquals("if-nested-loaded", "Present [f/0]", describe(exports(ProjectModules(project), b, "Elixir.A.Inner")))
+
+        edit(project, a, "defmodule A do\n  x = true\n  if x do\n    defstruct [:a]\n  end\nend\n")
+        assertEquals("if-defstruct-loaded", "Present [__struct__/0, __struct__/1]", describe(exports(ProjectModules(project), b, "Elixir.A")))
     }
 
     /**
@@ -2314,6 +2397,9 @@ class ProjectModulesTest : PlatformTestCase() {
         exports::class.simpleName + ((exports as? ModuleExports.Present)?.functions?.map { "${it.name}/${it.arity}" }?.sorted()?.let { " $it" } ?: "")
 
     private fun ending(expansion: FileExpansion): String = expansion.modules.single().ended::class.simpleName!!
+
+    /** This module and every module nested in it, however deep. */
+    private fun ExpansionResult.withNested(): List<ExpansionResult> = listOf(this) + nested.flatMap { it.withNested() }
 
     /**
      * A new holder per order asks [a] then [b], and [b] then [a], and each answer equals a fresh run's, as does each module's

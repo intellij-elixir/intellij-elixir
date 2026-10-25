@@ -563,7 +563,7 @@ private fun queueEffect(
                 } else {
                     val definitions = resolved?.let { evaluated(bindings) } as? ModuleEffects.Change.Definitions ?: change
 
-                    definitions.apply(compiling, node, run.exports, ordered)
+                    definitions.apply(compiling, node, run, ordered)
                 }
             }
     }

@@ -19,9 +19,9 @@ internal object ModuleEffects {
 
         /**
          * A change to its definition table, which the walk applies at the call's place: [apply] is given the call, the
-         * exports, and whether the call is one Elixir surely runs.
+         * run, and whether the call is one Elixir surely runs.
          */
-        class Definitions(val apply: (Compiling, ElixirAst, Exports, Boolean) -> Expansion?) : Change
+        class Definitions(val apply: (Compiling, ElixirAst, Run, Boolean) -> Expansion?) : Change
     }
 
     /**
@@ -58,15 +58,18 @@ internal object ModuleEffects {
         return rows[key]?.change(module, args, nodes)
     }
 
+    /** The module [target], a call's module argument, names: `null` where it isn't an atom ([Run.compilingNamed]). */
+    private fun moduleNamed(target: Term?): String? = (target as? Term.Atom)?.name
+
     /**
      * [change] where [target], the module a call is given, is [module]; the change on another module where it is
      * another; [UNKNOWN_MODULE] where it isn't known.
      */
     private fun targeting(target: Term, module: String, change: () -> Change.Attributes): Change.Attributes =
-        when {
-            target !is Term.Atom -> UNKNOWN_MODULE
-            target.name == module -> change()
-            else -> Change.Attributes(Effect.OtherModule(target.name, change().effect))
+        when (val name = moduleNamed(target)) {
+            null -> UNKNOWN_MODULE
+            module -> change()
+            else -> Change.Attributes(Effect.OtherModule(name, change().effect))
         }
 
     /** `Module`'s attribute functions take the module first and the attribute second (`Mod:1595`, `:1729`, `:1782`). */
@@ -123,25 +126,33 @@ internal object ModuleEffects {
             ?.takeIf { (callee as? ElixirAst.Literal.Atom)?.name == name && it.size == 2 }
     }
 
-    /** The call stops the module there: what it takes out of the table isn't followed. */
-    private val STOP = Change.Definitions { _, at, _, _ -> Expansion.Unported(at) }
+    /**
+     * The call stops the module there: what it takes out of the table isn't followed, so it may have written [target],
+     * the module it is given, or any being compiled where that isn't known.
+     */
+    private fun stop(target: Term?) = Change.Definitions { _, at, run, _ ->
+        mayHaveWritten(run.compilingNamed(moduleNamed(target)).filterNotNull())
+        Expansion.Unported(at)
+    }
+
+    private val STOP = stop(null)
 
     /**
      * `Module.make_overridable(module, definitions)`. A call of another module stops, as that may be one being compiled,
      * which a module nested in it can name, and for one that isn't, Elixir raises (`Mod:1499`, `:1525`).
      */
     private val MAKE_OVERRIDABLE = Row(STOP) { module, args, _ ->
-        if ((args[0] as? Term.Atom)?.name == module) {
-            Change.Definitions { compiling, at, exports, ordered ->
-                makeAllOverridable(compiling, args[1], at, exports, ordered)
+        if (moduleNamed(args[0]) == module) {
+            Change.Definitions { compiling, at, run, ordered ->
+                makeAllOverridable(compiling, args[1], at, run.exports, ordered)
             }
         } else {
-            STOP
+            stop(args[0])
         }
     }
 
     /** A remover this doesn't follow, which stops the module whatever its target. */
-    private val STOPS = Row(STOP) { _, _, _ -> STOP }
+    private val STOPS = Row(STOP) { _, args, _ -> stop(args[0]) }
 
     /**
      * Every function that takes a definition out of the module's table: `elixir_def:take_definition/2` and its callers

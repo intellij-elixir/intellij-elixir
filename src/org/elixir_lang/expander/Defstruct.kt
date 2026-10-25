@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_BIND_QUOTED
@@ -7,6 +8,9 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_ESCAPES_ST
 import org.elixir_lang.language_level.ElixirLanguageFeature.ENFORCE_KEYS_MUST_BE_FIELDS
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRUCT_ATTRIBUTE_RENAMED
 import org.elixir_lang.expander.interpreter.Binding
+import org.elixir_lang.expander.interpreter.Evaluated
+import org.elixir_lang.expander.interpreter.Unknown
+import org.elixir_lang.expander.interpreter.atom
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
@@ -15,7 +19,8 @@ import org.elixir_lang.psi.Import.Term
 /**
  * `Kernel.defstruct/1` (`K:5622–5638`, `U:107–233`): its output is expanded where the call is. What
  * `Kernel.Utils.defstruct` computes from the fields and `@enforce_keys` is computed when the module body runs to the
- * call, by the effect that takes the place of what the output queued.
+ * call, by the effect that takes the place of the output's statements. The output's definitions, and up to 1.13 the
+ * `case` on `@enforce_keys` that holds `__struct__/1`'s clauses, run after it as the body runs them.
  */
 internal val DEFSTRUCT = Summary { _, node, state, env, run ->
     val compiling = moduleBody(env, run)
@@ -48,14 +53,18 @@ private fun defstruct(
     val watched = Watched(fields)
     val from = run.pending.size
     val expansion = expandQuoted(node, KERNEL, output.output(), state, env, run, watched, ports = true)
-    val queued = run.pending.subList(from, run.pending.size).unnested()
-    val definitions = queued.filterIsInstance<Pending.Definition>()
+    val queued = run.pending.subList(from, run.pending.size).toList()
+    // The definitions, and the statement whose branches hold definitions: what runs after the effect.
+    val kept = queued.filter { it is Pending.Definition || it.inner.isNotEmpty() }
+    val definitions = queued.unnested().filterIsInstance<Pending.Definition>()
     val results = queued.firstNotNullOfOrNull { (it as? Pending.Match)?.node?.let(output::results) }
     val effect = DefstructEffect(
         node,
+        module,
         output,
-        { compiling -> fieldsAt(watched, node, compiling, state, env, run) },
-        definitions,
+        { compiling, bindings -> fieldsAt(watched, node, compiling, state, env, run, bindings) },
+        { default, compiling, bindings -> compiling.values.evaluate(default, state, env, run, bindings) },
+        kept,
         results.orEmpty(),
         compiling.statements,
         run,
@@ -68,7 +77,7 @@ private fun defstruct(
             Pending.Effect(
                 node,
                 compiling.isStatement(node),
-                queued = { effect?.queued() ?: definitions },
+                queued = { effect?.queued() ?: kept },
                 apply = { compiling, statement, bindings ->
                     if (effect == null) unreadable(compiling) else effect.apply(compiling, statement, bindings)
                 },
@@ -87,7 +96,7 @@ private fun unreadable(compiling: Compiling): Expansion? {
 
 /**
  * The fields [fields] watched, as the module body has run to the call [at]: the term the expansion gave, or where that
- * isn't known, the node expanded evaluated from the values [compiling]'s body has bound.
+ * isn't known, the node expanded evaluated from [bindings], the variables the walk has at the call.
  */
 private fun fieldsAt(
     fields: Watched,
@@ -96,11 +105,12 @@ private fun fieldsAt(
     state: ExState,
     env: Env,
     run: Run,
+    bindings: HashMap<Binding, OtpErlangObject>,
 ): Fields {
     val term = fields.value ?: return Fields.Dynamic
     val expanded = fields.expanded ?: return Fields.Dynamic
 
-    return when (val values = evaluatedArguments(listOf(term), listOf(expanded), compiling, state, env, run)) {
+    return when (val values = evaluatedArguments(listOf(term), listOf(expanded), compiling, state, env, run, bindings)) {
         is ArgumentValues.Evaluated -> fieldsOf(fields.node, values.terms.single(), at, run.level, run.exports)
         is ArgumentValues.Raised -> Fields.Raised(values.expansion)
     }
@@ -297,21 +307,24 @@ private fun combined(nodes: List<ElixirAst>, level: ElixirLanguageLevel): Value 
 }
 
 /**
- * The effect of a `defstruct` at [node] on its module once the body has run to it: `Kernel.Utils.defstruct`'s checks
- * and the record, and its result bound to the output's [results], the variables the definitions of `__struct__/0` and
- * `__struct__/1` unquote.
+ * The effect of a `defstruct` at [node] on [module] once the body has run to it: `Kernel.Utils.defstruct`'s checks
+ * and the record, its result bound to the output's [results], the variables the definitions of `__struct__/0` and
+ * `__struct__/1` unquote, and the struct it gives as the output's value, each default [evaluate]d where the body is.
+ * [queued] is what the output queued that runs after it: its definitions, and up to 1.13 the `case` on
+ * `@enforce_keys` whose arms hold `__struct__/1`'s clauses.
  */
 private class DefstructEffect(
     private val node: ElixirAst.Call,
+    private val module: String,
     private val output: StructOutput,
-    private val fields: (Compiling) -> Fields,
-    private val queued: List<Pending.Definition>,
+    private val fields: (Compiling, HashMap<Binding, OtpErlangObject>) -> Fields,
+    private val evaluate: (ElixirAst, Compiling, HashMap<Binding, OtpErlangObject>) -> Evaluated,
+    private val queued: List<Pending>,
     private val results: Map<String, ElixirAst>,
     private val statements: Statements,
     private val run: Run,
 ) {
     private val level = run.level
-    private var enforced: List<String>? = null
 
     /** Whether the walk ran the `defstruct` as a statement, which its [queued] definitions read. */
     private var statement = false
@@ -322,7 +335,7 @@ private class DefstructEffect(
      */
     fun apply(compiling: Compiling, statement: Boolean, bindings: HashMap<Binding, OtpErlangObject>): Expansion? {
         this.statement = statement
-        // A call that may not run, or may run more than once, is not followed.
+        // A call that may not run is not followed.
         if (!statement) return stopped(compiling)
 
         val twice = compiling.struct != null
@@ -330,7 +343,7 @@ private class DefstructEffect(
         // Up to 1.13 the output checks for a second call before it evaluates the fields.
         if (twice && !DEFSTRUCT_BIND_QUOTED.isSufficient(level)) return Expansion.Error("struct_twice", node)
 
-        val result = fields(compiling)
+        val result = fields(compiling, bindings)
 
         if (result is Fields.Raised) return result.expansion
         if (result == Fields.Dynamic) return stopped(compiling)
@@ -360,8 +373,8 @@ private class DefstructEffect(
             return Expansion.Error("enforce_keys_not_defined", node)
         }
 
-        enforced = enforcedKeys
         bind(bindings, enforcedKeys, known.entries)
+        compiling.values.gave(node, struct(compiling, bindings, known.entries))
         compiling.struct = ModuleStruct.Present(fieldKeys - "__struct__", Enforced.Known(enforcedKeys.toSet()))
 
         if (!DEFSTRUCT_BIND_QUOTED.isSufficient(level)) {
@@ -393,6 +406,14 @@ private class DefstructEffect(
         }
     }
 
+    /** The struct `Kernel.Utils.defstruct` gives for [entries] ([StructOutput.fields]): a default the evaluator can't give is unknown. */
+    private fun struct(compiling: Compiling, bindings: HashMap<Binding, OtpErlangObject>, entries: List<Pair<String, ElixirAst>>): OtpErlangObject {
+        val fields = output.fields(entries)
+        val values = fields.map { (_, default) -> (evaluate(default, compiling, bindings) as? Evaluated.Value)?.value ?: Unknown }
+
+        return OtpErlangMap(fields.map { (key, _) -> atom(key) }.toTypedArray(), values.toTypedArray())
+    }
+
     /** A struct the expander can't follow: the module stops at the `defstruct`. */
     private fun stopped(compiling: Compiling): Expansion {
         compiling.struct = ModuleStruct.Unreadable
@@ -400,9 +421,8 @@ private class DefstructEffect(
         return Expansion.Unported(node)
     }
 
-    /** The definitions, as statements where the `defstruct` is one: the arm the module body takes is known. */
-    fun queued(): List<Pending> =
-        output.definitions(queued, enforced).map { if (statement && !it.isStatement(statements)) it.asStatement() else it }
+    /** What the output queued after the effect, as statements where the `defstruct` is one. */
+    fun queued(): List<Pending> = queued.map { if (statement && !it.isStatement(statements)) it.asStatement() else it }
 }
 
 /**

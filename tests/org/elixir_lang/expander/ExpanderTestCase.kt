@@ -20,6 +20,9 @@ abstract class ExpanderTestCase : ParsingTestCase() {
     /** What the empty env imports from `Kernel`. */
     protected open val kernel: KernelImports = NO_KERNEL
 
+    /** The clauses of the modules the expanded snippets can call. */
+    internal open val clauses: ModuleClauses.Lookup = ModuleClauses.Lookup.NONE
+
     /** The module whose body the snippets are in, or `null` for none. */
     protected open val module: String? = null
 
@@ -55,6 +58,23 @@ abstract class ExpanderTestCase : ParsingTestCase() {
         return withKeys(ReadAction.computeBlocking<_, Throwable> { Lowering.lower(file, level) }, code)
     }
 
+    /** The clauses of the modules [code] defines, compiled at the last of [LEVELS], which the expanded snippets can call. */
+    internal fun fixtureClauses(code: String): ModuleClauses.Lookup {
+        val level = ElixirLanguageLevel.of(LEVELS.last())
+        val loaded = HashMap<String, ModuleClauses>()
+        val observer = object : ExpansionObserver {
+            override fun entering(node: ElixirAst, state: ExState, env: Env) {}
+
+            override fun clausesLoaded(module: String, clauses: ModuleClauses?) {
+                clauses?.let { loaded[module] = it }
+            }
+        }
+
+        Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, observer)
+
+        return ModuleClauses.Lookup { loaded[it] }
+    }
+
     /** The dispatches [code]'s expansion reports at [version], in order, as [render] shows them. */
     protected fun events(code: String, version: String): List<String> {
         val level = ElixirLanguageLevel.of(version)
@@ -67,7 +87,7 @@ abstract class ExpanderTestCase : ParsingTestCase() {
             }
         }
 
-        Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, observer)
+        Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, observer, clauses = clauses)
 
         return events
     }

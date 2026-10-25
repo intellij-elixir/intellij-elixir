@@ -322,7 +322,8 @@ class LoadedModulesTest : ProbeTestCase() {
     /**
      * A nested module after a stop in the module around it is assumed to have run, so it is loaded where its own body
      * ran to its end, while the module that stopped is unreadable. Elixir raises at [STOPS], so the three are absent
-     * there: the row pins the assumption that the project compiles.
+     * there: the row pins the assumption that the project compiles. The nested module's own reads of its table, the
+     * struct output's `@enforce_keys` up to 1.13 among them, are answered: the stop was another module's.
      */
     fun testANestedModuleAfterAStopIsLoadedAssumingTheStopCompiles() {
         assertEquals(

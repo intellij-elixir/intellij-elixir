@@ -46,7 +46,9 @@ import org.elixir_lang.expander.metaValue
 import org.elixir_lang.expander.orGuards
 import org.elixir_lang.expander.rescueHead
 import org.elixir_lang.expander.splitOptions
+import org.elixir_lang.expander.unfollowed
 import org.elixir_lang.expander.unlessTooDeep
+import org.elixir_lang.expander.unlessTooDeepToRun
 import org.elixir_lang.expander.whenArguments
 import org.elixir_lang.expander.withOptions
 import org.elixir_lang.language_level.ElixirLanguageFeature.FIELD_OF_NON_MAP_RAISES_BADKEY
@@ -83,10 +85,12 @@ internal object Interpreter {
     ): Summary? {
         val output = declining(run) {
             try {
-                unlessTooDeep({ return null }) {
+                run.unlessTooDeepToRun({ return null }) {
                     Evaluation(node, state, env, run).output(dispatch, node.arguments.orEmpty(), stopGenerated)
                 }
             } catch (_: Declined) {
+                // The macro's code ran where the expander lost it.
+                run.unfollowed()
                 return null
             }
         }
