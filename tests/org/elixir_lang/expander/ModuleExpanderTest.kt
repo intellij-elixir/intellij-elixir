@@ -272,8 +272,8 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """.trimIndent()
         }
 
-    /** A definition that isn't a statement of the module body, and every body after it, may run in another order. */
-    fun testADefinitionInACaseClauseIsUnordered() =
+    /** A definition in the clause a module-body `case` selects runs once, where the `case` does: a statement. */
+    fun testADefinitionInASelectedCaseClauseIsAStatement() =
         assertLevels(
             """
             defmodule A do
@@ -288,9 +288,36 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0 context ${topContext(version, "Elixir.A")}
             module Elixir.A compiled
-              def f/0 line 3 clauses 1 unordered
+              def f/0 line 3 clauses 1
               def g/0 line 5 clauses 1
               body: expanded {} next ${if (isBefore(version, "1.20.0-rc.5")) 0 else 2} context [Elixir.A]
+              def f/0: expanded {} next 0
+              def g/0: expanded {} next 0
+            """.trimIndent()
+        }
+
+    /**
+     * A definition in a clause of a `case` whose subject the evaluator can't produce, and every body after it, may run
+     * in another order.
+     */
+    fun testADefinitionInACaseClauseTheEvaluatorCannotSelectIsUnordered() =
+        assertLevels(
+            """
+            defmodule A do
+              case (receive do after 0 -> 1 end) do
+                _ -> def f, do: 1
+              end
+              def g, do: 2
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            module Elixir.A compiled
+              def f/0 line 3 clauses 1 unordered
+              def g/0 line 5 clauses 1
+              body: expanded {} next ${if (isBefore(version, "1.20.0-rc.5")) 0 else 3} context [Elixir.A]
               def f/0 unordered: expanded {} next 0
               def g/0 unordered: expanded {} next 0
             """.trimIndent()
@@ -2591,6 +2618,125 @@ class ModuleExpanderTest : ExpanderTestCase() {
               body: error undefined_function `undefined()`
             """.trimIndent()
         }
+
+    /**
+     * A closure a module-body statement bound, called where no run of that body is on the stack while a run around the
+     * module keeps the unit's callback registered: in a nested module the body walks as a statement, and in a
+     * definition's fragment. The unit's raise ends the module's run where Elixir raises; its reach outside every run of
+     * the body isn't certain, so the module stops there and the file's top declines, where Elixir loads nothing.
+     */
+    fun testALateUnitRaiseOutsideEveryRunOfTheBodyStopsTheModule() {
+        val reduce = "g = Enum.reduce([1], fn\n      :a -> :ok\n      :b -> :erlang.hd([])\n    end, fn _, g -> g.(:a); g end)"
+
+        assertLevels(
+            """
+            for _ <- [1] do
+              defmodule A do
+                $reduce
+                defmodule N do
+                  g.(:b)
+                end
+                def h, do: 1
+              end
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            val counters = if (CLAUSES_TAKE_VERSION.isSufficient(ElixirLanguageLevel.of(version))) "{g:4} next 5" else "{g:1} next 2"
+
+            """
+            top unported `:erlang.hd([])`
+            module Elixir.A stopped `:erlang.hd([])`
+              body: expanded $counters context [Elixir.A.N, Elixir.A]
+            """.trimIndent()
+        }
+        assertLevels(
+            """
+            for _ <- [1] do
+              defmodule A do
+                $reduce
+                def unquote(g.(:b))(), do: 1
+              end
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            val counters = if (CLAUSES_TAKE_VERSION.isSufficient(ElixirLanguageLevel.of(version))) "{g:4} next 5" else "{g:1} next 2"
+
+            """
+            top unported `:erlang.hd([])`
+            module Elixir.A stopped `:erlang.hd([])`
+              body: expanded $counters context [Elixir.A]
+            """.trimIndent()
+        }
+    }
+
+    /**
+     * A unit reached after the evaluator declined an iteration of a loop it went on with may never run, so its raise is
+     * not Elixir's for certain, where the unit's callback fires from a statement run after its own ended: here the
+     * `receive` declines at `z = 1`, where Elixir raises `:boom`, and the `defp f` reached at `z = 2` would raise.
+     */
+    fun testAUnitReachedAfterAContinuedDeclineIsUncertainInALaterRun() {
+        assertLevels(
+            """
+            defmodule A do
+              Enum.reduce([1, 2], nil, fn
+                1, nil ->
+                  Enum.reduce([:a], fn
+                    :a -> def f, do: 1
+                    :b -> defp f, do: 2
+                  end, fn x, g -> g.(x); g end)
+                2, g ->
+                  for z <- [1, 2], (case z do 2 -> true; _ -> receive do after 0 -> :erlang.error(:boom) end end), g.(:b), do: :ok
+              end)
+              def h, do: 1
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top unported `defp f, do: 2`
+            module Elixir.A stopped `defp f, do: 2`
+              def f/0 line 5 clauses 1
+              body: expanded {} next ${if (CLAUSES_TAKE_VERSION.isSufficient(ElixirLanguageLevel.of(version))) 11 else 4} context [Elixir.A]
+              def f/0: expanded {} next 0
+              defp f/0: unported `defp f, do: 2`
+            """.trimIndent()
+        }
+    }
+
+    /**
+     * A raise in the outer module's unit, reached while a nested module's statement runs, ends both modules, as Elixir
+     * raises while compiling the nested one.
+     */
+    fun testAnOuterUnitsRaiseInsideANestedModuleEndsBoth() {
+        assertLevels(
+            """
+            defmodule A do
+              def f, do: 1
+              Enum.reduce([1], fn -> defp f, do: 2 end, fn _, g ->
+                defmodule N do
+                  def n, do: 1
+                  g.()
+                  def m, do: 1
+                end
+                g
+              end)
+              def h, do: 1
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            module Elixir.A raised changed_kind `defp f, do: 2`
+              def f/0 line 2 clauses 1
+              body: expanded {} next ${if (CLAUSES_TAKE_VERSION.isSufficient(ElixirLanguageLevel.of(version))) 4 else 1} context [Elixir.A]
+              def f/0: expanded {} next 0
+              defp f/0: error changed_kind `defp f, do: 2`
+            """.trimIndent()
+        }
+    }
 
     /**
      * After a stop, which may hide a removal, `Module.defines?/2` declines, `true` included. The module is named as an

@@ -254,7 +254,7 @@ class InterpreterTest : PlatformTestCase() {
         assertFile(
             """
             defmodule Outer do
-              if false do
+              if (receive do after 0 -> false end) do
                 defmodule Inner do
                   Module.put_attribute(Outer, :a, 1)
                 end
@@ -269,12 +269,12 @@ class InterpreterTest : PlatformTestCase() {
             """.trimIndent(),
         )
 
-    /** A nested module the body may not run may not raise. */
+    /** A nested module the body may not run may not raise: the body stops where the walk lost Elixir's path. */
     fun testARaiseInANestedModuleTheBodyMayNotRunStops() =
         assertFile(
             """
             defmodule Outer do
-              if false do
+              if (receive do after 0 -> false end) do
                 defmodule Inner do
                   @a raise(KeyError)
                 end
@@ -284,7 +284,11 @@ class InterpreterTest : PlatformTestCase() {
             """.trimIndent(),
             """
             top expanded
-            module Elixir.Outer stopped `@a raise(KeyError)`
+            module Elixir.Outer stopped `if (receive do after 0 -> false end) do
+                defmodule Inner do
+                  @a raise(KeyError)
+                end
+              end`
               module Elixir.Outer.Inner stopped `@a raise(KeyError)`
             """.trimIndent(),
         )
@@ -363,7 +367,7 @@ class InterpreterTest : PlatformTestCase() {
         val stopsB = "\nmodule Elixir.B stopped `%A{}`"
 
         assertFile(
-            "defmodule A do\n  defstruct [:x]\n  if false do\n    defmacro f, do: 1\n  end\n  def f, do: 2\nend\n$b",
+            "defmodule A do\n  defstruct [:x]\n  if $RECV_FALSE do\n    defmacro f, do: 1\n  end\n  def f, do: 2\nend\n$b",
             "top expanded\nmodule Elixir.A stopped `def f, do: 2`$stopsB",
         )
         val given = "defmodule A do\n  defstruct [:x]\n  @x :bad\n  H.set(__MODULE__)\n  :ok = @x\nend"
@@ -372,17 +376,19 @@ class InterpreterTest : PlatformTestCase() {
             "top expanded\nmodule Elixir.H compiled\nmodule Elixir.A stopped `$given`$stopsB",
         )
         assertFile(
-            "defmodule A do\n  def f, do: 1\n  defoverridable f: 0\n  if false do\n    defmacro f, do: 1\n  end\n  def g, do: 2\nend\n$b",
+            "defmodule A do\n  def f, do: 1\n  defoverridable f: 0\n  if $RECV_FALSE do\n    defmacro f, do: 1\n  end\n  def g, do: 2\nend\n$b",
             "top expanded\nmodule Elixir.A stopped `defmacro f, do: 1`$stopsB",
         )
         // From 1.15 the error in `g`'s body is reported, so the module raises once its body has run if Elixir stores
         // `g`. Before, it raises where it is, in a definition Elixir may not store, so the module only stops there.
+        val stacktrace = "if $RECV_FALSE do\n    def g, do: __STACKTRACE__\n  end"
+
         assertFile(
-            "defmodule A do\n  defstruct [:x]\n  if false do\n    def g, do: __STACKTRACE__\n  end\nend\n$b",
+            "defmodule A do\n  defstruct [:x]\n  $stacktrace\nend\n$b",
             if (FUNCTION_ERRORS_CONTINUE.isSufficient(legLevel())) {
                 "top expanded\nmodule Elixir.A stopped `__STACKTRACE__`$stopsB"
             } else {
-                "top expanded\nmodule Elixir.A stopped `def g, do: __STACKTRACE__`\nmodule Elixir.B stopped `%A{}`"
+                "top expanded\nmodule Elixir.A stopped `$stacktrace`\nmodule Elixir.B stopped `%A{}`"
             },
         )
     }
@@ -644,14 +650,14 @@ class InterpreterTest : PlatformTestCase() {
      */
     fun testAPostModuleCheckAfterADefinitionTheBodyMayNotRunStops() =
         assertFile(
-            "defmodule A do\n  if false do\n    def inspect(x), do: x\n  end\n  def f(x), do: inspect(x)\nend",
+            "defmodule A do\n  if $RECV_FALSE do\n    def inspect(x), do: x\n  end\n  def f(x), do: inspect(x)\nend",
             "top expanded\nmodule Elixir.A stopped `def inspect(x), do: x`",
         )
 
     /** A module whose `defmodule` may not run may not be defined: Elixir raises `UndefinedFunctionError`. */
     fun testAModuleWhoseDefmoduleMayNotRunIsNotCalled() {
         assertFile(
-            "case :b do\n  :a ->\n    defmodule A do\n      def f, do: raise(ArgumentError)\n    end\n  _ -> :ok\nend\nA.f()",
+            "case $RECV_B do\n  :a ->\n    defmodule A do\n      def f, do: raise(ArgumentError)\n    end\n  _ -> :ok\nend\nA.f()",
             "top expanded\nmodule Elixir.A compiled",
         )
         assertFile(
@@ -663,14 +669,14 @@ class InterpreterTest : PlatformTestCase() {
     /** A raise in a module whose `defmodule` may not run may not have happened, so the modules after it compile. */
     fun testARaiseInAModuleWhoseDefmoduleMayNotRunDoesNotEndTheFile() =
         assertFile(
-            "case :b do\n  :a ->\n    defmodule A do\n      @a raise(KeyError)\n    end\n  _ -> :ok\nend\ndefmodule C do\nend",
+            "case $RECV_B do\n  :a ->\n    defmodule A do\n      @a raise(KeyError)\n    end\n  _ -> :ok\nend\ndefmodule C do\nend",
             "top expanded\nmodule Elixir.A stopped `@a raise(KeyError)`\nmodule Elixir.C compiled",
         )
 
     /** A struct whose `defmodule` may not run may not be defined. */
     fun testAStructWhoseDefmoduleMayNotRunIsNotRead() =
         assertFile(
-            "defmodule S0 do\n  if false do\n    defmodule A do\n      defstruct [:a]\n    end\n  end\nend\ndefmodule B do\n  @a %S0.A{}\nend",
+            "defmodule S0 do\n  if $RECV_FALSE do\n    defmodule A do\n      defstruct [:a]\n    end\n  end\nend\ndefmodule B do\n  @a %S0.A{}\nend",
             "top expanded\nmodule Elixir.S0 compiled\n  module Elixir.S0.A compiled\nmodule Elixir.B stopped `%S0.A{}`",
         )
 
@@ -1365,6 +1371,10 @@ class InterpreterTest : PlatformTestCase() {
             ?.let { (it.elementAt(1) as OtpErlangAtom).atomValue() }
 
     private companion object {
+        /** A subject the evaluator can't produce, so the branch it selects isn't known. */
+        const val RECV_FALSE = "(receive do after 0 -> false end)"
+        const val RECV_B = "(receive do after 0 -> :b end)"
+
         const val TOKEN = "{token}"
 
         /** Broken code on every release, which the lowering leaves as a placeholder the port can't read. */
@@ -4018,9 +4028,7 @@ class InterpreterTest : PlatformTestCase() {
             macro("pure:mapfoldl-badmatch", "defmacro m, do: :lists.mapfoldl(fn x, _ -> x end, 0, [1])", pins = LISTS_ERROR_BELOW_OTP_25),
             macro("pure:mapfoldl-not-list", "defmacro m, do: :lists.mapfoldl(fn x, a -> {x, a} end, 0, :x)", pins = LISTS_ERROR_BELOW_OTP_25),
             macro("pure:lists-not-fun", "defmacro m, do: :lists.map(:x, [1])", pins = LISTS_ERROR_BELOW_OTP_25),
-            macro(
-                "pure:lists-function-clause",
-                """
+            macro("pure:foreach", "defmacro m, do: :lists.foreach(fn x -> x end, [1, 2])"),
             // Each iteration's definitions read the attribute as it is in that iteration.
             macro(
                 "body:for-attribute-per-iteration",
@@ -4034,6 +4042,10 @@ class InterpreterTest : PlatformTestCase() {
                 defmacro m, do: [m1(), m2(), f1()]
                 """,
             ),
+            macro("pure:foreach-not-a-fun", "defmacro m, do: :lists.foreach(:x, [1])", pins = LISTS_ERROR_BELOW_OTP_25),
+            macro(
+                "pure:lists-function-clause",
+                """
                 defmacro m do
                   try do
                     :lists.map(fn x -> x end, [1 | 2])
@@ -5398,11 +5410,9 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """.trimIndent(),
             ),
-            // Both entries are unordered, so either may be absent in Elixir.
             macro(
                 "before_compile:defines-branch",
                 "defmacro m, do: Macro.escape({{row}.N.r(), {row}.T.r()})",
-                pins = CALLS_A_STOPPED_MODULE,
                 helper = DEFINES_AT_CALLBACK + "\n\n" + """
                 defmodule {row}.N do
                   @before_compile {row}.CC
@@ -5435,7 +5445,6 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "before_compile:defines-overridable-branch",
                 "defmacro m, do: Macro.escape({{row}.O.g(), {row}.O2.g()})",
-                pins = CALLS_A_STOPPED_MODULE,
                 helper = definesAround(
                     "O" to "  if false do\n    defoverridable f: 0\n  end",
                     "O2" to "  if true do\n    defoverridable f: 0\n  end",
@@ -6291,6 +6300,214 @@ class InterpreterTest : PlatformTestCase() {
                 """,
                 options = "a: 1, b: 2",
                 stopsAfter = "{:for, [], [{:<-, [], [{:name, [], {token}.",
+            ),
+            // A `def` in a module-body `fn` is stored each time the `fn` is called, with that call's bindings.
+            use(
+                "body:enum-each-defines",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    Enum.each([:a, :b], fn n -> def unquote(n)(), do: unquote(n) end)
+                  end
+                end
+                """,
+            ),
+            use(
+                "body:foreach-defines",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    :lists.foreach(fn n -> def unquote(n)(), do: unquote(n) end, [:a, :b])
+                  end
+                end
+                """,
+            ),
+            // A module-body `case`, `if` or `unless` whose subject is produced runs only its selected branch, with the
+            // bindings its clause's pattern makes. The helper's function is called first, so it is loaded when its exports
+            // are read.
+            macro(
+                "body:case-selects",
+                "defmacro m, do: Macro.escape({{row}.C.g(), function_exported?({row}.C, :f, 0)})",
+                helper = """
+                defmodule {row}.C do
+                  kind = :defp
+                  case kind do
+                    :def -> def f, do: 1
+                    :defp -> defp f, do: 2
+                  end
+                  def g, do: f()
+                end
+                """,
+            ),
+            macro(
+                "body:if-selects",
+                "defmacro m, do: Macro.escape({{row}.I.g(), function_exported?({row}.I, :f, 0), function_exported?({row}.I, :f, 1)})",
+                helper = """
+                defmodule {row}.I do
+                  x = true
+                  if x do
+                    def f, do: 1
+                  else
+                    def f(a), do: a
+                  end
+                  def g, do: :ok
+                end
+                """,
+            ),
+            macro(
+                "body:if-selects-attribute",
+                "defmacro m, do: Macro.escape({row}.AB.f())",
+                helper = """
+                defmodule {row}.AB do
+                  x = false
+                  if x do
+                    @a 1
+                  else
+                    @a 2
+                  end
+                  def f, do: @a
+                end
+                """,
+            ),
+            macro(
+                "body:case-selects-in-match",
+                "defmacro m, do: Macro.escape({row}.N.f())",
+                helper = """
+                defmodule {row}.N do
+                  x = 2
+                  v =
+                    case x do
+                      2 ->
+                        @a x
+                        :two
+                      _ ->
+                        @a 0
+                        :other
+                    end
+                  def f, do: {@a, unquote(v)}
+                end
+                """,
+            ),
+            macro(
+                "body:case-selects-pattern-binding",
+                "defmacro m, do: Macro.escape({row}.N2.f())",
+                helper = """
+                defmodule {row}.N2 do
+                  s = {:k, 2}
+                  v =
+                    case s do
+                      {:k, n} ->
+                        @a n
+                        :two
+                      _ ->
+                        @a 0
+                        :other
+                    end
+                  def f, do: {@a, unquote(v)}
+                end
+                """,
+            ),
+            // The selected branch, and each followed `fn` call, runs with the bindings its own `=` makes.
+            macro(
+                "body:if-selects-binding",
+                "defmacro m, do: Macro.escape({row}.IB.f())",
+                helper = """
+                defmodule {row}.IB do
+                  x = true
+                  if x do
+                    y = 1
+                    def f, do: unquote(y)
+                  end
+                end
+                """,
+            ),
+            macro(
+                "body:each-selects-binding",
+                "defmacro m, do: Macro.escape({row}.EB.f())",
+                helper = """
+                defmodule {row}.EB do
+                  Enum.each([2], fn n ->
+                    y = n
+                    def f, do: unquote(y)
+                  end)
+                end
+                """,
+            ),
+            // A nested `if`, and a macro's output in a selected branch, are reached through it.
+            macro(
+                "body:if-selects-nested",
+                "defmacro m, do: Macro.escape({row}.NI.f())",
+                helper = """
+                defmodule {row}.NI do
+                  x = true
+                  if x do
+                    if x do
+                      y = 1
+                      def f, do: unquote(y)
+                    end
+                  end
+                end
+                """,
+            ),
+            macro(
+                "body:if-selects-nested-defstruct",
+                "defmacro m, do: Macro.escape({row}.NS.__struct__())",
+                pins = { source, level ->
+                    DECLINED_FROM_SOURCE(source, level)?.takeUnless { DEFSTRUCT_ESCAPES_STRUCT.isSufficient(level) }
+                },
+                helper = """
+                defmodule {row}.NS do
+                  x = true
+                  if x do
+                    unless false do
+                      defstruct [:a]
+                    end
+                  end
+                end
+                """,
+            ),
+            macro(
+                "body:if-selects-defstruct",
+                "defmacro m, do: Macro.escape({row}.SB.__struct__())",
+                pins = { source, level ->
+                    DECLINED_FROM_SOURCE(source, level)?.takeUnless { DEFSTRUCT_ESCAPES_STRUCT.isSufficient(level) }
+                },
+                helper = """
+                defmodule {row}.SB do
+                  x = true
+                  if x do
+                    defstruct [:a]
+                  end
+                end
+                """,
+            ),
+            // A definition in the selected branch takes the attributes, as a statement's does.
+            macro(
+                "body:if-selects-file",
+                "defmacro m, do: Macro.escape({row}.FD.g())",
+                helper = """
+                defmodule {row}.FD do
+                  x = true
+                  if x do
+                    def f, do: 1
+                  end
+                  def g, do: @file
+                end
+                """,
+            ),
+            macro(
+                "body:if-selects-doc",
+                "defmacro m, do: Macro.escape({row}.DD.g())",
+                helper = """
+                defmodule {row}.DD do
+                  x = true
+                  if x do
+                    @doc "a"
+                    def f, do: 1
+                  end
+                  def g, do: @doc
+                end
+                """,
             ),
             // `elixir_quote:dot/5` joins the receiver, whose fragments are evaluated, to the evaluated name.
             use(

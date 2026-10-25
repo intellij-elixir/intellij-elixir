@@ -2132,14 +2132,30 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
-     * A definition that isn't a statement may take the attributes at any point, so whether a later one is deprecated
-     * is unknown, and Elixir may not define the module as the expander did. Elixir warns of both calls; the module
-     * isn't read, so none of its deprecations is.
+     * A definition in the clause a `case` selects takes the attributes where the `case` runs, so each deprecation is
+     * known and both calls warn, as Elixir's do.
+     */
+    fun testADeprecationTakenInASelectedClauseWarns() {
+        val a = "defmodule A do\n  @deprecated \"Use A.new/0 instead\"\n  case 1 do\n    _ -> def old, do: 1\n  end\n" +
+            "  @deprecated \"Use A.new_m/0 instead\"\n  defmacro old_m, do: 1\n  def plain, do: 1\nend\n"
+        val b = "defmodule B do\n  require A\n  A.old()\n  A.old_m()\nend\n"
+
+        add("a.ex", a)
+        val expected = DeprecationWarnings.compiled(listOf("a.ex" to a, "b.ex" to b))
+
+        assertEquals(2, expected.size)
+        assertEquals(expected, DeprecationWarnings.of(expansion(holder, add("b.ex", b))))
+    }
+
+    /**
+     * A definition in a clause of a `case` whose subject the evaluator can't produce may take the attributes at any
+     * point, so whether a later one is deprecated is unknown, and Elixir may not define the module as the expander did.
+     * Elixir warns of both calls; the module isn't read, so none of its deprecations is.
      */
     fun testAnUnknownDeprecationWarnsNothing() {
         add(
             "a.ex",
-            "defmodule A do\n  @deprecated \"Use A.new/0 instead\"\n  case 1 do\n    _ -> def old, do: 1\n  end\n" +
+            "defmodule A do\n  @deprecated \"Use A.new/0 instead\"\n  case (receive do after 0 -> 1 end) do\n    _ -> def old, do: 1\n  end\n" +
                 "  @deprecated \"Use A.new_m/0 instead\"\n  defmacro old_m, do: 1\n  def plain, do: 1\nend\n",
         )
         val b = add("b.ex", "defmodule B do\n  require A\n  A.old()\n  A.old_m()\nend\n")
@@ -2147,6 +2163,157 @@ class ProjectModulesTest : PlatformTestCase() {
         assertEquals(emptyList<String>(), DeprecationWarnings.of(expansion(holder, b)))
         assertEquals(ModuleExports.Unreadable, exports(holder, b, "Elixir.A"))
     }
+
+    /**
+     * A `def` in a module-body `for`, in an `fn` a call runs, or in a `case`'s selected branch is on the statement path:
+     * the module loads with what ran defined, a certain raise there leaves it absent, and a decline in the name or in
+     * the subject leaves it unreadable. A `cond` selects nothing, so a `def` in one leaves the module unreadable. A row
+     * labelled `expander` pins the expander's answer where Elixir loads the module with what it defines.
+     */
+    fun testASelectedBranchIsOnTheStatementPath() {
+        addLegElixir()
+        val a = add("a.ex", "")
+        val b = add("b.ex", "defmodule B do\n  def f, do: A.f()\nend\n")
+        add("m.ex", "defmodule M do\n  defmacro m(e), do: quote(do: _ = unquote(e))\nend\n")
+        val declined = "_ = (receive do after 0 -> 1 end)"
+        val pair = "def f, do: 1\n      defp f, do: 2"
+        // Each row is a module alone in a file; the label names its family and the answer, `expander` where Elixir's differs.
+        val rows = listOf(
+            Triple("if-loaded", "x = true\n  if x do\n    def f, do: 1\n  end", "Present [f/0] Compiled"),
+            Triple("for-loaded", "for n <- [:f, :g], do: def unquote(n)(), do: 1", "Present [f/0, g/0] Compiled"),
+            Triple("each-loaded", "Enum.each([:f, :g], fn n -> def unquote(n)(), do: 1 end)", "Present [f/0, g/0] Compiled"),
+            Triple("foreach-loaded", ":lists.foreach(fn n -> def unquote(n)(), do: 1 end, [:f, :g])", "Present [f/0, g/0] Compiled"),
+            // The declined call isn't given the module, so it is no possible write, and `f/0` is loaded.
+            Triple("if-declined", "x = true\n  if x do\n    $declined\n    def f, do: 1\n  end", "Present [f/0] Compiled"),
+            Triple("for-declined", "for _ <- [1] do\n    $declined\n    def f, do: 1\n  end", "Present [f/0] Compiled"),
+            Triple("each-declined", "Enum.each([1], fn _ ->\n    $declined\n    def f, do: 1\n  end)", "Present [f/0] Compiled"),
+            // A `def`/`defp` pair, or a raising write, in the selected unit raises from certain inputs: never loaded.
+            Triple("if-raised", "x = true\n  if x do\n    $pair\n  end", "Absent Raised"),
+            Triple("for-raised", "for _ <- [1] do\n    $pair\n  end", "Absent Raised"),
+            Triple("each-raised", "Enum.each([1], fn _ ->\n    $pair\n  end)", "Absent Raised"),
+            Triple("foreach-raised", ":lists.foreach(fn _ ->\n    $pair\n  end, [1])", "Absent Raised"),
+            Triple("case-attribute-raised", "k = :a\n  case k do\n    :a -> @a hd([])\n    _ -> :ok\n  end", "Absent Raised"),
+            Triple("if-attribute-raised", "x = true\n  if x do\n    @a hd([])\n  end\n  def f, do: 1", "Absent Raised"),
+            // The store raises before it runs the `@on_definition` callbacks, whose code isn't followed.
+            Triple("on-definition-pair-raised", "def f, do: 1\n  @on_definition {H, :cb}\n  defp f, do: 2", "Absent Raised"),
+            // The error's inputs are certain, so the module is absent, but its reach isn't, so the body stops.
+            Triple("if-declined-raised", "x = true\n  if x do\n    $declined\n    $pair\n  end", "Absent Stopped"),
+            Triple("each-declined-raised", "Enum.each([1], fn _ ->\n    $declined\n    $pair\n  end)", "Absent Stopped"),
+            // A name the evaluator declines is stored unnamed, so what the module defines isn't read; Elixir loads `f/0`.
+            Triple("if-unnamed-expander-unreadable", "x = true\n  if x do\n    def unquote((receive do after 0 -> :f end))(), do: 1\n  end", "Unreadable Stopped"),
+            Triple("for-unnamed-expander-unreadable", "for n <- [:f] do\n    def unquote((receive do after 0 -> n end))(), do: 1\n  end", "Unreadable Stopped"),
+            Triple("each-unnamed-expander-unreadable", "Enum.each([:f], fn n ->\n    def unquote((receive do after 0 -> n end))(), do: 1\n  end)", "Unreadable Stopped"),
+            // `defdelegate`'s output reads `__ENV__`, which the evaluator doesn't give, so only on the statement path is it followed (#4508).
+            // Controls the walk doesn't follow: Elixir loads `f/0` from the `cond` and the `case` (#4508), none from the `fn`.
+            Triple("cond-expander-unreadable", "cond do\n    true -> def f, do: 1\n  end", "Unreadable Compiled"),
+            Triple("case-declined-expander-unreadable", "case (receive do after 0 -> :a end) do\n    :a -> def f, do: 1\n    _ -> :ok\n  end", "Unreadable Compiled"),
+            Triple("fn-unrun-expander-unreadable", "_ = fn -> def f, do: 1 end", "Unreadable Compiled"),
+            // A statement the evaluator declines may have run the units nested in its statements any number of times.
+            Triple("case-declined-if-expander-unreadable", "case (receive do after 0 -> :a end) do\n    :a -> if true do def f, do: 1 end\n    _ -> :ok\n  end", "Unreadable Compiled"),
+            Triple("case-declined-for-expander-unreadable", "case (receive do after 0 -> :a end) do\n    :a -> for n <- [:f], do: def unquote(n)(), do: 1\n    _ -> :ok\n  end", "Unreadable Compiled"),
+            // A definition whose name or body the elements the evaluator couldn't follow decide stops the module.
+            Triple("for-declined-case-expander-unreadable", "for n <- (receive do after 0 -> [:f] end) do\n    case n do\n      _ -> def unquote(n)(), do: 1\n    end\n  end", "Unreadable Stopped"),
+            // A unit reached for one element may have run for the elements the evaluator couldn't follow.
+            Triple("for-filter-declined-expander-unreadable", "for x <- [:a, :b], x == :a or (receive do after 0 -> true end), do: def unquote(x)(), do: 1", "Unreadable Stopped"),
+            Triple("each-element-declined-expander-unreadable", "x = receive do after 0 -> {:ok, :g} end\n  Enum.each([{:ok, :f}, x], fn {:ok, n} -> def unquote(n)(), do: 1 end)", "Unreadable Stopped"),
+            Triple("foreach-element-declined-expander-unreadable", "x = receive do after 0 -> {:ok, :g} end\n  :lists.foreach(fn {:ok, n} -> def unquote(n)(), do: 1 end, [{:ok, :f}, x])", "Unreadable Stopped"),
+            Triple("for-filter-declined-body-expander-unreadable", "for x <- [1, 2], x == 1 or (receive do after 0 -> true end), do: def f, do: unquote(x)", "Unreadable Stopped"),
+            // An `fn` a call doesn't run defines where it is called later, which the walk doesn't follow.
+            Triple("fn-returned-expander-unreadable", "f = Function.identity(fn -> def g, do: 1 end)\n  f.()", "Unreadable Compiled"),
+            Triple("fn-in-map-expander-unreadable", "callbacks = Map.put(%{}, :init, fn -> def init, do: :ok end)\n  callbacks.init.()", "Unreadable Compiled"),
+            Triple("fn-returned-macro-expander-unreadable", "f = Function.identity(fn -> if true do def g, do: 1 end end)\n  f.()", "Unreadable Compiled"),
+            // An `fn` a call ran and then kept, in its value or a binding, defines where it is called later, with a name the walk can't produce.
+            Triple("fn-kept-expander-unreadable", "f = Enum.reduce([:a], fn x -> def unquote(x)(), do: 1 end, fn x, g -> g.(x); g end)\n  f.(:b)", "Unreadable Stopped"),
+            // An `fn` a match in a followed body binds is kept, whether or not that run called it.
+            Triple("for-fn-entered-earlier-expander-unreadable", "for x <- [:a, :b] do\n    f = Enum.reduce(if(x == :a, do: [1], else: []), fn -> def unquote(x)(), do: 1 end, fn _, g -> g.(); g end)\n    f.()\n  end", "Unreadable Stopped"),
+            // An `fn` a nested statement returns, kept by the statement around it, defines where it is called later.
+            Triple("if-fn-kept-expander-unreadable", "f = if true, do: Enum.reduce([:a], fn y -> def unquote(y)(), do: 1 end, fn z, g -> g.(z); g end)\n  f.(:b)", "Unreadable Stopped"),
+            Triple("for-fn-kept-expander-unreadable", "f = for _ <- [1], do: Enum.reduce([:a], fn y -> def unquote(y)(), do: 1 end, fn z, g -> g.(z); g end)\n  hd(f).(:b)", "Unreadable Stopped"),
+            // A kept `fn` whose unit is in a macro's output in its body.
+            Triple("fn-kept-macro-expander-unreadable", "f = Enum.reduce([:a], fn x -> if true do def unquote(x)(), do: 1 end end, fn x, g -> g.(x); g end)\n  f.(:b)", "Unreadable Stopped"),
+            // A `case` subject the evaluator can't produce, or a unit's decline that ends its block, declines the statement,
+            // so every unit is stepped unordered: `a/0` is stored where the run reached it, and the unit again unnamed.
+            Triple("fn-kept-unknown-expander-unreadable", "f = Enum.reduce([:a], fn y -> def unquote(y)(), do: 1 end, fn y, g -> g.(y); case (receive do after 0 -> true end) do _ -> g end end)\n  f.(:b)", "Unreadable Stopped"),
+            Triple("fn-kept-unit-declined-expander-unreadable", "f = Enum.reduce([:a], fn y -> def unquote(y)(), do: 1 end, fn y, g -> g.(y); h = (receive do after 0 -> g end); h end)\n  f.(:b)", "Unreadable Stopped"),
+            // An `fn` a match binds to nothing is never called later.
+            Triple("fn-discarded-loaded", "_ = Enum.reduce([:a], fn x -> def unquote(x)(), do: 1 end, fn x, g -> g.(x); g end)", "Present [a/0] Compiled"),
+            // An `fn` running when a nested statement starts, or entered by a nested unit's run, was entered.
+            Triple("each-if-loaded", "Enum.each([:a, :b], fn n -> if n == :a do def a, do: 1 end end)", "Present [a/0] Compiled"),
+            Triple("each-case-loaded", "Enum.each([:b], fn x -> case x do :a -> def g, do: 1; _ -> :ok end end)\n  def h, do: 1", "Present [h/0] Compiled"),
+            Triple("reduce-clause-loaded", "Enum.reduce([1], fn :a -> :ok; :b -> def g, do: 1 end, fn _, acc -> acc.(:a); acc end)", "Present [] Compiled"),
+            // An `fn` entered in an earlier run of the statement wasn't entered in this one, which kept it uncalled.
+            Triple("reduce-fn-entered-earlier-expander-unreadable", "Enum.reduce([{:a, [1]}, {:b, []}, :call], nil, fn\n    :call, g -> g.(); g\n    {n, l}, _ -> Enum.reduce(l, fn -> def unquote(n)(), do: 1 end, fn _, g -> g.(); g end)\n  end)", "Unreadable Stopped"),
+            Triple("reduce-for-fns-called-later-expander-unreadable", "Enum.reduce([1, 2], nil, fn\n    1, nil -> for x <- [:a, :b], do: Enum.reduce(if(x == :a, do: [1], else: []), fn -> def unquote(x)(), do: 1 end, fn _, g -> g.(); g end)\n    2, fs -> Enum.each(fs, fn f -> f.() end)\n  end)", "Unreadable Stopped"),
+            // A match whose value the match around it takes keeps that value.
+            Triple("nested-match-fn-kept-expander-unreadable", "y = (_ = Enum.reduce([:a], fn x -> def unquote(x)(), do: 1 end, fn x, g -> g.(x); g end))\n  y.(:b)", "Unreadable Stopped"),
+            Triple("nested-match-if-fn-kept-expander-unreadable", "y = (_ = if true, do: Enum.reduce([:a], fn x -> def unquote(x)(), do: 1 end, fn x, g -> g.(x); g end))\n  y.(:b)", "Unreadable Stopped"),
+            // An `fn` a statement's run keeps and calls in a later iteration of the same run defines where it is called.
+            Triple("reduce-fn-called-later-loaded", "Enum.reduce([:a, :b], nil, fn\n    x, nil -> Enum.reduce([x], fn y -> def unquote(y)(), do: 1 end, fn y, g -> g.(y); g end)\n    x, g -> g.(x); g\n  end)", "Present [a/0, b/0] Compiled"),
+            // A value the evaluator couldn't produce before the statement keeps no `fn` of it.
+            Triple("unknown-kept-loaded", "x = receive do after 0 -> :x end\n  r = Enum.map([:a], fn n -> def unquote(n)(), do: 1; {n, x} end)", "Present [a/0] Compiled"),
+            // A match whose value the match around it discards keeps nothing.
+            Triple("discarded-nested-match-loaded", "_ = (_ = Enum.reduce([:a], fn x -> def unquote(x)(), do: 1 end, fn x, g -> g.(x); g end))", "Present [a/0] Compiled"),
+            // A closure of an earlier run of the statement, still running when a later run of it starts, is called later.
+            Triple("running-closure-of-earlier-run-expander-unreadable", "Enum.each([fn r, n, l ->\n    Enum.reduce(l, fn\n      true -> r.(r, :b, [])\n      false -> def unquote(n)(), do: 1\n    end, fn _, g -> g.(false); g end)\n  end], fn r -> Module.put_attribute(__MODULE__, :k, r.(r, :a, [1]).(true)) end)\n  Module.get_attribute(__MODULE__, :k).(false)", "Unreadable Stopped"),
+            // A macro's output a match discards keeps nothing either, in either tier: the output's value is the call's.
+            Triple("rewritten-discarded-match-loaded", "require M\n  _ = M.m(Enum.reduce([:a], fn x -> def unquote(x)(), do: 1 end, fn x, g -> g.(x); g end))", "Present [a/0] Compiled"),
+            Triple("each-rewritten-discarded-match-loaded", "require M\n  Enum.each([1], fn _ -> _ = M.m(Enum.reduce([:a], fn x -> def unquote(x)(), do: 1 end, fn x, g -> g.(x); g end)) end)", "Present [a/0] Compiled"),
+            // A match a followed body discards keeps nothing either.
+            Triple("each-discarded-nested-match-loaded", "Enum.each([1], fn _ -> _ = (_ = Enum.reduce([:a], fn x -> def unquote(x)(), do: 1 end, fn x, g -> g.(x); g end)) end)", "Present [a/0] Compiled"),
+            // A raise in a followed unit is rescued by the code that ran it.
+            Triple("try-rescue-each-loaded", "try do\n    Enum.each([1], fn _ -> @a hd([]) end)\n  rescue\n    _ -> :ok\n  end\n  def f, do: 1", "Present [f/0] Compiled"),
+            // A decline in the statement's run leaves every later raise uncertain.
+            Triple("case-declined-then-raise-stopped", "case (receive do after 0 -> raise \"boom\" end) do\n    :a -> @a 1\n    _ -> :ok\n  end\n  x = hd([])", "Absent Stopped"),
+            Triple("for-filter-declined-raise-stopped", "for n <- [1, 2], hd(if n == 1, do: [true], else: []) do\n    _ = (receive do after 0 -> raise \"boom\" end)\n  end", "Absent Stopped"),
+            Triple("for-filter-later-raise-stopped", "for x <- [:a, :b], x == :b or (receive do after 0 -> raise \"boom\" end), do: hd([])", "Absent Stopped"),
+            // A `for` whose `do:` is a list literal runs that list.
+            Triple("for-list-body-loaded", "for n <- [:a, :b], do: [def(unquote(n)(), do: 1)]", "Present [a/0, b/0] Compiled"),
+        ).map { (label, body, expected) -> Triple(label, "defmodule A do\n  $body\nend\n", expected) }
+
+        assertEquals(
+            rows.joinToString("\n") { (label, _, expected) -> "$label: $expected" },
+            rows.joinToString("\n") { (label, code, _) ->
+                edit(project, a, code)
+
+                "$label: ${describe(exports(ProjectModules(project), b, "Elixir.A"))} ${ending(expansion(holder, a))}"
+            },
+        )
+
+        edit(project, a, "defmodule A do\n  x = true\n  if x do\n    defmodule Inner do\n      def f, do: 1\n    end\n  end\nend\n")
+        assertEquals("if-nested-loaded", "Present [f/0]", describe(exports(ProjectModules(project), b, "Elixir.A.Inner")))
+    }
+
+    /**
+     * A redefinition that fails in a later iteration of a module-body loop leaves the earlier iteration's module where
+     * the failed compile doesn't purge it, and none where it does.
+     */
+    fun testAFailedRedefinitionInALaterIterationFallsThrough() {
+        addLegElixir()
+        add("outer.ex", "defmodule Outer do\n  for n <- [1, 2] do\n    defmodule Inner do\n      def f, do: unquote(n)\n      if n == 2 do\n        defp f, do: 0\n      end\n    end\n  end\nend\n")
+        val b = add("b.ex", "defmodule B do\n  def f, do: Outer.Inner.f()\nend\n")
+
+        assertEquals(
+            if (FAILED_COMPILE_PURGES_MODULE.isSufficient(legLevel())) "Absent" else "Present [f/0]",
+            describe(exports(ProjectModules(project), b, "Elixir.Outer.Inner")),
+        )
+    }
+
+    /** A redefinition that fails in a selected branch leaves the library's copy, as Elixir does on every leg. */
+    fun testAFailedRedefinitionInASelectedBranchLeavesTheLibraryCopy() {
+        addLegElixir()
+        add("version.ex", "defmodule Version do\n  x = true\n  if x do\n    def f, do: 1\n    defp f, do: 2\n  end\nend\n")
+        val b = add("b.ex", "defmodule B do\n  def f, do: Version.parse!(\"1.2.3\")\nend\n")
+
+        val functions = (exports(ProjectModules(project), b, "Elixir.Version") as ModuleExports.Present).functions.map { "${it.name}/${it.arity}" }
+
+        assertTrue(functions.toString(), "parse!/1" in functions)
+        assertFalse(functions.toString(), "f/0" in functions)
+    }
+
+    private fun describe(exports: ModuleExports): String =
+        exports::class.simpleName + ((exports as? ModuleExports.Present)?.functions?.map { "${it.name}/${it.arity}" }?.sorted()?.let { " $it" } ?: "")
+
+    private fun ending(expansion: FileExpansion): String = expansion.modules.single().ended::class.simpleName!!
 
     /**
      * A new holder per order asks [a] then [b], and [b] then [a], and each answer equals a fresh run's, as does each module's

@@ -135,17 +135,21 @@ class DefstructMacroTest : ExpanderTestCase() {
             "module Elixir.A stopped `defstruct([:a])` | def f/0 line 2 clauses 1",
         )
 
-    fun testADefstructInABranchStopsTheModule() =
-        assertEvery(
-            "defmodule A do\n  if Foo.ok() do\n    defstruct [:a]\n  else\n    defstruct [:b]\n  end\nend",
-            "module Elixir.A stopped `defstruct [:b]` | def __struct__/0 line 5 clauses 2 | def __struct__/1 line 5 clauses 2",
-        )
+    /** The module stops where the walk lost Elixir's path: at the `if` whose subject the evaluator can't produce. */
+    fun testADefstructInABranchStopsTheModule() {
+        val branch = "if Foo.ok() do\n    defstruct [:a]\n  else\n    defstruct [:b]\n  end"
 
-    fun testADefstructThatMayNotRunStopsTheModule() =
         assertEvery(
-            "defmodule A do\n  if Foo.ok() do\n    defstruct [:a]\n  end\nend",
-            "module Elixir.A stopped `defstruct [:a]`$TABLE_AT_3",
+            "defmodule A do\n  $branch\nend",
+            "module Elixir.A stopped `$branch` | def __struct__/0 line 5 clauses 2 | def __struct__/1 line 5 clauses 2",
         )
+    }
+
+    fun testADefstructThatMayNotRunStopsTheModule() {
+        val branch = "if Foo.ok() do\n    defstruct [:a]\n  end"
+
+        assertEvery("defmodule A do\n  $branch\nend", "module Elixir.A stopped `$branch`$TABLE_AT_3")
+    }
 
     fun testDefaultsThatNameModulesAreAtoms() =
         assertEvery(

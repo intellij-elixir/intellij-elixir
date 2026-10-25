@@ -44,11 +44,11 @@ class ProbeOutcomesTest : ProbeTestCase() {
         assertEquals(listOf("unported alias/2"), rows.values.map { it.status })
     }
 
-    /** An error in a definition that isn't a statement of its module's body stops the module, and the case still has a row. */
-    fun testACaseWhoseModuleStopsAtANodeHasARow() {
-        val rows = outcomes.of(mapOf("stopped.ex" to probes.expand("case 1 do\n  _ -> def f, do: (x -> x)\nend")))
+    /** An error in a definition in a branch the evaluator can't select stops the module at the branch, and the case still has a row. */
+    fun testACaseWhoseModuleStopsAtAnUnproducedSubjectHasARow() {
+        val rows = outcomes.of(mapOf("stopped.ex" to probes.expand("case (receive do after 0 -> 1 end) do\n  _ -> def f, do: (x -> x)\nend")))
 
-        assertEquals(listOf("stopped def/2"), rows.values.map { it.status })
+        assertEquals(listOf("stopped case/2"), rows.values.map { it.status })
     }
 
     fun testACaseThatStopsAtAMacroIsComparedUpToIt() {

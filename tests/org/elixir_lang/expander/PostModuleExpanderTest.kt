@@ -28,8 +28,9 @@ class PostModuleExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              if false do
-                def f(a), do: 1
+              case (receive do after 0 -> false end) do
+                false -> def f(a), do: 1
+                _ -> :ok
               end
               defmacro f(a), do: 1
             end
@@ -37,10 +38,35 @@ class PostModuleExpanderTest : ExpanderTestCase() {
             "module Elixir.A stopped `defmacro f(a), do: 1`",
         )
 
-    fun testADefinitionThatMayNotRunStopsTheModuleAtItsOwnError() =
+    /** A definition in a branch the `if` doesn't select never runs, so the kind after it is the first. */
+    fun testAChangedKindAfterADefinitionInABranchNotSelectedCompiles() =
         assertEvery(
-            "defmodule A do\n  if false do\n    def __info__(a), do: a\n  end\nend",
-            "module Elixir.A stopped `def __info__(a), do: a`",
+            "defmodule A do\n  if false do\n    def f(a), do: 1\n  end\n  defmacro f(a), do: 1\nend",
+            "module Elixir.A compiled",
+        )
+
+    /** A definition in a branch the `if` doesn't select never runs, so it is no definition of the name. */
+    fun testADefinitionInABranchNotSelectedCompiles() =
+        assertEvery("defmodule A do\n  if false do\n    def __info__(a), do: a\n  end\nend", "module Elixir.A compiled")
+
+    /** The module stops where the walk lost Elixir's path: at the `case` whose subject the evaluator can't produce. */
+    fun testADefinitionThatMayNotRunStopsTheModuleAtItsBranch() =
+        assertEvery(
+            "defmodule A do\n  case (receive do after 0 -> false end) do\n    false -> def __info__(a), do: a\n    _ -> :ok\n  end\nend",
+            "module Elixir.A stopped `case (receive do after 0 -> false end) do`",
+        )
+
+    /** A stop in a unit of a statement the walk didn't follow is that statement's, however deep the unit. */
+    fun testADefinitionInANestedStatementOfOneTheWalkDidNotFollowStopsAtTheOuterStatement() =
+        assertEvery(
+            "defmodule A do\n  for n <- (receive do after 0 -> [:f] end) do\n    case n do\n      _ -> def unquote(n)(), do: 1\n    end\n  end\nend",
+            "module Elixir.A stopped `for n <- (receive do after 0 -> [:f] end) do`",
+        )
+
+    fun testADefinitionTwoStatementsDownFromOneTheWalkDidNotFollowStopsAtTheOuterStatement() =
+        assertEvery(
+            "defmodule A do\n  case (receive do after 0 -> :a end) do\n    :a -> for n <- (receive do after 0 -> [:f] end), do: (case n do _ -> def unquote(n)(), do: 1 end)\n    _ -> :ok\n  end\nend",
+            "module Elixir.A stopped `case (receive do after 0 -> :a end) do`",
         )
 
     /** Elixir expands the whole body before it stores a definition, so a body the expander can't finish may raise first. */
@@ -304,7 +330,8 @@ class PostModuleExpanderTest : ExpanderTestCase() {
             "module Elixir.A stopped `@impl %{a: 1}`",
         )
 
-    fun testAnOnLoadAfterOneThatIsNotAStatement() =
+    /** The write in the clause the `case` selects is a statement, so the second write raises, as Elixir's does. */
+    fun testASecondOnLoadAfterOneInASelectedClauseRaises() =
         assertEvery(
             """
             defmodule A do
@@ -316,7 +343,13 @@ class PostModuleExpanderTest : ExpanderTestCase() {
               def b, do: :ok
             end
             """.trimIndent(),
-            "module Elixir.A stopped `@on_load :a`",
+            "module Elixir.A raised invalid_attribute_value `@on_load :b`",
+        )
+
+    fun testAnOnLoadInAClauseTheEvaluatorCannotSelectStopsTheModule() =
+        assertEvery(
+            "defmodule A do\n  case (receive do after 0 -> 1 end) do\n    _ -> @on_load :a\n  end\n  @on_load :b\n  def a, do: :ok\n  def b, do: :ok\nend",
+            "module Elixir.A stopped `case (receive do after 0 -> 1 end) do`",
         )
 
     /** A value the expander has no term for stops the checks that read it. */

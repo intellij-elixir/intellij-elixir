@@ -119,12 +119,14 @@ class ImplMacroTest : ExpanderTestCase() {
     }
 
     /**
-     * Where the file may not run the call, a check that fails stops the file and the implementation, and the modules
-     * after it compile. From v1.19 the implementation's `@behaviour` requires the protocol, before `__impl__/1`.
+     * Where the file may not run the call, a check that fails stops the implementation, and the file where the walk
+     * lost Elixir's path, while the modules after it compile. From v1.19 the implementation's `@behaviour` requires the
+     * protocol, before `__impl__/1`.
      */
     fun testATopLevelImplementationTheFileMayNotRunStops() {
         val implementation = "defimpl NoSuch, for: Integer do\n  end"
-        val code = "defmodule B do\nend\ncase 1 do\n  2 -> $implementation\n  _ -> :ok\nend\ndefmodule C do\nend"
+        val branch = "case (receive do after 0 -> 1 end) do\n  2 -> $implementation\n  _ -> :ok\nend"
+        val code = "defmodule B do\nend\n$branch\ndefmodule C do\nend"
 
         assertLevels(code, LEVELS) { version ->
             val definitions = when {
@@ -134,9 +136,16 @@ class ImplMacroTest : ExpanderTestCase() {
             }
 
             "module Elixir.B compiled\nmodule Elixir.NoSuch.Integer stopped `$implementation`$definitions\n" +
-                "module Elixir.C compiled\ntop unported `$implementation`"
+                "module Elixir.C compiled\ntop unported `$branch`"
         }
     }
+
+    /** A call in a branch the file doesn't select never runs, so it defines nothing and checks nothing. */
+    fun testATopLevelImplementationInABranchTheFileDoesNotSelectIsNotDefined() =
+        assertEvery(
+            "defmodule B do\nend\ncase 1 do\n  2 -> defimpl NoSuch, for: Integer do\n  end\n  _ -> :ok\nend\ndefmodule C do\nend",
+            "module Elixir.B compiled\nmodule Elixir.C compiled",
+        )
 
     /**
      * The implementation's body is the user's code: where the evaluator can't run it, Elixir may have raised, so a later
