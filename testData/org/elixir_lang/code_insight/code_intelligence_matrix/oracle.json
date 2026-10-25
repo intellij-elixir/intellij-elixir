@@ -2178,6 +2178,12 @@
       "backing": "src",
       "form": "defguardp",
       "reason": "a `use` injects what its quote defines; these are the definers a quote is written with",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
+      "reason": "a `use` injects what its quote defines; these are the definers a quote is written with",
       "world": "x_use_quote_do_block"
     },
     {
@@ -2730,6 +2736,12 @@
       "backing": "src",
       "form": "defdelegate",
       "reason": "a `use` injects what its quote defines; these are the definers a quote is written with",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
+      "reason": "a `use` injects what its quote defines; these are the definers a quote is written with",
       "world": "x_use_quote_do_block"
     },
     {
@@ -3282,6 +3294,12 @@
       "backing": "src",
       "form": "defdelegate_compiled",
       "reason": "a `use` injects what its quote defines; these are the definers a quote is written with",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
+      "reason": "a `use` injects what its quote defines; these are the definers a quote is written with",
       "world": "x_use_quote_do_block"
     },
     {
@@ -3846,6 +3864,12 @@
       "backing": "src",
       "form": "defdelegate_unresolvable",
       "reason": "a `use` injects what its quote defines; these are the definers a quote is written with",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
+      "reason": "a `use` injects what its quote defines; these are the definers a quote is written with",
       "world": "x_use_quote_do_block"
     },
     {
@@ -4542,6 +4566,12 @@
       "backing": "src",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_use_quote_do_block"
     },
     {
@@ -5280,6 +5310,12 @@
       "backing": "src",
       "form": "defdelegate_imports",
       "reason": "a target that only imports the function asks nothing w1 does not",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a target that only imports the function asks nothing w1 does not",
       "world": "x_use_quote_do_block"
     },
     {
@@ -6018,6 +6054,12 @@
       "backing": "src",
       "form": "defdelegate_list",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_use_quote_do_block"
     },
     {
@@ -6756,6 +6798,12 @@
       "backing": "src",
       "form": "defdelegate_list_trailing",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_use_quote_do_block"
     },
     {
@@ -7494,6 +7542,12 @@
       "backing": "src",
       "form": "defdelegate_list_lines",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_use_quote_do_block"
     },
     {
@@ -8232,6 +8286,12 @@
       "backing": "src",
       "form": "defdelegate_as_list",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_use_quote_do_block"
     },
     {
@@ -8970,6 +9030,12 @@
       "backing": "src",
       "form": "defdelegate_as_attribute",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_use_quote_do_block"
     },
     {
@@ -9703,6 +9769,12 @@
       "form": "defdelegate_doc",
       "reason": "a delegate's own `@doc` asks nothing w1 does not",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "src",
@@ -10326,6 +10398,12 @@
       "backing": "src",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_quote_do_block"
     },
     {
@@ -11017,6 +11095,12 @@
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "src",
@@ -11719,6 +11803,12 @@
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "src",
@@ -12342,6 +12432,12 @@
       "backing": "src",
       "form": "eex_function_from_computed_name",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_computed_name",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_quote_do_block"
     },
     {
@@ -13075,6 +13171,12 @@
       "form": "defexception",
       "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "form": "defexception",
+      "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "src",
@@ -13818,6 +13920,12 @@
       "backing": "src",
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_use_quote_do_block"
     },
     {
@@ -14479,6 +14587,12 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "src",
@@ -15156,6 +15270,12 @@
       "backing": "src",
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "src",
+      "form": "variable",
+      "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_use_quote_do_block"
     },
     {
@@ -15865,6 +15985,12 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "src",
@@ -16501,6 +16627,12 @@
       "form": "def",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_dbgi",
@@ -17154,6 +17286,12 @@
       "backing": "ex_dbgi",
       "form": "defp",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_quote_do_block"
     },
     {
@@ -17785,6 +17923,12 @@
       "form": "defmacro",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_dbgi",
@@ -18535,6 +18679,12 @@
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_dbgi",
@@ -19206,6 +19356,12 @@
       "backing": "ex_dbgi",
       "form": "defguard",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_quote_do_block"
     },
     {
@@ -19951,6 +20107,12 @@
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_dbgi",
@@ -20604,6 +20766,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_quote_do_block"
     },
     {
@@ -21349,6 +21517,12 @@
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_dbgi",
@@ -22014,6 +22188,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_unresolvable",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_quote_do_block"
     },
     {
@@ -22734,6 +22914,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_use_quote_do_block"
     },
     {
@@ -23484,6 +23670,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_use_quote_do_block"
     },
     {
@@ -24234,6 +24426,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_use_quote_do_block"
     },
     {
@@ -24984,6 +25182,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_use_quote_do_block"
     },
     {
@@ -25734,6 +25938,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_use_quote_do_block"
     },
     {
@@ -26484,6 +26694,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_use_quote_do_block"
     },
     {
@@ -27234,6 +27450,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_use_quote_do_block"
     },
     {
@@ -27984,6 +28206,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_use_quote_do_block"
     },
     {
@@ -28692,6 +28920,12 @@
       "backing": "ex_dbgi",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_quote_do_block"
     },
     {
@@ -29400,6 +29634,12 @@
       "backing": "ex_dbgi",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_quote_do_block"
     },
     {
@@ -30108,6 +30348,12 @@
       "backing": "ex_dbgi",
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_quote_do_block"
     },
     {
@@ -30811,6 +31057,12 @@
       "form": "eex_function_from_computed_name",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_computed_name",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_dbgi",
@@ -31555,6 +31807,12 @@
       "form": "defexception",
       "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defexception",
+      "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_dbgi",
@@ -32304,6 +32562,12 @@
       "backing": "ex_dbgi",
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_use_quote_do_block"
     },
     {
@@ -33054,6 +33318,12 @@
       "backing": "ex_dbgi",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_use_quote_do_block"
     },
     {
@@ -33804,6 +34074,12 @@
       "backing": "ex_dbgi",
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "variable",
+      "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_use_quote_do_block"
     },
     {
@@ -34549,6 +34825,12 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_dbgi",
@@ -35209,6 +35491,12 @@
       "form": "def",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_docs",
@@ -35886,6 +36174,12 @@
       "backing": "ex_docs",
       "form": "defp",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_quote_do_block"
     },
     {
@@ -36541,6 +36835,12 @@
       "form": "defmacro",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_docs",
@@ -37291,6 +37591,12 @@
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_docs",
@@ -37980,6 +38286,12 @@
       "backing": "ex_docs",
       "form": "defguard",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_quote_do_block"
     },
     {
@@ -38725,6 +39037,12 @@
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_docs",
@@ -39378,6 +39696,12 @@
       "backing": "ex_docs",
       "form": "defdelegate",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_quote_do_block"
     },
     {
@@ -40123,6 +40447,12 @@
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_docs",
@@ -40788,6 +41118,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_unresolvable",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_quote_do_block"
     },
     {
@@ -41508,6 +41844,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_use_quote_do_block"
     },
     {
@@ -42258,6 +42600,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_use_quote_do_block"
     },
     {
@@ -43008,6 +43356,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_use_quote_do_block"
     },
     {
@@ -43758,6 +44112,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_use_quote_do_block"
     },
     {
@@ -44508,6 +44868,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_use_quote_do_block"
     },
     {
@@ -45258,6 +45624,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_use_quote_do_block"
     },
     {
@@ -46008,6 +46380,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_use_quote_do_block"
     },
     {
@@ -46758,6 +47136,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_use_quote_do_block"
     },
     {
@@ -47466,6 +47850,12 @@
       "backing": "ex_docs",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_quote_do_block"
     },
     {
@@ -48174,6 +48564,12 @@
       "backing": "ex_docs",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_quote_do_block"
     },
     {
@@ -48882,6 +49278,12 @@
       "backing": "ex_docs",
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_quote_do_block"
     },
     {
@@ -49585,6 +49987,12 @@
       "form": "eex_function_from_computed_name",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_computed_name",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_docs",
@@ -50329,6 +50737,12 @@
       "form": "defexception",
       "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defexception",
+      "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_docs",
@@ -51078,6 +51492,12 @@
       "backing": "ex_docs",
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_use_quote_do_block"
     },
     {
@@ -51828,6 +52248,12 @@
       "backing": "ex_docs",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_use_quote_do_block"
     },
     {
@@ -52578,6 +53004,12 @@
       "backing": "ex_docs",
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "variable",
+      "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_use_quote_do_block"
     },
     {
@@ -53323,6 +53755,12 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_docs",
@@ -53983,6 +54421,12 @@
       "form": "def",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_gen",
@@ -54660,6 +55104,12 @@
       "backing": "ex_gen",
       "form": "defp",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_quote_do_block"
     },
     {
@@ -55315,6 +55765,12 @@
       "form": "defmacro",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_gen",
@@ -56065,6 +56521,12 @@
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_gen",
@@ -56754,6 +57216,12 @@
       "backing": "ex_gen",
       "form": "defguard",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_quote_do_block"
     },
     {
@@ -57499,6 +57967,12 @@
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_gen",
@@ -58152,6 +58626,12 @@
       "backing": "ex_gen",
       "form": "defdelegate",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_quote_do_block"
     },
     {
@@ -58897,6 +59377,12 @@
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_gen",
@@ -59562,6 +60048,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_unresolvable",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_quote_do_block"
     },
     {
@@ -60282,6 +60774,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_use_quote_do_block"
     },
     {
@@ -61032,6 +61530,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_use_quote_do_block"
     },
     {
@@ -61782,6 +62286,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_use_quote_do_block"
     },
     {
@@ -62532,6 +63042,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_use_quote_do_block"
     },
     {
@@ -63282,6 +63798,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_use_quote_do_block"
     },
     {
@@ -64032,6 +64554,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_use_quote_do_block"
     },
     {
@@ -64782,6 +65310,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_use_quote_do_block"
     },
     {
@@ -65532,6 +66066,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_use_quote_do_block"
     },
     {
@@ -66240,6 +66780,12 @@
       "backing": "ex_gen",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_quote_do_block"
     },
     {
@@ -66948,6 +67494,12 @@
       "backing": "ex_gen",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_quote_do_block"
     },
     {
@@ -67656,6 +68208,12 @@
       "backing": "ex_gen",
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_quote_do_block"
     },
     {
@@ -68359,6 +68917,12 @@
       "form": "eex_function_from_computed_name",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_gen",
@@ -69103,6 +69667,12 @@
       "form": "defexception",
       "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defexception",
+      "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_gen",
@@ -69852,6 +70422,12 @@
       "backing": "ex_gen",
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_use_quote_do_block"
     },
     {
@@ -70602,6 +71178,12 @@
       "backing": "ex_gen",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_use_quote_do_block"
     },
     {
@@ -71352,6 +71934,12 @@
       "backing": "ex_gen",
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "variable",
+      "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_use_quote_do_block"
     },
     {
@@ -72097,6 +72685,12 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "ex_gen",
@@ -72780,6 +73374,12 @@
       "backing": "erl_abst",
       "form": "def",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_quote_do_block"
     },
     {
@@ -73470,6 +74070,12 @@
       "backing": "erl_abst",
       "form": "defp",
       "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
       "world": "x_use_quote_do_block"
     },
     {
@@ -74220,6 +74826,12 @@
       "backing": "erl_abst",
       "form": "defmacro",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -74970,6 +75582,12 @@
       "backing": "erl_abst",
       "form": "defmacrop",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -75720,6 +76338,12 @@
       "backing": "erl_abst",
       "form": "defguard",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -76470,6 +77094,12 @@
       "backing": "erl_abst",
       "form": "defguardp",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -77220,6 +77850,12 @@
       "backing": "erl_abst",
       "form": "defdelegate",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -77970,6 +78606,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_compiled",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -78720,6 +79362,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_unresolvable",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -79470,6 +80118,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -80220,6 +80874,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_imports",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -80970,6 +81630,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -81720,6 +82386,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list_trailing",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -82470,6 +83142,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list_lines",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -83220,6 +83898,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as_list",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -83970,6 +84654,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as_attribute",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -84720,6 +85410,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_doc",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -85470,6 +86166,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -86220,6 +86922,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from_kind",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -86970,6 +87678,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from_args",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -87720,6 +88434,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from_computed_name",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_computed_name",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -88470,6 +89190,12 @@
       "backing": "erl_abst",
       "form": "defexception",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defexception",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -89220,6 +89946,12 @@
       "backing": "erl_abst",
       "form": "generator_embed",
       "reason": "Erlang has only functions",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "Erlang has only functions",
       "world": "x_use_quote_do_block"
     },
     {
@@ -89970,6 +90702,12 @@
       "backing": "erl_abst",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_use_quote_do_block"
     },
     {
@@ -90715,6 +91453,12 @@
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "variable",
+      "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "erl_abst",
@@ -91470,6 +92214,12 @@
       "backing": "erl_abst",
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_use_quote_do_block"
     },
     {
@@ -92214,6 +92964,12 @@
       "backing": "erl_gen",
       "form": "def",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -92964,6 +93720,12 @@
       "backing": "erl_gen",
       "form": "defp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -93714,6 +94476,12 @@
       "backing": "erl_gen",
       "form": "defmacro",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -94464,6 +95232,12 @@
       "backing": "erl_gen",
       "form": "defmacrop",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -95214,6 +95988,12 @@
       "backing": "erl_gen",
       "form": "defguard",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -95964,6 +96744,12 @@
       "backing": "erl_gen",
       "form": "defguardp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -96714,6 +97500,12 @@
       "backing": "erl_gen",
       "form": "defdelegate",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -97464,6 +98256,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_compiled",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -98214,6 +99012,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_unresolvable",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -98964,6 +99768,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -99714,6 +100524,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_imports",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -100464,6 +101280,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -101214,6 +102036,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list_trailing",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -101964,6 +102792,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list_lines",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -102714,6 +103548,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -103464,6 +104304,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as_attribute",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -104214,6 +105060,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_doc",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -104964,6 +105816,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -105714,6 +106572,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from_kind",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -106464,6 +107328,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from_args",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -107214,6 +108084,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from_computed_name",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -107964,6 +108840,12 @@
       "backing": "erl_gen",
       "form": "defexception",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defexception",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -108714,6 +109596,12 @@
       "backing": "erl_gen",
       "form": "generator_embed",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_quote_do_block"
     },
     {
@@ -109464,6 +110352,12 @@
       "backing": "erl_gen",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_use_quote_do_block"
     },
     {
@@ -110214,6 +111108,12 @@
       "backing": "erl_gen",
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "variable",
+      "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_use_quote_do_block"
     },
     {
@@ -110959,6 +111859,12 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "erl_gen",
@@ -148154,6 +149060,742 @@
     {
       "backing": "src",
       "brokenCallers": [],
+      "caller": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+      "form": "def",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "file": "lib/src/src.def.x_use_quote_bind_quoted_binding.inner.ex",
+              "line": 5,
+              "name": "src_def_x_use_quote_bind_quoted_binding_chained"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 12,
+              "definer": "defp",
+              "file": "lib/src/src.def.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 7,
+              "name": "src_def_x_use_quote_bind_quoted_binding_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "file": "lib/src/src.def.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 8,
+              "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "file": "lib/src/src.def.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 9,
+              "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_def_x_use_quote_bind_quoted_binding_chained"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_def_x_use_quote_bind_quoted_binding_hidden"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_quote_bind_quoted_binding_chained",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_def_x_use_quote_bind_quoted_binding_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Def.XUseQuoteBindQuotedBinding",
+          "source": "lib/src/src.def.x_use_quote_bind_quoted_binding.ex",
+          "spec": "lib/src/src.def.x_use_quote_bind_quoted_binding.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "file": "lib/src/src.def.x_use_quote_bind_quoted_binding.inner.ex",
+              "line": 5,
+              "name": "src_def_x_use_quote_bind_quoted_binding_chained"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 12,
+              "definer": "defp",
+              "file": "lib/src/src.def.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 7,
+              "name": "src_def_x_use_quote_bind_quoted_binding_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "file": "lib/src/src.def.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 8,
+              "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "file": "lib/src/src.def.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 9,
+              "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_def_x_use_quote_bind_quoted_binding_chained"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_def_x_use_quote_bind_quoted_binding_hidden"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_quote_bind_quoted_binding_chained",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_def_x_use_quote_bind_quoted_binding_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Def.XUseQuoteBindQuotedBinding.Other",
+          "source": "lib/src/src.def.x_use_quote_bind_quoted_binding.other.ex",
+          "spec": "lib/src/src.def.x_use_quote_bind_quoted_binding.other.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_def_x_use_quote_bind_quoted_binding_helper"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_def_x_use_quote_bind_quoted_binding_helper"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_quote_bind_quoted_binding_helper",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Def.XUseQuoteBindQuotedBinding.Helpers",
+          "source": "lib/src/src.def.x_use_quote_bind_quoted_binding.helpers.ex",
+          "spec": "lib/src/src.def.x_use_quote_bind_quoted_binding.helpers.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "line": 5,
+              "name": "src_def_x_use_quote_bind_quoted_binding_chained"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_quote_bind_quoted_binding_chained",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Def.XUseQuoteBindQuotedBinding.Inner",
+          "source": "lib/src/src.def.x_use_quote_bind_quoted_binding.inner.ex",
+          "spec": "lib/src/src.def.x_use_quote_bind_quoted_binding.inner.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 12,
+              "definer": "defp",
+              "line": 7,
+              "name": "src_def_x_use_quote_bind_quoted_binding_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "line": 8,
+              "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "line": 9,
+              "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_def_x_use_quote_bind_quoted_binding_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Def.XUseQuoteBindQuotedBinding.Injector",
+          "source": "lib/src/src.def.x_use_quote_bind_quoted_binding.injector.ex",
+          "spec": "lib/src/src.def.x_use_quote_bind_quoted_binding.injector.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "line": 5,
+              "name": "src_def_x_use_quote_bind_quoted_binding_not_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_quote_bind_quoted_binding_not_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Def.XUseQuoteBindQuotedBinding.DefUsing",
+          "source": "lib/src/src.def.x_use_quote_bind_quoted_binding.def_using.ex",
+          "spec": "lib/src/src.def.x_use_quote_bind_quoted_binding.def_using.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "line": 5,
+              "name": "src_def_x_use_quote_bind_quoted_binding_privately_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_quote_bind_quoted_binding_privately_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Def.XUseQuoteBindQuotedBinding.PrivateUsing",
+          "source": "lib/src/src.def.x_use_quote_bind_quoted_binding.private_using.ex",
+          "spec": "lib/src/src.def.x_use_quote_bind_quoted_binding.private_using.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XUseQuoteBindQuotedBinding",
+            "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 66,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "qualified",
+          "line": 7,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XUseQuoteBindQuotedBinding",
+            "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 56,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "aliased",
+          "line": 8,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XUseQuoteBindQuotedBinding",
+            "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 40,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "aliased_as",
+          "line": 9,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.Def.XUseQuoteBindQuotedBinding",
+            "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 33,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "unqualified",
+          "line": 10,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.Def.XUseQuoteBindQuotedBinding",
+            "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 31,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "pipe",
+          "line": 11,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XUseQuoteBindQuotedBinding",
+            "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 66,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "capture",
+          "line": 12,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XUseQuoteBindQuotedBinding",
+            "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 74,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "qualified_quoted",
+          "line": 13,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XUseQuoteBindQuotedBinding",
+            "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 74,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "capture_quoted",
+          "line": 14,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "apply",
+            "module": "Src.Def.XUseQuoteBindQuotedBinding",
+            "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 70,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "apply",
+          "line": 15,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "apply_quoted",
+            "module": "Src.Def.XUseQuoteBindQuotedBinding",
+            "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 78,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "apply_quoted",
+          "line": 16,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "apply_module_quoted",
+            "module": "Src.Def.XUseQuoteBindQuotedBinding",
+            "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 94,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "apply_module_quoted",
+          "line": 17,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 88,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "apply_interpolated",
+          "line": 18,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 85,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "apply_nested",
+          "line": 19,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 93,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "apply_nested_quoted",
+          "line": 20,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "mfa_quoted",
+            "module": "Src.Def.XUseQuoteBindQuotedBinding",
+            "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 72,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "mfa_quoted",
+          "line": 21,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "mfa_module_quoted",
+            "module": "Src.Def.XUseQuoteBindQuotedBinding",
+            "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 88,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "mfa_module_quoted",
+          "line": 22,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 82,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "mfa_interpolated",
+          "line": 23,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "Src.Def.XUseQuoteBindQuotedBinding",
+            "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 65,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "arity_1",
+          "line": 24,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XUseQuoteBindQuotedBinding.Other",
+            "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 78,
+          "file": "lib/callers/src/def/x_use_quote_bind_quoted_binding.ex",
+          "id": "other_qualified",
+          "line": 25,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XUseQuoteBindQuotedBinding",
+            "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.def.x_use_quote_bind_quoted_binding.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_def_x_use_quote_bind_quoted_binding_snoc"
+        }
+      ],
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
       "caller": "lib/callers/src/def/x_use_quote_do_block.ex",
       "form": "def",
       "importCallers": [],
@@ -168409,6 +170051,397 @@
         }
       ],
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defp/x_use_quote_bind_quoted_binding.ex",
+      "form": "defp",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "file": "lib/src/src.defp.x_use_quote_bind_quoted_binding.inner.ex",
+              "line": 5,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_chained"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 12,
+              "definer": "defp",
+              "file": "lib/src/src.defp.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 7,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 12,
+              "definer": "defp",
+              "file": "lib/src/src.defp.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 8,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 12,
+              "definer": "defp",
+              "file": "lib/src/src.defp.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 9,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_chained"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_hidden"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_chained",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defp.XUseQuoteBindQuotedBinding",
+          "source": "lib/src/src.defp.x_use_quote_bind_quoted_binding.ex",
+          "spec": "lib/src/src.defp.x_use_quote_bind_quoted_binding.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_helper"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_helper"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_helper",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defp.XUseQuoteBindQuotedBinding.Helpers",
+          "source": "lib/src/src.defp.x_use_quote_bind_quoted_binding.helpers.ex",
+          "spec": "lib/src/src.defp.x_use_quote_bind_quoted_binding.helpers.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "line": 5,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_chained"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_chained",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defp.XUseQuoteBindQuotedBinding.Inner",
+          "source": "lib/src/src.defp.x_use_quote_bind_quoted_binding.inner.ex",
+          "spec": "lib/src/src.defp.x_use_quote_bind_quoted_binding.inner.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 12,
+              "definer": "defp",
+              "line": 7,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 12,
+              "definer": "defp",
+              "line": 8,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 12,
+              "definer": "defp",
+              "line": 9,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_snoc"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defp.XUseQuoteBindQuotedBinding.Injector",
+          "source": "lib/src/src.defp.x_use_quote_bind_quoted_binding.injector.ex",
+          "spec": "lib/src/src.defp.x_use_quote_bind_quoted_binding.injector.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "line": 5,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_not_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_not_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defp.XUseQuoteBindQuotedBinding.DefUsing",
+          "source": "lib/src/src.defp.x_use_quote_bind_quoted_binding.def_using.ex",
+          "spec": "lib/src/src.defp.x_use_quote_bind_quoted_binding.def_using.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "line": 5,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_privately_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defp_x_use_quote_bind_quoted_binding_privately_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defp.XUseQuoteBindQuotedBinding.PrivateUsing",
+          "source": "lib/src/src.defp.x_use_quote_bind_quoted_binding.private_using.ex",
+          "spec": "lib/src/src.defp.x_use_quote_bind_quoted_binding.private_using.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XUseQuoteBindQuotedBinding",
+            "name": "src_defp_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defp.x_use_quote_bind_quoted_binding.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defp_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "Src.Defp.XUseQuoteBindQuotedBinding",
+            "name": "src_defp_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.x_use_quote_bind_quoted_binding.ex",
+          "id": "uses_0",
+          "line": 9,
+          "name": "src_defp_x_use_quote_bind_quoted_binding_snoc"
+        }
+      ],
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "src",
@@ -196978,6 +199011,608 @@
     {
       "backing": "src",
       "brokenCallers": [],
+      "caller": "lib/callers/src/defmacro/x_use_quote_bind_quoted_binding.ex",
+      "form": "defmacro",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "file": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.inner.ex",
+              "line": 5,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_chained"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 12,
+              "definer": "defp",
+              "file": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 7,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 16,
+              "definer": "defmacro",
+              "file": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 8,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 16,
+              "definer": "defmacro",
+              "file": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 9,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_chained"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_hidden"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_chained",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XUseQuoteBindQuotedBinding",
+          "source": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.ex",
+          "spec": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "file": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.inner.ex",
+              "line": 5,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_chained"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 12,
+              "definer": "defp",
+              "file": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 7,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 16,
+              "definer": "defmacro",
+              "file": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 8,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 16,
+              "definer": "defmacro",
+              "file": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 9,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_chained"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_hidden"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_chained",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XUseQuoteBindQuotedBinding.Other",
+          "source": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.other.ex",
+          "spec": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.other.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_helper"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_helper"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_helper",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XUseQuoteBindQuotedBinding.Helpers",
+          "source": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.helpers.ex",
+          "spec": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.helpers.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "line": 5,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_chained"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_chained",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XUseQuoteBindQuotedBinding.Inner",
+          "source": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.inner.ex",
+          "spec": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.inner.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 12,
+              "definer": "defp",
+              "line": 7,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 16,
+              "definer": "defmacro",
+              "line": 8,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 16,
+              "definer": "defmacro",
+              "line": 9,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XUseQuoteBindQuotedBinding.Injector",
+          "source": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.injector.ex",
+          "spec": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.injector.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "line": 5,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_not_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_not_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XUseQuoteBindQuotedBinding.DefUsing",
+          "source": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.def_using.ex",
+          "spec": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.def_using.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "line": 5,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_privately_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacro_x_use_quote_bind_quoted_binding_privately_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XUseQuoteBindQuotedBinding.PrivateUsing",
+          "source": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.private_using.ex",
+          "spec": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.private_using.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defmacro.XUseQuoteBindQuotedBinding",
+            "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 71,
+          "file": "lib/callers/src/defmacro/x_use_quote_bind_quoted_binding.ex",
+          "id": "qualified",
+          "line": 9,
+          "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defmacro.XUseQuoteBindQuotedBinding",
+            "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 56,
+          "file": "lib/callers/src/defmacro/x_use_quote_bind_quoted_binding.ex",
+          "id": "aliased",
+          "line": 10,
+          "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defmacro.XUseQuoteBindQuotedBinding",
+            "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 40,
+          "file": "lib/callers/src/defmacro/x_use_quote_bind_quoted_binding.ex",
+          "id": "aliased_as",
+          "line": 11,
+          "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defmacro.XUseQuoteBindQuotedBinding",
+            "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 33,
+          "file": "lib/callers/src/defmacro/x_use_quote_bind_quoted_binding.ex",
+          "id": "unqualified",
+          "line": 12,
+          "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defmacro.XUseQuoteBindQuotedBinding",
+            "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 31,
+          "file": "lib/callers/src/defmacro/x_use_quote_bind_quoted_binding.ex",
+          "id": "pipe",
+          "line": 13,
+          "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defmacro.XUseQuoteBindQuotedBinding",
+            "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 79,
+          "file": "lib/callers/src/defmacro/x_use_quote_bind_quoted_binding.ex",
+          "id": "qualified_quoted",
+          "line": 14,
+          "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_macro",
+            "module": "Src.Defmacro.XUseQuoteBindQuotedBinding",
+            "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 70,
+          "file": "lib/callers/src/defmacro/x_use_quote_bind_quoted_binding.ex",
+          "id": "arity_1",
+          "line": 15,
+          "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defmacro.XUseQuoteBindQuotedBinding.Other",
+            "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 83,
+          "file": "lib/callers/src/defmacro/x_use_quote_bind_quoted_binding.ex",
+          "id": "other_qualified",
+          "line": 16,
+          "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacro.XUseQuoteBindQuotedBinding",
+            "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defmacro.x_use_quote_bind_quoted_binding.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defmacro_x_use_quote_bind_quoted_binding_snoc"
+        }
+      ],
+      "world": "x_use_quote_bind_quoted_binding"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
       "caller": "lib/callers/src/defmacro/x_use_quote_do_block.ex",
       "form": "defmacro",
       "importCallers": [],
@@ -215719,6 +218354,397 @@
         }
       ],
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defmacrop/x_use_quote_bind_quoted_binding.ex",
+      "form": "defmacrop",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "file": "lib/src/src.defmacrop.x_use_quote_bind_quoted_binding.inner.ex",
+              "line": 5,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_chained"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 12,
+              "definer": "defp",
+              "file": "lib/src/src.defmacrop.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 7,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 17,
+              "definer": "defmacrop",
+              "file": "lib/src/src.defmacrop.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 8,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 17,
+              "definer": "defmacrop",
+              "file": "lib/src/src.defmacrop.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 9,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_chained"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_hidden"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_chained",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacrop.XUseQuoteBindQuotedBinding",
+          "source": "lib/src/src.defmacrop.x_use_quote_bind_quoted_binding.ex",
+          "spec": "lib/src/src.defmacrop.x_use_quote_bind_quoted_binding.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_helper"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_helper"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_helper",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacrop.XUseQuoteBindQuotedBinding.Helpers",
+          "source": "lib/src/src.defmacrop.x_use_quote_bind_quoted_binding.helpers.ex",
+          "spec": "lib/src/src.defmacrop.x_use_quote_bind_quoted_binding.helpers.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "line": 5,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_chained"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_chained",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacrop.XUseQuoteBindQuotedBinding.Inner",
+          "source": "lib/src/src.defmacrop.x_use_quote_bind_quoted_binding.inner.ex",
+          "spec": "lib/src/src.defmacrop.x_use_quote_bind_quoted_binding.inner.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 12,
+              "definer": "defp",
+              "line": 7,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 17,
+              "definer": "defmacrop",
+              "line": 8,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 17,
+              "definer": "defmacrop",
+              "line": 9,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_snoc"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacrop.XUseQuoteBindQuotedBinding.Injector",
+          "source": "lib/src/src.defmacrop.x_use_quote_bind_quoted_binding.injector.ex",
+          "spec": "lib/src/src.defmacrop.x_use_quote_bind_quoted_binding.injector.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "line": 5,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_not_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_not_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacrop.XUseQuoteBindQuotedBinding.DefUsing",
+          "source": "lib/src/src.defmacrop.x_use_quote_bind_quoted_binding.def_using.ex",
+          "spec": "lib/src/src.defmacrop.x_use_quote_bind_quoted_binding.def_using.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "line": 5,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_privately_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacrop_x_use_quote_bind_quoted_binding_privately_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacrop.XUseQuoteBindQuotedBinding.PrivateUsing",
+          "source": "lib/src/src.defmacrop.x_use_quote_bind_quoted_binding.private_using.ex",
+          "spec": "lib/src/src.defmacrop.x_use_quote_bind_quoted_binding.private_using.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XUseQuoteBindQuotedBinding",
+            "name": "src_defmacrop_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defmacrop.x_use_quote_bind_quoted_binding.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defmacrop_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XUseQuoteBindQuotedBinding",
+            "name": "src_defmacrop_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.x_use_quote_bind_quoted_binding.ex",
+          "id": "uses_0",
+          "line": 9,
+          "name": "src_defmacrop_x_use_quote_bind_quoted_binding_snoc"
+        }
+      ],
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "src",
@@ -240748,6 +243774,608 @@
         }
       ],
       "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defguard/x_use_quote_bind_quoted_binding.ex",
+      "form": "defguard",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "file": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.inner.ex",
+              "line": 5,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_chained"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 12,
+              "definer": "defp",
+              "file": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 7,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 16,
+              "definer": "defguard",
+              "file": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 8,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 16,
+              "definer": "defguard",
+              "file": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 9,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_chained"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_hidden"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_chained",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defguard",
+              "guard": "is_list(q)",
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defguard",
+              "guard": "is_list(q) or is_list(x)",
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defguard.XUseQuoteBindQuotedBinding",
+          "source": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.ex",
+          "spec": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "file": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.inner.ex",
+              "line": 5,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_chained"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 12,
+              "definer": "defp",
+              "file": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 7,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 16,
+              "definer": "defguard",
+              "file": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 8,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 16,
+              "definer": "defguard",
+              "file": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.injector.ex",
+              "line": 9,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_chained"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_hidden"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_chained",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defguard",
+              "guard": "is_list(q)",
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defguard",
+              "guard": "is_list(q) or is_list(x)",
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defguard.XUseQuoteBindQuotedBinding.Other",
+          "source": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.other.ex",
+          "spec": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.other.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_helper"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_helper"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_helper",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defguard.XUseQuoteBindQuotedBinding.Helpers",
+          "source": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.helpers.ex",
+          "spec": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.helpers.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "line": 5,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_chained"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_chained",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defguard.XUseQuoteBindQuotedBinding.Inner",
+          "source": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.inner.ex",
+          "spec": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.inner.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 12,
+              "definer": "defp",
+              "line": 7,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 16,
+              "definer": "defguard",
+              "line": 8,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 16,
+              "definer": "defguard",
+              "line": 9,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defguard",
+              "guard": "is_list(q)",
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defguard",
+              "guard": "is_list(q) or is_list(x)",
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defguard.XUseQuoteBindQuotedBinding.Injector",
+          "source": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.injector.ex",
+          "spec": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.injector.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "line": 5,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_not_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_not_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defguard.XUseQuoteBindQuotedBinding.DefUsing",
+          "source": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.def_using.ex",
+          "spec": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.def_using.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 11,
+              "definer": "def",
+              "line": 5,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_privately_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defguard_x_use_quote_bind_quoted_binding_privately_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defguard.XUseQuoteBindQuotedBinding.PrivateUsing",
+          "source": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.private_using.ex",
+          "spec": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.private_using.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defguard.XUseQuoteBindQuotedBinding",
+            "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 71,
+          "file": "lib/callers/src/defguard/x_use_quote_bind_quoted_binding.ex",
+          "id": "qualified",
+          "line": 9,
+          "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defguard.XUseQuoteBindQuotedBinding",
+            "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 56,
+          "file": "lib/callers/src/defguard/x_use_quote_bind_quoted_binding.ex",
+          "id": "aliased",
+          "line": 10,
+          "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defguard.XUseQuoteBindQuotedBinding",
+            "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 40,
+          "file": "lib/callers/src/defguard/x_use_quote_bind_quoted_binding.ex",
+          "id": "aliased_as",
+          "line": 11,
+          "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defguard.XUseQuoteBindQuotedBinding",
+            "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 33,
+          "file": "lib/callers/src/defguard/x_use_quote_bind_quoted_binding.ex",
+          "id": "unqualified",
+          "line": 12,
+          "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defguard.XUseQuoteBindQuotedBinding",
+            "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 31,
+          "file": "lib/callers/src/defguard/x_use_quote_bind_quoted_binding.ex",
+          "id": "pipe",
+          "line": 13,
+          "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defguard.XUseQuoteBindQuotedBinding",
+            "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 79,
+          "file": "lib/callers/src/defguard/x_use_quote_bind_quoted_binding.ex",
+          "id": "qualified_quoted",
+          "line": 14,
+          "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_macro",
+            "module": "Src.Defguard.XUseQuoteBindQuotedBinding",
+            "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 70,
+          "file": "lib/callers/src/defguard/x_use_quote_bind_quoted_binding.ex",
+          "id": "arity_1",
+          "line": 15,
+          "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defguard.XUseQuoteBindQuotedBinding.Other",
+            "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 83,
+          "file": "lib/callers/src/defguard/x_use_quote_bind_quoted_binding.ex",
+          "id": "other_qualified",
+          "line": 16,
+          "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguard.XUseQuoteBindQuotedBinding",
+            "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defguard.x_use_quote_bind_quoted_binding.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defguard_x_use_quote_bind_quoted_binding_snoc"
+        }
+      ],
+      "world": "x_use_quote_bind_quoted_binding"
     },
     {
       "backing": "src",
