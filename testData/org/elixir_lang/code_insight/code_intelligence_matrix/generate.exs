@@ -349,8 +349,8 @@ defmodule Matrix do
   # `Queue` declares `snoc/2`; its `List` impl has a same-named `defp snoc/3` and its `Tuple` impl an undeclared `def
   # snoc/1`, neither of which the protocol dispatches to. `Stack` has the callback `push/2`; `ListStack` implements it
   # with a head whose default also covers `push/1`.
-  @impl_world_ids ["impl", "impl_use", "impl_nested", "impl_name_call", "impl_overridable"]
-  @impl_names [:snoc, :push, :make_name, :overridden]
+  @impl_world_ids ["impl", "impl_use", "impl_nested", "impl_name_call", "impl_overridable", "impl_visibility"]
+  @impl_names [:snoc, :push, :make_name, :overridden, :shown]
 
   # The impl world's callback reached the other way a module takes one: a `use`d module's quote holds the `@behaviour`
   # and the implementing `def`, which belong to the module that `use`s it. A call is of the callback's family, as is the
@@ -418,6 +418,31 @@ defmodule Matrix do
     "    [",
     "      Src.Impl.ImplOverridable.Subject.overridden(y), # @one_call",
     "      Src.Impl.ImplOverridable.Subject.overridden(y, 2) # @two_call",
+    "    ]",
+    "  end",
+    "end"
+  ]
+  # One name at three visibilities: `shown/1` is public, `shown/2` private and `shown/3` public with `@doc false`. A use
+  # of the name from outside the module is documented with the public arities and the arity it calls; inside the module
+  # every arity is.
+  @impl_visibility_lines [
+    "defmodule Src.Impl.ImplVisibility.Subject do",
+    "  @doc \"The public arity.\"",
+    "  def shown(a), do: {:public, a} # @public",
+    "",
+    "  defp shown(a, b), do: {:private, a, b} # @private",
+    "",
+    "  @doc false",
+    "  def shown(a, b, c), do: {:hidden, a, b, c} # @hidden",
+    "",
+    "  def inside(a), do: shown(a, a) # @inside",
+    "end",
+    "",
+    "defmodule Src.Impl.ImplVisibility.Caller do",
+    "  def run(y) do",
+    "    [",
+    "      Src.Impl.ImplVisibility.Subject.shown(y), # @remote_public",
+    "      Src.Impl.ImplVisibility.Subject.shown(y, y, y) # @remote_hidden",
     "    ]",
     "  end",
     "end"
@@ -1552,6 +1577,7 @@ defmodule Matrix do
   defp impl_lines("impl_nested"), do: @impl_nested_lines
   defp impl_lines("impl_name_call"), do: @impl_name_call_lines
   defp impl_lines("impl_overridable"), do: @impl_overridable_lines
+  defp impl_lines("impl_visibility"), do: @impl_visibility_lines
 
   defp impl_scenario(backing, form, world) do
     [prefix] = module_names(backing, form, world, 1)
@@ -1631,7 +1657,11 @@ defmodule Matrix do
                 "family" => impl_family(site.key),
                 "declarations" => for(other <- bound, other.role != :call, other.key == site.key, do: other.id)
               },
-              if(world == "impl_overridable" and site.role == :call, do: overridable_answers(site, bound), else: %{})
+              cond do
+                world == "impl_overridable" and site.role == :call -> overridable_answers(site, bound)
+                world == "impl_visibility" and site.role == :call -> visibility_answers(site, bound)
+                true -> %{}
+              end
             )
         }
       end
@@ -1660,6 +1690,18 @@ defmodule Matrix do
       ],
       "sites" => sites
     }
+  end
+
+  # Quick Documentation of a name shows, from inside its module, every arity; from outside, the public arities that are
+  # not `@doc false`, and the arity the call itself names.
+  defp visibility_answers(site, bound) do
+    heads = for other <- bound, other.role != :call, do: other
+    signature = &"#{&1.name}(#{&1.parameters})"
+    outside? = site.id != "inside"
+    shown? = fn head -> not outside? or head.id == "public" or head.arity == site.arity end
+    {shown, hidden} = Enum.split_with(heads, shown?)
+
+    %{"shows" => Enum.map(shown, signature), "hides" => Enum.map(hidden, signature)}
   end
 
   # A redefinition replaces only the arity it is written at, so a call is of every head whose arities cover the call's,
