@@ -475,7 +475,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 val function = function(ran, 1) ?: listsError(atom("function_clause"), frame("lists", "foreach", list(args)))
                 val helper = { list: OtpErlangObject -> frame("lists", "foreach_1", list(listOf(args[0], list))) }
 
-                each(args[1], { listsError(atom("function_clause"), helper(args[1])) }, helper) { function.call(it) }
+                forEach(args[1], { listsError(atom("function_clause"), helper(args[1])) }, helper) { function.call(it) }
 
                 atom("ok")
             }
@@ -729,13 +729,23 @@ internal class Natives(private val evaluation: Evaluation) {
         notList: () -> Nothing,
         helper: (OtpErlangObject) -> OtpErlangTuple,
         transform: (OtpErlangObject) -> OtpErlangObject,
-    ): List<OtpErlangObject> {
+    ): List<OtpErlangObject> = mutableListOf<OtpErlangObject>().also { results -> forEach(term, notList, helper) { results += transform(it) } }
+
+    /**
+     * [action] on each element of the list [term], raising [notList] where it isn't one, and `function_clause` in the
+     * helper whose [helper] frame meets an improper tail. What [action] gives is dropped, as `lists:foreach/2` drops it.
+     */
+    private fun forEach(
+        term: OtpErlangObject,
+        notList: () -> Nothing,
+        helper: (OtpErlangObject) -> OtpErlangTuple,
+        action: (OtpErlangObject) -> Unit,
+    ) {
         val (elements, tail) = cells(term) ?: notList()
-        val results = elements.map(transform)
+
+        elements.forEach(action)
 
         if (tail != null) listsError(atom("function_clause"), helper(tail))
-
-        return results
     }
 
     /** An error a `lists` function raises on its arguments, which before OTP 25 the VM gave otherwise. */
