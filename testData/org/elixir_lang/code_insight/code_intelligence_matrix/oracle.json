@@ -4146,6 +4146,12 @@
       "backing": "src",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_moduledoc"
     },
     {
@@ -4849,6 +4855,12 @@
       "form": "defdelegate_imports",
       "reason": "a target that only imports the function asks nothing w1 does not",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a target that only imports the function asks nothing w1 does not",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "src",
@@ -5580,6 +5592,12 @@
       "backing": "src",
       "form": "defdelegate_list",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_moduledoc"
     },
     {
@@ -6306,6 +6324,12 @@
       "backing": "src",
       "form": "defdelegate_list_trailing",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_moduledoc"
     },
     {
@@ -7032,6 +7056,12 @@
       "backing": "src",
       "form": "defdelegate_list_lines",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_moduledoc"
     },
     {
@@ -7758,6 +7788,12 @@
       "backing": "src",
       "form": "defdelegate_as_list",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_moduledoc"
     },
     {
@@ -8484,6 +8520,12 @@
       "backing": "src",
       "form": "defdelegate_as_attribute",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_moduledoc"
     },
     {
@@ -9205,6 +9247,12 @@
       "form": "defdelegate_doc",
       "reason": "a delegate's own `@doc` asks nothing w1 does not",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "src",
@@ -9870,6 +9918,12 @@
       "backing": "src",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc"
     },
     {
@@ -10507,6 +10561,12 @@
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "src",
@@ -11197,6 +11257,12 @@
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "src",
@@ -11850,6 +11916,12 @@
       "backing": "src",
       "form": "eex_function_from_computed_name",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_computed_name",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc"
     },
     {
@@ -12522,6 +12594,12 @@
       "backing": "src",
       "form": "defexception",
       "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "src",
+      "form": "defexception",
+      "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
       "world": "x_moduledoc"
     },
     {
@@ -13248,6 +13326,12 @@
       "backing": "src",
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_moduledoc"
     },
     {
@@ -13902,6 +13986,12 @@
       "backing": "src",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "src",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_moduledoc"
     },
     {
@@ -14575,6 +14665,12 @@
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "src",
+      "form": "variable",
+      "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "src",
@@ -15265,6 +15361,12 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "src",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "src",
@@ -17910,6 +18012,12 @@
       "backing": "ex_dbgi",
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_moduledoc"
     },
     {
@@ -19308,6 +19416,12 @@
       "backing": "ex_dbgi",
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_moduledoc"
     },
     {
@@ -20688,6 +20802,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
       "world": "x_moduledoc"
     },
     {
@@ -22056,6 +22176,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_moduledoc"
     },
     {
@@ -22788,6 +22914,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_moduledoc"
     },
     {
@@ -23526,6 +23658,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc"
     },
     {
@@ -24264,6 +24402,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc"
     },
     {
@@ -25002,6 +25146,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc"
     },
     {
@@ -25740,6 +25890,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc"
     },
     {
@@ -26478,6 +26634,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc"
     },
     {
@@ -27211,6 +27373,12 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_dbgi",
@@ -27924,6 +28092,12 @@
       "backing": "ex_dbgi",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc"
     },
     {
@@ -28620,6 +28794,12 @@
       "backing": "ex_dbgi",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc"
     },
     {
@@ -29316,6 +29496,12 @@
       "backing": "ex_dbgi",
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc"
     },
     {
@@ -30007,6 +30193,12 @@
       "form": "eex_function_from_computed_name",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_computed_name",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_dbgi",
@@ -30727,6 +30919,12 @@
       "form": "defexception",
       "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defexception",
+      "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_dbgi",
@@ -31464,6 +31662,12 @@
       "backing": "ex_dbgi",
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_moduledoc"
     },
     {
@@ -32202,6 +32406,12 @@
       "backing": "ex_dbgi",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_moduledoc"
     },
     {
@@ -32940,6 +33150,12 @@
       "backing": "ex_dbgi",
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "variable",
+      "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_moduledoc"
     },
     {
@@ -33673,6 +33889,12 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_dbgi",
@@ -36390,6 +36612,12 @@
       "backing": "ex_docs",
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_moduledoc"
     },
     {
@@ -37806,6 +38034,12 @@
       "backing": "ex_docs",
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_moduledoc"
     },
     {
@@ -39186,6 +39420,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
       "world": "x_moduledoc"
     },
     {
@@ -40554,6 +40794,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_moduledoc"
     },
     {
@@ -41286,6 +41532,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_moduledoc"
     },
     {
@@ -42024,6 +42276,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc"
     },
     {
@@ -42762,6 +43020,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc"
     },
     {
@@ -43500,6 +43764,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc"
     },
     {
@@ -44238,6 +44508,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc"
     },
     {
@@ -44976,6 +45252,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc"
     },
     {
@@ -45709,6 +45991,12 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_docs",
@@ -46422,6 +46710,12 @@
       "backing": "ex_docs",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc"
     },
     {
@@ -47118,6 +47412,12 @@
       "backing": "ex_docs",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc"
     },
     {
@@ -47814,6 +48114,12 @@
       "backing": "ex_docs",
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc"
     },
     {
@@ -48505,6 +48811,12 @@
       "form": "eex_function_from_computed_name",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_computed_name",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_docs",
@@ -49225,6 +49537,12 @@
       "form": "defexception",
       "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defexception",
+      "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_docs",
@@ -49962,6 +50280,12 @@
       "backing": "ex_docs",
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_moduledoc"
     },
     {
@@ -50700,6 +51024,12 @@
       "backing": "ex_docs",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_moduledoc"
     },
     {
@@ -51438,6 +51768,12 @@
       "backing": "ex_docs",
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "variable",
+      "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_moduledoc"
     },
     {
@@ -52171,6 +52507,12 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_docs",
@@ -54888,6 +55230,12 @@
       "backing": "ex_gen",
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_moduledoc"
     },
     {
@@ -56304,6 +56652,12 @@
       "backing": "ex_gen",
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_moduledoc"
     },
     {
@@ -57684,6 +58038,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
       "world": "x_moduledoc"
     },
     {
@@ -59052,6 +59412,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_moduledoc"
     },
     {
@@ -59784,6 +60150,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_moduledoc"
     },
     {
@@ -60522,6 +60894,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc"
     },
     {
@@ -61260,6 +61638,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc"
     },
     {
@@ -61998,6 +62382,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc"
     },
     {
@@ -62736,6 +63126,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc"
     },
     {
@@ -63474,6 +63870,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc"
     },
     {
@@ -64207,6 +64609,12 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_gen",
@@ -64920,6 +65328,12 @@
       "backing": "ex_gen",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc"
     },
     {
@@ -65616,6 +66030,12 @@
       "backing": "ex_gen",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc"
     },
     {
@@ -66312,6 +66732,12 @@
       "backing": "ex_gen",
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc"
     },
     {
@@ -67003,6 +67429,12 @@
       "form": "eex_function_from_computed_name",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_gen",
@@ -67723,6 +68155,12 @@
       "form": "defexception",
       "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defexception",
+      "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_gen",
@@ -68460,6 +68898,12 @@
       "backing": "ex_gen",
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_moduledoc"
     },
     {
@@ -69198,6 +69642,12 @@
       "backing": "ex_gen",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_moduledoc"
     },
     {
@@ -69936,6 +70386,12 @@
       "backing": "ex_gen",
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "variable",
+      "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_moduledoc"
     },
     {
@@ -70669,6 +71125,12 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_gen",
@@ -72768,6 +73230,12 @@
       "backing": "erl_abst",
       "form": "defmacro",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -73506,6 +73974,12 @@
       "backing": "erl_abst",
       "form": "defmacrop",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -74244,6 +74718,12 @@
       "backing": "erl_abst",
       "form": "defguard",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -74982,6 +75462,12 @@
       "backing": "erl_abst",
       "form": "defguardp",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -75720,6 +76206,12 @@
       "backing": "erl_abst",
       "form": "defdelegate",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -76458,6 +76950,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_compiled",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -77196,6 +77694,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_unresolvable",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -77934,6 +78438,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -78672,6 +79182,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_imports",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -79410,6 +79926,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -80148,6 +80670,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list_trailing",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -80886,6 +81414,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list_lines",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -81624,6 +82158,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as_list",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -82362,6 +82902,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as_attribute",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -83100,6 +83646,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_doc",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -83838,6 +84390,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -84576,6 +85134,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from_kind",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -85314,6 +85878,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from_args",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -86052,6 +86622,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from_computed_name",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_computed_name",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -86790,6 +87366,12 @@
       "backing": "erl_abst",
       "form": "defexception",
       "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defexception",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc"
     },
     {
@@ -87523,6 +88105,12 @@
       "form": "generator_embed",
       "reason": "Erlang has only functions",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "Erlang has only functions",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "erl_abst",
@@ -88261,6 +88849,12 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "erl_abst",
@@ -88999,6 +89593,12 @@
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "variable",
+      "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "erl_abst",
@@ -89742,6 +90342,12 @@
       "backing": "erl_abst",
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_moduledoc"
     },
     {
@@ -90469,6 +91075,12 @@
       "form": "def",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "erl_gen",
@@ -91212,6 +91824,12 @@
       "backing": "erl_gen",
       "form": "defp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -91950,6 +92568,12 @@
       "backing": "erl_gen",
       "form": "defmacro",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -92688,6 +93312,12 @@
       "backing": "erl_gen",
       "form": "defmacrop",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -93426,6 +94056,12 @@
       "backing": "erl_gen",
       "form": "defguard",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -94164,6 +94800,12 @@
       "backing": "erl_gen",
       "form": "defguardp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -94902,6 +95544,12 @@
       "backing": "erl_gen",
       "form": "defdelegate",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -95640,6 +96288,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_compiled",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -96378,6 +97032,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_unresolvable",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -97116,6 +97776,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -97854,6 +98520,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_imports",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -98592,6 +99264,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -99330,6 +100008,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list_trailing",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -100068,6 +100752,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list_lines",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -100806,6 +101496,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -101544,6 +102240,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as_attribute",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -102282,6 +102984,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_doc",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -103020,6 +103728,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -103758,6 +104472,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from_kind",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -104496,6 +105216,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from_args",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -105234,6 +105960,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from_computed_name",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -105972,6 +106704,12 @@
       "backing": "erl_gen",
       "form": "defexception",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defexception",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc"
     },
     {
@@ -106705,6 +107443,12 @@
       "form": "generator_embed",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "erl_gen",
@@ -107443,6 +108187,12 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "erl_gen",
@@ -108181,6 +108931,12 @@
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "variable",
+      "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "erl_gen",
@@ -108919,6 +109675,12 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "erl_gen",
@@ -119589,6 +120351,102 @@
         }
       ],
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/def/x_lookalike_module_atom.ex",
+      "form": "def",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_def_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_def_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Def.XLookalikeModuleAtom",
+          "source": "lib/src/src.def.x_lookalike_module_atom.ex",
+          "spec": "lib/src/src.def.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/src/def/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "src_def_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/src/def/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "src_def_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XLookalikeModuleAtom",
+            "name": "src_def_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.def.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_def_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
     },
     {
       "asks": [
@@ -152451,6 +153309,92 @@
     {
       "backing": "src",
       "brokenCallers": [],
+      "caller": "lib/callers/src/defp/x_lookalike_module_atom.ex",
+      "form": "defp",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 8,
+              "definer": "defp",
+              "line": 3,
+              "name": "src_defp_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defp_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defp_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "uses",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Defp.XLookalikeModuleAtom",
+          "source": "lib/src/src.defp.x_lookalike_module_atom.ex",
+          "spec": "lib/src/src.defp.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XLookalikeModuleAtom",
+            "name": "src_defp_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defp.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defp_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
       "caller": "lib/callers/src/defp/x_nfc.ex",
       "form": "defp",
       "importCallers": [],
@@ -174507,6 +175451,102 @@
         }
       ],
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defmacro/x_lookalike_module_atom.ex",
+      "form": "defmacro",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 12,
+              "definer": "defmacro",
+              "line": 3,
+              "name": "src_defmacro_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defmacro_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "src_defmacro_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XLookalikeModuleAtom",
+          "source": "lib/src/src.defmacro.x_lookalike_module_atom.ex",
+          "spec": "lib/src/src.defmacro.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/src/defmacro/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "src_defmacro_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/src/defmacro/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "src_defmacro_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacro.XLookalikeModuleAtom",
+            "name": "src_defmacro_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defmacro.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defmacro_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "src",
@@ -200119,6 +201159,92 @@
     {
       "backing": "src",
       "brokenCallers": [],
+      "caller": "lib/callers/src/defmacrop/x_lookalike_module_atom.ex",
+      "form": "defmacrop",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 13,
+              "definer": "defmacrop",
+              "line": 3,
+              "name": "src_defmacrop_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defmacrop_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "src_defmacrop_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "uses",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Defmacrop.XLookalikeModuleAtom",
+          "source": "lib/src/src.defmacrop.x_lookalike_module_atom.ex",
+          "spec": "lib/src/src.defmacrop.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XLookalikeModuleAtom",
+            "name": "src_defmacrop_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defmacrop.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defmacrop_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
       "caller": "lib/callers/src/defmacrop/x_nfc.ex",
       "form": "defmacrop",
       "importCallers": [],
@@ -218781,6 +219907,102 @@
         }
       ],
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defguard/x_lookalike_module_atom.ex",
+      "form": "defguard",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 12,
+              "definer": "defguard",
+              "line": 3,
+              "name": "src_defguard_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defguard_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defguard",
+              "guard": "is_list(q) or is_list(x)",
+              "name": "src_defguard_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Defguard.XLookalikeModuleAtom",
+          "source": "lib/src/src.defguard.x_lookalike_module_atom.ex",
+          "spec": "lib/src/src.defguard.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/src/defguard/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "src_defguard_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/src/defguard/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "src_defguard_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguard.XLookalikeModuleAtom",
+            "name": "src_defguard_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defguard.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defguard_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "src",
@@ -242715,6 +243937,92 @@
     {
       "backing": "src",
       "brokenCallers": [],
+      "caller": "lib/callers/src/defguardp/x_lookalike_module_atom.ex",
+      "form": "defguardp",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 13,
+              "definer": "defguardp",
+              "line": 3,
+              "name": "src_defguardp_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defguardp_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defguardp",
+              "guard": "is_list(q) or is_list(x)",
+              "name": "src_defguardp_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "uses",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Defguardp.XLookalikeModuleAtom",
+          "source": "lib/src/src.defguardp.x_lookalike_module_atom.ex",
+          "spec": "lib/src/src.defguardp.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.XLookalikeModuleAtom",
+            "name": "src_defguardp_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defguardp.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defguardp_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
       "caller": "lib/callers/src/defguardp/x_nfc.ex",
       "form": "defguardp",
       "importCallers": [],
@@ -253759,6 +255067,142 @@
         }
       ],
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defdelegate/x_lookalike_module_atom.ex",
+      "form": "defdelegate",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 15,
+              "definer": "defdelegate",
+              "line": 3,
+              "name": "src_defdelegate_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defdelegate_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": "Src.Defdelegate.XLookalikeModuleAtom.Target",
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defdelegate",
+              "guard": null,
+              "name": "src_defdelegate_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Defdelegate.XLookalikeModuleAtom",
+          "source": "lib/src/src.defdelegate.x_lookalike_module_atom.ex",
+          "spec": "lib/src/src.defdelegate.x_lookalike_module_atom.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_defdelegate_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defdelegate_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defdelegate_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defdelegate.XLookalikeModuleAtom.Target",
+          "source": "lib/src/src.defdelegate.x_lookalike_module_atom.target.ex",
+          "spec": "lib/src/src.defdelegate.x_lookalike_module_atom.target.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/src/defdelegate/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "src_defdelegate_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/src/defdelegate/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "src_defdelegate_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defdelegate.XLookalikeModuleAtom",
+            "name": "src_defdelegate_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defdelegate.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defdelegate_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "src",
@@ -268113,6 +269557,142 @@
     },
     {
       "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defdelegate_compiled/x_lookalike_module_atom.ex",
+      "form": "defdelegate_compiled",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 15,
+              "definer": "defdelegate",
+              "line": 3,
+              "name": "src_defdelegate_compiled_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defdelegate_compiled_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": "Src.DefdelegateCompiled.XLookalikeModuleAtom.Target",
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defdelegate",
+              "guard": null,
+              "name": "src_defdelegate_compiled_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.DefdelegateCompiled.XLookalikeModuleAtom",
+          "source": "lib/src/src.defdelegate_compiled.x_lookalike_module_atom.ex",
+          "spec": "lib/src/src.defdelegate_compiled.x_lookalike_module_atom.ex"
+        },
+        {
+          "beam": "_build/dev/lib/delegate_targets/ebin/Elixir.Src.DefdelegateCompiled.XLookalikeModuleAtom.Target.beam",
+          "clauseSource": "ElixirDebugInfo",
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_defdelegate_compiled_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defdelegate_compiled_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defdelegate_compiled_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.DefdelegateCompiled.XLookalikeModuleAtom.Target",
+          "source": "lib/delegate_targets/src.defdelegate_compiled.x_lookalike_module_atom.target.ex",
+          "spec": "lib/delegate_targets/src.defdelegate_compiled.x_lookalike_module_atom.target.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/src/defdelegate_compiled/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "src_defdelegate_compiled_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/src/defdelegate_compiled/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "src_defdelegate_compiled_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateCompiled.XLookalikeModuleAtom",
+            "name": "src_defdelegate_compiled_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defdelegate_compiled.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defdelegate_compiled_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "src",
       "brokenCallers": [
         "lib/callers/src/defdelegate_compiled/x_nfc_broken.ex"
       ],
@@ -280629,6 +282209,102 @@
         }
       ],
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defdelegate_unresolvable/x_lookalike_module_atom.ex",
+      "form": "defdelegate_unresolvable",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 15,
+              "definer": "defdelegate",
+              "line": 3,
+              "name": "src_defdelegate_unresolvable_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defdelegate_unresolvable_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": "Src.DefdelegateUnresolvable.XLookalikeModuleAtom.Missing",
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defdelegate",
+              "guard": null,
+              "name": "src_defdelegate_unresolvable_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.DefdelegateUnresolvable.XLookalikeModuleAtom",
+          "source": "lib/src/src.defdelegate_unresolvable.x_lookalike_module_atom.ex",
+          "spec": "lib/src/src.defdelegate_unresolvable.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/src/defdelegate_unresolvable/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "src_defdelegate_unresolvable_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/src/defdelegate_unresolvable/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "src_defdelegate_unresolvable_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateUnresolvable.XLookalikeModuleAtom",
+            "name": "src_defdelegate_unresolvable_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defdelegate_unresolvable.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defdelegate_unresolvable_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "src",
@@ -318727,6 +320403,102 @@
     },
     {
       "backing": "ex_dbgi",
+      "brokenCallers": [],
+      "caller": "lib/callers/ex_dbgi/def/x_lookalike_module_atom.ex",
+      "form": "def",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/ex_dbgi/ebin/Elixir.ExDbgi.Def.XLookalikeModuleAtom.beam",
+          "clauseSource": "ElixirDebugInfo",
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "ex_dbgi_def_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_dbgi_def_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "ex_dbgi_def_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "ExDbgi.Def.XLookalikeModuleAtom",
+          "source": "lib/ex_dbgi/ex_dbgi.def.x_lookalike_module_atom.ex",
+          "spec": "lib/ex_dbgi/ex_dbgi.def.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/ex_dbgi/def/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "ex_dbgi_def_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/ex_dbgi/def/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "ex_dbgi_def_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.Def.XLookalikeModuleAtom",
+            "name": "ex_dbgi_def_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/ex_dbgi/ex_dbgi.def.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "ex_dbgi_def_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
       "brokenCallers": [
         "lib/callers/ex_dbgi/def/x_nfc_broken.ex"
       ],
@@ -324841,6 +326613,92 @@
     {
       "backing": "ex_dbgi",
       "brokenCallers": [],
+      "caller": "lib/callers/ex_dbgi/defp/x_lookalike_module_atom.ex",
+      "form": "defp",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/ex_dbgi/ebin/Elixir.ExDbgi.Defp.XLookalikeModuleAtom.beam",
+          "clauseSource": "ElixirDebugInfo",
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 8,
+              "definer": "defp",
+              "line": 3,
+              "name": "ex_dbgi_defp_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_dbgi_defp_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "ex_dbgi_defp_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "uses",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "ExDbgi.Defp.XLookalikeModuleAtom",
+          "source": "lib/ex_dbgi/ex_dbgi.defp.x_lookalike_module_atom.ex",
+          "spec": "lib/ex_dbgi/ex_dbgi.defp.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.XLookalikeModuleAtom",
+            "name": "ex_dbgi_defp_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "ex_dbgi_defp_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "brokenCallers": [],
       "caller": "lib/callers/ex_dbgi/defp/x_nfc.ex",
       "form": "defp",
       "importCallers": [],
@@ -330659,6 +332517,102 @@
     },
     {
       "backing": "ex_dbgi",
+      "brokenCallers": [],
+      "caller": "lib/callers/ex_dbgi/defmacro/x_lookalike_module_atom.ex",
+      "form": "defmacro",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/ex_dbgi/ebin/Elixir.ExDbgi.Defmacro.XLookalikeModuleAtom.beam",
+          "clauseSource": "ElixirDebugInfo",
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 12,
+              "definer": "defmacro",
+              "line": 3,
+              "name": "ex_dbgi_defmacro_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_dbgi_defmacro_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "ex_dbgi_defmacro_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "ExDbgi.Defmacro.XLookalikeModuleAtom",
+          "source": "lib/ex_dbgi/ex_dbgi.defmacro.x_lookalike_module_atom.ex",
+          "spec": "lib/ex_dbgi/ex_dbgi.defmacro.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/ex_dbgi/defmacro/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "ex_dbgi_defmacro_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/ex_dbgi/defmacro/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "ex_dbgi_defmacro_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "ExDbgi.Defmacro.XLookalikeModuleAtom",
+            "name": "ex_dbgi_defmacro_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/ex_dbgi/ex_dbgi.defmacro.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "ex_dbgi_defmacro_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
       "brokenCallers": [
         "lib/callers/ex_dbgi/defmacro/x_nfc_broken.ex"
       ],
@@ -336062,6 +338016,102 @@
         }
       ],
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_dbgi",
+      "brokenCallers": [],
+      "caller": "lib/callers/ex_dbgi/defguard/x_lookalike_module_atom.ex",
+      "form": "defguard",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/ex_dbgi/ebin/Elixir.ExDbgi.Defguard.XLookalikeModuleAtom.beam",
+          "clauseSource": "ElixirDebugInfo",
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 12,
+              "definer": "defguard",
+              "line": 3,
+              "name": "ex_dbgi_defguard_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_dbgi_defguard_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defguard",
+              "guard": "is_list(q) or is_list(x)",
+              "name": "ex_dbgi_defguard_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "ExDbgi.Defguard.XLookalikeModuleAtom",
+          "source": "lib/ex_dbgi/ex_dbgi.defguard.x_lookalike_module_atom.ex",
+          "spec": "lib/ex_dbgi/ex_dbgi.defguard.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/ex_dbgi/defguard/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "ex_dbgi_defguard_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/ex_dbgi/defguard/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "ex_dbgi_defguard_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "ExDbgi.Defguard.XLookalikeModuleAtom",
+            "name": "ex_dbgi_defguard_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/ex_dbgi/ex_dbgi.defguard.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "ex_dbgi_defguard_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_dbgi",
@@ -345876,6 +347926,142 @@
     },
     {
       "backing": "ex_dbgi",
+      "brokenCallers": [],
+      "caller": "lib/callers/ex_dbgi/defdelegate/x_lookalike_module_atom.ex",
+      "form": "defdelegate",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/ex_dbgi/ebin/Elixir.ExDbgi.Defdelegate.XLookalikeModuleAtom.beam",
+          "clauseSource": "ElixirDebugInfo",
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 15,
+              "definer": "defdelegate",
+              "line": 3,
+              "name": "ex_dbgi_defdelegate_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_dbgi_defdelegate_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": "ExDbgi.Defdelegate.XLookalikeModuleAtom.Target",
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defdelegate",
+              "guard": null,
+              "name": "ex_dbgi_defdelegate_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "ExDbgi.Defdelegate.XLookalikeModuleAtom",
+          "source": "lib/ex_dbgi/ex_dbgi.defdelegate.x_lookalike_module_atom.ex",
+          "spec": "lib/ex_dbgi/ex_dbgi.defdelegate.x_lookalike_module_atom.ex"
+        },
+        {
+          "beam": "_build/dev/lib/ex_dbgi/ebin/Elixir.ExDbgi.Defdelegate.XLookalikeModuleAtom.Target.beam",
+          "clauseSource": "ElixirDebugInfo",
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "ex_dbgi_defdelegate_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_dbgi_defdelegate_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "ex_dbgi_defdelegate_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "ExDbgi.Defdelegate.XLookalikeModuleAtom.Target",
+          "source": "lib/ex_dbgi/ex_dbgi.defdelegate.x_lookalike_module_atom.target.ex",
+          "spec": "lib/ex_dbgi/ex_dbgi.defdelegate.x_lookalike_module_atom.target.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/ex_dbgi/defdelegate/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "ex_dbgi_defdelegate_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/ex_dbgi/defdelegate/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "ex_dbgi_defdelegate_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.Defdelegate.XLookalikeModuleAtom",
+            "name": "ex_dbgi_defdelegate_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/ex_dbgi/ex_dbgi.defdelegate.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "ex_dbgi_defdelegate_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_dbgi",
       "brokenCallers": [
         "lib/callers/ex_dbgi/defdelegate/x_nfc_broken.ex"
       ],
@@ -352853,6 +355039,102 @@
         }
       ],
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_dbgi",
+      "brokenCallers": [],
+      "caller": "lib/callers/ex_dbgi/defdelegate_unresolvable/x_lookalike_module_atom.ex",
+      "form": "defdelegate_unresolvable",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/ex_dbgi/ebin/Elixir.ExDbgi.DefdelegateUnresolvable.XLookalikeModuleAtom.beam",
+          "clauseSource": "ElixirDebugInfo",
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 15,
+              "definer": "defdelegate",
+              "line": 3,
+              "name": "ex_dbgi_defdelegate_unresolvable_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_dbgi_defdelegate_unresolvable_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": "ExDbgi.DefdelegateUnresolvable.XLookalikeModuleAtom.Missing",
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defdelegate",
+              "guard": null,
+              "name": "ex_dbgi_defdelegate_unresolvable_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "ExDbgi.DefdelegateUnresolvable.XLookalikeModuleAtom",
+          "source": "lib/ex_dbgi/ex_dbgi.defdelegate_unresolvable.x_lookalike_module_atom.ex",
+          "spec": "lib/ex_dbgi/ex_dbgi.defdelegate_unresolvable.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/ex_dbgi/defdelegate_unresolvable/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "ex_dbgi_defdelegate_unresolvable_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/ex_dbgi/defdelegate_unresolvable/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "ex_dbgi_defdelegate_unresolvable_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.DefdelegateUnresolvable.XLookalikeModuleAtom",
+            "name": "ex_dbgi_defdelegate_unresolvable_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/ex_dbgi/ex_dbgi.defdelegate_unresolvable.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "ex_dbgi_defdelegate_unresolvable_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_dbgi",
@@ -374385,6 +376667,102 @@
     },
     {
       "backing": "ex_docs",
+      "brokenCallers": [],
+      "caller": "lib/callers/ex_docs/def/x_lookalike_module_atom.ex",
+      "form": "def",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/ex_docs/ebin/Elixir.ExDocs.Def.XLookalikeModuleAtom.beam",
+          "clauseSource": "DocsSignatures",
+          "complete": false,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "ex_docs_def_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_docs_def_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "ex_docs_def_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "ExDocs.Def.XLookalikeModuleAtom",
+          "source": "lib/ex_docs/ex_docs.def.x_lookalike_module_atom.ex",
+          "spec": "lib/ex_docs/ex_docs.def.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/ex_docs/def/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "ex_docs_def_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/ex_docs/def/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "ex_docs_def_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.Def.XLookalikeModuleAtom",
+            "name": "ex_docs_def_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/ex_docs/ex_docs.def.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "ex_docs_def_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
       "brokenCallers": [
         "lib/callers/ex_docs/def/x_nfc_broken.ex"
       ],
@@ -377538,6 +379916,92 @@
         }
       ],
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_docs",
+      "brokenCallers": [],
+      "caller": "lib/callers/ex_docs/defp/x_lookalike_module_atom.ex",
+      "form": "defp",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/ex_docs/ebin/Elixir.ExDocs.Defp.XLookalikeModuleAtom.beam",
+          "clauseSource": "DocsSignatures",
+          "complete": false,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 8,
+              "definer": "defp",
+              "line": 3,
+              "name": "ex_docs_defp_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_docs_defp_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "uses",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "ex_docs_defp_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "arg1",
+                "arg2"
+              ]
+            }
+          ],
+          "module": "ExDocs.Defp.XLookalikeModuleAtom",
+          "source": "lib/ex_docs/ex_docs.defp.x_lookalike_module_atom.ex",
+          "spec": "lib/ex_docs/ex_docs.defp.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.XLookalikeModuleAtom",
+            "name": "ex_docs_defp_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/ex_docs/ex_docs.defp.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "ex_docs_defp_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_docs",
@@ -381910,6 +384374,102 @@
     },
     {
       "backing": "ex_docs",
+      "brokenCallers": [],
+      "caller": "lib/callers/ex_docs/defmacro/x_lookalike_module_atom.ex",
+      "form": "defmacro",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/ex_docs/ebin/Elixir.ExDocs.Defmacro.XLookalikeModuleAtom.beam",
+          "clauseSource": "DocsSignatures",
+          "complete": false,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 12,
+              "definer": "defmacro",
+              "line": 3,
+              "name": "ex_docs_defmacro_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_docs_defmacro_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "ex_docs_defmacro_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "ExDocs.Defmacro.XLookalikeModuleAtom",
+          "source": "lib/ex_docs/ex_docs.defmacro.x_lookalike_module_atom.ex",
+          "spec": "lib/ex_docs/ex_docs.defmacro.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/ex_docs/defmacro/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "ex_docs_defmacro_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/ex_docs/defmacro/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "ex_docs_defmacro_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "ExDocs.Defmacro.XLookalikeModuleAtom",
+            "name": "ex_docs_defmacro_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/ex_docs/ex_docs.defmacro.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "ex_docs_defmacro_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
       "brokenCallers": [
         "lib/callers/ex_docs/defmacro/x_nfc_broken.ex"
       ],
@@ -384910,6 +387470,102 @@
         }
       ],
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_docs",
+      "brokenCallers": [],
+      "caller": "lib/callers/ex_docs/defguard/x_lookalike_module_atom.ex",
+      "form": "defguard",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/ex_docs/ebin/Elixir.ExDocs.Defguard.XLookalikeModuleAtom.beam",
+          "clauseSource": "DocsSignatures",
+          "complete": false,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 12,
+              "definer": "defguard",
+              "line": 3,
+              "name": "ex_docs_defguard_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_docs_defguard_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defguard",
+              "guard": null,
+              "name": "ex_docs_defguard_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "ExDocs.Defguard.XLookalikeModuleAtom",
+          "source": "lib/ex_docs/ex_docs.defguard.x_lookalike_module_atom.ex",
+          "spec": "lib/ex_docs/ex_docs.defguard.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/ex_docs/defguard/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "ex_docs_defguard_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/ex_docs/defguard/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "ex_docs_defguard_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "ExDocs.Defguard.XLookalikeModuleAtom",
+            "name": "ex_docs_defguard_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/ex_docs/ex_docs.defguard.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "ex_docs_defguard_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_docs",
@@ -392834,6 +395490,142 @@
     },
     {
       "backing": "ex_docs",
+      "brokenCallers": [],
+      "caller": "lib/callers/ex_docs/defdelegate/x_lookalike_module_atom.ex",
+      "form": "defdelegate",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/ex_docs/ebin/Elixir.ExDocs.Defdelegate.XLookalikeModuleAtom.beam",
+          "clauseSource": "DocsSignatures",
+          "complete": false,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 15,
+              "definer": "defdelegate",
+              "line": 3,
+              "name": "ex_docs_defdelegate_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_docs_defdelegate_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": "ExDocs.Defdelegate.XLookalikeModuleAtom.Target",
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defdelegate",
+              "guard": null,
+              "name": "ex_docs_defdelegate_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "ExDocs.Defdelegate.XLookalikeModuleAtom",
+          "source": "lib/ex_docs/ex_docs.defdelegate.x_lookalike_module_atom.ex",
+          "spec": "lib/ex_docs/ex_docs.defdelegate.x_lookalike_module_atom.ex"
+        },
+        {
+          "beam": "_build/dev/lib/ex_docs/ebin/Elixir.ExDocs.Defdelegate.XLookalikeModuleAtom.Target.beam",
+          "clauseSource": "DocsSignatures",
+          "complete": false,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "ex_docs_defdelegate_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_docs_defdelegate_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "ex_docs_defdelegate_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "ExDocs.Defdelegate.XLookalikeModuleAtom.Target",
+          "source": "lib/ex_docs/ex_docs.defdelegate.x_lookalike_module_atom.target.ex",
+          "spec": "lib/ex_docs/ex_docs.defdelegate.x_lookalike_module_atom.target.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/ex_docs/defdelegate/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "ex_docs_defdelegate_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/ex_docs/defdelegate/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "ex_docs_defdelegate_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.Defdelegate.XLookalikeModuleAtom",
+            "name": "ex_docs_defdelegate_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/ex_docs/ex_docs.defdelegate.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "ex_docs_defdelegate_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_docs",
       "brokenCallers": [
         "lib/callers/ex_docs/defdelegate/x_nfc_broken.ex"
       ],
@@ -399811,6 +402603,102 @@
         }
       ],
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_docs",
+      "brokenCallers": [],
+      "caller": "lib/callers/ex_docs/defdelegate_unresolvable/x_lookalike_module_atom.ex",
+      "form": "defdelegate_unresolvable",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/ex_docs/ebin/Elixir.ExDocs.DefdelegateUnresolvable.XLookalikeModuleAtom.beam",
+          "clauseSource": "DocsSignatures",
+          "complete": false,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 15,
+              "definer": "defdelegate",
+              "line": 3,
+              "name": "ex_docs_defdelegate_unresolvable_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_docs_defdelegate_unresolvable_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": "ExDocs.DefdelegateUnresolvable.XLookalikeModuleAtom.Missing",
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defdelegate",
+              "guard": null,
+              "name": "ex_docs_defdelegate_unresolvable_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "ExDocs.DefdelegateUnresolvable.XLookalikeModuleAtom",
+          "source": "lib/ex_docs/ex_docs.defdelegate_unresolvable.x_lookalike_module_atom.ex",
+          "spec": "lib/ex_docs/ex_docs.defdelegate_unresolvable.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/ex_docs/defdelegate_unresolvable/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "ex_docs_defdelegate_unresolvable_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/ex_docs/defdelegate_unresolvable/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "ex_docs_defdelegate_unresolvable_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.DefdelegateUnresolvable.XLookalikeModuleAtom",
+            "name": "ex_docs_defdelegate_unresolvable_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/ex_docs/ex_docs.defdelegate_unresolvable.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "ex_docs_defdelegate_unresolvable_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_docs",
@@ -421359,6 +424247,102 @@
     },
     {
       "backing": "ex_gen",
+      "brokenCallers": [],
+      "caller": "lib/callers/ex_gen/def/x_lookalike_module_atom.ex",
+      "form": "def",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/ex_gen/ebin/Elixir.ExGen.Def.XLookalikeModuleAtom.beam",
+          "clauseSource": "Generated",
+          "complete": false,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "ex_gen_def_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_gen_def_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "ex_gen_def_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "arg1",
+                "arg2"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "arg1",
+                "arg2"
+              ]
+            }
+          ],
+          "module": "ExGen.Def.XLookalikeModuleAtom",
+          "source": "lib/ex_gen/ex_gen.def.x_lookalike_module_atom.ex",
+          "spec": "lib/ex_gen/ex_gen.def.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/ex_gen/def/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "ex_gen_def_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/ex_gen/def/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "ex_gen_def_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.Def.XLookalikeModuleAtom",
+            "name": "ex_gen_def_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/ex_gen/ex_gen.def.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "ex_gen_def_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
       "brokenCallers": [
         "lib/callers/ex_gen/def/x_nfc_broken.ex"
       ],
@@ -424512,6 +427496,92 @@
         }
       ],
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_gen",
+      "brokenCallers": [],
+      "caller": "lib/callers/ex_gen/defp/x_lookalike_module_atom.ex",
+      "form": "defp",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/ex_gen/ebin/Elixir.ExGen.Defp.XLookalikeModuleAtom.beam",
+          "clauseSource": "Generated",
+          "complete": false,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 8,
+              "definer": "defp",
+              "line": 3,
+              "name": "ex_gen_defp_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_gen_defp_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "ex_gen_defp_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "arg1",
+                "arg2"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "arg1",
+                "arg2"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "uses",
+              "parameters": [
+                "arg1",
+                "arg2"
+              ]
+            }
+          ],
+          "module": "ExGen.Defp.XLookalikeModuleAtom",
+          "source": "lib/ex_gen/ex_gen.defp.x_lookalike_module_atom.ex",
+          "spec": "lib/ex_gen/ex_gen.defp.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.Defp.XLookalikeModuleAtom",
+            "name": "ex_gen_defp_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/ex_gen/ex_gen.defp.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "ex_gen_defp_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_gen",
@@ -428909,6 +431979,102 @@
     },
     {
       "backing": "ex_gen",
+      "brokenCallers": [],
+      "caller": "lib/callers/ex_gen/defmacro/x_lookalike_module_atom.ex",
+      "form": "defmacro",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/ex_gen/ebin/Elixir.ExGen.Defmacro.XLookalikeModuleAtom.beam",
+          "clauseSource": "Generated",
+          "complete": false,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 12,
+              "definer": "defmacro",
+              "line": 3,
+              "name": "ex_gen_defmacro_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_gen_defmacro_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "ex_gen_defmacro_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "arg1",
+                "arg2"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "arg1",
+                "arg2"
+              ]
+            }
+          ],
+          "module": "ExGen.Defmacro.XLookalikeModuleAtom",
+          "source": "lib/ex_gen/ex_gen.defmacro.x_lookalike_module_atom.ex",
+          "spec": "lib/ex_gen/ex_gen.defmacro.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/ex_gen/defmacro/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "ex_gen_defmacro_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/ex_gen/defmacro/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "ex_gen_defmacro_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "ExGen.Defmacro.XLookalikeModuleAtom",
+            "name": "ex_gen_defmacro_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/ex_gen/ex_gen.defmacro.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "ex_gen_defmacro_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
       "brokenCallers": [
         "lib/callers/ex_gen/defmacro/x_nfc_broken.ex"
       ],
@@ -431909,6 +435075,102 @@
         }
       ],
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_gen",
+      "brokenCallers": [],
+      "caller": "lib/callers/ex_gen/defguard/x_lookalike_module_atom.ex",
+      "form": "defguard",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/ex_gen/ebin/Elixir.ExGen.Defguard.XLookalikeModuleAtom.beam",
+          "clauseSource": "Generated",
+          "complete": false,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 12,
+              "definer": "defguard",
+              "line": 3,
+              "name": "ex_gen_defguard_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_gen_defguard_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "ex_gen_defguard_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "arg1",
+                "arg2"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "arg1",
+                "arg2"
+              ]
+            }
+          ],
+          "module": "ExGen.Defguard.XLookalikeModuleAtom",
+          "source": "lib/ex_gen/ex_gen.defguard.x_lookalike_module_atom.ex",
+          "spec": "lib/ex_gen/ex_gen.defguard.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/ex_gen/defguard/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "ex_gen_defguard_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/ex_gen/defguard/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "ex_gen_defguard_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "ExGen.Defguard.XLookalikeModuleAtom",
+            "name": "ex_gen_defguard_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/ex_gen/ex_gen.defguard.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "ex_gen_defguard_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_gen",
@@ -439858,6 +443120,142 @@
     },
     {
       "backing": "ex_gen",
+      "brokenCallers": [],
+      "caller": "lib/callers/ex_gen/defdelegate/x_lookalike_module_atom.ex",
+      "form": "defdelegate",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/ex_gen/ebin/Elixir.ExGen.Defdelegate.XLookalikeModuleAtom.beam",
+          "clauseSource": "Generated",
+          "complete": false,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 15,
+              "definer": "defdelegate",
+              "line": 3,
+              "name": "ex_gen_defdelegate_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_gen_defdelegate_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": "ExGen.Defdelegate.XLookalikeModuleAtom.Target",
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "ex_gen_defdelegate_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "arg1",
+                "arg2"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "arg1",
+                "arg2"
+              ]
+            }
+          ],
+          "module": "ExGen.Defdelegate.XLookalikeModuleAtom",
+          "source": "lib/ex_gen/ex_gen.defdelegate.x_lookalike_module_atom.ex",
+          "spec": "lib/ex_gen/ex_gen.defdelegate.x_lookalike_module_atom.ex"
+        },
+        {
+          "beam": "_build/dev/lib/ex_gen/ebin/Elixir.ExGen.Defdelegate.XLookalikeModuleAtom.Target.beam",
+          "clauseSource": "Generated",
+          "complete": false,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "ex_gen_defdelegate_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_gen_defdelegate_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "ex_gen_defdelegate_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "arg1",
+                "arg2"
+              ]
+            }
+          ],
+          "module": "ExGen.Defdelegate.XLookalikeModuleAtom.Target",
+          "source": "lib/ex_gen/ex_gen.defdelegate.x_lookalike_module_atom.target.ex",
+          "spec": "lib/ex_gen/ex_gen.defdelegate.x_lookalike_module_atom.target.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/ex_gen/defdelegate/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "ex_gen_defdelegate_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/ex_gen/defdelegate/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "ex_gen_defdelegate_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.Defdelegate.XLookalikeModuleAtom",
+            "name": "ex_gen_defdelegate_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/ex_gen/ex_gen.defdelegate.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "ex_gen_defdelegate_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "ex_gen",
       "brokenCallers": [
         "lib/callers/ex_gen/defdelegate/x_nfc_broken.ex"
       ],
@@ -446860,6 +450258,102 @@
         }
       ],
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_gen",
+      "brokenCallers": [],
+      "caller": "lib/callers/ex_gen/defdelegate_unresolvable/x_lookalike_module_atom.ex",
+      "form": "defdelegate_unresolvable",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/ex_gen/ebin/Elixir.ExGen.DefdelegateUnresolvable.XLookalikeModuleAtom.beam",
+          "clauseSource": "Generated",
+          "complete": false,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 15,
+              "definer": "defdelegate",
+              "line": 3,
+              "name": "ex_gen_defdelegate_unresolvable_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "ex_gen_defdelegate_unresolvable_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": "ExGen.DefdelegateUnresolvable.XLookalikeModuleAtom.Missing",
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "ex_gen_defdelegate_unresolvable_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "arg1",
+                "arg2"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "arg1",
+                "arg2"
+              ]
+            }
+          ],
+          "module": "ExGen.DefdelegateUnresolvable.XLookalikeModuleAtom",
+          "source": "lib/ex_gen/ex_gen.defdelegate_unresolvable.x_lookalike_module_atom.ex",
+          "spec": "lib/ex_gen/ex_gen.defdelegate_unresolvable.x_lookalike_module_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/ex_gen/defdelegate_unresolvable/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "ex_gen_defdelegate_unresolvable_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/ex_gen/defdelegate_unresolvable/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "ex_gen_defdelegate_unresolvable_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.DefdelegateUnresolvable.XLookalikeModuleAtom",
+            "name": "ex_gen_defdelegate_unresolvable_x_lookalike_module_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/ex_gen/ex_gen.defdelegate_unresolvable.x_lookalike_module_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "ex_gen_defdelegate_unresolvable_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "ex_gen",
@@ -466371,6 +469865,83 @@
     {
       "backing": "erl_abst",
       "brokenCallers": [],
+      "caller": "lib/callers/erl_abst/def/x_lookalike_module_atom.ex",
+      "form": "def",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/erl_abst/ebin/erl_abst_def_x_lookalike_module_atom.beam",
+          "clauseSource": "ErlangAbstractCode",
+          "complete": true,
+          "declarations": [],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "erl_abst_def_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "erl_abst_def_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": ":erl_abst_def_x_lookalike_module_atom",
+          "source": "spec/erl_abst/erl_abst_def_x_lookalike_module_atom.erl",
+          "spec": "spec/erl_abst/erl_abst_def_x_lookalike_module_atom.erl.ex.spec"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 66,
+          "file": "lib/callers/erl_abst/def/x_lookalike_module_atom.ex",
+          "id": "lookalike_qualified",
+          "line": 4,
+          "name": "erl_abst_def_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 51,
+          "file": "lib/callers/erl_abst/def/x_lookalike_module_atom.ex",
+          "id": "lookalike_local",
+          "line": 5,
+          "name": "erl_abst_def_x_lookalike_module_atom_target",
+          "targets": [10]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": ":erl_abst_def_x_lookalike_module_atom",
+            "name": "erl_abst_def_x_lookalike_module_atom_snoc"
+          },
+          "column": 21,
+          "file": "spec/erl_abst/erl_abst_def_x_lookalike_module_atom.erl",
+          "id": "local",
+          "line": 7,
+          "name": "erl_abst_def_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "brokenCallers": [],
       "caller": "lib/callers/erl_abst/def/x_not_a_call.ex",
       "form": "def",
       "importCallers": [],
@@ -467978,6 +471549,63 @@
         }
       ],
       "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "erl_abst",
+      "brokenCallers": [],
+      "caller": "lib/callers/erl_abst/defp/x_lookalike_module_atom.ex",
+      "form": "defp",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": "_build/dev/lib/erl_abst/ebin/erl_abst_defp_x_lookalike_module_atom.beam",
+          "clauseSource": "ErlangAbstractCode",
+          "complete": true,
+          "declarations": [],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "erl_abst_defp_x_lookalike_module_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "erl_abst_defp_x_lookalike_module_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": ":erl_abst_defp_x_lookalike_module_atom",
+          "source": "spec/erl_abst/erl_abst_defp_x_lookalike_module_atom.erl",
+          "spec": "spec/erl_abst/erl_abst_defp_x_lookalike_module_atom.erl.ex.spec"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": ":erl_abst_defp_x_lookalike_module_atom",
+            "name": "erl_abst_defp_x_lookalike_module_atom_snoc"
+          },
+          "column": 21,
+          "file": "spec/erl_abst/erl_abst_defp_x_lookalike_module_atom.erl",
+          "id": "local",
+          "line": 7,
+          "name": "erl_abst_defp_x_lookalike_module_atom_snoc"
+        }
+      ],
+      "world": "x_lookalike_module_atom"
     },
     {
       "backing": "erl_gen",
