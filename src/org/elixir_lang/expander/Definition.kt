@@ -205,13 +205,11 @@ internal fun define(
  * @property pairIsCall whether the head and body, escaped together, are quoted as a `{}` call rather than a pair, as
  *   `do_quote/2` quotes a pair holding an `unquote_splicing` call: the store then reads a cache key where it expects
  *   `{Call, Body}`, and raises
- * @property supplied the code a summary knows a fragment, splice or unquoted call name holds, by the node it replaces
  */
 internal class Fragments(
     val values: List<Fragment>,
     val state: ExState,
     val escapesBody: Boolean,
-    val supplied: Map<ElixirAst, ElixirAst> = emptyMap(),
     val pairIsCall: Boolean = false,
 )
 
@@ -302,8 +300,8 @@ internal class Unquoted(
 )
 
 /**
- * [definition] as the `def` runs it: each fragment's value is what a summary supplied, or what its expansion knows,
- * or, if [evaluates], what the evaluator gives from [bindings], the values [compiling]'s body has bound or those the
+ * [definition] as the `def` runs it: each fragment's value is what its expansion knows, or, if [evaluates], what the
+ * evaluator gives from [bindings], the values [compiling]'s body has bound or those the
  * evaluator has where it reaches the `def` inside a statement. A value a helper checks ([Fragment.check]) is checked
  * once the fragments the helper's arguments hold are evaluated. The definition stops at the first value that isn't
  * known, or that it places nowhere, and a fragment or helper raises only where every value evaluated before it is known.
@@ -322,7 +320,7 @@ internal fun unquoted(
     val fragments = definition.fragments
         ?: return Unquoted(own(definition.head)!!, own(definition.body), null, null, definition.statement)
     val name = nameFragment(definition.head)
-    val replacements = IdentityHashMap(fragments.supplied)
+    val replacements = IdentityHashMap<ElixirAst, ElixirAst>()
     val splices = IdentityHashMap<ElixirAst, List<ElixirAst>>()
     var unnamedAt: ElixirAst? = null
     // The first fragment whose value isn't known, after which none is evaluated.

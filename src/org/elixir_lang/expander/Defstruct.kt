@@ -48,7 +48,7 @@ private fun defstruct(
     val watched = Watched(fields)
     val from = run.pending.size
     val expansion = expandQuoted(node, KERNEL, output.output(), state, env, run, watched, ports = true)
-    val queued = run.pending.subList(from, run.pending.size).toList()
+    val queued = run.pending.subList(from, run.pending.size).unnested()
     val definitions = queued.filterIsInstance<Pending.Definition>()
     val results = queued.firstNotNullOfOrNull { (it as? Pending.Match)?.node?.let(output::results) }
     val effect = DefstructEffect(

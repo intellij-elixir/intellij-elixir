@@ -721,8 +721,6 @@ internal sealed interface Pending {
      * @property isAtom whether the name is an atom
      * @property env the env its body starts from
      * @property state the state its body starts from
-     * @property settle what the body queued, once it is expanded, in place of what the macro that made the module can't
-     *   know before the body has run
      * @property applied the `@before_compile` callbacks, by module and function, that the macro that made the module
      *   applies itself, because it knows what they do
      * @property injectedBy the call whose evaluated output wrote the `defmodule`, which injects what its body defines
@@ -739,7 +737,6 @@ internal sealed interface Pending {
         val body: ElixirAst,
         val env: Env,
         val state: ExState,
-        val settle: ((List<Pending>) -> List<Pending>)? = null,
         val applied: Set<Pair<String, String>> = emptySet(),
         val injectedBy: ElixirAst.Call? = null,
         val outer: Map<Int, Int> = emptyMap(),
@@ -837,6 +834,12 @@ internal val Pending.site: ElixirAst
         is Pending.Statement -> node
     }
 
+/**
+ * These entries with each statement whose followed bodies hold units replaced by those units: what a port's output
+ * queued, as the port that runs the loop or branch itself reads it.
+ */
+internal fun List<Pending>.unnested(): List<Pending> = flatMap { it.inner.ifEmpty { listOf(it) } }
+
 /** The entry as it is when its node is a statement of the module body. */
 internal fun Pending.asStatement(): Pending =
     when (this) {
@@ -847,7 +850,7 @@ internal fun Pending.asStatement(): Pending =
         is Pending.Check -> Pending.Check(node, true, check)
         is Pending.Match -> Pending.Match(node, state, env, true, inner)
         is Pending.Statement -> Pending.Statement(node, state, env, true, inner)
-        is Pending.Module -> Pending.Module(node, name, isAtom, body, env, state, settle, applied, injectedBy, outer, placed, true)
+        is Pending.Module -> Pending.Module(node, name, isAtom, body, env, state, applied, injectedBy, outer, placed, true)
     }
 
 /** [replacement] in place of what [Run.pending] gained since it had [from] entries, which a macro's own output queued. */
@@ -1399,7 +1402,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
     }
 
     try {
-        walk(module.settle?.invoke(run.pending) ?: run.pending)
+        walk(run.pending)
     } catch (ended: RunEnded) {
         // A unit of this module's body raised where no run of the body was on the stack, called from a nested module or
         // a definition's fragment while a run around the module kept its callback: the body's run ends at the raise. A

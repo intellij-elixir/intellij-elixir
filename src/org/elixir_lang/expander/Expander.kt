@@ -54,7 +54,8 @@ object Expander {
      * [node], expanded to [expansion], queued for the walk after what it queued since [Run.pending] had [from] entries,
      * where it is a statement its body runs where it is: a `=`, which the walk runs, or one whose value nothing takes,
      * which no unit queued and no macro's output replaced. One whose value is known, as it expanded or as the evaluator
-     * takes it, or that a port built, raises nowhere, so it is inert instead.
+     * takes it, or that a port built, raises nowhere, so it is inert instead, unless a body it runs holds units, which
+     * run only where it reaches them.
      */
     private fun queueStatement(node: ElixirAst, expansion: Expansion.Expanded, from: Int, state: ExState, env: Env, run: Run) {
         val statements = run.statementsAt(env)
@@ -70,6 +71,7 @@ object Expander {
             isCall(node, "=", 2) -> run.replacePending(from, before + Pending.Match(node, state, env, statement, inner))
             !statements.isWhole(node) || statements.isRewritten(node) -> Unit
             queued.any { it.site === node } -> Unit
+            inner.isNotEmpty() -> run.replacePending(from, before + Pending.Statement(node, state, env, statement, inner))
             expansion.value == VARIABLE_NODE || isKnown(expansion.value) -> statements.inert(node)
             (run.dispatchesAt(env)?.of(node) as? ModuleClauses.Dispatched.Value)?.value?.let(::isKnown) == true ->
                 statements.inert(node)

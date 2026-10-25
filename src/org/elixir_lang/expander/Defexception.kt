@@ -31,22 +31,23 @@ private fun defexception(
     val expansion = expandQuoted(node, KERNEL, output.output(), state, env, run, ports = true)
 
     if (expansion is Expansion.Expanded && compiling.isStatement(node)) {
-        run.replacePending(from, withMessageBranch(node, run.pending.subList(from, run.pending.size).toList(), compiling.statements))
+        run.replacePending(from, withMessageBranch(node, run.pending.subList(from, run.pending.size).toList()))
     }
 
     return expansion
 }
 
 /**
- * [queued], what the output queued, with the entries of the `if` branch, which are the ones that aren't statements,
- * left to an effect after `defstruct`'s. It gives them as statements once the struct has a `message` field, and none
- * once it hasn't. Where the struct isn't known, they stay as they were: they may or may not run.
+ * [queued], what the output queued, with the `if`'s statement, whose branch holds the entries, replaced by an effect
+ * after `defstruct`'s. It gives them as statements once the struct has a `message` field, and none once it hasn't.
+ * Where the struct isn't known, they stay as they were: they may or may not run.
  */
-private fun withMessageBranch(node: ElixirAst.Call, queued: List<Pending>, statements: Statements): List<Pending> {
-    val branch = queued.filterNot { it.isStatement(statements) }
+private fun withMessageBranch(node: ElixirAst.Call, queued: List<Pending>): List<Pending> {
+    val index = queued.indexOfFirst { it is Pending.Statement && it.inner.isNotEmpty() }
 
-    if (branch.isEmpty()) return queued
+    if (index < 0) return queued
 
+    val branch = queued[index].inner
     var message: Boolean? = null
     val decision = Pending.Effect(
         node,
@@ -64,11 +65,5 @@ private fun withMessageBranch(node: ElixirAst.Call, queued: List<Pending>, state
             null
         },
     )
-    val first = queued.indexOfFirst { !it.isStatement(statements) }
-
-    return buildList {
-        addAll(queued.take(first))
-        add(decision)
-        addAll(queued.drop(first).filter { it.isStatement(statements) })
-    }
+    return queued.toMutableList().also { it[index] = decision }
 }
