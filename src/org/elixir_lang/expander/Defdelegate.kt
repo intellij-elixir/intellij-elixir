@@ -64,7 +64,7 @@ private fun defdelegate(
 
         run.replacePending(
             from,
-            binds + Pending.Effect(node, ordered = true, queued = { entries }) { body, _ ->
+            binds + Pending.Effect(node, ordered = true, queued = { entries }) { body, _, _ ->
                 entries = bound?.let { optionsOf(it, body, run) }?.let { delegates.each(funs, it, iteration) } ?: iteration
 
                 // A definition the loop makes for a head it can name is a statement of the body, as its `def` is once it runs.
@@ -286,7 +286,7 @@ private class Delegates(private val node: ElixirAst.Call, private val env: Env, 
     }
 
     private fun raises(kind: String): Pending =
-        Pending.Effect(node, ordered = true, apply = { _, _ -> Expansion.Error(kind, node) })
+        Pending.Effect(node, ordered = true, apply = { _, _, _ -> Expansion.Error(kind, node) })
 }
 
 /** The values `Keyword.get(opts, :to) || raise` refuses. */

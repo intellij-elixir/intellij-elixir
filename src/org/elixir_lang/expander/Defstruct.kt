@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangObject
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_BIND_QUOTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_ESCAPES_STRUCT
@@ -57,7 +58,6 @@ private fun defstruct(
         definitions,
         results.orEmpty(),
         compiling.statements,
-        compiling.isStatement(node),
         run,
     ).takeIf { expansion is Expansion.Expanded && definitions.size == output.definitionCount }
 
@@ -69,7 +69,9 @@ private fun defstruct(
                 node,
                 compiling.isStatement(node),
                 queued = { effect?.queued() ?: definitions },
-                apply = { compiling, _ -> if (effect == null) unreadable(compiling) else effect.apply(compiling) },
+                apply = { compiling, statement, bindings ->
+                    if (effect == null) unreadable(compiling) else effect.apply(compiling, statement, bindings)
+                },
             ),
         ),
     )
@@ -306,13 +308,20 @@ private class DefstructEffect(
     private val queued: List<Pending.Definition>,
     private val results: Map<String, ElixirAst>,
     private val statements: Statements,
-    private val statement: Boolean,
     private val run: Run,
 ) {
     private val level = run.level
     private var enforced: List<String>? = null
 
-    fun apply(compiling: Compiling): Expansion? {
+    /** Whether the walk ran the `defstruct` as a statement, which its [queued] definitions read. */
+    private var statement = false
+
+    /**
+     * The effect applied where the walk ran the `defstruct`, as a [statement] or not, binding the output's results into
+     * [bindings], the variables the walk has there.
+     */
+    fun apply(compiling: Compiling, statement: Boolean, bindings: HashMap<Binding, OtpErlangObject>): Expansion? {
+        this.statement = statement
         // A call that may not run, or may run more than once, is not followed.
         if (!statement) return stopped(compiling)
 
@@ -352,7 +361,7 @@ private class DefstructEffect(
         }
 
         enforced = enforcedKeys
-        bind(compiling, enforcedKeys, known.entries)
+        bind(bindings, enforcedKeys, known.entries)
         compiling.struct = ModuleStruct.Present(fieldKeys - "__struct__", Enforced.Known(enforcedKeys.toSet()))
 
         if (!DEFSTRUCT_BIND_QUOTED.isSufficient(level)) {
@@ -373,14 +382,14 @@ private class DefstructEffect(
         return derive(node, derived, run)
     }
 
-    /** `Kernel.Utils.defstruct`'s result, bound where the output's `=` binds it; unbound where it can't be escaped. */
-    private fun bind(compiling: Compiling, enforced: List<String>, entries: List<Pair<String, ElixirAst>>) {
+    /** `Kernel.Utils.defstruct`'s result, bound into [bindings] where the output's `=` binds it; unbound where it can't be escaped. */
+    private fun bind(bindings: HashMap<Binding, OtpErlangObject>, enforced: List<String>, entries: List<Pair<String, ElixirAst>>) {
         val values = output.values(enforced, entries) ?: return
 
         for ((name, variable) in results) {
             val version = run.bodyDispatches.versionOf(variable) ?: continue
 
-            values[name]?.let { compiling.values.bindings[Binding(version)] = it.toOtp() }
+            values[name]?.let { bindings[Binding(version)] = it.toOtp() }
         }
     }
 

@@ -1,7 +1,9 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangObject
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
+import org.elixir_lang.expander.interpreter.Binding
 import org.elixir_lang.expander.interpreter.Evaluated
 import org.elixir_lang.expander.interpreter.termOf
 import org.elixir_lang.language_level.ElixirLanguageFeature.ANONYMOUS_CALL_OF_ATOM_REFUSED
@@ -523,10 +525,16 @@ private fun queueEffect(
     val change = ModuleEffects.of(receiver, name, values.elements, nodes, module, run.level) ?: return
 
     run.effects += node
-    val evaluates = statement && values.elements.any { AttributeValue.of(it) is AttributeValue.Unknown }
-    val arguments by lazy { evaluatedArguments(values.elements, nodes, compiling, state, env, run) }
-    val evaluated = {
-        (arguments as? ArgumentValues.Evaluated)?.let {
+    // The walk evaluates an unknown argument only where it runs the effect as a statement, from the bindings it has
+    // there: once per run of the effect, which a followed `fn` may run more than once.
+    val evaluates = values.elements.any { AttributeValue.of(it) is AttributeValue.Unknown }
+    var last: Pair<HashMap<Binding, OtpErlangObject>, ArgumentValues>? = null
+    val arguments = { bindings: HashMap<Binding, OtpErlangObject> ->
+        last?.takeIf { it.first === bindings }?.second
+            ?: evaluatedArguments(values.elements, nodes, compiling, state, env, run, bindings).also { last = bindings to it }
+    }
+    val evaluated = { bindings: HashMap<Binding, OtpErlangObject> ->
+        (arguments(bindings) as? ArgumentValues.Evaluated)?.let {
             ModuleEffects.of(receiver, name, it.terms, nodes, module, run.level)
         }
     }
@@ -537,21 +545,23 @@ private fun queueEffect(
                 Pending.Attribute(
                     change.effect,
                     at,
-                    statement = true,
-                    raises = { (arguments as? ArgumentValues.Raised)?.expansion },
-                    resolve = { (evaluated() as? ModuleEffects.Change.Attributes)?.effect ?: Effect.UnknownEffect },
+                    statement,
+                    raises = { bindings -> (arguments(bindings) as? ArgumentValues.Raised)?.expansion },
+                    resolve = { _, bindings ->
+                        (evaluated(bindings) as? ModuleEffects.Change.Attributes)?.effect ?: Effect.UnknownEffect
+                    },
                 )
             } else {
                 Pending.Attribute(change.effect, at, statement)
             }
         is ModuleEffects.Change.Definitions ->
-            run.pending += Pending.Effect(node, statement) { compiling, ordered ->
-                val resolved = if (evaluates) arguments else null
+            run.pending += Pending.Effect(node, statement) { compiling, ordered, bindings ->
+                val resolved = if (evaluates && ordered) arguments(bindings) else null
 
                 if (resolved is ArgumentValues.Raised) {
                     resolved.expansion
                 } else {
-                    val definitions = resolved?.let { evaluated() } as? ModuleEffects.Change.Definitions ?: change
+                    val definitions = resolved?.let { evaluated(bindings) } as? ModuleEffects.Change.Definitions ?: change
 
                     definitions.apply(compiling, node, run.exports, ordered)
                 }
@@ -578,6 +588,7 @@ internal fun evaluatedArguments(
     state: ExState,
     env: Env,
     run: Run,
+    bindings: HashMap<Binding, OtpErlangObject> = compiling.values.bindings,
 ): ArgumentValues {
     val evaluated = ArrayList<Term>(terms.size)
 
@@ -587,7 +598,7 @@ internal fun evaluatedArguments(
             continue
         }
 
-        evaluated += when (val value = compiling.values.evaluate(node, state, env, run)) {
+        evaluated += when (val value = compiling.values.evaluate(node, state, env, run, bindings)) {
             is Evaluated.Value -> termOf(value.value).takeIf { AttributeValue.of(it) is AttributeValue.Known } ?: term
             is Evaluated.Declined -> term
             is Evaluated.Raised -> return ArgumentValues.Raised(Expansion.Error(value.exception, node))

@@ -87,16 +87,16 @@ internal fun expandQuoted(
     ports: Boolean = false,
 ): Expansion {
     var watching: ElixirAst? = null
-    val placing = placing(call, run)
+    val inheriting = inheriting(call, run)
     val porting = ports || call in run.ported
     val arguments = if (porting) descendants(call.arguments.orEmpty()) else emptySet()
     val linified = linifyWithContextCounter(lineOf(call.meta), receiver, counter, run.level, output) { original, linified ->
         if (original === watched?.node) watching = linified
-        if (porting && original !in arguments || original in run.ported) run.ported += linified
+        if (porting && original !in arguments) run.ported += linified
 
         // A node in a module body is expanded when the module is compiled, after this call returns.
         supplied[original]?.let { run.supplying[linified] = it }
-        placing(original, linified)
+        inheriting(original, linified)
     }
 
     run.statementsAt(env)?.rewrote(call, linified)
@@ -133,14 +133,15 @@ private fun descendants(nodes: List<ElixirAst>): Set<ElixirAst> {
 }
 
 /**
- * Gives each node that linify copies from the output of the macro [call] dispatched the [Run.placedAt] place of the node
- * it copies, or, where the macro built it and [call] has one, [call]'s.
+ * Gives each node that linify copies from the output of the macro [call] dispatched what the node it copies has
+ * ([Run.inherits]), and, where the macro built it and [call] has one, [call]'s [Run.placedAt] place.
  */
-internal fun placing(call: ElixirAst.Call, run: Run): (original: ElixirAst, linified: ElixirAst) -> Unit {
+internal fun inheriting(call: ElixirAst.Call, run: Run): (original: ElixirAst, linified: ElixirAst) -> Unit {
     val place = run.placedAt[call]
 
     return { original, linified ->
-        (run.placedAt[original] ?: place?.takeIf { builtBy(original, call) })?.let { run.placedAt[linified] = it }
+        run.inherits(original, linified)
+        if (original !in run.placedAt) place?.takeIf { builtBy(original, call) }?.let { run.placedAt[linified] = it }
     }
 }
 

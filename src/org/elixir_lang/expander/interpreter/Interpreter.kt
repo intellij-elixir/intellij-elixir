@@ -883,7 +883,7 @@ internal class Evaluation(
                 clauses(arrows, listOf(value), frame) ?: error(tuple(atom("case_clause"), value))
             }
             "cond" if args.size == 1 -> cond(arrows(doOption(args[0])), frame)
-            "fn" -> fn(args, frame)
+            "fn" -> fn(node, args, frame)
             "&" if args.size == 1 -> capture(node, frame)
             "try" if args.size == 1 -> evalTry(args.single(), frame)
             "for" if args.isNotEmpty() -> evalFor(args, frame)
@@ -1075,11 +1075,20 @@ internal class Evaluation(
         error(atom("cond_clause"))
     }
 
-    private fun fn(arrows: List<ElixirAst>, frame: Frame): OtpErlangObject {
+    private fun fn(node: ElixirAst, arrows: List<ElixirAst>, frame: Frame): OtpErlangObject {
         val closed = frame.copy()
         val arity = clauseHead(arrowParts(arrows.first()).first).first.size
 
-        return Closure(arity, { marks(arrows, closed) }) { values -> clauses(arrows, values, closed, fresh = true) ?: noClause(closed, values) }
+        return Closure(arity, { marks(arrows, closed) }, node) { values ->
+            run.entered += node
+            run.running.addLast(node)
+
+            try {
+                clauses(arrows, values, closed, fresh = true) ?: noClause(closed, values)
+            } finally {
+                run.running.removeLast()
+            }
+        }
     }
 
     /**

@@ -41,6 +41,7 @@ internal val DEFPROTOCOL = Summary { _, node, state, env, run ->
                 injectedBy = module.injectedBy,
                 outer = module.outer,
                 placed = module.placed,
+                statement = module.statement,
             )
         }
 
@@ -119,11 +120,11 @@ private fun knowFunctions(shape: ProtocolFunction.Declared, from: Int, run: Run)
 
     val declared = Term.Pair(Term.Atom(shape.name), Term.Integer(BigInteger.valueOf(shape.arguments.size.toLong())))
 
-    run.pending[index] = Pending.Attribute(write.effect, write.at, statement = true, write.raises) { attributes ->
+    run.pending[index] = Pending.Attribute(write.effect, write.at, statement = true, write.raises) { attributes, bindings ->
         val before = attributes.read(attribute) as? Term.List
 
         if (before == null || before.tail != null) {
-            write.resolve?.invoke(attributes) ?: write.effect
+            write.resolve?.invoke(attributes, bindings) ?: write.effect
         } else {
             Effect.Write(attribute, Term.List(listOf(declared) + before.elements))
         }
@@ -196,7 +197,7 @@ internal class ProtocolTail(private val module: String, meta: Meta, private val 
     private fun waiting(definition: Pending.Definition, branch: Int): Pending {
         var queued: List<Pending> = listOf(definition)
 
-        return Pending.Effect(definition.node, ordered = true, queued = { queued }) { compiling, _ ->
+        return Pending.Effect(definition.node, ordered = true, queued = { queued }) { compiling, _, _ ->
             queued = filling(definition, branch, compiling.attributes)
             null
         }

@@ -211,7 +211,7 @@ private class Built(private val meta: Meta) {
 internal fun takeFile(definition: Pending.Definition, compiling: Compiling): AttributeValue? {
     val taken = compiling.attributes.take("file")
 
-    if (!compiling.isStatement(definition.node)) compiling.attributes.markUnknown("file")
+    if (!definition.statement) compiling.attributes.markUnknown("file")
 
     return taken
 }
@@ -234,7 +234,7 @@ internal fun takeDefinitionAttributes(
         ?.takeIf { it == AttributeValue.Unknown || (it as AttributeValue.Known).term is Term.Binary }
     val doc = docPart(attributes.take("doc"))
 
-    if (!compiling.isStatement(definition.node)) attributes.markUnknown("impl", "deprecated", "doc")
+    if (!definition.statement) attributes.markUnknown("impl", "deprecated", "doc")
 
     val impls = listOfNotNull(impl?.let { AttributeLog.Impl(kind, line(definition.node.meta), it) })
     val truthy = when (impl) {

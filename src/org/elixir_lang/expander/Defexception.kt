@@ -58,7 +58,7 @@ private fun withMessageBranch(node: ElixirAst.Call, queued: List<Pending>, state
                 null -> branch
             }
         },
-        apply = { compiling, _ ->
+        apply = { compiling, _, _ ->
             message = (compiling.struct as? ModuleStruct.Present)?.let { "message" in it.fields }
 
             null

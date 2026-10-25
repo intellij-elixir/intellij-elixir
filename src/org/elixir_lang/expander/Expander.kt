@@ -297,6 +297,15 @@ internal class Run(
     val ported: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
 
     /**
+     * [copy], a node rebuilt from [original], stands where the original stands: a port built it where one built the
+     * original ([ported]), and it has the original's place ([placedAt]).
+     */
+    fun inherits(original: ElixirAst, copy: ElixirAst) {
+        if (original in ported) ported += copy
+        placedAt[original]?.let { placedAt[copy] = it }
+    }
+
+    /**
      * Each call of a module body whose effect on its module the walk applies itself, by identity. The evaluator
      * declining one doesn't mean it wrote anything else: the effect says what it writes.
      */
@@ -455,6 +464,20 @@ internal class Run(
     val reached = IdentityHashMap<ElixirAst, (HashMap<Binding, OtpErlangObject>) -> OtpErlangObject>()
 
     /**
+     * Each `fn` of a module body or the file's top level whose closure the evaluator has called in the run of the
+     * statement being reached, by identity: the units its body holds ran where it did, so one the evaluator didn't
+     * reach Elixir didn't run either. Each run of a statement has its own, which starts with the `fn`s [running] when it
+     * does and gives what it entered to the run around it.
+     */
+    var entered: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
+
+    /** The `fn`s whose closures the evaluator is running, innermost last. */
+    val running = ArrayDeque<ElixirAst>()
+
+    /** How many statement runs are reaching units, one in another: a unit's callback stays until the outermost ends. */
+    var reaching = 0
+
+    /**
      * How many declines the evaluator has gone on after, in a loop whose later iterations still run: Elixir may have
      * raised in the iteration that declined, so a unit reached after one may never run.
      */
@@ -470,7 +493,7 @@ internal class Run(
     val bodyQuotes = ModuleClauses.Quotes()
 
     /** The file's top-level statements. */
-    val fileStatements = Statements()
+    val fileStatements = Statements(level)
 
     /** What the file's top-level statements bound so far, and how far what ran is Elixir's. */
     val fileValues = BodyValues(fileStatements)

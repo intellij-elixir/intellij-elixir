@@ -88,6 +88,7 @@ private val RUNS = mapOf(
     Triple("erlang", "apply", 2) to listOf(0),
     Triple("erlang", "apply", 3) to listOf(0, 1),
     Triple("lists", "map", 2) to listOf(0),
+    Triple("lists", "foreach", 2) to listOf(0),
     Triple("lists", "filter", 2) to listOf(0),
     Triple("lists", "foldl", 3) to listOf(0),
     Triple("lists", "mapfoldl", 3) to listOf(0),
@@ -471,6 +472,14 @@ internal class Natives(private val evaluation: Evaluation) {
 
                 list(each(args[1], caseClause, { tail -> frame("lists", "map_1", list(listOf(args[0], tail))) }) { function.call(it) })
             }
+            "foreach/2" -> {
+                val function = function(ran, 1) ?: listsError(atom("function_clause"), frame("lists", "foreach", list(args)))
+                val helper = { list: OtpErlangObject -> frame("lists", "foreach_1", list(listOf(args[0], list))) }
+
+                each(args[1], { listsError(atom("function_clause"), helper(args[1])) }, helper) { function.call(it) }
+
+                atom("ok")
+            }
             "filter/2" -> {
                 val predicate = function(ran, 1) ?: functionClause("filter", args)
 
@@ -730,7 +739,7 @@ internal class Natives(private val evaluation: Evaluation) {
         return results
     }
 
-    /** An error `lists:map/2`, `foldl/3`, `mapfoldl/3` or `all/2` raises, which before OTP 25 the VM gave otherwise. */
+    /** An error a `lists` function raises on its arguments, which before OTP 25 the VM gave otherwise. */
     private fun listsError(reason: OtpErlangObject, top: OtpErlangTuple? = null): Nothing {
         if (!LISTS_CHECK_THE_FUN_FIRST.isSufficient(level)) decline("an error of a lists function before OTP 25")
 

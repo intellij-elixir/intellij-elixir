@@ -459,10 +459,7 @@ internal fun unquoted(
     )
 }
 
-/**
- * [node] copied: each node of it a new one with the same metadata, carrying what [run] holds of the original by identity,
- * whether a port built it ([Run.ported]) and its place ([Run.placedAt]).
- */
+/** [node] copied: each node of it a new one with the same metadata, standing where the original does ([Run.inherits]). */
 private fun copied(node: ElixirAst, run: Run): ElixirAst {
     ProgressManager.checkCanceled()
 
@@ -480,8 +477,7 @@ private fun copied(node: ElixirAst, run: Run): ElixirAst {
         is ElixirAst.Value -> ElixirAst.Value(node.meta, node.term)
     }
 
-    if (node in run.ported) run.ported += copy
-    run.placedAt[node]?.let { run.placedAt[copy] = it }
+    run.inherits(node, copy)
 
     return copy
 }

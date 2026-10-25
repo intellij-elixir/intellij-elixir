@@ -6,12 +6,14 @@ import org.elixir_lang.NameArity
 import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.expander.ExpansionResult.Owner
 import org.elixir_lang.expander.interpreter.Binding
+import org.elixir_lang.expander.interpreter.Closure
 import org.elixir_lang.expander.interpreter.Declined
 import org.elixir_lang.expander.interpreter.Evaluated
 import org.elixir_lang.expander.interpreter.Given
 import org.elixir_lang.expander.interpreter.Interpreter
 import org.elixir_lang.expander.interpreter.PartsOutcome
 import org.elixir_lang.expander.interpreter.Unknown
+import org.elixir_lang.expander.interpreter.anyHeld
 import org.elixir_lang.expander.interpreter.atom
 import org.elixir_lang.expander.interpreter.integer
 import org.elixir_lang.expander.interpreter.list
@@ -103,7 +105,7 @@ internal class Compiling(
 
     val unnamed = mutableListOf<AttributeLog.DefinitionAttributes>()
 
-    val statements = Statements().apply { add(body) }
+    val statements = Statements(level).apply { add(body) }
 
     /** What the module body's statements bound so far, and how far what ran is Elixir's. */
     val values = BodyValues(statements, known, placed)
@@ -224,14 +226,21 @@ internal class BodyValues(
     /** The statements being run, outermost first, whose units the evaluator reaches as they run. */
     private val running = ArrayDeque<Running>()
 
-    /** A statement being run, and whether every unit the evaluator reached in it so far had Elixir's outcome. */
-    class Running(val site: ElixirAst) {
+    /**
+     * A statement being run, and whether every unit the evaluator reached in it so far had Elixir's outcome; a unit
+     * reached after the evaluator went on past more declines than the [continuedDeclines] when the run started may
+     * never run.
+     */
+    class Running(val site: ElixirAst, val continuedDeclines: Int) {
         var certain = true
     }
 
-    /** [block], the run of the statement at [site], during which the units it reaches are [outcome]s of its own. */
-    fun <T> running(site: ElixirAst, block: (Running) -> T): T {
-        val statement = Running(site)
+    /**
+     * [block], the run of the statement at [site], during which the units it reaches are [outcome]s of its own, started
+     * after [continuedDeclines] declines the evaluator went on past.
+     */
+    fun <T> running(site: ElixirAst, continuedDeclines: Int, block: (Running) -> T): T {
+        val statement = Running(site, continuedDeclines)
 
         running.addLast(statement)
 
@@ -292,6 +301,15 @@ internal class BodyValues(
     }
 
     /**
+     * A unit was reached after the evaluator had gone on past [continuedDeclines] declines in all: where that is more
+     * than when the statement running now started, the unit may never run, so that statement's outcome isn't Elixir's
+     * for certain. The statement running now is marked, not the one whose run registered the unit, which may have ended.
+     */
+    fun reachedAfter(continuedDeclines: Int) {
+        running.lastOrNull()?.let { if (continuedDeclines > it.continuedDeclines) it.certain = false }
+    }
+
+    /**
      * Whether a raise at [site], a unit's node, is the body's for certain: every statement before it, and every unit
      * reached before it in the statement running it, ran with Elixir's outcome, and nothing declined or assumed a raise
      * away so far. `null` is the body's end.
@@ -321,6 +339,7 @@ internal class BodyValues(
         bindings: HashMap<Binding, OtpErlangObject> = this.bindings,
     ): Evaluated {
         val (pattern, right) = node.arguments!!
+        val before = HashMap(bindings)
         val evaluated = when (val value = ran(right, state, env, run, bindings)) {
             is Evaluated.Value -> recorded(Interpreter.bind(pattern, value.value, node, bindings, state, env, run), pattern, run)
             is Evaluated.Declined -> value.also { Interpreter.bindDeclined(pattern, it.holds, bindings, env, run) }
@@ -328,9 +347,22 @@ internal class BodyValues(
         }
 
         if (evaluated !is Evaluated.Raised) units[node] = evaluated
+        bound[node] = bindings.filter { (binding, value) -> before[binding] !== value }.values.toList()
 
         return evaluated
     }
+
+    // What each match's pattern bound where the body last ran it.
+    private val bound = IdentityHashMap<ElixirAst, List<OtpErlangObject>>()
+
+    /** The values the pattern of [node], a match, bound where the body last ran it: nothing for a `_` or a literal. */
+    fun boundBy(node: ElixirAst): List<OtpErlangObject> = bound[node].orEmpty()
+
+    // The units stepped unordered for an `fn` a statement kept, each once however many statements keep the `fn`.
+    private val keptUnits: MutableSet<Pending> = Collections.newSetFromMap(IdentityHashMap())
+
+    /** Whether [unit], held by an `fn` a statement kept, is stepped unordered now: only the first statement to keep it does. */
+    fun keepsOnce(unit: Pending): Boolean = keptUnits.add(unit)
 
     /** [node], a statement of the body whose value nothing takes, run where the body runs it, from [bindings]. */
     fun statement(
@@ -405,12 +437,15 @@ internal class BodyValues(
  * the body does. A match runs the statements of its right side before it binds, and a macro's output runs in place of
  * its call.
  */
-internal class Statements {
-    /** Each statement to the one it runs within: a match for its right side's, a rewritten call for its output's. */
-    private val parents = IdentityHashMap<ElixirAst, ElixirAst?>()
+internal class Statements(private val level: ElixirLanguageLevel) {
+    /** The statements on the statement path. */
+    private val contained: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
 
     /** The statements each match or rewritten call runs, in order. */
     private val children = IdentityHashMap<ElixirAst, MutableList<ElixirAst>>()
+
+    /** Each statement whose value another takes, as a match takes its right side's, to that statement, in either tier. */
+    private val takenBy = IdentityHashMap<ElixirAst, ElixirAst>()
 
     /** The statements at the top, in order. */
     private val top = mutableListOf<ElixirAst>()
@@ -425,16 +460,39 @@ internal class Statements {
     private val inert: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
 
     /**
-     * The statements of the bodies the walk follows as a statement runs: a `for`'s. Each runs where the body runs it,
-     * as many times as it does, so none is on the statement path.
+     * The statements of the bodies the walk follows as a statement runs: a `for`'s, a `case` clause's, and those of an
+     * `fn` a call is given. Each runs where the body runs it, as many times as it does, so none is on the statement path.
      */
     private val followed: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
 
+    /**
+     * Each followed statement in the body of an `fn` to that `fn`, which runs it only where the `fn` is called, and each
+     * such `fn` to the `fn` whose body holds it.
+     */
+    private val holders = IdentityHashMap<ElixirAst, ElixirAst>()
+
     /** Whether [node] is a statement of the body, on the statement path. */
-    fun contains(node: ElixirAst): Boolean = parents.containsKey(node)
+    fun contains(node: ElixirAst): Boolean = node in contained
 
     /** Whether [node] is a statement of a body the walk follows as a statement runs. */
     fun follows(node: ElixirAst): Boolean = node in followed
+
+    /** The `fn` whose body holds the followed statement [node], or `null` where a `for` or a `case` runs it. */
+    fun holderOf(node: ElixirAst): ElixirAst? = holders[node]
+
+    /** Whether one of [fns] holds the followed statement [node], in its body or an `fn`'s body in it. */
+    fun heldBy(node: ElixirAst, fns: Set<ElixirAst>): Boolean {
+        var holder = holders[node]
+
+        while (holder != null) {
+            ProgressManager.checkCanceled()
+
+            if (holder in fns) return true
+            holder = holders[holder]
+        }
+
+        return false
+    }
 
     /** [node], a statement, raises nowhere, so no unit need run it. */
     fun inert(node: ElixirAst) {
@@ -443,6 +501,26 @@ internal class Statements {
 
     /** Whether [node] is a statement whose value nothing takes, as a match's right side's is taken. */
     fun isWhole(node: ElixirAst): Boolean = node in whole
+
+    /**
+     * Whether the value of [node], a statement, reaches code that may keep it: something takes it, other than a match
+     * that discards it (`_ = ...`) or a rewritten call, whose value is its output's, however many of either are around
+     * it.
+     */
+    fun keeps(node: ElixirAst): Boolean {
+        var statement = node
+
+        while (statement !in whole) {
+            ProgressManager.checkCanceled()
+
+            val taker = takenBy[statement] ?: return true
+
+            if (taker !in rewritten && (!isCall(taker, "=", 2) || !isUnderscore((taker as ElixirAst.Call).arguments!![0]))) return true
+            statement = taker
+        }
+
+        return false
+    }
 
     /** Whether a macro's output was expanded in place of [node], whose statements are its own. */
     fun isRewritten(node: ElixirAst): Boolean = node in rewritten
@@ -456,7 +534,7 @@ internal class Statements {
             }
             follows(call) -> {
                 rewritten += call
-                add(rewrite, isWhole(call), followed = true)
+                add(rewrite, isWhole(call), call, followed = true, holder = holders[call])
             }
         }
     }
@@ -466,9 +544,10 @@ internal class Statements {
      * where the block's value is taken, as a match takes its right side's, only its last expression's is. So are the
      * elements of a statement that is a list, as `defimpl`'s output for a list of types is, and the head and tail of
      * its `[h | t]`, and what a statement that is a match binds, within it: each runs where the statement does. The
-     * body of a `for` is [followed]: its statements run where the `for` does, once per element.
+     * bodies the statement runs where it does, as many times as it does, are [followed] ([followedBodies]), each in the
+     * `fn` that [holder] names where one holds it.
      */
-    fun add(node: ElixirAst, isWhole: Boolean = true, within: ElixirAst? = null, followed: Boolean = false) {
+    fun add(node: ElixirAst, isWhole: Boolean = true, within: ElixirAst? = null, followed: Boolean = false, holder: ElixirAst? = null) {
         ProgressManager.checkCanceled()
 
         when (node) {
@@ -476,46 +555,77 @@ internal class Statements {
                 val last = node.expressions.lastOrNull()
 
                 for (expression in node.expressions) {
-                    add((if (expression !== last) discardedFor(expression) else null) ?: expression, isWhole || expression !== last, within, followed)
+                    add((if (expression !== last) discardedFor(expression) else null) ?: expression, isWhole || expression !== last, within, followed, holder)
                 }
             }
             is ElixirAst.ListNode -> for (element in node.elements) {
                 if (isCall(element, "|", 2)) {
-                    (element as ElixirAst.Call).arguments!!.forEach { add(it, isWhole, within, followed) }
+                    (element as ElixirAst.Call).arguments!!.forEach { add(it, isWhole, within, followed, holder) }
                 } else {
-                    add(element, isWhole, within, followed)
+                    add(element, isWhole, within, followed, holder)
                 }
             }
             else -> {
+                within?.let { takenBy[node] = it }
                 if (followed) {
                     this.followed += node
+                    holder?.let { holders[node] = it }
                 } else {
-                    parents[node] = within
+                    contained += node
                     (within?.let { children.getOrPut(it) { mutableListOf() } } ?: top) += node
                 }
                 if (isWhole) whole += node
 
                 if (isCall(node, "=", 2)) {
-                    add((node as ElixirAst.Call).arguments!![1], isWhole = false, within = node.takeUnless { followed }, followed = followed)
+                    add((node as ElixirAst.Call).arguments!![1], isWhole = false, within = node, followed = followed, holder = holder)
                 }
-                followedBodies(node).forEach { add(it, followed = true) }
+                followedBodies(node).forEach { (body, fn) ->
+                    if (fn != null && holder != null) holders[fn] = holder
+                    add(body, followed = true, holder = fn ?: holder)
+                }
             }
         }
     }
 
     /**
      * The bodies of [node] the walk follows as [node] runs, which [add] enters: a `for`'s `do`, or each clause's body
-     * where the `do` has clauses. A `def`'s body, and an `fn`'s, run where they are called, so neither is entered.
+     * where the `do` has clauses; each clause's body of a `case`, which `if` and `unless` expand to; and each clause's
+     * body of an `fn` a call is given, with that `fn`, which runs it only where the `fn` is called. A `def`'s body runs
+     * where it is called, so it isn't entered, nor is a `cond`'s, `with`'s, `receive`'s or `try`'s.
      */
-    private fun followedBodies(node: ElixirAst): List<ElixirAst> {
-        if (!isFor(node)) return emptyList()
+    private fun followedBodies(node: ElixirAst): List<Pair<ElixirAst, ElixirAst?>> {
+        if (node !is ElixirAst.Call) return emptyList()
 
-        val options = forOptions((node as ElixirAst.Call).arguments!!).second
-        val body = options.firstOrNull { keyOf(it) == "do" }?.let { (it as ElixirAst.Tuple).elements[1] } ?: return emptyList()
-        val arrows = (body as? ElixirAst.ListNode)?.elements?.takeIf { it.isNotEmpty() && it.all { arrow -> isCall(arrow, "->", 2) } }
+        val arguments = node.arguments.orEmpty()
 
-        return arrows?.map { (it as ElixirAst.Call).arguments!![1] } ?: listOf(body)
+        return when {
+            isFor(node) -> doBodies(forOptions(arguments).second).map { it to null }
+            isCall(node, "case", 2) -> doBodies((arguments[1] as? ElixirAst.ListNode)?.elements.orEmpty()).map { it to null }
+            isFunctionCall(node) ->
+                arguments.filter { isNamedCall(it, "fn") }.flatMap { fn -> clauseBodies((fn as ElixirAst.Call).arguments.orEmpty()).map { it to fn } }
+            else -> emptyList()
+        }
     }
+
+    /** Whether [call] calls a function, remote or local, which may run an `fn` it is given: a special form or an operator is neither. */
+    private fun isFunctionCall(call: ElixirAst.Call): Boolean =
+        when (val callee = call.callee) {
+            is ElixirAst.Call -> isCall(callee, ".", 2)
+            is ElixirAst.Literal.Atom -> !specialForm(callee.name, call.arguments.orEmpty().size, level) && !operator(callee.name)
+            else -> false
+        }
+
+    /** The bodies the `do:` of [options] runs: each clause's where it is a list of clauses, else the one body. */
+    private fun doBodies(options: List<ElixirAst>): List<ElixirAst> {
+        val body = options.firstOrNull { keyOf(it) == "do" }?.let { (it as ElixirAst.Tuple).elements[1] } ?: return emptyList()
+        val arrows = (body as? ElixirAst.ListNode)?.elements?.takeIf { it.isNotEmpty() }
+
+        return arrows?.let { clauseBodies(it) }?.ifEmpty { null } ?: listOf(body)
+    }
+
+    /** The body of each `->` of [arrows], where every one is a `->`. */
+    private fun clauseBodies(arrows: List<ElixirAst>): List<ElixirAst> =
+        if (arrows.all { isCall(it, "->", 2) }) arrows.map { (it as ElixirAst.Call).arguments!![1] } else emptyList()
 
     /**
      * Whether every statement the body runs before [site], a unit's node, or the statement that runs it, has an
@@ -600,7 +710,7 @@ internal sealed interface Pending {
         val node: ElixirAst,
         val ordered: Boolean,
         val queued: () -> List<Pending> = { emptyList() },
-        val apply: (Compiling, Boolean) -> Expansion?,
+        val apply: (Compiling, Boolean, HashMap<Binding, OtpErlangObject>) -> Expansion?,
     ) : Pending
 
     /**
@@ -619,6 +729,8 @@ internal sealed interface Pending {
      * @property outer each version [state] reads a variable at, to the version the body the module is in reads it at
      * @property placed whether the body the module is in was [BodyValues.placed] where its expansion reached [node]:
      *   what that expansion did after it can't change what the module defines
+     * @property statement whether [node] is on the statement path of the body it is in, rather than in a body the walk
+     *   follows
      */
     class Module(
         val node: ElixirAst.Call,
@@ -632,6 +744,7 @@ internal sealed interface Pending {
         val injectedBy: ElixirAst.Call? = null,
         val outer: Map<Int, Int> = emptyMap(),
         val placed: Boolean = true,
+        val statement: Boolean = true,
     ) : Pending
 
     /**
@@ -647,8 +760,8 @@ internal sealed interface Pending {
         val effect: org.elixir_lang.expander.Effect,
         val at: ElixirAst,
         val statement: Boolean,
-        val raises: (() -> Expansion?)? = null,
-        val resolve: ((AttributeTable) -> org.elixir_lang.expander.Effect)? = null,
+        val raises: ((HashMap<Binding, OtpErlangObject>) -> Expansion?)? = null,
+        val resolve: ((AttributeTable, HashMap<Binding, OtpErlangObject>) -> org.elixir_lang.expander.Effect)? = null,
     ) : Pending
 
     /**
@@ -707,7 +820,7 @@ internal fun Pending.isStatement(statements: Statements): Boolean =
         is Pending.Effect -> ordered
         is Pending.Check -> ordered
         is Pending.Attribute -> statement
-        is Pending.Module -> statements.contains(node)
+        is Pending.Module -> statement
         is Pending.Match -> statement
         is Pending.Statement -> statement
     }
@@ -734,7 +847,7 @@ internal fun Pending.asStatement(): Pending =
         is Pending.Check -> Pending.Check(node, true, check)
         is Pending.Match -> Pending.Match(node, state, env, true, inner)
         is Pending.Statement -> Pending.Statement(node, state, env, true, inner)
-        is Pending.Module -> this
+        is Pending.Module -> Pending.Module(node, name, isAtom, body, env, state, settle, applied, injectedBy, outer, placed, true)
     }
 
 /** [replacement] in place of what [Run.pending] gained since it had [from] entries, which a macro's own output queued. */
@@ -793,11 +906,11 @@ internal fun compilePending(run: Run): Walked {
             }
             is Pending.Statement -> stepping.reached(reaching(pending, values, run, ::step, stopsAt) { ran(pending, values, run, bindings) }, pending.node)
             is Pending.Definition, is Pending.Effect, is Pending.Attribute -> null
-        } }.let { (raw, assumed) -> raw.stoppingAt(stopsAt) to assumed }
+        } }
 
         if (assumed) values.assumed(pending)
 
-        val ended = values.outcome(pending.site, raw, ordered, stepping.known)
+        val ended = values.outcome(pending.site, raw, ordered, stepping.known).stoppingAt(stopsAt)
 
         // Nothing after a raise at a statement runs, whether or not Elixir raised where the file stopped before it.
         if (raw is Expansion.Error && statement) {
@@ -817,8 +930,8 @@ internal fun compilePending(run: Run): Walked {
     return Walked(stopped, modules, false)
 }
 
-/** The file's or the module's run ended inside a statement the evaluator was running: nothing after it runs. */
-private class RunEnded : RuntimeException(null, null, false, false)
+/** A unit of the body whose values are [values] raised: the run of that body ends there. */
+private class RunEnded(val values: BodyValues) : RuntimeException(null, null, false, false)
 
 /**
  * What running a unit gives: whether the body's run [ends] there, the [value] its code gives the code around it, and
@@ -869,10 +982,11 @@ private class Reached(private val evaluated: Evaluated?, val certain: Boolean) {
 /**
  * [pending], a statement, [evaluate]d with each of its [Pending.inner] units registered for the evaluator to [step]
  * where it reaches the unit's node, from the bindings it has there: as a statement where [pending] is one, else as it
- * is, and a stop in one is at [stopsAt] where that is given, the statement whose run the walk didn't follow. A unit the
- * evaluator didn't reach is dropped where the statement gave a value or raised: Elixir never ran it.
- * Where the statement declined, Elixir may have run each of its units any number of times with values that aren't
- * known, so every one is stepped unordered, reached or not, from the body's own bindings, and a stop in one is the
+ * is, and a stop in one is at [stopsAt] where that is given, the statement whose run the walk didn't follow. A unit
+ * the evaluator didn't reach is dropped where the statement gave a value or raised: Elixir never ran it, unless an
+ * `fn` the evaluator never called holds it, which Elixir may call later, so the unit is stepped unordered from the
+ * body's own bindings. Where the statement declined, Elixir may have run each of its units any number of times with
+ * values that aren't known, so every one is stepped unordered, reached or not, and a stop in one is the
  * statement's, where the expander lost Elixir's path. A unit reached after the evaluator declined an iteration of a
  * loop it went on with may never run: the statement's outcome isn't Elixir's for certain.
  */
@@ -888,22 +1002,26 @@ private fun reaching(
     val statement = pending.isStatement(values.statements)
     val reached: MutableSet<Pending> = Collections.newSetFromMap(IdentityHashMap())
     val callbacks = IdentityHashMap<Pending, (HashMap<Binding, OtpErlangObject>) -> OtpErlangObject>()
-    val continuedDeclines = run.continuedDeclines
-    var within: BodyValues.Running? = null
+    val outerEntered = run.entered
+    // The `fn`s running when this run starts were entered for it; each it enters was entered for the runs around it.
+    val entered: MutableSet<ElixirAst> = Collections.newSetFromMap<ElixirAst>(IdentityHashMap()).apply { addAll(run.running) }
+
+    run.entered = entered
+    run.reaching++
 
     for (unit in inner) {
         val site = unit.site
 
         callbacks[unit] = { bindings ->
             reached += unit
-            if (run.continuedDeclines > continuedDeclines) within?.certain = false
+            values.reachedAfter(run.continuedDeclines)
             // The unit's own node is evaluated inside its run, not reached again.
             run.reached.remove(site)
 
             try {
                 val stepped = step(if (statement) unit.asStatement() else unit, bindings, stopsAt)
 
-                if (stepped.ends) throw RunEnded()
+                if (stepped.ends) throw RunEnded(values)
                 // The evaluator ends the loop or block holding the unit, as it does where it ran the raise itself.
                 stepped.endedDecline?.let { throw it }
                 stepped.value
@@ -916,24 +1034,47 @@ private fun reaching(
 
     var certain = true
     val evaluated = try {
-        values.running(pending.site) { running ->
-            within = running
-
+        values.running(pending.site, run.continuedDeclines) { running ->
             try {
                 evaluate()
             } finally {
                 certain = running.certain
             }
         }
-    } catch (_: RunEnded) {
+    } catch (ended: RunEnded) {
+        // A unit of the module around this one, reached inside it, ends that module's run, not this one's.
+        if (ended.values !== values) throw ended
         null
     } finally {
-        inner.forEach { run.reached.remove(it.site) }
+        run.entered = outerEntered
+        run.reaching--
+        // A closure the statement gave may be called by a statement around it still running, which reaches a unit's
+        // node there, so the units' callbacks stay until the outermost run ends.
+        if (run.reaching == 0) run.reached.clear()
     }
 
+    outerEntered += entered
+
+    // An `fn` whose closure the statement keeps, in what a match binds or in its value where the code around it may
+    // keep that, may be called after the statement, where the walk doesn't follow it.
+    val keptIn = if (evaluated is Evaluated.Value) {
+        (if (pending is Pending.Match) values.boundBy(pending.node) else emptyList()) +
+            (if (values.statements.keeps(pending.site)) listOf(evaluated.value) else emptyList())
+    } else {
+        emptyList()
+    }
+    val kept = keptFns(keptIn)
     val unrun = when (evaluated) {
         is Evaluated.Declined -> inner
-        is Evaluated.Value, is Evaluated.Raised, null -> emptyList()
+        is Evaluated.Value -> {
+            // An `fn` the statement never called holds units Elixir may run later.
+            val unentered = inner.filter { unit -> values.statements.holderOf(unit.site)?.let { unit !in reached && it !in entered } == true }
+            // So does a kept `fn`, however deep in the statement the unit is.
+            val held = if (kept.isEmpty()) emptyList() else inner.nested().filter { unit -> values.statements.heldBy(unit.site, kept) && values.keepsOnce(unit) }
+
+            (unentered + held).distinct()
+        }
+        is Evaluated.Raised, null -> emptyList()
     }
 
     for (unit in unrun) {
@@ -945,7 +1086,39 @@ private fun reaching(
     return Reached(evaluated, certain)
 }
 
-/** This expansion, but a stop is at [stopsAt] where that is given: the statement whose run the walk didn't follow. */
+/** The `fn`s whose closures [values] hold, by their nodes. */
+private fun keptFns(values: List<OtpErlangObject>): MutableSet<ElixirAst> {
+    val fns: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
+
+    anyHeld(values) { term ->
+        (term as? Closure)?.fn?.let(fns::add)
+        false
+    }
+
+    return fns
+}
+
+/** These units and the units of each, however deep. */
+private fun List<Pending>.nested(): List<Pending> {
+    val units = mutableListOf<Pending>()
+    val pending = ArrayDeque(this)
+
+    while (pending.isNotEmpty()) {
+        ProgressManager.checkCanceled()
+
+        val unit = pending.removeFirst()
+
+        units += unit
+        pending.addAll(unit.inner)
+    }
+
+    return units
+}
+
+/**
+ * This outcome, but a stop is at [stopsAt] where that is given: the statement whose run the walk didn't follow, where
+ * the expander lost Elixir's path.
+ */
 private fun Expansion?.stoppingAt(stopsAt: ElixirAst?): Expansion? =
     if (stopsAt != null && this is Expansion.Unported) Expansion.Unported(stopsAt) else this
 
@@ -1117,12 +1290,14 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
                 }
             }
             is Pending.Attribute -> stoppedIfTooDeep(pending.at) {
-                val raises = pending.raises?.takeUnless { runEnded() }?.invoke()
+                // A write Elixir may run any number of times, with values that aren't known, isn't evaluated.
+                val raises = pending.raises?.takeIf { pending.statement && !runEnded() }?.invoke(bindings)
 
                 if (raises != null) {
                     raises
                 } else {
-                    val effect = pending.resolve?.invoke(compiling.attributes) ?: pending.effect
+                    val effect =
+                        pending.resolve?.takeIf { pending.statement }?.invoke(compiling.attributes, bindings) ?: pending.effect
 
                     compiling.effects += AttributeLog.Logged(effect, pending.at, pending.statement)
 
@@ -1152,7 +1327,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
             is Pending.Effect -> stoppedIfTooDeep(pending.node) {
                 ordered = pending.ordered
 
-                val applied = pending.apply(compiling, pending.ordered)
+                val applied = pending.apply(compiling, pending.ordered, bindings)
 
                 (applied as? Expansion.Opaque)?.let(effectOpaque::add)
                 queue.addAll(0, pending.queued())
@@ -1179,7 +1354,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
                     is Ended.Stopped -> Expansion.Unported(inner.at)
                 }
             }
-        } }.let { (raw, assumed) -> raw.stoppingAt(stopsAt) to assumed }
+        } }
 
         if (assumed) values.assumed(pending)
 
@@ -1190,7 +1365,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
                 compiling.tablesCertain()
         // A definition's store raises before it runs the `@on_definition` callbacks, whose code isn't followed.
         val raiseKnown = stepping.known || pending is Pending.Definition
-        val expansion = values.outcome(pending.site, raw, ordered, stepping.known, raiseKnown)
+        val expansion = values.outcome(pending.site, raw, ordered, stepping.known, raiseKnown).stoppingAt(stopsAt)
         val unitEnded = expansion?.let { ended(it, run) }
 
         unit?.let { units += it(expansion!!) }
@@ -1216,7 +1391,25 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
         }
     }
 
-    walk(module.settle?.invoke(run.pending) ?: run.pending)
+    /** The module's compilation is over: the run compiles what was around it again. */
+    fun leave() {
+        run.pending = enclosingPending
+
+        if (enclosing == null) run.compiling.remove(name) else run.compiling[name] = enclosing
+    }
+
+    try {
+        walk(module.settle?.invoke(run.pending) ?: run.pending)
+    } catch (ended: RunEnded) {
+        // A unit of this module's body raised where no run of the body was on the stack, called from a nested module or
+        // a definition's fragment while a run around the module kept its callback: the body's run ends at the raise. A
+        // unit of the file or of a module around this one raised while a statement of this one ran it: Elixir raised
+        // there, while compiling this module, so neither is defined.
+        if (ended.values !== values) {
+            leave()
+            throw ended
+        }
+    }
 
     storeNotOverridden(compiling, checked = compiling.ended == null)?.let { compiling.ended = ended(it, sure(), run, compiling.tablesCertain()) }
 
@@ -1237,9 +1430,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
     errors += run.errors.subList(errorsFrom, run.errors.size)
     warnings += run.warnings.subList(warningsFrom, run.warnings.size)
 
-    run.pending = enclosingPending
-
-    if (enclosing == null) run.compiling.remove(name) else run.compiling[name] = enclosing
+    leave()
 
     // The errors Elixir reported raise once the module's checks have run, unless its code raised before that, or may
     // have at a stop.
