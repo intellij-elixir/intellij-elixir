@@ -210,9 +210,10 @@ class VariableSite(val binding: Boolean, val declarations: List<String>, val ren
  * or a `call`, by [role]. [family] names what the language says it is of: everything a protocol call can dispatch to,
  * every implementation of a callback, and every arity a head's defaults cover are one family, and a function nothing
  * declares is its own. [declarations] are the ids of the heads of the exact function a call is bound to. [signatures] are
- * the parameters Parameter Info shows at a call, where its world asks; null elsewhere.
+ * the parameters Parameter Info shows at a call, where its world asks; null elsewhere. [shows] and [hides] are the
+ * signatures Quick Documentation at a call includes and leaves out, where its world asks.
  */
-class ImplSite(val role: String, val family: String, val declarations: List<String>, val signatures: List<String>? = null)
+class ImplSite(val role: String, val family: String, val declarations: List<String>, val signatures: List<String>? = null, val shows: List<String>? = null, val hides: List<String>? = null)
 
 /** Whether a bare call at [this] site can reach [definition] at any of its arities: always, unless [Site.visible] says. */
 fun Site.sees(definition: Definition): Boolean =

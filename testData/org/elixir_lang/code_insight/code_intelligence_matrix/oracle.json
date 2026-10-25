@@ -35,6 +35,12 @@
     {
       "backing": "src",
       "form": "def",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "src",
+      "form": "def",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute"
     },
@@ -253,6 +259,12 @@
       "form": "defp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "src",
+      "form": "defp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "src",
@@ -581,6 +593,12 @@
     {
       "backing": "src",
       "form": "defmacro",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "src",
+      "form": "defmacro",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute"
     },
@@ -877,6 +895,12 @@
       "form": "defmacrop",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "src",
+      "form": "defmacrop",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "src",
@@ -1213,6 +1237,12 @@
       "form": "defguard",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "src",
+      "form": "defguard",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "src",
@@ -1589,6 +1619,12 @@
     {
       "backing": "src",
       "form": "defguardp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
       "reason": "a guard takes at least one argument, so it cannot define the zero-arity clause this world is about",
       "world": "x_arity_separate"
     },
@@ -2189,6 +2225,12 @@
     {
       "backing": "src",
       "form": "defdelegate",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute"
     },
@@ -2735,6 +2777,12 @@
     {
       "backing": "src",
       "form": "defdelegate_compiled",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute"
     },
@@ -3281,6 +3329,12 @@
     {
       "backing": "src",
       "form": "defdelegate_unresolvable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute"
     },
@@ -3839,6 +3893,12 @@
     {
       "backing": "src",
       "form": "defdelegate_as",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "w3"
     },
@@ -4531,6 +4591,12 @@
       "form": "defdelegate_imports",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "src",
@@ -5267,6 +5333,12 @@
     {
       "backing": "src",
       "form": "defdelegate_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "w2"
     },
@@ -5999,6 +6071,12 @@
     {
       "backing": "src",
       "form": "defdelegate_list_trailing",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "w2"
     },
@@ -6731,6 +6809,12 @@
     {
       "backing": "src",
       "form": "defdelegate_list_lines",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "w2"
     },
@@ -7463,6 +7547,12 @@
     {
       "backing": "src",
       "form": "defdelegate_as_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "w2"
     },
@@ -8191,6 +8281,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "src",
@@ -8923,6 +9019,12 @@
       "form": "defdelegate_doc",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "src",
@@ -9655,6 +9757,12 @@
       "form": "eex_function_from",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "src",
@@ -10265,6 +10373,12 @@
     {
       "backing": "src",
       "form": "eex_function_from_kind",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "w2"
     },
@@ -10961,6 +11075,12 @@
     {
       "backing": "src",
       "form": "eex_function_from_args",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "w2"
     },
@@ -11653,6 +11773,12 @@
       "form": "eex_function_from_computed_name",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_computed_name",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "src",
@@ -12263,6 +12389,12 @@
     {
       "backing": "src",
       "form": "defexception",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "src",
+      "form": "defexception",
       "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
       "world": "src_stale_beam"
     },
@@ -12997,6 +13129,12 @@
       "form": "generator_embed",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "src",
@@ -13733,6 +13871,12 @@
     {
       "backing": "src",
       "form": "attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "src",
+      "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "src_stale_beam"
     },
@@ -14389,6 +14533,12 @@
       "form": "variable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "src",
+      "form": "variable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "src",
@@ -15769,6 +15919,12 @@
       "form": "def",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_dbgi",
@@ -16399,6 +16555,12 @@
       "form": "defp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_dbgi",
@@ -17045,6 +17207,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defmacro",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
       "reason": "only a source can be stale beside its own compiled module",
       "world": "src_stale_beam"
     },
@@ -17671,6 +17839,12 @@
       "form": "defmacrop",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_dbgi",
@@ -18415,6 +18589,12 @@
       "form": "defguard",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_dbgi",
@@ -19079,6 +19259,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defguardp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "src_stale_beam"
     },
@@ -19819,6 +20005,12 @@
       "form": "defdelegate",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_dbgi",
@@ -20465,6 +20657,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_compiled",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "src_stale_beam"
     },
@@ -21205,6 +21403,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_dbgi",
@@ -21863,6 +22067,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_as",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
       "reason": "only a source can be stale beside its own compiled module",
       "world": "src_stale_beam"
     },
@@ -22577,6 +22787,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_imports",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "src_stale_beam"
     },
@@ -23321,6 +23537,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "src_stale_beam"
     },
@@ -24065,6 +24287,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_list_trailing",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "src_stale_beam"
     },
@@ -24809,6 +25037,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_list_lines",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "src_stale_beam"
     },
@@ -25553,6 +25787,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_as_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "src_stale_beam"
     },
@@ -26293,6 +26533,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_dbgi",
@@ -27037,6 +27283,12 @@
       "form": "defdelegate_doc",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_dbgi",
@@ -27781,6 +28033,12 @@
       "form": "eex_function_from",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_dbgi",
@@ -28487,6 +28745,12 @@
     {
       "backing": "ex_dbgi",
       "form": "eex_function_from_kind",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
       "reason": "only a source can be stale beside its own compiled module",
       "world": "src_stale_beam"
     },
@@ -29189,6 +29453,12 @@
     {
       "backing": "ex_dbgi",
       "form": "eex_function_from_args",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
       "reason": "only a source can be stale beside its own compiled module",
       "world": "src_stale_beam"
     },
@@ -29891,6 +30161,12 @@
     {
       "backing": "ex_dbgi",
       "form": "eex_function_from_computed_name",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_computed_name",
       "reason": "only a source can be stale beside its own compiled module",
       "world": "src_stale_beam"
     },
@@ -30589,6 +30865,12 @@
       "form": "defexception",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defexception",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_dbgi",
@@ -31327,6 +31609,12 @@
       "form": "generator_embed",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_dbgi",
@@ -32069,6 +32357,12 @@
     {
       "backing": "ex_dbgi",
       "form": "attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "src_stale_beam"
     },
@@ -32813,6 +33107,12 @@
     {
       "backing": "ex_dbgi",
       "form": "variable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "src_stale_beam"
     },
@@ -33557,6 +33857,12 @@
     {
       "backing": "ex_dbgi",
       "form": "impl",
+      "reason": "a `defimpl` is a source concept: a compiled impl is a module of the protocol's name and the target's, with no head to ask",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "src_stale_beam"
     },
@@ -34297,6 +34603,12 @@
       "form": "def",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_docs",
@@ -34951,6 +35263,12 @@
       "form": "defp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_docs",
@@ -35621,6 +35939,12 @@
     {
       "backing": "ex_docs",
       "form": "defmacro",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
       "reason": "only a source can be stale beside its own compiled module",
       "world": "src_stale_beam"
     },
@@ -36271,6 +36595,12 @@
       "form": "defmacrop",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_docs",
@@ -37015,6 +37345,12 @@
       "form": "defguard",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_docs",
@@ -37697,6 +38033,12 @@
     {
       "backing": "ex_docs",
       "form": "defguardp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "src_stale_beam"
     },
@@ -38437,6 +38779,12 @@
       "form": "defdelegate",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_docs",
@@ -39083,6 +39431,12 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_compiled",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "src_stale_beam"
     },
@@ -39823,6 +40177,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_docs",
@@ -40481,6 +40841,12 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_as",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
       "reason": "only a source can be stale beside its own compiled module",
       "world": "src_stale_beam"
     },
@@ -41195,6 +41561,12 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_imports",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "src_stale_beam"
     },
@@ -41939,6 +42311,12 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "src_stale_beam"
     },
@@ -42683,6 +43061,12 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_list_trailing",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "src_stale_beam"
     },
@@ -43427,6 +43811,12 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_list_lines",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "src_stale_beam"
     },
@@ -44171,6 +44561,12 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_as_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "src_stale_beam"
     },
@@ -44911,6 +45307,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_docs",
@@ -45655,6 +46057,12 @@
       "form": "defdelegate_doc",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_docs",
@@ -46399,6 +46807,12 @@
       "form": "eex_function_from",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_docs",
@@ -47105,6 +47519,12 @@
     {
       "backing": "ex_docs",
       "form": "eex_function_from_kind",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
       "reason": "only a source can be stale beside its own compiled module",
       "world": "src_stale_beam"
     },
@@ -47807,6 +48227,12 @@
     {
       "backing": "ex_docs",
       "form": "eex_function_from_args",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
       "reason": "only a source can be stale beside its own compiled module",
       "world": "src_stale_beam"
     },
@@ -48509,6 +48935,12 @@
     {
       "backing": "ex_docs",
       "form": "eex_function_from_computed_name",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_computed_name",
       "reason": "only a source can be stale beside its own compiled module",
       "world": "src_stale_beam"
     },
@@ -49207,6 +49639,12 @@
       "form": "defexception",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defexception",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_docs",
@@ -49945,6 +50383,12 @@
       "form": "generator_embed",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_docs",
@@ -50687,6 +51131,12 @@
     {
       "backing": "ex_docs",
       "form": "attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "src_stale_beam"
     },
@@ -51431,6 +51881,12 @@
     {
       "backing": "ex_docs",
       "form": "variable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "src_stale_beam"
     },
@@ -52175,6 +52631,12 @@
     {
       "backing": "ex_docs",
       "form": "impl",
+      "reason": "a `defimpl` is a source concept: a compiled impl is a module of the protocol's name and the target's, with no head to ask",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "src_stale_beam"
     },
@@ -52915,6 +53377,12 @@
       "form": "def",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_gen",
@@ -53569,6 +54037,12 @@
       "form": "defp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_gen",
@@ -54239,6 +54713,12 @@
     {
       "backing": "ex_gen",
       "form": "defmacro",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
       "reason": "only a source can be stale beside its own compiled module",
       "world": "src_stale_beam"
     },
@@ -54889,6 +55369,12 @@
       "form": "defmacrop",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_gen",
@@ -55633,6 +56119,12 @@
       "form": "defguard",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_gen",
@@ -56315,6 +56807,12 @@
     {
       "backing": "ex_gen",
       "form": "defguardp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "src_stale_beam"
     },
@@ -57055,6 +57553,12 @@
       "form": "defdelegate",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_gen",
@@ -57701,6 +58205,12 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_compiled",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "src_stale_beam"
     },
@@ -58441,6 +58951,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_gen",
@@ -59099,6 +59615,12 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_as",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
       "reason": "only a source can be stale beside its own compiled module",
       "world": "src_stale_beam"
     },
@@ -59813,6 +60335,12 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_imports",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "src_stale_beam"
     },
@@ -60557,6 +61085,12 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "src_stale_beam"
     },
@@ -61301,6 +61835,12 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_list_trailing",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "src_stale_beam"
     },
@@ -62045,6 +62585,12 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_list_lines",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "src_stale_beam"
     },
@@ -62789,6 +63335,12 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_as_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "src_stale_beam"
     },
@@ -63529,6 +64081,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_gen",
@@ -64273,6 +64831,12 @@
       "form": "defdelegate_doc",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_gen",
@@ -65017,6 +65581,12 @@
       "form": "eex_function_from",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_gen",
@@ -65723,6 +66293,12 @@
     {
       "backing": "ex_gen",
       "form": "eex_function_from_kind",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
       "reason": "only a source can be stale beside its own compiled module",
       "world": "src_stale_beam"
     },
@@ -66425,6 +67001,12 @@
     {
       "backing": "ex_gen",
       "form": "eex_function_from_args",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
       "reason": "only a source can be stale beside its own compiled module",
       "world": "src_stale_beam"
     },
@@ -67127,6 +67709,12 @@
     {
       "backing": "ex_gen",
       "form": "eex_function_from_computed_name",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_computed_name",
       "reason": "only a source can be stale beside its own compiled module",
       "world": "src_stale_beam"
     },
@@ -67825,6 +68413,12 @@
       "form": "defexception",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defexception",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_gen",
@@ -68563,6 +69157,12 @@
       "form": "generator_embed",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_gen",
@@ -69305,6 +69905,12 @@
     {
       "backing": "ex_gen",
       "form": "attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "src_stale_beam"
     },
@@ -70049,6 +70655,12 @@
     {
       "backing": "ex_gen",
       "form": "variable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "src_stale_beam"
     },
@@ -70793,6 +71405,12 @@
     {
       "backing": "ex_gen",
       "form": "impl",
+      "reason": "a `defimpl` is a source concept: a compiled impl is a module of the protocol's name and the target's, with no head to ask",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "src_stale_beam"
     },
@@ -71533,6 +72151,12 @@
       "form": "def",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -72209,6 +72833,12 @@
     {
       "backing": "erl_abst",
       "form": "defp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
       "reason": "only a source can be stale beside its own compiled module",
       "world": "src_stale_beam"
     },
@@ -72893,6 +73523,12 @@
     {
       "backing": "erl_abst",
       "form": "defmacro",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
       "reason": "Erlang has only functions",
       "world": "src_stale_beam"
     },
@@ -73637,6 +74273,12 @@
     {
       "backing": "erl_abst",
       "form": "defmacrop",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
       "reason": "Erlang has only functions",
       "world": "src_stale_beam"
     },
@@ -74381,6 +75023,12 @@
     {
       "backing": "erl_abst",
       "form": "defguard",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
       "reason": "Erlang has only functions",
       "world": "src_stale_beam"
     },
@@ -75125,6 +75773,12 @@
     {
       "backing": "erl_abst",
       "form": "defguardp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
       "reason": "Erlang has only functions",
       "world": "src_stale_beam"
     },
@@ -75869,6 +76523,12 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
       "reason": "Erlang has only functions",
       "world": "src_stale_beam"
     },
@@ -76609,6 +77269,12 @@
       "form": "defdelegate_compiled",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -77353,6 +78019,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -78097,6 +78769,12 @@
       "form": "defdelegate_as",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -78841,6 +79519,12 @@
       "form": "defdelegate_imports",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -79585,6 +80269,12 @@
       "form": "defdelegate_list",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -80329,6 +81019,12 @@
       "form": "defdelegate_list_trailing",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -81073,6 +81769,12 @@
       "form": "defdelegate_list_lines",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -81817,6 +82519,12 @@
       "form": "defdelegate_as_list",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -82561,6 +83269,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -83305,6 +84019,12 @@
       "form": "defdelegate_doc",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -84049,6 +84769,12 @@
       "form": "eex_function_from",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -84793,6 +85519,12 @@
       "form": "eex_function_from_kind",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -85537,6 +86269,12 @@
       "form": "eex_function_from_args",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -86281,6 +87019,12 @@
       "form": "eex_function_from_computed_name",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_computed_name",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -87025,6 +87769,12 @@
       "form": "defexception",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defexception",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -87769,6 +88519,12 @@
       "form": "generator_embed",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -88513,6 +89269,12 @@
       "form": "attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -89257,6 +90019,12 @@
       "form": "variable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "variable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_abst",
@@ -90005,6 +90773,12 @@
     {
       "backing": "erl_abst",
       "form": "impl",
+      "reason": "a `defimpl` is a source concept: a compiled impl is a module of the protocol's name and the target's, with no head to ask",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "src_stale_beam"
     },
@@ -90749,6 +91523,12 @@
     {
       "backing": "erl_gen",
       "form": "def",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "src_stale_beam"
     },
@@ -91483,6 +92263,12 @@
       "form": "defp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -92231,6 +93017,12 @@
     {
       "backing": "erl_gen",
       "form": "defmacro",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "src_stale_beam"
     },
@@ -92975,6 +93767,12 @@
     {
       "backing": "erl_gen",
       "form": "defmacrop",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "src_stale_beam"
     },
@@ -93719,6 +94517,12 @@
     {
       "backing": "erl_gen",
       "form": "defguard",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "src_stale_beam"
     },
@@ -94459,6 +95263,12 @@
       "form": "defguardp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -95203,6 +96013,12 @@
       "form": "defdelegate",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -95947,6 +96763,12 @@
       "form": "defdelegate_compiled",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -96691,6 +97513,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -97435,6 +98263,12 @@
       "form": "defdelegate_as",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -98179,6 +99013,12 @@
       "form": "defdelegate_imports",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -98923,6 +99763,12 @@
       "form": "defdelegate_list",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -99667,6 +100513,12 @@
       "form": "defdelegate_list_trailing",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -100411,6 +101263,12 @@
       "form": "defdelegate_list_lines",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -101155,6 +102013,12 @@
       "form": "defdelegate_as_list",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -101899,6 +102763,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -102643,6 +103513,12 @@
       "form": "defdelegate_doc",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -103387,6 +104263,12 @@
       "form": "eex_function_from",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -104131,6 +105013,12 @@
       "form": "eex_function_from_kind",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -104875,6 +105763,12 @@
       "form": "eex_function_from_args",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -105619,6 +106513,12 @@
       "form": "eex_function_from_computed_name",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -106363,6 +107263,12 @@
       "form": "defexception",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defexception",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -107107,6 +108013,12 @@
       "form": "generator_embed",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -107851,6 +108763,12 @@
       "form": "attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -108595,6 +109513,12 @@
       "form": "variable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "variable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -109339,6 +110263,12 @@
       "form": "impl",
       "reason": "a `defimpl` is a source concept: a compiled impl is a module of the protocol's name and the target's, with no head to ask",
       "world": "impl_use"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "impl",
+      "reason": "a `defimpl` is a source concept: a compiled impl is a module of the protocol's name and the target's, with no head to ask",
+      "world": "impl_visibility"
     },
     {
       "backing": "erl_gen",
@@ -314495,6 +315425,147 @@
         }
       ],
       "world": "impl_use"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/src/src.impl.impl_visibility.ex",
+      "form": "impl",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [],
+          "module": "Src.Impl.ImplVisibility.Caller",
+          "source": "lib/src/src.impl.impl_visibility.ex",
+          "spec": "lib/src/src.impl.impl_visibility.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 7,
+          "file": "lib/src/src.impl.impl_visibility.ex",
+          "id": "public",
+          "impl": {
+            "declarations": [
+              "public"
+            ],
+            "family": "Src.Impl.ImplVisibility.Subject.shown/1",
+            "role": "head"
+          },
+          "line": 4,
+          "name": "shown"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 8,
+          "file": "lib/src/src.impl.impl_visibility.ex",
+          "id": "private",
+          "impl": {
+            "declarations": [
+              "private"
+            ],
+            "family": "Src.Impl.ImplVisibility.Subject.shown/2",
+            "role": "head"
+          },
+          "line": 6,
+          "name": "shown"
+        },
+        {
+          "arity": 3,
+          "binding": null,
+          "column": 7,
+          "file": "lib/src/src.impl.impl_visibility.ex",
+          "id": "hidden",
+          "impl": {
+            "declarations": [
+              "hidden"
+            ],
+            "family": "Src.Impl.ImplVisibility.Subject.shown/3",
+            "role": "head"
+          },
+          "line": 9,
+          "name": "shown"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 22,
+          "file": "lib/src/src.impl.impl_visibility.ex",
+          "id": "inside",
+          "impl": {
+            "declarations": [
+              "private"
+            ],
+            "family": "Src.Impl.ImplVisibility.Subject.shown/2",
+            "hides": [],
+            "role": "call",
+            "shows": [
+              "shown(a)",
+              "shown(a, b)",
+              "shown(a, b, c)"
+            ]
+          },
+          "line": 11,
+          "name": "shown"
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 39,
+          "file": "lib/src/src.impl.impl_visibility.ex",
+          "id": "remote_public",
+          "impl": {
+            "declarations": [
+              "public"
+            ],
+            "family": "Src.Impl.ImplVisibility.Subject.shown/1",
+            "hides": [
+              "shown(a, b)",
+              "shown(a, b, c)"
+            ],
+            "role": "call",
+            "shows": [
+              "shown(a)"
+            ]
+          },
+          "line": 17,
+          "name": "shown"
+        },
+        {
+          "arity": 3,
+          "binding": null,
+          "column": 39,
+          "file": "lib/src/src.impl.impl_visibility.ex",
+          "id": "remote_hidden",
+          "impl": {
+            "declarations": [
+              "hidden"
+            ],
+            "family": "Src.Impl.ImplVisibility.Subject.shown/3",
+            "hides": [
+              "shown(a, b)"
+            ],
+            "role": "call",
+            "shows": [
+              "shown(a)",
+              "shown(a, b, c)"
+            ]
+          },
+          "line": 18,
+          "name": "shown"
+        }
+      ],
+      "world": "impl_visibility"
     },
     {
       "backing": "ex_dbgi",

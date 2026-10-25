@@ -1046,6 +1046,15 @@ private class Group(val scenario: Scenario) {
                 moveIntoArguments()
                 assertEquals("Parameter Info at ${place.id} showed the wrong signatures", siteOrNull()!!.impl!!.signatures, parameterInfoSignaturesAtCaret())
             }
+            Feature.QUICK_DOCUMENTATION -> {
+                openAt(place)
+                val html = myFixture.quickDocumentationAtCaret(project)?.replace('\n', ' ')
+                val impl = siteOrNull()!!.impl!!
+
+                assertNotNull("Quick Documentation at ${place.id} showed nothing", html)
+                assertEquals("Quick Documentation at ${place.id} left out arities it should list: $html", emptyList<String>(), impl.shows!!.filterNot { html!!.contains(it) })
+                assertEquals("Quick Documentation at ${place.id} lists arities it should not: $html", emptyList<String>(), impl.hides!!.filter { html!!.contains(it) })
+            }
             else -> throw AssertionError("${feature.testName} is not asked of a protocol or behaviour function")
         }
     }
