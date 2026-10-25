@@ -939,7 +939,7 @@ internal fun storeDefinition(
     compiling.definitionMoved = moved(takeFile(definition, compiling), unquoted.head, run)
 
     if (unnamedAt != null) {
-        compiling.table.define(null, 0, kind, node, 0, 0, definition.statement, definition.checksClauses)
+        compiling.table.define(null, 0, kind, node, unquoted.head, 0, 0, definition.statement, definition.checksClauses)
 
         return Owner.Definition(kind, null, 0) to Expansion.Unported(unnamedAt)
     }
@@ -1025,6 +1025,7 @@ private fun store(
         arity,
         definition.kind,
         definition.node,
+        unquoted.head,
         if (unquoted.body == null) 0 else 1,
         defaults,
         unquoted.ordered,

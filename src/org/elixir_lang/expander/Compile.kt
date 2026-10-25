@@ -46,7 +46,7 @@ internal class Compiling(
     /** Whether its `defmodule`, and each one around it, is placed where Elixir runs it ([BodyValues.placed]). */
     placed: Boolean = true,
 ) {
-    val table = DefinitionTable()
+    val table = DefinitionTable(level)
 
     /** Each definition's local calls, in expansion order. */
     val calls = LinkedHashMap<NameArity, MutableList<LocalCall<ElixirAst>>>()
