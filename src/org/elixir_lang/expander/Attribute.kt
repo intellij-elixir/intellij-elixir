@@ -35,13 +35,27 @@ internal val ATTRIBUTE = Summary { _, node, state, env, run ->
     }
 }
 
-/** What `Macro.expand/2` takes from `@` at [node]: the code, but not a function's value, which isn't escaped. */
+/** What `Macro.expand/2` takes from `@` at [node]: the code, or a function's value escaped. */
 internal fun attributeOutput(node: ElixirAst.Call, env: Env, run: Run): Summary.Output =
     when (val returned = returned(node, env, run)) {
         is Returned.Ended -> Summary.Output.Stopped(returned.expansion)
-        is Returned.Value -> Summary.Output.Unported(node)
+        is Returned.Value -> escaped(returned.term, node, run)
         is Returned.Code -> Summary.Output.Built(returned.node)
     }
+
+/**
+ * `do_at_escape/2`: [term], the value a function reads, escaped as `Macro.escape(value, generated: true)` escapes it.
+ * The escape's `ArgumentError` is re-raised; a term the port can't shape stops at [node].
+ */
+private fun escaped(term: Term, node: ElixirAst.Call, run: Run): Summary.Output {
+    val escape = QuoteEscape(ImportTermEscapeView, AstEscapeBuilder(Synthetic(node.meta)), { literalOf(node, it) }, run.level, run.exports, generated = { { true } })
+
+    return when (val escaped = escape.escape(term)) {
+        is EscapeResult.Built -> Summary.Output.Built(escaped.value)
+        is EscapeResult.Raised -> Summary.Output.Raised(escaped.exception)
+        is EscapeResult.Unread, EscapeResult.Declined -> Summary.Output.Unported(node)
+    }
+}
 
 /** What `@` at [node] returns, after its checks in Elixir's order. */
 private fun returned(node: ElixirAst.Call, env: Env, run: Run): Returned {

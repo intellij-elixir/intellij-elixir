@@ -39,7 +39,6 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.INTEGERS_UP_TO_4_MBI
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_SORT_KEEPS_EQUAL_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.RAISE_FRAME_TAKES_A_CAPTURE
-import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ESCAPE_MARKS_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.SPLICE_EMPTY_BEFORE_TAIL_RAISES
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRING_TO_ATOM_REQUIRES_BINARY
@@ -1533,18 +1532,18 @@ internal class Natives(private val evaluation: Evaluation) {
         val unquote = seen(option("unquote")) == TRUE
         val op = if (truthy(option("prune_metadata"))) EscapeOp.EscapeAndPrune else EscapeOp.Escape
 
-        val generated = if (MACRO_ESCAPE_MARKS_GENERATED.isSufficient(level)) option("generated") else FALSE
-        val escape = QuoteEscape(TermEscapeView, TermEscapeBuilder, { it }, level, evaluation.run.exports, op, unquote)
-        val escaped = when (val escaped = escape.escape(args[0])) {
+        val escape = QuoteEscape(TermEscapeView, TermEscapeBuilder, { it }, level, evaluation.run.exports, op, unquote) {
+            val generated = option("generated")
+            val marks: () -> Boolean = { seen(generated) == TRUE }
+
+            marks
+        }
+
+        return when (val escaped = escape.escape(args[0])) {
             is EscapeResult.Built -> escaped.value
             is EscapeResult.Raised -> evaluation.raise(escaped.exception)
             is EscapeResult.Unread, EscapeResult.Declined -> decline("Macro.escape/2 of %s", args[0])
         }
-        // `{caller, meta, args} when generated and is_list(meta)`.
-        val node = (escaped as? OtpErlangTuple)?.takeIf { it.arity() == 3 && seen(generated) == TRUE && isList(it.elementAt(1)) }
-            ?: return escaped
-
-        return tuple(node.elementAt(0), cons(listOf(tuple(atom("generated"), TRUE)), node.elementAt(1)), node.elementAt(2))
     }
 
     /** [term] as a type test reads it: a binary whose bytes aren't known is a binary, as only reading them declines. */
