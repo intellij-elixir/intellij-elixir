@@ -349,8 +349,8 @@ defmodule Matrix do
   # `Queue` declares `snoc/2`; its `List` impl has a same-named `defp snoc/3` and its `Tuple` impl an undeclared `def
   # snoc/1`, neither of which the protocol dispatches to. `Stack` has the callback `push/2`; `ListStack` implements it
   # with a head whose default also covers `push/1`.
-  @impl_world_ids ["impl", "impl_use", "impl_nested", "impl_name_call"]
-  @impl_names [:snoc, :push, :make_name]
+  @impl_world_ids ["impl", "impl_use", "impl_nested", "impl_name_call", "impl_overridable"]
+  @impl_names [:snoc, :push, :make_name, :overridden]
 
   # The impl world's callback reached the other way a module takes one: a `use`d module's quote holds the `@behaviour`
   # and the implementing `def`, which belong to the module that `use`s it. A call is of the callback's family, as is the
@@ -399,6 +399,27 @@ defmodule Matrix do
     "",
     "defmodule Src.Impl.ImplNameCall.User do",
     "  use Src.Impl.ImplNameCall.Names",
+    "end"
+  ]
+  # `defoverridable` of one arity of a defaults head: `overridden/1` stays the head's own generated clause, which the new
+  # `overridden/2` does not replace, so a call at arity 1 is of the head alone and a call at arity 2 is of the head and its
+  # redefinition.
+  @impl_overridable_lines [
+    "defmodule Src.Impl.ImplOverridable.Subject do",
+    "  def overridden(a, b \\\\ 1), do: {:head, a, b} # @head",
+    "",
+    "  defoverridable overridden: 2",
+    "",
+    "  def overridden(a, b), do: {:user, a, b} # @redefinition",
+    "end",
+    "",
+    "defmodule Src.Impl.ImplOverridable.Caller do",
+    "  def run(y) do",
+    "    [",
+    "      Src.Impl.ImplOverridable.Subject.overridden(y), # @one_call",
+    "      Src.Impl.ImplOverridable.Subject.overridden(y, 2) # @two_call",
+    "    ]",
+    "  end",
     "end"
   ]
   # A module or protocol written inside another is named under it and reached by its short name there: a function
@@ -1523,6 +1544,7 @@ defmodule Matrix do
   defp impl_lines("impl_use"), do: @impl_use_lines
   defp impl_lines("impl_nested"), do: @impl_nested_lines
   defp impl_lines("impl_name_call"), do: @impl_name_call_lines
+  defp impl_lines("impl_overridable"), do: @impl_overridable_lines
 
   defp impl_scenario(backing, form, world) do
     [prefix] = module_names(backing, form, world, 1)
@@ -1575,13 +1597,13 @@ defmodule Matrix do
         case head_at[{line, column}] do
           nil ->
             case call_at[line] do
-              [call] -> %{id: id, line: line, column: column, name: name, role: :call, arity: call.arity, key: impl_key(heads, call)}
+              [call] -> %{id: id, line: line, column: column, name: name, role: :call, arity: call.arity, first: call.first, last: call.last, key: impl_key(heads, call)}
               other -> raise("#{path}:#{line}: expected one call of `#{name}`, got #{inspect(other)}")
             end
 
           head ->
             role = if head.declares or function_exported?(head.module, :__protocol__, 1), do: :declaration, else: :head
-            %{id: id, line: line, column: column, name: name, role: role, arity: head.last, key: impl_key(heads, head)}
+            %{id: id, line: line, column: column, name: name, role: role, arity: head.last, first: head.first, last: head.last, parameters: head.parameters, key: impl_key(heads, head)}
         end
       end)
 
@@ -1595,11 +1617,15 @@ defmodule Matrix do
           "name" => site.name,
           "arity" => site.arity,
           "binding" => nil,
-          "impl" => %{
-            "role" => to_string(site.role),
-            "family" => impl_family(site.key),
-            "declarations" => for(other <- bound, other.role != :call, other.key == site.key, do: other.id)
-          }
+          "impl" =>
+            Map.merge(
+              %{
+                "role" => to_string(site.role),
+                "family" => impl_family(site.key),
+                "declarations" => for(other <- bound, other.role != :call, other.key == site.key, do: other.id)
+              },
+              if(world == "impl_overridable" and site.role == :call, do: overridable_answers(site, bound), else: %{})
+            )
         }
       end
 
@@ -1627,6 +1653,14 @@ defmodule Matrix do
       ],
       "sites" => sites
     }
+  end
+
+  # A redefinition replaces only the arity it is written at, so a call is of every head whose arities cover the call's,
+  # and Parameter Info shows the first such head's parameters.
+  defp overridable_answers(site, bound) do
+    covering = for other <- bound, other.role != :call, other.name == site.name, other.first <= site.arity, site.arity <= other.last, do: other
+
+    %{"declarations" => Enum.map(covering, & &1.id), "signatures" => [hd(covering).parameters]}
   end
 
   defp impl_enter({kind, _, [{:__aliases__, _, parts} | _]} = node, %{stack: []} = state) when kind in [:defmodule, :defprotocol],
@@ -1691,7 +1725,7 @@ defmodule Matrix do
   defp impl_head(state, name, meta, args, declares) when name in @impl_names and is_list(args) do
     last = length(args)
     first = last - Enum.count(args, &match?({:\\, _, _}, &1))
-    head = %{module: hd(state.stack), name: name, line: meta[:line], column: meta[:column], first: first, last: last, declares: declares, injected: state.quoting > 0}
+    head = %{module: hd(state.stack), name: name, line: meta[:line], column: meta[:column], first: first, last: last, declares: declares, injected: state.quoting > 0, parameters: Enum.map_join(args, ", ", &Macro.to_string/1)}
     %{state | heads: [head | state.heads]}
   end
 

@@ -209,9 +209,10 @@ class VariableSite(val binding: Boolean, val declarations: List<String>, val ren
  * A protocol or behaviour function's `declaration` (the `def` in a protocol, the `@callback`), an implementation `head`
  * or a `call`, by [role]. [family] names what the language says it is of: everything a protocol call can dispatch to,
  * every implementation of a callback, and every arity a head's defaults cover are one family, and a function nothing
- * declares is its own. [declarations] are the ids of the heads of the exact function a call is bound to.
+ * declares is its own. [declarations] are the ids of the heads of the exact function a call is bound to. [signatures] are
+ * the parameters Parameter Info shows at a call, where its world asks; null elsewhere.
  */
-class ImplSite(val role: String, val family: String, val declarations: List<String>)
+class ImplSite(val role: String, val family: String, val declarations: List<String>, val signatures: List<String>? = null)
 
 /** Whether a bare call at [this] site can reach [definition] at any of its arities: always, unless [Site.visible] says. */
 fun Site.sees(definition: Definition): Boolean =

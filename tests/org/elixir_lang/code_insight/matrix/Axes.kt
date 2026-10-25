@@ -316,6 +316,9 @@ object Crossing {
         val site = scenario.sites.single { it.id == place.id }
 
         return when {
+            scenario.world == "impl_overridable" ->
+                if (site.impl!!.role == "call" && (feature == Feature.GO_TO_DECLARATION || feature == Feature.PARAMETER_INFO)) Applicability.Applicable
+                else Applicability.NotApplicable("an overridden arity is asked only where a call lands and the signature it shows")
             feature != Feature.GO_TO_DECLARATION && feature != Feature.FIND_USAGES && feature != Feature.RENAME ->
                 Applicability.NotApplicable("a protocol or behaviour function is asked only where a call lands, which calls share its family, and rename")
             feature == Feature.GO_TO_DECLARATION && site.impl!!.role != "call" ->

@@ -1041,6 +1041,11 @@ private class Group(val scenario: Scenario) {
             Feature.GO_TO_DECLARATION -> checkImplGoToDeclaration()
             Feature.FIND_USAGES -> checkImplFindUsages()
             Feature.RENAME -> checkImplRename()
+            Feature.PARAMETER_INFO -> {
+                openAt(place)
+                moveIntoArguments()
+                assertEquals("Parameter Info at ${place.id} showed the wrong signatures", siteOrNull()!!.impl!!.signatures, parameterInfoSignaturesAtCaret())
+            }
             else -> throw AssertionError("${feature.testName} is not asked of a protocol or behaviour function")
         }
     }
