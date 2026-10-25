@@ -526,14 +526,15 @@ internal fun truthy(term: OtpErlangObject): Boolean {
 
 /**
  * The code [value] is, as [ElixirAst.fromOtp] reads it, or `null` where it isn't code or the code would hold more than
- * [COPY_NODES] nodes.
+ * [COPY_NODES] nodes. [onNode] is told each term and the node it became.
  */
 internal fun codeOf(
     value: OtpErlangObject,
     origin: TextRange,
     values: Boolean = false,
     known: (OtpErlangObject) -> ElixirAst? = { null },
-): ElixirAst? = ElixirAst.fromOtp(value, origin, values, known, COPY_NODES)
+    onNode: ((OtpErlangObject, ElixirAst) -> Unit)? = null,
+): ElixirAst? = ElixirAst.fromOtp(value, origin, values, known, COPY_NODES, onNode)
 
 /**
  * [value] as the expander's [Term]: a float is [Term.NonTuple], and what a [Term] can't hold, an unknown value
@@ -583,7 +584,7 @@ internal fun copyable(value: OtpErlangObject): Boolean {
 }
 
 /** The most nodes a copy of an evaluated value may build. */
-private const val COPY_NODES = 1 shl 20
+internal const val COPY_NODES = 1 shl 20
 
 /** A tuple of [elements] as the expander's [Term]: a [Term.Pair] of two, else a [Term.Tuple]. */
 internal fun tupleTerm(elements: List<Term>): Term =

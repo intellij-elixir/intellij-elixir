@@ -342,9 +342,9 @@ internal class Evaluation(
         }
 
         return Summary.Output.Built(
-            ElixirAst.fromOtp(result, call.meta.origin, values = true, known = nodes::get) { term, node ->
+            codeOf(result, call.meta.origin, values = true, known = nodes::get) { term, node ->
                 placeOf(term)?.let { run.placedAt[node] = it }
-            } ?: decline("the result isn't quoted"),
+            } ?: decline("the result isn't quoted or is too large to copy"),
             injects = true,
         )
     }
@@ -429,8 +429,8 @@ internal class Evaluation(
     fun macroExpand(ast: OtpErlangObject, env: OtpErlangObject, once: Boolean): OtpErlangObject {
         if (env !== caller) decline("Macro.expand/2 in an env other than __CALLER__")
 
-        val node = ElixirAst.fromOtp(ast, call.meta.origin, values = true, known = nodes::get)
-            ?: decline("Macro.expand/2 of a term it can't read")
+        val node = codeOf(ast, call.meta.origin, values = true, known = nodes::get)
+            ?: decline("Macro.expand/2 of a term it can't read or copy")
         val expanded = if (once) macroExpandOnce(node, state, this.env, run) else macroExpand(node, state, this.env, run)
 
         return when (expanded) {

@@ -17,6 +17,7 @@ import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
+import org.elixir_lang.expander.interpreter.COPY_NODES
 import org.elixir_lang.expander.interpreter.UnknownBinary
 import org.elixir_lang.expander.interpreter.codeOf
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_BINARY_SPEC_IS_A_NAME
@@ -469,6 +470,7 @@ internal class QuoteEscape<I, O> private constructor(
         unreadAt = null
         unreads = 0
         probing = 0
+        built = 0
         visited.forEach { it.clear() }
 
         return try {
@@ -492,6 +494,12 @@ internal class QuoteEscape<I, O> private constructor(
 
     /** How many times a term the port can't read was met, a visit [walked] again counting those its first met. */
     private var unreads = 0
+
+    /**
+     * How many inputs [doQuote] and [doEscape] have built output for: past [COPY_NODES], the escape declines, as an
+     * evaluated value's shared parts are built again each time they appear.
+     */
+    private var built = 0
 
     /** How many [raised] probes are running, whose output is dropped. */
     private var probing = 0
@@ -545,7 +553,7 @@ internal class QuoteEscape<I, O> private constructor(
     private fun doQuote(input: I, unquote: Boolean): O {
         ProgressManager.checkCanceled()
 
-        return walked(visited[if (unquote) 1 else 0], input) { quoted(input, unquote) }
+        return walked(visited[if (unquote) 1 else 0], input) { build(); quoted(input, unquote) }
     }
 
     private fun quoted(input: I, unquote: Boolean): O {
@@ -755,7 +763,11 @@ internal class QuoteEscape<I, O> private constructor(
 
     /** `do_escape/2`. */
     private fun doEscape(input: I, shape: Shape<I>, unquote: Boolean): O =
-        walked(visited[if (unquote) 3 else 2], input) { escaped(input, shape, unquote) }
+        walked(visited[if (unquote) 3 else 2], input) { build(); escaped(input, shape, unquote) }
+
+    private fun build() {
+        if (++built > COPY_NODES) throw Decline()
+    }
 
     private fun escaped(input: I, shape: Shape<I>, unquote: Boolean): O =
         when (shape) {

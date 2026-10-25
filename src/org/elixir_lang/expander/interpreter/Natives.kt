@@ -739,20 +739,27 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /**
      * `lists:do_flatten/2`: [term] flattened onto the list [reversed] holds back to front. Each cell's rest is flattened
-     * before the list at its head, so an improper tail raises with what follows it already flattened.
+     * before the list at its head, so an improper tail raises with what follows it already flattened. It declines once
+     * it has met more than [COPY_NODES] elements, nested lists included, [met] of them before [term], and gives how many
+     * it has met.
      */
-    private fun flatten(term: OtpErlangObject, reversed: MutableList<OtpErlangObject>) {
+    private fun flatten(term: OtpErlangObject, reversed: MutableList<OtpErlangObject>, met: Int = 0): Int {
         val (elements, tail) = cells(term)!!
 
         if (tail != null) {
             evaluation.error(atom("function_clause"), frame("lists", "do_flatten", list(listOf(tail, list(reversed.reversed())))))
         }
 
+        var count = met
+
         for (element in elements.asReversed()) {
             ProgressManager.checkCanceled()
 
-            if (isList(element)) flatten(element, reversed) else reversed += element
+            if (++count > COPY_NODES) decline("lists:flatten/1 of a list too large to copy")
+            if (isList(element)) count = flatten(element, reversed, count) else reversed += element
         }
+
+        return count
     }
 
     private fun maps(key: String, args: List<OtpErlangObject>): OtpErlangObject? =

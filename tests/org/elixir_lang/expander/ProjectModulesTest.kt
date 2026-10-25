@@ -849,6 +849,31 @@ class ProjectModulesTest : PlatformTestCase() {
         assertSharedValueAMacroBuildsConvertsInBoundedWork("{:def, [], [{:f, [], []}, [do: {{:unquote, [], [:a]}, %{a: {:unquote, [], [t]}}}]]}")
     }
 
+    /** A shared value `Macro.escape/1` is given escapes in bounded work. */
+    fun testASharedValueMacroEscapesConvertsInBoundedWork() {
+        assertSharedValueConvertsInBoundedWork("  x = Macro.escape(t)\n")
+    }
+
+    /** A list `:lists.flatten/1` is given whose parts are shared flattens in bounded work. */
+    fun testASharedValueListsFlattenConvertsInBoundedWork() {
+        assertSharedValueConvertsInBoundedWork("  x = :lists.flatten(t)\n", doubling = "t = [t, :a, t]")
+    }
+
+    /** A shared value in the metadata of a node a macro's body returns converts in bounded work. */
+    fun testASharedValueInTheMetadataAMacroReturnsConvertsInBoundedWork() {
+        assertSharedValueAMacroBuildsConvertsInBoundedWork("{:f, [a: t], []}")
+    }
+
+    /** A shared value in a map a macro's body returns in a definition converts in bounded work. */
+    fun testASharedValueInAMapAMacroReturnsConvertsInBoundedWork() {
+        assertSharedValueAMacroBuildsConvertsInBoundedWork("{:def, [], [{:f, [], []}, [do: {{:unquote, [], [:a]}, %{a: t}}]]}")
+    }
+
+    /** A shared value a macro's body gives `Macro.expand/2` converts in bounded work. */
+    fun testASharedValueAMacroExpandsConvertsInBoundedWork() {
+        assertSharedValueAMacroBuildsConvertsInBoundedWork("Macro.expand(t, __CALLER__)\n    :ok")
+    }
+
     /** A module body that applies [doubling] forty times to `t = []`, then runs [after], expands in [SHARED_VALUE_CHECKS]. */
     private fun assertSharedValueConvertsInBoundedWork(after: String, doubling: String = "t = {t, t}") {
         addLegElixir()
