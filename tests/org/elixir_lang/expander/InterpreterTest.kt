@@ -3887,6 +3887,35 @@ class InterpreterTest : PlatformTestCase() {
                 pins = { source, level -> DECLINED_FROM_SOURCE(source, level)?.takeIf { MACRO_ESCAPE_MARKS_GENERATED.isSufficient(level) } },
             ),
             macro(
+                "pure:escape-generated-unknown-list",
+                """
+                @g (receive do after 0 -> true end)
+                defmacro m, do: Macro.escape([1, 2], generated: @g)
+                """,
+            ),
+            // An element the evaluator can't produce may be a `{:generated, _, _}` that `Keyword.get/3` raises on; the
+            // debug info holds the attribute's value.
+            macro(
+                "pure:escape-unknown-option-element",
+                """
+                @u (receive do after 0 -> {:x, 1} end)
+                defmacro m, do: Macro.escape([1, 2], [{:unquote, false}, {:prune_metadata, false}, @u])
+                """,
+                pins = { source, level -> OPAQUE.takeIf { source == Source.SOURCE && MACRO_ESCAPE_MARKS_GENERATED.isSufficient(level) } },
+            ),
+            macro(
+                "pure:escape-generated-triple",
+                """
+                defmacro m, do: Macro.escape([1, 2], [{:unquote, false}, {:prune_metadata, false}, {:generated, 1, 2}])
+                """,
+            ),
+            macro(
+                "pure:escape-improper-options",
+                """
+                defmacro m, do: Macro.escape([1, 2], [{:unquote, false}, {:prune_metadata, false} | :x])
+                """,
+            ),
+            macro(
                 "pure:env-in-match-unknown-struct",
                 """
                 @s (receive do after 0 -> Macro.Env end)
@@ -6210,6 +6239,18 @@ class InterpreterTest : PlatformTestCase() {
                   guard = :is_atom
                   def f(x) when :erlang.unquote(guard)(x), do: :atom
                   def f(_), do: :other
+                end
+                """,
+            ),
+            // `in/2` expands its right side, so `@list` in a function is the attribute's value escaped.
+            macro(
+                "attribute:in-guard",
+                "defmacro m, do: Macro.escape({{row}.AG.f(1), {row}.AG.f(9)})",
+                helper = """
+                defmodule {row}.AG do
+                  @list [1, 2]
+                  def f(x) when x in @list, do: {:list, x}
+                  def f(x), do: {:other, x}
                 end
                 """,
             ),
