@@ -7,8 +7,8 @@ import org.junit.Assert.assertTrue
 
 /**
  * The expander's definition tables against what a hook read of them on the leg's Elixir: names, arities and kinds on
- * every leg, and from 1.12, when `Module.get_definition/2` gives them, each definition's line and clause count, and from
- * 1.20 whether it was stored for a default arity.
+ * every leg, and from 1.12, when `Module.get_definition/2` gives them, each definition's line, clause count and whether
+ * its meta holds `:context`.
  */
 internal object DefinitionTables {
     /**
@@ -134,7 +134,7 @@ internal object DefinitionTables {
     }
 
     private fun hookRow(entry: ProbeHarness.HookEntry, bodyLine: Int): String =
-        row(entry.name, entry.arity, entry.kind, entry.line?.let { it - bodyLine + 1 }, entry.clauses, entry.default)
+        row(entry.name, entry.arity, entry.kind, entry.line?.let { it - bodyLine + 1 }, entry.clauses, entry.context)
 
     private fun tableRow(name: String, arity: Int, entry: DefinitionTable.Entry, bodyLine: Int): String {
         val level = legLevel()
@@ -146,19 +146,14 @@ internal object DefinitionTables {
             entry.kind.name.lowercase(),
             (entry.line - bodyLine + 1).takeIf { detailed },
             entry.clauses.takeIf { detailed },
-            // The hook reads whether the meta holds `:context`, which a definition a macro quoted has on every leg.
-            (entry.default && level.elixir >= DEFAULT_CLAUSES_TAKE_CONTEXT.elixir ||
-                metaValue(entry.at.meta, "context") != null).takeIf { detailed },
+            (metaValue(entry.heads.first().stored.meta, "context") != null).takeIf { detailed },
         )
     }
 
-    private fun row(name: String, arity: Int, kind: String, line: Int?, clauses: Int?, default: Boolean?) =
+    private fun row(name: String, arity: Int, kind: String, line: Int?, clauses: Int?, context: Boolean?) =
         "$name/$arity $kind" + (line?.let { " line $it" } ?: "") + (clauses?.let { " clauses $it" } ?: "") +
-            (default?.let { " default $it" } ?: "")
+            (context?.let { " context $it" } ?: "")
 
     /** `Module.get_definition/2`, which gives a definition's meta and clauses. */
     private val GET_DEFINITION: ElixirLanguageLevel = ElixirLanguageLevel.of("1.12.0-rc.0")
-
-    /** `elixir-lang/elixir@f1bbb2cd3` puts `:context` in a default arity's meta. */
-    private val DEFAULT_CLAUSES_TAKE_CONTEXT: ElixirLanguageLevel = ElixirLanguageLevel.of("1.20.0-rc.0")
 }

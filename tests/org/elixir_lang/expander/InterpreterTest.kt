@@ -81,7 +81,7 @@ class InterpreterTest : PlatformTestCase() {
         }
     }
     private val harness = ProbeHarness(parse)
-    private val probes = ExpansionProbes(harness, parse = parse)
+    private val probes = ExpansionProbes(harness, definitions = true, parse = parse)
     private lateinit var sdk: ModuleClauses.Lookup
 
     override fun setUp() {
@@ -3443,6 +3443,8 @@ class InterpreterTest : PlatformTestCase() {
             ),
             // `elixir_def:unpack_expanded/7`'s default arity calls the full one through `super`.
             macro("form:super-default", "defmacro m(x \\\\ 1), do: x"),
+            // From 1.20 the store gives a default arity's head `context: :elixir_def`; the head as written has none.
+            macro("form:default-arity-context", "defmacro m, do: {:def, [], [quote(do: g(x, y \\\\ 1)), [do: 1]]}"),
             macro(
                 "form:super-default-function",
                 """
