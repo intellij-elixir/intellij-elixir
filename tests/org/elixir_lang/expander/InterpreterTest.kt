@@ -242,6 +242,26 @@ class InterpreterTest : PlatformTestCase() {
             "top unported `Module.put_attribute(String, :a, 1)`\nmodule Elixir.A stopped `Module.put_attribute(String, :a, 1)`",
         )
 
+    /** A nested module the body may not run may not have written the attribute, so the body's read of it stops. */
+    fun testAWriteFromANestedModuleTheBodyMayNotRunIsUnknown() =
+        assertFile(
+            """
+            defmodule Outer do
+              if false do
+                defmodule Inner do
+                  Module.put_attribute(Outer, :a, 1)
+                end
+              end
+              def unquote(:"f#{Module.get_attribute(__MODULE__, :a)}")(), do: 1
+            end
+            """.trimIndent(),
+            """
+            top expanded
+            module Elixir.Outer stopped `unquote(:"f#{Module.get_attribute(__MODULE__, :a)}")`
+              module Elixir.Outer.Inner compiled
+            """.trimIndent(),
+        )
+
     /** A nested module the body may not run may not raise. */
     fun testARaiseInANestedModuleTheBodyMayNotRunStops() =
         assertFile(
@@ -387,6 +407,10 @@ class InterpreterTest : PlatformTestCase() {
         val matches = "defmodule M do\n  @on_definition {CB, :on_def}\n  @x 1\n  def f, do: 1\n  2 = @x\nend"
 
         assertFile("$cb\n$matches", "top expanded\nmodule Elixir.CB compiled\nmodule Elixir.M stopped `$matches`")
+        assertFile(
+            "$cb\ndefmodule M do\n  @on_definition {CB, :on_def}\n  @x 1\n  def f, do: 1\n  def unquote(:\"g#{Module.get_attribute(__MODULE__, :x)}\")(), do: 1\nend",
+            "top expanded\nmodule Elixir.CB compiled\nmodule Elixir.M stopped `unquote(:\"g#{Module.get_attribute(__MODULE__, :x)}\")`",
+        )
     }
 
     /**
@@ -791,7 +815,9 @@ class InterpreterTest : PlatformTestCase() {
             is Ended.Raised -> "raised ${ended.error.kind}"
             is Ended.Crashed -> "crashed ${ended.exception}"
             is Ended.Stopped -> {
-                val range = expansion.range(ended.at)
+                // A callback's call, which no source holds, has an origin before the case body.
+                val start = expansion.origin.layout.bodyStarts[expansion.origin.index]
+                val range = ended.at.takeIf { it.meta.origin.startOffset >= start }?.let(expansion::range)
                 val body = expansion.case.body
                 val at = rendered(ended.at.toOtp(), tokens, legLevel(), row.unordered)
                 val after = row.stopsAfter?.takeIf { at.startsWith(it) }
@@ -799,7 +825,7 @@ class InterpreterTest : PlatformTestCase() {
                 when {
                     // A node of the macro's output has the call's origin.
                     after != null -> "stopped at $after"
-                    range.startOffset >= 0 && range.endOffset <= body.length ->
+                    range != null && range.endOffset <= body.length ->
                         "stopped at `${detokened(range.substring(body), tokens)}`"
                     else -> "stopped at $at"
                 }
@@ -1245,8 +1271,8 @@ class InterpreterTest : PlatformTestCase() {
             return Row(id, defs.trimIndent(), call, use, use, listOf(ROW), source, EVERY_LEG, UNPINNED, stopsAfter, ends = ends)
         }
 
-        /** A row whose case body `use`s the leg's [module]. */
-        fun leg(module: String, options: String = "", stopsAfter: String? = null): Row {
+        /** A row whose case body `use`s the leg's [module], then holds [after]. */
+        fun leg(module: String, options: String = "", after: String = "", stopsAfter: String? = null): Row {
             val use = "use $module" + if (options.isEmpty()) "" else ", $options"
             val call = "$module.__using__(${options.ifEmpty { "[]" }})"
 
@@ -1254,7 +1280,7 @@ class InterpreterTest : PlatformTestCase() {
                 "use:leg-" + module.lowercase(),
                 "",
                 call,
-                use,
+                if (after.isEmpty()) use else "$use\n$after",
                 use,
                 listOf(module),
                 SourceRun.NONE,
@@ -1329,8 +1355,11 @@ class InterpreterTest : PlatformTestCase() {
             end
         """.trimIndent()
 
-        /** A `def` whose body unquotes `Macro.escape(opts)`, a fragment the walk doesn't evaluate. */
-        const val UNQUOTE_ESCAPED_OPTS = "{:unquote, [], [{{:., [], [{:__aliases__, [], [:Macro]}, :escape]}"
+        /**
+         * `GenServer.__before_compile__/1`, which warns through functions the evaluator doesn't port where the module
+         * doesn't define `init/1`.
+         */
+        const val GENSERVER_CALLBACK = "{{:., [], [GenServer, :__before_compile__]}"
 
         val ROWS: List<Row> = listOf(
             // `elixir_erl_pass:translate/3`
@@ -4450,7 +4479,7 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
                 "restart: :transient",
-                stopsAfter = UNQUOTE_ESCAPED_OPTS,
+                stopsAfter = GENSERVER_CALLBACK,
             ),
             use(
                 "use:backend",
@@ -4467,11 +4496,11 @@ class InterpreterTest : PlatformTestCase() {
                 """,
                 "otp_app: :demo",
             ),
-            leg("GenServer", stopsAfter = UNQUOTE_ESCAPED_OPTS),
-            leg("Supervisor", stopsAfter = UNQUOTE_ESCAPED_OPTS),
-            leg("Agent", stopsAfter = UNQUOTE_ESCAPED_OPTS),
-            leg("Task", stopsAfter = UNQUOTE_ESCAPED_OPTS),
-            leg("DynamicSupervisor", stopsAfter = UNQUOTE_ESCAPED_OPTS),
+            leg("GenServer", after = "def init(x), do: {:ok, x}"),
+            leg("Supervisor"),
+            leg("Agent"),
+            leg("Task"),
+            leg("DynamicSupervisor"),
             leg("Application"),
             leg("Bitwise", "only_operators: true"),
             // A result's term that isn't AST reaches `elixir_expand`'s value clauses where expansion meets it.
@@ -5570,9 +5599,8 @@ class InterpreterTest : PlatformTestCase() {
                 defmodule {row}.A do
                   @x 1
                   @x 2
-                  @y @x
+                  def f, do: unquote(@x)
                   @x 3
-                  def f, do: @y
                 end
 
                 defprotocol {row}.P do
@@ -5588,11 +5616,12 @@ class InterpreterTest : PlatformTestCase() {
             ),
             macro(
                 "body:attribute-from-binding",
-                "defmacro m, do: Macro.escape({row}.AB.g())",
+                "defmacro m, do: Macro.escape({{row}.AB.f(), {row}.AB.g()})",
                 helper = """
                 defmodule {row}.AB do
                   x = 1
                   @a x
+                  def f, do: unquote(@a)
                   def g, do: @a
                 end
                 """,
@@ -5605,8 +5634,7 @@ class InterpreterTest : PlatformTestCase() {
                 outer_binding = :top
 
                 defmodule {row}.OB do
-                  @v outer_binding
-                  def f, do: @v
+                  def f, do: unquote(outer_binding)
                 end
                 """,
             ),
@@ -5618,8 +5646,7 @@ class InterpreterTest : PlatformTestCase() {
                   y = :outer
 
                   defmodule C do
-                    @v y
-                    def g, do: @v
+                    def g, do: unquote(y)
                   end
                 end
                 """,
@@ -5666,6 +5693,47 @@ class InterpreterTest : PlatformTestCase() {
                 defmodule {row}.E do
                   f = [message: "boom", code: 7]
                   defexception f
+                end
+                """,
+            ),
+            macro(
+                "fragment:name",
+                "defmacro m, do: Macro.escape({row}.FN.f())",
+                helper = """
+                defmodule {row}.FN do
+                  n = :f
+                  def unquote(n)(), do: 1
+                end
+                """,
+            ),
+            macro(
+                "fragment:head",
+                "defmacro m, do: Macro.escape({row}.FH.g(3))",
+                helper = """
+                defmodule {row}.FH do
+                  h = quote(do: g(_))
+                  def unquote(h), do: 2
+                end
+                """,
+            ),
+            macro(
+                "fragment:args",
+                "defmacro m, do: Macro.escape({{row}.FA.f(2), {row}.FA.f(3)})",
+                helper = """
+                defmodule {row}.FA do
+                  n = 2
+                  def f(unquote(n)), do: :two
+                  def f(_), do: :other
+                end
+                """,
+            ),
+            macro(
+                "fragment:body",
+                "defmacro m, do: Macro.escape({row}.FB.b())",
+                helper = """
+                defmodule {row}.FB do
+                  x = {1, [:a]}
+                  def b, do: unquote(Macro.escape(x))
                 end
                 """,
             ),

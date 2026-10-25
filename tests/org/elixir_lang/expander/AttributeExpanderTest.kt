@@ -1369,17 +1369,55 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
         )
 
+    /** A match whose right side is a block holding a match runs once: the inner match binds `y` before `@x` is written. */
+    fun testAMatchOfABlockHoldingAMatchRunsOnce() =
+        assertEvery(
+            """
+            defmodule A do
+              res = (y = Module.get_attribute(__MODULE__, :x); @x {y}; :ok)
+              def unquote(res)(), do: @x
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A compiled
+              write x {:nil} `@x {y}`
+              read x in def ok/0: {:nil}
+              final x: {:nil}
+            """.trimIndent(),
+        )
+
+    /** A default an `unquote` gives deprecates each arity it makes, as one written out does. */
+    fun testADeprecatedHeadsUnquotedDefaultDeprecatesEachArity() =
+        assertEvery(
+            """
+            defmodule A do
+              arg = {:\\, [], [{:b, [], nil}, 1]}
+              @deprecated "old"
+              def f(a, unquote(arg)), do: a
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A compiled
+              write deprecated "old" `@deprecated "old"`
+              final deprecated: :nil
+              attributes f/2: doc :nil; deprecated "old"
+              attributes f/1: deprecated "old"
+            """.trimIndent(),
+        )
+
     fun testAnUnnamedDefinition() =
         assertEvery(
             """
             defmodule A do
               @doc "a"
-              def unquote(String.to_atom("f"))(), do: 1
+              def unquote(receive do after 0 -> :f end)(), do: 1
             end
             """.trimIndent(),
             """
             top expanded {} next 0
-            module Elixir.A stopped `unquote(String.to_atom("f"))`
+            module Elixir.A stopped `unquote(receive do after 0 -> :f end)`
               write doc {2, "a"} `@doc "a"`
               final doc: :nil
               attributes unnamed: doc "a"
@@ -1395,12 +1433,12 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             defmodule A do
               @file "x.ex"
-              def unquote(String.to_atom("f"))(), do: 1
+              def unquote(receive do after 0 -> :f end)(), do: 1
             end
             """.trimIndent(),
             """
             top expanded {} next 0
-            module Elixir.A stopped `unquote(String.to_atom("f"))`
+            module Elixir.A stopped `unquote(receive do after 0 -> :f end)`
               write file "x.ex" `@file "x.ex"`
               final file: :nil
             """.trimIndent(),

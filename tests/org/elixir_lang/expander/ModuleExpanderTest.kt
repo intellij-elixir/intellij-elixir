@@ -1080,6 +1080,31 @@ class ModuleExpanderTest : ExpanderTestCase() {
         assertLevels(
             """
             defmodule A do
+              defmacrop unquote(receive do after 0 -> :m end)(x), do: :first
+              defmacrop m(x), do: x
+              def g, do: m(:b)
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            module Elixir.A stopped `unquote(receive do after 0 -> :m end)`
+              defmacrop m/1 line 3 clauses 1
+              def g/0 line 4 clauses 1
+              defmacrop unnamed
+              body: expanded {} next ${if (isBefore(version, "1.20.0-rc.5")) 0 else 1} context [Elixir.A]
+              defmacrop unnamed unordered: unported `unquote(receive do after 0 -> :m end)`
+              defmacrop m/1 unordered: expanded {x:0} next 1
+              def g/0 unordered: opaque local_macro Elixir.A.m/1 `m(:b)`
+            """.trimIndent()
+        }
+
+    /** A name the module body's value gives is its clause's, so a later local call reaches it first, as in Elixir. */
+    fun testALocalMacroCallReachesTheClauseAFragmentNames() =
+        assertLevels(
+            """
+            defmodule A do
               n = :m
               defmacrop unquote(n)(x), do: :first
               defmacrop m(x), do: x
@@ -1090,14 +1115,13 @@ class ModuleExpanderTest : ExpanderTestCase() {
         ) { version ->
             """
             top expanded {} next 0 context ${topContext(version, "Elixir.A")}
-            module Elixir.A stopped `unquote(n)`
-              defmacrop m/1 line 4 clauses 1
+            module Elixir.A compiled
+              defmacrop m/1 line 3 clauses 2
               def g/0 line 5 clauses 1
-              defmacrop unnamed
               body: expanded {n:0} next 1 context [Elixir.A]
-              defmacrop unnamed unordered: unported `unquote(n)`
-              defmacrop m/1 unordered: expanded {x:0} next 1
-              def g/0 unordered: opaque local_macro Elixir.A.m/1 `m(:b)`
+              defmacrop m/1: expanded {x:0} next 1 value first
+              defmacrop m/1: expanded {x:0} next 1
+              def g/0: expanded {} next 0 value first
             """.trimIndent()
         }
 
@@ -1919,25 +1943,53 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """.trimIndent()
         }
 
-    fun testAFragmentWithNoLiteralValueStopsItsBody() =
+    fun testABodyFragmentIsTheModuleBodysValue() =
         assertLevels("defmodule A do\n  x = 1\n  def f, do: unquote(x)\nend", LEVELS) { version ->
             """
             top expanded {} next 0 context ${topContext(version, "Elixir.A")}
-            module Elixir.A stopped `unquote(x)`
+            module Elixir.A compiled
               def f/0 line 3 clauses 1
               body: expanded {x:0} next 1 context [Elixir.A]
-              def f/0: unported `unquote(x)`
+              def f/0: expanded {} next 0
             """.trimIndent()
         }
 
-    fun testANameWithNoAtomValueIsUnnamed() =
+    fun testANameFragmentIsTheModuleBodysValue() =
         assertLevels("defmodule A do\n  name = :f\n  def unquote(name)(), do: 1\nend", LEVELS) { version ->
             """
             top expanded {} next 0 context ${topContext(version, "Elixir.A")}
-            module Elixir.A stopped `unquote(name)`
-              def unnamed
+            module Elixir.A compiled
+              def f/0 line 3 clauses 1
               body: expanded {name:0} next 1 context [Elixir.A]
-              def unnamed unordered: unported `unquote(name)`
+              def f/0: expanded {} next 0
+            """.trimIndent()
+        }
+
+    fun testANameFragmentIsTheValueOfItsCall() =
+        assertLevels("defmodule A do\n  def unquote(String.to_atom(\"f\"))(), do: 1\nend", LEVELS) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            module Elixir.A compiled
+              def f/0 line 2 clauses 1
+              body: expanded {} next 0 context [Elixir.A]
+              def f/0: expanded {} next 0
+            """.trimIndent()
+        }
+
+    /**
+     * After a match the evaluator can't run, which may have raised first, a later raise isn't the module's error, and
+     * it ends the file's run as a raise does.
+     */
+    fun testARaiseAfterADeclinedMatchStops() =
+        assertLevels(
+            "defmodule S do\n  _ = receive do after 0 -> :erlang.error(:first) end\n  h = :h\n  def unquote(h)\nend",
+            LEVELS,
+        ) { version ->
+            """
+            top unported `def unquote(h)`
+            module Elixir.S stopped `def unquote(h)`
+              body: expanded ${if (isBefore(version, "1.20.0-rc.5")) "{h:0} next 1" else "{h:2} next 3"} context [Elixir.S]
+              def unnamed: unported `def unquote(h)`
             """.trimIndent()
         }
 
@@ -1956,9 +2008,59 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """.trimIndent()
         }
 
+    /** A nested module's write to the module enclosing it is applied to that module's attributes, which its body reads after. */
+    fun testAWriteToAnEnclosingModuleIsAppliedToItsAttributes() =
+        assertLevels(
+            """
+            defmodule Outer do
+              defmodule Inner do
+                Module.put_attribute(Outer, :a, 1)
+              end
+
+              x = Module.get_attribute(__MODULE__, :a)
+              def unquote(if x == 1, do: :f1, else: :f)(), do: 1
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.Outer")}
+            module Elixir.Outer compiled
+              def f1/0 line 7 clauses 1
+              body: expanded {x:0} next ${if (isBefore(version, "1.20.0-rc.5")) 1 else 2} context [Elixir.Outer.Inner, Elixir.Outer]
+              def f1/0: expanded {} next 0
+              module Elixir.Outer.Inner compiled
+                body: expanded {} next 0 context [Elixir.Outer.Inner, Elixir.Outer]
+            """.trimIndent()
+        }
+
     /**
-     * `store_definition/5` reads the name and `length(Args)` after the splice, so a head whose name is a fragment, or
-     * one of whose arguments is a splice, has no arity the expander can read. An `unquote` argument is still one.
+     * A write through a receiver the expansion doesn't know may be `Module`'s, so it leaves the attributes unknown and
+     * stops the module there: whether Elixir raises at it isn't known.
+     */
+    fun testAnAttributeWriteThroughAnUnknownReceiverLeavesTheAttributesUnknown() =
+        assertLevels(
+            """
+            defmodule S do
+              mod = Module
+              mod.put_attribute(__MODULE__, :name, :foo)
+              def unquote(Module.get_attribute(__MODULE__, :name, :bar))(), do: 1
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.S")}
+            module Elixir.S stopped `mod.put_attribute(__MODULE__, :name, :foo)`
+              def unnamed
+              body: expanded {mod:0} next 1 context [Elixir.S]
+              def unnamed unordered: unported `unquote(Module.get_attribute(__MODULE__, :name, :bar))`
+            """.trimIndent()
+        }
+
+    /**
+     * `store_definition/5` reads the name and `length(Args)` after the splice, so a head one of whose arguments is a
+     * splice has no arity the expander can read. An `unquote` argument is still one.
      */
     fun testAHeadWithASpliceRecordsNoArity() =
         assertLevels(
@@ -1989,16 +2091,15 @@ class ModuleExpanderTest : ExpanderTestCase() {
               def unnamed
               def unnamed
               def unnamed
-              def unnamed
               body: expanded {args:0 b:2 h:1} next 3 context [Elixir.S]
               def unnamed unordered: unported `unquote_splicing(args)`
               def unnamed unordered: unported `unquote_splicing(args)`
               def unnamed unordered: unported `unquote_splicing([1, 2])`
-              def unnamed unordered: unported `unquote(h)`
+              def unnamed unordered: unported `def unquote(h)`
               def unnamed unordered: unported `unquote_splicing(h)`
-              def f/2 unordered: unported `unquote(b)`
+              def f/2 unordered: expanded {a:0} next 1
               def unnamed unordered: unported `unquote_splicing(args)`
-              def g/2 unordered: unported `unquote(b)`
+              def g/2 unordered: expanded {a:0} next 1
             """.trimIndent()
         }
 
@@ -2018,14 +2119,14 @@ class ModuleExpanderTest : ExpanderTestCase() {
         }
 
     /** A value that is a call, as `{:y, [], nil}` is, binds in a head what a tuple literal wouldn't. */
-    fun testACallAsATupleFragmentStopsItsHead() =
+    fun testACallAsATupleFragmentBindsInItsHead() =
         assertLevels("defmodule A do\n  def f(unquote({:y, [], nil})), do: 1\nend", LEVELS) { version ->
             """
             top expanded {} next 0 context ${topContext(version, "Elixir.A")}
-            module Elixir.A stopped `unquote({:y, [], nil})`
+            module Elixir.A compiled
               def f/1 line 2 clauses 1
               body: expanded {} next 0 context [Elixir.A]
-              def f/1: unported `unquote({:y, [], nil})`
+              def f/1: expanded {y:0} next 1
             """.trimIndent()
         }
 

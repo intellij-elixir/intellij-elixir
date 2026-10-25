@@ -6,6 +6,8 @@ import org.elixir_lang.NameArity
 import org.elixir_lang.expander.DefinitionTable.Injected
 import org.elixir_lang.expander.DefinitionTable.Kind
 import org.elixir_lang.expander.ExpansionResult.Owner
+import org.elixir_lang.expander.interpreter.Evaluated
+import org.elixir_lang.expander.interpreter.codeOf
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFAULT_ARGUMENTS_THREAD_STATE
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINER_REFUSED_IN_MATCH_OR_GUARD
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_HEAD_GUARDS_CONTINUE
@@ -111,38 +113,18 @@ internal fun define(
             }
         }
     }.thenValue { s, e, terms ->
-        val call = extractGuards(head).first
-        val nameFragment = (call as? ElixirAst.Call)?.callee?.takeIf { isCall(it, "unquote", 1) }
-        val replacements = IdentityHashMap<ElixirAst, ElixirAst>()
-        var unnamedAt: ElixirAst? = null
-        var stop = fragments.stop
-
-        for ((piece, term) in pieces.zip((terms as Term.List).elements)) {
-            val fragment = (piece as? Piece.Fragment)?.call ?: continue
-            val literal = literalOf(fragment, term)
-
-            when {
-                literal != null -> replacements[fragment] = literal
-                fragment === nameFragment -> unnamedAt = fragment
-                else -> stop = stop ?: fragment
-            }
+        val evaluated = pieces.indices.mapNotNull { i ->
+            (pieces[i] as? Piece.Fragment)?.let { Fragment(it.call, values[i], (terms as Term.List).elements[i]) }
         }
-
-        val statement = run.compiling[env.module]?.isStatement(node) == true
-        val substituted = substitute(head, replacements)
-
-        if (!isReadWhole(extractGuards(substituted).first)) unnamedAt = unnamedAt ?: stop
 
         run.pending += Pending.Definition(
             kind,
             node,
-            substituted,
-            body?.let { substitute(it, replacements) },
-            unnamedAt,
-            stop,
+            head,
+            body,
+            Fragments(evaluated, fragments.stop, state).takeIf { unquotes },
             env,
-            statement && unnamedAt == null,
-            statement,
+            run.compiling[env.module]?.isStatement(node) == true,
             // `elixir_def:store_definition/5`: a head with unquotes or from a quote isn't checked for clauses.
             checksClauses = !unquotes && !hasMetaKey(extractGuards(head).first.meta, "context"),
             injectedBy = run.injecting?.takeIf { builtBy(node, it) },
@@ -151,6 +133,115 @@ internal fun define(
         Expansion.Expanded(s, e, NODE)
     }
 }
+
+/**
+ * What the escape of a definition's head and body evaluates when the `def` runs: each `unquote(x)`, in order, and the
+ * first splice or unquoted call name, whose value the expander can't splice.
+ *
+ * @property state the state at the `def*` call, from which the fragments are evaluated
+ * @property supplied the code a summary knows a fragment, splice or unquoted call name holds, by the node it replaces
+ */
+internal class Fragments(
+    val values: List<Fragment>,
+    val stop: ElixirAst?,
+    val state: ExState,
+    val supplied: Map<ElixirAst, ElixirAst> = emptyMap(),
+) {
+    /**
+     * Whether a splice, an unquoted call name, or a fragment that isn't [head]'s name waits on a value its expansion
+     * doesn't know and no summary supplied.
+     */
+    fun waits(head: ElixirAst): Boolean {
+        val name = nameFragment(head)
+
+        return stop != null ||
+            values.any { it.call !== name && it.call !in supplied && literalOf(it.call, it.term) == null }
+    }
+}
+
+/** An `unquote(x)` of a definition, with [expanded], the `x` the module body expanded, and the [term] it expanded to. */
+internal class Fragment(val call: ElixirAst.Call, val expanded: ElixirAst, val term: Term)
+
+/**
+ * A definition's head and body as the `def` runs them, each fragment replaced by its value.
+ *
+ * @property unnamedAt the name's fragment, when its value isn't an atom, or the first fragment that stops a head whose
+ *   name or argument count a fragment decides
+ * @property stop the first other fragment whose value isn't code
+ * @property ordered whether the `def*` call is a statement of the module body, and named
+ * @property raised what the escape raises, which ends the module body before the definition is stored
+ */
+internal class Unquoted(
+    val head: ElixirAst,
+    val body: ElixirAst?,
+    val unnamedAt: ElixirAst?,
+    val stop: ElixirAst?,
+    val ordered: Boolean,
+    val raised: Expansion? = null,
+)
+
+/**
+ * [definition] as the `def` runs it: each fragment's value is what a summary supplied, or what its expansion knows,
+ * or, if [evaluates], what the evaluator gives from the values [compiling]'s body has bound. The definition stops at
+ * the first value that isn't known, so none after it is evaluated, and a fragment raises only where every value before
+ * it is known.
+ */
+internal fun unquoted(
+    definition: Pending.Definition,
+    compiling: Compiling,
+    run: Run,
+    evaluates: Boolean = true,
+): Unquoted {
+    val fragments = definition.fragments
+        ?: return Unquoted(definition.head, definition.body, null, null, definition.statement)
+    val name = nameFragment(definition.head)
+    val replacements = IdentityHashMap(fragments.supplied)
+    var unnamedAt: ElixirAst? = null
+    var stop = fragments.stop
+
+    for (fragment in fragments.values) {
+        ProgressManager.checkCanceled()
+
+        if (fragment.call in replacements) continue
+
+        val known = literalOf(fragment.call, fragment.term)
+        val evaluated = if (known == null && evaluates && stop == null && unnamedAt == null) {
+            compiling.values.evaluate(fragment.expanded, fragments.state, definition.env, run)
+        } else {
+            null
+        }
+
+        if (evaluated is Evaluated.Raised) {
+            val raised = evaluated.exception?.let { Expansion.Error(it, fragment.call) } ?: Expansion.Unported(fragment.call)
+
+            return Unquoted(definition.head, definition.body, null, null, definition.statement, raised)
+        }
+
+        val value = known ?: (evaluated as? Evaluated.Value)?.let { codeOf(it.value, fragment.call.meta.origin) }
+
+        when {
+            value != null -> replacements[fragment.call] = value
+            fragment.call === name -> unnamedAt = fragment.call
+            else -> stop = stop ?: fragment.call
+        }
+    }
+
+    val head = substitute(definition.head, replacements)
+
+    if (!isReadWhole(extractGuards(head).first)) unnamedAt = unnamedAt ?: stop
+
+    return Unquoted(
+        head,
+        definition.body?.let { substitute(it, replacements) },
+        unnamedAt,
+        stop,
+        definition.statement && unnamedAt == null,
+    )
+}
+
+/** The `unquote` that names [head]'s call, if one does. */
+private fun nameFragment(head: ElixirAst): ElixirAst? =
+    (extractGuards(head).first as? ElixirAst.Call)?.callee?.takeIf { isCall(it, "unquote", 1) }
 
 /**
  * The literal [fragment]'s value [term] is, if it is one a definition can hold: the code `unquote` inserts, in which a
@@ -436,24 +527,28 @@ private fun fileOf(term: Term): String? =
     }
 
 /**
- * `elixir_def:store_definition/5`: [definition]'s name checked, its defaults and clause expanded in the env where it
- * was defined, and the definition stored unless that raised. The owner names the definition as far as it is known.
+ * `elixir_def:store_definition/5`: [definition], [unquoted] as the `def` ran it, its name checked, its defaults and
+ * clause expanded in the env where it was defined, and the definition stored unless that raised. The owner names the
+ * definition as far as it is known.
  *
  * @param expand whether the defaults and clause are expanded; where they aren't, the definition is stored as one that
  *   stops at its node
  */
 internal fun storeDefinition(
     definition: Pending.Definition,
+    unquoted: Unquoted,
     compiling: Compiling,
     run: Run,
     expand: Boolean = true,
 ): Pair<Owner, Expansion> {
     val kind = definition.kind
     val node = definition.node
-    val unnamedAt = definition.unnamedAt
+    val unnamedAt = unquoted.unnamedAt
+
+    unquoted.raised?.let { return Owner.Definition(kind, null, 0) to it }
 
     // `retrieve_location/2`, before the name is checked. Only `invalid_def` comes before it in Elixir, and it raises.
-    compiling.definitionMoved = moved(takeFile(definition, compiling), definition.head, run)
+    compiling.definitionMoved = moved(takeFile(definition, compiling), unquoted.head, run)
 
     if (unnamedAt != null) {
         compiling.table.define(null, 0, kind, node, 0, 0, definition.statement, definition.checksClauses)
@@ -461,7 +556,7 @@ internal fun storeDefinition(
         return Owner.Definition(kind, null, 0) to Expansion.Unported(unnamedAt)
     }
 
-    val (call, guards) = extractGuards(definition.head)
+    val (call, guards) = extractGuards(unquoted.head)
     val (name, defaultsArgs) = when (call) {
         is ElixirAst.Call if call.callee is ElixirAst.Literal.Atom -> call.callee.name to call.arguments.orEmpty()
         // `{'__aliases__', Meta, Segments}`: a name `assert_no_aliases_name/4` refuses for one segment.
@@ -484,23 +579,23 @@ internal fun storeDefinition(
 
     /** The definition stored with this clause in its place, stopped at [at]. */
     fun stopped(at: ElixirAst): Pair<Owner, Expansion> {
-        if (definition.body != null) {
+        if (unquoted.body != null) {
             compiling.clauses.getOrPut(nameArity) { mutableListOf() } += ModuleClauses.Clause(args, guards, null)
         }
-        store(definition, name, arity, defaults.size, compiling, run)
+        store(definition, unquoted, name, arity, defaults.size, compiling, run)
 
         return owner to Expansion.Unported(at)
     }
 
-    if (definition.stop != null || !expand) return stopped(definition.stop ?: node)
+    if (unquoted.stop != null || !expand) return stopped(unquoted.stop ?: node)
 
     val env = definition.env.copy(function = nameArity)
     val fresh = ExState.empty(run.level).copy(caller = kind.macro)
-    val body = definition.body?.let { clauseBody(node, it) }
+    val body = unquoted.body?.let { clauseBody(node, it) }
     val (defaulted, expansion) = unlessTooDeep({ return stopped(node) }) {
         val defaulted = expandDefaults(defaults, fresh, env, run, compiling, node)
 
-        defaulted to defaulted.then { _, _ -> clause(node, args, guards, definition.body, body, fresh, env, run) }
+        defaulted to defaulted.then { _, _ -> clause(node, args, guards, unquoted.body, body, fresh, env, run) }
     }
 
     if (expansion is Expansion.Error) return owner to expansion
@@ -516,18 +611,21 @@ internal fun storeDefinition(
 
     // The store follows the expansion, so from 1.15 the body's errors are reported before the store raises. A body
     // that isn't expanded may raise before the store does.
-    val raised = store(definition, name, arity, defaults.size, compiling, run)?.takeIf { expansion is Expansion.Expanded }
+    val raised = store(definition, unquoted, name, arity, defaults.size, compiling, run)
+        ?.takeIf { expansion is Expansion.Expanded }
 
     return owner to (raised?.let { Expansion.Error(it, node) } ?: expansion)
 }
 
 /**
- * [definition] stored as [name] and [arity] with [defaults] defaults: the kind of the error the store raises, if any.
+ * [definition], [unquoted] as the `def` ran it, stored as [name] and [arity] with [defaults] defaults: the kind of the
+ * error the store raises, if any.
  * A definition whose `def*` call a macro's output built is recorded as injected by the call that injected it, and
  * placed where its `def*` call was built.
  */
 private fun store(
     definition: Pending.Definition,
+    unquoted: Unquoted,
     name: String,
     arity: Int,
     defaults: Int,
@@ -539,9 +637,9 @@ private fun store(
         arity,
         definition.kind,
         definition.node,
-        if (definition.body == null) 0 else 1,
+        if (unquoted.body == null) 0 else 1,
         defaults,
-        definition.ordered,
+        unquoted.ordered,
         definition.checksClauses,
         definition.delegatesTo,
         definition.injectedBy?.let { Injected(it, run.placedAt[definition.node]) },

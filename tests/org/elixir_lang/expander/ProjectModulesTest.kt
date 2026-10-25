@@ -652,6 +652,11 @@ class ProjectModulesTest : PlatformTestCase() {
         assertSharedValueConvertsInBoundedWork("  @a t\n")
     }
 
+    /** A shared module-body value a definition unquotes converts in bounded work. */
+    fun testASharedValueADefinitionUnquotesConvertsInBoundedWork() {
+        assertSharedValueConvertsInBoundedWork("  def f, do: unquote(t)\n")
+    }
+
     /** A module body that applies [doubling] forty times to `t = []`, then runs [after], expands in [SHARED_VALUE_CHECKS]. */
     private fun assertSharedValueConvertsInBoundedWork(after: String, doubling: String = "t = {t, t}") {
         addLegElixir()

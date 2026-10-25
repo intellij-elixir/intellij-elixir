@@ -456,16 +456,13 @@ internal class Statements {
 /** What a body defines, which Elixir evaluates once the body is expanded. */
 internal sealed interface Pending {
     /**
-     * A `def*` call, with its unquote fragments replaced by their values.
+     * A `def*` call, whose unquote fragments the walk evaluates when it stores the definition.
      *
      * @property node the `def*` call
      * @property head the call and guard being defined
      * @property body the options, or `null` for a bodiless head
-     * @property unnamedAt the name's unquote fragment, when its value isn't an atom, or the first fragment that stops a
-     *   head whose name or argument count a fragment decides
-     * @property stop the first other fragment whose value isn't a literal
+     * @property fragments what the escape of [head] and [body] evaluates, or `null` where they have no unquotes
      * @property env the env at [node]
-     * @property ordered whether [node] is a statement of the module body, and named
      * @property statement whether [node] is a statement of the module body
      * @property checksClauses whether Elixir checks the definition for clauses: it has no unquotes, and its head
      *   wasn't quoted
@@ -476,10 +473,8 @@ internal sealed interface Pending {
         val node: ElixirAst.Call,
         val head: ElixirAst,
         val body: ElixirAst?,
-        val unnamedAt: ElixirAst?,
-        val stop: ElixirAst?,
+        val fragments: Fragments?,
         val env: Env,
-        val ordered: Boolean,
         val statement: Boolean,
         val checksClauses: Boolean,
         val delegatesTo: DefinitionTable.Delegation? = null,
@@ -585,10 +580,7 @@ internal val Pending.site: ElixirAst
 internal fun Pending.asStatement(): Pending =
     when (this) {
         is Pending.Definition ->
-            Pending.Definition(
-                kind, node, head, body, unnamedAt, stop, env, unnamedAt == null, true, checksClauses,
-                injectedBy = injectedBy,
-            )
+            Pending.Definition(kind, node, head, body, fragments, env, true, checksClauses, delegatesTo, injectedBy)
         is Pending.Effect -> Pending.Effect(node, true, queued, apply)
         is Pending.Attribute -> Pending.Attribute(effect, at, true, raises, resolve)
         is Pending.Module, is Pending.Match, is Pending.Statement -> this
@@ -763,15 +755,17 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues): Ex
                 is Pending.Module if runEnded() -> null
                 is Pending.Effect if runEnded() -> null
                 is Pending.Definition -> stoppedIfTooDeep(pending.node) {
-                    ordered = pending.ordered
+                    val unquoted = unquoted(pending, compiling, run, evaluates = !runEnded())
+
+                    ordered = unquoted.ordered
                     known = !compiling.attributes.callsBack("on_definition")
 
-                    val (owner, stored) = storeDefinition(pending, compiling, run, expand = !runEnded())
+                    val (owner, stored) = storeDefinition(pending, unquoted, compiling, run, expand = !runEnded())
 
                     compiling.storedReads(owner)
 
                     if (stored !is Expansion.Error) {
-                        takeDefinitionAttributes(pending, owner as Owner.Definition, compiling)
+                        takeDefinitionAttributes(pending, unquoted.head, owner as Owner.Definition, compiling)
                     }
 
                     // `run_on_definition_callbacks`: a user entry's code isn't followed, and it is given the env, so it

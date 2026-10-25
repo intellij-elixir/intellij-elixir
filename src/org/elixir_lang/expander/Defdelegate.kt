@@ -262,8 +262,7 @@ private class Delegates(
         val body = s.keywords(listOf("do" to s.remoteCall(head.target, head.function, head.calls, listOf(line))))
 
         return Pending.Definition(
-            queued.kind, queued.node, call, body, unnamedAt = null, stop = null, queued.env,
-            ordered = true, statement = true, checksClauses = false,
+            queued.kind, queued.node, call, body, fragments = null, queued.env, statement = true, checksClauses = false,
             delegatesTo = DefinitionTable.Delegation(head.target, head.function),
             injectedBy = queued.injectedBy,
         )

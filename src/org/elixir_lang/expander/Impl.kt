@@ -232,7 +232,7 @@ private fun implemented(
 private class ImplTail(private val protocol: ElixirAst, private val type: ElixirAst) {
     fun settled(pending: List<Pending>): List<Pending> =
         pending.map { entry ->
-            if (entry is Pending.Definition && entry.stop != null) {
+            if (entry is Pending.Definition && entry.fragments?.waits(entry.head) == true) {
                 filled(entry) { argument ->
                     when {
                         isProtocolVariable(argument, "protocol") -> protocol

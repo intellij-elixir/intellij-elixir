@@ -15,11 +15,13 @@ import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.ericsson.otp.erlang.OtpOutputStream
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.util.TextRange
 import org.elixir_lang.expander.differInSign
 import org.elixir_lang.expander.UnorderedTerms
 import org.elixir_lang.expander.termOrder
 import org.elixir_lang.expander.termsEqual
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.fitsAnAtom
 import org.elixir_lang.psi.Import.Term
 import java.math.BigInteger
@@ -520,6 +522,13 @@ internal fun truthy(term: OtpErlangObject): Boolean {
 }
 
 /**
+ * The code [value] is, as [ElixirAst.fromOtp] reads it, or `null` where it isn't code or the code would hold more than
+ * [COPY_NODES] nodes.
+ */
+internal fun codeOf(value: OtpErlangObject, origin: TextRange, values: Boolean = false): ElixirAst? =
+    ElixirAst.fromOtp(value, origin, values, nodes = COPY_NODES)
+
+/**
  * [value] as the expander's [Term]: a float is [Term.NonTuple], and what a [Term] can't hold, an unknown value
  * included, is [Term.Unexpanded], as is a value too large to copy ([copyable]).
  */
@@ -567,7 +576,7 @@ internal fun copyable(value: OtpErlangObject): Boolean {
     return fits(value)
 }
 
-/** The most nodes a value [copyable] allows. */
+/** The most nodes a copy of an evaluated value may build. */
 private const val COPY_NODES = 1 shl 20
 
 /** An `{M, F, ArgsOrArity, []}` stacktrace entry. */

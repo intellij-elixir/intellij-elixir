@@ -5,6 +5,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_BIND_QUOTE
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_ESCAPES_STRUCT
 import org.elixir_lang.language_level.ElixirLanguageFeature.ENFORCE_KEYS_MUST_BE_FIELDS
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRUCT_ATTRIBUTE_RENAMED
+import org.elixir_lang.expander.interpreter.Binding
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
@@ -46,12 +47,15 @@ private fun defstruct(
     val watched = Watched(fields)
     val from = run.pending.size
     val expansion = expandQuoted(node, KERNEL, output.output(), state, env, run, watched, ports = true)
-    val definitions = run.pending.subList(from, run.pending.size).toList().filterIsInstance<Pending.Definition>()
+    val queued = run.pending.subList(from, run.pending.size).toList()
+    val definitions = queued.filterIsInstance<Pending.Definition>()
+    val results = queued.firstNotNullOfOrNull { (it as? Pending.Match)?.node?.let(output::results) }
     val effect = DefstructEffect(
         node,
         output,
         { compiling -> fieldsAt(watched, node, compiling, state, env, run) },
         definitions,
+        results.orEmpty(),
         compiling.statements,
         compiling.isStatement(node),
         run,
@@ -292,21 +296,21 @@ private fun combined(nodes: List<ElixirAst>, level: ElixirLanguageLevel): Value 
 
 /**
  * The effect of a `defstruct` at [node] on its module once the body has run to it: `Kernel.Utils.defstruct`'s checks
- * and the record, then the definitions of `__struct__/0` and `__struct__/1` with the result in place of the output's
- * placeholders.
+ * and the record, and its result bound to the output's [results], the variables the definitions of `__struct__/0` and
+ * `__struct__/1` unquote.
  */
 private class DefstructEffect(
     private val node: ElixirAst.Call,
     private val output: StructOutput,
     private val fields: (Compiling) -> Fields,
     private val queued: List<Pending.Definition>,
+    private val results: Map<String, ElixirAst>,
     private val statements: Statements,
     private val statement: Boolean,
     private val run: Run,
 ) {
     private val level = run.level
     private var enforced: List<String>? = null
-    private var entries: List<Pair<String, ElixirAst>>? = null
 
     fun apply(compiling: Compiling): Expansion? {
         // A call that may not run, or may run more than once, is not followed.
@@ -348,7 +352,7 @@ private class DefstructEffect(
         }
 
         enforced = enforcedKeys
-        entries = known.entries
+        bind(compiling, enforcedKeys, known.entries)
         compiling.struct = ModuleStruct.Present(fieldKeys - "__struct__", Enforced.Known(enforcedKeys.toSet()))
 
         if (!DEFSTRUCT_BIND_QUOTED.isSufficient(level)) {
@@ -369,6 +373,17 @@ private class DefstructEffect(
         return derive(node, derived, run)
     }
 
+    /** `Kernel.Utils.defstruct`'s result, bound where the output's `=` binds it; unbound where it can't be escaped. */
+    private fun bind(compiling: Compiling, enforced: List<String>, entries: List<Pair<String, ElixirAst>>) {
+        val values = output.values(enforced, entries) ?: return
+
+        for ((name, variable) in results) {
+            val version = run.bodyDispatches.versionOf(variable) ?: continue
+
+            values[name]?.let { compiling.values.bindings[Binding(version)] = it.toOtp() }
+        }
+    }
+
     /** A struct the expander can't follow: the module stops at the `defstruct`. */
     private fun stopped(compiling: Compiling): Expansion {
         compiling.struct = ModuleStruct.Unreadable
@@ -378,7 +393,7 @@ private class DefstructEffect(
 
     /** The definitions, as statements where the `defstruct` is one: the arm the module body takes is known. */
     fun queued(): List<Pending> =
-        output.definitions(queued, enforced, entries).map { if (statement && !it.isStatement(statements)) it.asStatement() else it }
+        output.definitions(queued, enforced).map { if (statement && !it.isStatement(statements)) it.asStatement() else it }
 }
 
 /**

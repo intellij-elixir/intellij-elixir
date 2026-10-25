@@ -186,7 +186,7 @@ internal class ProtocolTail(private val module: String, meta: Meta, private val 
             .takeIf { it.size == 2 }.orEmpty()
 
         return pending.map { entry ->
-            if (entry is Pending.Definition && (entry.stop != null || entry in branches)) {
+            if (entry is Pending.Definition && (entry.fragments?.waits(entry.head) == true || entry in branches)) {
                 waiting(entry, branches.indexOf(entry))
             } else {
                 entry
@@ -212,7 +212,8 @@ internal class ProtocolTail(private val module: String, meta: Meta, private val 
         val fallback = fallbackToAny(attributes) ?: return listOf(definition)
         val functions = declared(attributes) ?: return listOf(definition)
         val fragments = Fragments(anyImplFor(fallback) ?: return listOf(definition), functions, description(attributes))
-        val filled = if (definition.stop != null) fill(definition, fragments) else listOf(definition)
+        val waits = definition.fragments?.waits(definition.head) == true
+        val filled = if (waits) fill(definition, fragments) else listOf(definition)
 
         if (branch < 0) return filled
 
