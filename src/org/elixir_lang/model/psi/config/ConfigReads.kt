@@ -4,6 +4,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.psi.call.Call
 
 /** The code that reads an application env key. */
 internal object ConfigReads {
@@ -13,10 +14,19 @@ internal object ConfigReads {
      */
     @RequiresReadLock
     fun of(project: Project, app: String, key: String, scope: GlobalSearchScope): List<PsiElement> =
-        ConfigIndexing.written(project, ConfigIndexKey.App(app), ConfigEntry.Kind.READ, scope)
-            .filter { (written, element) -> written == WrittenKey.Unknown || written == WrittenKey.All || written.atom(element) == key }
-            .map { (_, element) -> element } +
-            ConfigIndexing.written(project, ConfigIndexKey.AnyApp, ConfigEntry.Kind.READ, scope)
-                .filter { (written, element) -> written.atom(element) == key }
-                .map { (_, element) -> element }
+        (
+            ConfigIndexing.written(project, ConfigIndexKey.App(app), scope) { it is ConfigEntry.Kind.Read }
+                .filter { it.key == WrittenKey.Unknown || it.key == WrittenKey.All || it.key.atom(it.element) == key } +
+                ConfigIndexing.written(project, ConfigIndexKey.AnyApp, scope) { it is ConfigEntry.Kind.Read }.filter { it.key.atom(it.element) == key }
+            )
+            .filter { isRead(it) }
+            .map { it.element }
+
+    @RequiresReadLock
+    private fun isRead(written: ConfigIndexing.Written): Boolean {
+        val module = (written.kind as? ConfigEntry.Kind.Read)?.module ?: return false
+        val call = if (written.key == WrittenKey.All) written.element as? Call else Keys.call(written.element)
+
+        return call != null && module.isRead(call)
+    }
 }

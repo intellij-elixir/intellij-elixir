@@ -923,6 +923,24 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals("Foo.Nested.f/1 OWN VALID via [] line 19", candidates(file, "__MODULE__.f(x)", "__MODULE__.f(x)"))
     }
 
+    fun testAParenthesisedAttributeReceiverIsWhatTheFilesExpansionFound() {
+        val file = file(
+            """
+            defmodule Foo.Bar do
+              def f(x), do: x
+            end
+
+            defmodule Foo do
+              @mod Foo.Bar
+
+              def by_attribute(x), do: (@mod).f(x)
+            end
+            """
+        )
+
+        assertEquals("Foo.Bar.f/1 OWN VALID via [] line 2", candidates(file, "(@mod).f(x)", "(@mod).f(x)"))
+    }
+
     /**
      * A node after a stop keeps the directives the statements before the stop left in its block, but not one a nested
      * scope made. A module that raises ends its file, so each stop is in a file of its own.

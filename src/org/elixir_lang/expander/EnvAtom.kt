@@ -5,6 +5,7 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.Import.Term
+import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 
 /** The atom an element names in an env. */
 internal object EnvAtom {
@@ -22,5 +23,28 @@ internal object EnvAtom {
         )
 
         return ((expansion as? Expansion.Expanded)?.value as? Term.Atom)?.name
+    }
+
+    /**
+     * The module [written], a remote call's qualifier, expanded to in its file's expansion, or where the expansion didn't
+     * reach it, expands to in [env]; `null` where it expands to no atom, or where it was not reached and [env] is `null`.
+     * The expansion records the qualifier inside any parentheses.
+     */
+    @RequiresReadLock
+    fun receiver(
+        written: PsiElement,
+        receivers: ReceiverIndex,
+        env: Env?,
+        lowering: Lowering,
+        inputs: ProjectModules.Inputs,
+        holder: ProjectModules,
+    ): String? {
+        val qualifier = written.stripAccessExpressionAndParentheses()
+
+        return when (val receiver = receivers.at(qualifier.textRange)) {
+            is ReceiverIndex.Receiver.Module -> receiver.name
+            ReceiverIndex.Receiver.Unknown -> null
+            ReceiverIndex.Receiver.Unreached -> env?.let { of(qualifier, it, lowering, inputs, holder) }
+        }
     }
 }

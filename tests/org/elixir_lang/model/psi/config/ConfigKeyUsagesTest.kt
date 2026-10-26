@@ -130,6 +130,104 @@ class ConfigKeyUsagesTest : PlatformTestCase() {
         assertDoesntContain(usages(), "worker.ex:8 retries")
     }
 
+    // the module a read calls
+
+    fun testUsagesIncludeAReadThroughAnAliasOfApplication() {
+        myFixture.caret(CONFIG, "alia<caret>sed: 1")
+
+        assertContainsElements(usages(), "aliased.ex:4 aliased")
+    }
+
+    fun testUsagesExcludeApplicationAliasedToAnotherModule() {
+        myFixture.caret(CONFIG, "aliased_aw<caret>ay: 1")
+
+        assertEquals(listOf("config.exs:8 aliased_away") + EVERY_KEY, usages())
+    }
+
+    fun testUsagesIncludeAnElixirApplicationRead() {
+        myFixture.caret(CONFIG, "elixir_appli<caret>cation: 1")
+
+        assertContainsElements(usages(), "aliased.ex:5 elixir_application")
+    }
+
+    fun testUsagesIncludeAnErlangApplicationRead() {
+        myFixture.caret(CONFIG, "erl<caret>ang: 1")
+
+        assertContainsElements(usages(), "aliased.ex:6 erlang")
+    }
+
+    fun testUsagesExcludeAnApplicationAliasCallingGetEnv1() {
+        myFixture.caret(CONFIG, "get_en<caret>v1: 1")
+
+        assertEquals(listOf("config.exs:11 get_env1") + EVERY_KEY, usages())
+    }
+
+    fun testUsagesIncludeAnImportedApplicationRead() {
+        myFixture.caret(CONFIG, "impor<caret>ted: 1")
+
+        assertContainsElements(usages(), "imported.ex:4 imported")
+    }
+
+    fun testUsagesIncludeAnImportedCompileEnvRead() {
+        myFixture.caret(CONFIG, "imported_compile_e<caret>nv: 1")
+
+        assertContainsElements(usages(), "imported.ex:6 imported_compile_env")
+    }
+
+    fun testUsagesExcludeAnUnqualifiedGetEnvWithoutTheImport() {
+        myFixture.caret(CONFIG, "loc<caret>al: 1")
+
+        assertEquals(listOf("config.exs:14 local") + EVERY_KEY, usages())
+    }
+
+    fun testUsagesIncludeAReadThroughAnAttributeHoldingApplication() {
+        myFixture.caret(CONFIG, "attri<caret>bute: 1")
+
+        assertContainsElements(usages(), "attribute.ex:5 attribute")
+    }
+
+    fun testUsagesIncludeAReadThroughAParenthesisedAttribute() {
+        myFixture.caret(CONFIG, "parenthesised_he<caret>ld: 1")
+
+        assertContainsElements(usages(), "attribute.ex:6 parenthesised_held")
+    }
+
+    fun testUsagesIncludeAPipedKeyReadThroughAnAttribute() {
+        myFixture.caret(CONFIG, "piped_he<caret>ld: 1")
+
+        assertContainsElements(usages(), "attribute.ex:7 piped_held")
+    }
+
+    fun testUsagesExcludeAnAliasQualifiedReadWhereExpansionDidNotReach() {
+        myFixture.caret(CONFIG, "unreached_ali<caret>as: 1")
+
+        assertEquals(listOf("config.exs:16 unreached_alias") + EVERY_KEY, usages())
+    }
+
+    fun testUsagesIncludeAWrittenApplicationReadWhereExpansionDidNotReach() {
+        myFixture.caret(CONFIG, "unreached_writ<caret>ten: 1")
+
+        assertContainsElements(usages(), "unreached.ex:7 unreached_written")
+    }
+
+    fun testUsagesIncludeAnAbsoluteApplicationReadWhereExpansionDidNotReach() {
+        myFixture.caret(CONFIG, "unreached_abso<caret>lute: 1")
+
+        assertContainsElements(usages(), "unreached.ex:8 unreached_absolute", "unreached.ex:9 unreached_absolute")
+    }
+
+    fun testUsagesExcludeAHeadDefiningAnImportedReadsName() {
+        myFixture.caret(CONFIG, "defined_he<caret>ad: 1")
+
+        assertEquals(listOf("config.exs:21 defined_head") + EVERY_KEY, usages())
+    }
+
+    fun testUsagesExcludeAGuardedHeadDefiningAnImportedReadsName() {
+        myFixture.caret(CONFIG, "guarded_he<caret>ad: 1")
+
+        assertEquals(listOf("config.exs:22 guarded_head") + EVERY_KEY, usages())
+    }
+
     /** Find Usages of the one search target at the caret. */
     private fun usages(): List<String> = labels(myFixture.singleTargetPsiUsagesAtCaret(project))
 
@@ -149,5 +247,8 @@ class ConfigKeyUsagesTest : PlatformTestCase() {
     private companion object {
         const val CONFIG = "config/config.exs"
         const val DEV = "config/dev.exs"
+
+        /** The reads in `worker.ex` of every key of `:my_app`. */
+        val EVERY_KEY = listOf("worker.ex:7 Application.get_all_env(:my_app)", "worker.ex:9 key")
     }
 }

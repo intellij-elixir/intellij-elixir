@@ -24,16 +24,19 @@ internal class ConfigKeyReferenceProvider : PsiSymbolReferenceProvider {
             is ElixirAtom ->
                 Keys.readAt(element)
                     ?.takeIf { it.key is WrittenKey.Atom }
-                    ?.let { listOf(ConfigKeyReference(element, Keys.range(element), it.app, it.key)) }
+                    ?.let { listOf(ConfigKeyReference(element, Keys.range(element), it.app, it.key, it)) }
             is QualifiableAlias ->
                 element
                     .takeIf { it.isOutermostQualifiableAlias() }
                     ?.let { alias ->
-                        Keys.readAt(alias)?.let { it.app to it.key }
-                            ?: Keys.setAt(alias)?.let { ConfigIndexKey.App(it.app) to it.key }
+                        Keys.readAt(alias)
+                            ?.takeIf { it.key == WrittenKey.Alias }
+                            ?.let { ConfigKeyReference(alias, Keys.range(alias), it.app, it.key, it) }
+                            ?: Keys.setAt(alias)
+                                ?.takeIf { it.key == WrittenKey.Alias }
+                                ?.let { ConfigKeyReference(alias, Keys.range(alias), ConfigIndexKey.App(it.app), it.key, null) }
                     }
-                    ?.takeIf { (_, key) -> key == WrittenKey.Alias }
-                    ?.let { (app, key) -> listOf(ConfigKeyReference(element, Keys.range(element), app, key)) }
+                    ?.let { listOf(it) }
             else -> null
         }.orEmpty()
 

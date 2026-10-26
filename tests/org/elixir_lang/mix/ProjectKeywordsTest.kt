@@ -151,6 +151,34 @@ class ProjectKeywordsTest : PlatformTestCase() {
         assertEquals(ProjectKeywords.ConfigPath.Written("config/config.exs"), ProjectKeywords.configPath(mixExs))
     }
 
+    fun testEmptyProjectListHasTheDefaultConfigPath() {
+        val mixExs = mixExs(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              def project, do: []
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.ConfigPath.Written("config/config.exs"), ProjectKeywords.configPath(mixExs))
+    }
+
+    fun testTupleProjectListHasAnUnknownConfigPath() {
+        val mixExs = mixExs(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              def project, do: [{:config_path, "settings/main.exs"}]
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.ConfigPath.Unknown, ProjectKeywords.configPath(mixExs))
+    }
+
     private fun mixExs(text: String): ElixirFile =
         myFixture.configureByText(Project.MIX_EXS, text.trimIndent()) as ElixirFile
 }

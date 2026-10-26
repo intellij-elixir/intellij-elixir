@@ -36,7 +36,6 @@ import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.jetbrains.annotations.TestOnly
 import java.util.EnumMap
@@ -495,19 +494,9 @@ internal object ExpanderSource : CandidateSource {
         return arities.any { it in interval }
     }
 
-    /**
-     * The module [call]'s qualifier expanded to in its file's expansion, or where the expansion didn't reach it, expands
-     * to in the env at [call]; `null` where it expands to no atom.
-     */
-    private fun receiver(at: At, call: Qualified): String? {
-        val qualifier = call.qualifier().stripAccessExpression()
-
-        return when (val receiver = at.receivers.at(qualifier.textRange)) {
-            is ReceiverIndex.Receiver.Module -> receiver.name
-            ReceiverIndex.Receiver.Unknown -> null
-            ReceiverIndex.Receiver.Unreached -> EnvAtom.of(qualifier, at.env, at.lowering, at.inputs, at.holder)
-        }
-    }
+    /** The module [call]'s qualifier names, in the env at [call] where the expansion didn't reach it. */
+    private fun receiver(at: At, call: Qualified): String? =
+        EnvAtom.receiver(call.qualifier(), at.receivers, at.env, at.lowering, at.inputs, at.holder)
 
     private fun found(reached: Reached, use: Use.OfCall): Found? =
         applicability(reached, use)?.let { applicability ->

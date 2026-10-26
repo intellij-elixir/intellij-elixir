@@ -49,7 +49,7 @@ internal class ConfigIndex : FileBasedIndexExtension<ConfigIndexKey, List<Config
 
     companion object {
         /** Bumped when what is indexed, or how it is written, changes. */
-        private const val VERSION = 1
+        private const val VERSION = 5
     }
 }
 
@@ -64,12 +64,12 @@ internal object ConfigIndexing {
             PsiTreeUtil.processElements(root, Call::class.java) { call ->
                 for (set in Set.of(call)) {
                     entries.getOrPut(ConfigIndexKey.App(set.app)) { mutableListOf() }
-                        .add(ConfigEntry.KeyEntry(ConfigEntry.Kind.SET, set.key, set.element.textRange))
+                        .add(ConfigEntry.KeyEntry(ConfigEntry.Kind.Set, set.key, set.element.textRange))
                 }
 
                 Read.of(call)?.let { read ->
                     entries.getOrPut(read.app) { mutableListOf() }
-                        .add(ConfigEntry.KeyEntry(ConfigEntry.Kind.READ, read.key, read.element.textRange))
+                        .add(ConfigEntry.KeyEntry(ConfigEntry.Kind.Read(read.module), read.key, read.element.textRange))
                 }
 
                 true
@@ -84,9 +84,9 @@ internal object ConfigIndexing {
         entries
     }
 
-    /** Each key of [kind] filed under [app] in [scope], as written, and the element it is written at. */
+    /** Each setting or candidate read filed under [app] in [scope] whose kind is [kind], as written. */
     @RequiresReadLock
-    fun written(project: Project, app: ConfigIndexKey, kind: ConfigEntry.Kind, scope: GlobalSearchScope): List<Pair<WrittenKey, PsiElement>> {
+    fun written(project: Project, app: ConfigIndexKey, scope: GlobalSearchScope, kind: (ConfigEntry.Kind) -> Boolean): List<Written> {
         val entriesByFile = mutableListOf<Pair<VirtualFile, List<ConfigEntry>>>()
         FileBasedIndex.getInstance().processValues(
             NAME,
@@ -105,10 +105,13 @@ internal object ConfigIndexing {
 
             entries
                 .filterIsInstance<ConfigEntry.KeyEntry>()
-                .filter { it.kind == kind }
-                .mapNotNull { entry -> element(file, entry.range)?.let { entry.key to it } }
+                .filter { kind(it.kind) }
+                .mapNotNull { entry -> element(file, entry.range)?.let { Written(entry.kind, entry.key, it) } }
         }
     }
+
+    /** A setting or a candidate read of [key], written at [element]. */
+    class Written(val kind: ConfigEntry.Kind, val key: WrittenKey, val element: PsiElement)
 
     private fun element(file: PsiFile, range: TextRange): PsiElement? =
         generateSequence(file.findElementAt(range.startOffset)) { it.parent }
@@ -182,7 +185,12 @@ sealed interface ConfigEntry {
 
     data class ProjectEntry(val app: String?, val configPath: ProjectKeywords.ConfigPath) : ConfigEntry
 
-    enum class Kind { SET, READ }
+    sealed interface Kind {
+        data object Set : Kind
+
+        /** A candidate read, a read where [module] says its call is one. */
+        data class Read(val module: ReadModule) : Kind
+    }
 }
 
 private object ConfigIndexKeyDescriptor : KeyDescriptor<ConfigIndexKey> {
@@ -227,6 +235,9 @@ private object ConfigEntriesExternalizer : DataExternalizer<List<ConfigEntry>> {
     private const val WRITTEN = 0
     private const val UNKNOWN_PATH = 1
 
+    private const val SET = 0
+    private const val READ = 1
+
     override fun save(out: DataOutput, value: List<ConfigEntry>) {
         out.writeInt(value.size)
 
@@ -234,7 +245,7 @@ private object ConfigEntriesExternalizer : DataExternalizer<List<ConfigEntry>> {
             when (entry) {
                 is ConfigEntry.KeyEntry -> {
                     out.writeByte(KEY_ENTRY)
-                    out.writeByte(entry.kind.ordinal)
+                    save(out, entry.kind)
                     save(out, entry.key)
                     out.writeInt(entry.range.startOffset)
                     out.writeInt(entry.range.endOffset)
@@ -260,7 +271,7 @@ private object ConfigEntriesExternalizer : DataExternalizer<List<ConfigEntry>> {
         List(input.readInt()) {
             when (val tag = input.readByte().toInt()) {
                 KEY_ENTRY -> {
-                    val kind = ConfigEntry.Kind.entries[input.readByte().toInt()]
+                    val kind = readKind(input)
                     val key = readKey(input)
                     val start = input.readInt()
 
@@ -278,6 +289,30 @@ private object ConfigEntriesExternalizer : DataExternalizer<List<ConfigEntry>> {
                 }
                 else -> error("unknown config entry tag $tag")
             }
+        }
+
+    private fun save(out: DataOutput, kind: ConfigEntry.Kind) {
+        when (kind) {
+            ConfigEntry.Kind.Set -> out.writeByte(SET)
+            is ConfigEntry.Kind.Read -> {
+                out.writeByte(READ)
+                out.writeByte(kind.module.qualifier.ordinal)
+                IOUtil.writeUTF(out, kind.module.name)
+                out.writeInt(kind.module.arity)
+            }
+        }
+    }
+
+    private fun readKind(input: DataInput): ConfigEntry.Kind =
+        when (val tag = input.readByte().toInt()) {
+            SET -> ConfigEntry.Kind.Set
+            READ -> {
+                val qualifier = ReadModule.Qualifier.entries[input.readByte().toInt()]
+                val name = IOUtil.readUTF(input)
+
+                ConfigEntry.Kind.Read(ReadModule(qualifier, name, input.readInt()))
+            }
+            else -> error("unknown config entry kind tag $tag")
         }
 
     private fun save(out: DataOutput, key: WrittenKey) {
