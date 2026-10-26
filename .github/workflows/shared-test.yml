@@ -186,6 +186,7 @@ jobs:
         -PelixirVersion=${{ matrix.beam.elixir }}
         -PotpVersion=${{ matrix.beam.otp }}
         -PtestForks=3
+        -PtestPart=${{ matrix.part }}
 
     steps:
       # On hosted Windows runners C: is a remote-backed OS disk and D: the local SSD, an order of
@@ -269,7 +270,8 @@ jobs:
       #   Prepare sandbox - stage the plugin into the test sandbox (not the buildPlugin distribution).
       #   Build quoter    - releaseQuoter builds the executable; does not start the daemon.
       #   Download corpus - elixirParsingCorpus fetches and extracts the parser tests' corpus.
-      #   Run tests       - check (test + :jps-builder:test); owns the quoter daemon start/stop.
+      #   Run tests       - check (test + :jps-builder:test), or :test alone for the heavy part, since
+      #                     -PtestPart narrows only the root test task; owns the quoter daemon start/stop.
       - name: Compile
         id: compile
         continue-on-error: ${{ matrix.continue-on-error || false }}
@@ -335,7 +337,9 @@ jobs:
         id: test
         timeout-minutes: 40
         continue-on-error: ${{ matrix.continue-on-error || false }}
-        run: ./gradlew $GRADLE_FLAGS -Dtestlogger.theme=standard check
+        env:
+          TASK: ${{ matrix.part == 'heavy' && ':test' || 'check' }}
+        run: ./gradlew $GRADLE_FLAGS -Dtestlogger.theme=standard "$TASK"
 
       # Without this the reporting cannot tell a leg that never compiled from one that passed: it
       # publishes whatever result XMLs exist, so the check reads "All 6 tests pass" for the six
@@ -483,7 +487,7 @@ jobs:
         # upload for precisely the leg whose reports are wanted.
         if: ${{ always() && (failure() || steps.test.outcome == 'failure' || steps.build-quoter.outcome == 'failure' || inputs.upload-test-reports) }}
         with:
-          name: test-reports-${{ matrix.os }}-${{ matrix.idea-version }}-elixir-${{ matrix.beam.elixir }}-otp-${{ matrix.beam.otp }}
+          name: test-reports-${{ matrix.part }}-${{ matrix.os }}-${{ matrix.idea-version }}-elixir-${{ matrix.beam.elixir }}-otp-${{ matrix.beam.otp }}
           path: |
             **/build/reports/tests/**
             **/build/test-results/**

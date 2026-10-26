@@ -53,6 +53,7 @@ import sdk.elixirTestEnvironment
 import testing.CheckUnexpectedLogs
 import testing.configureJul
 import testing.keepWinpHelpersIn
+import testing.partition
 import testing.recordTimeline
 import testing.reportUnexpectedLogs
 import testing.runInForks
@@ -1200,6 +1201,7 @@ tasks.named<Test>("test") {
         forkLimit = providers.gradleProperty("testMaxForks").map { TestForks.parse("testMaxForks", it) },
         stepSummary = stepSummary,
     )
+    partition(providers.gradleProperty("testPart"))
     shareStepSummary(stepSummary)
     addTestListener(TestProgress(every = 1000))
     providers.gradleProperty("testTimeline").orNull?.let { recordTimeline(layout.projectDirectory.file(it).asFile) }
