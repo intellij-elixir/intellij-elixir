@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4543](https://github.com/intellij-elixir/intellij-elixir/pull/4543) [@sh41](https://github.com/sh41)
+  - **The expander sees the attributes and definitions that a function called from a module body, a macro or an `@on_definition` callback writes with `Module`, and keeps attribute values such as maps and ranges, as Elixir does.** Refs [#4526](https://github.com/intellij-elixir/intellij-elixir/issues/4526).
+
 - [#4544](https://github.com/intellij-elixir/intellij-elixir/pull/4544) [@sh41](https://github.com/sh41)
   - **Completion offers application names and keys at `Application.get_env/2,3`, `fetch_env!/2`, `compile_env/2,3` and the other application env reads, and at `config` calls in config files, taken from the keys config files set and the keys code reads, dependencies and Elixir's own sources included.** Refs [#4539](https://github.com/intellij-elixir/intellij-elixir/issues/4539).
 
