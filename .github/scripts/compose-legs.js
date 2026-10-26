@@ -211,6 +211,11 @@ async function main() {
   setOutput('verify', JSON.stringify({ include: verifyLegs }));
   // The same goes for verify.
   setOutput('verify-any', verifyLegs.length > 0 ? 'true' : 'false');
+  // test-results.yml gives a test job that uploaded nothing a row of its leg. A pointer leg's job name also
+  // holds the build its label leaves out, so the renderer reads each job's label from here, not from the name.
+  if (process.env.TEST_JOBS_FILE) {
+    fs.writeFileSync(process.env.TEST_JOBS_FILE, JSON.stringify(testLegs.map(({ job, label }) => ({ job, label }))));
+  }
 
   addSummary(
     [

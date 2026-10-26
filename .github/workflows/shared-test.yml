@@ -127,7 +127,15 @@ jobs:
         env:
           PULL_REQUEST_FILES: ${{ steps.pull-request-files.outputs.files }}
           PASSED_JOBS: ${{ needs.changes.outputs.reusable_jobs }}
+          TEST_JOBS_FILE: ${{ runner.temp }}/test-jobs.json
         run: node .github/scripts/compose-legs.js
+
+      # Each test job's leg label, which test-results.yml reads to give a job that uploaded nothing a row of its leg.
+      - name: Upload Test Jobs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Test Jobs
+          path: ${{ runner.temp }}/test-jobs.json
 
   # Whether the test matrix has to run at all. A rebase that only moves a changelog entry leaves the
   # code tree byte-identical to a head that already passed, and re-running 13 test legs and 4

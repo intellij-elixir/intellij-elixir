@@ -184,6 +184,17 @@ jobs:
           pattern: 'Leg Status (*)'
           path: artifacts/leg-status
 
+      # Each test job's leg label, from shared-test.yml's Test Matrix job. `pattern:`, not `name:`, so a run from
+      # before that job uploaded it matches nothing rather than failing the step.
+      - name: Download Test Jobs
+        id: download-test-jobs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+          pattern: 'Test Jobs'
+          path: artifacts/test-jobs
+
       - name: Download Event File
         id: download-event-file
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -246,6 +257,7 @@ jobs:
         env:
           AGGREGATE_JSON: test-results.json
           LEG_STATUS_DIR: artifacts/leg-status
+          TEST_JOBS_DIR: artifacts/test-jobs
           EVENT_FILE: artifacts/event-file/event.json
         with:
           script: |
@@ -262,6 +274,11 @@ jobs:
             const RESULTS_NAME = /^Test Results \((.*?)(?:, INCOMPLETE - failed at (.+))?\)$/;
             // Legs whose XMLs the aggregate above leaves out; keep in step with its `files` exclusion.
             const MATRIX_PREFIX = 'matrix, ';
+            // A leg runs as two jobs, each with its own row; the heavy one's label is the leg's behind this prefix
+            // (compose-legs.js). Every count of legs counts each leg once.
+            const PART_PREFIX = 'heavy ';
+            const legOf = (label) => (label.startsWith(PART_PREFIX) ? label.slice(PART_PREFIX.length) : label);
+            const legCount = (parts) => new Set(parts.map((part) => legOf(part.label))).size;
             // Both the per-leg checks and the aggregate carry the action's own stats gzipped into the check
             // summary - exact integers, already computed, and published for free. json_suite_details would be
             // the alternative and the action warns it "can greatly increase the size of the output".
@@ -283,7 +300,7 @@ jobs:
 
             // download-artifact drops a lone matching artifact straight into the target directory and nests it
             // under its own name only when there are several, so the depth is not fixed.
-            function findLegStatusFiles(dir) {
+            function findFiles(dir, name) {
               let entries;
               try {
                 entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -292,8 +309,8 @@ jobs:
               }
               return entries.flatMap((entry) => {
                 const child = path.join(dir, entry.name);
-                if (entry.isDirectory()) return findLegStatusFiles(child);
-                return entry.name === 'leg-status.json' ? [child] : [];
+                if (entry.isDirectory()) return findFiles(child, name);
+                return entry.name === name ? [child] : [];
               });
             }
 
@@ -336,11 +353,28 @@ jobs:
             }
 
             const statuses = new Map();
-            for (const file of findLegStatusFiles(process.env.LEG_STATUS_DIR)) {
+            for (const file of findFiles(process.env.LEG_STATUS_DIR, 'leg-status.json')) {
               const status = readJson(file);
               if (validStatus(status)) statuses.set(status.label, status);
               else core.warning(`${file} is not a leg status file; ignoring it`);
             }
+
+            // Each test job's leg label, as compose-legs.js composed them: a pointer leg's job name also holds the
+            // build its label leaves out, so neither is read from the other. A file that is not that shape is
+            // treated as absent, as a status file is. A run from before the record existed has none, and gets no
+            // row for a job that left nothing.
+            const validTestJobs = (entries) =>
+              Array.isArray(entries) &&
+              entries.every(
+                (entry) => entry && typeof entry.job === 'string' && typeof entry.label === 'string' && entry.label.length > 0,
+              );
+            const labelOfJob = new Map();
+            for (const file of findFiles(process.env.TEST_JOBS_DIR, 'test-jobs.json')) {
+              const entries = readJson(file);
+              if (validTestJobs(entries)) for (const { job, label } of entries) labelOfJob.set(job, label);
+              else core.warning(`${file} is not a test jobs file; ignoring it`);
+            }
+            const jobOfLabel = new Map([...labelOfJob].map(([job, label]) => [label, job]));
 
             const artifactNames = (
               await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
@@ -368,12 +402,14 @@ jobs:
             // minutes of real runner time. The jobs API has the real thing and this job already holds
             // `actions: read`.
             const jobDurations = new Map();
+            const testJobs = [];
             for (const job of await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
               owner,
               repo,
               run_id: workflowRun.id,
               per_page: 100,
             })) {
+              if (labelOfJob.has(job.name) && job.conclusion !== 'skipped') testJobs.push(job.name);
               if (!job.started_at || !job.completed_at) continue;
               const seconds = (Date.parse(job.completed_at) - Date.parse(job.started_at)) / 1000;
               if (Number.isFinite(seconds)) jobDurations.set(job.name, seconds);
@@ -381,9 +417,9 @@ jobs:
 
             // --- one row per leg ----------------------------------------------------------------------------
 
-            // Union of both sources, because either can exist without the other: a cancelled leg uploads its
-            // status (always()) but no results, and a leg from before the status file existed - or whose upload
-            // failed - has results and no status.
+            // Union of all three sources, because each can exist without the others: a cancelled leg uploads its
+            // status (always()) but no results, a leg from before the status file existed - or whose upload
+            // failed - has results and no status, and a job that died before its record step has only its job.
             const legs = new Map();
             function legFor(label) {
               if (!legs.has(label)) {
@@ -424,10 +460,15 @@ jobs:
               }
             }
 
-            for (const leg of legs.values()) {
-              // A status file from before it named the job falls back to the name the label implies.
-              leg.seconds = jobDurations.get((leg.status && leg.status.job) || `test (${leg.label})`);
-            }
+            // A leg with no status file, or one from before it named the job, falls back to the record, then to the
+            // name the label implies.
+            const jobOf = (leg) => (leg.status && leg.status.job) || jobOfLabel.get(leg.label) || `test (${leg.label})`;
+            // A job no row names left nothing behind, so it gets a row of its own label, which says it produced no
+            // results. Otherwise a leg missing one of its parts would read as complete.
+            const named = new Set([...legs.values()].map(jobOf));
+            for (const job of testJobs) if (!named.has(job)) legFor(labelOfJob.get(job));
+
+            for (const leg of legs.values()) leg.seconds = jobDurations.get(jobOf(leg));
 
             // The icon says whether the leg passed and whether that blocks a merge - nothing else. A required leg
             // is red whether it failed tests or failed to compile; an informational leg is yellow either way,
@@ -561,10 +602,10 @@ jobs:
 
             const headline = [
               `Commit \`${workflowRun.head_sha.slice(0, 8)}\``,
-              `${rows.length} ${rows.length === 1 ? 'leg' : 'legs'}`,
+              `${legCount(rows)} ${legCount(rows) === 1 ? 'leg' : 'legs'}`,
             ];
-            if (incomplete.length) headline.push(`**${incomplete.length} did not complete**`);
-            if (noResults.length) headline.push(`**${noResults.length} produced no results**`);
+            if (incomplete.length) headline.push(`**${legCount(incomplete)} did not complete**`);
+            if (noResults.length) headline.push(`**${legCount(noResults)} produced no results**`);
             body.push(headline.join(' · '), '');
 
             // Required legs are the only ones that can block a merge, so their verdict goes first - ahead of
@@ -597,15 +638,15 @@ jobs:
             if (requiredFailingRuns) {
               gate.push(
                 `${count(requiredFailingRuns)} failing test ${requiredFailingRuns === 1 ? 'run' : 'runs'}` +
-                  ` across ${requiredFailingLegs.length} of ${required.length}` +
-                  ` ${required.length === 1 ? 'leg' : 'legs'}`,
+                  ` across ${legCount(requiredFailingLegs)} of ${legCount(required)}` +
+                  ` ${legCount(required) === 1 ? 'leg' : 'legs'}`,
               );
             }
             if (requiredIncomplete.length) {
               gate.push(
-                requiredIncomplete.length === 1
+                legCount(requiredIncomplete) === 1
                   ? '1 leg did not run its tests'
-                  : `${requiredIncomplete.length} legs did not run their tests`,
+                  : `${legCount(requiredIncomplete)} legs did not run their tests`,
               );
             }
 
@@ -621,8 +662,8 @@ jobs:
               const verdict = `❌ **Required legs: ${gate.join('; ')}.**`;
               body.push(
                 requiredUncounted.length
-                  ? `${verdict} ${requiredUncounted.length} required` +
-                      ` ${requiredUncounted.length === 1 ? 'leg' : 'legs'} published no counts, so that is a` +
+                  ? `${verdict} ${legCount(requiredUncounted)} required` +
+                      ` ${legCount(requiredUncounted) === 1 ? 'leg' : 'legs'} published no counts, so that is a` +
                       ' lower bound.'
                   : verdict,
                 '',
@@ -630,18 +671,18 @@ jobs:
             } else if (requiredUncounted.length) {
               // Never ✅ here. A tick beside "and some of them did not report" is the same lie as a tick on a
               // leg that never compiled: the gate is unknown, so it says unknown.
-              const counted = required.length - requiredUncounted.length;
+              const counted = legCount(required) - legCount(requiredUncounted);
               body.push(
                 counted === 0
                   ? '❔ **No required leg reported counts**, so whether anything blocks a merge is unknown.'
                   : `❔ **Required legs: 0 failing tests among the ${counted} that reported counts**, but` +
-                      ` ${requiredUncounted.length} published none - so whether anything blocks a merge is` +
+                      ` ${legCount(requiredUncounted)} published none - so whether anything blocks a merge is` +
                       ' unknown.',
                 '',
               );
             } else {
               body.push(
-                `✅ **Required legs: 0 failing tests**, all ${required.length} ran to completion.`,
+                `✅ **Required legs: 0 failing tests**, all ${legCount(required)} ran to completion.`,
                 '',
               );
             }
@@ -676,9 +717,13 @@ jobs:
               const anyStatus = rows.some((leg) => leg.status);
               // Only the legs the aggregate read, so this row describes the same legs as the rows under it.
               const aggregated = rows.filter((leg) => !leg.label.startsWith(MATRIX_PREFIX));
-              const legTests = aggregated
-                .filter((leg) => leg.counts && (!anyStatus || (leg.status && leg.status.tests_ran === true)))
-                .map((leg) => leg.counts.tests);
+              const partsByLeg = Map.groupBy(aggregated, (part) => legOf(part.label));
+              // A leg's tests are its parts' together, so it is complete only when every part is.
+              const legTests = [...partsByLeg.values()]
+                .filter((parts) =>
+                  parts.every((leg) => leg.counts && (!anyStatus || (leg.status && leg.status.tests_ran === true))),
+                )
+                .map((parts) => parts.reduce((total, leg) => total + leg.counts.tests, 0));
               const perLeg = legTests.length
                 ? Math.min(...legTests) === Math.max(...legTests)
                   ? count(legTests[0])
@@ -686,7 +731,7 @@ jobs:
                 : '-';
               // Named exactly for what was measured, so the row does not quietly speak for the legs it skipped.
               const perLegLabel =
-                legTests.length && legTests.length < aggregated.length ? 'tests per completed leg' : 'tests per leg';
+                legTests.length && legTests.length < partsByLeg.size ? 'tests per completed leg' : 'tests per leg';
 
               body.push(
                 '| | count |',
@@ -717,26 +762,27 @@ jobs:
               );
 
               if (timed.length !== rows.length) {
+                const untimed = rows.filter((leg) => !Number.isFinite(leg.seconds));
                 body.push(
                   timed.length === 0
                     ? '⚠️ No `test (...)` job matched these legs, so neither clock figure could be measured.'
-                    : `⚠️ Job timings matched only ${timed.length} of ${rows.length} legs, so both clock` +
-                        ' figures cover just those.',
+                    : `⚠️ Job timings matched only ${legCount(rows) - legCount(untimed)} of ${legCount(rows)}` +
+                        ' legs, so both clock figures cover just those.',
                   '',
                 );
               }
               if (incomplete.length) {
                 body.push(
-                  `⚠️ ${incomplete.length} ${incomplete.length === 1 ? 'leg' : 'legs'} stopped before` +
+                  `⚠️ ${legCount(incomplete)} ${legCount(incomplete) === 1 ? 'leg' : 'legs'} stopped before` +
                     ' running tests, so these totals are partial.',
                   '',
                 );
               }
               if (unknown.length) {
                 body.push(
-                  `❔ ${unknown.length} ${unknown.length === 1 ? 'leg' : 'legs'} did not report a status, so` +
-                    ' whether their totals are complete is unknown - and, since nothing says whether they are' +
-                    ' required, they are not in the required-leg line either.',
+                  `❔ ${legCount(unknown)} ${legCount(unknown) === 1 ? 'leg' : 'legs'} did not report a status, so` +
+                    ' whether their totals are complete is unknown - and, since nothing says whether a row with no' +
+                    ' status is required, it is not in the required-leg line either.',
                   '',
                 );
               }
