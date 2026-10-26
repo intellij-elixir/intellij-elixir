@@ -120,7 +120,7 @@ defmodule Matrix do
   # `as:` only changes which function of the target a delegate calls, so it asks nothing new in the worlds about
   # clauses, guards or lookalikes; these are the ones where a delegate's arity or module is the question.
   # Worlds that ask w1's question in another setting, so every form w1 has.
-  @w1_shaped ["w1", "src_stale_beam"]
+  @w1_shaped ["w1", "src_stale_beam", "x_small_int_list"]
   @delegate_target_worlds ["x_delegate_multiclause_target", "x_delegate_arity_mismatch"]
 
   @delegate_as_worlds ["w1", "src_stale_beam", "w2", "x_defaults", "x_arity_absent", "x_other_module" | @spec_parens_worlds]
@@ -657,6 +657,8 @@ defmodule Matrix do
       # The source beside an older `.beam` of the same module, as a project's own `_build` holds it once the source is
       # edited after `mix compile`: only the source's definitions exist.
       "src_stale_beam" => %{modules: [[snoc_2]], calls: one_calls},
+      # A module that also holds `fn 1 -> :a end` and `Kernel.abs(1)`, whose argument lists are all small integers.
+      "x_small_int_list" => %{modules: [[snoc_2]], calls: one_calls},
       "x_other_module" => %{modules: [[snoc_2], [snoc_2]], calls: one_calls ++ [{"other_qualified", 1, "snoc", 2, :qualified}]},
       "x_not_a_call" => %{modules: [[snoc_2]], calls: one_calls ++ [{"variable", 0, "snoc", 0, :variable}, {"atom", 0, "snoc", 0, :atom}, {"keyword", 0, "snoc", 0, :keyword}]},
       "x_defaults" => %{modules: [[{"snoc", [{["q", {"x", "nil"}], nil}]}]], calls: one_calls ++ [{"default_arity", 0, "snoc", 1, :qualified}] ++ lower_arity_uses},
@@ -2484,7 +2486,8 @@ defmodule Matrix do
         local_forward: primary != nil and backing.id == "src" and world in @local_forward_worlds and form.id in @function_forms,
         moduledoc: primary != nil && Map.get(@moduledocs, world),
         lookalike: primary != nil and world == "x_embed_lookalike",
-        protocol: primary != nil and world in @protocol_worlds
+        protocol: primary != nil and world in @protocol_worlds,
+        small_ints: primary != nil and world == "x_small_int_list"
       })
     extension = if(backing.language == :elixir, do: ".ex", else: ".erl")
     # Named after the whole module: every world's delegate target is a `Target`.
@@ -3139,6 +3142,10 @@ defmodule Matrix do
     # A delegate's target has no `local_site/2`; this gives it an ASCII-named definition too, so how its `.beam` was
     # built can be checked apart from how the decompiler reads the world's own names.
     marker = if String.ends_with?(module, ".Target"), do: "\n\n  def target_marker, do: :ok", else: ""
+
+    # An `fn` clause and a call whose argument lists are all small integers: the compiler's abstract code holds them as
+    # lists of 0-255, which Jinterface decodes as strings.
+    small_ints = if form[:small_ints], do: "\n\n  def small_ints, do: {fn 1 -> :a end, Kernel.abs(1)}", else: ""
     requires =
       cond do
         form[:eex] -> "  require EEx\n\n"
@@ -3154,7 +3161,7 @@ defmodule Matrix do
     """
     # #{@header}
     defmodule #{module} do
-    #{moduledoc}#{requires}#{forward}#{Enum.join(clauses, "\n")}#{local}#{uses}#{lookalike}#{marker}#{module_local}
+    #{moduledoc}#{requires}#{forward}#{Enum.join(clauses, "\n")}#{local}#{uses}#{lookalike}#{marker}#{small_ints}#{module_local}
     end
     """
   end
