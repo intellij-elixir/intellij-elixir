@@ -37,13 +37,13 @@ object LegManifest {
         regenerate: String,
         writeMissing: Boolean = UsefulTestCase.OVERWRITE_TESTDATA,
     ) {
-        val path = "$root/$version/$name"
+        val path = path(root, version, name)
 
         if (!File(path).isFile && !writeMissing) {
             val error = AssertionError("No committed manifest at $path. Review the SDK's manifest, then regenerate: $regenerate\n$actual")
 
             earlierVersion(root, version, name)?.let { earlier ->
-                val earlierPath = "$root/$earlier/$name"
+                val earlierPath = path(root, earlier, name)
 
                 CommittedGolden.appendToStepSummary(
                     "`$path` is not committed; compared with `$earlierPath`",
@@ -60,6 +60,9 @@ object LegManifest {
 
         CommittedGolden.assertMatches(path, actual, regenerate)
     }
+
+    /** Where the file [name] committed for [version] under [root] is. */
+    fun path(root: String, version: String, name: String): String = "$root/$version/$name"
 
     /** The highest version below [version] that has [name]. */
     private fun earlierVersion(root: String, version: String, name: String): String? =

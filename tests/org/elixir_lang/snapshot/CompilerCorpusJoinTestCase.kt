@@ -2,13 +2,19 @@ package org.elixir_lang.snapshot
 
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.RecursionManager
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileFilter
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.LightProjectDescriptor
+import com.intellij.util.ThrowableRunnable
+import junit.framework.Test
 import org.elixir_lang.coverage.FactsReport
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.elixir_surface.LegManifest.environment
+import org.elixir_lang.golden.CommittedGolden
+import org.elixir_lang.junit.SharedFixture
+import org.elixir_lang.junit.SharedFixtureHost
 import org.elixir_lang.snapshot.CompilerFacts.Fact
 import java.io.File
 
@@ -16,8 +22,22 @@ import java.io.File
  * Fails when what the plugin answers at the compiler's facts about Elixir's own tests differs from the join committed
  * for the leg. The facts are split over [SHARDS] classes, a `ref`, `alias` or `diag` fact by its file and a `def` fact
  * or a declaration by its module, so parallel test JVMs share the corpus between them.
+ *
+ * Each line of the leg's goldens is a test of its own, checked against one join the shard's tests share; the lines a
+ * golden lacks and its layout are tests too, so every test passes exactly when each golden matches.
  */
-abstract class CompilerCorpusJoinTestCase(private val shard: Int) : SnapshotTestCase() {
+abstract class CompilerCorpusJoinTestCase internal constructor(
+    private val shard: Int,
+    private val fixture: SharedFixture<CompilerCorpusJoinTestCase>?,
+    private val case: Case?,
+) : SnapshotTestCase(), SharedFixtureHost<CompilerCorpusJoinTestCase> {
+    private var joined: Result<Join>? = null
+
+    init {
+        name = case?.name ?: "shared fixture"
+        fixture?.add(this)
+    }
+
     override fun getProjectDescriptor(): LightProjectDescriptor = LegElixirProjectDescriptor
 
     override fun setUp() {
@@ -29,9 +49,33 @@ abstract class CompilerCorpusJoinTestCase(private val shard: Int) : SnapshotTest
         RecursionManager.disableAssertOnRecursionPrevention(testRootDisposable)
     }
 
-    fun testJoinMatchesGolden() {
-        if (!CompilerCorpus.measured) return
+    override fun runShared(serve: ThrowableRunnable<Throwable>) {
+        runBare(serve)
+    }
 
+    override fun runBare(testRunnable: ThrowableRunnable<Throwable>) {
+        SharedFixture.runCase(fixture, this) { super.runBare(testRunnable) }
+    }
+
+    override fun check(case: CompilerCorpusJoinTestCase) {
+        val slice = case.case!!
+
+        try {
+            slice.check(::joinOnce)
+        } catch (failure: AssertionError) {
+            // Said once, on the first of a golden's tests to fail.
+            val unreported = slice.golden?.let { joined?.getOrNull()?.unreportedSummaryFailures?.remove(it) }
+            unreported?.let(failure::addSuppressed)
+            throw failure
+        }
+    }
+
+    /** The join, made by the first test that needs it; a later test fails for the reason it failed. */
+    private fun joinOnce(): Join =
+        joined?.getOrElse { throw AssertionError("Not joined: the join failed in an earlier test", it) }
+            ?: runCatching { join() }.also { joined = it }.getOrThrow()
+
+    private fun join(): Join {
         val elixirVersion = environment("ELIXIR_VERSION")
         val started = System.nanoTime()
         val root = copySources()
@@ -54,27 +98,17 @@ abstract class CompilerCorpusJoinTestCase(private val shard: Int) : SnapshotTest
                 "join ${(done - copied) / NANOS_PER_MILLI} ms"
         )
 
-        val regenerate = LegManifest.regenerateCommand(this::class, elixirVersion, environment("ERLANG_VERSION"))
+        val (grouped, report) = goldens(shard)
 
-        assertEquals(
-            "Joined, by kind, other than once for each position or def fact",
+        return Join(
             counted(sharded),
-            joined.groupingBy { it.kind }.eachCount().filterKeys { it != "declaration" }
-        )
-
-        LegManifest.assertMatchesFile(
-            CompilerFacts.ROOT,
+            joined.groupingBy { it.kind }.eachCount().filterKeys { it != "declaration" },
+            mapOf(
+                grouped to CompilerJoin.grouped(joined).joinToString("\n", postfix = "\n"),
+                report to FactsReport.report(elixirVersion, joined, shard),
+            ),
             elixirVersion,
-            "corpus-$shard.join.txt",
-            CompilerJoin.grouped(joined).joinToString("\n", postfix = "\n"),
-            regenerate
-        )
-        LegManifest.assertMatchesFile(
-            FactsReport.ROOT,
-            elixirVersion,
-            "corpus-$shard.report",
-            FactsReport.report(elixirVersion, joined, shard),
-            regenerate
+            LegManifest.regenerateCommand(this::class, elixirVersion, environment("ERLANG_VERSION")),
         )
     }
 
@@ -108,17 +142,257 @@ abstract class CompilerCorpusJoinTestCase(private val shard: Int) : SnapshotTest
 
     private fun inShard(key: String): Boolean = Math.floorMod(key.hashCode(), SHARDS) == shard
 
+    /** What the shard's tests check, measured once. */
+    internal class Join(
+        val expectedCounts: Map<String, Int>,
+        val counts: Map<String, Int>,
+        val texts: Map<Golden, String>,
+        val elixirVersion: String,
+        val regenerate: String,
+    ) {
+        val rows: Map<Golden, Map<String, String>> = texts.mapValues { (golden, text) -> golden.rows(text) }
+
+        /** Why a split golden's diff could not be appended to the step summary. */
+        val unreportedSummaryFailures: MutableMap<Golden, Throwable> =
+            texts.filterKeys { it.split(elixirVersion) }
+                .mapNotNull { (golden, text) ->
+                    golden.appendDiffToStepSummary(elixirVersion, text, regenerate)?.let { golden to it }
+                }
+                .toMap(mutableMapOf())
+    }
+
+    /** A committed golden whose rows are the lines its renderer's [key] names; the lines it names none of are its header. */
+    internal class Golden(
+        private val root: String,
+        val name: String,
+        private val key: (String) -> String?,
+    ) {
+        /** Whether a test per row checks this golden, rather than one test for the whole, which also writes it. */
+        fun split(elixirVersion: String): Boolean = !OVERWRITE_TESTDATA && File(path(elixirVersion)).isFile
+
+        /** The committed rows, each by its key. */
+        fun committedRows(elixirVersion: String): Map<String, String> = rows(committed(elixirVersion))
+
+        fun rows(text: String): Map<String, String> {
+            val rows = lines(text).mapNotNull { line -> key(line)?.let { it to line } }
+            val shared = rows.groupBy({ it.first }, { it.second }).filterValues { it.size > 1 }
+
+            check(shared.isEmpty()) { "$name has rows that share a key: ${shared.values.flatten()}" }
+
+            return rows.toMap()
+        }
+
+        fun assertMatches(elixirVersion: String, actual: String, regenerate: String) {
+            LegManifest.assertMatchesFile(root, elixirVersion, name, actual, regenerate)
+        }
+
+        fun assertSameLayout(elixirVersion: String, actual: String, actualRows: Map<String, String>) {
+            val keys = committedRows(elixirVersion).keys.intersect(actualRows.keys)
+
+            assertEquals(
+                "${path(elixirVersion)}'s header, the order of the rows both have, and its final newline",
+                layout(committed(elixirVersion), keys),
+                layout(actual, keys),
+            )
+        }
+
+        /** Each header line, and the key of each row [keys] holds, in order, then whether a newline ends [text]. */
+        private fun layout(text: String, keys: Set<String>): String =
+            (
+                lines(text).mapNotNull { line ->
+                    when (val key = key(line)) {
+                        null -> line
+                        in keys -> key
+                        else -> null
+                    }
+                } + listOfNotNull(NO_FINAL_NEWLINE.takeUnless { text.endsWith("\n") })
+            ).joinToString("\n")
+
+        /** Appends the whole diff to the CI step summary when [actual] differs, as a whole-golden comparison does. */
+        fun appendDiffToStepSummary(elixirVersion: String, actual: String, regenerate: String): Throwable? {
+            val path = path(elixirVersion)
+            val expected = committed(elixirVersion)
+
+            return if (expected == actual) {
+                null
+            } else {
+                CommittedGolden.appendToStepSummary("`$path` differs", path, expected, path, actual, regenerate)
+            }
+        }
+
+        fun path(elixirVersion: String): String = LegManifest.path(root, elixirVersion, name)
+
+        private fun committed(elixirVersion: String): String =
+            StringUtil.convertLineSeparators(File(path(elixirVersion)).readText())
+
+        private fun lines(text: String): List<String> = text.removeSuffix("\n").split('\n')
+    }
+
+    /** One test's slice of the shard's checks. */
+    internal sealed class Case(val name: String, val golden: Golden?) {
+        abstract fun check(join: () -> Join)
+
+        class Counts : Case("joined once for each position or def fact", null) {
+            override fun check(join: () -> Join) {
+                val measured = join()
+
+                assertEquals(
+                    "Joined, by kind, other than once for each position or def fact",
+                    measured.expectedCounts,
+                    measured.counts,
+                )
+            }
+        }
+
+        /** The corpus is not measured on this OS, so there is nothing to check. */
+        class NotMeasured : Case("not measured on this OS", null) {
+            override fun check(join: () -> Join) {}
+        }
+
+        /** The join cannot be made here, which fails for [why]. */
+        class Unjoined(private val why: AssertionError) : Case("joined", null) {
+            override fun check(join: () -> Join): Unit = throw why
+        }
+
+        class Row(golden: Golden, private val key: String, private val expected: String) :
+            Case("${golden.name}: ${key.replace("\t", " | ")}", golden) {
+            override fun check(join: () -> Join) {
+                val measured = join()
+
+                assertEquals(
+                    "${golden!!.path(measured.elixirVersion)} differs at this line. Review it, then regenerate with " +
+                        measured.regenerate,
+                    expected,
+                    measured.rows.getValue(golden)[key] ?: "(no line)",
+                )
+            }
+        }
+
+        class Lacking(golden: Golden) : Case("${golden.name}: lines it lacks", golden) {
+            override fun check(join: () -> Join) {
+                val measured = join()
+                val committed = golden!!.committedRows(measured.elixirVersion)
+
+                assertEquals(
+                    "Lines the join has and ${golden.path(measured.elixirVersion)} lacks. Review them, then " +
+                        "regenerate with ${measured.regenerate}",
+                    "",
+                    measured.rows.getValue(golden).filterKeys { it !in committed }.values.joinToString("\n"),
+                )
+            }
+        }
+
+        class Layout(golden: Golden) : Case("${golden.name}: header and order", golden) {
+            override fun check(join: () -> Join) {
+                val measured = join()
+
+                golden!!.assertSameLayout(
+                    measured.elixirVersion,
+                    measured.texts.getValue(golden),
+                    measured.rows.getValue(golden),
+                )
+            }
+        }
+
+        /** The golden as a whole, where there is none to split or it is being regenerated. */
+        class Whole(golden: Golden) : Case(golden.name, golden) {
+            override fun check(join: () -> Join) {
+                val measured = join()
+
+                golden!!.assertMatches(measured.elixirVersion, measured.texts.getValue(golden), measured.regenerate)
+            }
+        }
+    }
+
     companion object {
         const val SHARDS = 4
         private const val NANOS_PER_MILLI = 1_000_000
+        private const val NO_FINAL_NEWLINE = "(no newline at the end)"
         private val SOURCES = VirtualFileFilter { it.isDirectory || it.extension in setOf("ex", "exs") }
+
+        /** Each shard's grouped join and report: the same instances for its tests and its join, which key on them. */
+        private val GOLDENS: List<List<Golden>> =
+            (0 until SHARDS).map { shard ->
+                listOf(
+                    Golden(CompilerFacts.ROOT, "corpus-$shard.join.txt", CompilerJoin::groupedKey),
+                    Golden(FactsReport.ROOT, "corpus-$shard.report", FactsReport::key),
+                )
+            }
+
+        private fun goldens(shard: Int): List<Golden> = GOLDENS[shard]
+
+        @JvmStatic
+        internal fun suite(
+            shard: Int,
+            test: Class<out CompilerCorpusJoinTestCase>,
+            new: (SharedFixture<CompilerCorpusJoinTestCase>?, Case?) -> CompilerCorpusJoinTestCase,
+        ): Test {
+            val fixture = SharedFixture { new(null, null) }
+            val suite = fixture.suite(test.name)
+
+            if (!CompilerCorpus.measured) {
+                suite.addTest(new(fixture, Case.NotMeasured()))
+                return suite
+            }
+
+            val elixirVersion = try {
+                environment("ELIXIR_VERSION")
+            } catch (e: AssertionError) {
+                suite.addTest(new(fixture, Case.Unjoined(e)))
+                return suite
+            }
+
+            val cases = buildList {
+                add(Case.Counts())
+                for (golden in goldens(shard)) {
+                    if (golden.split(elixirVersion)) {
+                        for ((key, row) in golden.committedRows(elixirVersion)) add(Case.Row(golden, key, row))
+                        add(Case.Lacking(golden))
+                        add(Case.Layout(golden))
+                    } else {
+                        add(Case.Whole(golden))
+                    }
+                }
+            }
+            for (case in cases) suite.addTest(new(fixture, case))
+
+            return suite
+        }
     }
 }
 
-class CompilerCorpusJoinShard0Test : CompilerCorpusJoinTestCase(0)
+@Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
+class CompilerCorpusJoinShard0Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
+    CompilerCorpusJoinTestCase(0, fixture, case) {
+    companion object {
+        @JvmStatic
+        fun suite(): Test = suite(0, CompilerCorpusJoinShard0Test::class.java, ::CompilerCorpusJoinShard0Test)
+    }
+}
 
-class CompilerCorpusJoinShard1Test : CompilerCorpusJoinTestCase(1)
+@Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
+class CompilerCorpusJoinShard1Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
+    CompilerCorpusJoinTestCase(1, fixture, case) {
+    companion object {
+        @JvmStatic
+        fun suite(): Test = suite(1, CompilerCorpusJoinShard1Test::class.java, ::CompilerCorpusJoinShard1Test)
+    }
+}
 
-class CompilerCorpusJoinShard2Test : CompilerCorpusJoinTestCase(2)
+@Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
+class CompilerCorpusJoinShard2Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
+    CompilerCorpusJoinTestCase(2, fixture, case) {
+    companion object {
+        @JvmStatic
+        fun suite(): Test = suite(2, CompilerCorpusJoinShard2Test::class.java, ::CompilerCorpusJoinShard2Test)
+    }
+}
 
-class CompilerCorpusJoinShard3Test : CompilerCorpusJoinTestCase(3)
+@Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
+class CompilerCorpusJoinShard3Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
+    CompilerCorpusJoinTestCase(3, fixture, case) {
+    companion object {
+        @JvmStatic
+        fun suite(): Test = suite(3, CompilerCorpusJoinShard3Test::class.java, ::CompilerCorpusJoinShard3Test)
+    }
+}
