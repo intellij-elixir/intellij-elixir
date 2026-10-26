@@ -113,6 +113,11 @@ internal object ConfigIndexing {
     /** A setting or a candidate read of [key], written at [element]. */
     class Written(val kind: ConfigEntry.Kind, val key: WrittenKey, val element: PsiElement)
 
+    /** The literal apps filed in the index, some perhaps with no entry left. */
+    @RequiresReadLock
+    fun apps(project: Project): List<String> =
+        FileBasedIndex.getInstance().getAllKeys(NAME, project).filterIsInstance<ConfigIndexKey.App>().map { it.atom }
+
     private fun element(file: PsiFile, range: TextRange): PsiElement? =
         generateSequence(file.findElementAt(range.startOffset)) { it.parent }
             .takeWhile { it.textRange.startOffset == range.startOffset && it.textRange.endOffset <= range.endOffset }

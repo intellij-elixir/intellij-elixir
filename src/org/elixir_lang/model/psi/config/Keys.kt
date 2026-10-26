@@ -20,6 +20,10 @@ internal object Keys {
     @RequiresReadLock
     fun readAt(element: PsiElement): Read? = call(element)?.let(Read::of)?.takeIf { it.element == element }
 
+    /** What [element], an argument of a `config` call or a read that may still be being written, names. */
+    @RequiresReadLock
+    fun slotAt(element: PsiElement): Slot? = Set.slotAt(element) ?: Read.slotAt(element)
+
     /** The range in [element], a key as written, that names the key: an atom's name, or an alias's last segment. */
     fun range(element: PsiElement): TextRange =
         when (element) {
@@ -36,4 +40,16 @@ internal object Keys {
 
         return piped?.takeIf { pipe.leftOperand()?.let { left -> PsiTreeUtil.isAncestor(left, element, false) } == true } ?: call
     }
+}
+
+/** What an argument of a `config` call or a read names. */
+sealed interface Slot {
+    /** The app. */
+    data object App : Slot
+
+    /**
+     * A first-level key of the literal [app]. [options]: it is written in `config/2`'s options, as a keyword key; [written]:
+     * the other keys those options set.
+     */
+    data class Key(val app: String, val options: Boolean = false, val written: Collection<String> = emptyList()) : Slot
 }

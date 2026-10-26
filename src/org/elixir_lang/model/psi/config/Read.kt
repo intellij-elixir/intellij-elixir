@@ -54,6 +54,30 @@ class Read(val app: ReadApp, val key: WrittenKey, val element: PsiElement, val c
         }
 
         /**
+         * What [element] names as an argument of a read that may still be being written: the app, by the shape of the
+         * call's arity or, where it is no read at that arity, of the next arity up at which it is one; or a key of a
+         * literal app.
+         */
+        @RequiresReadLock
+        fun slotAt(element: PsiElement): Slot? {
+            val call = Keys.call(element) ?: return null
+            val name = call.functionName() ?: return null
+            val arity = call.resolvedFinalArity()
+            val qualifier = qualifier(call)
+            val (readArity, shape) = (arity..MAX_ARITY).firstNotNullOfOrNull { readArity ->
+                SHAPES[Signature(name, readArity)]
+                    ?.takeIf { ReadModule(qualifier, name, readArity).isRead(call) }
+                    ?.let { readArity to it.shape }
+            } ?: return null
+
+            return when {
+                shape.app != null && arguments(call).getOrNull(shape.app) == element -> Slot.App
+                readArity == arity -> (Keys.readAt(element)?.app as? ConfigIndexKey.App)?.let { Slot.Key(it.atom) }
+                else -> null
+            }
+        }
+
+        /**
          * [call]'s arguments, its piped value first, each stripped of its access expression and parentheses. None for a
          * definition clause's head, which Elixir reads as a pattern, not a call.
          */
@@ -121,5 +145,7 @@ class Read(val app: ReadApp, val key: WrittenKey, val element: PsiElement, val c
                 Triple(ERLANG_APPLICATION, Signature("get_all_env", 1), Shape(0, null)),
             ).groupBy({ it.second }, { it.first to it.third })
                 .mapValues { (_, reads) -> Reads(reads.map { it.second }.distinct().single(), reads.map { it.first }) }
+
+        private val MAX_ARITY = SHAPES.keys.maxOf { it.arity }
     }
 }
