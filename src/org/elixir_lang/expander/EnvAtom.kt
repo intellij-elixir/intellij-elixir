@@ -23,4 +23,23 @@ internal object EnvAtom {
 
         return ((expansion as? Expansion.Expanded)?.value as? Term.Atom)?.name
     }
+
+    /**
+     * The module [qualifier], a remote call's, expanded to in its file's expansion, or where the expansion didn't reach
+     * it, expands to in [env]; `null` where it expands to no atom, or where it was not reached and [env] is `null`.
+     */
+    @RequiresReadLock
+    fun receiver(
+        qualifier: PsiElement,
+        receivers: ReceiverIndex,
+        env: Env?,
+        lowering: Lowering,
+        inputs: ProjectModules.Inputs,
+        holder: ProjectModules,
+    ): String? =
+        when (val receiver = receivers.at(qualifier.textRange)) {
+            is ReceiverIndex.Receiver.Module -> receiver.name
+            ReceiverIndex.Receiver.Unknown -> null
+            ReceiverIndex.Receiver.Unreached -> env?.let { of(qualifier, it, lowering, inputs, holder) }
+        }
 }
