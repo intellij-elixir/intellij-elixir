@@ -1,11 +1,18 @@
 package org.elixir_lang.model.psi.config
 
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiManager
+import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import com.intellij.util.indexing.DataIndexer
 import com.intellij.util.indexing.DefaultFileTypeSpecificInputFilter
+import com.intellij.util.indexing.FileBasedIndex
 import com.intellij.util.indexing.FileBasedIndexExtension
 import com.intellij.util.indexing.FileContent
 import com.intellij.util.indexing.ID
@@ -22,6 +29,7 @@ import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.__MODULE__
 import org.elixir_lang.psi.call.qualification.Qualified
+import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.sdk.PARSED_AS_ELIXIR
 import java.io.DataInput
 import java.io.DataOutput
@@ -45,7 +53,7 @@ internal class ConfigIndex : FileBasedIndexExtension<ConfigIndexKey, List<Config
     }
 }
 
-/** [ConfigIndex]'s name, and how it reads a file. */
+/** [ConfigIndex]'s name, how it reads a file, and what it holds. */
 internal object ConfigIndexing {
     val NAME = ID.create<ConfigIndexKey, List<ConfigEntry>>("elixir.config")
 
@@ -75,6 +83,39 @@ internal object ConfigIndexing {
 
         entries
     }
+
+    /** Each key of [kind] filed under [app] in [scope], as written, and the element it is written at. */
+    @RequiresReadLock
+    fun written(project: Project, app: ConfigIndexKey, kind: ConfigEntry.Kind, scope: GlobalSearchScope): List<Pair<WrittenKey, PsiElement>> {
+        val entriesByFile = mutableListOf<Pair<VirtualFile, List<ConfigEntry>>>()
+        FileBasedIndex.getInstance().processValues(
+            NAME,
+            app,
+            null,
+            { file, entries ->
+                entriesByFile += file to entries
+                true
+            },
+            scope,
+        )
+
+        return entriesByFile.flatMap { (virtualFile, entries) ->
+            ProgressManager.checkCanceled()
+            val file = PsiManager.getInstance(project).findFile(virtualFile) ?: return@flatMap emptyList()
+
+            entries
+                .filterIsInstance<ConfigEntry.KeyEntry>()
+                .filter { it.kind == kind }
+                .mapNotNull { entry -> element(file, entry.range)?.let { entry.key to it } }
+        }
+    }
+
+    private fun element(file: PsiFile, range: TextRange): PsiElement? =
+        generateSequence(file.findElementAt(range.startOffset)) { it.parent }
+            .takeWhile { it.textRange.startOffset == range.startOffset && it.textRange.endOffset <= range.endOffset }
+            .lastOrNull()
+            ?.takeIf { it.textRange == range }
+            ?.stripAccessExpression()
 }
 
 /** The app an entry is filed under. */
@@ -107,6 +148,15 @@ sealed interface WrittenKey {
 
     /** Every key of the app, as `get_all_env/1` reads. */
     data object All : WrittenKey
+
+    /** The atom this key, written at [element], names; `null` where that can't be known. */
+    @RequiresReadLock
+    fun atom(element: PsiElement): String? =
+        when (this) {
+            is Atom -> name
+            Alias, Module -> KeyAtom.of(element)
+            Unknown, All -> null
+        }
 
     companion object {
         /** The key [element], stripped of its access expression, is written as. */

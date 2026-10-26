@@ -401,6 +401,17 @@
                                      hostLanguage="Elixir"
                                      implementationClass="org.elixir_lang.model.psi.generic_server.GenServerRequestReferenceProvider"
                                      targetClass="org.elixir_lang.model.psi.generic_server.GenServerHandlerTarget"/>
+        <!-- Application env keys: a config line's atom key declares one; a read's key, and an alias key on either
+             side, refers to the config lines setting it. -->
+        <psi.declarationProvider implementation="org.elixir_lang.model.psi.config.ConfigKeyDeclarationProvider"/>
+        <psi.symbolReferenceProvider hostElementClass="org.elixir_lang.psi.ElixirAtom"
+                                     hostLanguage="Elixir"
+                                     implementationClass="org.elixir_lang.model.psi.config.ConfigKeyReferenceProvider"
+                                     targetClass="org.elixir_lang.model.psi.config.ConfigKeySymbol"/>
+        <psi.symbolReferenceProvider hostElementClass="org.elixir_lang.psi.QualifiableAlias"
+                                     hostLanguage="Elixir"
+                                     implementationClass="org.elixir_lang.model.psi.config.ConfigKeyReferenceProvider"
+                                     targetClass="org.elixir_lang.model.psi.config.ConfigKeySymbol"/>
         <targetElementEvaluator implementationClass="org.elixir_lang.TargetElementEvaluator" language="Elixir"/>
 
         <!-- Go To Implementations -->
