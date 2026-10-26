@@ -1346,6 +1346,12 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
         // The unit's record, given its expansion once classified.
         var unit: ((Expansion) -> ExpansionResult.Unit)? = null
 
+        // An error computed from the tables, where code Elixir may have run otherwise changed them, is assumed not to
+        // happen: the walk goes on.
+        fun inputsCertain() =
+            pending !is Pending.Definition && pending !is Pending.Effect && pending !is Pending.Check ||
+                compiling.tablesCertain()
+
         val (raw, assumed) = values.stepping(pending.site) { run.assuming { when (pending) {
             is Pending.Module if runEnded() -> null
             is Pending.Effect if runEnded() -> null
@@ -1354,11 +1360,20 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
                 val unquoted = unquoted(pending, compiling, run, evaluates = !runEnded(), bindings = bindings)
 
                 ordered = unquoted.ordered
-                stepping.known = !compiling.attributes.callsBack("on_definition")
 
                 val (owner, stored) = storeDefinition(pending, unquoted, compiling, run, expand = !runEnded())
 
                 compiling.storedReads(owner)
+
+                val called = (owner as? Owner.Definition)
+                    ?.takeIf { stored is Expansion.Expanded && !runEnded() }
+                    ?.let { onDefinition(pending, unquoted, it, compiling, run) }
+
+                stepping.known = called?.let { it !is Evaluated.Declined } ?: !compiling.attributes.callsBack("on_definition")
+                // A store that raises runs no callback; the callbacks run before the definition takes its attributes.
+                if (!stepping.known && !(stored is Expansion.Error && inputsCertain()) && !runEnded()) {
+                    run.calledBack(compiling, "on_definition")
+                }
 
                 if (stored !is Expansion.Error) {
                     takeDefinitionAttributes(pending, unquoted.head, owner as Owner.Definition, compiling)
@@ -1371,7 +1386,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
 
                     unit = { ExpansionResult.Unit(owner, pending.node, isOrdered, it) }
                     if (stored is Expansion.Expanded) stepping.value = owner.defined()
-                    stored
+                    called?.error(pending.node) ?: stored
                 }
             }
             is Pending.Attribute -> run.stoppedIfTooDeep(pending.at) {
@@ -1446,19 +1461,10 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
 
         if (assumed) values.assumed(pending)
 
-        // An error computed from the tables, where code Elixir may have run otherwise changed them, is assumed not to
-        // happen: the walk goes on.
-        val inputsCertain =
-            pending !is Pending.Definition && pending !is Pending.Effect && pending !is Pending.Check ||
-                compiling.tablesCertain()
         // A raise from certain inputs: Elixir raised there or before it.
-        val raised = raw is Expansion.Error && inputsCertain
-        // A definition's store raises before it runs the `@on_definition` callbacks, whose code isn't followed
-        // (`run_on_definition_callbacks`), and runs none where it raised.
+        val raised = raw is Expansion.Error && inputsCertain()
+        // A definition's store raises before it runs the `@on_definition` callbacks (`run_on_definition_callbacks`).
         val raiseKnown = stepping.known || pending is Pending.Definition
-        if (pending is Pending.Definition && !stepping.known && !raised && !runEnded()) {
-            run.calledBack(compiling, "on_definition")
-        }
         val expansion = values.outcome(pending.site, raw, ordered, stepping.known, raiseKnown).stoppingAt(stopsAt)
         val unitEnded = expansion?.let { ended(it, compiling, run) }
 
@@ -1642,6 +1648,38 @@ private fun ended(expansion: Expansion, isCertain: Boolean, compiling: Compiling
 /** This ending, where it is a stop, as one that [skipped][Ended.Stopped.skipped] what Elixir runs after it. */
 private fun Ended?.skipping(): Ended? = if (this is Ended.Stopped) copy(skipped = true) else this
 
+/**
+ * `run_on_definition_callbacks/8` (`elixir_def.erl:255–262`): each `@on_definition` entry of [compiling]'s
+ * ([AttributeTable.callbacks]), newest first, run on [owner], which [definition] stored from [unquoted]. What they gave:
+ * a value where each ran, else the first's raise, or a decline where the first isn't known or the evaluator declines
+ * it, after which none runs.
+ */
+private fun onDefinition(
+    definition: Pending.Definition,
+    unquoted: Unquoted,
+    owner: Owner.Definition,
+    compiling: Compiling,
+    run: Run,
+): Evaluated {
+    val name = owner.name ?: return Evaluated.Declined(Given())
+    val env = definition.env.copy(function = NameArity(name, owner.arity))
+    val (call, guards) = extractGuards(unquoted.head)
+    val args = (call as? ElixirAst.Call)?.arguments.orEmpty()
+
+    for (entry in compiling.attributes.callbacks("on_definition").asReversed()) {
+        val pair = (entry as? AttributeValue.Known)?.term as? Term.Pair ?: return Evaluated.Declined(Given())
+        val module = (pair.first as? Term.Atom)?.name ?: return Evaluated.Declined(Given())
+        val function = (pair.second as? Term.Atom)?.name ?: return Evaluated.Declined(Given())
+        val ran = Interpreter.onDefinition(
+            module, function, owner.kind.name.lowercase(), args, guards, unquoted.body, definition.node, env, run,
+        )
+
+        if (ran !is Evaluated.Value) return ran
+    }
+
+    return Evaluated.Value(Unknown)
+}
+
 /** The `@before_compile` entries [compiling] holds, oldest first, or `null` where they aren't known. */
 private fun callbacks(compiling: Compiling): List<Term>? =
     when (val value = compiling.attributes.final["before_compile"]) {
@@ -1726,9 +1764,9 @@ internal fun Run.compilingNamed(module: String?): List<Compiling?> =
     if (module == null) compiling.values.toList() else listOf(compiling[module])
 
 /**
- * Code the expander doesn't follow, a macro's expansion, an `@on_definition` or `@after_compile` callback, or code whose
- * expansion nests too deeply to follow, may have written every module being compiled: each encloses it, since a run
- * compiles one file and a module that finished compiling can't be written, and a module it was given is one of them.
+ * Code the expander doesn't follow, a macro's expansion, a callback, or code whose expansion nests too deeply to follow,
+ * may have written every module being compiled: each encloses it, since a run compiles one file and a module that
+ * finished compiling can't be written, and a module it was given is one of them.
  */
 internal fun Run.unfollowed() = mayHaveWritten(open())
 

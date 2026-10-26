@@ -3,6 +3,7 @@ package org.elixir_lang.expander
 import com.intellij.openapi.progress.ProgressManager
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.interpreter.holdsUnknown
 import org.elixir_lang.expander.interpreter.otpOf
@@ -176,11 +177,15 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
     }
 
     /**
-     * Whether Elixir calls back through [name], a callback attribute at this level, into code the expander doesn't
-     * follow: the body wrote an entry to it, or may have. `on_definition`'s own `compile_definition_attributes` entry
-     * is followed.
+     * The entries Elixir calls back through [name], a callback attribute at this level, oldest first: one unknown entry
+     * where the body may have written it. `on_definition`'s own `compile_definition_attributes` entry, which the walk
+     * follows as each definition takes its attributes, is left out, and so is an entry Elixir skips ([Callback]).
      */
-    fun callsBack(name: String): Boolean = callbackFunction(name) != null && values(name).any { callsBackThrough(it) }
+    fun callbacks(name: String): List<AttributeValue> =
+        callback(name)?.let { callback -> values(name).filter(callback::callsBackThrough) }.orEmpty()
+
+    /** Whether Elixir calls back through [name] ([callbacks]). */
+    fun callsBack(name: String): Boolean = callbacks(name).isNotEmpty()
 
     /**
      * Whether the body's own writes have Elixir call back through [name] ([callsBack]): an entry it wrote, or a write
@@ -188,17 +193,10 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
      * leaves an entry possible, which this leaves aside.
      */
     fun callsBackByItsWrites(name: String): Boolean =
-        callbackFunction(name) != null && (unknownByWrite(name) || written(name).any { callsBackThrough(it) })
+        callback(name)?.let { unknownByWrite(name) || written(name).any(it::callsBackThrough) } == true
 
-    /**
-     * Whether [entry], of a callback attribute, has Elixir call back into code the expander doesn't follow: any but
-     * `on_definition`'s own `compile_definition_attributes`.
-     */
-    private fun callsBackThrough(entry: AttributeValue): Boolean =
-        (entry as? AttributeValue.Known)?.term != COMPILE_DEFINITION_ATTRIBUTES
-
-    /** The function Elixir calls on a module written to `@name`, `null` where `@name` is no callback at this level. */
-    private fun callbackFunction(name: String): String? =
+    /** The callback `@name` is, `null` where it is none at this level. */
+    private fun callback(name: String): Callback? =
         CALLBACKS[name]?.takeIf { name != "after_verify" || AFTER_VERIFY_ACCUMULATES.isSufficient(level) }
 
     /** What `@name` in a definition injects at this point (`K:3815–3828`). */
@@ -531,7 +529,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
 
         if (!valid) return Prepared.Raise
 
-        val callback = callbackFunction(name)?.takeIf { term is Term.Atom }
+        val callback = callback(name)?.function?.takeIf { term is Term.Atom }
 
         return Prepared.Store.Checked(AttributeValue.of(callback?.let { Term.Pair(term, Term.Atom(it)) } ?: term))
     }
@@ -633,11 +631,27 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
             ) + TYPESPECS
 
         val CALLBACKS = mapOf(
-            "before_compile" to "__before_compile__",
-            "after_compile" to "__after_compile__",
-            "after_verify" to "__after_verify__",
-            "on_definition" to "__on_definition__",
+            "before_compile" to Callback("__before_compile__", skipsNonPairs = false),
+            "after_compile" to Callback("__after_compile__", skipsNonPairs = false),
+            "after_verify" to Callback("__after_verify__", skipsNonPairs = true),
+            "on_definition" to Callback("__on_definition__", skipsNonPairs = true),
         )
+
+        /**
+         * A callback attribute: the [function] Elixir calls on a module written to it, and whether it skips an entry that
+         * isn't a `{module, function}` pair, as the `{Mod, Fun} <- ...` generators of `elixir_def:261` and
+         * `elixir_module:246` do, where `eval_callbacks/5`'s `fun({M, F}, Acc)` raises on one.
+         */
+        class Callback(val function: String, private val skipsNonPairs: Boolean) {
+            /** Whether Elixir calls back through [entry]: any but `compile_definition_attributes`, and only a pair where it skips the rest. */
+            fun callsBackThrough(entry: AttributeValue): Boolean =
+                when (entry) {
+                    is AttributeValue.Known ->
+                        entry.term != COMPILE_DEFINITION_ATTRIBUTES && (!skipsNonPairs || entry.term is Term.Pair)
+                    is AttributeValue.Held -> !skipsNonPairs || (entry.value as? OtpErlangTuple)?.arity() == 2
+                    AttributeValue.Unknown -> true
+                }
+        }
 
         /** `valid_dialyzer_attribute?/1` at 1.16, whose options 1.12–1.15 partly refuse. */
         val DIALYZER_OPTIONS = setOf(

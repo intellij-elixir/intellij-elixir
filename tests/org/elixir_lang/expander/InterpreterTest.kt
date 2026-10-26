@@ -418,18 +418,43 @@ class InterpreterTest : PlatformTestCase() {
     }
 
     /**
-     * A user `@on_definition` callback runs code the expander doesn't follow as each definition is stored, which may
-     * write any attribute of any module being compiled, so every later read is unknown: a match of one doesn't raise,
-     * and the module stops at its `defmodule` once its `@before_compile` is read.
+     * A user `@on_definition` callback runs as each definition is stored, and what it writes is read after it: a match
+     * of it, and a definition's name.
      */
-    fun testADefinitionAnOnDefinitionCallbackSeesMakesLaterAttributeReadsUnknown() {
+    fun testAnOnDefinitionCallbacksWriteIsReadAfterTheDefinition() {
         val cb = "defmodule CB do\n  def on_def(env, _kind, _name, _args, _guards, _body), do: Module.put_attribute(env.module, :x, 2)\nend"
         val matches = "defmodule M do\n  @on_definition {CB, :on_def}\n  @x 1\n  def f, do: 1\n  2 = @x\nend"
 
-        assertFile("$cb\n$matches", "top expanded\nmodule Elixir.CB compiled\nmodule Elixir.M stopped `$matches`")
+        assertFile("$cb\n$matches", "top expanded\nmodule Elixir.CB compiled\nmodule Elixir.M compiled")
         assertFile(
-            "$cb\ndefmodule M do\n  @on_definition {CB, :on_def}\n  @x 1\n  def f, do: 1\n  def unquote(:\"g#{Module.get_attribute(__MODULE__, :x)}\")(), do: 1\nend",
-            "top expanded\nmodule Elixir.CB compiled\nmodule Elixir.M stopped `unquote(:\"g#{Module.get_attribute(__MODULE__, :x)}\")`",
+            "$cb\ndefmodule M do\n  @on_definition {CB, :on_def}\n  @x 1\n  def f, do: 1\n  def unquote(:\"g#{Module.get_attribute(__MODULE__, :x)}\")(), do: 1\n  true = Module.defines?(__MODULE__, {:g2, 0})\nend",
+            "top expanded\nmodule Elixir.CB compiled\nmodule Elixir.M compiled",
+        )
+    }
+
+    /** `@on_definition` callbacks run newest first, so the first registered writes last. */
+    fun testOnDefinitionCallbacksRunNewestFirst() {
+        val cb = "defmodule CB do\n  def a(env, _, _, _, _, _), do: Module.put_attribute(env.module, :x, :a)\n  def b(env, _, _, _, _, _), do: Module.put_attribute(env.module, :x, :b)\nend"
+
+        assertFile(
+            "$cb\ndefmodule M do\n  @on_definition {CB, :a}\n  @on_definition {CB, :b}\n  def f, do: 1\n  :a = @x\nend",
+            "top expanded\nmodule Elixir.CB compiled\nmodule Elixir.M compiled",
+        )
+    }
+
+    /** An `@on_definition` callback that takes a definition out stops its module at the definition it was called for. */
+    fun testAnOnDefinitionCallbacksTakeDefinitionStopsAtTheDefinition() {
+        assertFile(
+            "defmodule CB do\n  def take(env, _, _, _, _, _), do: :elixir_def.take_definition(env.module, {:g, 0})\nend\ndefmodule M do\n  @on_definition {CB, :take}\n  def f, do: 1\n  def r, do: 1\nend",
+            "top expanded\nmodule Elixir.CB compiled\nmodule Elixir.M stopped `def f, do: 1`",
+        )
+    }
+
+    /** An `@on_definition` entry that isn't a pair is skipped, so what the module holds stays known. */
+    fun testAnOnDefinitionEntryThatIsntAPairIsSkipped() {
+        assertFile(
+            "defmodule M do\n  @x 1\n  @on_definition {M, :a, :b}\n  def f, do: 1\n  def unquote(:\"g#{@x}\")(), do: 1\nend",
+            "top expanded\nmodule Elixir.M compiled",
         )
     }
 
@@ -450,17 +475,14 @@ class InterpreterTest : PlatformTestCase() {
         }
     }
 
-    /**
-     * A user `@on_definition` callback may write an attribute of any module being compiled, the module around its own
-     * included, so a later read of one isn't known either: a match of it doesn't raise.
-     */
-    fun testADefinitionAnOnDefinitionCallbackSeesMakesAnEnclosingModulesAttributeReadsUnknown() {
+    /** A user `@on_definition` callback may write the module around its own, and that write is read after it too. */
+    fun testAnOnDefinitionCallbacksWriteToAnEnclosingModuleIsReadAfterTheDefinition() {
         val inner = "defmodule In do\n    @on_definition {CB, :on_outer}\n    def f, do: 1\n    2 = Module.get_attribute(Outer, :x)\n  end"
 
         assertFile(
             "defmodule CB do\n  def on_outer(_env, _kind, _name, _args, _guards, _body), do: Module.put_attribute(Outer, :x, 2)\nend\n" +
                 "defmodule Outer do\n  @x 1\n  $inner\nend",
-            "top expanded\nmodule Elixir.CB compiled\nmodule Elixir.Outer stopped `$inner`\n  module Elixir.Outer.In stopped `$inner`",
+            "top expanded\nmodule Elixir.CB compiled\nmodule Elixir.Outer compiled\n  module Elixir.Outer.In compiled",
         )
     }
 
@@ -772,8 +794,11 @@ class InterpreterTest : PlatformTestCase() {
         }
     }
 
-    /** Elixir runs an `@on_definition` callback as each definition is stored, and it may raise. */
-    fun testARaiseAfterADefinitionAnOnDefinitionCallbackSeesStops() =
+    /**
+     * Elixir runs an `@on_definition` callback as each definition is stored, and one that raises from certain inputs
+     * raises there, so nothing after it runs.
+     */
+    fun testAnOnDefinitionCallbackThatRaisesEndsItsModuleAtTheDefinition() =
         assertFile(
             """
             defmodule CB do
@@ -785,7 +810,7 @@ class InterpreterTest : PlatformTestCase() {
               @a raise(ArgumentError)
             end
             """.trimIndent(),
-            "top unported `@a raise(ArgumentError)`\nmodule Elixir.CB compiled\nmodule Elixir.M stopped `@a raise(ArgumentError)`",
+            "top expanded\nmodule Elixir.CB compiled\nmodule Elixir.M raised Elixir.KeyError `def f, do: 1`",
         )
 
     /** A callback the evaluator declines may have raised, as Elixir's `ArgumentError` at `@a` can't show here. */

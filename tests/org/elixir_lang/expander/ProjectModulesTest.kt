@@ -653,10 +653,10 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
-     * Code the expander doesn't follow, an `@on_definition` callback or a macro that declines before it writes, may have
-     * written every module being compiled around it, a `defimpl`'s included: Elixir defines `b/0` from the write; the
-     * expander can't read `P.Foo`'s attribute after the give-up, so the definition's name stops it. With no give-up, both
-     * define `a/0`.
+     * Code the expander doesn't follow, a macro that declines before it writes, may have written every module being
+     * compiled around it, a `defimpl`'s included: Elixir defines `b/0` from the write; the expander can't read `P.Foo`'s
+     * attribute after the give-up, so the definition's name stops it. An `@on_definition` callback the expander runs
+     * writes it as Elixir does, so both define `b/0`. With neither, both define `a/0`.
      */
     fun testUnfollowedCodeMayHaveWrittenAnImplAroundIt() {
         addLegElixir()
@@ -672,7 +672,7 @@ class ProjectModulesTest : PlatformTestCase() {
         val b = add("b.ex", "defmodule B do\n  def f, do: P.Foo.Inner.b()\nend\n")
         val read = "def unquote(Module.get_attribute(:\"Elixir.P.Foo\", :x))(), do: 1"
         val shapes = listOf(
-            Triple("callback-expander-unreadable", "@on_definition {H, :cb}\n        def h, do: :ok\n        $read", "Unreadable Stopped"),
+            Triple("callback-loaded", "@on_definition {H, :cb}\n        def h, do: :ok\n        $read", "Present [b/0, h/0] Compiled"),
             Triple("macro-expander-unreadable", "def h, do: W.w(:\"Elixir.P.Foo\")\n        $read", "Unreadable Stopped"),
             Triple("none-loaded", "def h, do: :ok\n        $read", "Present [a/0, h/0] Compiled"),
         )
@@ -2262,7 +2262,7 @@ class ProjectModulesTest : PlatformTestCase() {
             Triple("foreach-raised", ":lists.foreach(fn _ ->\n    $pair\n  end, [1])", "Absent Raised"),
             Triple("case-attribute-raised", "k = :a\n  case k do\n    :a -> @a hd([])\n    _ -> :ok\n  end", "Absent Raised"),
             Triple("if-attribute-raised", "x = true\n  if x do\n    @a hd([])\n  end\n  def f, do: 1", "Absent Raised"),
-            // The store raises before it runs the `@on_definition` callbacks, whose code isn't followed.
+            // The store raises before it runs the `@on_definition` callbacks.
             Triple("on-definition-pair-raised", "def f, do: 1\n  @on_definition {H, :cb}\n  defp f, do: 2", "Absent Raised"),
             // The error's inputs are certain, so the module is absent, but its reach isn't, so the body stops.
             Triple("if-declined-raised", "x = true\n  if x do\n    $declined\n    $pair\n  end", "Absent Stopped"),

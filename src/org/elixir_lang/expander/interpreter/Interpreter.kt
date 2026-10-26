@@ -149,6 +149,25 @@ internal object Interpreter {
     fun quoteHelper(function: String, args: List<OtpErlangObject>, node: ElixirAst, state: ExState, env: Env, run: Run): Evaluated =
         evaluated(node, state, env, run) { evaluation -> evaluation.remote(atom("elixir_quote"), function, args) }
 
+    /**
+     * `module:function(env, kind, name, args, guards, body)`, an `@on_definition` callback of the definition at [node]
+     * that [env]'s function names, given its head's [args] and [guards] and its [body].
+     */
+    fun onDefinition(
+        module: String,
+        function: String,
+        kind: String,
+        args: List<ElixirAst>,
+        guards: List<ElixirAst>,
+        body: ElixirAst?,
+        node: ElixirAst,
+        env: Env,
+        run: Run,
+    ): Evaluated =
+        evaluated(node, ExState.empty(run.level), env, run) { evaluation ->
+            evaluation.onDefinition(module, function, kind, args, guards, body)
+        }
+
     /** [value] of [node]'s evaluation, which [declinesTooDeep] where it overflows the thread's stack, else lets the overflow escape. */
     private fun evaluated(
         node: ElixirAst,
@@ -472,6 +491,28 @@ internal class Evaluation(
             is MacroExpanded.Stopped -> decline("Macro.expand/2 stops")
         }
     }
+
+    /** `run_on_definition_callbacks/8`'s call of `module:function/6` (`elixir_def.erl:255–262`). */
+    fun onDefinition(
+        module: String,
+        function: String,
+        kind: String,
+        args: List<ElixirAst>,
+        guards: List<ElixirAst>,
+        body: ElixirAst?,
+    ): OtpErlangObject =
+        remote(
+            atom(module),
+            function,
+            listOf(
+                envOf(env),
+                atom(kind),
+                atom(env.function!!.name),
+                list(args.map(::termOf)),
+                list(guards.map(::termOf)),
+                body?.let(::termOf) ?: NIL,
+            ),
+        )
 
     /** [node] as the term a macro is given, each of its terms remembering the node it came from. */
     private fun termOf(node: ElixirAst): OtpErlangObject =
