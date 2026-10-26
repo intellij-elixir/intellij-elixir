@@ -102,6 +102,18 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
         assertShowsReadsOf(ConfigKeySymbol("my_app", "Elixir.MyApp.Worker"))
     }
 
+    fun testPipedConfigKeyShowsReads() {
+        myFixture.caret(CONFIG, ":pip<caret>ed, 1")
+
+        assertShowsReadsOf(ConfigKeySymbol("my_app", "piped"))
+    }
+
+    fun testParenthesisedConfig2KeyShowsReads() {
+        myFixture.caret(CONFIG, "parenthe<caret>sised: 2")
+
+        assertShowsReadsOf(ConfigKeySymbol("my_app", "parenthesised"))
+    }
+
     // alias and __MODULE__
 
     fun testAliasKeyReadOffersModuleAndSettings() {

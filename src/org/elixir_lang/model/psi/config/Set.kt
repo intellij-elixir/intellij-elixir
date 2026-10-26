@@ -5,10 +5,11 @@ import com.intellij.psi.PsiFile
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.ElixirAtom
+import org.elixir_lang.psi.ElixirList
+import org.elixir_lang.psi.QuotableKeywordList
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.call.keywordArguments
 import org.elixir_lang.psi.impl.moduleName
 import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 
@@ -24,19 +25,18 @@ class Set(val app: String, val key: WrittenKey, val element: PsiElement) {
             val arity = call.resolvedFinalArity()
             if (arity != 2 && arity != 3 || !isConfig(call, arity)) return emptyList()
 
-            val arguments = call.finalArguments()?.takeIf { it.size == arity } ?: return emptyList()
-            val app = (arguments[0].stripAccessExpressionAndParentheses() as? ElixirAtom)?.let { AtomName.of(it) }
-                ?: return emptyList()
+            val arguments = Read.arguments(call).takeIf { it.size == arity } ?: return emptyList()
+            val app = (arguments[0] as? ElixirAtom)?.let { AtomName.of(it) } ?: return emptyList()
             if (call !is Qualified && !importsConfig(call.containingFile)) return emptyList()
 
             return if (arity == 2) {
-                call.keywordArguments()?.quotableKeywordPairList().orEmpty().mapNotNull { pair ->
+                keywords(arguments[1])?.quotableKeywordPairList().orEmpty().mapNotNull { pair ->
                     val keywordKey = pair.keywordKey
 
                     AtomName.of(keywordKey)?.let { Set(app, WrittenKey.Atom(it), keywordKey) }
                 }
             } else {
-                val element = arguments[1].stripAccessExpressionAndParentheses()
+                val element = arguments[1]
 
                 when (val key = WrittenKey.of(element)) {
                     is WrittenKey.Atom, WrittenKey.Alias -> listOf(Set(app, key, element))
@@ -44,6 +44,14 @@ class Set(val app: String, val key: WrittenKey, val element: PsiElement) {
                 }
             }
         }
+
+        /** `config/2`'s options: trailing keywords, or a list of them. */
+        private fun keywords(options: PsiElement): QuotableKeywordList? =
+            when (options) {
+                is QuotableKeywordList -> options
+                is ElixirList -> options.keywords
+                else -> null
+            }
 
         private fun isConfig(call: Call, arity: Int): Boolean =
             if (call is Qualified) {

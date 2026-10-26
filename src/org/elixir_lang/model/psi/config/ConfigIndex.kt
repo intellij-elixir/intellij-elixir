@@ -49,7 +49,7 @@ internal class ConfigIndex : FileBasedIndexExtension<ConfigIndexKey, List<Config
 
     companion object {
         /** Bumped when what is indexed, or how it is written, changes. */
-        private const val VERSION = 1
+        private const val VERSION = 2
     }
 }
 

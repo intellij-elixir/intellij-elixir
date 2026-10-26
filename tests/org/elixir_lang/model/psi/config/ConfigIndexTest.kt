@@ -69,6 +69,16 @@ class ConfigIndexTest : PlatformTestCase() {
     fun testParenthesizedConfigAppAndKeyAreLiterals() =
         assertConfig("config((:my_app), (:retries), 3)", "App(my_app) Set Atom(retries) `:retries`")
 
+    fun testPipedConfigAppIsSet() =
+        assertConfig(
+            ":my_app |> config(:retries, 3)\n:my_app |> config(greeting: \"hi\")",
+            "App(my_app) Set Atom(retries) `:retries`",
+            "App(my_app) Set Atom(greeting) `greeting`"
+        )
+
+    fun testParenthesisedConfig2KeywordListIsSet() =
+        assertConfig("config(:my_app, ([retries: 3]))", "App(my_app) Set Atom(retries) `retries`")
+
     // Reads, one per function and arity
 
     fun testGetEnv2IsARead() =

@@ -48,8 +48,9 @@ class Read(val app: ReadApp, val key: WrittenKey, val element: PsiElement) {
             }
         }
 
-        /** [call]'s arguments, its piped value first. */
-        private fun arguments(call: Call): List<PsiElement> {
+        /** [call]'s arguments, its piped value first, each stripped of its access expression and parentheses. */
+        @RequiresReadLock
+        internal fun arguments(call: Call): List<PsiElement> {
             val own = call.finalArguments().orEmpty().map { it.stripAccessExpressionAndParentheses() }
 
             return if (CallImpl.isPipedInto(call)) {
