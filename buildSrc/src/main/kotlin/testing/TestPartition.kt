@@ -37,13 +37,45 @@ object TestPartition {
         "org.elixir_lang.snapshot.CompilerCorpusJoinShard2Test",
         "org.elixir_lang.snapshot.CompilerCorpusJoinShard3Test",
     )
+
+    /**
+     * Classes whose result cannot differ by the Elixir/OTP the leg runs: no quoter, no SDK in the project, no
+     * environment read, and a language level that is a literal or the SDK-less fallback. CI runs them only on the
+     * legs of the baseline pair. A class reading anything the leg provides does not belong here.
+     */
+    val VERSION_INDEPENDENT: List<String> = listOf(
+        "org.elixir_lang.FindUsagesTest",
+        "org.elixir_lang.FormattingTest",
+        "org.elixir_lang.annotator.HeredocErrorTest",
+        "org.elixir_lang.annotator.InvalidConstructTest",
+        "org.elixir_lang.annotator.InvalidTokenTest",
+        "org.elixir_lang.annotator.VersionedSyntaxTest",
+        "org.elixir_lang.injection.markdown.ExpressionDocInjectorTest",
+        "org.elixir_lang.mix.sync.MixDepsSyncServiceTest",
+        "org.elixir_lang.model.psi.function.DelegationRenameTest",
+        "org.elixir_lang.model.psi.rename.RenameMatrixTest",
+        "org.elixir_lang.model.psi.variable.VariableOracleCorpusShard0Test",
+        "org.elixir_lang.model.psi.variable.VariableOracleCorpusShard1Test",
+        "org.elixir_lang.model.psi.variable.VariableOracleCorpusShard2Test",
+        "org.elixir_lang.model.psi.variable.VariableOracleCorpusShard3Test",
+        "org.elixir_lang.psi.scope.callable_table.ParityTest",
+    )
 }
 
-/** Narrows the run to [part] (`-PtestPart=heavy|rest`); without it every class runs. */
-fun Test.partition(part: Provider<String>) {
+/**
+ * Narrows the run to [part] (`-PtestPart=heavy|rest`), and leaves out [TestPartition.VERSION_INDEPENDENT] when
+ * [versionIndependent] (`-PtestVersionIndependent`) is false. With neither set every class runs.
+ */
+fun Test.partition(part: Provider<String>, versionIndependent: Provider<String>) {
     when (part.orNull?.let(TestPart::parse)) {
         TestPart.HEAVY -> TestPartition.HEAVY.forEach(filter::includeTestsMatching)
         TestPart.REST -> TestPartition.HEAVY.forEach(filter::excludeTestsMatching)
         null -> Unit
     }
+
+    val runVersionIndependent = versionIndependent.orNull?.let { value ->
+        value.toBooleanStrictOrNull() ?: throw GradleException("testVersionIndependent must be true or false, not '$value'")
+    } ?: true
+
+    if (!runVersionIndependent) TestPartition.VERSION_INDEPENDENT.forEach(filter::excludeTestsMatching)
 }

@@ -187,6 +187,7 @@ jobs:
         -PotpVersion=${{ matrix.beam.otp }}
         -PtestForks=3
         -PtestPart=${{ matrix.part }}
+        -PtestVersionIndependent=${{ matrix.baseline }}
 
     steps:
       # On hosted Windows runners C: is a remote-backed OS disk and D: the local SSD, an order of

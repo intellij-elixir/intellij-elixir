@@ -768,8 +768,8 @@
 
 ### Build / CI
 
-- [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
-  - **Each CI test leg now runs its slowest classes in a job of their own.**
+- [#4536](https://github.com/intellij-elixir/intellij-elixir/pull/4536) [@sh41](https://github.com/sh41)
+  - **Each CI test leg now runs its slowest classes in a job of their own, and classes that cannot differ by Elixir/OTP run only on the baseline pair's legs.**
 - [#4530](https://github.com/intellij-elixir/intellij-elixir/pull/4530) [@sh41](https://github.com/sh41)
   - **Light tests no longer fail now and then, in batches, with `AlreadyDisposedException` when a platform startup activity reaches the shared project after the test that opened it has closed it.**
 - [#4528](https://github.com/intellij-elixir/intellij-elixir/pull/4528) [@sh41](https://github.com/sh41)

@@ -337,8 +337,9 @@ sandbox's `system-test-fork-<n>` between builds, so a stale index is reset by de
 just `system-test`.
 
 CI runs each leg's suite as two jobs, split by `buildSrc/src/main/kotlin/testing/TestPartition.kt`:
-`-PtestPart=heavy` runs only the slowest classes and `-PtestPart=rest` everything else. Without the property, as
-locally, every class runs.
+`-PtestPart=heavy` runs only the slowest classes and `-PtestPart=rest` everything else. `-PtestVersionIndependent=false`
+leaves out the classes that cannot differ by Elixir/OTP, which run only on the baseline pair's legs. Without either
+property, as locally, every class runs.
 
 A test fails on any error logged while it runs, any warning from the plugin's own (`org.elixir_lang`)
 loggers, and any exception left uncaught, on any thread, that it did not expect. A platform warning does not fail

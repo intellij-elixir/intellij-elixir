@@ -126,7 +126,8 @@ async function main() {
   // `continue-on-error` on either axis makes the leg informational; shared-test.yml reads only the leg's.
   //
   // Each leg runs as two jobs, one per `-PtestPart` (buildSrc/src/main/kotlin/testing/TestPartition.kt): the heavy
-  // part's label leads with `heavy ` for the same truncation reason.
+  // part's label leads with `heavy ` for the same truncation reason. `baseline` says whether the leg runs the
+  // version-independent classes, which only the baseline pair's legs do.
   const buildSuffix = (version, build) => (isPointer(version) ? ` ${build}` : '');
   const PARTS = [
     { part: 'rest', prefix: '' },
@@ -144,6 +145,7 @@ async function main() {
           'idea-version': build,
           'java-version': idea.java,
           beam,
+          baseline: beam === base,
           part,
           label,
           job: `test (${label}${buildSuffix(idea.version, build)})`,

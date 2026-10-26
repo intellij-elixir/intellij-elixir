@@ -1201,7 +1201,10 @@ tasks.named<Test>("test") {
         forkLimit = providers.gradleProperty("testMaxForks").map { TestForks.parse("testMaxForks", it) },
         stepSummary = stepSummary,
     )
-    partition(providers.gradleProperty("testPart"))
+    partition(
+        part = providers.gradleProperty("testPart"),
+        versionIndependent = providers.gradleProperty("testVersionIndependent"),
+    )
     shareStepSummary(stepSummary)
     addTestListener(TestProgress(every = 1000))
     providers.gradleProperty("testTimeline").orNull?.let { recordTimeline(layout.projectDirectory.file(it).asFile) }
