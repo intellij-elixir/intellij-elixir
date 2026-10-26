@@ -22,6 +22,12 @@ class ConfigFilesTest : PlatformTestCase() {
         assertDoesNotCount(test)
     }
 
+    fun testEmptyProjectListCountsConfigExs() {
+        mixExs("my_app", "[]")
+
+        assertCounts(file("my_app/config/config.exs"))
+    }
+
     fun testConfigPathDirectoryCounts() {
         mixExs("my_app", "[app: :my_app, config_path: \"settings/main.exs\"]")
         val settings = file("my_app/settings/main.exs")

@@ -22,25 +22,24 @@ import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 
 /** What a `mix.exs` file's `project/0` returns, read from its source. */
 object ProjectKeywords {
-    /** The keyword list `project/0` returns, the last expression of its body, if it is written as one. */
+    /** The keywords of the list `project/0` returns. */
     @RequiresReadLock
-    fun keywords(mixExs: ElixirFile): QuotableKeywordList? =
-        mixExs
-            .modulars()
-            .asSequence()
-            .flatMap { modularChildCalls(it).asSequence() }
-            .filter(::isProject)
-            .firstNotNullOfOrNull { (returned(it)?.stripAccessExpressionAndParentheses() as? ElixirList)?.keywords }
+    fun keywords(mixExs: ElixirFile): QuotableKeywordList? = list(mixExs)?.keywords
 
     /** The project's `app:`. */
     @RequiresReadLock
     fun app(mixExs: ElixirFile): String? =
         (keywords(mixExs)?.keywordValue("app")?.stripAccessExpressionAndParentheses() as? ElixirAtom)?.let(AtomName::of)
 
-    /** The project's `config_path:`, Mix's default when it has none. */
+    /**
+     * The project's `config_path:`, Mix's default when the list `project/0` returns is `[]` or keywords without one;
+     * [ConfigPath.Unknown] for any other list.
+     */
     @RequiresReadLock
     fun configPath(mixExs: ElixirFile): ConfigPath {
-        val keywords = keywords(mixExs) ?: return ConfigPath.Unknown
+        val list = list(mixExs) ?: return ConfigPath.Unknown
+        val keywords = list.keywords
+            ?: return if (list.children.isEmpty()) ConfigPath.Written(DEFAULT_CONFIG_PATH) else ConfigPath.Unknown
         val value = keywords.keywordValue("config_path")?.stripAccessExpressionAndParentheses()
             ?: return ConfigPath.Written(DEFAULT_CONFIG_PATH)
 
@@ -60,6 +59,15 @@ object ProjectKeywords {
     }
 
     private const val DEFAULT_CONFIG_PATH = "config/config.exs"
+
+    /** The list `project/0` returns, the last expression of its body, if it is written as one. */
+    private fun list(mixExs: ElixirFile): ElixirList? =
+        mixExs
+            .modulars()
+            .asSequence()
+            .flatMap { modularChildCalls(it).asSequence() }
+            .filter(::isProject)
+            .firstNotNullOfOrNull { returned(it)?.stripAccessExpressionAndParentheses() as? ElixirList }
 
     private fun isProject(call: Call): Boolean =
         capabilities(call)?.remoteCallable == true &&
