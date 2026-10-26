@@ -105,7 +105,7 @@ class DefexceptionMacroTest : ExpanderTestCase() {
 
     /** [STRUCT] for a module that stopped at the `defexception`: up to 1.13 both arms' `__struct__/1` are stored. */
     private fun struct(version: String): String =
-        " | def __struct__/0 line 2 clauses 1 | def __struct__/1 line 2 clauses ${if (bindsQuoted(version)) 1 else 2}"
+        " | def __struct__/0 line 2 clauses 1 | def __struct__/1 line 2 clauses ${stoppedStructClauses(ElixirLanguageLevel.of(version))}"
 
     fun testTheStructHoldsTheExceptionKey() =
         assertEvery(

@@ -2,7 +2,6 @@ package org.elixir_lang.expander
 
 import com.intellij.openapi.util.TextRange
 import org.elixir_lang.NameArity
-import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_BIND_QUOTED
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
@@ -57,10 +56,7 @@ class DefstructMacroTest : ExpanderTestCase() {
      * is declined after the stop, so both arms' `__struct__/1` are stored.
      */
     private fun stopped(version: String, source: String, line: Int = 2): String =
-        "module Elixir.A stopped `$source` | def __struct__/0 line $line clauses 1 | def __struct__/1 line $line clauses ${structClauses(version)}"
-
-    /** How many `__struct__/1` clauses each `defstruct` of a stopped module stores at [version]. */
-    private fun structClauses(version: String): Int = if (DEFSTRUCT_BIND_QUOTED.isSufficient(ElixirLanguageLevel.of(version))) 1 else 2
+        "module Elixir.A stopped `$source` | def __struct__/0 line $line clauses 1 | def __struct__/1 line $line clauses ${stoppedStructClauses(ElixirLanguageLevel.of(version))}"
 
     fun testAnImproperListIsALiteralDefault() =
         assertEvery("defmodule A do\n  defstruct a: [1 | 2]\nend", "module Elixir.A compiled$TABLE")
@@ -142,7 +138,7 @@ class DefstructMacroTest : ExpanderTestCase() {
         val branch = "if Foo.ok() do\n    defstruct [:a]\n  else\n    defstruct [:b]\n  end"
 
         assertLevels("defmodule A do\n  $branch\nend", LEVELS) {
-            "module Elixir.A stopped `$branch` | def __struct__/0 line 5 clauses 2 | def __struct__/1 line 5 clauses ${2 * structClauses(it)}"
+            "module Elixir.A stopped `$branch` | def __struct__/0 line 5 clauses 2 | def __struct__/1 line 5 clauses ${2 * stoppedStructClauses(ElixirLanguageLevel.of(it))}"
         }
     }
 

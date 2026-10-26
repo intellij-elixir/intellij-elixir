@@ -6,7 +6,6 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.DEFGUARD_UNQUOTE_NAM
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_ESCAPES_STRUCT
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRUCT_OF_MODULE_BEING_DEFINED_NEVER_LOADED
 import org.elixir_lang.lowering.inspect
-import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.Import.Term
 
 /**
@@ -15,15 +14,11 @@ import org.elixir_lang.psi.Import.Term
  * error they raise, and the dispatch events where the module compiles. A module that stops at a macro the expander
  * doesn't model, a `@derive`'s `__deriving__` or a guard's template, equals Elixir up to that macro.
  */
-class DefinitionMacroProbeTest : ProbeTestCase() {
-    private val probes = ExpansionProbes(harness, accounting = true) {
-        createPsiFile(getTestName(false), it) as ElixirFile
-    }
-
+class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
     /** Each case ends as the compiler ends it, whether it compiles or raises, and ports every macro it calls. */
     fun testEachCaseMatchesElixir() {
         val bodies = listOf(compiling(), raising(), either()).flatten()
-        val expansions = bodies.associateWith { probes.expand(it) }
+        val expansions = bodies.associateWith { expand(it, "") }
 
         assertEquals(
             "",
@@ -39,13 +34,13 @@ class DefinitionMacroProbeTest : ProbeTestCase() {
      * of `defstruct` and `defexception` among them.
      */
     fun testEachCompilingCaseTracesAsTheCompilerDoes() {
-        printed { probes.assertTracesMatchElixir(probes.expandAll(compiling())) }
+        printed { probes.assertTracesMatchElixir(probes.expandAll(compiling(), clauses = sdk)) }
     }
 
     /** A non-empty `@derive` stops at the `__deriving__` macro Elixir expands when the struct is defined. */
     fun testADeriveStopsAtItsMacro() {
         val bodies = DERIVES
-        val expansions = bodies.associateWith { probes.expand(it) }
+        val expansions = bodies.associateWith { expand(it, "") }
 
         assertEquals(
             bodies.joinToString("\n") { "${it.replace("\n", "; ")}: opaque" },
@@ -62,7 +57,7 @@ class DefinitionMacroProbeTest : ProbeTestCase() {
      */
     fun testAGuardStopsAtItsTemplate() {
         val bodies = guards()
-        val expansions = bodies.associateWith { probes.expand(it) }
+        val expansions = bodies.associateWith { expand(it, "") }
 
         assertEquals(
             "a guard that dispatches is compared by them",
@@ -85,7 +80,7 @@ class DefinitionMacroProbeTest : ProbeTestCase() {
      * over.
      */
     fun testAGuardIsDocumentedAsOneInTheDocsChunk() {
-        val expansions = probes.expandAll(listOf(DOCUMENTED), hook = ProbeHarness.Hook())
+        val expansions = probes.expandAll(listOf(DOCUMENTED), hook = ProbeHarness.Hook(), clauses = sdk)
         val expansion = expansions.cases.single()
         val attempt = harness.attempt(expansions.layout)
 
@@ -114,7 +109,7 @@ class DefinitionMacroProbeTest : ProbeTestCase() {
                 .joinToString("\n"),
         )
         assertTrue("a guard is among them", docs.entries.any { it.guard })
-        assertLeftNothingBehind(attempt)
+        harness.assertLeftNothingBehind(attempt)
     }
 
 

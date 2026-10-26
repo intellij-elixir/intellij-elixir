@@ -76,7 +76,7 @@ class AttributeProbeTest : ProbeTestCase() {
             ),
             docs.entries!!.map { "${it.kind} ${it.name}/${it.arity} ${text(it.doc)} ${text(it.deprecated)}" }.sorted(),
         )
-        assertLeftNothingBehind(attempt)
+        harness.assertLeftNothingBehind(attempt)
         assertEquals("compiler options", options, compilerOptions())
     }
 
@@ -388,7 +388,7 @@ class AttributeProbeTest : ProbeTestCase() {
                 )
             }
 
-            assertLeftNothingBehind(attempt)
+            harness.assertLeftNothingBehind(attempt)
         }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))

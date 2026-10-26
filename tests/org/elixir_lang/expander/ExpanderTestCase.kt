@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import com.intellij.openapi.application.ReadAction
 import org.elixir_lang.NameArity
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_BIND_QUOTED
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
@@ -250,3 +251,9 @@ abstract class ExpanderTestCase : ParsingTestCase() {
 /** Whether [version] is a release before [boundary]. */
 internal fun isBefore(version: String, boundary: String) =
     ElixirLanguageLevel.of(version).elixir < ElixirLanguageLevel.of(boundary).elixir
+
+/**
+ * How many `__struct__/1` clauses a `defstruct` stores at [level] in a module that stopped before its output ran: up to
+ * 1.13 the output's `case` on `@enforce_keys` is declined after the stop, so both arms' are stored.
+ */
+internal fun stoppedStructClauses(level: ElixirLanguageLevel): Int = if (DEFSTRUCT_BIND_QUOTED.isSufficient(level)) 1 else 2
