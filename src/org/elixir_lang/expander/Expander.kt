@@ -105,10 +105,19 @@ object Expander {
         val run = Run(level, observer, exports, structs, counters, file, directories, clauses, virtualFile)
         val state = ExState.empty(level)
 
-        if (DEFMODULE_FAST_PATH.isSufficient(level) && env.module == null && onlyDefmodule(forms)) {
-            return fastCompile(forms, state, env, run)
-        }
+        val expansion =
+            if (DEFMODULE_FAST_PATH.isSufficient(level) && env.module == null && onlyDefmodule(forms)) {
+                fastCompile(forms, state, env, run)
+            } else {
+                slowCompile(forms, state, env, run)
+            }
+        run.finish()
 
+        return expansion
+    }
+
+    /** The whole file expanded, then the modules it queued compiled and its top level run, in turn. */
+    private fun slowCompile(forms: ElixirAst, state: ExState, env: Env, run: Run): FileExpansion {
         run.fileStatements.add(forms)
 
         val (expanded, assumed) = run.assuming { unlessTooDeep({ Expansion.Unported(forms) }) { expand(forms, state, env, run) } }
@@ -143,7 +152,7 @@ object Expander {
             val body = ((options as ElixirAst.ListNode).elements.single() as ElixirAst.Tuple).elements[1]
             val moduleEnv = env.copy(module = name, contextModules = contextModules)
 
-            run.pending += Pending.Module(form, name, isAtom, body, moduleEnv, state)
+            run.queue(Pending.Module(form, name, isAtom, body, moduleEnv, state))
         }
 
         val walked = compilePending(run)
@@ -458,6 +467,29 @@ internal class Run(
 
     /** The definitions and modules the body being expanded defines, in the order it reached them. */
     var pending = mutableListOf<Pending>()
+
+    /** Each module queued and not yet compiled, by its `defmodule` call's identity, to its body. */
+    private val uncompiled = IdentityHashMap<ElixirAst, ElixirAst>()
+
+    /** [module] queued onto [pending]. */
+    fun queue(module: Pending.Module) {
+        pending += module
+        uncompiled[module.node] = module.body
+    }
+
+    /** [module]'s body is being compiled. */
+    fun startedCompiling(module: Pending.Module) {
+        uncompiled.remove(module.node)
+    }
+
+    /** The run is over: the observer is told of each module it queued and never compiled. */
+    fun finish() {
+        for ((defmodule, body) in uncompiled) {
+            // A built node shares its source node's origin, so an observer would take it for that node.
+            if (!defmodule.meta.built) observer.uncompiled(defmodule, body)
+        }
+        uncompiled.clear()
+    }
 
     /**
      * Each unit of a statement being run, by its node, to what runs it where the evaluator reaches the node, from the

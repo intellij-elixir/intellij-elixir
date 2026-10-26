@@ -33,7 +33,6 @@ import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirFile
-import org.elixir_lang.psi.Import.Term
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
@@ -506,18 +505,7 @@ internal object ExpanderSource : CandidateSource {
         return when (val receiver = at.receivers.at(qualifier.textRange)) {
             is ReceiverIndex.Receiver.Module -> receiver.name
             ReceiverIndex.Receiver.Unknown -> null
-            ReceiverIndex.Receiver.Unreached -> {
-                val expansion = Expander.expand(
-                    at.lowering.lower(qualifier),
-                    ExState.empty(at.inputs.level),
-                    at.env,
-                    at.inputs.level,
-                    { at.holder.exports(at.file, it, at.inputs) },
-                    { at.holder.struct(at.file, it, at.inputs) },
-                )
-
-                ((expansion as? Expansion.Expanded)?.value as? Term.Atom)?.name
-            }
+            ReceiverIndex.Receiver.Unreached -> EnvAtom.of(qualifier, at.env, at.lowering, at.inputs, at.holder)
         }
     }
 
