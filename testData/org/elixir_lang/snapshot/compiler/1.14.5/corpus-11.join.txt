@@ -1,0 +1,88 @@
+ref	matched	2506
+ref	no use	136
+ref	other	4
+ref	nothing	51
+alias	matched	969
+alias	no use	1
+alias	other	2
+alias	nothing	19
+def	matched	32
+def	nothing	466
+declaration	matched	31
+declaration	nothing	17
+no use	ref	Kernel	@	1	80	elixir/application_test.exs:9:3
+no use	ref	Kernel	sigil_r	2	15	elixir/application_test.exs:12:33
+no use	alias	ApplicationTest.Unknown	1	elixir/application_test.exs:168:50
+no use	ref	Kernel	sigil_U	2	5	elixir/calendar/datetime_test.exs:10:12
+no use	ref	Kernel	sigil_s	2	10	elixir/calendar/datetime_test.exs:71:18
+no use	ref	Kernel	sigil_N	2	13	elixir/calendar/datetime_test.exs:790:16
+no use	ref	Kernel	sigil_S	2	2	elixir/code_formatter/operators_test.exs:712:17
+nothing	alias	DynSup.Registry	3	elixir/dynamic_supervisor_test.exs:19:57
+nothing	ref	:proc_lib	translate_initial_call	1	1	elixir/dynamic_supervisor_test.exs:120:26
+nothing	ref	:proc_lib	initial_call	1	2	elixir/dynamic_supervisor_test.exs:135:24
+nothing	ref	:supervisor	get_callback_module	1	2	elixir/dynamic_supervisor_test.exs:143:26
+nothing	ref	:sys	suspend	1	1	elixir/dynamic_supervisor_test.exs:183:18
+nothing	ref	:sys	replace_state	2	1	elixir/dynamic_supervisor_test.exs:184:12
+nothing	ref	:sys	change_code	4	1	elixir/dynamic_supervisor_test.exs:185:18
+nothing	ref	:sys	resume	1	1	elixir/dynamic_supervisor_test.exs:186:18
+other	ref	:erlang	exit	2	1	elixir/dynamic_supervisor_test.exs:733:13
+no use	ref	DummyFunction	zero?	1	3	elixir/function_test.exs:39:26
+other	ref	Protocol	def	1	3	elixir/protocol_test.exs:14:7
+nothing	alias	Any	2	elixir/protocol_test.exs:32:27
+nothing	alias	Unknown	2	elixir/protocol_test.exs:69:37
+nothing	ref	Unknown	undefined	1	1	elixir/protocol_test.exs:72:17
+nothing	ref	ProtocolTest.Sample	impl_for	1	17	elixir/protocol_test.exs:86:26
+nothing	ref	:erlang	ports	0	1	elixir/protocol_test.exs:98:46
+nothing	alias	ProtocolTest.Sample.ProtocolTest.ImplStruct	1	elixir/protocol_test.exs:101:46
+nothing	alias	ProtocolTest.Sample.ProtocolTest.ImplStructExplicitFor	1	elixir/protocol_test.exs:102:57
+nothing	ref	ProtocolTest.WithAny	impl_for	1	5	elixir/protocol_test.exs:107:20
+nothing	alias	ProtocolTest.WithAny.Any	4	elixir/protocol_test.exs:107:49
+nothing	alias	ProtocolTest.WithAny.Map	2	elixir/protocol_test.exs:110:54
+other	alias	ProtocolTest.SampleDocsProto	2	elixir/protocol_test.exs:137:55
+nothing	ref	ProtocolTest.SampleDocsProto	__info__	1	1	elixir/protocol_test.exs:142:34
+nothing	alias	WithAll	2	elixir/protocol_test.exs:146:33
+nothing	ref	WithAll	ok	1	1	elixir/protocol_test.exs:150:15
+nothing	ref	ProtocolTest.Sample	__protocol__	1	4	elixir/protocol_test.exs:163:19
+nothing	ref	ProtocolTest.Sample	__info__	1	1	elixir/protocol_test.exs:167:19
+no use	ref	Access	get	2	6	elixir/protocol_test.exs:167:40
+nothing	ref	ProtocolTest.WithAny	__protocol__	1	4	elixir/protocol_test.exs:169:20
+nothing	ref	ProtocolTest.WithAny	__info__	1	1	elixir/protocol_test.exs:173:20
+nothing	alias	ProtocolTest.WithAny.ProtocolTest.ImplStruct	1	elixir/protocol_test.exs:275:12
+nothing	ref	ProtocolTest.WithAny.ProtocolTest.ImplStruct	__info__	1	1	elixir/protocol_test.exs:275:57
+no use	ref	Kernel	to_string	1	2	elixir/protocol_test.exs:368:45
+nothing	alias	ProtocolTest.Sample.Any	1	elixir/protocol_test.exs:368:55
+nothing	ref	:beam_lib	chunks	2	1	elixir/protocol_test.exs:391:24
+nothing	ref	:io	get_password	1	1	elixir/string_io_test.exs:257:16
+nothing	ref	:io	request	2	1	elixir/string_io_test.exs:284:9
+nothing	ref	:io	scan_erl_form	2	2	elixir/string_io_test.exs:384:18
+nothing	def	:elixir_struct_from_erlang_module	2	:elixir_struct_from_erlang_module:465
+nothing	def	BitwiseTest	36	BitwiseTest:3
+nothing	def	Date.RangeTest	20	Date.RangeTest:4
+nothing	def	Inspect.CustomProtocolTest.MissingImplementation	2	Inspect.CustomProtocolTest.MissingImplementation:938
+nothing	def	Inspect.Inspect.MapTest.StructWithoutOptions	2	Inspect.Inspect.MapTest.StructWithoutOptions:657
+nothing	def	Inspect.MapTest.Public	2	Inspect.MapTest.Public:442
+nothing	def	Inspect.OthersTest	12	Inspect.OthersTest:788
+nothing	def	Kernel.LexicalTrackerTest	29	Kernel.LexicalTrackerTest:3
+nothing	def	Kernel.TracersTest	14	Kernel.TracersTest:3
+nothing	def	Module.Types.MapTest	13	Module.Types.MapTest:3
+nothing	def	MyArgumentError	3	MyArgumentError:10
+nothing	def	ProtocolTest.Derivable.ProtocolTest.ImplStruct	2	ProtocolTest.Derivable.ProtocolTest.ImplStruct:66
+nothing	def	Task.SupervisorTest	44	Task.SupervisorTest:3
+nothing	def	TaskTest	152	TaskTest:3
+nothing	def	TimeTest	47	TimeTest:5
+nothing	def	ExUnit.CaptureIOTest	28	ExUnit.CaptureIOTest:3
+nothing	def	ExUnit.CaptureLogTest	9	ExUnit.CaptureLogTest:3
+nothing	def	ExUnit.DiffTest.User	2	ExUnit.DiffTest.User:10
+nothing	def	Inspect.ExUnit.DocTestTest.Haiku	1	Inspect.ExUnit.DocTestTest.Haiku:401
+nothing	def	IEx.AutocompleteTest.MyStruct	2	IEx.AutocompleteTest.MyStruct:370
+nothing	def	IEx.PryTest	27	IEx.PryTest:3
+nothing	def	IEx.ServerTest	17	IEx.ServerTest:3
+nothing	declaration	Kernel.ErrorsTest.ClauseWithDefaults	8	elixir/kernel/defaults_test.exs:61
+nothing	declaration	Kernel.DocsTest.DocAttributes	1	elixir/kernel/docs_test.exs:32
+nothing	declaration	Kernel.ErrorsTest.InvalidStructKey	2	elixir/kernel/errors_test.exs:257
+nothing	declaration	Tuple.Args	1	elixir/kernel/guard_test.exs:107
+nothing	declaration	RemoteUsage	1	elixir/kernel/guard_test.exs:183
+nothing	declaration	RuntimeListUsage	1	elixir/kernel/guard_test.exs:277
+nothing	declaration	CondUsage	1	elixir/kernel/guard_test.exs:401
+nothing	declaration	Sample.Protocol.ConsolidationTest.ImplStruct	1	elixir/protocol/consolidation_test.exs:36
+nothing	declaration	Sample.?	1	elixir/protocol_test.exs:220

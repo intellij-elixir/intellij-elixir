@@ -1,45 +1,33 @@
 # Elixir 1.11.4	shard 2
 kind	sub-kind	outcome	label	count
-ref	imported_function	matched	clause	5467
-ref	imported_function	no use	none	54
+ref	imported_function	matched	clause	1864
+ref	imported_function	no use	none	40
 ref	imported_function	nothing	none	5
-ref	imported_macro	matched	clause	7250
-ref	imported_macro	no use	none	884
-ref	local_function	matched	clause	1060
-ref	local_function	matched	delegation	7
-ref	local_function	matched	eex_function_from	1
-ref	local_function	no use	none	18
-ref	local_function	nothing	none	2
-ref	local_macro	matched	clause	123
-ref	local_macro	nothing	none	72
-ref	remote_function	matched	callback+clause	1
-ref	remote_function	matched	clause	2947
-ref	remote_function	matched	compiled	4
-ref	remote_function	matched	delegation	79
-ref	remote_function	matched	eex_function_from	2
+ref	imported_macro	matched	clause	2664
+ref	imported_macro	no use	none	309
+ref	local_function	matched	clause	283
+ref	local_function	no use	none	2
+ref	local_macro	matched	clause	4
+ref	remote_function	matched	clause	1444
+ref	remote_function	matched	delegation	17
 ref	remote_function	matched	exception	1
-ref	remote_function	no use	none	74
-ref	remote_function	other	none	11
-ref	remote_function	nothing	none	285
-ref	remote_macro	matched	clause	17
-ref	remote_macro	no use	none	70
-ref	remote_macro	nothing	none	7
-alias	-	matched	none	4338
-alias	-	other	none	79
-alias	-	nothing	none	146
-def	def	matched	clause	59
-def	def	nothing	none	1816
-def	defmacro	matched	clause	29
-def	defmacro	nothing	none	2
-def	defmacrop	matched	clause	19
-def	defmacrop	nothing	none	6
-def	defp	matched	clause	59
-def	defp	nothing	none	30
-declaration	def	matched	clause	68
-declaration	def	nothing	clause	30
-declaration	defmacro	matched	clause	29
-declaration	defmacro	nothing	clause	14
-declaration	defmacrop	matched	clause	22
-declaration	defmacrop	nothing	clause	2
-declaration	defp	matched	clause	61
-declaration	defp	nothing	clause	4
+ref	remote_function	no use	none	55
+ref	remote_function	other	none	3
+ref	remote_function	nothing	none	53
+ref	remote_macro	matched	clause	4
+ref	remote_macro	no use	none	34
+ref	remote_macro	nothing	none	1
+alias	-	matched	none	1849
+alias	-	other	none	31
+alias	-	nothing	none	36
+def	def	matched	clause	14
+def	def	nothing	none	926
+def	defmacro	matched	clause	4
+def	defmacro	nothing	none	1
+def	defp	matched	clause	31
+def	defp	nothing	none	16
+declaration	def	matched	clause	12
+declaration	def	nothing	clause	10
+declaration	defmacro	matched	clause	4
+declaration	defmacro	nothing	clause	4
+declaration	defp	matched	clause	33

@@ -1,0 +1,67 @@
+ref	matched	4546
+ref	no use	729
+ref	nothing	8
+alias	matched	1026
+alias	nothing	48
+def	matched	40
+def	nothing	385
+declaration	matched	33
+declaration	nothing	10
+no use	ref	Kernel	sigil_N	2	99	elixir/calendar/naive_datetime_test.exs:14:12
+no use	ref	Kernel	sigil_s	2	27	elixir/calendar/naive_datetime_test.exs:59:18
+no use	ref	Kernel	to_string	1	6	elixir/calendar/naive_datetime_test.exs:145:23
+no use	ref	Kernel	sigil_r	2	16	elixir/calendar/naive_datetime_test.exs:159:9
+no use	ref	Kernel	sigil_T	2	4	elixir/calendar/naive_datetime_test.exs:296:47
+no use	ref	Kernel	sigil_D	2	5	elixir/calendar/naive_datetime_test.exs:349:43
+no use	ref	Kernel	sigil_U	2	41	elixir/calendar_test.exs:98:27
+no use	ref	Kernel	sigil_c	2	509	elixir/code_fragment_test.exs:23:32
+no use	ref	Kernel	sigil_w	2	4	elixir/code_fragment_test.exs:578:22
+no use	ref	Kernel	sigil_S	2	16	elixir/code_fragment_test.exs:1302:20
+no use	ref	Kernel	@	1	1	elixir/gen_server_test.exs:118:3
+nothing	ref	:global	register_name	2	1	elixir/gen_server_test.exs:122:13
+nothing	ref	:binary	matches	2	2	elixir/io/ansi/docs_test.exs:34:22
+nothing	alias	Foo	1	elixir/io/ansi/docs_test.exs:57:25
+nothing	alias	RedefineSample	1	elixir/kernel/warning_test.exs:464:11
+nothing	alias	Sample1	16	elixir/kernel/warning_test.exs:656:12
+nothing	alias	Sample2	16	elixir/kernel/warning_test.exs:656:21
+nothing	alias	Sample3	7	elixir/kernel/warning_test.exs:656:30
+nothing	alias	Sample4	2	elixir/kernel/warning_test.exs:656:39
+nothing	alias	Sample5	2	elixir/kernel/warning_test.exs:656:48
+nothing	alias	UseSample	1	elixir/kernel/warning_test.exs:1121:11
+nothing	alias	EmptyBehaviour	1	elixir/kernel/warning_test.exs:1477:11
+nothing	alias	Sample1.Atom	1	elixir/kernel/warning_test.exs:1496:21
+no use	ref	Kernel.WarningTest	purge	1	1	elixir/kernel/warning_test.exs:2271:22
+nothing	ref	:code	purge	1	1	elixir/kernel/warning_test.exs:2275:11
+nothing	ref	:code	delete	1	1	elixir/kernel/warning_test.exs:2276:11
+nothing	ref	:erlang	list_to_pid	1	1	logger/logger/formatter_test.exs:182:21
+nothing	ref	:erlang	binary_to_term	1	1	logger/logger/formatter_test.exs:188:17
+nothing	ref	:erlang	list_to_port	1	1	logger/logger/formatter_test.exs:199:22
+nothing	def	Code.Formatter.GeneralTest	50	Code.Formatter.GeneralTest:7
+nothing	def	Code.Formatter.IntegrationTest	46	Code.Formatter.IntegrationTest:7
+nothing	def	EnumTest.Map	12	EnumTest.Map:2564
+nothing	def	GenServerTest	16	GenServerTest:7
+nothing	def	IO.ANSITest	27	IO.ANSITest:7
+nothing	def	Inspect.Inspect.MapTest.StructWithExceptOption	2	Inspect.Inspect.MapTest.StructWithExceptOption:744
+nothing	def	JSON.Encoder.JSONTest.Token	1	JSON.Encoder.JSONTest.Token:12
+nothing	def	Kernel.AliasNestingTest	6	Kernel.AliasNestingTest:91
+nothing	def	Kernel.ComprehensionTest.Pdict	2	Kernel.ComprehensionTest.Pdict:14
+nothing	def	Kernel.DefaultsTest	8	Kernel.DefaultsTest:6
+nothing	def	Kernel.GuardTest.UnquotedInGuardCall	1	Kernel.GuardTest.UnquotedInGuardCall:70
+nothing	def	Kernel.ParallelCompilerTest	27	Kernel.ParallelCompilerTest:9
+nothing	def	Kernel.QuoteTest	35	Kernel.QuoteTest:7
+nothing	def	Kernel.RaiseTest	43	Kernel.RaiseTest:7
+nothing	def	Kernel.WithTest	16	Kernel.WithTest:7
+nothing	def	String.Chars.NumberTest	5	String.Chars.NumberTest:46
+nothing	def	String.Chars.Version.RequirementTest	4	String.Chars.Version.RequirementTest:82
+nothing	def	SystemTest	44	SystemTest:7
+nothing	def	ExUnit.CaseTest.GetLastRegisteredTestTest	8	ExUnit.CaseTest.GetLastRegisteredTestTest:279
+nothing	def	ExUnit.DocTestTest.Haiku	2	ExUnit.DocTestTest.Haiku:406
+nothing	def	ExUnit.SupervisedTest	17	ExUnit.SupervisedTest:7
+nothing	def	Logger.UtilsTest	13	Logger.UtilsTest:5
+nothing	declaration	ExceptionTest.ImplementationWithOptional	1	elixir/exception_test.exs:707
+nothing	declaration	Kernel.GuardTest.UnquotedInGuardCall	1	elixir/kernel/guard_test.exs:70
+nothing	declaration	IntegerPrivateGuardUtils	2	elixir/kernel/guard_test.exs:177
+nothing	declaration	UndefinedUsage	1	elixir/kernel/guard_test.exs:283
+nothing	declaration	MapTest.LocalPoint	2	elixir/map_test.exs:460
+nothing	declaration	SampleDocsProto.Map	1	elixir/protocol_test.exs:165
+nothing	declaration	M	2	elixir/record_test.exs:327

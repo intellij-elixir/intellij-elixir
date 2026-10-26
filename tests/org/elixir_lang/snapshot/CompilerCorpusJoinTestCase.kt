@@ -305,7 +305,7 @@ abstract class CompilerCorpusJoinTestCase internal constructor(
     }
 
     companion object {
-        const val SHARDS = 4
+        const val SHARDS = 12
         private const val NANOS_PER_MILLI = 1_000_000
         private const val NO_FINAL_NEWLINE = "(no newline at the end)"
         private val SOURCES = VirtualFileFilter { it.isDirectory || it.extension in setOf("ex", "exs") }
@@ -362,37 +362,109 @@ abstract class CompilerCorpusJoinTestCase internal constructor(
 }
 
 @Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
-class CompilerCorpusJoinShard0Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
+class CompilerCorpusJoinShard00Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
     CompilerCorpusJoinTestCase(0, fixture, case) {
     companion object {
         @JvmStatic
-        fun suite(): Test = suite(0, CompilerCorpusJoinShard0Test::class.java, ::CompilerCorpusJoinShard0Test)
+        fun suite(): Test = suite(0, CompilerCorpusJoinShard00Test::class.java, ::CompilerCorpusJoinShard00Test)
     }
 }
 
 @Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
-class CompilerCorpusJoinShard1Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
+class CompilerCorpusJoinShard01Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
     CompilerCorpusJoinTestCase(1, fixture, case) {
     companion object {
         @JvmStatic
-        fun suite(): Test = suite(1, CompilerCorpusJoinShard1Test::class.java, ::CompilerCorpusJoinShard1Test)
+        fun suite(): Test = suite(1, CompilerCorpusJoinShard01Test::class.java, ::CompilerCorpusJoinShard01Test)
     }
 }
 
 @Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
-class CompilerCorpusJoinShard2Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
+class CompilerCorpusJoinShard02Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
     CompilerCorpusJoinTestCase(2, fixture, case) {
     companion object {
         @JvmStatic
-        fun suite(): Test = suite(2, CompilerCorpusJoinShard2Test::class.java, ::CompilerCorpusJoinShard2Test)
+        fun suite(): Test = suite(2, CompilerCorpusJoinShard02Test::class.java, ::CompilerCorpusJoinShard02Test)
     }
 }
 
 @Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
-class CompilerCorpusJoinShard3Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
+class CompilerCorpusJoinShard03Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
     CompilerCorpusJoinTestCase(3, fixture, case) {
     companion object {
         @JvmStatic
-        fun suite(): Test = suite(3, CompilerCorpusJoinShard3Test::class.java, ::CompilerCorpusJoinShard3Test)
+        fun suite(): Test = suite(3, CompilerCorpusJoinShard03Test::class.java, ::CompilerCorpusJoinShard03Test)
+    }
+}
+
+@Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
+class CompilerCorpusJoinShard04Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
+    CompilerCorpusJoinTestCase(4, fixture, case) {
+    companion object {
+        @JvmStatic
+        fun suite(): Test = suite(4, CompilerCorpusJoinShard04Test::class.java, ::CompilerCorpusJoinShard04Test)
+    }
+}
+
+@Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
+class CompilerCorpusJoinShard05Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
+    CompilerCorpusJoinTestCase(5, fixture, case) {
+    companion object {
+        @JvmStatic
+        fun suite(): Test = suite(5, CompilerCorpusJoinShard05Test::class.java, ::CompilerCorpusJoinShard05Test)
+    }
+}
+
+@Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
+class CompilerCorpusJoinShard06Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
+    CompilerCorpusJoinTestCase(6, fixture, case) {
+    companion object {
+        @JvmStatic
+        fun suite(): Test = suite(6, CompilerCorpusJoinShard06Test::class.java, ::CompilerCorpusJoinShard06Test)
+    }
+}
+
+@Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
+class CompilerCorpusJoinShard07Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
+    CompilerCorpusJoinTestCase(7, fixture, case) {
+    companion object {
+        @JvmStatic
+        fun suite(): Test = suite(7, CompilerCorpusJoinShard07Test::class.java, ::CompilerCorpusJoinShard07Test)
+    }
+}
+
+@Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
+class CompilerCorpusJoinShard08Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
+    CompilerCorpusJoinTestCase(8, fixture, case) {
+    companion object {
+        @JvmStatic
+        fun suite(): Test = suite(8, CompilerCorpusJoinShard08Test::class.java, ::CompilerCorpusJoinShard08Test)
+    }
+}
+
+@Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
+class CompilerCorpusJoinShard09Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
+    CompilerCorpusJoinTestCase(9, fixture, case) {
+    companion object {
+        @JvmStatic
+        fun suite(): Test = suite(9, CompilerCorpusJoinShard09Test::class.java, ::CompilerCorpusJoinShard09Test)
+    }
+}
+
+@Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
+class CompilerCorpusJoinShard10Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
+    CompilerCorpusJoinTestCase(10, fixture, case) {
+    companion object {
+        @JvmStatic
+        fun suite(): Test = suite(10, CompilerCorpusJoinShard10Test::class.java, ::CompilerCorpusJoinShard10Test)
+    }
+}
+
+@Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
+class CompilerCorpusJoinShard11Test private constructor(fixture: SharedFixture<CompilerCorpusJoinTestCase>?, case: Case?) :
+    CompilerCorpusJoinTestCase(11, fixture, case) {
+    companion object {
+        @JvmStatic
+        fun suite(): Test = suite(11, CompilerCorpusJoinShard11Test::class.java, ::CompilerCorpusJoinShard11Test)
     }
 }

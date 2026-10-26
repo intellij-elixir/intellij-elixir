@@ -1,0 +1,66 @@
+ref	matched	4227
+ref	no use	660
+ref	nothing	8
+alias	matched	968
+alias	nothing	51
+def	matched	37
+def	nothing	363
+declaration	matched	31
+declaration	nothing	11
+no use	ref	Kernel	sigil_N	2	98	elixir/calendar/naive_datetime_test.exs:10:12
+no use	ref	Kernel	sigil_s	2	24	elixir/calendar/naive_datetime_test.exs:55:18
+no use	ref	Kernel	to_string	1	5	elixir/calendar/naive_datetime_test.exs:138:23
+no use	ref	Kernel	sigil_r	2	21	elixir/calendar/naive_datetime_test.exs:152:9
+no use	ref	Kernel	sigil_T	2	4	elixir/calendar/naive_datetime_test.exs:289:47
+no use	ref	Kernel	sigil_D	2	5	elixir/calendar/naive_datetime_test.exs:342:43
+no use	ref	Kernel	sigil_U	2	34	elixir/calendar_test.exs:95:27
+no use	ref	Kernel	sigil_c	2	447	elixir/code_fragment_test.exs:20:32
+no use	ref	Kernel	sigil_w	2	4	elixir/code_fragment_test.exs:491:22
+no use	ref	Kernel	sigil_S	2	16	elixir/code_fragment_test.exs:1133:20
+no use	ref	Kernel	@	1	1	elixir/gen_server_test.exs:114:3
+nothing	ref	:global	register_name	2	1	elixir/gen_server_test.exs:118:13
+nothing	ref	:binary	matches	2	2	elixir/io/ansi/docs_test.exs:30:22
+nothing	alias	Foo	1	elixir/io/ansi/docs_test.exs:53:25
+nothing	alias	RedefineSample	1	elixir/kernel/warning_test.exs:452:11
+nothing	alias	Sample1	17	elixir/kernel/warning_test.exs:644:12
+nothing	alias	Sample2	17	elixir/kernel/warning_test.exs:644:21
+nothing	alias	Sample3	7	elixir/kernel/warning_test.exs:644:30
+nothing	alias	Sample4	2	elixir/kernel/warning_test.exs:644:39
+nothing	alias	Sample5	2	elixir/kernel/warning_test.exs:644:48
+nothing	alias	UseSample	1	elixir/kernel/warning_test.exs:1098:11
+nothing	alias	EmptyBehaviour	1	elixir/kernel/warning_test.exs:1485:11
+nothing	alias	Sample1.Atom	1	elixir/kernel/warning_test.exs:1504:21
+nothing	alias	TestMod	1	elixir/kernel/warning_test.exs:2225:11
+no use	ref	Kernel.WarningTest	purge	1	1	elixir/kernel/warning_test.exs:2260:22
+nothing	ref	:code	delete	1	1	elixir/kernel/warning_test.exs:2264:11
+nothing	ref	:code	purge	1	1	elixir/kernel/warning_test.exs:2265:11
+nothing	ref	:erlang	list_to_pid	1	1	logger/logger/formatter_test.exs:138:21
+nothing	ref	:erlang	binary_to_term	1	1	logger/logger/formatter_test.exs:144:17
+nothing	ref	:erlang	list_to_port	1	1	logger/logger/formatter_test.exs:155:22
+nothing	def	Code.Formatter.GeneralTest	49	Code.Formatter.GeneralTest:3
+nothing	def	Code.Formatter.IntegrationTest	44	Code.Formatter.IntegrationTest:3
+nothing	def	EnumTest.Map	10	EnumTest.Map:2406
+nothing	def	GenServerTest	15	GenServerTest:3
+nothing	def	IO.ANSITest	26	IO.ANSITest:3
+nothing	def	Inspect.Inspect.MapTest.StructWithExceptOption	2	Inspect.Inspect.MapTest.StructWithExceptOption:707
+nothing	def	Kernel.AliasNestingTest	4	Kernel.AliasNestingTest:87
+nothing	def	Kernel.ComprehensionTest.Pdict	2	Kernel.ComprehensionTest.Pdict:10
+nothing	def	Kernel.DefaultsTest	7	Kernel.DefaultsTest:3
+nothing	def	Kernel.ParallelCompilerTest	25	Kernel.ParallelCompilerTest:5
+nothing	def	Kernel.QuoteTest	34	Kernel.QuoteTest:3
+nothing	def	Kernel.RaiseTest	43	Kernel.RaiseTest:3
+nothing	def	Kernel.WithTest	15	Kernel.WithTest:3
+nothing	def	String.Chars.NumberTest	4	String.Chars.NumberTest:42
+nothing	def	String.Chars.Version.RequirementTest	3	String.Chars.Version.RequirementTest:78
+nothing	def	SystemTest	43	SystemTest:3
+nothing	def	ExUnit.CaseTest.GetLastRegisteredTestTest	7	ExUnit.CaseTest.GetLastRegisteredTestTest:289
+nothing	def	ExUnit.DocTestTest.Haiku	2	ExUnit.DocTestTest.Haiku:402
+nothing	def	ExUnit.SupervisedTest	16	ExUnit.SupervisedTest:3
+nothing	def	Logger.UtilsTest	12	Logger.UtilsTest:1
+nothing	declaration	ExceptionTest.ImplementationWithOptional	1	elixir/exception_test.exs:665
+nothing	declaration	IntegerPrivateGuardUtils	2	elixir/kernel/guard_test.exs:161
+nothing	declaration	UndefinedUsage	1	elixir/kernel/guard_test.exs:267
+nothing	declaration	MapTest.LocalPoint	2	elixir/map_test.exs:459
+nothing	declaration	ModuleTest.LastDefinition	2	elixir/module_test.exs:138
+nothing	declaration	SampleDocsProto.Map	1	elixir/protocol_test.exs:146
+nothing	declaration	M	2	elixir/record_test.exs:323

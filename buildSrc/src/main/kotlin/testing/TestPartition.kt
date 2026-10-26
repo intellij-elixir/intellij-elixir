@@ -32,10 +32,7 @@ object TestPartition {
         "org.elixir_lang.expander.InterpreterTest",
         "org.elixir_lang.expander.VariableClassProbeTest",
         "org.elixir_lang.parser_definition.Issue4114TestCase",
-        "org.elixir_lang.snapshot.CompilerCorpusJoinShard0Test",
-        "org.elixir_lang.snapshot.CompilerCorpusJoinShard1Test",
-        "org.elixir_lang.snapshot.CompilerCorpusJoinShard2Test",
-        "org.elixir_lang.snapshot.CompilerCorpusJoinShard3Test",
+        "org.elixir_lang.snapshot.CompilerCorpusJoinShard*Test",
     )
 
     /**
