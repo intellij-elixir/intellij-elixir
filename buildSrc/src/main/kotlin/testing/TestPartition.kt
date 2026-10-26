@@ -27,7 +27,7 @@ object TestPartition {
     val HEAVY: List<String> = listOf(
         "org.elixir_lang.annotator.VersionedSyntaxTest",
         "org.elixir_lang.beam.SdkStdlibSweepTest",
-        "org.elixir_lang.code_insight.completion.code_fragment.CodeFragmentOracleTest",
+        "org.elixir_lang.code_insight.completion.code_fragment.CodeFragmentOracleShard*Test",
         "org.elixir_lang.expander.CompiledModuleTest",
         "org.elixir_lang.expander.InterpreterTest",
         "org.elixir_lang.expander.VariableClassProbeTest",
