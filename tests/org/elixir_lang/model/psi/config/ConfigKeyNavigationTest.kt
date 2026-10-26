@@ -82,6 +82,30 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
         assertEquals(listOf("config/config.exs:3"), destinations())
     }
 
+    fun testReadThroughAnAliasOfApplicationGoesToSetting() {
+        myFixture.caret(ALIASED, "App.get_env(:my_app, :gree<caret>ting)")
+
+        assertEquals(listOf("config/config.exs:3"), destinations())
+    }
+
+    fun testPipedKeyReadGoesToSetting() {
+        myFixture.caret(ALIASED, ":gree<caret>ting |> :application.get_env()")
+
+        assertEquals(listOf("config/config.exs:3"), destinations())
+    }
+
+    fun testAHeadDefiningAnImportedReadsNameGoesNowhere() {
+        myFixture.caret("lib/my_app/imported.ex", "def get_env(:my_app, :gree<caret>ting)")
+
+        assertEquals(GtduNavigation.None, myFixture.gtduNavigationAtCaret())
+    }
+
+    fun testAnotherModulesGetEnvKeyGoesNowhere() {
+        myFixture.caret(ALIASED, "Fake.get_env(:my_app, :gree<caret>ting)")
+
+        assertEquals(GtduNavigation.None, myFixture.gtduNavigationAtCaret())
+    }
+
     // setting to reads
 
     fun testConfig2KeyShowsReads() {
@@ -163,6 +187,7 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
         }
 
     private companion object {
+        const val ALIASED = "lib/my_app/aliased.ex"
         const val CONFIG = "config/config.exs"
         const val DEV = "config/dev.exs"
         const val REPO = "lib/my_app/repo.ex"
