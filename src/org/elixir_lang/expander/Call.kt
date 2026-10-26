@@ -546,7 +546,7 @@ private fun queueEffect(
     }
     val evaluated = { bindings: HashMap<Binding, OtpErlangObject> ->
         (arguments(bindings) as? ArgumentValues.Evaluated)?.let {
-            ModuleEffects.of(receiver, name, it.terms, nodes, module, run.level)
+            ModuleEffects.of(receiver, name, it.terms, nodes, module, run.level, it.values)
         }
     }
 
@@ -582,7 +582,8 @@ private fun queueEffect(
 
 /** A call's arguments, evaluated where the walk reaches it. */
 internal sealed interface ArgumentValues {
-    class Evaluated(val terms: List<Term>) : ArgumentValues
+    /** @property values what the evaluator gave for each of [terms] that a [Term] can't hold, where it did */
+    class Evaluated(val terms: List<Term>, val values: List<OtpErlangObject?>) : ArgumentValues
 
     /** Evaluating one of them raises or stops, ending the module body with [expansion]. */
     class Raised(val expansion: Expansion) : ArgumentValues
@@ -590,7 +591,7 @@ internal sealed interface ArgumentValues {
 
 /**
  * [terms], the values [nodes] expanded to, each one that isn't known evaluated from the values [compiling]'s body has
- * bound, or kept where the evaluator can't produce it.
+ * bound, or kept where the evaluator can't produce it or a [Term] can't hold what it produces.
  */
 internal fun evaluatedArguments(
     terms: List<Term>,
@@ -602,10 +603,12 @@ internal fun evaluatedArguments(
     bindings: HashMap<Binding, OtpErlangObject> = compiling.values.bindings,
 ): ArgumentValues {
     val evaluated = ArrayList<Term>(terms.size)
+    val values = ArrayList<OtpErlangObject?>(terms.size)
 
     for ((term, node) in terms.zip(nodes)) {
         if (AttributeValue.of(term) is AttributeValue.Known) {
             evaluated += term
+            values += null
             continue
         }
 
@@ -613,11 +616,18 @@ internal fun evaluatedArguments(
 
         value.error(node)?.let { return ArgumentValues.Raised(it) }
 
-        evaluated += (value as? Evaluated.Value)?.let { termOf(it.value) }
-            ?.takeIf { AttributeValue.of(it) is AttributeValue.Known } ?: term
+        if (value is Evaluated.Value) {
+            val known = termOf(value.value).takeIf { AttributeValue.of(it) is AttributeValue.Known }
+
+            evaluated += known ?: term
+            values += value.value.takeIf { known == null }
+        } else {
+            evaluated += term
+            values += null
+        }
     }
 
-    return ArgumentValues.Evaluated(evaluated)
+    return ArgumentValues.Evaluated(evaluated, values)
 }
 
 /**

@@ -1,7 +1,11 @@
 package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProgressManager
+import com.ericsson.otp.erlang.OtpErlangList
+import com.ericsson.otp.erlang.OtpErlangObject
 import org.elixir_lang.NameArity
+import org.elixir_lang.expander.interpreter.holdsUnknown
+import org.elixir_lang.expander.interpreter.otpOf
 import org.elixir_lang.language_level.ElixirLanguageFeature.AFTER_VERIFY_ACCUMULATES
 import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTES_EXPANDED_LAZILY
 import org.elixir_lang.language_level.ElixirLanguageFeature.BEHAVIOUR_VALUE_CHECKED
@@ -16,11 +20,22 @@ import java.math.BigInteger
 internal sealed interface AttributeValue {
     data class Known(val term: Term) : AttributeValue
 
+    /** A value a [Term] can't hold, such as a map, a float or a fun, as the evaluator gave it. */
+    class Held(val value: OtpErlangObject) : AttributeValue
+
     data object Unknown : AttributeValue
 
     companion object {
-        /** [term] when it is exact: no node, no non-tuple and no binary of unknown content anywhere in it. */
-        fun of(term: Term): AttributeValue = if (term.isExact()) Known(term) else Unknown
+        /**
+         * [term] when it is exact: no node, no non-tuple and no binary of unknown content anywhere in it. Otherwise
+         * [value], what the evaluator gave for it, where it holds nothing unknown.
+         */
+        fun of(term: Term, value: OtpErlangObject? = null): AttributeValue =
+            when {
+                term.isExact() -> Known(term)
+                value != null && !holdsUnknown(value) -> Held(value)
+                else -> Unknown
+            }
     }
 }
 
@@ -50,8 +65,12 @@ private fun Term.isShaped(contentKnown: Boolean = false): Boolean {
 
 /** What a call in a module body does to that module's attributes when the body runs. */
 internal sealed interface Effect {
-    /** `Module.__put_attribute__/4,5`, which `@name value` builds, or `Module.put_attribute/3`. */
-    data class Write(val name: String, val value: Term) : Effect
+    /**
+     * `Module.__put_attribute__/4,5`, which `@name value` builds, or `Module.put_attribute/3`.
+     *
+     * @property held what the evaluator gave for [value], where it did
+     */
+    data class Write(val name: String, val value: Term, val held: OtpErlangObject? = null) : Effect
 
     /** `Module.register_attribute/3`, with its `accumulate:` option, or `null` where that isn't known. */
     data class Register(val name: String, val accumulate: Boolean?) : Effect
@@ -142,7 +161,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
         if (!statement) return applyElsewhere(effect)
 
         return when (effect) {
-            is Effect.Write -> write(effect.name, effect.value)
+            is Effect.Write -> write(effect.name, effect.value, effect.held)
             is Effect.Register -> EffectOutcome.Stored.also { register(effect.name, effect.accumulate) }
             is Effect.Delete -> EffectOutcome.Stored.also { delete(effect.name) }
             is Effect.TypespecWrite -> EffectOutcome.Stored.also {
@@ -183,11 +202,14 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
         CALLBACKS[name]?.takeIf { name != "after_verify" || AFTER_VERIFY_ACCUMULATES.isSufficient(level) }
 
     /** What `@name` in a definition injects at this point (`K:3815–3828`). */
-    fun read(name: String): Term =
+    fun read(name: String): AttributeValue =
         when (val value = value(name)) {
-            is AttributeValue.Known ->
-                value.term.let { term -> if (name in DOCS && term is Term.Pair) term.second else term }
-            AttributeValue.Unknown -> Term.Unexpanded
+            is AttributeValue.Known -> {
+                val term = value.term
+
+                if (name in DOCS && term is Term.Pair) AttributeValue.Known(term.second) else value
+            }
+            is AttributeValue.Held, AttributeValue.Unknown -> value
         }
 
     /** An attribute's row, as `Module`'s `get_attribute` finds it. */
@@ -328,18 +350,31 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
         return when (val entry = entries[name]) {
             null, Entry.Unset -> AttributeValue.Known(NIL)
             is Entry.Set -> entry.value
-            is Entry.Accumulate ->
-                entry.values
-                    .asReversed()
-                    .map { (it as? AttributeValue.Known)?.term ?: return AttributeValue.Unknown }
-                    .let { AttributeValue.Known(Term.List(it)) }
+            is Entry.Accumulate -> accumulated(entry.values.asReversed())
         }
+    }
+
+    /** The list of [values]: held where one of them is ([AttributeValue.Held]), unknown where one is. */
+    private fun accumulated(values: List<AttributeValue>): AttributeValue {
+        if (values.all { it is AttributeValue.Known }) {
+            return AttributeValue.Known(Term.List(values.map { (it as AttributeValue.Known).term }))
+        }
+
+        val elements = values.map {
+            when (it) {
+                is AttributeValue.Known -> otpOf(it.term)
+                is AttributeValue.Held -> it.value
+                AttributeValue.Unknown -> return AttributeValue.Unknown
+            }
+        }
+
+        return AttributeValue.Held(OtpErlangList(elements.toTypedArray()))
     }
 
     private fun applyElsewhere(effect: Effect): EffectOutcome =
         when (effect) {
             is Effect.Write -> {
-                val prepared = prepare(effect.name, effect.value, statement = false)
+                val prepared = prepare(effect.name, effect.value, effect.held, statement = false)
 
                 mayChange(effect.name)
 
@@ -394,8 +429,8 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
         everyChanged = true
     }
 
-    private fun write(name: String, term: Term): EffectOutcome =
-        when (val prepared = prepare(name, term, statement = true)) {
+    private fun write(name: String, term: Term, held: OtpErlangObject?): EffectOutcome =
+        when (val prepared = prepare(name, term, held, statement = true)) {
             Prepared.Raise -> EffectOutcome.Raises(INVALID_ATTRIBUTE_VALUE)
             is Prepared.Metadata -> if (prepared.checked) EffectOutcome.Stored else EffectOutcome.Unchecked
             is Prepared.Store.Checked -> EffectOutcome.Stored.also { store(name, prepared.value) }
@@ -437,9 +472,12 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
             Walk.CRASHES -> Prepared.Store.Unchecked(AttributeValue.of(term))
         }
 
-    /** `Module.put_attribute/7`'s clauses and `preprocess_attribute/2` (`Mod:2138–2345`). */
-    private fun prepare(name: String, term: Term, statement: Boolean): Prepared {
-        val value = AttributeValue.of(term)
+    /**
+     * `Module.put_attribute/7`'s clauses and `preprocess_attribute/2` (`Mod:2138–2345`), of [term], or [held] where the
+     * evaluator gave it.
+     */
+    private fun prepare(name: String, term: Term, held: OtpErlangObject?, statement: Boolean): Prepared {
+        val value = AttributeValue.of(term, held)
 
         return when {
             name == "on_load" -> prepareOnLoad(value, statement)

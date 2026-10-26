@@ -1043,7 +1043,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             module Elixir.A compiled
               write x node `@x self()`
               read x in def r_x/0: unexpanded
-              final x: unknown
+              final x: held #Pid<nonode@nohost.0.0>
             """.trimIndent(),
         )
 
@@ -2273,6 +2273,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
     private fun render(value: AttributeValue): String =
         when (value) {
             is AttributeValue.Known -> render(value.term)
+            is AttributeValue.Held -> "held ${value.value}"
             AttributeValue.Unknown -> "unknown"
         }
 

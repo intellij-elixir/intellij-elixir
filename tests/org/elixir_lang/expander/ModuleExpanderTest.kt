@@ -914,12 +914,14 @@ class ModuleExpanderTest : ExpanderTestCase() {
         assertCancelledAt("($bitstrings :erlang.<(a, b))", uncompared + bits / 2)
     }
 
-    /** A macro ordering such a list is cancelled while it walks it for an unknown value. */
-    fun testAComparedTermIsCancelledAsItIsWalked() {
+    /** A macro ordering such a list walks each of its shared parts once for an unknown value. */
+    fun testAComparedTermIsWalkedInBoundedWork() {
         // Building the list makes most of the checks, so the walk's are counted from the same body's not ordering it.
         val unwalked = checks("($TREE :erlang.is_list(t))")
+        val walked = checks("($TREE :erlang.<(t, {:a}))") - unwalked
 
-        assertCancelledAt("($TREE :erlang.<(t, {:a}))", unwalked + (1 shl DOUBLINGS) / 2)
+        // A walk of each part where it appears would check each of the list's leaves.
+        assertTrue("$walked checks", walked < (1 shl DOUBLINGS) / 2)
     }
 
     /** A macro keying a map by such a list is cancelled while it looks in the key for a function. */

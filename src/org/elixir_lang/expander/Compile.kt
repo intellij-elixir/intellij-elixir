@@ -1647,7 +1647,7 @@ private fun callbacks(compiling: Compiling): List<Term>? =
     when (val value = compiling.attributes.final["before_compile"]) {
         null -> emptyList()
         is AttributeValue.Known -> (value.term as? Term.List)?.elements?.asReversed()
-        AttributeValue.Unknown -> null
+        is AttributeValue.Held, AttributeValue.Unknown -> null
     }
 
 /**

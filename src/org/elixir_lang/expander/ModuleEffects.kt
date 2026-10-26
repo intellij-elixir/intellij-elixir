@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangObject
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTES_EXPANDED_LAZILY
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_DELETE_DEFINITION
@@ -35,13 +36,19 @@ internal object ModuleEffects {
     private class Row(
         val unknownReceiver: Change,
         val target: Int = 0,
-        val change: (module: String, args: List<Term>, nodes: List<ElixirAst>) -> Change?,
+        val change: (module: String, args: Arguments, nodes: List<ElixirAst>) -> Change?,
     )
+
+    /** A call's arguments: [terms], and [values], what the evaluator gave for each where it did. */
+    private class Arguments(val terms: List<Term>, val values: List<OtpErlangObject?>) {
+        operator fun get(index: Int): Term = terms[index]
+    }
 
     /**
      * What a call in [module]'s body of [receiver]'s [name] with [args], expanded from [nodes], does: `null` for
-     * nothing, as for a call of a function that changes no module. A receiver that isn't known at expansion may be any
-     * row's with the call's name and arity, so the call does the most any of them does through one: a remover's stops.
+     * nothing, as for a call of a function that changes no module. [values] are what the evaluator gave for [args],
+     * where it did. A receiver that isn't known at expansion may be any row's with the call's name and arity, so the
+     * call does the most any of them does through one: a remover's stops.
      */
     fun of(
         receiver: Term,
@@ -50,6 +57,7 @@ internal object ModuleEffects {
         nodes: List<ElixirAst>,
         module: String,
         level: ElixirLanguageLevel,
+        values: List<OtpErlangObject?> = emptyList(),
     ): Change? {
         val rows = rows(level)
         val key = (receiver as? Term.Atom)?.let { Triple(it.name, name, args.size) }
@@ -57,7 +65,7 @@ internal object ModuleEffects {
                 .map(Row::unknownReceiver)
                 .let { changes -> changes.firstOrNull { it is Change.Definitions } ?: changes.firstOrNull() }
 
-        return rows[key]?.change(module, args, nodes)
+        return rows[key]?.change(module, Arguments(args, values), nodes)
     }
 
     /**
@@ -82,7 +90,7 @@ internal object ModuleEffects {
         }
 
     /** `Module`'s attribute functions take the module first and the attribute second (`Mod:1595`, `:1729`, `:1782`). */
-    private fun attributeCall(effect: (name: String, args: List<Term>) -> Effect) =
+    private fun attributeCall(effect: (name: String, args: Arguments) -> Effect) =
         Row(UNKNOWN_MODULE) { module, args, _ ->
             targeting(args[0], module) { named(args[1]) { effect(it, args) } }
         }
@@ -94,7 +102,7 @@ internal object ModuleEffects {
 
     private val UNKNOWN_MODULE = Change.Attributes(Effect.OtherModule(null, Effect.UnknownEffect))
 
-    private val WRITE = attributeCall { name, args -> Effect.Write(name, args[2]) }
+    private val WRITE = attributeCall { name, args -> Effect.Write(name, args[2], args.values.getOrNull(2)) }
 
     private val REGISTER = attributeCall { name, args -> Effect.Register(name, accumulate(args[2])) }
 

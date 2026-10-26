@@ -1372,7 +1372,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "delete_definition" -> bool(definitionOf(args[1])?.let { run.compiling.getValue(target).defines(it, null) } == true)
             else -> atom("ok")
         }
-        val change = ModuleEffects.of(Term.Atom(receiver), function, args.map(::termOf), emptyList(), module, level)
+        val change = ModuleEffects.of(Term.Atom(receiver), function, args.map(::termOf), emptyList(), module, level, args)
             ?: decline("$receiver:$key changes no module")
         val at = evaluation.call
         val statement = compiling.values.certainHere()
@@ -1572,6 +1572,7 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun valueOf(row: AttributeTable.Lookup.Holds, args: List<OtpErlangObject>): OtpErlangObject =
         when (val value = row.value) {
             is AttributeValue.Known -> evaluation.otpOf(value.term)
+            is AttributeValue.Held -> evaluation.held(value.value)
             AttributeValue.Unknown -> decline("the value of %s's %s isn't known", args[0], args[1])
         }
 

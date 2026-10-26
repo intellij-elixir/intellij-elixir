@@ -1007,20 +1007,17 @@ internal class Evaluation(
         return DefinitionTable.Kind.entries.find { it.name.lowercase() == kind }?.let { Dispatched.Super(it, name) }
     }
 
-    /** An attribute's [value], as the escaped value `@` gives in a function evaluates to. */
-    fun otpOf(value: Term): OtpErlangObject {
-        ProgressManager.checkCanceled()
+    /** An attribute's [value], as the escaped value `@` gives in a function evaluates to, its atoms seen. */
+    fun otpOf(value: Term): OtpErlangObject = otpOf(value) { atoms += it }
 
-        return when (value) {
-            is Term.Atom -> atom(value.name).also { atoms += value.name }
-            is Term.Integer -> integer(value.value)
-            is Term.Binary -> value.bytes?.let(::OtpErlangBinary) ?: UnknownBinary
-            is Term.List -> cons(value.elements.map(::otpOf), value.tail?.let(::otpOf) ?: EMPTY)
-            is Term.Pair -> tuple(otpOf(value.first), otpOf(value.second))
-            is Term.Tuple -> OtpErlangTuple(value.elements.map(::otpOf).toTypedArray())
-            else -> Unknown
+    /** An attribute's [value] that a [Term] can't hold, as the table keeps it, its atoms seen. */
+    fun held(value: OtpErlangObject): OtpErlangObject =
+        value.also {
+            anyHeld(listOf(it)) { term ->
+                if (term is OtpErlangAtom) atoms += term.atomValue()
+                false
+            }
         }
-    }
 
     /** A call of a function of the clause's own module. */
     private fun local(name: String, args: List<ElixirAst>, frame: Frame): OtpErlangObject {
