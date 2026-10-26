@@ -2,6 +2,7 @@ package org.elixir_lang.model.psi.config
 
 import com.intellij.openapi.project.DumbService
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.expander.EnvAtom
 import org.elixir_lang.expander.ImportMatch
@@ -52,16 +53,42 @@ internal object KeyAtom {
             }
         }
 
-    private class Expanded(val indexed: ProjectModules.Indexed, val inputs: ProjectModules.Inputs, val holder: ProjectModules)
+    /**
+     * What this object's answers for [file]'s elements depend on beyond [file]'s own text: its expansion's env index,
+     * the same object while what the expansion read is unchanged, or [Unexpanded] for a file nothing expands; `null` in
+     * dumb mode and where its SDK gives no inputs, which may yet change.
+     */
+    @RequiresReadLock
+    fun basis(file: PsiFile): Any? =
+        when (val expansion = expansion(file)) {
+            is Expanded -> expansion.indexed.envs
+            else -> expansion
+        }
+
+    /** How a file's elements are named: through its [Expanded] expansion, or, for a file nothing expands, from its text alone. */
+    private sealed interface Expansion
+
+    private data object Unexpanded : Expansion
+
+    private class Expanded(val indexed: ProjectModules.Indexed, val inputs: ProjectModules.Inputs, val holder: ProjectModules) : Expansion
 
     @RequiresReadLock
-    private fun expanded(element: PsiElement): Expanded? {
-        val file = element.containingFile as? ElixirFile ?: return null
+    private fun expanded(element: PsiElement): Expanded? = element.containingFile?.let(::expansion) as? Expanded
+
+    /** [file]'s expansion; `null` in dumb mode and where its SDK gives no inputs. */
+    @RequiresReadLock
+    private fun expansion(file: PsiFile): Expansion? {
         val project = file.project
         if (DumbService.isDumb(project)) return null
-        val inputs = (SdkInputs.getInstance(project).inputsFor(file) as? SdkInputs.Answer.Ready)?.inputs ?: return null
-        val holder = ProjectModules.getInstance(project)
 
-        return Expanded(holder.indexed(file, inputs), inputs, holder)
+        return when (val answer = SdkInputs.getInstance(project).inputsFor(file)) {
+            is SdkInputs.Answer.Ready -> (file as? ElixirFile)?.let {
+                val holder = ProjectModules.getInstance(project)
+
+                Expanded(holder.indexed(it, answer.inputs), answer.inputs, holder)
+            }
+            SdkInputs.Answer.Template -> Unexpanded
+            else -> null
+        }
     }
 }

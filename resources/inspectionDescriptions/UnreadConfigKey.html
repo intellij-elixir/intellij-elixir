@@ -1,0 +1,10 @@
+<html>
+<body>
+<p>Reports a key that a config file sets for the project's own application and that no code reads.</p>
+<!-- tooltip end -->
+<p>A key counts as read when code reads it with <code>Application.get_env/2,3</code>, <code>fetch_env/2</code>, <code>fetch_env!/2</code>, <code>compile_env/2,3,4</code>, <code>compile_env!/2,3</code> or <code>:application.get_env/1,2,3</code>, in the project, its dependencies, or Elixir's own sources. A read whose application is not written as a literal counts for that key in every application, and <code>get_all_env/1</code>, or a read whose key is not written as a literal, counts for every key of its application.</p>
+<p>Only first-level keys written as atoms are checked. Module keys, such as <code>MyApp.Repo</code> in <code>config :my_app, MyApp.Repo, pool_size: 10</code>, nested keys, and keys of a dependency's application are not, because libraries read those in ways the source does not spell out.</p>
+<p>An application whose Mix project folder holds Erlang source (<code>.erl</code> files outside its <code>deps/</code> and <code>_build/</code>) is not checked, because reads written in Erlang are not seen. In an umbrella project, each application's own folder decides.</p>
+<p>The config files are the <code>.exs</code> files in the directory of each project's <code>:config_path</code>, <code>config/</code> by default.</p>
+</body>
+</html>
