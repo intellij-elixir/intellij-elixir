@@ -125,6 +125,30 @@
     {
       "backing": "src",
       "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "src",
+      "form": "def",
       "reason": "a delegate-target world asks what a call through a delegation reaches; only the delegations are written with a target",
       "world": "x_delegate_arity_mismatch"
     },
@@ -349,6 +373,30 @@
       "form": "defp",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "src",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "src",
@@ -683,6 +731,30 @@
     {
       "backing": "src",
       "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "src",
+      "form": "defmacro",
       "reason": "a delegate-target world asks what a call through a delegation reaches; only the delegations are written with a target",
       "world": "x_delegate_arity_mismatch"
     },
@@ -985,6 +1057,30 @@
       "form": "defmacrop",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "src",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "src",
@@ -1339,6 +1435,30 @@
       "form": "defguard",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "src",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "src",
@@ -1721,6 +1841,30 @@
     {
       "backing": "src",
       "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
       "reason": "a compile-time call world asks a call of a function or a macro its own module defines later",
       "world": "x_compile_time_call"
     },
@@ -2321,6 +2465,30 @@
     {
       "backing": "src",
       "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
       "reason": "a compile-time call world asks a call of a function or a macro its own module defines later",
       "world": "x_compile_time_call"
     },
@@ -2879,6 +3047,30 @@
     {
       "backing": "src",
       "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
       "reason": "a compile-time call world asks a call of a function or a macro its own module defines later",
       "world": "x_compile_time_call"
     },
@@ -3437,6 +3629,30 @@
     {
       "backing": "src",
       "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
       "reason": "a compile-time call world asks a call of a function or a macro its own module defines later",
       "world": "x_compile_time_call"
     },
@@ -4037,6 +4253,30 @@
     {
       "backing": "src",
       "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_case"
     },
@@ -4753,6 +4993,30 @@
       "form": "defdelegate_imports",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "src",
@@ -5501,6 +5765,30 @@
     {
       "backing": "src",
       "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_case"
     },
@@ -6245,6 +6533,30 @@
     {
       "backing": "src",
       "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_case"
     },
@@ -6989,6 +7301,30 @@
     {
       "backing": "src",
       "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_case"
     },
@@ -7733,6 +8069,30 @@
     {
       "backing": "src",
       "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_case"
     },
@@ -8477,6 +8837,30 @@
     {
       "backing": "src",
       "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_case"
     },
@@ -9217,6 +9601,30 @@
       "form": "defdelegate_doc",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "src",
@@ -9937,6 +10345,30 @@
       "form": "eex_function_from",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "src",
@@ -10559,6 +10991,30 @@
     {
       "backing": "src",
       "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
       "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_case"
     },
@@ -11267,6 +11723,30 @@
     {
       "backing": "src",
       "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
       "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_case"
     },
@@ -11971,6 +12451,30 @@
       "form": "eex_function_from_computed_name",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "src",
@@ -12629,6 +13133,30 @@
     {
       "backing": "src",
       "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "src",
+      "form": "defexception",
       "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
       "world": "x_case"
     },
@@ -13375,6 +13903,30 @@
       "form": "generator_embed",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "src",
@@ -14039,6 +14591,30 @@
     {
       "backing": "src",
       "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "src",
+      "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_case"
     },
@@ -15433,6 +16009,30 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "src",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "src",
@@ -16141,6 +16741,30 @@
       "form": "def",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_dbgi",
@@ -16783,6 +17407,30 @@
       "form": "defp",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_dbgi",
@@ -17441,6 +18089,30 @@
     {
       "backing": "ex_dbgi",
       "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -18127,6 +18799,30 @@
       "form": "defmacrop",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_dbgi",
@@ -18851,6 +19547,30 @@
     {
       "backing": "ex_dbgi",
       "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -19559,6 +20279,30 @@
     {
       "backing": "ex_dbgi",
       "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -20263,6 +21007,30 @@
       "form": "defdelegate",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_dbgi",
@@ -20969,6 +21737,30 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -21673,6 +22465,30 @@
       "form": "defdelegate_unresolvable",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_dbgi",
@@ -22373,6 +23189,30 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_case"
     },
@@ -23117,6 +23957,30 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_case"
     },
@@ -23873,6 +24737,30 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_case"
     },
@@ -24629,6 +25517,30 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_case"
     },
@@ -25385,6 +26297,30 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_case"
     },
@@ -26141,6 +27077,30 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_case"
     },
@@ -26897,6 +27857,30 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_case"
     },
@@ -27649,6 +28633,30 @@
       "form": "defdelegate_doc",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_dbgi",
@@ -28379,6 +29387,30 @@
     {
       "backing": "ex_dbgi",
       "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -29093,6 +30125,30 @@
     {
       "backing": "ex_dbgi",
       "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -29807,6 +30863,30 @@
     {
       "backing": "ex_dbgi",
       "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -30517,6 +31597,30 @@
       "form": "eex_function_from_computed_name",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_dbgi",
@@ -31261,6 +32365,30 @@
       "form": "defexception",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_dbgi",
@@ -32011,6 +33139,30 @@
       "form": "generator_embed",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_dbgi",
@@ -32765,6 +33917,30 @@
     {
       "backing": "ex_dbgi",
       "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_case"
     },
@@ -33521,6 +34697,30 @@
     {
       "backing": "ex_dbgi",
       "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_case"
     },
@@ -34273,6 +35473,30 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_dbgi",
@@ -34981,6 +36205,30 @@
       "form": "def",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_docs",
@@ -35647,6 +36895,30 @@
       "form": "defp",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_docs",
@@ -36329,6 +37601,30 @@
     {
       "backing": "ex_docs",
       "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -37039,6 +38335,30 @@
       "form": "defmacrop",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_docs",
@@ -37759,6 +39079,30 @@
       "form": "defguard",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_docs",
@@ -38489,6 +39833,30 @@
     {
       "backing": "ex_docs",
       "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -39193,6 +40561,30 @@
       "form": "defdelegate",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_docs",
@@ -39899,6 +41291,30 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -40603,6 +42019,30 @@
       "form": "defdelegate_unresolvable",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_docs",
@@ -41303,6 +42743,30 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_case"
     },
@@ -42047,6 +43511,30 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_case"
     },
@@ -42803,6 +44291,30 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_case"
     },
@@ -43559,6 +45071,30 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_case"
     },
@@ -44315,6 +45851,30 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_case"
     },
@@ -45071,6 +46631,30 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_case"
     },
@@ -45827,6 +47411,30 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_case"
     },
@@ -46579,6 +48187,30 @@
       "form": "defdelegate_doc",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_docs",
@@ -47309,6 +48941,30 @@
     {
       "backing": "ex_docs",
       "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -48023,6 +49679,30 @@
     {
       "backing": "ex_docs",
       "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -48737,6 +50417,30 @@
     {
       "backing": "ex_docs",
       "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -49447,6 +51151,30 @@
       "form": "eex_function_from_computed_name",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_docs",
@@ -50191,6 +51919,30 @@
       "form": "defexception",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_docs",
@@ -50941,6 +52693,30 @@
       "form": "generator_embed",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_docs",
@@ -51695,6 +53471,30 @@
     {
       "backing": "ex_docs",
       "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_case"
     },
@@ -52451,6 +54251,30 @@
     {
       "backing": "ex_docs",
       "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_case"
     },
@@ -53203,6 +55027,30 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_docs",
@@ -53911,6 +55759,30 @@
       "form": "def",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_gen",
@@ -54577,6 +56449,30 @@
       "form": "defp",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_gen",
@@ -55259,6 +57155,30 @@
     {
       "backing": "ex_gen",
       "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -55969,6 +57889,30 @@
       "form": "defmacrop",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_gen",
@@ -56689,6 +58633,30 @@
       "form": "defguard",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_gen",
@@ -57419,6 +59387,30 @@
     {
       "backing": "ex_gen",
       "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -58123,6 +60115,30 @@
       "form": "defdelegate",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_gen",
@@ -58829,6 +60845,30 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -59533,6 +61573,30 @@
       "form": "defdelegate_unresolvable",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_gen",
@@ -60233,6 +62297,30 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_case"
     },
@@ -60977,6 +63065,30 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_case"
     },
@@ -61733,6 +63845,30 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_case"
     },
@@ -62489,6 +64625,30 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_case"
     },
@@ -63245,6 +65405,30 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_case"
     },
@@ -64001,6 +66185,30 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_case"
     },
@@ -64757,6 +66965,30 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_case"
     },
@@ -65509,6 +67741,30 @@
       "form": "defdelegate_doc",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_gen",
@@ -66239,6 +68495,30 @@
     {
       "backing": "ex_gen",
       "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -66953,6 +69233,30 @@
     {
       "backing": "ex_gen",
       "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -67667,6 +69971,30 @@
     {
       "backing": "ex_gen",
       "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -68377,6 +70705,30 @@
       "form": "eex_function_from_computed_name",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_gen",
@@ -69121,6 +71473,30 @@
       "form": "defexception",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_gen",
@@ -69871,6 +72247,30 @@
       "form": "generator_embed",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_gen",
@@ -70625,6 +73025,30 @@
     {
       "backing": "ex_gen",
       "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_case"
     },
@@ -71381,6 +73805,30 @@
     {
       "backing": "ex_gen",
       "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_case"
     },
@@ -72133,6 +74581,30 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "ex_gen",
@@ -72841,6 +75313,30 @@
       "form": "def",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "erl_abst",
@@ -73529,6 +76025,30 @@
     {
       "backing": "erl_abst",
       "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_case"
     },
@@ -74273,6 +76793,30 @@
     {
       "backing": "erl_abst",
       "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -75029,6 +77573,30 @@
     {
       "backing": "erl_abst",
       "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -75785,6 +78353,30 @@
     {
       "backing": "erl_abst",
       "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -76541,6 +79133,30 @@
     {
       "backing": "erl_abst",
       "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -77297,6 +79913,30 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -78053,6 +80693,30 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -78809,6 +81473,30 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -79565,6 +82253,30 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -80321,6 +83033,30 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -81077,6 +83813,30 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -81833,6 +84593,30 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -82589,6 +85373,30 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -83345,6 +86153,30 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -84101,6 +86933,30 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -84857,6 +87713,30 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -85613,6 +88493,30 @@
     {
       "backing": "erl_abst",
       "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -86369,6 +89273,30 @@
     {
       "backing": "erl_abst",
       "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -87125,6 +90053,30 @@
     {
       "backing": "erl_abst",
       "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -87881,6 +90833,30 @@
     {
       "backing": "erl_abst",
       "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_computed_name",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -88637,6 +91613,30 @@
     {
       "backing": "erl_abst",
       "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defexception",
       "reason": "Erlang has only functions",
       "world": "x_case"
     },
@@ -89389,6 +92389,30 @@
       "form": "generator_embed",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "erl_abst",
@@ -90149,6 +93173,30 @@
     {
       "backing": "erl_abst",
       "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_case"
     },
@@ -90901,6 +93949,30 @@
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "erl_abst",
@@ -91662,6 +94734,30 @@
       "backing": "erl_abst",
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_case"
     },
     {
@@ -92407,6 +95503,30 @@
       "form": "def",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "erl_gen",
@@ -93167,6 +96287,30 @@
     {
       "backing": "erl_gen",
       "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -93923,6 +97067,30 @@
     {
       "backing": "erl_gen",
       "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -94679,6 +97847,30 @@
     {
       "backing": "erl_gen",
       "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -95435,6 +98627,30 @@
     {
       "backing": "erl_gen",
       "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -96191,6 +99407,30 @@
     {
       "backing": "erl_gen",
       "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -96947,6 +100187,30 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -97703,6 +100967,30 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -98459,6 +101747,30 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -99215,6 +102527,30 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -99971,6 +103307,30 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -100727,6 +104087,30 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -101483,6 +104867,30 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -102239,6 +105647,30 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -102995,6 +106427,30 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -103751,6 +107207,30 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -104507,6 +107987,30 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -105263,6 +108767,30 @@
     {
       "backing": "erl_gen",
       "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -106019,6 +109547,30 @@
     {
       "backing": "erl_gen",
       "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -106775,6 +110327,30 @@
     {
       "backing": "erl_gen",
       "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -107531,6 +111107,30 @@
     {
       "backing": "erl_gen",
       "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_computed_name",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -108287,6 +111887,30 @@
     {
       "backing": "erl_gen",
       "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defexception",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_case"
     },
@@ -109039,6 +112663,30 @@
       "form": "generator_embed",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "erl_gen",
@@ -109799,6 +113447,30 @@
     {
       "backing": "erl_gen",
       "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_bind_quoted_var_unquote"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_case"
     },
@@ -110551,6 +114223,30 @@
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "erl_gen",
@@ -111307,6 +115003,30 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "erl_gen",
@@ -317488,6 +321208,394 @@
         }
       ],
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/src/src.variable.x_bind_quoted_var_basic.ex",
+      "form": "variable",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [],
+          "module": "Src.Variable.XBindQuotedVarBasic",
+          "source": "lib/src/src.variable.x_bind_quoted_var_basic.ex",
+          "spec": "lib/src/src.variable.x_bind_quoted_var_basic.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 16,
+          "file": "lib/src/src.variable.x_bind_quoted_var_basic.ex",
+          "id": "outer",
+          "line": 3,
+          "name": "a",
+          "variable": {
+            "binding": true,
+            "declarations": [
+              "outer"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 25,
+          "file": "lib/src/src.variable.x_bind_quoted_var_basic.ex",
+          "id": "key",
+          "line": 4,
+          "name": "a",
+          "variable": {
+            "binding": true,
+            "declarations": [
+              "key"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 28,
+          "file": "lib/src/src.variable.x_bind_quoted_var_basic.ex",
+          "id": "value",
+          "line": 4,
+          "name": "a",
+          "variable": {
+            "binding": false,
+            "declarations": [
+              "outer"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 36,
+          "file": "lib/src/src.variable.x_bind_quoted_var_basic.ex",
+          "id": "body",
+          "line": 4,
+          "name": "a",
+          "variable": {
+            "binding": false,
+            "declarations": [
+              "key"
+            ],
+            "rename": true
+          }
+        }
+      ],
+      "world": "x_bind_quoted_var_basic"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/src/src.variable.x_bind_quoted_var_duplicate_key.ex",
+      "form": "variable",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [],
+          "module": "Src.Variable.XBindQuotedVarDuplicateKey",
+          "source": "lib/src/src.variable.x_bind_quoted_var_duplicate_key.ex",
+          "spec": "lib/src/src.variable.x_bind_quoted_var_duplicate_key.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 16,
+          "file": "lib/src/src.variable.x_bind_quoted_var_duplicate_key.ex",
+          "id": "outer",
+          "line": 3,
+          "name": "a",
+          "variable": {
+            "binding": true,
+            "declarations": [
+              "outer"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 25,
+          "file": "lib/src/src.variable.x_bind_quoted_var_duplicate_key.ex",
+          "id": "first",
+          "line": 4,
+          "name": "a",
+          "variable": {
+            "binding": true,
+            "declarations": [
+              "first"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 31,
+          "file": "lib/src/src.variable.x_bind_quoted_var_duplicate_key.ex",
+          "id": "last",
+          "line": 4,
+          "name": "a",
+          "variable": {
+            "binding": true,
+            "declarations": [
+              "last"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 34,
+          "file": "lib/src/src.variable.x_bind_quoted_var_duplicate_key.ex",
+          "id": "value",
+          "line": 4,
+          "name": "a",
+          "variable": {
+            "binding": false,
+            "declarations": [
+              "outer"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 42,
+          "file": "lib/src/src.variable.x_bind_quoted_var_duplicate_key.ex",
+          "id": "body",
+          "line": 4,
+          "name": "a",
+          "variable": {
+            "binding": false,
+            "declarations": [
+              "last"
+            ],
+            "rename": true
+          }
+        }
+      ],
+      "world": "x_bind_quoted_var_duplicate_key"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/src/src.variable.x_bind_quoted_var_nested.ex",
+      "form": "variable",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [],
+          "module": "Src.Variable.XBindQuotedVarNested",
+          "source": "lib/src/src.variable.x_bind_quoted_var_nested.ex",
+          "spec": "lib/src/src.variable.x_bind_quoted_var_nested.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 16,
+          "file": "lib/src/src.variable.x_bind_quoted_var_nested.ex",
+          "id": "outer",
+          "line": 3,
+          "name": "a",
+          "variable": {
+            "binding": true,
+            "declarations": [
+              "outer"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 25,
+          "file": "lib/src/src.variable.x_bind_quoted_var_nested.ex",
+          "id": "key",
+          "line": 4,
+          "name": "a",
+          "variable": {
+            "binding": true,
+            "declarations": [
+              "key"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 28,
+          "file": "lib/src/src.variable.x_bind_quoted_var_nested.ex",
+          "id": "value",
+          "line": 4,
+          "name": "a",
+          "variable": {
+            "binding": false,
+            "declarations": [
+              "outer"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 17,
+          "file": "lib/src/src.variable.x_bind_quoted_var_nested.ex",
+          "id": "body",
+          "line": 6,
+          "name": "a",
+          "variable": {
+            "binding": false,
+            "declarations": [
+              "key"
+            ],
+            "rename": true
+          }
+        }
+      ],
+      "world": "x_bind_quoted_var_nested"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/src/src.variable.x_bind_quoted_var_unquote.ex",
+      "form": "variable",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [],
+          "module": "Src.Variable.XBindQuotedVarUnquote",
+          "source": "lib/src/src.variable.x_bind_quoted_var_unquote.ex",
+          "spec": "lib/src/src.variable.x_bind_quoted_var_unquote.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 16,
+          "file": "lib/src/src.variable.x_bind_quoted_var_unquote.ex",
+          "id": "outer",
+          "line": 3,
+          "name": "a",
+          "variable": {
+            "binding": true,
+            "declarations": [
+              "outer"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 25,
+          "file": "lib/src/src.variable.x_bind_quoted_var_unquote.ex",
+          "id": "key",
+          "line": 4,
+          "name": "a",
+          "variable": {
+            "binding": true,
+            "declarations": [
+              "key"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 28,
+          "file": "lib/src/src.variable.x_bind_quoted_var_unquote.ex",
+          "id": "value",
+          "line": 4,
+          "name": "a",
+          "variable": {
+            "binding": false,
+            "declarations": [
+              "outer"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 15,
+          "file": "lib/src/src.variable.x_bind_quoted_var_unquote.ex",
+          "id": "unquoted",
+          "line": 5,
+          "name": "a",
+          "variable": {
+            "binding": false,
+            "declarations": [
+              "outer"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 20,
+          "file": "lib/src/src.variable.x_bind_quoted_var_unquote.ex",
+          "id": "body",
+          "line": 5,
+          "name": "a",
+          "variable": {
+            "binding": false,
+            "declarations": [
+              "key"
+            ],
+            "rename": true
+          }
+        }
+      ],
+      "world": "x_bind_quoted_var_unquote"
     },
     {
       "backing": "src",

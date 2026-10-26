@@ -345,6 +345,54 @@ defmodule Matrix do
       variable: :n,
       lines: ["defmacro(defmodule(n, do: block), do: {n, block}) # @binding @body"],
       rename: true
+    },
+    # `x_bind_quoted_var_*`: a `bind_quoted:` key binds a variable for the quote's body; its value reads the macro's own
+    # parameter. `unquote(a)` in a nested `quote` reads the key, with `unquote: true` it reads the parameter.
+    "x_bind_quoted_var_basic" => %{
+      variable: :a,
+      keys: true,
+      bindings: ["outer", "key"],
+      reads: %{"value" => ["outer"], "body" => ["key"]},
+      lines: ["defmacro run(a) do # @outer", "  quote bind_quoted: [a: a], do: a # @key @value @body", "end"],
+      rename: true
+    },
+    "x_bind_quoted_var_duplicate_key" => %{
+      variable: :a,
+      keys: true,
+      bindings: ["outer", "first", "last"],
+      reads: %{"value" => ["outer"], "body" => ["last"]},
+      lines: ["defmacro run(a) do # @outer", "  quote bind_quoted: [a: 1, a: a], do: a # @first @last @value @body", "end"],
+      rename: true
+    },
+    "x_bind_quoted_var_unquote" => %{
+      variable: :a,
+      keys: true,
+      bindings: ["outer", "key"],
+      reads: %{"value" => ["outer"], "unquoted" => ["outer"], "body" => ["key"]},
+      lines: [
+        "defmacro run(a) do # @outer",
+        "  quote bind_quoted: [a: a], unquote: true do # @key @value",
+        "    unquote(a) + a # @unquoted @body",
+        "  end",
+        "end"
+      ],
+      rename: true
+    },
+    "x_bind_quoted_var_nested" => %{
+      variable: :a,
+      keys: true,
+      bindings: ["outer", "key"],
+      reads: %{"value" => ["outer"], "body" => ["key"]},
+      lines: [
+        "defmacro run(a) do # @outer",
+        "  quote bind_quoted: [a: a] do # @key @value",
+        "    quote do",
+        "      unquote(a) # @body",
+        "    end",
+        "  end",
+        "end"
+      ],
+      rename: true
     }
   }
   @variable_world_ids Map.keys(@variable_worlds)
@@ -1497,7 +1545,9 @@ defmodule Matrix do
   defp variable_scenario(backing, form, world) do
     [module] = module_names(backing, form, world, 1)
     path = Path.join(["lib", backing.id, (module |> Macro.underscore() |> String.replace("/", ".")) <> ".ex"])
-    %{variable: variable, lines: lines, rename: rename} = Map.fetch!(@variable_worlds, world)
+    %{variable: variable, lines: lines, rename: rename} = world_spec = Map.fetch!(@variable_worlds, world)
+    bindings = Map.get(world_spec, :bindings, ["binding"])
+    reads = Map.get(world_spec, :reads, %{})
     source = "# #{@header}\n" <> render_lines_module(module, lines)
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, source)
@@ -1518,7 +1568,16 @@ defmodule Matrix do
           [_, ids] <- [Regex.run(~r/# ((?:@\w+ ?)+)$/, text)],
           do: {line, ids |> String.split() |> Enum.map(&String.trim_leading(&1, "@"))}
 
-    positions = nodes |> Enum.sort() |> Enum.group_by(&elem(&1, 0))
+    keys =
+      if Map.get(world_spec, :keys, false) do
+        for {text, line} <- Enum.with_index(String.split(source, "\n"), 1),
+            [{start, _}] <- Regex.scan(~r/\b#{variable}(?=:)/, text, return: :index),
+            do: {line, start + 1}
+      else
+        []
+      end
+
+    positions = (nodes ++ keys) |> Enum.sort() |> Enum.group_by(&elem(&1, 0))
 
     located =
       Enum.flat_map(marked, fn {line, ids} ->
@@ -1527,11 +1586,16 @@ defmodule Matrix do
         Enum.zip(ids, found)
       end)
 
-    if length(located) != length(nodes), do: raise("#{path}: #{inspect(nodes)} holds a `#{variable}` no line marks")
+    if length(located) != length(nodes) + length(keys), do: raise("#{path}: #{inspect(nodes ++ keys)} holds a `#{variable}` no line marks")
 
     sites =
       Enum.map(located, fn {id, {line, column}} ->
-        declarations = if id == "binding", do: [id], else: variable_probe!(source, located, id)
+        declarations =
+          cond do
+            id in bindings -> [id]
+            Map.has_key?(reads, id) -> Map.fetch!(reads, id)
+            true -> variable_probe!(source, located, id)
+          end
 
         %{
           "id" => id,
@@ -1541,7 +1605,7 @@ defmodule Matrix do
           "name" => to_string(variable),
           "arity" => 0,
           "binding" => nil,
-          "variable" => Map.merge(%{"binding" => id == "binding", "declarations" => declarations}, if(rename, do: %{"rename" => true}, else: %{}))
+          "variable" => Map.merge(%{"binding" => id in bindings, "declarations" => declarations}, if(rename, do: %{"rename" => true}, else: %{}))
         }
       end)
 
