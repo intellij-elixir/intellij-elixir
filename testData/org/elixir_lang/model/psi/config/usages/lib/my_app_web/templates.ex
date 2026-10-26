@@ -55,4 +55,17 @@ defmodule MyAppWeb.Templates do
 
     ~H"<p>{get_env(:my_app, :template_imported)}</p>"
   end
+
+  def escaped(assigns), do: ~E"<%= Application.get_env(:my_app, :\"banner-text\") %>"
+
+  def defaulted(assigns), do: ~H"<p>{Application.get_env(:my_app, :title, \"Home\")}</p>"
+
+  def escaped_heredoc(assigns) do
+    ~H"""
+    <%= banner = \"""
+    Banner
+    \""" %>
+    <p>{Application.get_env(:my_app, :after_escape)}</p>
+    """
+  end
 end

@@ -13,6 +13,9 @@ import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaretInScope
 import org.elixir_lang.expander.LegSdk
 import org.elixir_lang.injection.PsiLanguageInjectionHost
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.language_level.elixir
 import org.elixir_lang.psi.call.Call
 import java.io.File
 
@@ -270,6 +273,46 @@ class ConfigKeyUsagesTest : PlatformTestCase() {
         myFixture.caret(TEMPLATES_CONFIG, "MyAppWeb.Templa<caret>tes")
 
         assertContainsElements(templateUsages(::configKeyUsages), "templates.ex:32 __MODULE__")
+    }
+
+    fun testUsagesIncludeAnEscapedTerminatorKeyReadInATemplate() {
+        myFixture.caret(TEMPLATES_CONFIG, "\"banner-te<caret>xt\": true")
+
+        assertContainsElements(templateUsages(), "templates.ex:59 banner-text")
+    }
+
+    fun testUsagesIncludeAnEscapedTerminatorKeyReadInAnInjectedTemplate() {
+        myFixture.caret(TEMPLATES_CONFIG, "\"banner-te<caret>xt\": true")
+
+        assertContainsElements(myFixture.withSigilInjection(::usages), "templates.ex:59 banner-text")
+    }
+
+    fun testUsagesIncludeAReadWithAnEscapedTerminatorDefaultInATemplate() {
+        myFixture.caret(TEMPLATES_CONFIG, "tit<caret>le: \"Home\"")
+
+        assertContainsElements(templateUsages(), "templates.ex:61 title")
+    }
+
+    fun testUsagesIncludeAReadAfterAnEscapedHeredocTerminatorInATemplate() {
+        assertContainsElements(afterEscapeUsagesOn(elixir("1.13.0")), "templates.ex:68 after_escape")
+    }
+
+    /** Before 1.13, Elixir keeps the `\` of `\"""` in an uppercase sigil's heredoc, so the template's Elixir differs. */
+    fun testUsagesExcludeAReadAfterAnEscapedHeredocTerminatorInATemplateBeforeElixir113() {
+        assertDoesntContain(afterEscapeUsagesOn(elixir("1.12.3")), "templates.ex:68 after_escape")
+    }
+
+    /** [templateUsages] of `:after_escape` with the project at [languageLevel]. */
+    private fun afterEscapeUsagesOn(languageLevel: ElixirLanguageLevel): List<String> {
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, languageLevel)
+
+        try {
+            myFixture.caret(TEMPLATES_CONFIG, "after_esc<caret>ape: true")
+
+            return templateUsages()
+        } finally {
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, null)
+        }
     }
 
     fun testUsagesExcludeAnAliasKeyReadAfterAnAliasInTheTemplate() {

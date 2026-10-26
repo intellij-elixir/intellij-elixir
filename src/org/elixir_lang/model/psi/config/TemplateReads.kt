@@ -48,11 +48,18 @@ internal object TemplateReads {
 
     private fun of(sigil: Sigil): List<TemplateRead> {
         val injection = sigilInjection(sigil) ?: return emptyList()
-        val hostText = sigil.text
+        val escaper = sigil.createLiteralTextEscaper()
+        val text = StringBuilder()
+        val parts = injection.ranges.map { range ->
+            val start = text.length
+            if (!escaper.decode(range, text)) return emptyList()
+
+            Part(range, start, text.length)
+        }
         val template = PsiFileFactory.getInstance(sigil.project).createFileFromText(
             injection.extension?.let { "template.$it" } ?: "template",
             injection.language,
-            injection.ranges.joinToString("") { it.substring(hostText) },
+            text,
             false,
             false,
         )
@@ -62,11 +69,16 @@ internal object TemplateReads {
         PsiTreeUtil.processElements(elixir, Call::class.java) { call ->
             Read.of(call)?.let { read ->
                 val range = Keys.range(read.element).shiftRight(read.element.textRange.startOffset)
+                val start = parts.first { range.startOffset < it.end }
+                val end = parts.last { range.endOffset > it.start }
 
                 reads += TemplateRead(
                     read,
                     sigil,
-                    TextRange(inHost(injection.ranges, range.startOffset), inHost(injection.ranges, range.endOffset - 1) + 1),
+                    TextRange(
+                        escaper.getOffsetInHost(range.startOffset - start.start, start.range),
+                        escaper.getOffsetInHost(range.endOffset - end.start, end.range),
+                    ),
                     placeOf(read.element, sigil),
                 )
             }
@@ -100,16 +112,6 @@ internal object TemplateReads {
         }
     }
 
-    /** The offset in the host of [offset] in the text [ranges] join to. */
-    private fun inHost(ranges: List<TextRange>, offset: Int): Int {
-        var start = 0
-
-        for (range in ranges) {
-            if (offset < start + range.length) return range.startOffset + offset - start
-
-            start += range.length
-        }
-
-        return ranges.last().endOffset
-    }
+    /** The text [range] of the host decodes to, at [start] until [end] in the template. */
+    private class Part(val range: TextRange, val start: Int, val end: Int)
 }

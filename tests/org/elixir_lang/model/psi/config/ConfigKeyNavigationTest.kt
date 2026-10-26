@@ -43,6 +43,24 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
         assertEquals(listOf("config/config.exs:3"), destinations())
     }
 
+    fun testEscapedTerminatorKeyInAnInjectedTemplateGoesToSetting() {
+        myFixture.addFileToProject(
+            TEMPLATES,
+            """
+            defmodule MyAppWeb.Templates do
+              def greeting(assigns), do: ~E"<%= Application.get_env(:my_app, :\"greeting\") %>"
+            end
+            """.trimIndent(),
+        )
+
+        val destinations = myFixture.withSigilInjection {
+            myFixture.caret(TEMPLATES, ":\\\"greet<caret>ing")
+            destinations(myFixture.gtduNavigationInInjectionAtCaret())
+        }
+
+        assertEquals(listOf("config/config.exs:3"), destinations)
+    }
+
     fun testReadThroughAnAliasOfApplicationInAnInjectedTemplateGoesToSetting() {
         assertEquals(
             listOf("config/config.exs:3"),
