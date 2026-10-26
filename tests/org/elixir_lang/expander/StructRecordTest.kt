@@ -1,15 +1,21 @@
 package org.elixir_lang.expander
 
+import org.elixir_lang.language_level.ElixirLanguageFeature.STRUCT_OF_MODULE_BEING_DEFINED_NEVER_LOADED
 import org.elixir_lang.language_level.ElixirLanguageLevel
 
 /**
  * The struct a module's `defstruct` records, and which reads answer from it: the module's own function bodies after
  * the `defstruct`, a module nested in it, and a module the file defines later. The module's body never reads it, for
- * Elixir expands the whole body before it evaluates any of it.
+ * Elixir expands the whole body before it evaluates any of it. A module that stopped keeps both arms' `__struct__/1`
+ * up to 1.13: the output's `case` on `@enforce_keys` is declined after the stop.
  */
 class StructRecordTest : ExpanderTestCase() {
     override val exports: Exports = DefstructFixtures.EXPORTS
     override val kernel: KernelImports = DefstructFixtures.KERNEL
+
+    /** Whether Elixir at [version] loads the module being defined where a struct of it is read, as it did before 1.14.1. */
+    private fun loadsItself(version: String): Boolean =
+        !STRUCT_OF_MODULE_BEING_DEFINED_NEVER_LOADED.isSufficient(ElixirLanguageLevel.of(version))
 
     fun testAFunctionAfterTheDefstructReadsTheRecord() =
         assertEvery(
@@ -18,13 +24,10 @@ class StructRecordTest : ExpanderTestCase() {
         )
 
     fun testAFunctionBeforeTheDefstructFindsNoStruct() =
-        assertSplit(
-            "defmodule A do\n  def f, do: %A{}\n  defstruct [:a]\nend",
-            "1.14.1",
-            "module Elixir.A stopped `%A{}` | def f/0 line 2 clauses 1 | def __struct__/0 line 3 clauses 1 | " +
-                "def __struct__/1 line 3 clauses 1",
-            "module Elixir.A raised undefined_struct `%A{}`",
-        )
+        assertLevels("defmodule A do\n  def f, do: %A{}\n  defstruct [:a]\nend", LEVELS) {
+            if (loadsItself(it)) "module Elixir.A stopped `%A{}` | def f/0 line 2 clauses 1${stopped(3, it)}"
+            else "module Elixir.A raised undefined_struct `%A{}`"
+        }
 
     fun testTheModuleMacroReadsTheRecord() =
         assertEvery(
@@ -51,12 +54,10 @@ class StructRecordTest : ExpanderTestCase() {
         )
 
     fun testTheModuleBodyNeverReadsTheRecord() =
-        assertSplit(
-            "defmodule A do\n  defstruct [:a]\n  @x %A{}\nend",
-            "1.14.1",
-            "module Elixir.A stopped `%A{}`$TABLE",
-            "module Elixir.A raised inaccessible_struct `%A{}`",
-        )
+        assertLevels("defmodule A do\n  defstruct [:a]\n  @x %A{}\nend", LEVELS) {
+            if (loadsItself(it)) "module Elixir.A stopped `%A{}`${stopped(2, it)}"
+            else "module Elixir.A raised inaccessible_struct `%A{}`"
+        }
 
     fun testAModuleNestedAfterTheDefstructReadsTheRecord() =
         assertEvery(
@@ -72,16 +73,14 @@ class StructRecordTest : ExpanderTestCase() {
 
     // A copy of the enclosing module loaded by an earlier compile would answer, which the expander can't know.
     fun testAModuleNestedBeforeTheDefstructCannotSayWhatTheStructIs() =
-        assertEvery(
-            "defmodule A do\n  defmodule B do\n    def f, do: %A{}\n  end\n  defstruct [:a]\nend",
-            "module Elixir.A stopped `%A{}`$TABLE_AT_5",
-        )
+        assertLevels("defmodule A do\n  defmodule B do\n    def f, do: %A{}\n  end\n  defstruct [:a]\nend", LEVELS) {
+            "module Elixir.A stopped `%A{}`${stopped(5, it)}"
+        }
 
     fun testTheBodyOfAModuleNestedBeforeTheDefstructCannotEither() =
-        assertEvery(
-            "defmodule A do\n  defmodule B do\n    @x %A{}\n  end\n  defstruct [:a]\nend",
-            "module Elixir.A stopped `%A{}`$TABLE_AT_5",
-        )
+        assertLevels("defmodule A do\n  defmodule B do\n    @x %A{}\n  end\n  defstruct [:a]\nend", LEVELS) {
+            "module Elixir.A stopped `%A{}`${stopped(5, it)}"
+        }
 
     fun testAModuleDefinedLaterReadsTheRecord() =
         assertEvery(
@@ -96,10 +95,9 @@ class StructRecordTest : ExpanderTestCase() {
         )
 
     fun testAStructTheExpanderCannotFollowIsUnreadable() =
-        assertEvery(
-            "defmodule A do\n  defstruct Foo.fields()\n  def f, do: %A{}\nend",
-            "module Elixir.A stopped `defstruct Foo.fields()`$TABLE | def f/0 line 3 clauses 1",
-        )
+        assertLevels("defmodule A do\n  defstruct Foo.fields()\n  def f, do: %A{}\nend", LEVELS) {
+            "module Elixir.A stopped `defstruct Foo.fields()`${stopped(2, it)} | def f/0 line 3 clauses 1"
+        }
 
     fun testAModuleAfterARaisedStructIsNotReached() =
         assertEvery(
@@ -127,9 +125,12 @@ class StructRecordTest : ExpanderTestCase() {
         return file.modules.joinToString("\n") { ModuleRendering.render(code, it) }
     }
 
+    /** The struct's definitions on [line] in a module that stopped, at [version]. */
+    private fun stopped(line: Int, version: String): String =
+        " | def __struct__/0 line $line clauses 1 | def __struct__/1 line $line clauses ${stoppedStructClauses(ElixirLanguageLevel.of(version))}"
+
     private companion object {
         const val TABLE = " | def __struct__/0 line 2 clauses 1 | def __struct__/1 line 2 clauses 1"
         const val TABLE_AT_3 = " | def __struct__/0 line 3 clauses 1 | def __struct__/1 line 3 clauses 1"
-        const val TABLE_AT_5 = " | def __struct__/0 line 5 clauses 1 | def __struct__/1 line 5 clauses 1"
     }
 }
