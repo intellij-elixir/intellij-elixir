@@ -513,6 +513,11 @@ internal class ProjectModules(private val project: Project) {
                     observer.left(node, expansion)
                 }
 
+                override fun uncompiled(defmodule: ElixirAst, body: ElixirAst) {
+                    envs?.uncompiled(defmodule, body)
+                    observer.uncompiled(defmodule, body)
+                }
+
                 override fun receiver(qualifier: ElixirAst, value: Term) {
                     receivers?.expanded(qualifier, value)
                     observer.receiver(qualifier, value)

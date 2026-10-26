@@ -146,10 +146,13 @@ object AtomName {
         identifierAtomName(text) { languageLevel }.takeIf(::fitsAnAtom)
 
     /** The name quoted [content] spells, if it has no interpolation and an atom may be that long. */
-    internal fun literal(content: Content): String? =
+    internal fun literal(content: Content): String? = literalText(content)?.takeIf(::fitsAnAtom)
+
+    /** The text quoted [content] spells, if it has no interpolation. */
+    internal fun literalText(content: Content): String? =
         when (content) {
             is Content.Empty -> ""
-            is Content.Literal -> text(utf8(content.codePoints))?.takeIf(::fitsAnAtom)
+            is Content.Literal -> text(utf8(content.codePoints))
             is Content.Interpolated -> null
         }
 

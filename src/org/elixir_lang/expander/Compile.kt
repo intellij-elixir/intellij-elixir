@@ -1230,6 +1230,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
         )
     }
 
+    run.startedCompiling(module)
     val enclosing = run.compiling.put(name, compiling)
     val enclosingPending = run.pending
     val consultedFrom = run.consulted.size

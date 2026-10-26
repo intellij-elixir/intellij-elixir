@@ -47,29 +47,27 @@ internal class ModuleReferenceProvider : PsiSymbolReferenceProvider {
         generateSequence(alias) { node -> (node as? QualifiedAlias)?.qualifier() as? QualifiableAlias }
             .toList()
 
-    /**
-     * The final Alias segment of [node] - `Module` in `MyApp.Module`, matching
-     * [org.elixir_lang.reference.Module]'s range convention.
-     *
-     * Each chain node's reference must cover only its own segment, not the whole chain: goto-declaration
-     * keeps only the minimal-range items containing the offset, and every segment word also carries a
-     * platform-synthesized named-element declaration exactly that wide. A whole-chain range strictly
-     * contains that declaration, so the reference would be discarded and Ctrl+Click on any segment word
-     * would degrade to show-usages of the bogus declaration instead of navigating.
-     */
-    private fun segmentRange(node: QualifiableAlias): TextRange =
-        when (node) {
-            is QualifiedAlias -> node.getAlias().textRange
-            else -> node.textRange
-        }
-
     override fun getSearchRequests(project: Project, target: Symbol): Collection<SearchRequest> = emptyList()
-
-    companion object {
-        /**
-         * Names no single module declares: `Elixir` is only the implicit shared namespace of all Aliases,
-         * and `BitString` is the `defimpl ..., for: BitString` pseudo-module for bitstrings (`<<...>>`).
-         */
-        private val UNDECLARED_MODULE_NAMES = arrayOf("Elixir", "BitString")
-    }
 }
+
+/**
+ * Names no single module declares: `Elixir` is only the implicit shared namespace of all Aliases,
+ * and `BitString` is the `defimpl ..., for: BitString` pseudo-module for bitstrings (`<<...>>`).
+ */
+private val UNDECLARED_MODULE_NAMES = arrayOf("Elixir", "BitString")
+
+/**
+ * The final Alias segment of [node] - `Module` in `MyApp.Module`, matching
+ * [org.elixir_lang.reference.Module]'s range convention.
+ *
+ * Each chain node's reference must cover only its own segment, not the whole chain: goto-declaration
+ * keeps only the minimal-range items containing the offset, and every segment word also carries a
+ * platform-synthesized named-element declaration exactly that wide. A whole-chain range strictly
+ * contains that declaration, so the reference would be discarded and Ctrl+Click on any segment word
+ * would degrade to show-usages of the bogus declaration instead of navigating.
+ */
+internal fun segmentRange(node: QualifiableAlias): TextRange =
+    when (node) {
+        is QualifiedAlias -> node.getAlias().textRange
+        else -> node.textRange
+    }

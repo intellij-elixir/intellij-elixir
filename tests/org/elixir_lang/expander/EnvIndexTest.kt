@@ -16,7 +16,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.reference.Callable
 import org.elixir_lang.snapshot.LegElixirProjectDescriptor
 
-/** The env [ProjectModules.envIndex] gives at a use: the env a re-expansion of the file gives the use's node. */
+/** The env [EnvIndex.at] gives at a use: the env a re-expansion of the file gives the use's node. */
 class EnvIndexTest : PlatformTestCase() {
     private val holder: ProjectModules get() = ProjectModules.getInstance(project)
 
@@ -70,6 +70,33 @@ class EnvIndexTest : PlatformTestCase() {
         assertEquals("aliases [] imports [Elixir.T]", directives(byImport, "h(x)", inputs))
         assertEquals("aliases [Elixir.E] imports []", directives(inBody, "E.f(x)", inputs))
         assertEquals("aliases [Elixir.D] imports []", directives(inIf, "D.f(x)", inputs))
+    }
+
+    fun testAtReachedIsNullAfterAStop() {
+        val inputs = inputs("1.20.4")
+        val file = file("reached_after_stop.ex", "defmodule A do\n  def go(x) do\n    T.h(x)\n    1.f()\n    D.f(x)\n  end\nend\n")
+        val index = holder.indexed(file, inputs).envs
+        val before = call(file, "T.h(x)").textRange
+
+        assertEquals(index.at(before), index.atReached(before))
+        assertNull(index.atReached(call(file, "D.f(x)").textRange))
+    }
+
+    fun testAtReachedIsNullInsideAStoppedNode() {
+        val inputs = inputs("1.20.4")
+        val file = file("reached_inside_stopped.ex", "defmodule A do\n  def go do\n    quote(location: :other, do: B.f())\n  end\nend\n")
+
+        assertNull(holder.indexed(file, inputs).envs.atReached(call(file, "B.f()").textRange))
+    }
+
+    fun testAtReachedIsNullAfterAnEnteredNodeInAStoppedOne() {
+        val inputs = inputs("1.20.4")
+        val file = file(
+            "reached_after_entered.ex",
+            "defmodule A do\n  @adapter System.get_env(\"A\")\n  def go, do: @adapter.call(B.f())\nend\n",
+        )
+
+        assertNull(holder.indexed(file, inputs).envs.atReached(call(file, "B.f()").textRange))
     }
 
     /** The aliases and the imports other than `Kernel`'s in the env at the call in [file] that starts with [prefix]. */

@@ -8,6 +8,7 @@ import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.testFramework.IndexingTestUtil
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.sdk.SdkFixtures
+import org.elixir_lang.sdk.SdkVersionsFiller
 import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
 import org.elixir_lang.sdk.Type as SdkRoots
@@ -28,6 +29,8 @@ internal object LegSdk {
             }
         }
         SdkFixtures.commit(elixir, SdkAdditionalData(erlang, elixir))
+        // Registering reads a home only while the watch service listens, which depends on what ran before in this JVM.
+        SdkVersionsFiller.fillIfUnreadBlocking(listOf(erlangHome, elixirHome))
         SdkFixtures.waitUntil("the store reads the leg's homes", 30_000) {
             SdkVersionsStore.getInstance().elixirVersions(elixirHome) != null &&
                 SdkVersionsStore.getInstance().otpRelease(erlangHome) != null

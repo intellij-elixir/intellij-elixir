@@ -46,6 +46,9 @@ internal fun interface ExpansionObserver {
     /** A source [module] loaded with [clauses], `null` where it loads with none, as one that doesn't compile does. */
     fun clausesLoaded(module: String, clauses: ModuleClauses?) {}
 
+    /** [defmodule]'s module was queued, but the run ended before compiling it, so its [body] was never expanded. */
+    fun uncompiled(defmodule: ElixirAst, body: ElixirAst) {}
+
     companion object {
         val NONE = ExpansionObserver { _, _, _ -> }
     }

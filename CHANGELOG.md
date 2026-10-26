@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4537](https://github.com/intellij-elixir/intellij-elixir/pull/4537) [@sh41](https://github.com/sh41)
+  - **Ctrl-Click on an application env key, as in `Application.get_env(:my_app, :retries)`, goes to the config lines that set it, Ctrl-Click on a key in a config file shows the code that reads it, and Find Usages on either lists both.** Refs [#4531](https://github.com/intellij-elixir/intellij-elixir/issues/4531).
+
 - [#4534](https://github.com/intellij-elixir/intellij-elixir/pull/4534) [@sh41](https://github.com/sh41)
   - **The expander stores a definition each time a module body's `for`, an `fn` that `Enum.each/2` or `:lists.foreach/2` runs, or the branch a `case`, `if` or `unless` takes reaches it, as Elixir does, so functions defined per element and a function guarded by `x in @list` are expanded; nothing uses it yet.** Fixes [#4441](https://github.com/intellij-elixir/intellij-elixir/issues/4441).
 
