@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4544](https://github.com/intellij-elixir/intellij-elixir/pull/4544) [@sh41](https://github.com/sh41)
+  - **Completion offers application names and keys at `Application.get_env/2,3`, `fetch_env!/2`, `compile_env/2,3` and the other application env reads, and at `config` calls in config files, taken from the keys config files set and the keys code reads, dependencies and Elixir's own sources included.** Refs [#4539](https://github.com/intellij-elixir/intellij-elixir/issues/4539).
+
 - [#4542](https://github.com/intellij-elixir/intellij-elixir/pull/4542) [@sh41](https://github.com/sh41)
   - **Application env keys also link where the app is piped into `config`, the options list is in parentheses, `project/0` returns `[]`, or `Application` is reached through an alias, an import or a module attribute, and a call on a module aliased as `Application` no longer counts as a read.** Refs [#4539](https://github.com/intellij-elixir/intellij-elixir/issues/4539).
 
