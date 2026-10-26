@@ -54,10 +54,7 @@ object TestPartition {
         "org.elixir_lang.mix.sync.MixDepsSyncServiceTest",
         "org.elixir_lang.model.psi.function.DelegationRenameTest",
         "org.elixir_lang.model.psi.rename.RenameMatrixTest",
-        "org.elixir_lang.model.psi.variable.VariableOracleCorpusShard0Test",
-        "org.elixir_lang.model.psi.variable.VariableOracleCorpusShard1Test",
-        "org.elixir_lang.model.psi.variable.VariableOracleCorpusShard2Test",
-        "org.elixir_lang.model.psi.variable.VariableOracleCorpusShard3Test",
+        "org.elixir_lang.model.psi.variable.VariableOracleCorpusShard*Test",
         "org.elixir_lang.psi.scope.callable_table.ParityTest",
     )
 }
