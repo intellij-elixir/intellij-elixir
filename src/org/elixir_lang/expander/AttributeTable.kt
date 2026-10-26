@@ -218,6 +218,12 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
      */
     fun has(name: String): Boolean? = if (isUnknown(name)) null else name in entries
 
+    /**
+     * Each attribute with a row at this point, as `Module.attributes_in/1` lists them, or `null` where any attribute's
+     * row may differ.
+     */
+    fun names(): Set<String>? = if (stopped || everyUnknown || unknown.isNotEmpty()) null else entries.keys.toSet()
+
     /** Whether an effect that may not run may have written or deleted [name]. */
     fun mayHaveChanged(name: String): Boolean = everyChanged || name in changed
 

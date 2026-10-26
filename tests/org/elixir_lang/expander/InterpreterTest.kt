@@ -43,8 +43,12 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_SORT_KEEPS_EQU
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ARGUMENTS_STOP_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ESCAPE_MARKS_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
+import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_ATTRIBUTES_IN
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_DELETE_DEFINITION
+import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_GET_LAST_ATTRIBUTE
+import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_OVERRIDABLES_IN
 import org.elixir_lang.language_level.ElixirLanguageFeature.NEGATIVE_ZERO_IS_DISTINCT
+import org.elixir_lang.language_level.ElixirLanguageFeature.OVERRIDABLE_GUARDS_MODULE
 import org.elixir_lang.language_level.ElixirLanguageFeature.PID_IN_FUNCTION_RAISES_MATCH_ERROR
 import org.elixir_lang.language_level.ElixirLanguageFeature.PINNED_BINARY_SEGMENT_INFERS_SIZE
 import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CHECKS_TYPED
@@ -6296,6 +6300,145 @@ class InterpreterTest : PlatformTestCase() {
                   def r, do: @r_get
                 end
                 """,
+            ),
+            // A reader's answer comes back as the called function's value. `definitions_in/2` reads the set table,
+            // whose order Elixir doesn't fix.
+            macro(
+                "called:readers-value",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def read(mod) do
+                    {Module.open?(mod), Module.open?({row}.W), Module.definitions_in(mod),
+                     Enum.sort(Module.definitions_in(mod, :def)), Module.overridable?(mod, {:b, 0}),
+                     Module.overridable?(mod, {:c, 1})}
+                  end
+                end
+
+                defmodule {row}.U do
+                  def b, do: a()
+                  defp a, do: 1
+                  def c(x \\ 1), do: x
+                  defoverridable b: 0
+                  def b, do: 2
+                  v = {row}.W.read(__MODULE__)
+                  def r, do: unquote(Macro.escape(v))
+                end
+                """,
+            ),
+            // `attributes_in/1` reads the set table, whose order Elixir doesn't fix.
+            macro(
+                "called:readers-listed",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                legs = { MODULE_ATTRIBUTES_IN.isSufficient(it) && MODULE_OVERRIDABLES_IN.isSufficient(it) },
+                helper = """
+                defmodule {row}.W do
+                  def read(mod), do: {Enum.sort(Module.attributes_in(mod)), Module.overridables_in(mod)}
+                end
+
+                defmodule {row}.U do
+                  @a 1
+                  Module.register_attribute(__MODULE__, :reg, [])
+                  def f, do: @a
+                  def g, do: 1
+                  defoverridable g: 0, f: 0
+                  def f, do: 2
+                  v = {row}.W.read(__MODULE__)
+                  def r, do: unquote(Macro.escape(v))
+                end
+                """,
+            ),
+            macro(
+                "called:readers-last",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                legs = { MODULE_GET_LAST_ATTRIBUTE.isSufficient(it) },
+                helper = """
+                defmodule {row}.W do
+                  def read(mod) do
+                    {Module.get_last_attribute(mod, :acc), Module.get_last_attribute(mod, :empty),
+                     Module.get_last_attribute(mod, :empty, :d), Module.get_last_attribute(mod, :set),
+                     Module.get_last_attribute(mod, :reg, :d), Module.get_last_attribute(mod, :missing, :d)}
+                  end
+                end
+
+                defmodule {row}.U do
+                  Module.register_attribute(__MODULE__, :acc, accumulate: true)
+                  @acc 1
+                  @acc 2
+                  Module.register_attribute(__MODULE__, :empty, accumulate: true)
+                  Module.register_attribute(__MODULE__, :reg, [])
+                  @set [3]
+                  v = {row}.W.read(__MODULE__)
+                  def r, do: unquote(Macro.escape(v))
+                end
+                """,
+            ),
+            // A reader's guards raise as its clauses do.
+            macro(
+                "called:readers-guards",
+                """
+                defmacro m do
+                  raised = fn f ->
+                    try do
+                      f.()
+                    rescue
+                      e in FunctionClauseError -> {e.function, e.arity}
+                    end
+                  end
+
+                  [
+                    raised.(fn -> Module.open?("m") end),
+                    raised.(fn -> Module.definitions_in("m") end),
+                    raised.(fn -> Module.definitions_in(__CALLER__.module, :other) end),
+                    raised.(fn -> Module.overridable?(__CALLER__.module, {:f, 256}) end),
+                    raised.(fn -> Module.overridable?(__CALLER__.module, {"f", 0}) end)
+                  ]
+                end
+                """,
+            ),
+            macro(
+                "called:readers-guards-listed",
+                """
+                defmacro m do
+                  raised = fn f ->
+                    try do
+                      f.()
+                    rescue
+                      e in FunctionClauseError -> {e.function, e.arity}
+                    end
+                  end
+
+                  [raised.(fn -> Module.attributes_in("m") end), raised.(fn -> Module.overridables_in("m") end)]
+                end
+                """,
+                legs = { MODULE_ATTRIBUTES_IN.isSufficient(it) && MODULE_OVERRIDABLES_IN.isSufficient(it) },
+            ),
+            macro(
+                "called:readers-guards-last",
+                """
+                defmacro m do
+                  try do
+                    Module.get_last_attribute(__CALLER__.module, "k")
+                  rescue
+                    e in FunctionClauseError -> {e.function, e.arity}
+                  end
+                end
+                """,
+                legs = { MODULE_GET_LAST_ATTRIBUTE.isSufficient(it) },
+            ),
+            // From 1.20 `overridable?/2` guards its module, before which one that isn't an atom raises from its tables.
+            macro(
+                "called:overridable-module-guard",
+                """
+                defmacro m do
+                  try do
+                    Module.overridable?("m", {:f, 0})
+                  rescue
+                    e in FunctionClauseError -> {e.function, e.arity}
+                  end
+                end
+                """,
+                pins = { _, level -> OPAQUE.takeUnless { OVERRIDABLE_GUARDS_MODULE.isSufficient(level) } },
             ),
             // A macro's body writes the module it expands in.
             macro(

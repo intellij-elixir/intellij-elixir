@@ -19,6 +19,7 @@ import org.elixir_lang.NameArity
 import org.elixir_lang.expander.Annotation
 import org.elixir_lang.expander.AttributeTable
 import org.elixir_lang.expander.AttributeValue
+import org.elixir_lang.expander.Compiling
 import org.elixir_lang.expander.DefinitionTable
 import org.elixir_lang.expander.EscapeOp
 import org.elixir_lang.expander.EscapeView
@@ -40,6 +41,10 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_SORT_KEEPS_EQUAL_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.RAISE_FRAME_TAKES_A_CAPTURE
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
+import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_ATTRIBUTES_IN
+import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_GET_LAST_ATTRIBUTE
+import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_OVERRIDABLES_IN
+import org.elixir_lang.language_level.ElixirLanguageFeature.OVERRIDABLE_GUARDS_MODULE
 import org.elixir_lang.language_level.ElixirLanguageFeature.SPLICE_EMPTY_BEFORE_TAIL_RAISES
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRING_TO_ATOM_REQUIRES_BINARY
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
@@ -58,7 +63,8 @@ private const val BACKTRACE_DEPTH = 8
  * indices of those it can; any other can return any of them. An app-env read returns the environment's value, which
  * came from no module, or a default: `get_env/3`'s and `compile_env/4`'s where the key isn't set (`App:724`, `:595` at
  * v1.20.4), and `__compile_env__/4`'s before it (`App:516` at v1.11.4). `Module`'s attribute reads return a value of
- * the module their first argument names, or `get_attribute/3`'s default, and its predicates a boolean.
+ * the module their first argument names, or the default they are given, its predicates a boolean, and its listings
+ * names.
  */
 private val RETURNABLE = mapOf(
     Triple("Elixir.Application", "get_env", 2) to emptyList(),
@@ -76,6 +82,14 @@ private val RETURNABLE = mapOf(
     Triple("Elixir.Module", "has_attribute?", 2) to emptyList(),
     Triple("Elixir.Module", "defines?", 2) to emptyList(),
     Triple("Elixir.Module", "defines?", 3) to emptyList(),
+    Triple("Elixir.Module", "get_last_attribute", 2) to listOf(0),
+    Triple("Elixir.Module", "get_last_attribute", 3) to listOf(0, 2),
+    Triple("Elixir.Module", "open?", 1) to emptyList(),
+    Triple("Elixir.Module", "definitions_in", 1) to emptyList(),
+    Triple("Elixir.Module", "definitions_in", 2) to emptyList(),
+    Triple("Elixir.Module", "overridable?", 2) to emptyList(),
+    Triple("Elixir.Module", "overridables_in", 1) to emptyList(),
+    Triple("Elixir.Module", "attributes_in", 1) to emptyList(),
 )
 
 /**
@@ -1292,23 +1306,46 @@ internal class Natives(private val evaluation: Evaluation) {
             // `get_attribute/2` is the default-argument clause of `get_attribute/3`, which raises with `nil` appended.
             "get_attribute/2" -> getAttribute(args + NIL, NIL)
             "get_attribute/3" -> getAttribute(args, args[2])
+            "get_last_attribute/2" ->
+                if (MODULE_GET_LAST_ATTRIBUTE.isSufficient(level)) getAttribute(args + NIL, NIL, last = true) else null
+            "get_last_attribute/3" ->
+                if (MODULE_GET_LAST_ATTRIBUTE.isSufficient(level)) getAttribute(args, args[2], last = true) else null
+            "open?/1" -> open(args)
+            "definitions_in/1", "definitions_in/2" -> definitionsIn(args)
+            "overridable?/2" -> overridable(args)
+            "overridables_in/1" -> if (MODULE_OVERRIDABLES_IN.isSufficient(level)) overridablesIn(args) else null
+            "attributes_in/1" -> if (MODULE_ATTRIBUTES_IN.isSufficient(level)) attributesIn(args) else null
             else -> null
         }
 
     /**
      * `Module.get_attribute/2,3` (`Mod:1637–1639` at v1.20.4, `Mod:1232–1237` at v1.11.4): [default] for an attribute
-     * that isn't set, or, before [GET_ATTRIBUTE_DEFAULT_ONLY_UNSET], for any `nil`.
+     * that isn't set, or, before [GET_ATTRIBUTE_DEFAULT_ONLY_UNSET], for any `nil`. As `get_last_attribute/2,3`, the
+     * [last] value of an accumulating attribute, or [default] where it has none (`Mod:1545` and `:1953–1962` at v1.15.8,
+     * `:1672` and `:2076–2085` at v1.20.4).
      */
-    private fun getAttribute(args: List<OtpErlangObject>, default: OtpErlangObject): OtpErlangObject {
+    private fun getAttribute(args: List<OtpErlangObject>, default: OtpErlangObject, last: Boolean = false): OtpErlangObject {
         val onlyUnset = GET_ATTRIBUTE_DEFAULT_ONLY_UNSET.isSufficient(level)
 
-        return when (val row = lookup("get_attribute", args, guardsModule = true)) {
+        return when (val row = lookup(if (last) "get_last_attribute" else "get_attribute", args, guardsModule = true)) {
             AttributeTable.Lookup.Absent -> default
             AttributeTable.Lookup.Unset ->
                 if (!onlyUnset || GET_ATTRIBUTE_DEFAULT_FOR_REGISTERED.isSufficient(level)) default else NIL
-            is AttributeTable.Lookup.Holds -> valueOf(row, args).let { if (!onlyUnset && it == NIL) default else it }
+            is AttributeTable.Lookup.Holds -> {
+                val value = valueOf(row, args)
+
+                when {
+                    last && accumulates(args) -> cells(value)!!.first.firstOrNull() ?: default
+                    !onlyUnset && value == NIL -> default
+                    else -> value
+                }
+            }
         }
     }
+
+    /** Whether the attribute [args] name, in the module they name, accumulates; their guards have passed. */
+    private fun accumulates(args: List<OtpErlangObject>): Boolean =
+        (seen(args[1]) as OtpErlangAtom).atomValue() in attributesOf(seen(args[0]) as OtpErlangAtom, args[0]).accumulating
 
     /**
      * The row of [args]' attribute, as `Module`'s `get_attribute` finds it in the module being compiled, its body run
@@ -1339,8 +1376,12 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** The attributes of [module], being compiled, where they are Elixir's here ([Evaluation.compilingKnown]). */
     private fun attributesOf(module: OtpErlangAtom?, arg: OtpErlangObject): AttributeTable =
-        module?.let { evaluation.compilingKnown(it.atomValue()) }?.attributes
-            ?: decline("reads an attribute of %s, which isn't known there", arg)
+        compilingOf(module, arg).attributes
+
+    /** [module], being compiled, where its tables are Elixir's here ([Evaluation.compilingKnown]). */
+    private fun compilingOf(module: OtpErlangAtom?, arg: OtpErlangObject): Compiling =
+        module?.let { evaluation.compilingKnown(it.atomValue()) }
+            ?: decline("reads the tables of %s, which aren't known there", arg)
 
     /**
      * `Application.compile_env/4` and `compile_env!/3` from [COMPILE_ENV_TAKES_ENV_FIRST] (`App:595–646` at v1.20.4),
@@ -1428,22 +1469,105 @@ internal class Natives(private val evaluation: Evaluation) {
      */
     private fun defines(args: List<OtpErlangObject>): OtpErlangObject {
         val module = seen(args[0]) as? OtpErlangAtom
-        val definition = (seen(args[1]) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }
-        val name = definition?.let { seen(it.elementAt(0)) as? OtpErlangAtom }
-        val arity = definition?.let { seen(it.elementAt(1)) as? OtpErlangLong }
-            ?.takeIf { it.isLong && it.longValue() in 0..255 }
-        val kind = args.getOrNull(2)?.let { (seen(it) as? OtpErlangAtom)?.atomValue() }
-            ?.let { kind -> DefinitionTable.Kind.entries.firstOrNull { it.name.lowercase() == kind } }
+        val nameArity = definitionOf(args[1])
+        val kind = args.getOrNull(2)?.let(::kindOf)
 
-        if (module == null || name == null || arity == null || args.size == 3 && kind == null) {
+        if (module == null || nameArity == null || args.size == 3 && kind == null) {
             functionClause("Elixir.Module", "defines?", args)
         }
-
-        val nameArity = NameArity(name.atomValue(), arity.longValue().toInt())
 
         return evaluation.compilingKnown(module.atomValue())?.defines(nameArity, kind)?.let(::bool)
             ?: decline("whether ${module.atomValue()} defines ${nameArity.name}/${nameArity.arity} isn't known")
     }
+
+    /** `Module.open?/1` (`Mod:553` at v1.11.4, `:863` at v1.20.4), declining where another file may be compiling it. */
+    private fun open(args: List<OtpErlangObject>): OtpErlangObject {
+        val module = seen(args[0]) as? OtpErlangAtom ?: functionClause("Elixir.Module", "open?", args)
+
+        return evaluation.run.isOpen(module.atomValue())?.let(::bool)
+            ?: decline("whether %s is open isn't known", args[0])
+    }
+
+    /**
+     * `Module.definitions_in/1,2` (`Mod:1033–1064` at v1.11.4, `:1394–1421` at v1.20.4): its guards, then each
+     * definition of the module being compiled, of the kind where one is given, declining where Elixir's table may
+     * differ.
+     */
+    private fun definitionsIn(args: List<OtpErlangObject>): OtpErlangObject {
+        val module = seen(args[0]) as? OtpErlangAtom
+        val kind = args.getOrNull(1)?.let(::kindOf)
+
+        if (module == null || args.size == 2 && kind == null) functionClause("Elixir.Module", "definitions_in", args)
+
+        val compiling = compilingOf(module, args[0])
+        val table = compiling.table
+
+        if (!table.everyNameKnown || table.entries.values.any { !it.ordered } || compiling.overridable.values.any { !it.ordered }) {
+            decline("the definitions of %s aren't known", args[0])
+        }
+
+        return list(table.entries.filterValues { kind == null || it.kind == kind }.keys.map(::definitionTerm))
+    }
+
+    /**
+     * `Module.overridable?/2` (`Mod:1174–1177` at v1.11.4, `:1578–1582` at v1.20.4): its guards, then whether
+     * `make_overridable/2` recorded the definition, which stays recorded once overridden. Before
+     * [OVERRIDABLE_GUARDS_MODULE] a module that isn't an atom passes the guards and declines.
+     */
+    private fun overridable(args: List<OtpErlangObject>): OtpErlangObject {
+        val module = seen(args[0]) as? OtpErlangAtom
+        val definition = definitionOf(args[1])
+
+        if (definition == null || module == null && OVERRIDABLE_GUARDS_MODULE.isSufficient(level)) {
+            functionClause("Elixir.Module", "overridable?", args)
+        }
+
+        val record = compilingOf(module, args[0]).overridable[definition]
+
+        if (record?.ordered == false) decline("whether %s is overridable isn't known", args[1])
+
+        return bool(record != null)
+    }
+
+    /**
+     * `Module.overridables_in/1` (`Mod:1170–1173` at v1.13.4, `:1369–1372` at v1.20.4): each definition
+     * `make_overridable/2` recorded, in the order it first did.
+     */
+    private fun overridablesIn(args: List<OtpErlangObject>): OtpErlangObject {
+        val module = seen(args[0]) as? OtpErlangAtom ?: functionClause("Elixir.Module", "overridables_in", args)
+        val overridable = compilingOf(module, args[0]).overridable
+
+        if (overridable.values.any { !it.ordered }) decline("the overridable definitions of %s aren't known", args[0])
+
+        return list(overridable.keys.map(::definitionTerm))
+    }
+
+    /** `Module.attributes_in/1` (`Mod:1141–1145` at v1.13.4, `:1341–1344` at v1.20.4). */
+    private fun attributesIn(args: List<OtpErlangObject>): OtpErlangObject {
+        val module = seen(args[0]) as? OtpErlangAtom ?: functionClause("Elixir.Module", "attributes_in", args)
+        val names = compilingOf(module, args[0]).attributes.names()
+            ?: decline("the attributes of %s aren't known", args[0])
+
+        return list(names.map(::atom))
+    }
+
+    /** [term] as the `{name, arity}` `Module`'s guards take, or `null` where they refuse it. */
+    private fun definitionOf(term: OtpErlangObject): NameArity? {
+        val definition = (seen(term) as? OtpErlangTuple)?.takeIf { it.arity() == 2 } ?: return null
+        val name = seen(definition.elementAt(0)) as? OtpErlangAtom ?: return null
+        val arity = (seen(definition.elementAt(1)) as? OtpErlangLong)?.takeIf { it.isLong && it.longValue() in 0..255 }
+            ?: return null
+
+        return NameArity(name.atomValue(), arity.longValue().toInt())
+    }
+
+    private fun definitionTerm(nameArity: NameArity): OtpErlangObject =
+        tuple(atom(nameArity.name), integer(nameArity.arity.toLong()))
+
+    /** [term] as the definition kind `Module`'s guards take, or `null` where they refuse it. */
+    private fun kindOf(term: OtpErlangObject): DefinitionTable.Kind? =
+        (seen(term) as? OtpErlangAtom)?.atomValue()
+            ?.let { kind -> DefinitionTable.Kind.entries.firstOrNull { it.name.lowercase() == kind } }
 
     /** `elixir_aliases:concat/1` of the list [parts]. */
     private fun concat(parts: OtpErlangObject): OtpErlangObject {
