@@ -30,9 +30,11 @@ internal object ModuleEffects {
      * @property unknownReceiver what a call of its name and arity does through a receiver that isn't known at expansion,
      *   which may be this function's
      * @property change the change to `module` of a call with `args`, expanded from `nodes`, once its receiver is known
+     * @property target the index of the argument naming the module it changes
      */
     private class Row(
         val unknownReceiver: Change,
+        val target: Int = 0,
         val change: (module: String, args: List<Term>, nodes: List<ElixirAst>) -> Change?,
     )
 
@@ -57,6 +59,13 @@ internal object ModuleEffects {
 
         return rows[key]?.change(module, args, nodes)
     }
+
+    /**
+     * The index of the argument naming the module [receiver]'s [name] of [arity] changes at [level], or `null` where it
+     * has no row: where it is no function that changes a module.
+     */
+    fun target(receiver: String, name: String, arity: Int, level: ElixirLanguageLevel): Int? =
+        rows(level)[Triple(receiver, name, arity)]?.target
 
     /** The module [target], a call's module argument, names: `null` where it isn't an atom ([Run.compilingNamed]). */
     private fun moduleNamed(target: Term?): String? = (target as? Term.Atom)?.name
@@ -92,8 +101,8 @@ internal object ModuleEffects {
     private val DELETE = attributeCall { name, _ -> Effect.Delete(name) }
 
     /** `deftypespec(kind, expr, line, file, module, pos)`, where `kind` is the attribute and `expr` the spec, escaped. */
-    private val TYPESPEC_WRITE = Row(UNKNOWN_MODULE) { module, args, nodes ->
-        targeting(args[4], module) {
+    private val TYPESPEC_WRITE = Row(UNKNOWN_MODULE, TYPESPEC_MODULE) { module, args, nodes ->
+        targeting(args[TYPESPEC_MODULE], module) {
             named(args[0]) { Effect.TypespecWrite(it, specHead(nodes[1])) }
         }
     }
@@ -151,6 +160,30 @@ internal object ModuleEffects {
         }
     }
 
+    /**
+     * `Module.delete_definition(module, {name, arity})` (`Mod:1478–1483` at v1.20.4): the definition taken out of the
+     * module's table where the call is the module's own, Elixir surely runs it there, and whether the table holds the
+     * definition is known ([Compiling.defines]); otherwise it stops.
+     */
+    private val DELETE_DEFINITION = Row(STOP) { module, args, _ ->
+        val definition = (args[1] as? Term.Pair)?.let(::definitionNamed)
+
+        if (moduleNamed(args[0]) == module && definition != null) {
+            Change.Definitions { compiling, at, run, ordered ->
+                val defined = compiling.defines(definition, null)
+
+                if (ordered && compiling.values.certainHere() && defined != null) {
+                    if (defined) deleteDefinition(compiling, definition)
+                    null
+                } else {
+                    stop(args[0]).apply(compiling, at, run, ordered)
+                }
+            }
+        } else {
+            stop(args[0])
+        }
+    }
+
     /** A remover this doesn't follow, which stops the module whatever its target. */
     private val STOPS = Row(STOP) { _, args, _ -> stop(args[0]) }
 
@@ -160,7 +193,7 @@ internal object ModuleEffects {
      */
     private val REMOVERS = mapOf(
         Triple(ELIXIR_MODULE, "make_overridable", 2) to MAKE_OVERRIDABLE,
-        Triple(ELIXIR_MODULE, "delete_definition", 2) to STOPS,
+        Triple(ELIXIR_MODULE, "delete_definition", 2) to DELETE_DEFINITION,
         Triple(ELIXIR_DEF, "take_definition", 2) to STOPS,
     )
 
@@ -214,3 +247,6 @@ internal const val ELIXIR_MODULE = "Elixir.Module"
 private const val ELIXIR_DEF = "elixir_def"
 
 internal const val KERNEL_TYPESPEC = "Elixir.Kernel.Typespec"
+
+/** The argument of `Kernel.Typespec.deftypespec/6` naming the module it writes. */
+private const val TYPESPEC_MODULE = 4

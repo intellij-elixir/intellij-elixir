@@ -363,21 +363,15 @@ class InterpreterTest : PlatformTestCase() {
     /**
      * An error that reads what an unordered unit may have changed isn't the module's for certain: the table entry
      * Elixir never stored. The module stops there, and as the project is taken to compile, the run goes on: the module
-     * that reads its struct, which isn't readable, stops. A declined call given the module may have written any of its
-     * attributes, so `@x` isn't known after it, nor are the `@before_compile` callbacks: the module stops at its end.
+     * that reads its struct, which isn't readable, stops.
      */
-    fun testAnErrorAfterAnUnorderedUnitOrADeclineStopsAndTheRunGoesOn() {
+    fun testAnErrorAfterAnUnorderedUnitStopsAndTheRunGoesOn() {
         val b = "defmodule B do\n  def g, do: %A{}\nend"
         val stopsB = "\nmodule Elixir.B stopped `%A{}`"
 
         assertFile(
             "defmodule A do\n  defstruct [:x]\n  if $RECV_FALSE do\n    defmacro f, do: 1\n  end\n  def f, do: 2\nend\n$b",
             "top expanded\nmodule Elixir.A stopped `def f, do: 2`$stopsB",
-        )
-        val given = "defmodule A do\n  defstruct [:x]\n  @x :bad\n  H.set(__MODULE__)\n  :ok = @x\nend"
-        assertFile(
-            "defmodule H do\n  def set(m), do: Module.put_attribute(m, :x, :ok)\nend\n$given\n$b",
-            "top expanded\nmodule Elixir.H compiled\nmodule Elixir.A stopped `$given`$stopsB",
         )
         assertFile(
             "defmodule A do\n  def f, do: 1\n  defoverridable f: 0\n  if $RECV_FALSE do\n    defmacro f, do: 1\n  end\n  def g, do: 2\nend\n$b",
@@ -396,6 +390,15 @@ class InterpreterTest : PlatformTestCase() {
             },
         )
     }
+
+    /** A function the module body calls writes its attribute, so a later read is what it wrote, as in Elixir. */
+    fun testAnAttributeACalledFunctionWritesIsReadAfterIt() =
+        assertFile(
+            "defmodule H do\n  def set(m), do: Module.put_attribute(m, :x, :ok)\nend\n" +
+                "defmodule A do\n  defstruct [:x]\n  @x :bad\n  H.set(__MODULE__)\n  :ok = @x\nend\n" +
+                "defmodule B do\n  def g, do: %A{}\nend",
+            "top expanded\nmodule Elixir.H compiled\nmodule Elixir.A compiled\nmodule Elixir.B compiled",
+        )
 
     /**
      * A file of only modules stops at a name the fast path can't give, once the modules before it have compiled, and
@@ -5533,7 +5536,6 @@ class InterpreterTest : PlatformTestCase() {
                 "before_compile:defines-after-delete",
                 "defmacro m, do: Macro.escape({row}.DD.g())",
                 legs = DELETES_DEFINITIONS,
-                pins = CALLS_A_STOPPED_MODULE,
                 helper = definesAround("DD" to "  Module.delete_definition(__MODULE__, {:f, 0})"),
             ),
             macro(
@@ -5847,7 +5849,6 @@ class InterpreterTest : PlatformTestCase() {
                   def r, do: unquote(v)
                 end
                 """,
-                pins = CALLS_A_STOPPED_MODULE,
             ),
             // A function the module body calls writes the module it is given through `Module`, as the body's own `@`
             // would. The using module reads what was written through functions it defines.
@@ -7408,10 +7409,9 @@ class InterpreterTest : PlatformTestCase() {
                 """,
                 options = "port: 4000, host: \"localhost\"",
             ),
-            // A `for` over a call the evaluator can't produce stops the module at the `for`: `__setup__/2` writes the
-            // module, and what the `for` defines isn't known.
+            // A `for` over a call that writes the module runs the call once, and defines what Elixir does.
             use(
-                "body:for-setup-stop",
+                "body:for-setup",
                 """
                 def __setup__(module, opts) do
                   Module.register_attribute(module, :names, accumulate: true)
@@ -7427,7 +7427,6 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
                 options = "a: 1, b: 2",
-                stopsAfter = "{:for, [], [{:<-, [], [{:name, [], {token}.",
             ),
             // A `def` in a module-body `fn` is stored each time the `fn` is called, with that call's bindings.
             use(

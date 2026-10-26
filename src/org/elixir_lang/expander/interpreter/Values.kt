@@ -29,7 +29,7 @@ import java.util.Collections
 import java.util.IdentityHashMap
 
 /** The evaluator can't follow the macro body any further, for [reason]. */
-internal class Declined(val reason: String) : RuntimeException(reason, null, false, false) {
+internal class Declined(val reason: String, stops: Boolean = false) : RuntimeException(reason, null, false, false) {
     /** The modules being compiled that the calls it declined in were given, any of which those calls may have written. */
     val given = Given()
 
@@ -46,6 +46,23 @@ internal class Declined(val reason: String) : RuntimeException(reason, null, fal
     /** The raise that [ended] it, where the evaluator ran it: a `rescue` or `catch` clause can take it. */
     var endedBy: Thrown? = null
         private set
+
+    /**
+     * Whether the call it declined stops the module whose code ran it, at the unit running that code: the call took a
+     * definition out of a table where the expander doesn't follow it.
+     */
+    var stops = stops
+        private set
+
+    /**
+     * Takes in [other], a decline of code it ran: what that code was given, and its stop; and, where [other]'s value is
+     * a part of its own, what that value [holds].
+     */
+    fun absorb(other: Declined, holds: Boolean = true) {
+        given.add(other.given)
+        if (holds) this.holds += other.holds
+        if (other.stops) stops = true
+    }
 
     /** It [ended], by [raise]. */
     fun end(raise: Thrown?) {

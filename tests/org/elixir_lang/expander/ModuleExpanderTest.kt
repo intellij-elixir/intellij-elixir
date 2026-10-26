@@ -3093,15 +3093,15 @@ class ModuleExpanderTest : ExpanderTestCase() {
         }
 
     /**
-     * A macro the expander can't follow, expanded in a function body of a nested module, ran given the module around
-     * it by its argument, so a later read of that module's attributes declines: Elixir reads what the macro wrote.
+     * A macro expanded in a function body of a nested module writes the module around it, given by its argument, and a
+     * later read of that module's attributes reads what it wrote, as Elixir's does.
      */
-    fun testAnUnfollowedMacroGivenTheEnclosingModuleLeavesItsAttributesUnknown() =
+    fun testAMacroWritingTheEnclosingModuleIsReadAfterIt() =
         assertLevels(
             """
             defmodule W do
               defmacro w(module) do
-                Module.put_attribute(module, :x, 2)
+                Module.put_attribute(module, :x, :written)
                 :ok
               end
 
@@ -3128,14 +3128,14 @@ class ModuleExpanderTest : ExpanderTestCase() {
               body: expanded {} next 0 context [Elixir.W]
               defmacro w/1: expanded {module:0} next 1
               defmacro r/2: expanded {key:1 module:0} next 2
-            module Elixir.NS stopped `W.w(:"Elixir.NS")`
+            module Elixir.NS compiled
               body: expanded {} next 0 context ${innerContext(version)}
-              module Elixir.NS.Inner stopped `W.w(:"Elixir.NS")`
+              module Elixir.NS.Inner compiled
                 def h/0 line 15 clauses 1
                 def g/0 line 16 clauses 1
                 body: expanded {} next 0 context ${innerContext(version)}
-                def h/0: opaque remote_macro Elixir.W.w/1 `W.w(:"Elixir.NS")`
-                def g/0: opaque remote_macro Elixir.W.r/2 `W.r(:"Elixir.NS", :x)`
+                def h/0: expanded {} next 0 value ok
+                def g/0: expanded {} next 0 value written
             """.trimIndent()
         }
 

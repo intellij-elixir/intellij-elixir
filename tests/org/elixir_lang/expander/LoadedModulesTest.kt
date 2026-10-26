@@ -8,6 +8,7 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.application.ReadAction
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.CACHE_ENV_IN_ELIXIR_MODULE
+import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_DELETE_DEFINITION
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.psi.ElixirFile
 
@@ -227,23 +228,13 @@ class LoadedModulesTest : ProbeTestCase() {
     }
 
     /**
-     * An error that reads what an unordered unit or a decline may have changed isn't Elixir's for certain, so the
-     * module may be loaded: the plugin's raise came from an entry Elixir never stored, an attribute a declined call may
-     * have written, or a body Elixir never expanded.
+     * An error that reads what an unordered unit may have changed isn't Elixir's for certain, so the module may be
+     * loaded: the plugin's raise came from an entry Elixir never stored, or a body Elixir never expanded.
      */
-    fun testAnErrorAfterAnUnorderedUnitOrADeclineMayNotBeElixirs() {
+    fun testAnErrorAfterAnUnorderedUnitMayNotBeElixirs() {
         assertEquals(
             listOf("Unreadable", "Unreadable"),
             loadings("defmodule A do\n  defstruct [:x]\n  if $RECV_FALSE do\n    defmacro f, do: 1\n  end\n  def f, do: 2\nend\ndefmodule B do\n  def g, do: %A{}\nend", "A", "B"),
-        )
-        assertEquals(
-            listOf("Present", "Unreadable", "Unreadable"),
-            loadings(
-                "defmodule H do\n  def set(m), do: Module.put_attribute(m, :x, :ok)\nend\ndefmodule A do\n  defstruct [:x]\n  @x :bad\n  H.set(__MODULE__)\n  :ok = @x\nend\ndefmodule B do\n  def g, do: %A{}\nend",
-                "H",
-                "A",
-                "B",
-            ),
         )
         assertEquals(
             listOf("Unreadable", "Unreadable"),
@@ -355,11 +346,28 @@ class LoadedModulesTest : ProbeTestCase() {
                 "M.N",
             ),
         )
-        // The selected clause's module is a statement; `H.set` may have written `M`, and `N` comes after that decline.
+    }
+
+    /**
+     * A module whose body reads an attribute a function it calls wrote is loaded, as is the module that reads its
+     * struct, and a module after the read in a clause the body selects.
+     */
+    fun testAModuleThatReadsWhatAFunctionItCallsWroteIsLoaded() {
+        val set = "defmodule H do\n  def set(m), do: Module.put_attribute(m, :x, :ok)\nend\n"
+
         assertEquals(
-            listOf("Present", "Unreadable", "Present"),
+            listOf("Present", "Present", "Present"),
             loadings(
-                "defmodule H do\n  def set(m), do: Module.put_attribute(m, :x, :ok)\nend\ncase 1 do\n  1 ->\n    defmodule M do\n      @x :bad\n      H.set(__MODULE__)\n      :ok = @x\n      defmodule N do\n        def g, do: 1\n      end\n    end\nend",
+                set + "defmodule A do\n  defstruct [:x]\n  @x :bad\n  H.set(__MODULE__)\n  :ok = @x\nend\ndefmodule B do\n  def g, do: %A{}\nend",
+                "H",
+                "A",
+                "B",
+            ),
+        )
+        assertEquals(
+            listOf("Present", "Present", "Present"),
+            loadings(
+                set + "case 1 do\n  1 ->\n    defmodule M do\n      @x :bad\n      H.set(__MODULE__)\n      :ok = @x\n      defmodule N do\n        def g, do: 1\n      end\n    end\nend",
                 "H",
                 "M",
                 "M.N",
@@ -433,6 +441,20 @@ class LoadedModulesTest : ProbeTestCase() {
                 "CB",
                 "O",
                 "Foo",
+            ),
+        )
+    }
+
+    /** Deleting `__struct__/1` leaves the struct `defstruct` recorded unreadable, so a later `%U{}` isn't built from it. */
+    fun testDeletingStructLeavesItsStructUnreadable() {
+        if (!MODULE_DELETE_DEFINITION.isSufficient(legLevel())) return
+
+        assertEquals(
+            listOf("Present", "Unreadable"),
+            loadings(
+                "defmodule U do\n  defstruct [:a]\n  Module.delete_definition(__MODULE__, {:__struct__, 1})\nend\ndefmodule B do\n  def g, do: %U{a: 1}\nend",
+                "U",
+                "B",
             ),
         )
     }
