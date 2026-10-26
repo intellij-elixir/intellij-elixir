@@ -155,7 +155,20 @@ defmodule Matrix do
     "x_bitstring_names" => {["if <<1::integer-signed>> == <<1>> do"], ["end"]},
     "x_bitstring_calls" => {["if <<1::integer-size(8)>> == <<1>> do"], ["end"]},
     "x_bitstring_unit" => {["if <<1::size(1)-unit(8)>> == <<1>> do"], ["end"]},
-    "x_bitstring_size_attribute" => {["@bits 8", "if <<1::size(@bits)>> == <<1>> do"], ["end"]}
+    "x_bitstring_size_attribute" => {["@bits 8", "if <<1::size(@bits)>> == <<1>> do"], ["end"]},
+    # A bitstring generator, alone, beside a second generator, with a sized segment, and with `reduce:` (`uniq:` draws a diagnostic wherever the result is unused).
+    "x_for_bitstring" => {[~s[for <<_c <- "a">> do]], ["end"]},
+    "x_for_bitstring_two" => {[~s[for <<_a <- "a">>, <<_b <- "b">> do]], ["end"]},
+    "x_for_bitstring_sized" => {[~s[for <<_c::size(8) <- "a">> do]], ["end"]},
+    "x_for_bitstring_reduce" => {[~s[for <<_c <- "a">>, reduce: 0 do], "  acc ->"], ["  acc", "end"]},
+    # A key the environment lacks raises `KeyError`, which the `try` rescues, and the definitions follow it.
+    "x_env_key_error" => {["try do", "  __ENV__.matrix_absent", "rescue", "  _ ->"], ["end"]},
+    # Captures read while the module body runs: a local-looking operator, a remote function and a remote with arity.
+    "x_capture_remote" => {["if Enum.map([-1], &Kernel.abs(&1)) == [1] do"], ["end"]},
+    "x_capture_arity" => {["if Enum.map([-1], &Kernel.abs/1) == [1] do"], ["end"]},
+    "x_capture_nested" => {["if Enum.map([-1], &(Kernel.abs(&1) + 0)) == [1] do"], ["end"]},
+    # A pipe into a call whose argument is a charlist.
+    "x_pipe_charlist" => {[~s[if ~c"a" |> to_string() == "a" do]], ["end"]}
   }
   @wrapper_worlds Map.keys(@wrappers)
 
