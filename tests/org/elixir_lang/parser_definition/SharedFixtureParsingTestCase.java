@@ -3,7 +3,6 @@ package org.elixir_lang.parser_definition;
 import com.intellij.util.ThrowableRunnable;
 import org.elixir_lang.junit.SharedFixture;
 import org.elixir_lang.junit.SharedFixtureHost;
-import org.elixir_lang.junit.logs.UnexpectedLogs;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -38,12 +37,7 @@ abstract class SharedFixtureParsingTestCase<T extends SharedFixtureParsingTestCa
 
     @Override
     protected final void runBare(@NotNull ThrowableRunnable<Throwable> testRunnable) throws Throwable {
-        if (fixture == null) {
-            super.runBare(testRunnable);
-        } else {
-            // Checked on the shared host; logs during the check are this case's.
-            UnexpectedLogs.failOnUnexpectedLogs(() -> fixture.check(self()));
-        }
+        SharedFixture.runCase(fixture, self(), () -> super.runBare(testRunnable));
     }
 
     @SuppressWarnings("unchecked")

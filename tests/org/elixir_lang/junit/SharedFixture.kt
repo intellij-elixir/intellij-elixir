@@ -8,6 +8,7 @@ import junit.framework.Test
 import junit.framework.TestCase
 import junit.framework.TestResult
 import junit.framework.TestSuite
+import org.elixir_lang.junit.logs.UnexpectedLogs
 import org.junit.runner.Description
 import org.junit.runner.manipulation.Filter
 import org.junit.runner.manipulation.Filterable
@@ -175,6 +176,18 @@ class SharedFixture<T : TestCase>(private val newHost: Supplier<out SharedFixtur
             } finally {
                 close()
             }
+        }
+    }
+
+    companion object {
+        /**
+         * A host's `runBare`: [run], the case's own, when it has no [fixture], as the host and a test method have not;
+         * otherwise [case] checked on the fixture's host, failing for the logs during its check.
+         */
+        @JvmStatic
+        @Throws(Throwable::class)
+        fun <T : TestCase> runCase(fixture: SharedFixture<T>?, case: T, run: ThrowableRunnable<Throwable>) {
+            if (fixture == null) run.run() else UnexpectedLogs.failOnUnexpectedLogs { fixture.check(case) }
         }
     }
 }
