@@ -161,9 +161,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
      * follow: the body wrote an entry to it, or may have. `on_definition`'s own `compile_definition_attributes` entry
      * is followed.
      */
-    fun callsBack(name: String): Boolean =
-        callbackFunction(name) != null &&
-            values(name).any { (it as? AttributeValue.Known)?.term != COMPILE_DEFINITION_ATTRIBUTES }
+    fun callsBack(name: String): Boolean = callbackFunction(name) != null && values(name).any { callsBackThrough(it) }
 
     /**
      * Whether the body's own writes have Elixir call back through [name] ([callsBack]): an entry it wrote, or a write
@@ -171,9 +169,14 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
      * leaves an entry possible, which this leaves aside.
      */
     fun callsBackByItsWrites(name: String): Boolean =
-        callbackFunction(name) != null &&
-            (unknownByWrite(name) ||
-                written(name).any { (it as? AttributeValue.Known)?.term != COMPILE_DEFINITION_ATTRIBUTES })
+        callbackFunction(name) != null && (unknownByWrite(name) || written(name).any { callsBackThrough(it) })
+
+    /**
+     * Whether [entry], of a callback attribute, has Elixir call back into code the expander doesn't follow: any but
+     * `on_definition`'s own `compile_definition_attributes`.
+     */
+    private fun callsBackThrough(entry: AttributeValue): Boolean =
+        (entry as? AttributeValue.Known)?.term != COMPILE_DEFINITION_ATTRIBUTES
 
     /** The function Elixir calls on a module written to `@name`, `null` where `@name` is no callback at this level. */
     private fun callbackFunction(name: String): String? =
