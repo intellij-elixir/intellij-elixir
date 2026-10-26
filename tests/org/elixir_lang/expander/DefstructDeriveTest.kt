@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.NameArity
+import org.elixir_lang.language_level.ElixirLanguageFeature.PROTOCOL_DERIVING_MACRO
 import org.elixir_lang.language_level.ElixirLanguageLevel
 
 /**
@@ -32,7 +33,9 @@ class DefstructDeriveTest : ExpanderTestCase() {
         val derivable = "opaque remote_macro Elixir.Derivable.__deriving__/2"
         val any = "opaque remote_macro Elixir.Derivable.Any.__deriving__/3"
 
-        assertLevels(code, LEVELS) { "$STOPPED${stopped(3, it)} | ${if (isBefore(it, "1.18.0-rc.0")) any else derivable}" }
+        assertLevels(code, LEVELS) {
+            "$STOPPED${stopped(3, it)} | ${if (PROTOCOL_DERIVING_MACRO.isSufficient(ElixirLanguageLevel.of(it))) derivable else any}"
+        }
     }
 
     fun testAnAtomOnItsOwnStopsAtTheImplementationsMacro() =
