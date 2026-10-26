@@ -412,6 +412,8 @@
                                      hostLanguage="Elixir"
                                      implementationClass="org.elixir_lang.model.psi.config.ConfigKeyReferenceProvider"
                                      targetClass="org.elixir_lang.model.psi.config.ConfigKeySymbol"/>
+        <searcher forClass="com.intellij.find.usages.api.UsageSearchParameters"
+                  implementationClass="org.elixir_lang.model.psi.config.ConfigKeyUsageSearcher"/>
         <targetElementEvaluator implementationClass="org.elixir_lang.TargetElementEvaluator" language="Elixir"/>
 
         <!-- Go To Implementations -->

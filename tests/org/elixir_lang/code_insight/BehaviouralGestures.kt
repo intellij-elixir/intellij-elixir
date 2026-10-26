@@ -417,7 +417,7 @@ fun CodeInsightTestFixture.singleTargetPsiUsagesAtCaret(project: Project): List<
 /**
  * [singleTargetPsiUsagesAtCaret] for Find Usages limited to [scope], as its "Search in" scope limits it.
  */
-fun CodeInsightTestFixture.singleTargetPsiUsagesAtCaretInScope(project: Project, scope: GlobalSearchScope): List<PsiUsage> =
+fun CodeInsightTestFixture.singleTargetPsiUsagesAtCaretInScope(project: Project, scope: SearchScope): List<PsiUsage> =
     psiUsagesAtCaret(project, scope) { it.single() }
 
 /** The search targets at the caret, among which the platform's chooser offers one to Find Usages. */
@@ -437,7 +437,7 @@ fun CodeInsightTestFixture.chosenTargetPsiUsagesAtCaret(project: Project, choose
 @Suppress("UnstableApiUsage")
 private fun CodeInsightTestFixture.psiUsagesAtCaret(
     project: Project,
-    scope: GlobalSearchScope = GlobalSearchScope.allScope(project),
+    scope: SearchScope = GlobalSearchScope.allScope(project),
     selectTarget: (List<SearchTarget>) -> SearchTarget?
 ): List<PsiUsage> {
     PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
@@ -589,7 +589,7 @@ fun parameterInfoSignatures(editor: Editor, file: PsiFile): List<String> {
     handler.showParameterInfo(arguments!!, context)
 
     return context.itemsToShow.orEmpty().map { item ->
-        MockParameterInfoUIContext<Arguments>(arguments).also {
+        MockParameterInfoUIContext(arguments).also {
             it.currentParameterIndex = 0
             handler.updateUI(item as Signature, it)
         }.text
