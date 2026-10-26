@@ -28,6 +28,35 @@ class MixTestFileDetectionTest : PlatformTestCase() {
         assertFalse("custom suffix replaces the default", isTestFile("custom/test/foo_test.exs"))
     }
 
+    fun testCustomSuffixFromKeywordDoProject() {
+        myFixture.tempDirFixture.createFile(
+            "keyword_do/mix.exs",
+            """
+            |defmodule Sample.MixProject do
+            |  use Mix.Project
+            |
+            |  def project, do: [app: :keyword_do, test_load_filters: [&String.ends_with?(&1, "_spec.exs")]]
+            |end
+            """.trimMargin()
+        )
+
+        assertTrue(isTestFile("keyword_do/test/foo_spec.exs"))
+        assertFalse(isTestFile("keyword_do/test/foo_test.exs"))
+    }
+
+    fun testCustomSuffixFromTheReturnedKeywordList() {
+        mixExs(
+            "returned",
+            project = """
+                |[app: :discarded]
+                |    [app: :returned, test_load_filters: [&String.ends_with?(&1, "_spec.exs")]]
+            """.trimMargin()
+        )
+
+        assertTrue("project/0 returns its last expression", isTestFile("returned/test/foo_spec.exs"))
+        assertFalse(isTestFile("returned/test/foo_test.exs"))
+    }
+
     fun testMultipleLoadFilters() {
         mixExs(
             "multi",

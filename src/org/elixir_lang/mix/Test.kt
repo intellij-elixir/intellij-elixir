@@ -7,21 +7,15 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileSystemItem
 import com.intellij.psi.PsiManager
-import com.intellij.psi.ResolveState
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.file.containsFileWithSuffix
-import org.elixir_lang.psi.CallDefinitionClause.capabilities
-import org.elixir_lang.psi.CallDefinitionClause.modularChildCalls
-import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
-import org.elixir_lang.psi.ElixirAccessExpression
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.ElixirLine
 import org.elixir_lang.psi.ElixirList
 import org.elixir_lang.psi.Quotable
-import org.elixir_lang.psi.QuotableKeywordList
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.keywordValue
@@ -115,29 +109,11 @@ object Test {
      * key is absent or any entry is not the statically analyzable `&String.ends_with?(&1, "<suffix>")` shape.
      */
     private fun loadFilterSuffixes(mixExs: ElixirFile): List<String>? {
-        val keywords = projectKeywords(mixExs) ?: return null
+        val keywords = ProjectKeywords.keywords(mixExs) ?: return null
         val value = keywords.keywordValue("test_load_filters") ?: return null
 
         return interpretLoadFilters(value)
     }
-
-    /** The `:project` keyword list of the `def project do ... end` definition in [mixExs], if present. */
-    private fun projectKeywords(mixExs: ElixirFile): QuotableKeywordList? =
-        mixExs
-            .modulars()
-            .asSequence()
-            .flatMap { modularChildCalls(it).asSequence() }
-            .filter { call ->
-                capabilities(call)?.remoteCallable == true &&
-                    nameArityInterval(call, ResolveState.initial())?.let { (name, arityInterval) ->
-                        name == "project" && arityInterval.contains(0)
-                    } == true
-            }
-            .flatMap { it.doBlock?.stab?.stabBody?.children?.asSequence() ?: emptySequence() }
-            .filterIsInstance<ElixirAccessExpression>()
-            .mapNotNull(ElixirAccessExpression::getList)
-            .mapNotNull(ElixirList::getKeywords)
-            .firstOrNull()
 
     /**
      * Interprets a `:test_load_filters` [value]. Returns the list of suffixes only when every entry is the

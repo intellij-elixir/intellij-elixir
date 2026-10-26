@@ -67,6 +67,23 @@ class ProjectModuleNameForOtpAppsTest : PlatformTestCase() {
         )
     }
 
+    fun testKeywordDoProjectNamesItsApp() {
+        myFixture.addFileToProject(
+            "directory_name/mix.exs",
+            """
+            defmodule KeywordDo.MixProject do
+              use Mix.Project
+
+              def project, do: [app: :keyword_do, version: "0.1.0"]
+            end
+            """.trimIndent()
+        )
+        val root = myFixture.tempDirFixture.getFile("directory_name")!!
+        val otpApps = Project.findOtpApps(root, EmptyProgressIndicator())
+
+        assertEquals(listOf("keyword_do"), otpApps.map { it.name })
+    }
+
     fun testUniquelyNamedAppKeepsItsOwnName() {
         assertEquals(
             "an app whose name nothing else claims is not disambiguated",
