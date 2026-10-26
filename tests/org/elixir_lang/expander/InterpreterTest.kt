@@ -781,6 +781,38 @@ class InterpreterTest : PlatformTestCase() {
             "top unported `@a raise(ArgumentError)`\nmodule Elixir.CB compiled\nmodule Elixir.M stopped `@a raise(ArgumentError)`",
         )
 
+    /** A callback the evaluator declines may have raised, as Elixir's `ArgumentError` at `@a` can't show here. */
+    fun testARaiseAfterADefinitionWhoseOnDefinitionCallbackDeclinesStops() =
+        assertFile(
+            """
+            defmodule CB do
+              def on_def(_env, _kind, _name, _args, _guards, _body), do: Process.get(:k)
+            end
+            defmodule M do
+              @on_definition {CB, :on_def}
+              def f, do: 1
+              @a raise(ArgumentError)
+            end
+            """.trimIndent(),
+            "top unported `@a raise(ArgumentError)`\nmodule Elixir.CB compiled\nmodule Elixir.M stopped `@a raise(ArgumentError)`",
+        )
+
+    /** A called function's `:elixir_def.take_definition/2` isn't followed, so its module stops at the body's call. */
+    fun testACalledTakeDefinitionStopsItsModuleAtTheCall() =
+        assertFile(
+            """
+            defmodule W do
+              def take(m), do: :elixir_def.take_definition(m, {:f, 0})
+            end
+            defmodule U do
+              def f, do: 1
+              W.take(__MODULE__)
+              def g, do: 1
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.W compiled\nmodule Elixir.U stopped `W.take(__MODULE__)`",
+        )
+
     /** Elixir runs an `@after_compile` callback once the module compiles, and it may raise and end the file. */
     fun testARaiseAfterAModuleWithAnAfterCompileCallbackStops() =
         assertFile(
@@ -1540,7 +1572,7 @@ class InterpreterTest : PlatformTestCase() {
             )
         }
 
-        /** The legs where `Module.delete_definition/2` exists. */
+        /** The legs where `Module.delete_definition/2` and `Module.get_definition/2,3` exist. */
         val DELETES_DEFINITIONS: (ElixirLanguageLevel) -> Boolean = { MODULE_DELETE_DEFINITION.isSufficient(it) }
 
         /** A helper module whose macro answers `Module.defines?/2` of its caller's module, where it expands. */
@@ -5812,6 +5844,899 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
                 pins = CALLS_A_STOPPED_MODULE,
+            ),
+            // A function the module body calls writes the module it is given through `Module`, as the body's own `@`
+            // would. The using module reads what was written through functions it defines.
+            macro(
+                "called:put",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def put(mod), do: Module.put_attribute(mod, :g_put, 1)
+                end
+
+                defmodule {row}.U do
+                  {row}.W.put(__MODULE__)
+                  def r, do: @g_put
+                end
+                """,
+            ),
+            macro(
+                "called:register",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def register(mod) do
+                    Module.register_attribute(mod, :g_reg, [])
+                    Module.put_attribute(mod, :g_reg, :registered)
+                  end
+                end
+
+                defmodule {row}.U do
+                  {row}.W.register(__MODULE__)
+                  def r, do: @g_reg
+                end
+                """,
+            ),
+            macro(
+                "called:accumulate",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def accumulate(mod) do
+                    Module.register_attribute(mod, :g_acc, accumulate: true)
+                    Module.put_attribute(mod, :g_acc, :first)
+                    Module.put_attribute(mod, :g_acc, :second)
+                  end
+                end
+
+                defmodule {row}.U do
+                  {row}.W.accumulate(__MODULE__)
+                  @g_acc :third
+                  def r, do: @g_acc
+                end
+                """,
+            ),
+            macro(
+                "called:persist",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def persist(mod) do
+                    Module.register_attribute(mod, :g_persist, persist: true)
+                    Module.put_attribute(mod, :g_persist, :kept)
+                  end
+                end
+
+                defmodule {row}.U do
+                  {row}.W.persist(__MODULE__)
+                  def r, do: @g_persist
+                end
+                """,
+            ),
+            macro(
+                "called:delete",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def delete(mod), do: Module.delete_attribute(mod, :g_del)
+                end
+
+                defmodule {row}.U do
+                  @g_del 1
+                  {row}.W.delete(__MODULE__)
+                  @r Module.has_attribute?(__MODULE__, :g_del)
+                  def r, do: @r
+                end
+                """,
+            ),
+            // `delete_attribute/2` gives the value it removed.
+            macro(
+                "called:delete-value",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def delete(mod), do: Module.put_attribute(mod, :g_was, Module.delete_attribute(mod, :g_del))
+                end
+
+                defmodule {row}.U do
+                  @g_del 1
+                  {row}.W.delete(__MODULE__)
+                  def r, do: @g_was
+                end
+                """,
+            ),
+            macro(
+                "called:overridable",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def overridable(mod), do: Module.make_overridable(mod, g_over: 0)
+                end
+
+                defmodule {row}.U do
+                  def g_over, do: 1
+                  {row}.W.overridable(__MODULE__)
+                  def g_over, do: super() + 1
+                  @o Module.overridable?(__MODULE__, {:g_over, 0})
+                  def r, do: {@o, g_over()}
+                end
+                """,
+            ),
+            macro(
+                "called:overridable-behaviour",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.B do
+                  @callback g_beh() :: any
+                end
+
+                defmodule {row}.W do
+                  def overridable(mod), do: Module.make_overridable(mod, {row}.B)
+                end
+
+                defmodule {row}.U do
+                  @behaviour {row}.B
+                  def g_beh, do: 1
+                  {row}.W.overridable(__MODULE__)
+                  @o Module.overridable?(__MODULE__, {:g_beh, 0})
+                  def r, do: @o
+                end
+                """,
+            ),
+            macro(
+                "called:delete-definition",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                legs = DELETES_DEFINITIONS,
+                helper = """
+                defmodule {row}.W do
+                  def delete(mod), do: Module.delete_definition(mod, {:g_deleted, 0})
+                end
+
+                defmodule {row}.U do
+                  def g_deleted, do: 1
+                  {row}.W.delete(__MODULE__)
+                  def kept, do: 1
+                  @d {Module.defines?(__MODULE__, {:g_deleted, 0}), Module.defines?(__MODULE__, {:kept, 0})}
+                  def r, do: @d
+                end
+                """,
+            ),
+            // A removed definition's calls count for nothing: `g` is unused, and `h` is never reported undefined.
+            macro(
+                "called:delete-definition-locals",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                legs = DELETES_DEFINITIONS,
+                helper = """
+                defmodule {row}.W do
+                  def delete(mod), do: Module.delete_definition(mod, {:f, 0})
+                end
+
+                defmodule {row}.U do
+                  defp g, do: 1
+                  def f, do: g() + h()
+                  {row}.W.delete(__MODULE__)
+                  def r, do: 1
+                end
+                """,
+            ),
+            macro(
+                "called:apply-delete",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                legs = DELETES_DEFINITIONS,
+                helper = """
+                defmodule {row}.W do
+                  def delete(mod), do: apply(Module, :delete_definition, [mod, {:g_deleted, 0}])
+                end
+
+                defmodule {row}.U do
+                  def g_deleted, do: 1
+                  {row}.W.delete(__MODULE__)
+                  def kept, do: 1
+                  @d {Module.defines?(__MODULE__, {:g_deleted, 0}), Module.defines?(__MODULE__, {:kept, 0})}
+                  def r, do: @d
+                end
+                """,
+            ),
+            macro(
+                "called:body-apply-delete",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                legs = DELETES_DEFINITIONS,
+                helper = """
+                defmodule {row}.U do
+                  def g_deleted, do: 1
+                  apply(Module, :delete_definition, [__MODULE__, {:g_deleted, 0}])
+                  def kept, do: 1
+                  @d {Module.defines?(__MODULE__, {:g_deleted, 0}), Module.defines?(__MODULE__, {:kept, 0})}
+                  def r, do: @d
+                end
+                """,
+            ),
+            // `:elixir_def.take_definition/2` isn't followed, so the module stops where the body calls it.
+            macro(
+                "called:take-definition",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule {row}.W do
+                  def take(mod), do: :elixir_def.take_definition(mod, {:g_taken, 0})
+                end
+
+                defmodule {row}.U do
+                  def g_taken, do: 1
+                  {row}.W.take(__MODULE__)
+                  def r, do: 1
+                end
+                """,
+            ),
+            macro(
+                "called:add-doc",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule {row}.W do
+                  def doc(mod), do: Module.add_doc(mod, 1, :def, {:g_doc, 0}, [], "documented")
+                end
+
+                defmodule {row}.U do
+                  @a 1
+                  {row}.W.doc(__MODULE__)
+                  def g_doc, do: 1
+                  def r, do: @a
+                end
+                """,
+            ),
+            macro(
+                "called:eval-quoted",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule {row}.W do
+                  def eval(mod), do: Module.eval_quoted(mod, quote(do: @g_eval(7)))
+                end
+
+                defmodule {row}.U do
+                  {row}.W.eval(__MODULE__)
+                  def r, do: @g_eval
+                end
+                """,
+            ),
+            macro(
+                "called:eval-quoted-env",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule {row}.W do
+                  def eval(env), do: Module.eval_quoted(env, quote(do: @g_eval_env(8)))
+                end
+
+                defmodule {row}.U do
+                  {row}.W.eval(__ENV__)
+                  def r, do: @g_eval_env
+                end
+                """,
+            ),
+            macro(
+                "called:outer",
+                "defmacro m, do: Macro.escape({row}.O.r())",
+                helper = """
+                defmodule {row}.W do
+                  def target(mod), do: Module.put_attribute(mod, :g_target, :from_inner)
+                end
+
+                defmodule {row}.O do
+                  defmodule Inner do
+                    {row}.W.target({row}.O)
+                  end
+
+                  def r, do: @g_target
+                end
+                """,
+            ),
+            macro(
+                "called:unknown-target",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule {row}.W do
+                  def put(mod), do: Module.put_attribute(Process.get(:gen_dep_target, mod), :g_unknown, 1)
+                end
+
+                defmodule {row}.U do
+                  {row}.W.put(__MODULE__)
+                  def r, do: @g_unknown
+                end
+                """,
+            ),
+            macro(
+                "called:function-value",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def put(mod) do
+                    put = &Module.put_attribute/3
+                    put.(mod, :g_fun_value, 1)
+                  end
+                end
+
+                defmodule {row}.U do
+                  {row}.W.put(__MODULE__)
+                  def r, do: @g_fun_value
+                end
+                """,
+            ),
+            macro(
+                "called:body-function-value",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.U do
+                  put = &Module.put_attribute/3
+                  put.(__MODULE__, :g_body_fun_value, 1)
+                  def r, do: @g_body_fun_value
+                end
+                """,
+            ),
+            macro(
+                "called:apply",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def put(mod), do: apply(Module, :put_attribute, [mod, :g_apply, 1])
+                end
+
+                defmodule {row}.U do
+                  {row}.W.put(__MODULE__)
+                  def r, do: @g_apply
+                end
+                """,
+            ),
+            macro(
+                "called:body-apply",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.U do
+                  apply(Module, :put_attribute, [__MODULE__, :g_body_apply, 1])
+                  def r, do: @g_body_apply
+                end
+                """,
+            ),
+            // `open?/1` of a module compiled earlier in the file is `false`.
+            macro(
+                "called:readers",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def read(mod) do
+                    Module.put_attribute(mod, :r_get, Module.get_attribute(mod, :g_put))
+                    Module.put_attribute(mod, :r_get_default, Module.get_attribute(mod, :g_missing, :default))
+                    Module.put_attribute(mod, :r_has, Module.has_attribute?(mod, :g_put))
+                    Module.put_attribute(mod, :r_defines, Module.defines?(mod, {:defined, 0}))
+                    Module.put_attribute(mod, :r_defines_kind, Module.defines?(mod, {:defined, 0}, :defp))
+                    Module.put_attribute(mod, :r_open, Module.open?(mod))
+                    Module.put_attribute(mod, :r_open_closed, Module.open?({row}.W))
+                    Module.put_attribute(mod, :r_definitions, Module.definitions_in(mod))
+                    Module.put_attribute(mod, :r_definitions_kind, Module.definitions_in(mod, :def))
+                    Module.put_attribute(mod, :r_overridable, Module.overridable?(mod, {:defined, 0}))
+                  end
+                end
+
+                defmodule {row}.U do
+                  @g_put 5
+                  @type t :: integer
+                  @spec defined() :: integer
+                  def defined, do: 1
+                  {row}.W.read(__MODULE__)
+
+                  def r do
+                    {@r_get, @r_get_default, @r_has, @r_defines, @r_defines_kind, @r_open, @r_open_closed,
+                     @r_definitions, @r_definitions_kind, @r_overridable}
+                  end
+                end
+                """,
+            ),
+            macro(
+                "called:readers-each",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def get(mod), do: Module.put_attribute(mod, :r_get, Module.get_attribute(mod, :g_put))
+                  def has(mod), do: Module.put_attribute(mod, :r_has, Module.has_attribute?(mod, :g_put))
+                  def defines(mod), do: Module.put_attribute(mod, :r_defines, Module.defines?(mod, {:defined, 0}))
+                  def open(mod), do: Module.put_attribute(mod, :r_open, Module.open?(mod))
+                  def definitions(mod), do: Module.put_attribute(mod, :r_definitions, Module.definitions_in(mod))
+                  def overridable(mod), do: Module.put_attribute(mod, :r_overridable, Module.overridable?(mod, {:defined, 0}))
+                end
+
+                defmodule {row}.U do
+                  @g_put 5
+                  def defined, do: 1
+                  {row}.W.get(__MODULE__)
+                  {row}.W.has(__MODULE__)
+                  {row}.W.defines(__MODULE__)
+                  {row}.W.open(__MODULE__)
+                  {row}.W.definitions(__MODULE__)
+                  {row}.W.overridable(__MODULE__)
+                  def r, do: {@r_get, @r_has, @r_defines, @r_open, @r_definitions, @r_overridable}
+                end
+                """,
+            ),
+            macro(
+                "called:readers-gaps",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule {row}.W do
+                  def type(mod), do: Module.put_attribute(mod, :r_type, Module.defines_type?(mod, {:t, 0}))
+                  def callback(mod), do: Module.put_attribute(mod, :r_callback, Module.spec_to_callback(mod, {:defined, 0}))
+                end
+
+                defmodule {row}.U do
+                  @type t :: integer
+                  @spec defined() :: integer
+                  def defined, do: 1
+                  {row}.W.type(__MODULE__)
+                  {row}.W.callback(__MODULE__)
+                  def r, do: {@r_type, @r_callback}
+                end
+                """,
+            ),
+            macro(
+                "called:readers-get-definition",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                legs = DELETES_DEFINITIONS,
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule {row}.W do
+                  def get(mod), do: Module.put_attribute(mod, :r_get, elem(Module.get_definition(mod, {:defined, 0}), 0))
+                end
+
+                defmodule {row}.U do
+                  def defined, do: 1
+                  {row}.W.get(__MODULE__)
+                  def r, do: @r_get
+                end
+                """,
+            ),
+            // A macro's body writes the module it expands in.
+            macro(
+                "called:macro",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def put(mod), do: Module.put_attribute(mod, :g_put, 1)
+
+                  def accumulate(mod) do
+                    Module.register_attribute(mod, :g_acc, accumulate: true)
+                    Module.put_attribute(mod, :g_acc, :first)
+                    Module.put_attribute(mod, :g_acc, :second)
+                  end
+                end
+
+                defmodule {row}.Mac do
+                  defmacro write_in_macro do
+                    {row}.W.put(__CALLER__.module)
+                    {row}.W.accumulate(__CALLER__.module)
+                    :ok
+                  end
+                end
+
+                defmodule {row}.U do
+                  require {row}.Mac
+                  {row}.Mac.write_in_macro()
+                  def r, do: {@g_put, @g_acc}
+                end
+                """,
+            ),
+            macro(
+                "called:in-def",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.Mac do
+                  defmacro write_in_def do
+                    Module.put_attribute(__CALLER__.module, :g_in_def, elem(__CALLER__.function, 0))
+                    :ok
+                  end
+
+                  defmacro __before_compile__(env) do
+                    seen = Module.get_attribute(env.module, :g_in_def)
+                    quote(do: def(before_compile_saw, do: unquote(seen)))
+                  end
+                end
+
+                defmodule {row}.U do
+                  require {row}.Mac
+                  Module.register_attribute(__MODULE__, :g_in_def, accumulate: true)
+                  @before_compile {row}.Mac
+                  def a, do: {row}.Mac.write_in_def()
+                  def b, do: {row}.Mac.write_in_def()
+                  def r, do: before_compile_saw()
+                end
+                """,
+            ),
+            macro(
+                "called:before-compile",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.Mac do
+                  defmacro __before_compile__(env) do
+                    Module.put_attribute(env.module, :g_before_compile, :written)
+                    quote(do: def(before_compile_saw, do: @g_before_compile))
+                  end
+                end
+
+                defmodule {row}.U do
+                  @before_compile {row}.Mac
+                  def r, do: before_compile_saw()
+                end
+                """,
+            ),
+            // Each `@on_definition` callback runs as its definition is stored, before the next.
+            macro(
+                "called:on-definition",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.Mac do
+                  def __on_definition__(env, kind, name, args, _guards, _body) do
+                    Module.put_attribute(env.module, :g_on_definition, {kind, name, length(args)})
+                  end
+                end
+
+                defmodule {row}.U do
+                  Module.register_attribute(__MODULE__, :g_on_definition, accumulate: true)
+                  @on_definition {row}.Mac
+                  def a, do: 1
+                  def seen_after_a, do: @g_on_definition
+                  defp b(x), do: x
+                  defmacro c, do: 1
+                  def seen_after_c, do: @g_on_definition
+                  def r, do: {seen_after_a(), seen_after_c(), b(1)}
+                end
+                """,
+            ),
+            macro(
+                "called:routes",
+                "defmacro m, do: Macro.escape({row}.Router.routes())",
+                helper = """
+                defmodule {row}.Routes do
+                  def setup(module) do
+                    Module.register_attribute(module, :routes, accumulate: true)
+                    Module.put_attribute(module, :before_compile, {row}.Routes)
+                  end
+
+                  def add(module, name), do: Module.put_attribute(module, :routes, name)
+
+                  defmacro __before_compile__(env) do
+                    routes = env.module |> Module.get_attribute(:routes) |> Enum.reverse()
+
+                    quote do
+                      def routes, do: unquote(routes)
+                    end
+                  end
+                end
+
+                defmodule {row}.Router do
+                  {row}.Routes.setup(__MODULE__)
+                  {row}.Routes.add(__MODULE__, :home)
+                  {row}.Routes.add(__MODULE__, :about)
+
+                  def home, do: :ok
+                end
+                """,
+            ),
+            macro(
+                "called:closed-target",
+                "defmacro m, do: Macro.escape({row}.W.put({row}.C))",
+                pins = DECLINED,
+                helper = """
+                defmodule {row}.C do
+                end
+
+                defmodule {row}.W do
+                  def put(mod), do: Module.put_attribute(mod, :a, 1)
+                end
+                """,
+            ),
+            macro(
+                "called:closed-target-has",
+                "defmacro m, do: Macro.escape(Module.has_attribute?({row}.C, :a))",
+                pins = DECLINED,
+                helper = """
+                defmodule {row}.C do
+                  @a 1
+                end
+                """,
+            ),
+            macro(
+                "called:in-match",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def put(mod) do
+                    Module.put_attribute(mod, :g_acc, :one)
+                    :returned
+                  end
+                end
+
+                defmodule {row}.U do
+                  Module.register_attribute(__MODULE__, :g_acc, accumulate: true)
+                  x = {row}.W.put(__MODULE__)
+                  @x x
+                  def r, do: {@g_acc, @x}
+                end
+                """,
+            ),
+            macro(
+                "called:in-match-declines",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule {row}.W do
+                  def set(mod) do
+                    Module.put_attribute(mod, :a, Process.get(:k, 2))
+                    :ok
+                  end
+                end
+
+                defmodule {row}.U do
+                  @a 1
+                  x = {row}.W.set(__MODULE__)
+                  @x x
+                  def r, do: @a
+                end
+                """,
+            ),
+            macro(
+                "called:direct-writer-in-match-declines",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule {row}.U do
+                  @a 1
+                  x = Module.put_attribute(__MODULE__, :a, Process.get(:k, 2))
+                  @x x
+                  def r, do: @a
+                end
+                """,
+            ),
+            macro(
+                "called:nested-argument",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def add(mod, name), do: Module.put_attribute(mod, :g_acc, name)
+
+                  def name(mod) do
+                    Module.put_attribute(mod, :g_acc, :inner)
+                    :outer
+                  end
+                end
+
+                defmodule {row}.U do
+                  Module.register_attribute(__MODULE__, :g_acc, accumulate: true)
+                  {row}.W.add(__MODULE__, {row}.W.name(__MODULE__))
+                  def r, do: @g_acc
+                end
+                """,
+            ),
+            macro(
+                "called:attribute-value",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def compute(mod) do
+                    Module.put_attribute(mod, :g_acc, :computed)
+                    42
+                  end
+                end
+
+                defmodule {row}.U do
+                  Module.register_attribute(__MODULE__, :g_acc, accumulate: true)
+                  @x {row}.W.compute(__MODULE__)
+                  def r, do: {@x, @g_acc}
+                end
+                """,
+            ),
+            macro(
+                "called:attribute-value-declines",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule {row}.W do
+                  def set(mod) do
+                    Module.put_attribute(mod, :a, Process.get(:k, 2))
+                    :ok
+                  end
+                end
+
+                defmodule {row}.U do
+                  @a 1
+                  @x {row}.W.set(__MODULE__)
+                  def r, do: {@a, @x}
+                end
+                """,
+            ),
+            macro(
+                "called:in-if",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def a(mod), do: Module.put_attribute(mod, :g_if, :a)
+                  def b(mod), do: Module.put_attribute(mod, :g_if, :b)
+                end
+
+                defmodule {row}.U do
+                  flag = length([1]) == 1
+
+                  if flag do
+                    {row}.W.a(__MODULE__)
+                  else
+                    {row}.W.b(__MODULE__)
+                  end
+
+                  def r, do: @g_if
+                end
+                """,
+            ),
+            macro(
+                "called:in-for",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def setup(mod) do
+                    Module.register_attribute(mod, :g_acc, accumulate: true)
+                    [:x, :y]
+                  end
+
+                  def add(mod, x), do: Module.put_attribute(mod, :g_acc, x)
+                end
+
+                defmodule {row}.U do
+                  for x <- {row}.W.setup(__MODULE__), do: {row}.W.add(__MODULE__, x)
+                  def r, do: @g_acc
+                end
+                """,
+            ),
+            macro(
+                "called:in-cond",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def a(mod), do: Module.put_attribute(mod, :g_if, :a)
+                  def b(mod), do: Module.put_attribute(mod, :g_if, :b)
+                end
+
+                defmodule {row}.U do
+                  cond do
+                    length([1]) == 2 -> {row}.W.a(__MODULE__)
+                    true -> {row}.W.b(__MODULE__)
+                  end
+
+                  def r, do: @g_if
+                end
+                """,
+            ),
+            macro(
+                "called:in-cond-take",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule {row}.W do
+                  def take(mod), do: :elixir_def.take_definition(mod, {:g_taken, 0})
+                end
+
+                defmodule {row}.U do
+                  def g_taken, do: 1
+
+                  cond do
+                    length([1]) == 1 -> {row}.W.take(__MODULE__)
+                    true -> :ok
+                  end
+
+                  def r, do: 1
+                end
+                """,
+            ),
+            // A remover in a match is the native's call alone: the row doesn't take the definition out again.
+            macro(
+                "called:remover-in-match",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                legs = DELETES_DEFINITIONS,
+                helper = """
+                defmodule {row}.U do
+                  def f, do: 1
+                  x = Module.delete_definition(__MODULE__, {:f, 0})
+                  @x x
+                  @d Module.defines?(__MODULE__, {:f, 0})
+                  def r, do: {@x, @d}
+                end
+                """,
+            ),
+            macro(
+                "called:declined-goes-on",
+                "defmacro m, do: Macro.escape({{row}.U.fa(), {row}.U.g()})",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule {row}.W do
+                  def a(mod), do: Module.put_attribute(mod, :a, 1)
+
+                  def b(mod) do
+                    Module.put_attribute(mod, :c, 3)
+                    Module.put_attribute(mod, :b, Process.get(:k, 2))
+                  end
+                end
+
+                defmodule {row}.U do
+                  {row}.W.a(__MODULE__)
+                  def fa, do: @a
+                  {row}.W.b(__MODULE__)
+                  def fb, do: @a
+                  def g, do: 1
+                end
+                """,
+            ),
+            macro(
+                "called:on-definition-declines",
+                "defmacro m, do: Macro.escape({{row}.U.f(), {row}.U.g()})",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule {row}.Mac do
+                  def __on_definition__(_env, _kind, _name, _args, _guards, _body), do: Process.get(:k)
+                end
+
+                defmodule {row}.U do
+                  @on_definition {row}.Mac
+                  def f, do: 1
+                  def g, do: 2
+                end
+                """,
+            ),
+            // A value `Import.Term` can't hold is read as Elixir has it, in a function and through `Module`.
+            macro(
+                "attribute:map-value",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def get(mod), do: Module.get_attribute(mod, :m)
+                end
+
+                defmodule {row}.U do
+                  @m %{a: 1}
+                  def f, do: @m
+                  @n {row}.W.get(__MODULE__)
+                  def r, do: {f(), @n}
+                end
+                """,
+            ),
+            macro(
+                "attribute:held-element-atom",
+                "defmacro m, do: Macro.escape({row}.U.r())",
+                helper = """
+                defmodule {row}.W do
+                  def get(mod) do
+                    [_, _] = Module.get_attribute(mod, :acc)
+                    String.to_existing_atom("held_element_atom")
+                  end
+                end
+
+                defmodule {row}.U do
+                  Module.register_attribute(__MODULE__, :acc, accumulate: true)
+                  @acc %{}
+                  @acc :held_element_atom
+                  @n {row}.W.get(__MODULE__)
+                  def r, do: @n
+                end
+                """,
+            ),
+            macro(
+                "attribute:in-guard-range",
+                "defmacro m, do: Macro.escape({{row}.U.f(2), {row}.U.f(5)})",
+                helper = """
+                defmodule {row}.U do
+                  @r 1..3
+                  def f(x) when x in @r, do: :in
+                  def f(_), do: :out
+                end
+                """,
             ),
             // The application's environment isn't known, so neither is what these read, and whether `compile_env!` or
             // `fetch_env!` finds the key isn't either: none stops the module, which loads as compiled.

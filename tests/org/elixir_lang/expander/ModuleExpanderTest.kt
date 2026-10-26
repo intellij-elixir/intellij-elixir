@@ -3237,7 +3237,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
         if (isBefore(version, "1.13.0-rc.0")) "[Elixir.NS.Inner, Elixir.NS, Elixir.W]" else "[Elixir.NS.Inner, Elixir.NS]"
 
     /** Each module-body call of a remover's name and arity reaches the table or stops, whatever its receiver and target. */
-    fun testEachRemoverCallStopsItsModule() {
+    fun testEachRemoverCallReachesTheTableOrStopsItsModule() {
         val code =
             """
             defmodule DD do
@@ -3297,10 +3297,10 @@ class ModuleExpanderTest : ExpanderTestCase() {
             }
             val lines = listOf(2, 7, 13, 18, 23, 29, 34, 40)
 
-            fun module(index: Int, stop: String, bound: String, inner: List<String> = emptyList()) =
-                listOf(
+            fun module(index: Int, stop: String, bound: String, inner: List<String> = emptyList(), removed: Boolean = false) =
+                listOfNotNull(
                     "module Elixir.${names[index]} ${if (stop.isEmpty()) "compiled" else "stopped `$stop`"}",
-                    "  def f/0 line ${lines[index]} clauses 1",
+                    "  def f/0 line ${lines[index]} clauses 1".takeUnless { removed },
                     "  body: expanded {$bound} next ${if (bound.isEmpty()) 0 else 1} context ${context(index, inner)}",
                     "  def f/0: expanded {} next 0",
                 ).joinToString("\n")
@@ -3311,7 +3311,8 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
             listOf(
                 "top expanded {} next 0 context ${if (before) listed(names.reversed()) else "[]"}",
-                module(0, delete("Module.delete_definition(__MODULE__, {:f, 0})", 0), ""),
+                // From 1.12 the call takes `f/0` out of the table, as Elixir's does.
+                if (deletes) module(0, "", "", removed = true) else module(0, code.split("\n\n")[0], ""),
                 module(1, delete("m.delete_definition(__MODULE__, {:f, 0})", 1), "m:0"),
                 module(2, delete("Module.delete_definition(Application.get_env(:app, :t, __MODULE__), {:f, 0})", 2), ""),
                 module(3, "Module.make_overridable(Application.get_env(:app, :t, __MODULE__), f: 0)", ""),
