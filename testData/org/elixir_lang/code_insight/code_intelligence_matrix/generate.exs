@@ -149,7 +149,13 @@ defmodule Matrix do
     "x_else_list" => {["if Code.ensure_loaded?(Matrix.Absent), do: nil, else: ["], ["]"], :list},
     "x_try_after" => {["try do", "  nil", "after"], ["end"]},
     "x_rescue" => {["try do", ~s[  raise "matrix"], "rescue", "  _ ->"], ["end"]},
-    "x_catch" => {["try do", "  throw :matrix", "catch", "  _ ->"], ["end"]}
+    "x_catch" => {["try do", "  throw :matrix", "catch", "  _ ->"], ["end"]},
+    # A bitstring built in the condition with its segment spec written as bare names, as calls, and with a size read
+    # from a module attribute. Each is the one value the compiler gives `<<1>>`, so `if` takes its `do` branch.
+    "x_bitstring_names" => {["if <<1::integer-signed>> == <<1>> do"], ["end"]},
+    "x_bitstring_calls" => {["if <<1::integer-size(8)>> == <<1>> do"], ["end"]},
+    "x_bitstring_unit" => {["if <<1::size(1)-unit(8)>> == <<1>> do"], ["end"]},
+    "x_bitstring_size_attribute" => {["@bits 8", "if <<1::size(@bits)>> == <<1>> do"], ["end"]}
   }
   @wrapper_worlds Map.keys(@wrappers)
 
