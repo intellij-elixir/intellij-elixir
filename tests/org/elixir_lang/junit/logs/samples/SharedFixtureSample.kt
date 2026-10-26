@@ -7,7 +7,6 @@ import junit.framework.Test
 import org.elixir_lang.junit.LightTestCase
 import org.elixir_lang.junit.SharedFixture
 import org.elixir_lang.junit.SharedFixtureHost
-import org.elixir_lang.junit.logs.UnexpectedLogs
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -36,11 +35,7 @@ class SharedFixtureSample private constructor(private val fixture: SharedFixture
     }
 
     override fun runBare(testRunnable: ThrowableRunnable<Throwable>) {
-        if (fixture == null) {
-            super.runBare(testRunnable)
-        } else {
-            UnexpectedLogs.failOnUnexpectedLogs { fixture.check(this) }
-        }
+        SharedFixture.runCase(fixture, this) { super.runBare(testRunnable) }
     }
 
     override fun check(case: SharedFixtureSample) {

@@ -7,8 +7,11 @@ import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.util.PsiTreeUtil
+import junit.framework.Test
+import junit.framework.TestSuite
 import org.elixir_lang.ElixirParserDefinition
 import org.elixir_lang.intellij_elixir.Quoter
+import org.elixir_lang.junit.SharedFixture
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.parser.ElixirParser
@@ -31,8 +34,25 @@ import org.elixir_lang.language_level.elixir
  * The `testStabSignature` cases each put a stab operation's `->` after a token the lookahead could miscount - `do`,
  * `end`, `fn` or a block keyword such as `else` in each of their lexical roles, or the `(` of `.(` - so a scan that
  * miscounts it hides the `->` and the valid source parses with an error.
+ *
+ * Where several sources share a check, each is a test of its own, and those tests share one parsing fixture.
  */
-class Issue4114TestCase : ParsingTestCase() {
+class Issue4114TestCase : SharedFixtureParsingTestCase<Issue4114TestCase> {
+    private val case: Case?
+
+    /** The host, or a test method's instance, which runs on its own. */
+    constructor() : super() {
+        case = null
+    }
+
+    private constructor(fixture: SharedFixture<Issue4114TestCase>, case: Case) : super(fixture, case.name) {
+        this.case = case
+    }
+
+    override fun check(case: Issue4114TestCase) {
+        case.case!!.check(this)
+    }
+
     fun testNestedParenthesesBlock() = assertParsedAndQuotedCorrectly()
     fun testNestedAssignedParenthesesBlock() = assertParsedAndQuotedCorrectly()
     fun testNestedCallArgumentParentheses() = assertParsedAndQuotedCorrectly()
@@ -145,24 +165,6 @@ class Issue4114TestCase : ParsingTestCase() {
         assertParsesWithinBudget("${surround("((a -> ", ") -> b)", 40, "c")}\n", valid = false)
 
     /**
-     * Error recovery past the recursion limit resumes parsing, and on these shapes each resumption descends to the
-     * limit again. The work counts miss what that costs, as it is spent formatting the limit's error each time.
-     */
-    fun testPastRecursionLimitWithinBudget() {
-        val heredocs = surround("\"\"\"\n#{", "}\n\"\"\"", 1024)
-
-        for (source in listOf(
-            surround("for x <- (", "), do: x", 512).replaceFirst("), do: x", ", do: x"),
-            surround("with {:ok, a} <- (", "), do: a", 512).replaceFirst("), do: a", ", do: a"),
-            heredocs.substring(0, heredocs.length / 2) + "\n",
-            truncated(surround("try do 1 rescue e -> ", " end", 1024)),
-            surround("(fn -> [%{a: {", "}}] end)", 512),
-        )) {
-            assertParsesWithinBudget(source, valid = false, budget = PAST_RECURSION_LIMIT_BUDGET_MILLISECONDS)
-        }
-    }
-
-    /**
      * `0b1end` lexes as invalid digits that the remapper turns into `end` only when the parser reaches them, so the
      * lookahead has to work out that `end` itself: answering that anything may follow let every level try both readings.
      * `1end` is remapped only by Elixir before 1.12 and stays invalid digits otherwise.
@@ -177,22 +179,6 @@ class Issue4114TestCase : ParsingTestCase() {
             valid = false,
             budget = PAST_RECURSION_LIMIT_BUDGET_MILLISECONDS
         )
-    }
-
-    /**
-     * At these depths a reading that is tried and abandoned reaches GrammarKit's recursion limit while the accepted one
-     * stays under it, so the source parses and nothing may give up on it.
-     */
-    fun testDeepestNestingUnderRecursionLimitParses() {
-        for (source in listOf(
-            surround("with {:ok, a} <- (", "), do: a", 58),
-            surround("for x <- (", "), do: x", 58),
-            surround("f a: (", ")", 58),
-            surround("quote do unquote(", ") end", 47),
-            surround("&(", ")", 82, "&1"),
-        )) {
-            assertParsesWithinBudget("$source\n")
-        }
     }
 
     /** Each statement reaches the recursion limit at a token of its own, and none of them is nested past it. */
@@ -215,36 +201,27 @@ class Issue4114TestCase : ParsingTestCase() {
     fun testDeepNestedDoBlocks() = assertParsesWithinBudget(block("foo do", DEPTH, "end"))
 
     /**
-     * Doubling the depth of any nesting shape - complete, cut off inside its opening, or with one level's closers
-     * broken - must not grow the parser's work per character, past GrammarKit's recursion limit too, nor may that work
-     * be large.
+     * Doubling the depth of [source]'s nesting must not grow the parser's work per character, past GrammarKit's
+     * recursion limit too, nor may that work be large.
      * Work is counted as calls on the [PsiBuilder], so the check does not depend on the machine's speed.
      */
-    fun testWorkPerCharacterDoesNotGrowWithDepth() {
-        val growing = mutableListOf<String>()
+    private fun assertWorkPerCharacterDoesNotGrowWithDepth(source: (Int) -> String) {
+        val depths = listOf(
+            BELOW_RECURSION_LIMIT / 2,
+            BELOW_RECURSION_LIMIT,
+            NEAR_RECURSION_LIMIT,
+            PAST_RECURSION_LIMIT,
+            PAST_RECURSION_LIMIT * 2
+        )
+        val works = depths.map { work(source(it)) }
 
-        for ((name, shape) in WORK_SHAPES) {
-            for ((variant, source) in workVariants(shape)) {
-                val depths = listOf(
-                    BELOW_RECURSION_LIMIT / 2,
-                    BELOW_RECURSION_LIMIT,
-                    NEAR_RECURSION_LIMIT,
-                    PAST_RECURSION_LIMIT,
-                    PAST_RECURSION_LIMIT * 2
-                )
-                val works = depths.map { work(source(it)) }
-
-                if (works[1] / works[0] > MAX_WORK_GROWTH ||
-                    works[4] / works[3] > MAX_WORK_GROWTH ||
-                    works[2] > MAX_WORK_PER_CHARACTER ||
-                    works[4] > MAX_WORK_PER_CHARACTER_PAST_LIMIT
-                ) {
-                    growing += "$name [$variant]: ${works.joinToString { "%.0f".format(it) }} calls per character"
-                }
-            }
-        }
-
-        assertTrue("work per character is high or grows with depth:\n" + growing.joinToString("\n"), growing.isEmpty())
+        assertFalse(
+            "work per character is high or grows with depth: ${works.joinToString { "%.0f".format(it) }} calls per character",
+            works[1] / works[0] > MAX_WORK_GROWTH ||
+                works[4] / works[3] > MAX_WORK_GROWTH ||
+                works[2] > MAX_WORK_PER_CHARACTER ||
+                works[4] > MAX_WORK_PER_CHARACTER_PAST_LIMIT
+        )
     }
 
     /** A statement nested past the recursion limit leaves the statements before it as they parse on their own. */
@@ -279,44 +256,6 @@ class Issue4114TestCase : ParsingTestCase() {
         ElixirParser().parseLight(definition.fileNodeType, counting)
 
         return calls.toDouble() / source.length
-    }
-
-    /**
-     * [shape] as written; cut off after its openings and each prefix of one more, as while it is still being typed;
-     * and with its middle level's closers broken: a closer deleted, two adjacent different closers swapped, or a closer
-     * doubled.
-     */
-    private fun workVariants(shape: WorkShape): List<Pair<String, (Int) -> String>> {
-        val complete: Pair<String, (Int) -> String> = "valid" to { depth -> shape.nest(depth) }
-        val cut = (0 until shape.opening.length).map { length ->
-            val prefix = shape.opening.take(length)
-            val variant: Pair<String, (Int) -> String> =
-                "cut after ${prefix.replace("\n", "\\n")}|" to { depth -> shape.prefix + shape.opening.repeat(depth) + prefix + "\n" }
-            variant
-        }
-        val closing = shape.closing
-        val swap = (0 until closing.length - 1)
-            .firstOrNull { closing[it] in CLOSERS && closing[it + 1] in CLOSERS && closing[it] != closing[it + 1] }
-        val extra = closing.indexOfFirst { it in CLOSERS }
-        val end = closing.indexOf("end")
-        val deleted = when {
-            extra >= 0 -> closing.removeRange(extra, extra + 1)
-            end >= 0 -> closing.removeRange(end, end + "end".length)
-            else -> error("closing `$closing` has no closer to delete")
-        }
-        val broken = listOfNotNull(
-            "closer deleted" to deleted,
-            swap?.let { "closers swapped" to closing.substring(0, it) + closing[it + 1] + closing[it] + closing.substring(it + 2) },
-            extra.takeIf { it >= 0 }?.let { "extra closer" to closing.substring(0, it + 1) + closing.substring(it) },
-        ).map { (variant, middle) ->
-            val source: Pair<String, (Int) -> String> = variant to { depth ->
-                shape.prefix + shape.opening.repeat(depth) + shape.core +
-                    closing.repeat(depth / 2) + middle + closing.repeat(depth - depth / 2 - 1) + shape.suffix
-            }
-            source
-        }
-
-        return listOf(complete) + cut + broken
     }
 
     /** `opening` on its own line per level, wrapping `1`, closed by `closing` on its own line. */
@@ -483,5 +422,108 @@ class Issue4114TestCase : ParsingTestCase() {
             "map list call tuple" to WorkShape("%{a: [f({", "})]}"),
             "fn in brackets" to WorkShape("[(fn -> {", "} end)]"),
         )
+
+        /**
+         * [shape] as written; cut off after its openings and each prefix of one more, as while it is still being typed;
+         * and with its middle level's closers broken: a closer deleted, two adjacent different closers swapped, or a closer
+         * doubled.
+         */
+        private fun workVariants(shape: WorkShape): List<Pair<String, (Int) -> String>> {
+            val complete: Pair<String, (Int) -> String> = "valid" to { depth -> shape.nest(depth) }
+            val cut = shape.opening.indices.map { length ->
+                val prefix = shape.opening.take(length)
+                val variant: Pair<String, (Int) -> String> =
+                    "cut after ${prefix.replace("\n", "\\n")}|" to { depth -> shape.prefix + shape.opening.repeat(depth) + prefix + "\n" }
+                variant
+            }
+            val closing = shape.closing
+            val swap = (0 until closing.length - 1)
+                .firstOrNull { closing[it] in CLOSERS && closing[it + 1] in CLOSERS && closing[it] != closing[it + 1] }
+            val extra = closing.indexOfFirst { it in CLOSERS }
+            val end = closing.indexOf("end")
+            val deleted = when {
+                extra >= 0 -> closing.removeRange(extra, extra + 1)
+                end >= 0 -> closing.removeRange(end, end + "end".length)
+                else -> error("closing `$closing` has no closer to delete")
+            }
+            val broken = listOfNotNull(
+                "closer deleted" to deleted,
+                swap?.let { "closers swapped" to closing.substring(0, it) + closing[it + 1] + closing[it] + closing.substring(it + 2) },
+                extra.takeIf { it >= 0 }?.let { "extra closer" to closing.substring(0, it + 1) + closing.substring(it) },
+            ).map { (variant, middle) ->
+                val source: Pair<String, (Int) -> String> = variant to { depth ->
+                    shape.prefix + shape.opening.repeat(depth) + shape.core +
+                        closing.repeat(depth / 2) + middle + closing.repeat(depth - depth / 2 - 1) + shape.suffix
+                }
+                source
+            }
+
+            return buildList {
+                add(complete)
+                addAll(cut)
+                addAll(broken)
+            }
+        }
+
+        /**
+         * Error recovery past the recursion limit resumes parsing, and on these shapes each resumption descends to the
+         * limit again. The work counts miss what that costs, as it is spent formatting the limit's error each time.
+         */
+        private val PAST_RECURSION_LIMIT_WITHIN_BUDGET: List<Pair<String, Issue4114TestCase.() -> String>> = listOf(
+            "for" to { surround("for x <- (", "), do: x", 512).replaceFirst("), do: x", ", do: x") },
+            "with" to { surround("with {:ok, a} <- (", "), do: a", 512).replaceFirst("), do: a", ", do: a") },
+            "heredoc interpolation" to {
+                val heredocs = surround("\"\"\"\n#{", "}\n\"\"\"", 1024)
+
+                heredocs.substring(0, heredocs.length / 2) + "\n"
+            },
+            "try rescue" to { truncated(surround("try do 1 rescue e -> ", " end", 1024)) },
+            "mixed containers" to { surround("(fn -> [%{a: {", "}}] end)", 512) },
+        )
+
+        /**
+         * At these depths a reading that is tried and abandoned reaches GrammarKit's recursion limit while the accepted
+         * one stays under it, so the source parses and nothing may give up on it.
+         */
+        private val DEEPEST_NESTING_UNDER_RECURSION_LIMIT: List<Pair<String, Issue4114TestCase.() -> String>> = listOf(
+            "with" to { surround("with {:ok, a} <- (", "), do: a", 58) },
+            "for" to { surround("for x <- (", "), do: x", 58) },
+            "no-parens keyword args" to { surround("f a: (", ")", 58) },
+            "quote unquote" to { surround("quote do unquote(", ") end", 47) },
+            "captures" to { surround("&(", ")", 82, "&1") },
+        )
+
+        /** One test per source, sharing one fixture, and each test method on its own. */
+        @JvmStatic
+        fun suite(): Test {
+            val fixture = SharedFixture { Issue4114TestCase() }
+            val suite = fixture.suite(Issue4114TestCase::class.java.name)
+            val cases = buildList {
+                for ((label, source) in PAST_RECURSION_LIMIT_WITHIN_BUDGET) {
+                    add(Case("testPastRecursionLimitWithinBudget[$label]") {
+                        assertParsesWithinBudget(source(), valid = false, budget = PAST_RECURSION_LIMIT_BUDGET_MILLISECONDS)
+                    })
+                }
+                for ((label, source) in DEEPEST_NESTING_UNDER_RECURSION_LIMIT) {
+                    add(Case("testDeepestNestingUnderRecursionLimitParses[$label]") { assertParsesWithinBudget("${source()}\n") })
+                }
+                for ((name, shape) in WORK_SHAPES) {
+                    for ((variant, source) in workVariants(shape)) {
+                        add(Case("testWorkPerCharacterDoesNotGrowWithDepth[$name, $variant]") {
+                            assertWorkPerCharacterDoesNotGrowWithDepth(source)
+                        })
+                    }
+                }
+            }
+
+            // The test methods first: they warm the parser up for the time budgets.
+            for (method in TestSuite(Issue4114TestCase::class.java).tests()) suite.addTest(method)
+            for (case in cases) suite.addTest(Issue4114TestCase(fixture, case))
+
+            return suite
+        }
     }
+
+    /** A test checked on the shared fixture. */
+    private class Case(val name: String, val check: Issue4114TestCase.() -> Unit)
 }

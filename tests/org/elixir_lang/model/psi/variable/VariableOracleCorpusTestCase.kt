@@ -275,7 +275,7 @@ abstract class VariableOracleCorpusTestCase(private val shard: Int) : PlatformTe
     }
 
     companion object {
-        const val SHARDS = 4
+        const val SHARDS = 40
 
         private val PATHS =
             listOf("declaration", "resolution", "chain root", "usages", "rename target", "scope", "rename")
@@ -286,10 +286,82 @@ abstract class VariableOracleCorpusTestCase(private val shard: Int) : PlatformTe
     }
 }
 
-class VariableOracleCorpusShard0Test : VariableOracleCorpusTestCase(0)
+class VariableOracleCorpusShard00Test : VariableOracleCorpusTestCase(0)
 
-class VariableOracleCorpusShard1Test : VariableOracleCorpusTestCase(1)
+class VariableOracleCorpusShard01Test : VariableOracleCorpusTestCase(1)
 
-class VariableOracleCorpusShard2Test : VariableOracleCorpusTestCase(2)
+class VariableOracleCorpusShard02Test : VariableOracleCorpusTestCase(2)
 
-class VariableOracleCorpusShard3Test : VariableOracleCorpusTestCase(3)
+class VariableOracleCorpusShard03Test : VariableOracleCorpusTestCase(3)
+
+class VariableOracleCorpusShard04Test : VariableOracleCorpusTestCase(4)
+
+class VariableOracleCorpusShard05Test : VariableOracleCorpusTestCase(5)
+
+class VariableOracleCorpusShard06Test : VariableOracleCorpusTestCase(6)
+
+class VariableOracleCorpusShard07Test : VariableOracleCorpusTestCase(7)
+
+class VariableOracleCorpusShard08Test : VariableOracleCorpusTestCase(8)
+
+class VariableOracleCorpusShard09Test : VariableOracleCorpusTestCase(9)
+
+class VariableOracleCorpusShard10Test : VariableOracleCorpusTestCase(10)
+
+class VariableOracleCorpusShard11Test : VariableOracleCorpusTestCase(11)
+
+class VariableOracleCorpusShard12Test : VariableOracleCorpusTestCase(12)
+
+class VariableOracleCorpusShard13Test : VariableOracleCorpusTestCase(13)
+
+class VariableOracleCorpusShard14Test : VariableOracleCorpusTestCase(14)
+
+class VariableOracleCorpusShard15Test : VariableOracleCorpusTestCase(15)
+
+class VariableOracleCorpusShard16Test : VariableOracleCorpusTestCase(16)
+
+class VariableOracleCorpusShard17Test : VariableOracleCorpusTestCase(17)
+
+class VariableOracleCorpusShard18Test : VariableOracleCorpusTestCase(18)
+
+class VariableOracleCorpusShard19Test : VariableOracleCorpusTestCase(19)
+
+class VariableOracleCorpusShard20Test : VariableOracleCorpusTestCase(20)
+
+class VariableOracleCorpusShard21Test : VariableOracleCorpusTestCase(21)
+
+class VariableOracleCorpusShard22Test : VariableOracleCorpusTestCase(22)
+
+class VariableOracleCorpusShard23Test : VariableOracleCorpusTestCase(23)
+
+class VariableOracleCorpusShard24Test : VariableOracleCorpusTestCase(24)
+
+class VariableOracleCorpusShard25Test : VariableOracleCorpusTestCase(25)
+
+class VariableOracleCorpusShard26Test : VariableOracleCorpusTestCase(26)
+
+class VariableOracleCorpusShard27Test : VariableOracleCorpusTestCase(27)
+
+class VariableOracleCorpusShard28Test : VariableOracleCorpusTestCase(28)
+
+class VariableOracleCorpusShard29Test : VariableOracleCorpusTestCase(29)
+
+class VariableOracleCorpusShard30Test : VariableOracleCorpusTestCase(30)
+
+class VariableOracleCorpusShard31Test : VariableOracleCorpusTestCase(31)
+
+class VariableOracleCorpusShard32Test : VariableOracleCorpusTestCase(32)
+
+class VariableOracleCorpusShard33Test : VariableOracleCorpusTestCase(33)
+
+class VariableOracleCorpusShard34Test : VariableOracleCorpusTestCase(34)
+
+class VariableOracleCorpusShard35Test : VariableOracleCorpusTestCase(35)
+
+class VariableOracleCorpusShard36Test : VariableOracleCorpusTestCase(36)
+
+class VariableOracleCorpusShard37Test : VariableOracleCorpusTestCase(37)
+
+class VariableOracleCorpusShard38Test : VariableOracleCorpusTestCase(38)
+
+class VariableOracleCorpusShard39Test : VariableOracleCorpusTestCase(39)

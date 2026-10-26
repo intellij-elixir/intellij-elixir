@@ -1,0 +1,66 @@
+ref	matched	4003
+ref	no use	191
+ref	other	3
+ref	nothing	6
+alias	matched	940
+alias	nothing	42
+def	matched	28
+def	nothing	321
+declaration	matched	26
+declaration	nothing	10
+no use	ref	Kernel	sigil_N	2	57	elixir/calendar/naive_datetime_test.exs:10:12
+no use	ref	Kernel	sigil_s	2	25	elixir/calendar/naive_datetime_test.exs:55:18
+no use	ref	Kernel	to_string	1	13	elixir/calendar/naive_datetime_test.exs:127:23
+no use	ref	Kernel	sigil_T	2	4	elixir/calendar/naive_datetime_test.exs:256:47
+no use	ref	Kernel	sigil_D	2	5	elixir/calendar/naive_datetime_test.exs:309:43
+no use	ref	Kernel	sigil_U	2	34	elixir/calendar_test.exs:95:27
+no use	ref	Kernel	sigil_w	2	4	elixir/code_fragment_test.exs:344:22
+no use	ref	Kernel	sigil_S	2	16	elixir/code_fragment_test.exs:819:19
+other	ref	:erlang	unregister	1	1	elixir/gen_server_test.exs:34:72
+no use	ref	Kernel	sigil_r	2	21	elixir/gen_server_test.exs:66:33
+no use	ref	Kernel	@	1	11	elixir/gen_server_test.exs:114:3
+nothing	ref	:global	register_name	2	1	elixir/gen_server_test.exs:118:13
+nothing	ref	:binary	matches	2	1	elixir/io/ansi/docs_test.exs:34:22
+nothing	alias	Foo	1	elixir/io/ansi/docs_test.exs:49:25
+nothing	alias	RedefineSample	1	elixir/kernel/warning_test.exs:272:11
+nothing	alias	Sample1	13	elixir/kernel/warning_test.exs:431:12
+nothing	alias	Sample2	12	elixir/kernel/warning_test.exs:431:21
+nothing	alias	Sample3	5	elixir/kernel/warning_test.exs:431:30
+nothing	alias	Sample4	3	elixir/kernel/warning_test.exs:431:39
+nothing	alias	Sample5	1	elixir/kernel/warning_test.exs:542:48
+nothing	alias	Sample6	1	elixir/kernel/warning_test.exs:542:57
+other	ref	:erlang	unique_integer	0	2	elixir/kernel/warning_test.exs:651:30
+nothing	alias	UseSample	1	elixir/kernel/warning_test.exs:806:11
+nothing	alias	EmptyBehaviour	1	elixir/kernel/warning_test.exs:1122:11
+nothing	alias	Sample1.Atom	1	elixir/kernel/warning_test.exs:1150:21
+nothing	alias	SampleWithCallbacks	1	elixir/kernel/warning_test.exs:1210:12
+nothing	alias	TestMod	1	elixir/kernel/warning_test.exs:1926:11
+no use	ref	Kernel.WarningTest	purge	1	1	elixir/kernel/warning_test.exs:1946:21
+nothing	ref	:code	delete	1	1	elixir/kernel/warning_test.exs:1950:11
+nothing	ref	:code	purge	1	1	elixir/kernel/warning_test.exs:1951:11
+nothing	ref	:erlang	list_to_pid	1	1	logger/logger/formatter_test.exs:54:19
+nothing	ref	:erlang	binary_to_term	1	1	logger/logger/formatter_test.exs:60:15
+nothing	def	Code.Formatter.GeneralTest	45	Code.Formatter.GeneralTest:3
+nothing	def	Code.Formatter.IntegrationTest	40	Code.Formatter.IntegrationTest:3
+nothing	def	EnumTest.Map	10	EnumTest.Map:2317
+nothing	def	GenServerTest	15	GenServerTest:3
+nothing	def	IO.ANSITest	26	IO.ANSITest:3
+nothing	def	Inspect.Inspect.MapTest.StructWithExceptOption	2	Inspect.Inspect.MapTest.StructWithExceptOption:555
+nothing	def	Kernel.AliasNestingTest	4	Kernel.AliasNestingTest:80
+nothing	def	Kernel.ComprehensionTest.Pdict	2	Kernel.ComprehensionTest.Pdict:10
+nothing	def	Kernel.ParallelCompilerTest	21	Kernel.ParallelCompilerTest:5
+nothing	def	Kernel.QuoteTest	29	Kernel.QuoteTest:3
+nothing	def	Kernel.RaiseTest	41	Kernel.RaiseTest:3
+nothing	def	Kernel.WithTest	14	Kernel.WithTest:3
+nothing	def	String.Chars.NumberTest	4	String.Chars.NumberTest:42
+nothing	def	String.Chars.Version.RequirementTest	3	String.Chars.Version.RequirementTest:78
+nothing	def	SystemTest	36	SystemTest:3
+nothing	def	ExUnit.DocTestTest.Haiku	2	ExUnit.DocTestTest.Haiku:374
+nothing	def	ExUnit.SupervisedTest	13	ExUnit.SupervisedTest:3
+nothing	def	Logger.UtilsTest	14	Logger.UtilsTest:1
+nothing	declaration	ExceptionTest.ImplementationWithOptional	1	elixir/exception_test.exs:508
+nothing	declaration	IntegerPrivateGuardUtils	2	elixir/kernel/guard_test.exs:159
+nothing	declaration	UndefinedUsage	1	elixir/kernel/guard_test.exs:267
+nothing	declaration	MapTest.LocalPoint	2	elixir/map_test.exs:422
+nothing	declaration	ModuleTest.LastDefinition	2	elixir/module_test.exs:124
+nothing	declaration	M	2	elixir/record_test.exs:323

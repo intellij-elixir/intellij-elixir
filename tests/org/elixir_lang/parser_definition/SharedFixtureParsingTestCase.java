@@ -3,7 +3,6 @@ package org.elixir_lang.parser_definition;
 import com.intellij.util.ThrowableRunnable;
 import org.elixir_lang.junit.SharedFixture;
 import org.elixir_lang.junit.SharedFixtureHost;
-import org.elixir_lang.junit.logs.UnexpectedLogs;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -14,7 +13,7 @@ import org.jetbrains.annotations.Nullable;
  * 50 ms, while parsing one snippet takes about 1 ms.
  */
 @SuppressWarnings("JUnitMalformedDeclaration") // T is the self type of a generated suite, built only by suite().
-abstract class SharedFixtureParsingTestCase<T extends SharedFixtureParsingTestCase<T>> extends ParsingTestCase
+public abstract class SharedFixtureParsingTestCase<T extends SharedFixtureParsingTestCase<T>> extends ParsingTestCase
         implements SharedFixtureHost<T> {
     private final @Nullable SharedFixture<T> fixture;
 
@@ -38,12 +37,7 @@ abstract class SharedFixtureParsingTestCase<T extends SharedFixtureParsingTestCa
 
     @Override
     protected final void runBare(@NotNull ThrowableRunnable<Throwable> testRunnable) throws Throwable {
-        if (fixture == null) {
-            super.runBare(testRunnable);
-        } else {
-            // Checked on the shared host; logs during the check are this case's.
-            UnexpectedLogs.failOnUnexpectedLogs(() -> fixture.check(self()));
-        }
+        SharedFixture.runCase(fixture, self(), () -> super.runBare(testRunnable));
     }
 
     @SuppressWarnings("unchecked")

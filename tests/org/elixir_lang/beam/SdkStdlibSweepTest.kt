@@ -1,12 +1,17 @@
 package org.elixir_lang.beam
 
+import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiErrorElement
+import com.intellij.util.ThrowableRunnable
+import junit.framework.Test
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.junit.SharedFixture
+import org.elixir_lang.junit.SharedFixtureHost
 import org.junit.Assert
 
 /**
- * Four checks over every `.beam` in the resolved Elixir and Erlang SDKs, all read from one [SdkStdlibSweep] per SDK.
- * They are one class because that sweep is cached per JVM, and the test task keeps a class on one fork.
+ * Four checks over every `.beam` in the resolved Elixir and Erlang SDKs, one test per `.beam`, each decompiled once
+ * in a project the tests share. A test per SDK then checks and prints the SDK's totals.
  *
  * - **Parseable:** the decompiled source parses as valid Elixir (no [PsiErrorElement]), the check
  *   [DecompilerTest.assertParseable] applies to its golden fixtures, scaled to the whole stdlib so decompiler gaps
@@ -24,91 +29,122 @@ import org.junit.Assert
  * - **No beam warnings:** a term the beam code cannot render is logged and replaced by a placeholder that parses, so
  *   none of the checks above sees it.
  */
-class SdkStdlibSweepTest : PlatformTestCase() {
-    fun testElixirSdkDecompilesToParseableElixir() = assertParseable(ELIXIR)
+@Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
+class SdkStdlibSweepTest private constructor(
+    private val fixture: SharedFixture<SdkStdlibSweepTest>?,
+    private val case: Case?,
+) : PlatformTestCase(), SharedFixtureHost<SdkStdlibSweepTest> {
+    private val swept = mutableMapOf<SdkBeam, SdkStdlibSweep.Result>()
 
-    fun testErlangSdkDecompilesToParseableElixir() = assertParseable(ERLANG)
-
-    fun testElixirSdkExportedDefinitionsAllGetMirrors() = assertMirrorCoverage(ELIXIR)
-
-    fun testErlangSdkExportedDefinitionsAllGetMirrors() = assertMirrorCoverage(ERLANG)
-
-    fun testElixirSdkStubParametersMatchMirror() = assertStubSignatures(ELIXIR)
-
-    fun testErlangSdkStubParametersMatchMirror() = assertStubSignatures(ERLANG)
-
-    fun testElixirSdkDecompilesWithoutWarnings() = assertNoDecompilerWarnings(ELIXIR)
-
-    fun testErlangSdkDecompilesWithoutWarnings() = assertNoDecompilerWarnings(ERLANG)
-
-    private fun assertParseable(sdk: SdkUnderTest) {
-        val result = sweep(sdk)
-        val failures = result.parseFailures
-        println(
-            "[decompile-parseable] ${sdk.label}: ${result.beamCount - failures.size}/${result.beamCount} beams " +
-                "decompiled to parseable Elixir"
-        )
-        Assert.assertTrue(
-            "${failures.size}/${result.beamCount} ${sdk.label} beams did NOT decompile to parseable Elixir:\n" +
-                firstHundred(failures),
-            failures.isEmpty()
-        )
+    init {
+        name = case?.name ?: "shared fixture"
+        fixture?.add(this)
     }
 
-    private fun assertMirrorCoverage(sdk: SdkUnderTest) {
-        val result = sweep(sdk)
-        val misses = result.mirrorMisses
-        val exported = result.mirrorExported
-        println("[mirror-coverage] ${sdk.label}: ${exported - misses.size}/$exported exported definitions got a mirror")
-        Assert.assertTrue(
-            "${misses.size} exported ${sdk.label} definitions decompiled without a mirror, so navigating to them " +
-                "lands nowhere:\n" + firstHundred(misses),
-            misses.isEmpty()
-        )
+    override fun setUp() {
+        super.setUp()
+        for (sdk in SDKS) sdk.root?.let { VfsRootAccess.allowRootAccess(testRootDisposable, it) }
     }
 
-    private fun assertStubSignatures(sdk: SdkUnderTest) {
-        val result = sweep(sdk)
-        val mismatches = result.stubMismatches
-        val exportedWithParameters = result.stubExportedWithParameters
-        val real = exportedWithParameters - result.stubExportedGenerated
+    override fun runShared(serve: ThrowableRunnable<Throwable>) {
+        runBare(serve)
+    }
+
+    override fun runBare(testRunnable: ThrowableRunnable<Throwable>) {
+        SharedFixture.runCase(fixture, this) { super.runBare(testRunnable) }
+    }
+
+    override fun check(case: SdkStdlibSweepTest) {
+        when (val slice = case.case!!) {
+            is Case.Beam -> assertSwept(slice.beam)
+            is Case.Totals -> assertTotals(slice.sdk, slice.beams)
+            is Case.Unswept -> throw AssertionError(slice.why)
+        }
+    }
+
+    private fun sweep(beam: SdkBeam): SdkStdlibSweep.Result = swept.getOrPut(beam) { SdkStdlibSweep.sweep(project, beam) }
+
+    private fun assertSwept(beam: SdkBeam) {
+        val result = sweep(beam)
+        val problems = listOf(
+            "did NOT decompile to parseable Elixir" to result.parseFailures,
+            "has exported definitions decompiled without a mirror, so navigating to them lands nowhere" to
+                result.mirrorMisses,
+            "has stubs that disagree with their decompiled mirror" to result.stubMismatches,
+            "logged beam warnings" to result.decompilerWarnings,
+        ).filter { (_, lines) -> lines.isNotEmpty() }
+
+        if (problems.isNotEmpty()) {
+            Assert.fail(problems.joinToString("\n") { (what, lines) -> "${beam.label} $what:\n" + firstHundred(lines) })
+        }
+    }
+
+    /** Sweeps whichever of [beams] no test has, so the totals hold however the tests are filtered. */
+    private fun assertTotals(sdk: SdkUnderTest, beams: List<SdkBeam>) {
+        val results = beams.map(::sweep)
+        val parseable = results.count { it.parseFailures.isEmpty() }
+        val exported = results.sumOf { it.mirrorExported }
+        val misses = results.sumOf { it.mirrorMisses.size }
+        val compared = results.sumOf { it.stubCompared }
+        val exportedWithParameters = results.sumOf { it.stubExportedWithParameters }
+        val generated = results.sumOf { it.stubExportedGenerated }
+        val real = exportedWithParameters - generated
+        println("[decompile-parseable] ${sdk.label}: $parseable/${beams.size} beams decompiled to parseable Elixir")
+        println("[mirror-coverage] ${sdk.label}: ${exported - misses}/$exported exported definitions got a mirror")
         println(
-            "[stub-signature] ${sdk.label}: compared ${result.stubCompared} definitions with a mirror; " +
+            "[stub-signature] ${sdk.label}: compared $compared definitions with a mirror; " +
                 "$real/$exportedWithParameters exported definitions with parameters have names " +
                 "not flagged as generated " +
                 "(${"%.1f".format(100.0 * real / exportedWithParameters.coerceAtLeast(1))}%); " +
-                "${result.stubExportedGenerated} generated across ${result.stubBeamsWithExportedGenerated} beams"
+                "$generated generated across ${results.count { it.stubExportedGenerated > 0 }} beams"
         )
-        Assert.assertTrue("${sdk.label}: no definition had a mirror to compare against", result.stubCompared > 0)
-        Assert.assertTrue(
-            "${mismatches.size} ${sdk.label} stubs disagree with their decompiled mirror:\n" + firstHundred(mismatches),
-            mismatches.isEmpty()
-        )
-    }
-
-    private fun assertNoDecompilerWarnings(sdk: SdkUnderTest) {
-        val warnings = sweep(sdk).decompilerWarnings
-        Assert.assertTrue(
-            "${warnings.size} beam warnings for ${sdk.label} beams:\n" + firstHundred(warnings),
-            warnings.isEmpty()
-        )
-    }
-
-    private fun sweep(sdk: SdkUnderTest): SdkStdlibSweep.Result {
-        val root = System.getenv(sdk.envVar)
-        Assert.assertNotNull("${sdk.label} SDK env var not set", root)
-        val result = SdkStdlibSweep.forSdk(project, testRootDisposable, root!!, sdk.label.lowercase())
-        Assert.assertTrue("No .beam files found under $root/lib", result.beamCount > 0)
-        return result
+        Assert.assertTrue("${sdk.label}: no definition had a mirror to compare against", compared > 0)
     }
 
     private fun firstHundred(lines: List<String>): String =
         lines.take(100).joinToString("\n") + (if (lines.size > 100) "\n... and ${lines.size - 100} more" else "")
 
-    private class SdkUnderTest(val label: String, val envVar: String)
+    private class SdkUnderTest(val label: String, envVar: String) {
+        val root: String? = System.getenv(envVar)?.takeIf { it.isNotEmpty() }
+        val tag = label.lowercase()
+    }
 
-    private companion object {
-        val ELIXIR = SdkUnderTest("Elixir", "ELIXIR_LANG_ELIXIR_PATH")
-        val ERLANG = SdkUnderTest("Erlang", "ERLANG_SDK_HOME")
+    private sealed class Case(val name: String) {
+        class Beam(val beam: SdkBeam) : Case(beam.label)
+
+        class Totals(val sdk: SdkUnderTest, val beams: List<SdkBeam>) : Case("${sdk.tag} totals")
+
+        /** An SDK there is nothing to sweep in, which fails with [why]. */
+        class Unswept(sdk: SdkUnderTest, val why: String) : Case("${sdk.tag} swept")
+    }
+
+    companion object {
+        private val SDKS = listOf(
+            SdkUnderTest("Elixir", "ELIXIR_LANG_ELIXIR_PATH"),
+            SdkUnderTest("Erlang", "ERLANG_SDK_HOME"),
+        )
+
+        @JvmStatic
+        fun suite(): Test {
+            val fixture = SharedFixture { SdkStdlibSweepTest(null, null) }
+            val suite = fixture.suite(SdkStdlibSweepTest::class.java.name)
+
+            for (sdk in SDKS) {
+                val beams = SdkBeams.forSdk(sdk.root, sdk.tag)
+
+                if (sdk.root == null) {
+                    suite.addTest(SdkStdlibSweepTest(fixture, Case.Unswept(sdk, "${sdk.label} SDK env var not set")))
+                } else if (beams.isEmpty()) {
+                    suite.addTest(
+                        SdkStdlibSweepTest(fixture, Case.Unswept(sdk, "No .beam files found under ${sdk.root}/lib"))
+                    )
+                } else {
+                    for (beam in beams) suite.addTest(SdkStdlibSweepTest(fixture, Case.Beam(beam)))
+                    suite.addTest(SdkStdlibSweepTest(fixture, Case.Totals(sdk, beams)))
+                }
+            }
+
+            return suite
+        }
     }
 }

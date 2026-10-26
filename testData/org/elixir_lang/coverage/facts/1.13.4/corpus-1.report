@@ -1,41 +1,39 @@
 # Elixir 1.13.4	shard 1
 kind	sub-kind	outcome	label	count
-ref	imported_function	matched	clause	2866
+ref	imported_function	matched	clause	1089
 ref	imported_function	no use	none	6
 ref	imported_function	other	none	1
-ref	imported_function	nothing	none	78
-ref	imported_macro	matched	clause	4455
-ref	imported_macro	no use	none	441
+ref	imported_function	nothing	none	47
+ref	imported_macro	matched	clause	2113
+ref	imported_macro	no use	none	182
 ref	imported_macro	other	none	3
-ref	local_function	matched	clause	1063
-ref	local_function	no use	none	23
+ref	local_function	matched	clause	417
+ref	local_function	no use	none	4
 ref	local_function	other	none	1
-ref	local_function	nothing	none	1
 ref	local_macro	matched	clause	16
-ref	remote_function	matched	callback+clause	26
-ref	remote_function	matched	clause	1663
-ref	remote_function	matched	delegation	5
-ref	remote_function	no use	none	166
-ref	remote_function	other	none	25
-ref	remote_function	nothing	none	115
-ref	remote_macro	matched	clause	33
-ref	remote_macro	no use	none	63
-alias	-	matched	none	2424
-alias	-	no use	none	4
-alias	-	other	none	9
-alias	-	nothing	none	93
-def	def	matched	clause	31
-def	def	nothing	none	1402
-def	defmacro	matched	clause	6
+ref	remote_function	matched	callback+clause	25
+ref	remote_function	matched	clause	567
+ref	remote_function	no use	none	99
+ref	remote_function	other	none	15
+ref	remote_function	nothing	none	54
+ref	remote_macro	matched	clause	3
+ref	remote_macro	no use	none	24
+alias	-	matched	none	891
+alias	-	no use	none	3
+alias	-	other	none	7
+alias	-	nothing	none	15
+def	def	matched	clause	9
+def	def	nothing	none	432
+def	defmacro	matched	clause	3
 def	defmacro	nothing	none	1
-def	defmacrop	matched	clause	8
-def	defp	matched	clause	69
-def	defp	nothing	none	15
-declaration	def	matched	clause	43
-declaration	def	nothing	clause	46
-declaration	defmacro	matched	clause	6
-declaration	defmacro	nothing	clause	16
-declaration	defmacrop	matched	clause	8
+def	defmacrop	matched	clause	5
+def	defp	matched	clause	22
+def	defp	nothing	none	4
+declaration	def	matched	clause	17
+declaration	def	nothing	clause	30
+declaration	defmacro	matched	clause	3
+declaration	defmacro	nothing	clause	9
+declaration	defmacrop	matched	clause	5
 declaration	defmacrop	nothing	clause	5
-declaration	defp	matched	clause	73
-declaration	defp	nothing	clause	3
+declaration	defp	matched	clause	22
+declaration	defp	nothing	clause	2

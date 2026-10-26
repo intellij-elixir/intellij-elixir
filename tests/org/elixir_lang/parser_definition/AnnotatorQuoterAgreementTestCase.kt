@@ -19,7 +19,6 @@ import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.junit.LightTestCase
 import org.elixir_lang.junit.SharedFixture
 import org.elixir_lang.junit.SharedFixtureHost
-import org.elixir_lang.junit.logs.UnexpectedLogs
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import java.nio.file.Files
@@ -64,12 +63,7 @@ class AnnotatorQuoterAgreementTestCase private constructor(
     }
 
     override fun runBare(testRunnable: ThrowableRunnable<Throwable>) {
-        if (fixture == null) {
-            super.runBare(testRunnable)
-        } else {
-            // Checked on the shared host; logs during the check are this case's.
-            UnexpectedLogs.failOnUnexpectedLogs { fixture.check(this) }
-        }
+        SharedFixture.runCase(fixture, this) { super.runBare(testRunnable) }
     }
 
     override fun check(case: AnnotatorQuoterAgreementTestCase) {

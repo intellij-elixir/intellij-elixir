@@ -101,20 +101,24 @@ class CompilerJoin(
         val defs = parsed.mapNotNull { (fact, line) -> (fact as? Fact.Def)?.let { it to line } }
         val declarations = declarations()
 
-        return positioned.map { (key, group) -> group(key.second, group, undefined) } +
-            defs.map { (fact, line) -> joined(outcome(fact, declarations), fact, line) } +
-            declarations.map { listed ->
+        return buildList {
+            for ((key, group) in positioned) add(group(key.second, group, undefined))
+            for ((fact, line) in defs) add(joined(outcome(fact, declarations), fact, line))
+            for (listed in declarations) {
                 val outcome = if (defs.any { (fact, _) -> listed.matches(fact) }) Outcome.MATCHED else Outcome.NOTHING
 
-                Joined(
-                    "declaration",
-                    outcome,
-                    listed.line,
-                    listed.module,
-                    listed.position,
-                    listOf(listed.declaration.declared)
+                add(
+                    Joined(
+                        "declaration",
+                        outcome,
+                        listed.line,
+                        listed.module,
+                        listed.position,
+                        listOf(listed.declaration.declared)
+                    )
                 )
             }
+        }
     }
 
     private fun group(
@@ -321,6 +325,13 @@ class CompilerJoin(
 
                     "${outcome.text}\t$kind\t$target\t${group.size}\t${group.first().position}"
                 }
+
+        /** What names a [grouped] line: a count line's kind and outcome, or a group line's outcome, kind and target. */
+        fun groupedKey(line: String): String {
+            val columns = line.split('\t')
+
+            return columns.dropLast(if (columns.first() in KINDS) 1 else 2).joinToString("\t")
+        }
 
         private fun counts(joined: List<Joined>): List<String> =
             joined.groupingBy { it.kind to it.outcome }.eachCount().entries

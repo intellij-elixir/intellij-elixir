@@ -124,20 +124,34 @@ async function main() {
   // check keeps its name from one build to the next. The job name, which reuse matches on, adds the build
   // for a pointer, so a pass on an older build does not stand for the one it names now.
   // `continue-on-error` on either axis makes the leg informational; shared-test.yml reads only the leg's.
+  //
+  // Each leg runs as two jobs, one per `-PtestPart` (buildSrc/src/main/kotlin/testing/TestPartition.kt): the heavy
+  // part's label leads with `heavy ` for the same truncation reason. `baseline` says whether the leg runs the
+  // version-independent classes, which only the baseline pair's legs do.
   const buildSuffix = (version, build) => (isPointer(version) ? ` ${build}` : '');
-  const leg = async (os, idea, beam, label) => {
+  const PARTS = [
+    { part: 'rest', prefix: '' },
+    { part: 'heavy', prefix: 'heavy ' },
+  ];
+  const leg = async (os, idea, beam, legLabel) => {
     const build = await buildFor('IU', idea.version);
     const continueOnError = Boolean(idea['continue-on-error'] || beam['continue-on-error']);
     return (
-      build && {
-        os,
-        'idea-version': build,
-        'java-version': idea.java,
-        beam,
-        label,
-        job: `test (${label}${buildSuffix(idea.version, build)})`,
-        'continue-on-error': continueOnError,
-      }
+      build &&
+      PARTS.map(({ part, prefix }) => {
+        const label = `${prefix}${legLabel}`;
+        return {
+          os,
+          'idea-version': build,
+          'java-version': idea.java,
+          beam,
+          baseline: beam === base,
+          part,
+          label,
+          job: `test (${label}${buildSuffix(idea.version, build)})`,
+          'continue-on-error': continueOnError,
+        };
+      })
     );
   };
 
@@ -149,7 +163,9 @@ async function main() {
       ...pairs.map((beam) => leg('ubuntu-24.04-arm', minimumSupported, beam, `${beam.elixir}+${beam.otp}`)),
       includeWindows(event) && leg('windows-2025', minimumSupported, base, `Win25, IDEA ${minimumSupported.version}`),
     ])
-  ).filter(Boolean);
+  )
+    .filter(Boolean)
+    .flat();
   const reused = [];
   const dropReused = (entries, informational, jobName) =>
     entries.filter((entry) => {
@@ -195,6 +211,11 @@ async function main() {
   setOutput('verify', JSON.stringify({ include: verifyLegs }));
   // The same goes for verify.
   setOutput('verify-any', verifyLegs.length > 0 ? 'true' : 'false');
+  // test-results.yml gives a test job that uploaded nothing a row of its leg. A pointer leg's job name also
+  // holds the build its label leaves out, so the renderer reads each job's label from here, not from the name.
+  if (process.env.TEST_JOBS_FILE) {
+    fs.writeFileSync(process.env.TEST_JOBS_FILE, JSON.stringify(testLegs.map(({ job, label }) => ({ job, label }))));
+  }
 
   addSummary(
     [

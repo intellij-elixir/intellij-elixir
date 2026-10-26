@@ -1,0 +1,103 @@
+ref	matched	5485
+ref	no use	237
+ref	other	2
+ref	nothing	66
+alias	matched	1626
+alias	no use	4
+alias	nothing	23
+def	matched	50
+def	nothing	926
+declaration	matched	58
+declaration	nothing	45
+no use	ref	Kernel	sigil_r	2	40	elixir/config/reader_test.exs:48:18
+no use	ref	Kernel	to_string	1	47	elixir/file_test.exs:153:32
+nothing	ref	:file	make_symlink	2	5	elixir/file_test.exs:601:19
+no use	ref	Kernel	@	1	23	elixir/file_test.exs:635:5
+no use	ref	Kernel	is_binary	1	2	elixir/file_test.exs:701:34
+no use	ref	Kernel	sigil_c	2	24	elixir/file_test.exs:856:53
+nothing	ref	:file	native_name_encoding	0	1	elixir/file_test.exs:1689:14
+nothing	ref	:erlang	universaltime	0	1	elixir/file_test.exs:1741:45
+nothing	alias	Foo	5	elixir/inspect_test.exs:28:20
+nothing	alias	Foo.Bar	1	elixir/inspect_test.exs:29:20
+no use	alias	Elixir	1	elixir/inspect_test.exs:30:20
+nothing	alias	Elixir.Elixir	1	elixir/inspect_test.exs:32:20
+nothing	alias	Elixir.Elixir.Foo	1	elixir/inspect_test.exs:33:20
+nothing	alias	User1	1	elixir/inspect_test.exs:37:20
+no use	ref	Kernel	sigil_s	2	32	elixir/inspect_test.exs:61:30
+no use	ref	Kernel	sigil_S	2	8	elixir/inspect_test.exs:84:58
+nothing	ref	:unicode	characters_to_nfd_binary	1	1	elixir/inspect_test.exs:100:20
+no use	ref	Enum	map	2	1	elixir/inspect_test.exs:786:25
+no use	ref	Inspect.OthersTest	weirdly named/fun-	0	1	elixir/inspect_test.exs:789:32
+no use	ref	:lists	map	2	1	elixir/inspect_test.exs:794:27
+no use	ref	Inspect.OthersTest.V	fun	0	1	elixir/inspect_test.exs:806:45
+nothing	ref	:code	purge	1	7	elixir/inspect_test.exs:808:11
+nothing	ref	:code	delete	1	7	elixir/inspect_test.exs:809:11
+other	ref	Protocol	def	1	1	elixir/inspect_test.exs:921:5
+no use	ref	Inspect.CustomProtocolTest.CustomInspect	inspect	2	2	elixir/inspect_test.exs:945:54
+no use	ref	:code	which	1	1	elixir/kernel/dialyzer_test.exs:49:35
+nothing	ref	:dialyzer	format_warning	1	1	elixir/kernel/dialyzer_test.exs:188:58
+nothing	ref	:dialyzer	run	1	1	elixir/kernel/dialyzer_test.exs:195:17
+no use	ref	Access	get	2	52	elixir/kernel/tracers_test.exs:49:16
+nothing	alias	Hello.World	2	elixir/kernel/tracers_test.exs:62:37
+nothing	alias	World	2	elixir/kernel/tracers_test.exs:62:50
+nothing	alias	Bar	3	elixir/kernel/tracers_test.exs:69:42
+nothing	ref	Keyword	__info__	1	1	elixir/map_test.exs:257:20
+nothing	ref	Map	__info__	1	1	elixir/map_test.exs:257:48
+no use	alias	Module	1	elixir/map_test.exs:372:15
+nothing	ref	Module	concat	2	1	elixir/map_test.exs:372:22
+no use	alias	MapTest	1	elixir/map_test.exs:372:29
+no use	alias	DynamicUser	1	elixir/map_test.exs:372:38
+nothing	alias	User	2	elixir/map_test.exs:392:18
+nothing	alias	MapTest.LocalUser.NestedUser	2	elixir/map_test.exs:494:65
+nothing	alias	MapTest.LocalUser.Context	1	elixir/map_test.exs:495:12
+nothing	ref	MapTest.LocalUser.Context	new	0	1	elixir/map_test.exs:495:30
+no use	ref	URI	char_unreserved?	1	1	elixir/uri_test.exs:11:44
+nothing	ref	:rand	uniform	0	2	ex_unit/ex_unit/callbacks_test.exs:449:14
+nothing	alias	NonexistentModuleAtom	1	iex/iex/info_test.exs:55:24
+nothing	alias	Datetime	1	iex/iex/info_test.exs:64:42
+no use	ref	String	length	1	1	iex/iex/info_test.exs:126:32
+nothing	ref	:gen_udp	open	1	1	iex/iex/info_test.exs:161:28
+nothing	ref	:gen_udp	close	1	1	iex/iex/info_test.exs:163:20
+other	ref	Kernel	..//	3	1	iex/iex/info_test.exs:239:23
+nothing	ref	ExUnit.CaptureIO	capture_io	2	3	iex/iex/interaction_test.exs:7:12
+nothing	ref	IEx.Case	capture_iex	1	21	iex/iex/interaction_test.exs:15:12
+nothing	ref	IEx.Case	capture_iex	2	3	iex/iex/interaction_test.exs:37:14
+nothing	ref	IO.ANSI	red	0	1	iex/iex/interaction_test.exs:39:48
+nothing	ref	IEx.Case	capture_iex	4	2	iex/iex/interaction_test.exs:141:12
+nothing	ref	IEx.Case	capture_iex	3	4	iex/iex/interaction_test.exs:188:14
+nothing	def	AtomTest	7	AtomTest:3
+nothing	def	Collectable.Kernel.ComprehensionTest.Pdict	1	Collectable.Kernel.ComprehensionTest.Pdict:12
+nothing	def	EnumTest	364	EnumTest:3
+nothing	def	GenServerTest.Stack	3	GenServerTest.Stack:7
+nothing	def	Inspect.Inspect.MapTest.StructWithEmptyOnlyOption	2	Inspect.Inspect.MapTest.StructWithEmptyOnlyOption:672
+nothing	def	Inspect.Inspect.MapTest.StructWithExceptOptionalAndOrder	2	Inspect.Inspect.MapTest.StructWithExceptOptionalAndOrder:758
+nothing	def	Inspect.MapTest.StructWithExceptOption	2	Inspect.MapTest.StructWithExceptOption:717
+nothing	def	Kernel.FnTest	25	Kernel.FnTest:3
+nothing	def	KeywordTest	99	KeywordTest:3
+nothing	def	Macro.AliasTest.User.First	2	Macro.AliasTest.User.First:165
+nothing	def	Module.Types.PatternTest	26	Module.Types.PatternTest:3
+nothing	def	PathTest	67	PathTest:3
+nothing	def	PortTest	5	PortTest:3
+nothing	def	Protocol.ConsolidationTest.ImplStruct	2	Protocol.ConsolidationTest.ImplStruct:31
+nothing	def	RangeTest	60	RangeTest:3
+nothing	def	RecordTest	44	RecordTest:3
+nothing	def	Registry.Test	72	Registry.Test:8
+nothing	def	TypespecTest	84	TypespecTest:4
+nothing	def	ExUnit.CaseTemplateTest	12	ExUnit.CaseTemplateTest:38
+nothing	def	ExUnit.DiffTest.HTML	2	ExUnit.DiffTest.HTML:34
+nothing	def	EEx.TokenizerTest	32	EEx.TokenizerTest:3
+nothing	def	IEx.Info.IEx.HelpersTest.MyIExInfoModule	1	IEx.Info.IEx.HelpersTest.MyIExInfoModule:1607
+nothing	def	Logger.BackendsTest	12	Logger.BackendsTest:1
+nothing	declaration	Nested	1	elixir/kernel/alias_test.exs:6
+nothing	declaration	WithoutDocs	1	elixir/kernel/docs_test.exs:46
+nothing	declaration	SignatureDocs	10	elixir/kernel/docs_test.exs:105
+nothing	declaration	ToBeUsed	1	elixir/kernel/docs_test.exs:428
+nothing	declaration	Kernel.ErrorsTest.InvalidStructName	2	elixir/kernel/errors_test.exs:336
+nothing	declaration	ListSubtractionUsage	2	elixir/kernel/guard_test.exs:347
+nothing	declaration	ImplAttributes	1	elixir/kernel/impl_test.exs:92
+nothing	declaration	MapTest.?	1	elixir/map_test.exs:375
+nothing	declaration	ModuleTest.ElixirRootAlias	1	elixir/module_test.exs:310
+nothing	declaration	SampleDocsProto	1	elixir/protocol_test.exs:147
+nothing	declaration	TypespecTest	22	elixir/typespec_test.exs:312
+nothing	declaration	ExUnit.CallbacksTest.SetupAllTest	1	ex_unit/ex_unit/callbacks_test.exs:120
+nothing	declaration	LoggerTest.SampleApp	1	logger/logger_test.exs:521

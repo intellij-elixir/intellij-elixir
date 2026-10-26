@@ -30,7 +30,10 @@ object FactsReport {
         val label: String,
         val count: Int,
     ) {
-        fun line(): String = listOf(kind, subKind, outcome.text, label, count).joinToString("\t")
+        /** What names the row in a report: every column but its count. */
+        fun key(): String = listOf(kind, subKind, outcome.text, label).joinToString("\t")
+
+        fun line(): String = "${key()}\t$count"
     }
 
     private val ORDER = compareBy<Row>(
@@ -53,15 +56,21 @@ object FactsReport {
 
     /** The report of the counts in [reports], each as [report] writes it, added per kind, sub-kind, outcome and label. */
     fun sum(elixirVersion: String, reports: List<String>): String {
-        val rows = reports.flatMap { report ->
-            report.lines().filter { it.isNotEmpty() && !it.startsWith("#") && it != COLUMNS }.map { line ->
-                val (kind, subKind, outcome, label, count) = line.split('\t')
-
-                Row(kind, subKind, Outcome.entries.single { it.text == outcome }, label, count.toInt())
-            }
-        }
+        val rows = reports.flatMap { report -> report.lines().mapNotNull(::row) }
 
         return render(elixirVersion, null, added(rows))
+    }
+
+    /** The key of [line] of a report, as [Row.key] gives it, or null for a header line. */
+    fun key(line: String): String? = row(line)?.key()
+
+    /** The row [line] of a report is, or null for a header line. */
+    private fun row(line: String): Row? {
+        if (line.isEmpty() || line.startsWith("#") || line == COLUMNS) return null
+
+        val (kind, subKind, outcome, label, count) = line.split('\t')
+
+        return Row(kind, subKind, Outcome.entries.single { it.text == outcome }, label, count.toInt())
     }
 
     private fun added(rows: List<Row>): List<Row> =

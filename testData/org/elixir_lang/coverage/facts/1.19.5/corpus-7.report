@@ -1,0 +1,34 @@
+# Elixir 1.19.5	shard 7
+kind	sub-kind	outcome	label	count
+ref	imported_function	matched	clause	1848
+ref	imported_function	no use	none	2
+ref	imported_function	nothing	none	36
+ref	imported_macro	matched	clause	2236
+ref	imported_macro	no use	none	133
+ref	imported_macro	other	none	2
+ref	imported_quoted	matched	clause	6
+ref	local_function	matched	clause	199
+ref	remote_function	matched	callback+clause	3
+ref	remote_function	matched	clause	1298
+ref	remote_function	matched	delegation	38
+ref	remote_function	no use	none	61
+ref	remote_function	nothing	none	33
+ref	remote_macro	no use	none	50
+alias	-	matched	none	1663
+alias	-	no use	none	4
+alias	-	nothing	none	23
+def	def	matched	clause	17
+def	def	nothing	none	849
+def	defmacro	matched	clause	6
+def	defmacro	nothing	none	9
+def	defmacrop	matched	clause	2
+def	defmacrop	nothing	none	6
+def	defp	matched	clause	22
+def	defp	nothing	none	7
+declaration	def	matched	clause	22
+declaration	def	nothing	clause	41
+declaration	defmacro	matched	clause	6
+declaration	defmacro	nothing	clause	4
+declaration	defmacrop	matched	clause	2
+declaration	defp	matched	clause	25
+declaration	defp	nothing	clause	1

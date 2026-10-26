@@ -14,6 +14,8 @@ import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.PsiManager
 import com.intellij.psi.ResolveState
+import com.intellij.util.ThrowableRunnable
+import junit.framework.Test
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.NameArity
 import org.elixir_lang.PlatformTestCase
@@ -22,6 +24,8 @@ import org.elixir_lang.beam.ReadResult
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.V1
 import org.elixir_lang.beam.term.inspect
 import org.elixir_lang.intellij_elixir.Quoter
+import org.elixir_lang.junit.SharedFixture
+import org.elixir_lang.junit.SharedFixtureHost
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirFile
@@ -31,8 +35,24 @@ import org.elixir_lang.toOtpErlangList
 import java.io.File
 import kotlin.time.Duration.Companion.seconds
 
-/** [CompiledModule] read from `.beam` files of the leg's Elixir and OTP, and from a fixture the leg's Elixir compiles. */
-class CompiledModuleTest : PlatformTestCase() {
+/**
+ * [CompiledModule] read from `.beam` files of the leg's Elixir and OTP, and from a fixture the leg's Elixir compiles.
+ * Each module of the leg's Elixir apps with debug info is a test of its own. The tests share one project and one
+ * compile of the fixture.
+ */
+@Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
+class CompiledModuleTest private constructor(
+    private val fixture: SharedFixture<CompiledModuleTest>?,
+    private val case: Case?,
+) : PlatformTestCase(), SharedFixtureHost<CompiledModuleTest> {
+    private val checkedModules = mutableMapOf<String, Checked>()
+    private val compiledFixture: Fixture by lazy { compileFixture() }
+
+    init {
+        name = case?.name ?: "shared fixture"
+        fixture?.add(this)
+    }
+
     override fun setUp() {
         super.setUp()
 
@@ -41,67 +61,106 @@ class CompiledModuleTest : PlatformTestCase() {
         }
     }
 
-    /**
-     * Each definition of the leg's Elixir apps has as many clauses in its mirror as in its debug info, but a private one
-     * its code doesn't list, which the decompiler, rendering the code's definitions, has no clause of, and whose entry
-     * takes its origin inside the module there.
-     */
-    fun testClauseCountsMatchMirror() {
-        var compared = 0
-        var unlisted = 0
-        val differing = elixirBeams().flatMap { (module, beam) ->
-            val mirror = mirror(beam)
-            val mirrored = mirrorClauses(mirror)
-            val modular = ReadAction.computeBlocking<TextRange, Throwable> { mirror.modulars().single().textRange }
-            val table by lazy { read(beam, mirror).table }
-            val locals = reading(beam) { reader ->
-                reader.localsResult.valueOrNull?.macroNameAritySortedSetByMacro()?.values?.flatten().orEmpty()
-                    .map { it.toNameArity() }
-                    .toSet()
-            }
-
-            definitions(beam).mapNotNull { definition ->
-                compared++
-
-                val clauses = (definition.clausesTerm as OtpErlangList).arity()
-                val inMirror = mirrored[Triple(definition.macro, definition.name, definition.arity)].orEmpty().size
-                val nameArity = NameArity(definition.name!!, definition.arity!!)
-                val inCode = definition.macro !in PRIVATE || nameArity in locals
-                val origin = if (inCode) null else table[nameArity]?.at?.meta?.origin
-
-                if (!inCode) unlisted++
-
-                val definitionText = "$module ${definition.macro} ${definition.name}/${definition.arity}"
-
-                "$definitionText: debug info $clauses, mirror $inMirror, at $origin in $modular"
-                    .takeIf { inMirror != (if (inCode) clauses else 0) || !inCode && origin?.let(modular::contains) != true }
-            }
-        }
-
-        assertTrue("definitions compared: $compared", compared > 1_000)
-        assertTrue("private definitions the code doesn't list: $unlisted", unlisted > 0)
-        assertEquals("${differing.size} of $compared differ", emptyList<String>(), differing.take(20))
+    override fun runShared(serve: ThrowableRunnable<Throwable>) {
+        runBare(serve)
     }
 
+    override fun runBare(testRunnable: ThrowableRunnable<Throwable>) {
+        SharedFixture.runCase(fixture, this) { super.runBare(testRunnable) }
+    }
+
+    override fun check(case: CompiledModuleTest) {
+        when (val slice = case.case!!) {
+            is Case.Module -> assertModule(slice.module, slice.beam)
+            is Case.ClauseCounts -> assertClauseCountTotals(slice.beams)
+            is Case.Bodies -> assertBodyTotals(slice.beams)
+            is Case.Named -> slice.check(this)
+        }
+    }
+
+    /** What one module's clause counts and bodies are found to be, each module once. */
+    private class Checked(
+        val differingClauseCounts: List<String>,
+        val definitions: Int,
+        val unlisted: Int,
+        val differingBodies: List<String>,
+        val clauses: Int,
+    )
+
+    private fun checked(module: String, beam: File): Checked =
+        checkedModules.getOrPut(module) {
+            var clauses = 0
+            val (differingClauseCounts, unlisted) = differingClauseCounts(module, beam)
+            val differingBodies = differingBodies(module, beam) { clauses++ }
+
+            Checked(differingClauseCounts, definitions(beam).size, unlisted, differingBodies, clauses)
+        }
+
     /**
-     * Each definition of the leg's Elixir apps has a body per debug info clause, in order: an `fn` clause that
+     * Each definition of [module] has as many clauses in its mirror as in its debug info, but a private one its code
+     * doesn't list, which the decompiler, rendering the code's definitions, has no clause of, and whose entry takes its
+     * origin inside the module there; and has a body per debug info clause, in order: an `fn` clause that
      * `elixir_utils:extract_splat_guards/1` reads back as that clause's arguments and guards, whose origin is the same
      * clause in the mirror, or the module there for a definition the mirror has no clause of.
      */
-    fun testBodiesAreMirroredFnClauses() {
-        var compared = 0
-        val differing = elixirBeams().flatMap { (module, beam) ->
-            differingBodies(module, beam) { compared++ }
-        }
+    private fun assertModule(module: String, beam: File) {
+        val checked = checked(module, beam)
+        val differing = checked.differingClauseCounts + checked.differingBodies
 
         assertEquals("${differing.size} differ", emptyList<String>(), differing.take(20))
+    }
+
+    /** Some definitions are compared, and some private definitions are ones the code doesn't list. */
+    private fun assertClauseCountTotals(beams: List<Pair<String, File>>) {
+        val checked = beams.map { (module, beam) -> checked(module, beam) }
+        val compared = checked.sumOf { it.definitions }
+        val unlisted = checked.sumOf { it.unlisted }
+
+        assertTrue("definitions compared: $compared", compared > 1_000)
+        assertTrue("private definitions the code doesn't list: $unlisted", unlisted > 0)
+    }
+
+    /** Some clauses' bodies are compared. */
+    private fun assertBodyTotals(beams: List<Pair<String, File>>) {
+        val compared = beams.sumOf { (module, beam) -> checked(module, beam).clauses }
+
         assertTrue("clauses compared: $compared", compared > 300)
     }
 
+    /** Each [module] definition whose clause counts differ, and how many private definitions its code doesn't list. */
+    private fun differingClauseCounts(module: String, beam: File): Pair<List<String>, Int> {
+        var unlisted = 0
+        val mirror = mirror(beam)
+        val mirrored = mirrorClauses(mirror)
+        val modular = ReadAction.computeBlocking<TextRange, Throwable> { mirror.modulars().single().textRange }
+        val table by lazy { read(beam, mirror).table }
+        val locals = reading(beam) { reader ->
+            reader.localsResult.valueOrNull?.macroNameAritySortedSetByMacro()?.values?.flatten().orEmpty()
+                .map { it.toNameArity() }
+                .toSet()
+        }
+
+        val differing = definitions(beam).mapNotNull { definition ->
+            val clauses = (definition.clausesTerm as OtpErlangList).arity()
+            val inMirror = mirrored[Triple(definition.macro, definition.name, definition.arity)].orEmpty().size
+            val nameArity = NameArity(definition.name!!, definition.arity!!)
+            val inCode = definition.macro !in PRIVATE || nameArity in locals
+            val origin = if (inCode) null else table[nameArity]?.at?.meta?.origin
+
+            if (!inCode) unlisted++
+
+            val definitionText = "$module ${definition.macro} ${definition.name}/${definition.arity}"
+
+            "$definitionText: debug info $clauses, mirror $inMirror, at $origin in $modular"
+                .takeIf { inMirror != (if (inCode) clauses else 0) || !inCode && origin?.let(modular::contains) != true }
+        }
+
+        return differing to unlisted
+    }
+
     /** A module with debug info: every definition Elixir's table holds, each one's bodies, and its deprecations. */
-    fun testDebugInfo() {
-        val fixture = fixture()
-        val compiled = fixture.debugInfo
+    private fun debugInfo() {
+        val compiled = compiledFixture.debugInfo
 
         assertEquals("Elixir.CompiledFixture", compiled.module)
         assertEquals(
@@ -117,9 +176,9 @@ class CompiledModuleTest : PlatformTestCase() {
             compiled.table.entries.mapValues { it.value.clauses },
             (compiled.bodies as CompiledModule.Bodies.Read).clauses.mapValues { it.value.size },
         )
-        assertEquals(emptyList<String>(), differingBodies("CompiledFixture", fixture.debugInfoBeam) {})
+        assertEquals(emptyList<String>(), differingBodies("CompiledFixture", compiledFixture.debugInfoBeam) {})
 
-        val beam = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(fixture.debugInfoBeam)!!
+        val beam = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(compiledFixture.debugInfoBeam)!!
         val clauses = ModuleClauses.of(compiled, beam)!!
 
         assertEquals(
@@ -131,8 +190,8 @@ class CompiledModuleTest : PlatformTestCase() {
     }
 
     /** A module compiled without debug info: `Docs`' functions and macros, and each arity their defaults cover. */
-    fun testDocsOnly() {
-        val compiled = fixture().docsOnly
+    private fun docsOnly() {
+        val compiled = compiledFixture.docsOnly
 
         assertEquals(
             listOf(
@@ -146,8 +205,8 @@ class CompiledModuleTest : PlatformTestCase() {
     }
 
     /** A stripped module: its exports, less those the compiler adds, `behaviour_info/1` among them. */
-    fun testStripped() {
-        val compiled = fixture().stripped
+    private fun stripped() {
+        val compiled = compiledFixture.stripped
 
         assertEquals(
             listOf(
@@ -160,7 +219,7 @@ class CompiledModuleTest : PlatformTestCase() {
     }
 
     /** An Erlang module: its exports as functions, each with as many clauses as its mirror gives it. */
-    fun testErlang() {
+    private fun erlang() {
         val beam = appBeams.getValue("queue")
         val mirror = mirror(beam)
         val mirrored = mirrorClauses(mirror)
@@ -189,14 +248,13 @@ class CompiledModuleTest : PlatformTestCase() {
      * The fixture's table read from source agrees with its `.beam`'s: every entry's kind, clauses, defaults and default
      * with debug info; the public entries' kind, defaults and default from `Docs`; the exported entries' kind stripped.
      */
-    fun testTableMatchesSource() {
-        val fixture = fixture()
+    private fun tableMatchesSource() {
         val source = rows(sourceTable())
         val public = source.filterNot { it.split(" ")[1] in setOf("DEFP", "DEFMACROP") }
 
-        assertEquals(source, rows(fixture.debugInfo.table))
-        assertEquals(public.map(::kindDefaults), rows(fixture.docsOnly.table).map(::kindDefaults))
-        assertEquals(public.map(::kind), rows(fixture.stripped.table).map(::kind))
+        assertEquals(source, rows(compiledFixture.debugInfo.table))
+        assertEquals(public.map(::kindDefaults), rows(compiledFixture.docsOnly.table).map(::kindDefaults))
+        assertEquals(public.map(::kind), rows(compiledFixture.stripped.table).map(::kind))
     }
 
     private class Fixture(
@@ -210,7 +268,7 @@ class CompiledModuleTest : PlatformTestCase() {
      * [FIXTURE] compiled by the leg's Elixir with debug info, without it, and with it then stripped. The quoter's
      * compiler options are shared by every test fork, so the one without debug info comes from its own `@compile`.
      */
-    private fun fixture(): Fixture {
+    private fun compileFixture(): Fixture {
         val compiled = Quoter.compile(
             """
             compile = fn source ->
@@ -344,13 +402,6 @@ class CompiledModuleTest : PlatformTestCase() {
         }
     }
 
-    /** Each module of the leg's Elixir apps with debug info, by name. */
-    private fun elixirBeams(): List<Pair<String, File>> =
-        appBeams.keys.sorted().map { it to appBeams.getValue(it) }.filter { (_, beam) -> definitions(beam).isNotEmpty() }
-
-    private fun definitions(beam: File) =
-        reading(beam) { reader -> (reader.debugInfoResult.valueOrNull as? V1)?.definitions?.definitionList.orEmpty() }
-
     private fun read(beam: File, mirror: ElixirFile = mirror(beam)): CompiledModule =
         ReadAction.computeBlocking<CompiledModule?, Throwable> {
             val bytes = beam.readBytes()
@@ -359,9 +410,6 @@ class CompiledModuleTest : PlatformTestCase() {
             CompiledModule.of(bytes, beam.path, mirror, legLevel(), deprecations)
         }
             ?: throw AssertionError("$beam isn't read")
-
-    private fun <T : Any> reading(beam: File, block: (BeamReader) -> T): T =
-        (BeamReader.readResult(beam.readBytes(), beam.path, block) as ReadResult.Present).value
 
     /** [beam]'s mirror: its decompiled source. */
     private fun mirror(beam: File): ElixirFile =
@@ -385,8 +433,51 @@ class CompiledModuleTest : PlatformTestCase() {
                 .groupBy({ it.first }, { it.second })
         }
 
-    private companion object {
-        val PRIVATE = setOf("defp", "defmacrop")
+    /** One test's slice of the checks. */
+    private sealed class Case(val name: String) {
+        class Module(val module: String, val beam: File) : Case(module)
+
+        class ClauseCounts(val beams: List<Pair<String, File>>) : Case("clause counts compared")
+
+        class Bodies(val beams: List<Pair<String, File>>) : Case("bodies compared")
+
+        /** A check of the compiled fixture, or of one module. */
+        class Named(name: String, val check: (CompiledModuleTest) -> Unit) : Case(name)
+    }
+
+    companion object {
+        private val PRIVATE = setOf("defp", "defmacrop")
+
+        @JvmStatic
+        fun suite(): Test {
+            val fixture = SharedFixture { CompiledModuleTest(null, null) }
+            val suite = fixture.suite(CompiledModuleTest::class.java.name)
+            val beams = elixirBeams()
+            val cases = buildList {
+                for ((module, beam) in beams) add(Case.Module(module, beam))
+                add(Case.ClauseCounts(beams))
+                add(Case.Bodies(beams))
+                add(Case.Named("testDebugInfo", CompiledModuleTest::debugInfo))
+                add(Case.Named("testDocsOnly", CompiledModuleTest::docsOnly))
+                add(Case.Named("testStripped", CompiledModuleTest::stripped))
+                add(Case.Named("testErlang", CompiledModuleTest::erlang))
+                add(Case.Named("testTableMatchesSource", CompiledModuleTest::tableMatchesSource))
+            }
+
+            for (case in cases) suite.addTest(CompiledModuleTest(fixture, case))
+
+            return suite
+        }
+
+        /** Each module of the leg's Elixir apps with debug info, by name. */
+        private fun elixirBeams(): List<Pair<String, File>> =
+            appBeams.keys.sorted().map { it to appBeams.getValue(it) }.filter { (_, beam) -> definitions(beam).isNotEmpty() }
+
+        private fun definitions(beam: File) =
+            reading(beam) { reader -> (reader.debugInfoResult.valueOrNull as? V1)?.definitions?.definitionList.orEmpty() }
+
+        private fun <T : Any> reading(beam: File, block: (BeamReader) -> T): T =
+            (BeamReader.readResult(beam.readBytes(), beam.path, block) as ReadResult.Present).value
 
         /**
          * Every kind of definition; three guards, which nest by `when`; a default arity of its own (`f/1`), one a head
@@ -395,7 +486,7 @@ class CompiledModuleTest : PlatformTestCase() {
          * deprecation; a callback, for which the compiler exports `behaviour_info/1`; a
          * `defmacrop`, which no code holds; and a macro whose arguments debug info holds as a byte list (`z/1`).
          */
-        val FIXTURE = """
+        private val FIXTURE = """
             defmodule CompiledFixture do
               @callback cb(term) :: term
 
@@ -430,6 +521,6 @@ class CompiledModuleTest : PlatformTestCase() {
         """.trimIndent()
 
         /** [FIXTURE] whose module opts out of debug info itself. */
-        val FIXTURE_WITHOUT_DEBUG_INFO = FIXTURE.replaceFirst("CompiledFixture do", "CompiledFixture do @compile {:debug_info, false}")
+        private val FIXTURE_WITHOUT_DEBUG_INFO = FIXTURE.replaceFirst("CompiledFixture do", "CompiledFixture do @compile {:debug_info, false}")
     }
 }
