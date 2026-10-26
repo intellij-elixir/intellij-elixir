@@ -89,6 +89,68 @@ class ProjectKeywordsTest : PlatformTestCase() {
         assertNull(ProjectKeywords.app(mixExs))
     }
 
+    fun testConfigPathIsTheWrittenString() {
+        val mixExs = mixExs(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              def project do
+                [app: :my_app, config_path: "../../con\x66ig/config.exs"]
+              end
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.ConfigPath.Written("../../config/config.exs"), ProjectKeywords.configPath(mixExs))
+    }
+
+    fun testParenthesizedConfigPathIsTheString() {
+        val mixExs = mixExs(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              def project do
+                [app: :my_app, config_path: ("../../config/config.exs")]
+              end
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.ConfigPath.Written("../../config/config.exs"), ProjectKeywords.configPath(mixExs))
+    }
+
+    fun testNonLiteralConfigPathIsUnknown() {
+        val mixExs = mixExs(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              def project do
+                [app: :my_app, config_path: Path.join("config", "config.exs")]
+              end
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.ConfigPath.Unknown, ProjectKeywords.configPath(mixExs))
+    }
+
+    fun testAbsentConfigPathIsMixsDefault() {
+        val mixExs = mixExs(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              def project, do: [app: :my_app]
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.ConfigPath.Written("config/config.exs"), ProjectKeywords.configPath(mixExs))
+    }
+
     private fun mixExs(text: String): ElixirFile =
         myFixture.configureByText(Project.MIX_EXS, text.trimIndent()) as ElixirFile
 }

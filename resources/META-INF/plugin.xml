@@ -500,6 +500,9 @@
         <!-- names spelled other than as their atom, which Find Usages' literal word search misses -->
         <fileBasedIndex implementation="org.elixir_lang.model.psi.words.SpellingsIndex"/>
 
+        <!-- application env settings in config files and reads in code -->
+        <fileBasedIndex implementation="org.elixir_lang.model.psi.config.ConfigIndex"/>
+
         <!-- debug -->
         <fileBasedIndex implementation="org.elixir_lang.beam.chunk.lines.file_names.Index"/>
         <programRunner implementation="org.elixir_lang.debugger.Runner"/>
