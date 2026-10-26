@@ -168,7 +168,13 @@ defmodule Matrix do
     "x_capture_arity" => {["if Enum.map([-1], &Kernel.abs/1) == [1] do"], ["end"]},
     "x_capture_nested" => {["if Enum.map([-1], &(Kernel.abs(&1) + 0)) == [1] do"], ["end"]},
     # A pipe into a call whose argument is a charlist.
-    "x_pipe_charlist" => {[~s[if ~c"a" |> to_string() == "a" do]], ["end"]}
+    "x_pipe_charlist" => {[~s[if ~c"a" |> to_string() == "a" do]], ["end"]},
+    # Which parts of a `for` see the variables its generators bind: a later generator's right side, a filter
+    # and the body of `reduce:`.
+    "x_for_scope_generator" => {["for x <- [1], y <- [x], y > 0 do"], ["end"]},
+    "x_for_scope_reduce" => {["for x <- [1], y <- [x], reduce: 0 do", "  acc ->", "  _ = y"], ["  acc", "end"]},
+    # A remote capture whose module is a variable.
+    "x_capture_variable_module" => {["if (mod = :lists; is_function(&mod.reverse/1, 1)) do"], ["end"]}
   }
   @wrapper_worlds Map.keys(@wrappers)
 
