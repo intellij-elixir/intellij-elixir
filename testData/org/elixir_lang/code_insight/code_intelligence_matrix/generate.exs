@@ -174,7 +174,11 @@ defmodule Matrix do
     "x_for_scope_generator" => {["for x <- [1], y <- [x], y > 0 do"], ["end"]},
     "x_for_scope_reduce" => {["for x <- [1], y <- [x], reduce: 0 do", "  acc ->", "  _ = y"], ["  acc", "end"]},
     # A remote capture whose module is a variable.
-    "x_capture_variable_module" => {["if (mod = :lists; is_function(&mod.reverse/1, 1)) do"], ["end"]}
+    "x_capture_variable_module" => {["if (mod = :lists; is_function(&mod.reverse/1, 1)) do"], ["end"]},
+    # An attribute whose value raises and is rescued in place, then read; the definitions follow.
+    "x_attribute_raise_rescued" => {["@matrix_raised (try do raise(ArgumentError) rescue _ -> 1 end)", "if @matrix_raised == 1 do"], ["end"]},
+    # A statement `=` whose right side is a parenthesised block holding another.
+    "x_match_nested" => {["_outer = (inner = 1", "_ = inner"], [")"]}
   }
   @wrapper_worlds Map.keys(@wrappers)
 
