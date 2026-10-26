@@ -13,7 +13,7 @@ import org.jetbrains.annotations.Nullable;
  * 50 ms, while parsing one snippet takes about 1 ms.
  */
 @SuppressWarnings("JUnitMalformedDeclaration") // T is the self type of a generated suite, built only by suite().
-abstract class SharedFixtureParsingTestCase<T extends SharedFixtureParsingTestCase<T>> extends ParsingTestCase
+public abstract class SharedFixtureParsingTestCase<T extends SharedFixtureParsingTestCase<T>> extends ParsingTestCase
         implements SharedFixtureHost<T> {
     private final @Nullable SharedFixture<T> fixture;
 
