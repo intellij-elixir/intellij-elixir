@@ -288,6 +288,8 @@ internal fun isUnknown(term: OtpErlangObject) = term is UnknownValue || term ===
 internal class Closure(
     val arity: Int,
     val marks: () -> List<OtpErlangObject> = { emptyList() },
+    /** The `fn` the closure is of, where it is one the evaluator built from code. */
+    val fn: ElixirAst? = null,
     val invoke: (List<OtpErlangObject>) -> OtpErlangObject,
 ) :
     OtpErlangFun(OtpErlangPid("nonode@nohost", 0, 0, 0), "erl_eval", 0L, 0L, arrayOf()) {

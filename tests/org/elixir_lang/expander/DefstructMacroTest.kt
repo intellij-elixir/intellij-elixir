@@ -46,16 +46,17 @@ class DefstructMacroTest : ExpanderTestCase() {
         )
 
     fun testFieldsThatAreNotLiteralStopTheModule() =
-        assertEvery(
-            "defmodule A do\n  defstruct Foo.fields()\nend",
-            "module Elixir.A stopped `defstruct Foo.fields()`$TABLE",
-        )
+        assertLevels("defmodule A do\n  defstruct Foo.fields()\nend", LEVELS) { stopped(it, "defstruct Foo.fields()") }
 
     fun testADefaultThatIsNotLiteralStopsTheModule() =
-        assertEvery(
-            "defmodule A do\n  defstruct a: Foo.default()\nend",
-            "module Elixir.A stopped `defstruct a: Foo.default()`$TABLE",
-        )
+        assertLevels("defmodule A do\n  defstruct a: Foo.default()\nend", LEVELS) { stopped(it, "defstruct a: Foo.default()") }
+
+    /**
+     * The table of a module that stopped at its `defstruct`, at [line]: up to 1.13 the output's `case` on `@enforce_keys`
+     * is declined after the stop, so both arms' `__struct__/1` are stored.
+     */
+    private fun stopped(version: String, source: String, line: Int = 2): String =
+        "module Elixir.A stopped `$source` | def __struct__/0 line $line clauses 1 | def __struct__/1 line $line clauses ${stoppedStructClauses(ElixirLanguageLevel.of(version))}"
 
     fun testAnImproperListIsALiteralDefault() =
         assertEvery("defmodule A do\n  defstruct a: [1 | 2]\nend", "module Elixir.A compiled$TABLE")
@@ -124,10 +125,7 @@ class DefstructMacroTest : ExpanderTestCase() {
     }
 
     fun testEnforcedKeysThatAreNotKnownStopTheModule() =
-        assertEvery(
-            "defmodule A do\n  @enforce_keys Foo.keys()\n  defstruct [:a]\nend",
-            "module Elixir.A stopped `defstruct [:a]`$TABLE_AT_3",
-        )
+        assertLevels("defmodule A do\n  @enforce_keys Foo.keys()\n  defstruct [:a]\nend", LEVELS) { stopped(it, "defstruct [:a]", 3) }
 
     fun testADefstructInAFunctionStopsTheModule() =
         assertEvery(
@@ -135,17 +133,20 @@ class DefstructMacroTest : ExpanderTestCase() {
             "module Elixir.A stopped `defstruct([:a])` | def f/0 line 2 clauses 1",
         )
 
-    fun testADefstructInABranchStopsTheModule() =
-        assertEvery(
-            "defmodule A do\n  if Foo.ok() do\n    defstruct [:a]\n  else\n    defstruct [:b]\n  end\nend",
-            "module Elixir.A stopped `defstruct [:b]` | def __struct__/0 line 5 clauses 2 | def __struct__/1 line 5 clauses 2",
-        )
+    /** The module stops where the walk lost Elixir's path: at the `if` whose subject the evaluator can't produce. */
+    fun testADefstructInABranchStopsTheModule() {
+        val branch = "if Foo.ok() do\n    defstruct [:a]\n  else\n    defstruct [:b]\n  end"
 
-    fun testADefstructThatMayNotRunStopsTheModule() =
-        assertEvery(
-            "defmodule A do\n  if Foo.ok() do\n    defstruct [:a]\n  end\nend",
-            "module Elixir.A stopped `defstruct [:a]`$TABLE_AT_3",
-        )
+        assertLevels("defmodule A do\n  $branch\nend", LEVELS) {
+            "module Elixir.A stopped `$branch` | def __struct__/0 line 5 clauses 2 | def __struct__/1 line 5 clauses ${2 * stoppedStructClauses(ElixirLanguageLevel.of(it))}"
+        }
+    }
+
+    fun testADefstructThatMayNotRunStopsTheModule() {
+        val branch = "if Foo.ok() do\n    defstruct [:a]\n  end"
+
+        assertLevels("defmodule A do\n  $branch\nend", LEVELS) { stopped(it, branch, 3) }
+    }
 
     fun testDefaultsThatNameModulesAreAtoms() =
         assertEvery(
@@ -155,19 +156,13 @@ class DefstructMacroTest : ExpanderTestCase() {
 
     /** Before the struct is escaped in the output, the compiler expands the fun in the definitions that read it. */
     fun testAnExternalCaptureIsAValidDefault() =
-        assertSplit(
-            "defmodule A do\n  defstruct f: &String.upcase/1\nend",
-            "1.18.0-rc.0",
-            "module Elixir.A stopped `defstruct f: &String.upcase/1`$TABLE",
-            "module Elixir.A compiled$TABLE",
-        )
+        assertLevels("defmodule A do\n  defstruct f: &String.upcase/1\nend", LEVELS) {
+            if (isBefore(it, "1.18.0-rc.0")) stopped(it, "defstruct f: &String.upcase/1") else "module Elixir.A compiled$TABLE"
+        }
 
     /** A capture that isn't `&Mod.f/n` may be of an imported function, which escapes, or a local one, which doesn't. */
     fun testAnyOtherCaptureStopsTheModule() =
-        assertEvery(
-            "defmodule A do\n  defstruct f: &String.upcase(&1)\nend",
-            "module Elixir.A stopped `defstruct f: &String.upcase(&1)`$TABLE",
-        )
+        assertLevels("defmodule A do\n  defstruct f: &String.upcase(&1)\nend", LEVELS) { stopped(it, "defstruct f: &String.upcase(&1)") }
 
     fun testASecondDefstructRaises() =
         assertEvery(

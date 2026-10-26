@@ -56,7 +56,7 @@ private fun defdelegate(
     if (expansion is Expansion.Expanded && compiling.isStatement(node)) {
         // The `bind_quoted` matches run first, then the iteration, which checks the options as `Kernel.Utils` does: the
         // output's own `target =` match isn't run.
-        val (matches, iteration) = run.pending.subList(from, run.pending.size).toList().partition { it is Pending.Match }
+        val (matches, iteration) = run.pending.subList(from, run.pending.size).unnested().partition { it is Pending.Match }
         val binds = matches.filter { binds(it, "funs") || binds(it, "opts") }
         val bound = binds.firstOrNull { binds(it, "opts") } as Pending.Match?
         val delegates = Delegates(node, env, run.level)
@@ -64,7 +64,7 @@ private fun defdelegate(
 
         run.replacePending(
             from,
-            binds + Pending.Effect(node, ordered = true, queued = { entries }) { body, _ ->
+            binds + Pending.Effect(node, ordered = true, queued = { entries }) { body, _, _ ->
                 entries = bound?.let { optionsOf(it, body, run) }?.let { delegates.each(funs, it, iteration) } ?: iteration
 
                 // A definition the loop makes for a head it can name is a statement of the body, as its `def` is once it runs.
@@ -286,7 +286,7 @@ private class Delegates(private val node: ElixirAst.Call, private val env: Env, 
     }
 
     private fun raises(kind: String): Pending =
-        Pending.Effect(node, ordered = true, apply = { _, _ -> Expansion.Error(kind, node) })
+        Pending.Effect(node, ordered = true, apply = { _, _, _ -> Expansion.Error(kind, node) })
 }
 
 /** The values `Keyword.get(opts, :to) || raise` refuses. */

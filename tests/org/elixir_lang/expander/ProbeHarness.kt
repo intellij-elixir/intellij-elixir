@@ -207,7 +207,7 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
      * A definition as the hook saw it before its module compiled. Before `Module.get_definition/2` (1.12) only the
      * name, arity and kind are known.
      *
-     * @property default whether the definition's meta holds `:context`, which from 1.20 marks a default arity's
+     * @property context whether the definition's meta holds `:context`
      */
     data class HookEntry(
         val name: String,
@@ -215,7 +215,7 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
         val kind: String,
         val line: Int?,
         val clauses: Int?,
-        val default: Boolean?,
+        val context: Boolean?,
     )
 
     /** Compiles each of [bodies] as the body of a module of its own. */

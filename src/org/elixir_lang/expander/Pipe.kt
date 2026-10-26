@@ -110,6 +110,9 @@ private fun isAccessGet(call: ElixirAst.Call): Boolean {
 private fun isFromBrackets(key: Meta.Key): Boolean =
     key is Meta.Key.Entry && key.name == "from_brackets" && (key.value as? Meta.Value.Atom)?.name == "true"
 
+/** `Macro.operator?/2` at either arity. */
+internal fun operator(name: String): Boolean = name in UNARY_OPERATORS || name in BINARY_OPERATORS
+
 /** `Macro.operator?(name, 1)`, but `...`, which joins it at [ELLIPSIS_NULLARY_CALL]. */
 private val UNARY_OPERATORS = setOf("&", "!", "^", "not", "+", "-", "~~~", "@")
 

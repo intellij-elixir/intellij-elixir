@@ -1,8 +1,10 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
+import org.elixir_lang.language_level.ElixirLanguageFeature.CLAUSES_TAKE_VERSION
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
@@ -272,8 +274,8 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """.trimIndent()
         }
 
-    /** A definition that isn't a statement of the module body, and every body after it, may run in another order. */
-    fun testADefinitionInACaseClauseIsUnordered() =
+    /** A definition in the clause a module-body `case` selects runs once, where the `case` does: a statement. */
+    fun testADefinitionInASelectedCaseClauseIsAStatement() =
         assertLevels(
             """
             defmodule A do
@@ -288,9 +290,36 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0 context ${topContext(version, "Elixir.A")}
             module Elixir.A compiled
-              def f/0 line 3 clauses 1 unordered
+              def f/0 line 3 clauses 1
               def g/0 line 5 clauses 1
               body: expanded {} next ${if (isBefore(version, "1.20.0-rc.5")) 0 else 2} context [Elixir.A]
+              def f/0: expanded {} next 0
+              def g/0: expanded {} next 0
+            """.trimIndent()
+        }
+
+    /**
+     * A definition in a clause of a `case` whose subject the evaluator can't produce, and every body after it, may run
+     * in another order.
+     */
+    fun testADefinitionInACaseClauseTheEvaluatorCannotSelectIsUnordered() =
+        assertLevels(
+            """
+            defmodule A do
+              case (receive do after 0 -> 1 end) do
+                _ -> def f, do: 1
+              end
+              def g, do: 2
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            module Elixir.A compiled
+              def f/0 line 3 clauses 1 unordered
+              def g/0 line 5 clauses 1
+              body: expanded {} next ${if (isBefore(version, "1.20.0-rc.5")) 0 else 3} context [Elixir.A]
               def f/0 unordered: expanded {} next 0
               def g/0 unordered: expanded {} next 0
             """.trimIndent()
@@ -2560,6 +2589,116 @@ class ModuleExpanderTest : ExpanderTestCase() {
         }
 
     /**
+     * A module nested in another stops, and the enclosing module's first definition then raises. The nested module's
+     * stop leaves what Elixir runs after it unfollowed, so the enclosing module's tables are read as unknown and what
+     * it defines isn't known, but Elixir raises at that definition all the same: the file's run ends there and the
+     * module after it is never compiled.
+     */
+    fun testANestedModulesStopLeavesTheEnclosingModulesRaiseCertain() =
+        assertLevels(
+            """
+            defmodule M do
+              defmodule N do
+                def $UNNAMED(), do: 1
+              end
+              def __info__(x), do: 1
+            end
+
+            defmodule L do
+              def h, do: 1
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top unported `$UNNAMED`
+            module Elixir.M stopped `$UNNAMED`
+              body: expanded {} next 0 context [Elixir.M.N, Elixir.M]
+              def __info__/1: unported `def __info__(x), do: 1`
+            """.trimIndent() + "\n" + nestedStopped(version)
+        }
+
+    /**
+     * After a module nested in it stops, the enclosing module's `@on_definition` entries aren't known, so a definition
+     * it stores after the stop may run a callback the expander doesn't follow. That callback is possible only through
+     * the stop, so it marks the module as the stop does: a raise computed from its tables after that definition is still
+     * certain, as Elixir's at the `defmacro` is, and the module after it is never compiled.
+     */
+    fun testADefinitionStoredAfterANestedStopLeavesALaterRaiseFromTheTableCertain() =
+        assertLevels(
+            """
+            defmodule M do
+              defmodule N do
+                def $UNNAMED(), do: 1
+              end
+              def f, do: 1
+              defmacro f, do: 1
+            end
+
+            defmodule L do
+              def h, do: 1
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top unported `$UNNAMED`
+            module Elixir.M stopped `$UNNAMED`
+              def f/0 line 5 clauses 1
+              body: expanded {} next 0 context [Elixir.M.N, Elixir.M]
+              def f/0: expanded {} next 0
+              defmacro f/0: unported `defmacro f, do: 1`
+            """.trimIndent() + "\n" + nestedStopped(version)
+        }
+
+    /**
+     * After a module nested in it stops, a module's `@after_compile` entries aren't known, so its end may run a callback
+     * the expander doesn't follow, possible only through the stop: it marks the modules enclosing it as the stop does,
+     * and the outermost module's raise at its first definition is still certain, so the module after it is never
+     * compiled.
+     */
+    fun testANestedModulesPossibleAfterCompileCallbackLeavesTheEnclosingModulesRaiseCertain() =
+        assertLevels(
+            """
+            defmodule O do
+              defmodule M do
+                defmodule N do
+                  def $UNNAMED(), do: 1
+                end
+              end
+              def __info__(x), do: 1
+            end
+
+            defmodule L do
+              def h, do: 1
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top unported `$UNNAMED`
+            module Elixir.O stopped `$UNNAMED`
+              body: expanded {} next 0 context [Elixir.O.M, Elixir.O]
+              def __info__/1: unported `def __info__(x), do: 1`
+              module Elixir.O.M stopped `$UNNAMED`
+                body: expanded {} next 0 context [Elixir.O.M.N, Elixir.O.M, Elixir.O]
+                module Elixir.O.M.N stopped `$UNNAMED`
+                  def unnamed
+                  body: expanded {} next ${if (isBefore(version, "1.20.0-rc.5")) 0 else 1} context [Elixir.O.M.N, Elixir.O.M, Elixir.O]
+                  def unnamed unordered: unported `$UNNAMED`
+            """.trimIndent()
+        }
+
+    /** `M.N`'s rendering where it stops at [UNNAMED]: from 1.20.0-rc.5 its body's counter counts the definition. */
+    private fun nestedStopped(version: String) =
+        """
+          module Elixir.M.N stopped `$UNNAMED`
+            def unnamed
+            body: expanded {} next ${if (isBefore(version, "1.20.0-rc.5")) 0 else 1} context [Elixir.M.N, Elixir.M]
+            def unnamed unordered: unported `$UNNAMED`
+        """.trimIndent().prependIndent("  ")
+
+    /**
      * A body that raises stores its definitions with no clause expanded, so no macro of theirs runs, as Elixir raises
      * `CompileError` for the module before it evaluates any of the body.
      */
@@ -2591,6 +2730,282 @@ class ModuleExpanderTest : ExpanderTestCase() {
               body: error undefined_function `undefined()`
             """.trimIndent()
         }
+
+    /**
+     * A closure a module-body statement bound, called where no run of that body is on the stack while a run around the
+     * module keeps the unit's callback registered: in a nested module the body walks as a statement, and in a
+     * definition's fragment. The unit's raise ends the module's run where Elixir raises; its reach outside every run of
+     * the body isn't certain, so the module stops there and the file's top declines, where Elixir loads nothing.
+     */
+    fun testALateUnitRaiseOutsideEveryRunOfTheBodyStopsTheModule() {
+        val reduce = "g = Enum.reduce([1], fn\n      :a -> :ok\n      :b -> :erlang.hd([])\n    end, fn _, g -> g.(:a); g end)"
+
+        assertLevels(
+            """
+            for _ <- [1] do
+              defmodule A do
+                $reduce
+                defmodule N do
+                  g.(:b)
+                end
+                def h, do: 1
+              end
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            val counters = if (CLAUSES_TAKE_VERSION.isSufficient(ElixirLanguageLevel.of(version))) "{g:4} next 5" else "{g:1} next 2"
+
+            """
+            top unported `:erlang.hd([])`
+            module Elixir.A stopped `:erlang.hd([])`
+              body: expanded $counters context [Elixir.A.N, Elixir.A]
+            """.trimIndent()
+        }
+        assertLevels(
+            """
+            for _ <- [1] do
+              defmodule A do
+                $reduce
+                def unquote(g.(:b))(), do: 1
+              end
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            val counters = if (CLAUSES_TAKE_VERSION.isSufficient(ElixirLanguageLevel.of(version))) "{g:4} next 5" else "{g:1} next 2"
+
+            """
+            top unported `:erlang.hd([])`
+            module Elixir.A stopped `:erlang.hd([])`
+              body: expanded $counters context [Elixir.A]
+            """.trimIndent()
+        }
+    }
+
+    /**
+     * A macro output too deep to expand is given up on at the innermost guard on the stack, the macro's own or a port's
+     * inside its output, in a function body, in the module body or in a module two levels in, without ending every
+     * module around the caller, so a read of a module the output would have written, after the give-up, must not find
+     * the old value: at every depth the read is Elixir's or declines. An output that expands but is too deep to run in
+     * the module body is given up on once, at the unit running it: were the units nested in it run again from the body,
+     * one at every level of a nested `if`, each would descend to the same boundary and be given up on there in turn,
+     * each repeat redoing the work below it, and the attempt would not finish. The depth sweeps by quarters on a thread
+     * with the default stack, from below the depth whose run overflows, as the overflow points move with the JIT, and
+     * each attempt is cancelled at a bound.
+     */
+    fun testAMacroOutputTooDeepToExpandMisleadsNoReadAfterIt() {
+        val inFunction = { ones: String, nest: String ->
+            """
+            defmodule W do
+              defmacro w do
+                Module.put_attribute(Enum.at(__CALLER__.context_modules, 1), :x, :b)
+                :ok
+              end
+              defmacro deep(l), do: Enum.reduce(l, quote(do: W.w()), $nest)
+              defmacro r(module, key), do: Module.get_attribute(module, key)
+            end
+
+            defmodule NS do
+              Module.put_attribute(__MODULE__, :x, :a)
+
+              defmodule Inner do
+                require W
+                def h, do: W.deep([$ones])
+                def g, do: W.r(:"Elixir.NS", :x)
+
+                defmodule Two do
+                  require W
+                  def unquote(W.r(:"Elixir.NS", :x))(), do: 1
+                end
+              end
+            end
+            """.trimIndent()
+        }
+        val inBody = { ones: String, nest: String ->
+            """
+            defmodule W do
+              defmacro deep(l), do: Enum.reduce(l, quote(do: Module.put_attribute(__MODULE__, :x, :b)), $nest)
+              defmacro r(module, key), do: Module.get_attribute(module, key)
+            end
+
+            defmodule NS do
+              require W
+              Module.put_attribute(__MODULE__, :x, :a)
+              W.deep([$ones])
+              def g, do: W.r(:"Elixir.NS", :x)
+
+              defmodule Two do
+                require W
+                def unquote(W.r(:"Elixir.NS", :x))(), do: 1
+              end
+            end
+            """.trimIndent()
+        }
+        val twoLevelsOut = { ones: String, nest: String ->
+            """
+            defmodule W do
+              defmacro deep(l), do: Enum.reduce(l, quote(do: Module.put_attribute(:"Elixir.O2", :x, :b)), $nest)
+              defmacro r(module, key), do: Module.get_attribute(module, key)
+            end
+
+            defmodule O2 do
+              Module.put_attribute(__MODULE__, :x, :a)
+
+              defmodule O1 do
+                defmodule NS do
+                  require W
+                  W.deep([$ones])
+                end
+
+                defmodule Two do
+                  require W
+                  def unquote(W.r(:"Elixir.O2", :x))(), do: 1
+                end
+              end
+            end
+            """.trimIndent()
+        }
+
+        // The output nests lists, or `if`s, whose port's guard is the innermost one on the stack when it overflows.
+        val nests = listOf("list" to "fn _, acc -> [acc] end", "if" to "fn _, acc -> {:if, [], [true, [do: acc]]} end")
+        val sweep = listOf("in-function" to inFunction, "in-body" to inBody, "two-levels-out" to twoLevelsOut).flatMap { (label, code) ->
+            nests.map { (nest, reducer) -> "$label $nest: " + sweepDepths { ones, version -> readAfterDeepOutput(code(ones, reducer), version) } }
+        }.joinToString("\n")
+
+        assertFalse(sweep, sweep.contains("misled") || sweep.contains("unexpected") || sweep.contains("unfinished"))
+        assertTrue(sweep, sweep.contains("in-body list: 1.20.4 100=elixir") && sweep.contains("two-levels-out list: 1.20.4 100=elixir"))
+    }
+
+    /**
+     * What a read in `Two` found at [code] expanded at [version] on a thread with the default stack, or `unfinished` where
+     * the expansion was cancelled at [BOUND_MS].
+     */
+    private fun readAfterDeepOutput(code: String, version: String): String {
+        val indicator = EmptyProgressIndicator()
+        var rendered: String? = null
+        var escaped: Throwable? = null
+        val thread = Thread(
+            null,
+            {
+                try {
+                    ProgressManager.getInstance().runProcess({ rendered = expandAndRender(code, version) }, indicator)
+                } catch (e: Throwable) {
+                    escaped = e
+                }
+            },
+            "default stack",
+            0,
+        )
+
+        thread.start()
+        thread.join(BOUND_MS)
+
+        if (thread.isAlive) {
+            indicator.cancel()
+            thread.join()
+
+            return "unfinished"
+        }
+
+        assertNull("escaped: $escaped", escaped)
+
+        val lines = rendered!!.lines()
+        val two = lines.indexOfFirst { it.trim().startsWith("module Elixir.") && it.contains(".Two ") }
+
+        if (two < 0) return if (lines.any { it.contains(" stopped `") }) "absent" else "unexpected: no Two in ${lines.filter { it.contains("module ") }}"
+
+        val twoLine = lines[two].trim()
+        val twoBody = lines.drop(two + 1).takeWhile { it.startsWith(" ".repeat(lines[two].indexOf("module") + 2)) }
+
+        return when {
+            twoBody.any { it.contains("def a/0") } -> "misled: $twoLine"
+            twoBody.any { it.contains("def b/0") } -> "elixir"
+            twoLine.contains(" stopped `") -> "stopped"
+            else -> "unexpected: $twoLine"
+        }
+    }
+
+    /** [outcome] at each depth from 100 to 30000 by quarters, on 1.20.4 and 1.11.4, as `depth=outcome` pairs. */
+    private fun sweepDepths(outcome: (String, String) -> String): String =
+        listOf("1.20.4", "1.11.4").joinToString(" | ") { version ->
+            var depth = 100
+            val outcomes = mutableListOf<String>()
+
+            while (depth <= 30000) {
+                outcomes += "$depth=" + outcome(List(depth) { "1" }.joinToString(", "), version)
+                depth += depth / 4
+            }
+
+            "$version " + outcomes.joinToString(" ")
+        }
+
+    /**
+     * A unit reached after the evaluator declined an iteration of a loop it went on with may never run, so its raise is
+     * not Elixir's for certain, where the unit's callback fires from a statement run after its own ended: here the
+     * `receive` declines at `z = 1`, where Elixir raises `:boom`, and the `defp f` reached at `z = 2` would raise.
+     */
+    fun testAUnitReachedAfterAContinuedDeclineIsUncertainInALaterRun() {
+        assertLevels(
+            """
+            defmodule A do
+              Enum.reduce([1, 2], nil, fn
+                1, nil ->
+                  Enum.reduce([:a], fn
+                    :a -> def f, do: 1
+                    :b -> defp f, do: 2
+                  end, fn x, g -> g.(x); g end)
+                2, g ->
+                  for z <- [1, 2], (case z do 2 -> true; _ -> receive do after 0 -> :erlang.error(:boom) end end), g.(:b), do: :ok
+              end)
+              def h, do: 1
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top unported `defp f, do: 2`
+            module Elixir.A stopped `defp f, do: 2`
+              def f/0 line 5 clauses 1
+              body: expanded {} next ${if (CLAUSES_TAKE_VERSION.isSufficient(ElixirLanguageLevel.of(version))) 11 else 4} context [Elixir.A]
+              def f/0: expanded {} next 0
+              defp f/0: unported `defp f, do: 2`
+            """.trimIndent()
+        }
+    }
+
+    /**
+     * A raise in the outer module's unit, reached while a nested module's statement runs, ends both modules, as Elixir
+     * raises while compiling the nested one.
+     */
+    fun testAnOuterUnitsRaiseInsideANestedModuleEndsBoth() {
+        assertLevels(
+            """
+            defmodule A do
+              def f, do: 1
+              Enum.reduce([1], fn -> defp f, do: 2 end, fn _, g ->
+                defmodule N do
+                  def n, do: 1
+                  g.()
+                  def m, do: 1
+                end
+                g
+              end)
+              def h, do: 1
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            module Elixir.A raised changed_kind `defp f, do: 2`
+              def f/0 line 2 clauses 1
+              body: expanded {} next ${if (CLAUSES_TAKE_VERSION.isSufficient(ElixirLanguageLevel.of(version))) 4 else 1} context [Elixir.A]
+              def f/0: expanded {} next 0
+              defp f/0: error changed_kind `defp f, do: 2`
+            """.trimIndent()
+        }
+    }
 
     /**
      * After a stop, which may hide a removal, `Module.defines?/2` declines, `true` included. The module is named as an
@@ -2631,8 +3046,14 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """.trimIndent()
         }
 
-    /** A nested module's stop is the stop of the module it is in, which it may remove from. */
+    /** A nested module's stop at a remover given the module it is in may remove from that module. */
     fun testDefinesDeclinesForTheEnclosingModuleAfterANestedStop() =
+        assertDefinesDeclinesForTheEnclosingModuleAfterANestedStopAt("Module.make_overridable(NS, f: 0)")
+
+    fun testDefinesDeclinesForTheEnclosingModuleAfterANestedStopAtTakeDefinition() =
+        assertDefinesDeclinesForTheEnclosingModuleAfterANestedStopAt(":elixir_def.take_definition(NS, {:f, 0})")
+
+    private fun assertDefinesDeclinesForTheEnclosingModuleAfterANestedStopAt(remover: String) =
         assertLevels(
             """
             defmodule DM do
@@ -2644,7 +3065,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
               defmodule Inner do
                 require DM
-                Module.make_overridable(NS, f: 0)
+                $remover
                 def g, do: DM.dm(:"Elixir.NS", :f, 0)
               end
             end
@@ -2660,16 +3081,160 @@ class ModuleExpanderTest : ExpanderTestCase() {
               defmacro dm/3 line 2 clauses 1
               body: expanded {} next 0 context [Elixir.DM]
               defmacro dm/3: expanded {arity:2 module:0 name:1} next 3
-            module Elixir.NS stopped `Module.make_overridable(NS, f: 0)`
+            module Elixir.NS stopped `$remover`
               def f/0 line 6 clauses 1
               body: expanded {} next 0 context $context
               def f/0: expanded {} next 0
-              module Elixir.NS.Inner stopped `Module.make_overridable(NS, f: 0)`
+              module Elixir.NS.Inner stopped `$remover`
                 def g/0 line 11 clauses 1
                 body: expanded {} next 0 context $context
                 def g/0: opaque remote_macro Elixir.DM.dm/3 `DM.dm(:"Elixir.NS", :f, 0)`
             """.trimIndent()
         }
+
+    /**
+     * A macro the expander can't follow, expanded in a function body of a nested module, ran given the module around
+     * it by its argument, so a later read of that module's attributes declines: Elixir reads what the macro wrote.
+     */
+    fun testAnUnfollowedMacroGivenTheEnclosingModuleLeavesItsAttributesUnknown() =
+        assertLevels(
+            """
+            defmodule W do
+              defmacro w(module) do
+                Module.put_attribute(module, :x, 2)
+                :ok
+              end
+
+              defmacro r(module, key), do: Module.get_attribute(module, key)
+            end
+
+            defmodule NS do
+              Module.put_attribute(__MODULE__, :x, 1)
+
+              defmodule Inner do
+                require W
+                def h, do: W.w(:"Elixir.NS")
+                def g, do: W.r(:"Elixir.NS", :x)
+              end
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.NS, Elixir.W")}
+            module Elixir.W compiled
+              defmacro w/1 line 2 clauses 1
+              defmacro r/2 line 7 clauses 1
+              body: expanded {} next 0 context [Elixir.W]
+              defmacro w/1: expanded {module:0} next 1
+              defmacro r/2: expanded {key:1 module:0} next 2
+            module Elixir.NS stopped `W.w(:"Elixir.NS")`
+              body: expanded {} next 0 context ${innerContext(version)}
+              module Elixir.NS.Inner stopped `W.w(:"Elixir.NS")`
+                def h/0 line 15 clauses 1
+                def g/0 line 16 clauses 1
+                body: expanded {} next 0 context ${innerContext(version)}
+                def h/0: opaque remote_macro Elixir.W.w/1 `W.w(:"Elixir.NS")`
+                def g/0: opaque remote_macro Elixir.W.r/2 `W.r(:"Elixir.NS", :x)`
+            """.trimIndent()
+        }
+
+    /**
+     * A macro the expander can't follow may write every module being compiled around its caller, whatever its arguments:
+     * this one writes the module around the nested one through `__CALLER__.context_modules`, so a later read of it
+     * declines where Elixir reads what the macro wrote.
+     */
+    fun testAnUnfollowedMacroGivenNothingLeavesTheEnclosingModulesAttributesUnknown() =
+        assertLevels(
+            """
+            defmodule W do
+              defmacro w do
+                receive do after 0 -> :ok end
+                Module.put_attribute(Enum.at(__CALLER__.context_modules, 1), :x, 2)
+              end
+              defmacro r(module, key), do: Module.get_attribute(module, key)
+            end
+
+            defmodule NS do
+              Module.put_attribute(__MODULE__, :x, 1)
+
+              defmodule Inner do
+                require W
+                def h, do: W.w()
+                def g, do: W.r(:"Elixir.NS", :x)
+              end
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.NS, Elixir.W")}
+            module Elixir.W compiled
+              defmacro w/0 line 2 clauses 1
+              defmacro r/2 line 6 clauses 1
+              body: expanded {} next 0 context [Elixir.W]
+              defmacro w/0: expanded {} next ${if (CLAUSES_TAKE_VERSION.isSufficient(ElixirLanguageLevel.of(version))) 1 else 0}
+              defmacro r/2: expanded {key:1 module:0} next 2
+            module Elixir.NS stopped `W.w()`
+              body: expanded {} next 0 context ${innerContext(version)}
+              module Elixir.NS.Inner stopped `W.w()`
+                def h/0 line 14 clauses 1
+                def g/0 line 15 clauses 1
+                body: expanded {} next 0 context ${innerContext(version)}
+                def h/0: opaque remote_macro Elixir.W.w/0 `W.w()`
+                def g/0: opaque remote_macro Elixir.W.r/2 `W.r(:"Elixir.NS", :x)`
+            """.trimIndent()
+        }
+
+    /** The same for the table: a remover in a macro the expander can't follow may have taken the definition out. */
+    fun testAnUnfollowedMacroGivenTheEnclosingModuleLeavesItsTableUnknown() =
+        assertLevels(
+            """
+            defmodule W do
+              defmacro w(module) do
+                :elixir_def.take_definition(module, {:f, 0})
+                :ok
+              end
+
+              defmacro d(module, name, arity), do: Module.defines?(module, {name, arity})
+            end
+
+            defmodule NS do
+              def f, do: 1
+
+              defmodule Inner do
+                require W
+                def h, do: W.w(:"Elixir.NS")
+                def g, do: W.d(:"Elixir.NS", :f, 0)
+              end
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.NS, Elixir.W")}
+            module Elixir.W compiled
+              defmacro w/1 line 2 clauses 1
+              defmacro d/3 line 7 clauses 1
+              body: expanded {} next 0 context [Elixir.W]
+              defmacro w/1: expanded {module:0} next 1
+              defmacro d/3: expanded {arity:2 module:0 name:1} next 3
+            module Elixir.NS stopped `W.w(:"Elixir.NS")`
+              def f/0 line 11 clauses 1
+              body: expanded {} next 0 context ${innerContext(version)}
+              def f/0: expanded {} next 0
+              module Elixir.NS.Inner stopped `W.w(:"Elixir.NS")`
+                def h/0 line 15 clauses 1
+                def g/0 line 16 clauses 1
+                body: expanded {} next 0 context ${innerContext(version)}
+                def h/0: opaque remote_macro Elixir.W.w/1 `W.w(:"Elixir.NS")`
+                def g/0: opaque remote_macro Elixir.W.d/3 `W.d(:"Elixir.NS", :f, 0)`
+            """.trimIndent()
+        }
+
+    /** The `context_modules` in a module nested in `NS` at [version]: `W`, compiled before them, is there before 1.13, as in [topContext]. */
+    private fun innerContext(version: String): String =
+        if (isBefore(version, "1.13.0-rc.0")) "[Elixir.NS.Inner, Elixir.NS, Elixir.W]" else "[Elixir.NS.Inner, Elixir.NS]"
 
     /** Each module-body call of a remover's name and arity reaches the table or stops, whatever its receiver and target. */
     fun testEachRemoverCallStopsItsModule() {
@@ -2816,6 +3381,9 @@ class ModuleExpanderTest : ExpanderTestCase() {
     private fun source(code: String, node: ElixirAst) = node.meta.origin.substring(code)
 
     /** The file's `context_modules` after only [module]: empty on the fast path from 1.13. */
+    /** A definition whose name the evaluator can't produce, which stops the module. */
+    private val UNNAMED = "unquote((receive do after 0 -> :g end))"
+
     private fun topContext(version: String, module: String) =
         if (isBefore(version, "1.13.0-rc.0")) "[$module]" else "[]"
 
@@ -2883,6 +3451,9 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
         /** The doublings of a one-element list whose fold into nested pairs nests deeper than a thread's stack goes. */
         const val DEEP_DOUBLINGS = 17
+
+        /** How long one attempt at a deep output may take before it is cancelled: a give-up repeated per level takes far longer. */
+        const val BOUND_MS = 60_000L
 
         /** A list `t` that holds itself twice at every depth: built in [DOUBLINGS] steps, walked in 2^[DOUBLINGS]. */
         val TREE = "t = []; " + "t = [t, t]; ".repeat(DOUBLINGS)

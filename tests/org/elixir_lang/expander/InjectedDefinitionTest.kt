@@ -15,13 +15,17 @@ class InjectedDefinitionTest : PlatformTestCase() {
 
     override fun getProjectDescriptor(): LightProjectDescriptor = LegElixirProjectDescriptor
 
-    /** The `use` stops, as the evaluator declines a `receive`, after `defexception` made its definitions overridable. */
+    /**
+     * The `use` stops, as the evaluator declines a `receive`, after `defexception` made its definitions overridable; the
+     * stopped module keeps both arms' `__struct__/1` up to 1.13.
+     */
     fun testAStoppedModuleKeepsTheDefinitionsDefexceptionMadeOverridable() {
         val code = "defmodule U do\n  defmacro __using__(_), do: (receive do: (_ -> nil), after: (0 -> nil))\nend\n\n" +
             "defmodule A do\n  defexception [:message]\n  use U\nend\n"
 
         assertEquals(
-            "module Elixir.A stopped `use U` | def __struct__/0 line 6 clauses 1 | def __struct__/1 line 6 clauses 1 | " +
+            "module Elixir.A stopped `use U` | def __struct__/0 line 6 clauses 1 | " +
+                "def __struct__/1 line 6 clauses ${stoppedStructClauses(legLevel())} | " +
                 "def message/1 line 6 clauses 1 | def exception/1 line 6 clauses 2",
             render(code),
         )

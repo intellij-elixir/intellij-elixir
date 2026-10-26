@@ -131,6 +131,8 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             QUOTE_KEEP_READS_LINE_OPTION to ("1.16.3" to "1.17.0-rc.0"),
             QUOTE_OPTIONS_EXPANDED_FIRST to ("1.16.3" to "1.17.0-rc.0"),
             QUOTED_DEF_CONTEXT_SKIPS_GUARD to ("1.15.8" to "1.16.0-rc.0"),
+            STORED_HEAD_SKIPS_GUARD to ("1.15.8" to "1.16.0-rc.0"),
+            DEFAULT_ARITY_STORED_WITH_CONTEXT to ("1.19.4" to "1.20.0-rc.0"),
             QUOTE_META_DROPS_COLUMN to ("1.15.8" to "1.16.0-rc.0"),
             UNQUOTE_SHALLOW_VALIDATED to ("1.17.3" to "1.18.0-rc.0"),
             QUOTE_EXTENSION_META_ESCAPED to ("1.19.0-rc.2" to "1.19.0"),

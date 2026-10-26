@@ -10,6 +10,7 @@ import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
+import org.elixir_lang.expander.interpreter.Binding
 import org.elixir_lang.expander.interpreter.EMPTY
 import org.elixir_lang.expander.interpreter.Evaluated
 import org.elixir_lang.expander.interpreter.NIL
@@ -187,6 +188,7 @@ internal fun define(
             // `elixir_def:store_definition/5`: a head with unquotes or from a quote isn't checked for clauses.
             checksClauses = !unquotes && !hasMetaKey(extractGuards(head).first.meta, "context"),
             injectedBy = run.injecting?.takeIf { builtBy(node, it) },
+            followed = run.compiling[env.module]?.statements?.follows(node) == true,
         )
 
         Expansion.Expanded(s, e, NODE)
@@ -203,13 +205,11 @@ internal fun define(
  * @property pairIsCall whether the head and body, escaped together, are quoted as a `{}` call rather than a pair, as
  *   `do_quote/2` quotes a pair holding an `unquote_splicing` call: the store then reads a cache key where it expects
  *   `{Call, Body}`, and raises
- * @property supplied the code a summary knows a fragment, splice or unquoted call name holds, by the node it replaces
  */
 internal class Fragments(
     val values: List<Fragment>,
     val state: ExState,
     val escapesBody: Boolean,
-    val supplied: Map<ElixirAst, ElixirAst> = emptyMap(),
     val pairIsCall: Boolean = false,
 )
 
@@ -300,22 +300,27 @@ internal class Unquoted(
 )
 
 /**
- * [definition] as the `def` runs it: each fragment's value is what a summary supplied, or what its expansion knows,
- * or, if [evaluates], what the evaluator gives from the values [compiling]'s body has bound. A value a helper checks
- * ([Fragment.check]) is checked once the fragments the helper's arguments hold are evaluated. The definition stops at
- * the first value that isn't known, or that it places nowhere, and a fragment or helper raises only where every value
- * evaluated before it is known.
+ * [definition] as the `def` runs it: each fragment's value is what its expansion knows, or, if [evaluates], what the
+ * evaluator gives from [bindings], the values [compiling]'s body has bound or those the
+ * evaluator has where it reaches the `def` inside a statement. A value a helper checks ([Fragment.check]) is checked
+ * once the fragments the helper's arguments hold are evaluated. The definition stops at the first value that isn't
+ * known, or that it places nowhere, and a fragment or helper raises only where every value evaluated before it is known.
  */
 internal fun unquoted(
     definition: Pending.Definition,
     compiling: Compiling,
     run: Run,
     evaluates: Boolean = true,
+    bindings: HashMap<Binding, OtpErlangObject> = compiling.values.bindings,
 ): Unquoted {
+    // A definition in a followed body is stored once per run of the body: each store's nodes, and so the records the
+    // stored clause keeps by node, are its own.
+    fun own(node: ElixirAst?): ElixirAst? = if (definition.followed) node?.let { copied(it, run) } else node
+
     val fragments = definition.fragments
-        ?: return Unquoted(definition.head, definition.body, null, null, definition.statement)
+        ?: return Unquoted(own(definition.head)!!, own(definition.body), null, null, definition.statement)
     val name = nameFragment(definition.head)
-    val replacements = IdentityHashMap(fragments.supplied)
+    val replacements = IdentityHashMap<ElixirAst, ElixirAst>()
     val splices = IdentityHashMap<ElixirAst, List<ElixirAst>>()
     var unnamedAt: ElixirAst? = null
     // The first fragment whose value isn't known, after which none is evaluated.
@@ -355,7 +360,7 @@ internal fun unquoted(
                 fragment.helperName!! to listOf(term) + arguments.drop(1).map { node ->
                     val code = substitute(node, escapedValues)
 
-                    when (val ran = compiling.values.evaluate(code, fragments.state, definition.env, run)) {
+                    when (val ran = compiling.values.evaluate(code, fragments.state, definition.env, run, bindings)) {
                         is Evaluated.Value -> ran.value
                         else -> return ran
                     }
@@ -381,7 +386,7 @@ internal fun unquoted(
         if (fragment.call !in replacements) {
             val known = literalOf(fragment.call, fragment.term)
             val evaluated = if (known == null && evaluates && stop == null && unnamedAt == null) {
-                compiling.values.evaluate(fragment.expanded, fragments.state, definition.env, run)
+                compiling.values.evaluate(fragment.expanded, fragments.state, definition.env, run, bindings)
             } else {
                 null
             }
@@ -444,12 +449,35 @@ internal fun unquoted(
     if (!isReadWhole(extractGuards(head).first)) unnamedAt = unnamedAt ?: stopsAt
 
     return Unquoted(
-        head,
-        if (fragments.escapesBody) definition.body?.let { substitute(it, replacements, splices) } else definition.body,
+        own(head)!!,
+        own(if (fragments.escapesBody) definition.body?.let { substitute(it, replacements, splices) } else definition.body),
         unnamedAt,
         stopsAt,
         definition.statement && unnamedAt == null,
     )
+}
+
+/** [node] copied: each node of it a new one with the same metadata, standing where the original does ([Run.inherits]). */
+private fun copied(node: ElixirAst, run: Run): ElixirAst {
+    ProgressManager.checkCanceled()
+
+    val copy = when (node) {
+        is ElixirAst.Call -> ElixirAst.Call(node.meta, copied(node.callee, run), node.arguments?.map { copied(it, run) }, node.context)
+        is ElixirAst.Alias -> ElixirAst.Alias(node.meta, node.segments.map { copied(it, run) })
+        is ElixirAst.Block -> ElixirAst.Block(node.meta, node.expressions.map { copied(it, run) })
+        is ElixirAst.Tuple -> ElixirAst.Tuple(node.meta, node.elements.map { copied(it, run) })
+        is ElixirAst.ListNode -> ElixirAst.ListNode(node.meta, node.elements.map { copied(it, run) })
+        is ElixirAst.Placeholder -> ElixirAst.Placeholder(node.meta, node.reason)
+        is ElixirAst.Literal.Atom -> ElixirAst.Literal.Atom(node.meta, node.name)
+        is ElixirAst.Literal.Integer -> ElixirAst.Literal.Integer(node.meta, node.value)
+        is ElixirAst.Literal.Float -> ElixirAst.Literal.Float(node.meta, node.value)
+        is ElixirAst.Literal.Binary -> ElixirAst.Literal.Binary(node.meta, node.bytes)
+        is ElixirAst.Value -> ElixirAst.Value(node.meta, node.term)
+    }
+
+    run.inherits(node, copy)
+
+    return copy
 }
 
 /** A fragment's value, [known] from its expansion or [evaluated], held until its helper runs where one checks it. */
@@ -911,7 +939,7 @@ internal fun storeDefinition(
     compiling.definitionMoved = moved(takeFile(definition, compiling), unquoted.head, run)
 
     if (unnamedAt != null) {
-        compiling.table.define(null, 0, kind, node, 0, 0, definition.statement, definition.checksClauses)
+        compiling.table.define(null, 0, kind, node, unquoted.head, 0, 0, definition.statement, definition.checksClauses)
 
         return Owner.Definition(kind, null, 0) to Expansion.Unported(unnamedAt)
     }
@@ -997,6 +1025,7 @@ private fun store(
         arity,
         definition.kind,
         definition.node,
+        unquoted.head,
         if (unquoted.body == null) 0 else 1,
         defaults,
         unquoted.ordered,

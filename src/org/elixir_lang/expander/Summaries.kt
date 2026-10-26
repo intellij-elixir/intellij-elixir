@@ -23,7 +23,7 @@ internal fun interface Summary {
         ): Expansion =
             when (val output = output(dispatch, node, state, env, run)) {
                 is Output.Built ->
-                    unlessTooDeep({ Expansion.Opaque(node, dispatch) }) {
+                    run.unlessTooDeepToRun({ Expansion.Opaque(node, dispatch) }) {
                         if (output.injects) {
                             run.expandInjected(node) {
                                 expandQuoted(node, dispatch.receiver, output.ast, state, env, run)

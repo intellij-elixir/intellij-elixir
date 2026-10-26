@@ -46,7 +46,9 @@ import org.elixir_lang.expander.metaValue
 import org.elixir_lang.expander.orGuards
 import org.elixir_lang.expander.rescueHead
 import org.elixir_lang.expander.splitOptions
+import org.elixir_lang.expander.unfollowed
 import org.elixir_lang.expander.unlessTooDeep
+import org.elixir_lang.expander.unlessTooDeepToRun
 import org.elixir_lang.expander.whenArguments
 import org.elixir_lang.expander.withOptions
 import org.elixir_lang.language_level.ElixirLanguageFeature.FIELD_OF_NON_MAP_RAISES_BADKEY
@@ -83,10 +85,12 @@ internal object Interpreter {
     ): Summary? {
         val output = declining(run) {
             try {
-                unlessTooDeep({ return null }) {
+                run.unlessTooDeepToRun({ return null }) {
                     Evaluation(node, state, env, run).output(dispatch, node.arguments.orEmpty(), stopGenerated)
                 }
             } catch (_: Declined) {
+                // The macro's code ran where the expander lost it.
+                run.unfollowed()
                 return null
             }
         }
@@ -98,10 +102,18 @@ internal object Interpreter {
 
     /**
      * [node], code of a module body or of the file's top level, run where the body runs it, from the variables [values]
-     * holds, which it binds into.
+     * holds, which it binds into. Code that nests too deeply for the thread's stack [declinesTooDeep], or its overflow
+     * escapes to the walk, which stops at the unit running it.
      */
-    fun body(node: ElixirAst, values: HashMap<Binding, OtpErlangObject>, state: ExState, env: Env, run: Run): Evaluated =
-        evaluated(node, state, env, run) { evaluation ->
+    fun body(
+        node: ElixirAst,
+        values: HashMap<Binding, OtpErlangObject>,
+        state: ExState,
+        env: Env,
+        run: Run,
+        declinesTooDeep: Boolean,
+    ): Evaluated =
+        evaluated(node, state, env, run, declinesTooDeep) { evaluation ->
             evaluation.eval(node, Frame(run.bodyClauses(env.module), values))
         }
 
@@ -137,8 +149,15 @@ internal object Interpreter {
     fun quoteHelper(function: String, args: List<OtpErlangObject>, node: ElixirAst, state: ExState, env: Env, run: Run): Evaluated =
         evaluated(node, state, env, run) { evaluation -> evaluation.remote(atom("elixir_quote"), function, args) }
 
-    private fun evaluated(node: ElixirAst, state: ExState, env: Env, run: Run, value: (Evaluation) -> OtpErlangObject): Evaluated =
-        declining(run) { evaluatedIn(Evaluation(node, state, env, run), value) }
+    /** [value] of [node]'s evaluation, which [declinesTooDeep] where it overflows the thread's stack, else lets the overflow escape. */
+    private fun evaluated(
+        node: ElixirAst,
+        state: ExState,
+        env: Env,
+        run: Run,
+        declinesTooDeep: Boolean = true,
+        value: (Evaluation) -> OtpErlangObject,
+    ): Evaluated = declining(run) { evaluatedIn(Evaluation(node, state, env, run), declinesTooDeep, value) }
 
     /** [block], recording what the calls that decline in it are given ([Run.declinedGiven]) unless an outer one does. */
     private inline fun <T> declining(run: Run, block: () -> T): T {
@@ -152,14 +171,18 @@ internal object Interpreter {
         }
     }
 
-    private fun evaluatedIn(evaluation: Evaluation, value: (Evaluation) -> OtpErlangObject): Evaluated {
+    private fun evaluatedIn(evaluation: Evaluation, declinesTooDeep: Boolean, value: (Evaluation) -> OtpErlangObject): Evaluated {
         return try {
-            // Where the stack overflows, which calls were given what isn't known.
-            unlessTooDeep({ Evaluated.Declined(Given().apply { all() }) }) {
+            if (declinesTooDeep) {
+                // Where the stack overflows, which calls were given what isn't known.
+                unlessTooDeep({ Evaluated.Declined(Given().apply { all() }) }) {
+                    Evaluated.Value(value(evaluation))
+                }
+            } else {
                 Evaluated.Value(value(evaluation))
             }
         } catch (declined: Declined) {
-            Evaluated.Declined(declined.given, declined.holds)
+            Evaluated.Declined(declined.given, declined.holds, declined)
         } catch (thrown: Thrown) {
             val exception = try {
                 thrown.takeIf { it.kind == "error" }?.let(evaluation::exceptionModule)
@@ -182,8 +205,14 @@ internal sealed interface Evaluated {
     /**
      * The evaluator declined it, in calls [given] the modules being compiled they may have written. The value it didn't
      * give may hold what [holds] does ([Declined.holds][org.elixir_lang.expander.interpreter.Declined.holds]).
+     *
+     * @property declined the decline as the evaluator threw it, where it did: code after it may have [Declined.ended] it
      */
-    class Declined(val given: Given, val holds: List<OtpErlangObject> = emptyList()) : Evaluated
+    class Declined(
+        val given: Given,
+        val holds: List<OtpErlangObject> = emptyList(),
+        val declined: org.elixir_lang.expander.interpreter.Declined? = null,
+    ) : Evaluated
 }
 
 /**
@@ -537,6 +566,9 @@ internal class Evaluation(
     internal fun eval(node: ElixirAst, frame: Frame): OtpErlangObject {
         ProgressManager.checkCanceled()
 
+        // A unit of the statement being run, which the walk runs where the evaluator reaches it.
+        run.reached[node]?.let { return it(frame.vars) }
+
         return when (node) {
             is ElixirAst.Literal.Atom -> atom(node.name).also { atoms += node.name }
             is ElixirAst.Literal.Integer -> integer(node.value)
@@ -635,6 +667,7 @@ internal class Evaluation(
         try {
             iteration()
         } catch (declined: Declined) {
+            run.continuedDeclines++
             declines(declined)
             take(PartOutcome.Declines(declined))
         } catch (thrown: Thrown) {
@@ -873,7 +906,7 @@ internal class Evaluation(
                 clauses(arrows, listOf(value), frame) ?: error(tuple(atom("case_clause"), value))
             }
             "cond" if args.size == 1 -> cond(arrows(doOption(args[0])), frame)
-            "fn" -> fn(args, frame)
+            "fn" -> fn(node, args, frame)
             "&" if args.size == 1 -> capture(node, frame)
             "try" if args.size == 1 -> evalTry(args.single(), frame)
             "for" if args.isNotEmpty() -> evalFor(args, frame)
@@ -1065,11 +1098,20 @@ internal class Evaluation(
         error(atom("cond_clause"))
     }
 
-    private fun fn(arrows: List<ElixirAst>, frame: Frame): OtpErlangObject {
+    private fun fn(node: ElixirAst, arrows: List<ElixirAst>, frame: Frame): OtpErlangObject {
         val closed = frame.copy()
         val arity = clauseHead(arrowParts(arrows.first()).first).first.size
 
-        return Closure(arity, { marks(arrows, closed) }) { values -> clauses(arrows, values, closed, fresh = true) ?: noClause(closed, values) }
+        return Closure(arity, { marks(arrows, closed) }, node) { values ->
+            run.entered += node
+            run.running.addLast(node)
+
+            try {
+                clauses(arrows, values, closed, fresh = true) ?: noClause(closed, values)
+            } finally {
+                run.running.removeLast()
+            }
+        }
     }
 
     /**

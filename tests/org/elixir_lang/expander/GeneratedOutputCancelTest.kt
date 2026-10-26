@@ -240,15 +240,6 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
             call = "def f(y) when A.g(y), do: y",
         )
 
-    /** A protocol checks as its stopped definitions are read for its guard. */
-    fun testAProtocolsStoppedDefinitionsAreChecked() =
-        assertChecked(
-            listOf("${EXPANDER}ProtocolTail" to "callsGuard"),
-            1,
-            "defprotocol P do\n  def f(x)\nend",
-            call = "",
-        )
-
     /** A `quote` whose run-time option is large checks as the option is copied. */
     fun testAQuotesRunTimeOptionIsChecked() =
         assertChecked(
@@ -501,7 +492,7 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
     fun testAModuleBodysQueuedDefinitionsAreCancelledAsTheyAreWalked() =
         assertCancelledIn(
             "${EXPANDER}CompileKt",
-            $$"compile$walk",
+            $$"compile$step",
             "defmacro m, do: (t = quote(do: def(f, do: 1)); ${"t = {:__block__, [], [t, t]}; ".repeat(DOUBLINGS)} t)",
             LISTS / 2,
         )

@@ -3,9 +3,11 @@ package org.elixir_lang.expander
 import com.intellij.openapi.util.TextRange
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.DefinitionTable.Kind
+import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Test
 
 /**
@@ -13,9 +15,21 @@ import org.junit.Test
  * where a definition conflicts with an earlier one.
  */
 class DefinitionTableTest {
+    private val LEVEL = ElixirLanguageLevel.of("1.20.4")
+
+    @Test
+    fun `a guarded head's stored node is the when before 1_16 and the head from it`() {
+        val head = node(1)
+        val guarded = ElixirAst.Call(head.meta, ElixirAst.Literal.Atom(head.meta, "when"), listOf(head, node(2)))
+
+        assertSame(guarded, DefinitionTable(ElixirLanguageLevel.of("1.15.8")).stored(guarded))
+        assertSame(head, DefinitionTable(ElixirLanguageLevel.of("1.16.0-rc.0")).stored(guarded))
+        assertSame(head, DefinitionTable(LEVEL).stored(head))
+    }
+
     @Test
     fun `one clause of each kind`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         Kind.entries.forEachIndexed { index, kind -> define(table, kind.name.lowercase(), 0, kind, index + 1) }
 
@@ -30,7 +44,7 @@ class DefinitionTableTest {
 
     @Test
     fun `each default arity is an entry of one clause`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 3, defaults = 2)
 
@@ -44,7 +58,7 @@ class DefinitionTableTest {
 
     @Test
     fun `a bodiless head stores no clauses`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 2, clauses = 0, defaults = 1)
         define(table, "f", 2, line = 2)
@@ -54,10 +68,10 @@ class DefinitionTableTest {
 
     @Test
     fun `later clauses keep the first node and add their clauses`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
         val first = node(1)
 
-        table.define("f", 1, Kind.DEF, first, 1, 0, ordered = true, checksClauses = true)
+        table.define("f", 1, Kind.DEF, first, first, 1, 0, ordered = true, checksClauses = true)
         define(table, "f", 1, line = 3)
 
         assertEntries(table, "f/1 def line 1 clauses 2")
@@ -66,7 +80,7 @@ class DefinitionTableTest {
 
     @Test
     fun `whether clauses are checked is the last clause's`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 1, clauses = 0)
         define(table, "f", 1, clauses = 0, line = 2, checksClauses = false)
@@ -78,7 +92,7 @@ class DefinitionTableTest {
 
     @Test
     fun `an unordered clause makes its definition unordered`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 1)
         define(table, "f", 1, line = 3, ordered = false)
@@ -89,10 +103,10 @@ class DefinitionTableTest {
 
     @Test
     fun `an unnamed definition is listed apart`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
-        assertEquals(null, table.define(null, 1, Kind.DEFP, node(4), 1, 1, ordered = false, checksClauses = true))
-        assertEquals(null, table.define(null, 1, Kind.DEF, node(6), 1, 1, ordered = true, checksClauses = true))
+        assertEquals(null, table.define(null, 1, Kind.DEFP, node(4), node(4), 1, 1, ordered = false, checksClauses = true))
+        assertEquals(null, table.define(null, 1, Kind.DEF, node(6), node(6), 1, 1, ordered = true, checksClauses = true))
         assertEntries(table)
         assertEquals(
             listOf(DefinitionTable.Unnamed(Kind.DEFP, 4, statement = false), DefinitionTable.Unnamed(Kind.DEF, 6, true)),
@@ -102,7 +116,7 @@ class DefinitionTableTest {
 
     @Test
     fun `remove takes an entry out and gives it`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 1, line = 2, clauses = 3)
         define(table, "g", 0, line = 4)
@@ -117,7 +131,7 @@ class DefinitionTableTest {
 
     @Test
     fun `remove takes only the arity named, not its default arities`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 2, defaults = 1)
         table.remove(NameArity("f", 2))
@@ -127,7 +141,7 @@ class DefinitionTableTest {
 
     @Test
     fun `remove takes the default row of the entry too`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 1, defaults = 1)
         table.remove(NameArity("f", 1))
@@ -137,7 +151,7 @@ class DefinitionTableTest {
 
     @Test
     fun `a definition stored again after a remove is a first definition`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 1, Kind.DEFP, line = 1)
         table.remove(NameArity("f", 1))
@@ -148,9 +162,9 @@ class DefinitionTableTest {
 
     @Test
     fun `a definition without its default arities keeps its defaults`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
-        table.restore("f", 2, Kind.DEF, listOf(DefinitionTable.Head(node(1), null, null)), 1, 1, ordered = true)
+        table.restore("f", 2, Kind.DEF, listOf(DefinitionTable.Head(node(1), node(1), null, null)), 1, 1, ordered = true)
 
         assertEntries(table, "f/2 def line 1 clauses 1 defaults 1 unchecked")
         assertEquals("duplicate_defaults", define(table, "f", 2, line = 2, defaults = 1))
@@ -158,7 +172,7 @@ class DefinitionTableTest {
 
     @Test
     fun `kinds are each entry's kind`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 1, defaults = 1)
         define(table, "m", 0, Kind.DEFMACROP, line = 2)
@@ -173,7 +187,7 @@ class DefinitionTableTest {
 
     @Test
     fun `a definition of another kind`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 0)
 
@@ -183,7 +197,7 @@ class DefinitionTableTest {
 
     @Test
     fun `defaults given twice`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 1, defaults = 1)
 
@@ -192,7 +206,7 @@ class DefinitionTableTest {
 
     @Test
     fun `an arity in an earlier definition's defaults`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 2, defaults = 1)
 
@@ -201,7 +215,7 @@ class DefinitionTableTest {
 
     @Test
     fun `defaults covering an earlier definition's arity, which has defaults of its own`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 2, defaults = 1)
 
@@ -210,7 +224,7 @@ class DefinitionTableTest {
 
     @Test
     fun `a default arity of another kind`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 1)
 
@@ -219,7 +233,7 @@ class DefinitionTableTest {
 
     @Test
     fun `defaults are checked before the kind`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 2, defaults = 1)
 
@@ -228,7 +242,7 @@ class DefinitionTableTest {
 
     @Test
     fun `defaults are checked before they are given twice`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 3, defaults = 2)
 
@@ -237,7 +251,7 @@ class DefinitionTableTest {
 
     @Test
     fun `defaults after a definition of one of their arities`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 1)
 
@@ -246,7 +260,7 @@ class DefinitionTableTest {
 
     @Test
     fun `defaults covering an arity with no defaults of its own`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 1)
         define(table, "g", 0, line = 2)
@@ -256,7 +270,7 @@ class DefinitionTableTest {
 
     @Test
     fun `another clause of a definition with defaults`() {
-        val table = DefinitionTable()
+        val table = DefinitionTable(LEVEL)
 
         define(table, "f", 2, defaults = 1)
 
@@ -273,7 +287,7 @@ class DefinitionTableTest {
         defaults: Int = 0,
         ordered: Boolean = true,
         checksClauses: Boolean = true,
-    ): String? = table.define(name, arity, kind, node(line), clauses, defaults, ordered, checksClauses)
+    ): String? = node(line).let { table.define(name, arity, kind, it, it, clauses, defaults, ordered, checksClauses) }
 
     private fun node(line: Int): ElixirAst {
         val position = Meta.Position(line, 3)

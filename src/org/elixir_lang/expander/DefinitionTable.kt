@@ -1,10 +1,14 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.NameArity
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFAULT_ARITY_STORED_WITH_CONTEXT
+import org.elixir_lang.language_level.ElixirLanguageFeature.STORED_HEAD_SKIPS_GUARD
+import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Meta
 
-/** What a module defines, as `Module.definitions_in/2` lists it. */
-internal class DefinitionTable {
+/** What a module defines, as `Module.definitions_in/2` lists it, on Elixir at [level]. */
+internal class DefinitionTable(private val level: ElixirLanguageLevel) {
     /** The four kinds Elixir's definition table holds. */
     enum class Kind {
         DEF,
@@ -51,10 +55,11 @@ internal class DefinitionTable {
      * One head of a definition.
      *
      * @property at the `def*` call
+     * @property stored the head as `store_definition/5` keeps it ([DefinitionTable.stored]), a default arity's with its `context`
      * @property delegation what the head calls, when a `defdelegate` defined it
      * @property injected how a macro's output injected it, when one did
      */
-    data class Head(val at: ElixirAst, val delegation: Delegation?, val injected: Injected?)
+    data class Head(val at: ElixirAst, val stored: ElixirAst, val delegation: Delegation?, val injected: Injected?)
 
     /**
      * A head a macro's output injected.
@@ -93,17 +98,37 @@ internal class DefinitionTable {
     private val defaultRows = mutableMapOf<String, MutableList<Pair<Int, Int>>>()
 
     /**
+     * The node of [head] whose metadata `elixir_def:store_definition/5` keeps: the head under a guard's `when`, as
+     * `extract_guards` takes it, from [STORED_HEAD_SKIPS_GUARD]; the whole head before.
+     */
+    fun stored(head: ElixirAst): ElixirAst = if (STORED_HEAD_SKIPS_GUARD.isSufficient(level)) extractGuards(head).first else head
+
+    /**
+     * The node a default arity of the definition with [stored] keeps: from [DEFAULT_ARITY_STORED_WITH_CONTEXT], the
+     * head with `context: :elixir_def` first in its metadata; before it, the head itself.
+     */
+    private fun storedDefault(stored: ElixirAst): ElixirAst {
+        if (!DEFAULT_ARITY_STORED_WITH_CONTEXT.isSufficient(level) || stored !is ElixirAst.Call) return stored
+
+        val meta = stored.meta
+        val context = Meta.Key.Entry("context", Meta.Value.Atom("elixir_def"))
+
+        return ElixirAst.Call(Meta(meta.origin, meta.start, meta.end, listOf(context) + meta.keys, meta.built), stored.callee, stored.arguments, stored.context)
+    }
+
+    /**
      * `elixir_def:store_definition/10`: a head of [name] and [arity], or of no known name when [name] is `null`, with
      * [clauses] clauses and [defaults] defaults, then a clause for each default arity: the kind of the error the store
-     * raises, if it raises, in which case nothing more is stored. For an unnamed head, [ordered] is whether it is a
-     * statement of the module body. [delegation] is the head's, not its default arities'. [injected] is how a macro's
-     * output injected the head and its default arities.
+     * raises, if it raises, in which case nothing more is stored. [at] is the `def*` call and [head] the head it stores.
+     * For an unnamed head, [ordered] is whether it is a statement of the module body. [delegation] is the head's, not
+     * its default arities'. [injected] is how a macro's output injected the head and its default arities.
      */
     fun define(
         name: String?,
         arity: Int,
         kind: Kind,
         at: ElixirAst,
+        head: ElixirAst,
         clauses: Int,
         defaults: Int,
         ordered: Boolean,
@@ -119,11 +144,15 @@ internal class DefinitionTable {
 
         if (conflictsWithPreviousDefaults(name, arity, defaults)) return "defs_with_defaults"
 
-        store(NameArity(name, arity), kind, listOf(Head(at, delegation, injected)), clauses, defaults, default = false, ordered, checksClauses)
+        val stored = stored(head)
+
+        store(NameArity(name, arity), kind, listOf(Head(at, stored, delegation, injected)), clauses, defaults, default = false, ordered, checksClauses)
             ?.let { return it }
 
+        val storedDefault = storedDefault(stored)
+
         for (defaultArity in defaultArities(arity, defaults)) {
-            store(NameArity(name, defaultArity), kind, listOf(Head(at, null, injected)), 1, 0, default = true, ordered, checksClauses = false)
+            store(NameArity(name, defaultArity), kind, listOf(Head(at, storedDefault, null, injected)), 1, 0, default = true, ordered, checksClauses = false)
                 ?.let { return it }
         }
 

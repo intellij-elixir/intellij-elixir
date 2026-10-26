@@ -140,7 +140,7 @@ class OverridableTest {
         makeOverridable(compiling, f)
         val redefined = node(7)
 
-        compiling.table.define("f", 1, Kind.DEFMACRO, redefined, 1, 0, ordered = true, checksClauses = true)
+        compiling.table.define("f", 1, Kind.DEFMACRO, redefined, redefined, 1, 0, ordered = true, checksClauses = true)
 
         val error = storeNotOverridden(compiling, checked = true)
 
@@ -170,7 +170,7 @@ class OverridableTest {
         line: Int = 1,
         clauses: Int = 1,
         defaults: Int = 0,
-    ) = compiling.table.define(name, arity, kind, node(line), clauses, defaults, ordered = true, checksClauses = true)
+    ) = node(line).let { compiling.table.define(name, arity, kind, it, it, clauses, defaults, ordered = true, checksClauses = true) }
 
     private fun assertEntries(vararg expected: String) =
         assertEquals(

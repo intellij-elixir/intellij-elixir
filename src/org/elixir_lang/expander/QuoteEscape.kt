@@ -27,6 +27,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPE_HEADS_NEED_LI
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPE_PRUNE_KEEPS_DELIMITER
 import org.elixir_lang.language_level.ElixirLanguageFeature.HAS_UNQUOTES_NAME_AT_QUOTE_LEVEL
 import org.elixir_lang.language_level.ElixirLanguageFeature.HAS_UNQUOTES_QUOTE_AWARE
+import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ESCAPE_MARKS_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_EXTENSION_META_ESCAPED
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_META_DROPS_COLUMN
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTED_DEF_CONTEXT_SKIPS_GUARD
@@ -123,6 +124,12 @@ internal interface EscapeBuilder<O> {
 
     /** [pid] itself; `null` where the output can't hold it. */
     fun pid(pid: OtpErlangPid): O?
+
+    /**
+     * `{caller, meta, args} when is_list(meta)`, where [marks] says so, read only then: [value] with `generated: true`
+     * first in its metadata; any other value as it is.
+     */
+    fun generated(value: O, marks: () -> Boolean): O
 }
 
 /** What [QuoteEscape.escape] gives. */
@@ -429,7 +436,8 @@ internal class HasUnquotes<I>(private val view: EscapeView<I>, level: ElixirLang
 /**
  * `elixir_quote:do_quote/2` from `escape/3`, or from `quote/2` where [quote] is given: [view] reads each input, [build]
  * writes the output, and [insert] puts an input in it as it is, as `unquote` puts its expression, or gives `null` where
- * the output can't hold it.
+ * the output can't hold it. Where [generated], `Macro.escape/2`'s `generated: true` marks the node the escape gives where
+ * it has metadata of its own, from [MACRO_ESCAPE_MARKS_GENERATED].
  */
 internal class QuoteEscape<I, O> private constructor(
     private val view: EscapeView<I>,
@@ -440,8 +448,13 @@ internal class QuoteEscape<I, O> private constructor(
     private val op: EscapeOp,
     private val quote: QuoteOp<I, O>?,
     private val unquote: Boolean,
+    private val generated: () -> () -> Boolean = { { false } },
 ) {
-    /** `escape/3` with [op]. */
+    /**
+     * `escape/3` with [op], and `Macro.escape/2`'s step after it: [generated] reads the `generated:` option before the
+     * escape, from the release that reads it, and what it gives says whether the node is marked, read only for a node
+     * with metadata of its own.
+     */
     constructor(
         view: EscapeView<I>,
         build: EscapeBuilder<O>,
@@ -450,7 +463,8 @@ internal class QuoteEscape<I, O> private constructor(
         exports: Exports,
         op: EscapeOp = EscapeOp.Escape,
         unquote: Boolean = false,
-    ) : this(view, build, insert, level, exports, op, null, unquote)
+        generated: () -> () -> Boolean = { { false } },
+    ) : this(view, build, insert, level, exports, op, null, unquote, generated)
 
     /** `quote/2`, with [quote]'s fields. */
     constructor(
@@ -474,9 +488,11 @@ internal class QuoteEscape<I, O> private constructor(
         visited.forEach { it.clear() }
 
         return try {
+            val marks = if (MACRO_ESCAPE_MARKS_GENERATED.isSufficient(level)) generated() else null
             val built = doQuote(input, unquote)
+            val marked = marks?.let { build.generated(built, it) } ?: built
 
-            if (unread) EscapeResult.Unread(unreadAt) else EscapeResult.Built(built)
+            if (unread) EscapeResult.Unread(unreadAt) else EscapeResult.Built(marked)
         } catch (raise: Raise) {
             EscapeResult.Raised(raise.exception)
         } catch (_: Decline) {
@@ -1277,6 +1293,20 @@ internal object TermEscapeBuilder : EscapeBuilder<OtpErlangObject> {
     }
 
     override fun pid(pid: OtpErlangPid): OtpErlangObject = pid
+
+    override fun generated(value: OtpErlangObject, marks: () -> Boolean): OtpErlangObject {
+        val call = (value as? OtpErlangTuple)?.takeIf { it.arity() == 3 } ?: return value
+        val meta = when (val meta = call.elementAt(1)) {
+            is OtpErlangList -> meta
+            is OtpErlangString -> OtpErlangList(meta.stringValue())
+            else -> return value
+        }
+
+        if (!marks()) return value
+        val mark = tuple(listOf(atom("generated"), atom("true")))
+
+        return OtpErlangTuple(arrayOf(call.elementAt(0), OtpErlangList(arrayOf(mark) + meta.elements(), meta.lastTail), call.elementAt(2)))
+    }
 }
 
 /** Builds the output as code at [s]'s position, keeping where each node it builds a tuple for came from. */
@@ -1306,4 +1336,20 @@ internal class AstEscapeBuilder(private val s: Synthetic) : EscapeBuilder<Elixir
         s.remoteCall(module, function, args, at?.keys.orEmpty())
 
     override fun pid(pid: OtpErlangPid): ElixirAst? = null
+
+    override fun generated(value: ElixirAst, marks: () -> Boolean): ElixirAst {
+        if (!value.hasMetadata() || !marks()) return value
+
+        val meta = value.meta
+        val marked = Meta(meta.origin, meta.start, meta.end, GENERATED + meta.keys, meta.built)
+
+        return when (value) {
+            is ElixirAst.Call -> ElixirAst.Call(marked, value.callee, value.arguments, value.context)
+            is ElixirAst.Alias -> ElixirAst.Alias(marked, value.segments)
+            is ElixirAst.Block -> ElixirAst.Block(marked, value.expressions)
+            is ElixirAst.Placeholder -> ElixirAst.Placeholder(marked, value.reason)
+            is ElixirAst.Tuple -> ElixirAst.Tuple(marked, value.elements)
+            is ElixirAst.Literal, is ElixirAst.ListNode, is ElixirAst.Value -> value
+        }
+    }
 }

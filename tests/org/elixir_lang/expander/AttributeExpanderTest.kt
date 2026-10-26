@@ -353,8 +353,8 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
         )
 
-    /** A write that isn't a statement of the module body may run any number of times, so a later read is unknown. */
-    fun testAWriteInACaseClause() =
+    /** A write in the clause a module-body `case` selects runs once, where the `case` does, so a later read sees it. */
+    fun testAWriteInASelectedCaseClauseIsAStatement() =
         assertEvery(
             """
             defmodule A do
@@ -367,9 +367,77 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A compiled
+              write x 1 `@x 1`
+              read x in def r_x/0: 1
+              final x: 1
+            """.trimIndent(),
+        )
+
+    /** A write in a clause of a `case` whose subject the evaluator can't produce may run any number of times. */
+    fun testAWriteInACaseClauseTheEvaluatorCannotSelectIsNotAStatement() =
+        assertEvery(
+            """
+            defmodule A do
+              case (receive do after 0 -> 1 end) do
+                _ -> @x 1
+              end
+              def r_x, do: @x
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A compiled
               write x 1 not a statement `@x 1`
               read x in def r_x/0: unexpanded
               final x: unknown
+            """.trimIndent(),
+        )
+
+    /**
+     * A write in an `fn` a call runs per element may have run for an element the evaluator can't produce, so it isn't
+     * a statement, and a later read is unknown.
+     */
+    fun testAWriteForAnElementTheEvaluatorCannotFollowLeavesALaterReadUnknown() =
+        assertEvery(
+            """
+            defmodule A do
+              x = receive do after 0 -> {:ok, 2} end
+              Enum.each([{:ok, 1}, x], fn {:ok, n} -> @a n end)
+              def f, do: @a
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A compiled
+              write a node not a statement `@a n`
+              read a in def f/0: unexpanded
+              final a: unknown
+            """.trimIndent(),
+        )
+
+    /**
+     * A write in a `cond` clause isn't selected, so its argument isn't evaluated: the clause that doesn't run raises
+     * nothing, and a later read is unknown.
+     */
+    fun testAWriteInACondClauseLeavesALaterReadUnknown() =
+        assertEvery(
+            """
+            defmodule U2 do
+              v = []
+              cond do
+                false -> @a :erlang.hd(v)
+                true -> @a 0
+              end
+              def f, do: @a
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.U2 compiled
+              write a node not a statement `@a :erlang.hd(v)`
+              write a 0 not a statement `@a 0`
+              read a in def f/0: unexpanded
+              final a: unknown
             """.trimIndent(),
         )
 
@@ -1327,8 +1395,8 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
         )
 
-    /** A definition that isn't a statement may take them at any point, so a later read is unknown. */
-    fun testADefinitionThatIsNotAStatement() =
+    /** A definition in the clause a `case` selects takes them where the `case` runs, as a statement does. */
+    fun testADefinitionInASelectedCaseClauseTakesTheAttributes() =
         assertEvery(
             """
             defmodule A do
@@ -1343,10 +1411,9 @@ class AttributeExpanderTest : ExpanderTestCase() {
             top expanded {} next 0
             module Elixir.A compiled
               write doc {2, "a"} `@doc "a"`
-              read doc in def r_doc/0: unexpanded
-              final doc: unknown
+              read doc in def r_doc/0: :nil
+              final doc: :nil
               attributes f/0: doc "a"
-              attributes r_doc/0: impls [unknown]; doc unknown; deprecated unknown
             """.trimIndent(),
         )
 

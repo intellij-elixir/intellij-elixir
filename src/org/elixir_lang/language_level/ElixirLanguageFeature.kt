@@ -1278,6 +1278,23 @@ enum class ElixirLanguageFeature(
     QUOTED_DEF_CONTEXT_SKIPS_GUARD(sinceElixir = "1.16.0-rc.0"),
 
     /**
+     * `elixir_def:store_definition/5` keeps the metadata of the head under a guard's `when`, as `extract_guards` takes
+     * it. Before it, the whole head's, which for a guarded head is the `when`'s.
+     *
+     * `elixir-lang/elixir@c35d002dc` ("Fix column information in tests"), first released in v1.16.0-rc.0.
+     */
+    STORED_HEAD_SKIPS_GUARD(sinceElixir = "1.16.0-rc.0"),
+
+    /**
+     * `elixir_def:store_definition/10` stores each default arity of a definition with `context: :elixir_def` first in
+     * its head's metadata. Before it, a default arity's metadata is the head's as written.
+     *
+     * `elixir-lang/elixir@f1bbb2cd3` ("Infer types from guards and do post-inference on stdlib", #15032), first
+     * released in v1.20.0-rc.0.
+     */
+    DEFAULT_ARITY_STORED_WITH_CONTEXT(sinceElixir = "1.20.0-rc.0"),
+
+    /**
      * A quoted node's metadata leaves out the `column` of its source. Before it, a `column` the parser gave is kept.
      *
      * `elixir-lang/elixir@cb9de080e` ("Strip column information on quote"), first released in v1.16.0-rc.0.

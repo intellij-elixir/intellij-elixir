@@ -77,7 +77,7 @@ class DefinitionTableProbeTest : ProbeTestCase() {
 
         assertNotNull("the comparison failed", failure)
         assertTrue("the failure names $module.Made: ${failure!!.message}", failure.message!!.contains("$module.Made"))
-        assertLeftNothingBehind(attempt)
+        harness.assertLeftNothingBehind(attempt)
     }
 
     /**
@@ -126,7 +126,7 @@ class DefinitionTableProbeTest : ProbeTestCase() {
             val module = expansions.layout.caseModule(0)
 
             ran(case, attempt, module)
-            assertLeftNothingBehind(attempt)
+            harness.assertLeftNothingBehind(attempt)
 
             DefinitionTables.compare(
                 module,

@@ -76,7 +76,7 @@ class ProbeHarnessSelfTest : ProbeTestCase() {
             listOf("f/1"),
             attempt.batch.hooks.getValue("$caseModule.Fixture").map { "${it.name}/${it.arity}" },
         )
-        assertLeftNothingBehind(attempt)
+        harness.assertLeftNothingBehind(attempt)
     }
 
     /**
@@ -113,7 +113,7 @@ class ProbeHarnessSelfTest : ProbeTestCase() {
             listOf("", ".A", ".A.B", ".A.C", ".A.C.D", ".A.E", ".A.F"),
             attempt.batch.hooks.keys.map { it.removePrefix(caseModule) }.sorted()
         )
-        assertLeftNothingBehind(attempt)
+        harness.assertLeftNothingBehind(attempt)
     }
 
     /** A keyword module that ends the body is wrapped with its hook call, and the probe after it is outside the wrapper. */
@@ -219,7 +219,7 @@ class ProbeHarnessSelfTest : ProbeTestCase() {
             listOf("", ".M", ".N", ".U"),
             attempt.batch.hooks.keys.map { it.removePrefix(attempt.layout.caseModule(0)) }.sorted()
         )
-        assertLeftNothingBehind(attempt)
+        harness.assertLeftNothingBehind(attempt)
     }
 
     /** The name of a call in a `quote` is evaluated where the `quote` is written, so a module it defines is hooked. */
@@ -244,7 +244,7 @@ class ProbeHarnessSelfTest : ProbeTestCase() {
             listOf("", ".M", ".N"),
             attempt.batch.hooks.keys.map { it.removePrefix(attempt.layout.caseModule(0)) }.sorted()
         )
-        assertLeftNothingBehind(attempt)
+        harness.assertLeftNothingBehind(attempt)
     }
 
     /**
@@ -272,7 +272,7 @@ class ProbeHarnessSelfTest : ProbeTestCase() {
             listOf("", ".M2"),
             attempt.batch.hooks.keys.map { it.removePrefix(attempt.layout.caseModule(0)) }.sorted()
         )
-        assertLeftNothingBehind(attempt)
+        harness.assertLeftNothingBehind(attempt)
     }
 
     /** A module whose `do` is a tuple in a keyword list, which has no `do` token, holds its definition as a `do:` does. */
@@ -289,7 +289,7 @@ class ProbeHarnessSelfTest : ProbeTestCase() {
         assertEquals(OtpErlangAtom("ok"), attempt.compiled.status)
         assertEquals(listOf("", ".M"), attempt.batch.hooks.keys.map { it.removePrefix(caseModule) }.sorted())
         assertEquals(listOf("f/0"), attempt.batch.hooks.getValue("$caseModule.M").map { "${it.name}/${it.arity}" })
-        assertLeftNothingBehind(attempt)
+        harness.assertLeftNothingBehind(attempt)
     }
 
     /** A comment between `do:` and a module's value doesn't move the value out of the module. */

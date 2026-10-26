@@ -581,7 +581,7 @@ top__match_in_keyword__in_case_body.exs	match
 top__match_in_keyword__in_case_guard.exs	match
 top__match_in_keyword__in_case_pin.exs	match
 top__match_in_keyword__in_closure.exs	match
-top__match_in_keyword__in_for_body.exs	unported for/2
+top__match_in_keyword__in_for_body.exs	unported +/2
 top__match_in_keyword__in_for_filter.exs	match
 top__match_in_keyword__in_if_body.exs	match
 top__match_in_keyword__in_if_condition.exs	match

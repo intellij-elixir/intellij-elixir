@@ -202,13 +202,6 @@ internal class StructOutput(
             listOf(1 to KERNEL, 2 to KERNEL),
         )
 
-    /**
-     * The definitions the output queued, [queued]: up to 1.13, the clause of `__struct__/1` the `case` on the
-     * [enforced] keys chooses.
-     */
-    fun definitions(queued: List<Pending.Definition>, enforced: List<String>?): List<Pending> =
-        if (bound) queued else listOf(queued[0], queued[if (enforced.isNullOrEmpty()) 1 else 2])
-
     /** The variables [match] binds by name, where it is the output's `=` of what `Kernel.Utils.defstruct` gives. */
     fun results(match: ElixirAst): Map<String, ElixirAst>? {
         val pattern = (match as? ElixirAst.Call)?.takeIf { bound && isCall(it, "=", 2) }?.arguments?.get(0)
@@ -267,13 +260,20 @@ internal class StructOutput(
 
     private fun structReadUtils(): ElixirAst = utils.imported("@", listOf(utils.localVariable("__struct__")), listOf(1 to KERNEL))
 
-    private fun struct(entries: List<Pair<String, ElixirAst>>): ElixirAst? {
+    private fun struct(entries: List<Pair<String, ElixirAst>>): ElixirAst? =
+        QuoteEscape.map(AstEscapeBuilder(s), level, fields(entries))
+
+    /**
+     * The fields of the struct `Kernel.Utils.defstruct` gives for [entries]: `__struct__`, then each key once, with the
+     * last default [entries] gives it (`maps:from_list/1`).
+     */
+    fun fields(entries: List<Pair<String, ElixirAst>>): List<Pair<String, ElixirAst>> {
         val defaults = LinkedHashMap<String, ElixirAst>()
 
         defaults["__struct__"] = s.atom(module)
         for ((key, value) in entries) defaults[key] = value
 
-        return QuoteEscape.map(AstEscapeBuilder(s), level, defaults.entries.map { it.key to it.value })
+        return defaults.entries.map { it.key to it.value }
     }
 }
 

@@ -23,9 +23,21 @@ class DefinitionEffectTest : ExpanderTestCase() {
         assertEquals(listOf("effect_1 sees [a/0]", "effect_2 sees [a/0, b/0]"), compiled.log)
     }
 
-    fun testAnEffectInsideAClauseMakesTheDefinitionsAfterItUnordered() {
+    fun testAnEffectInsideASelectedClauseIsAStatement() {
         val compiled = compile(
             "defmodule M do\n  def a, do: 1\n  case 1 do\n    _ -> :effect_1\n  end\n  def b, do: 2\nend",
+        )
+
+        assertEquals(listOf("effect_1 sees [a/0]"), compiled.log)
+        assertEquals(
+            listOf(true, true),
+            compiled.module.units.filter { it.owner is ExpansionResult.Owner.Definition }.map { it.ordered },
+        )
+    }
+
+    fun testAnEffectInsideAClauseTheEvaluatorCannotSelectMakesTheDefinitionsAfterItUnordered() {
+        val compiled = compile(
+            "defmodule M do\n  def a, do: 1\n  case (receive do after 0 -> 1 end) do\n    _ -> :effect_1\n  end\n  def b, do: 2\nend",
         )
 
         assertEquals(listOf("effect_1 sees [a/0]"), compiled.log)
@@ -81,7 +93,7 @@ class DefinitionEffectTest : ExpanderTestCase() {
     fun testTheSliceAMacroQueuedIsReplaced() {
         val run = Run(level, ExpansionObserver.NONE, exports, structs)
         val node = lower(":ok", level)
-        val queued = List(4) { Pending.Effect(node, ordered = true) { _, _ -> null } }
+        val queued = List(4) { Pending.Effect(node, ordered = true) { _, _, _ -> null } }
 
         run.pending += queued[0]
         val from = run.pending.size
@@ -132,7 +144,7 @@ class DefinitionEffectTest : ExpanderTestCase() {
                     ?: return
                 val ordered = run.compiling.getValue(env.module!!).isStatement(node)
 
-                run.pending += Pending.Effect(node, ordered) { compiling, _ ->
+                run.pending += Pending.Effect(node, ordered) { compiling, _, _ ->
                     log += "$name sees ${compiling.table.entries.keys.map { "${it.name}/${it.arity}" }}"
 
                     if (name == "remove_a") makeOverridable(compiling, NameArity("a", 0))

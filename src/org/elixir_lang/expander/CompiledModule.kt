@@ -99,7 +99,7 @@ private class Builder(
     fun build(): CompiledModule? {
         val module = reader.atomsResult.valueOrNull?.moduleName() ?: return null
         val definitions = (reader.debugInfoResult.valueOrNull as? V1)?.definitions?.definitionList
-        val table = DefinitionTable()
+        val table = DefinitionTable(lowering.languageLevel)
         val bodies =
             if (definitions != null) {
                 fromDebugInfo(definitions, table)
@@ -134,7 +134,7 @@ private class Builder(
 
             table.put(
                 NameArity(key.name, key.arity),
-                entry(kind, at, clauses.size, definition.defaults, isDefault(clauses)),
+                entry(table, kind, at, clauses.size, definition.defaults, isDefault(clauses)),
             )
 
             bodies[NameArity(key.name, key.arity)] = clauses.mapIndexed { index, clause ->
@@ -192,15 +192,18 @@ private class Builder(
 
         table.put(
             NameArity(key.name, key.arity),
-            entry(Kind.of(key.macro), head(mirror.first()), mirror.size, defaults, default),
+            entry(table, Kind.of(key.macro), head(mirror.first()), mirror.size, defaults, default),
         )
 
         return Unit
     }
 
-    /** An entry as a compiled module holds it: in source order, its clauses already checked by its compile. */
-    private fun entry(kind: Kind, at: ElixirAst, clauses: Int, defaults: Int, default: Boolean): Entry =
-        Entry(kind, listOf(DefinitionTable.Head(at, null, null)), clauses, defaults, default, ordered = true, checksClauses = false)
+    /**
+     * An entry of [table] as a compiled module holds it: in source order, its clauses already checked by its compile,
+     * and [at], the head it was read with, as its call.
+     */
+    private fun entry(table: DefinitionTable, kind: Kind, at: ElixirAst, clauses: Int, defaults: Int, default: Boolean): Entry =
+        Entry(kind, listOf(DefinitionTable.Head(at, table.stored(at), null, null)), clauses, defaults, default, ordered = true, checksClauses = false)
 
     private fun head(clause: Call): ElixirAst = lowering.lower(CallDefinitionClause.head(clause)!!)
 

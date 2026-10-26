@@ -65,6 +65,9 @@ class LoadedModulesTest : ProbeTestCase() {
             "@callback f() :: term\nModule.delete_attribute(__MODULE__, :callback)",
             "@callback f() :: term\n@macrocallback m(term) :: Macro.t\nModule.delete_attribute(__MODULE__, :callback)\n@callback g() :: term",
             "@macrocallback m(term) :: Macro.t\n@callback f() :: term\nModule.delete_attribute(__MODULE__, :macrocallback)",
+            // A write in the branch an `if` selects runs once, where the `if` does.
+            "if true do\n  @callback f() :: term\nend",
+            "@callback f() :: term\nif true do\n  Module.delete_attribute(__MODULE__, :callback)\nend",
         ).map { it.trimIndent() }
 
         assertEquals("compared", probedBehaviours(compared), compared.map { sourceBehaviour(it) })
@@ -86,10 +89,10 @@ class LoadedModulesTest : ProbeTestCase() {
             unreadable.map { "$it\n  -> ${sourceBehaviour(it)}" },
         )
 
-        // Elixir may not run a write in a branch, so the behaviour its `@callback` gives isn't read; the rest is.
+        // Elixir may not run a write in a branch the evaluator can't select, so the behaviour isn't read; the rest is.
         val unordered = listOf(
-            "if true do\n  @callback f() :: term\nend",
-            "@callback f() :: term\nif true do\n  Module.delete_attribute(__MODULE__, :callback)\nend",
+            "if $RECV_TRUE do\n  @callback f() :: term\nend",
+            "@callback f() :: term\nif $RECV_TRUE do\n  Module.delete_attribute(__MODULE__, :callback)\nend",
         )
 
         assertEquals(
@@ -231,7 +234,7 @@ class LoadedModulesTest : ProbeTestCase() {
     fun testAnErrorAfterAnUnorderedUnitOrADeclineMayNotBeElixirs() {
         assertEquals(
             listOf("Unreadable", "Unreadable"),
-            loadings("defmodule A do\n  defstruct [:x]\n  if false do\n    defmacro f, do: 1\n  end\n  def f, do: 2\nend\ndefmodule B do\n  def g, do: %A{}\nend", "A", "B"),
+            loadings("defmodule A do\n  defstruct [:x]\n  if $RECV_FALSE do\n    defmacro f, do: 1\n  end\n  def f, do: 2\nend\ndefmodule B do\n  def g, do: %A{}\nend", "A", "B"),
         )
         assertEquals(
             listOf("Present", "Unreadable", "Unreadable"),
@@ -244,12 +247,12 @@ class LoadedModulesTest : ProbeTestCase() {
         )
         assertEquals(
             listOf("Unreadable", "Unreadable"),
-            loadings("defmodule A do\n  defstruct [:x]\n  if false do\n    def g, do: __STACKTRACE__\n  end\nend\ndefmodule B do\n  def g, do: %A{}\nend", "A", "B"),
+            loadings("defmodule A do\n  defstruct [:x]\n  if $RECV_FALSE do\n    def g, do: __STACKTRACE__\n  end\nend\ndefmodule B do\n  def g, do: %A{}\nend", "A", "B"),
         )
         assertEquals(
             listOf("Unreadable", "Unreadable"),
             loadings(
-                "defmodule A do\n  if false do\n    def inspect(x), do: x\n  end\n  def f(x), do: inspect(x)\nend\ndefmodule B do\n  def unquote(if function_exported?(A, :f, 1), do: :yes, else: :no)(), do: 1\nend",
+                "defmodule A do\n  if $RECV_FALSE do\n    def inspect(x), do: x\n  end\n  def f(x), do: inspect(x)\nend\ndefmodule B do\n  def unquote(if function_exported?(A, :f, 1), do: :yes, else: :no)(), do: 1\nend",
                 "A",
                 "B",
             ),
@@ -257,7 +260,7 @@ class LoadedModulesTest : ProbeTestCase() {
         assertEquals(
             listOf("Unreadable", "Unreadable"),
             loadings(
-                "defmodule A do\n  def f, do: 1\n  defoverridable f: 0\n  if false do\n    defmacro f, do: 1\n  end\n  def g, do: 2\nend\ndefmodule B do\n  def unquote(if function_exported?(A, :f, 0), do: :yes, else: :no)(), do: 1\nend",
+                "defmodule A do\n  def f, do: 1\n  defoverridable f: 0\n  if $RECV_FALSE do\n    defmacro f, do: 1\n  end\n  def g, do: 2\nend\ndefmodule B do\n  def unquote(if function_exported?(A, :f, 0), do: :yes, else: :no)(), do: 1\nend",
                 "A",
                 "B",
             ),
@@ -299,7 +302,7 @@ class LoadedModulesTest : ProbeTestCase() {
         assertEquals(
             listOf("Unreadable", "Unreadable"),
             loadings(
-                "case :b do\n  :a ->\n    defmodule P do\n      defmodule Q do\n        def f, do: raise(ArgumentError)\n      end\n    end\n  _ -> :ok\nend\nP.Q.f()",
+                "case $RECV_B do\n  :a ->\n    defmodule P do\n      defmodule Q do\n        def f, do: raise(ArgumentError)\n      end\n    end\n  _ -> :ok\nend\nP.Q.f()",
                 "P",
                 "P.Q",
             ),
@@ -307,7 +310,7 @@ class LoadedModulesTest : ProbeTestCase() {
         assertEquals(
             listOf("Present", "Unreadable", "Unreadable", "Unreadable"),
             loadings(
-                "defmodule S0 do\n  if false do\n    defmodule P do\n      defmodule Q do\n        defstruct [:a]\n      end\n    end\n  end\nend\ndefmodule B do\n  @a %S0.P.Q{}\nend",
+                "defmodule S0 do\n  if $RECV_FALSE do\n    defmodule P do\n      defmodule Q do\n        defstruct [:a]\n      end\n    end\n  end\nend\ndefmodule B do\n  @a %S0.P.Q{}\nend",
                 "S0",
                 "S0.P",
                 "S0.P.Q",
@@ -319,7 +322,8 @@ class LoadedModulesTest : ProbeTestCase() {
     /**
      * A nested module after a stop in the module around it is assumed to have run, so it is loaded where its own body
      * ran to its end, while the module that stopped is unreadable. Elixir raises at [STOPS], so the three are absent
-     * there: the row pins the assumption that the project compiles.
+     * there: the row pins the assumption that the project compiles. The nested module's own reads of its table, the
+     * struct output's `@enforce_keys` up to 1.13 among them, are answered: the stop was another module's.
      */
     fun testANestedModuleAfterAStopIsLoadedAssumingTheStopCompiles() {
         assertEquals(
@@ -332,26 +336,28 @@ class LoadedModulesTest : ProbeTestCase() {
      * The walk skips every module after a raise that may be Elixir's, and Elixir compiled them if it didn't raise
      * there, so a skipped module may be loaded, wherever the module whose run ended sits in the file.
      */
-    fun testAModuleSkippedAfterARaiseThatMayBeElixirsIsUnreadable() {
+    fun testAModuleSkippedAfterARaiseThatMayBeElixirsIsLoaded() {
+        // The error at `def f` is computed from a definition Elixir may not have stored, so the module after it loads.
         assertEquals(
-            listOf("Unreadable", "Unreadable", "Unreadable"),
+            listOf("Unreadable", "Unreadable", "Present"),
             loadings(
-                "defmodule O do\n  if true do\n    defmodule A do\n      if false do\n        defmacro f, do: 1\n      end\n      def f, do: 2\n      defmodule I do\n        def g, do: 1\n      end\n    end\n  end\nend",
+                "defmodule O do\n  if true do\n    defmodule A do\n      if $RECV_FALSE do\n        defmacro f, do: 1\n      end\n      def f, do: 2\n      defmodule I do\n        def g, do: 1\n      end\n    end\n  end\nend",
                 "O",
                 "O.A",
                 "O.A.I",
             ),
         )
         assertEquals(
-            listOf("Unreadable", "Unreadable"),
+            listOf("Unreadable", "Present"),
             loadings(
-                "if true do\n  defmodule M do\n    if false do\n      defmacro f, do: 1\n    end\n    def f, do: 2\n    defmodule N do\n      defstruct [:n]\n    end\n  end\nend",
+                "if true do\n  defmodule M do\n    if $RECV_FALSE do\n      defmacro f, do: 1\n    end\n    def f, do: 2\n    defmodule N do\n      defstruct [:n]\n    end\n  end\nend",
                 "M",
                 "M.N",
             ),
         )
+        // The selected clause's module is a statement; `H.set` may have written `M`, and `N` comes after that decline.
         assertEquals(
-            listOf("Present", "Unreadable", "Unreadable"),
+            listOf("Present", "Unreadable", "Present"),
             loadings(
                 "defmodule H do\n  def set(m), do: Module.put_attribute(m, :x, :ok)\nend\ncase 1 do\n  1 ->\n    defmodule M do\n      @x :bad\n      H.set(__MODULE__)\n      :ok = @x\n      defmodule N do\n        def g, do: 1\n      end\n    end\nend",
                 "H",
@@ -577,6 +583,11 @@ class LoadedModulesTest : ProbeTestCase() {
     private fun List<NameArity>.sorted() = sortedWith(compareBy({ it.name }, { it.arity }))
 
     private companion object {
+        /** A subject the evaluator can't produce, so the branch it selects isn't known. */
+        private const val RECV_FALSE = "(receive do after 0 -> false end)"
+        private const val RECV_TRUE = "(receive do after 0 -> true end)"
+        private const val RECV_B = "(receive do after 0 -> :b end)"
+
         /** The leg's modules read and probed; every test in the class shares it. */
         @Volatile
         var cachedCompared: Compared? = null

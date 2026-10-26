@@ -76,7 +76,7 @@ class AttributeProbeTest : ProbeTestCase() {
             ),
             docs.entries!!.map { "${it.kind} ${it.name}/${it.arity} ${text(it.doc)} ${text(it.deprecated)}" }.sorted(),
         )
-        assertLeftNothingBehind(attempt)
+        harness.assertLeftNothingBehind(attempt)
         assertEquals("compiler options", options, compilerOptions())
     }
 
@@ -202,17 +202,20 @@ class AttributeProbeTest : ProbeTestCase() {
         )
     }
 
-    /** A write in a `case` clause of the module body, `if`'s included, isn't a statement of it, so a later read is unknown. */
-    fun testAWriteInACaseClauseMakesLaterReadsUnknown() {
+    /** A write in the clause a module-body `case`, or an `if`, selects is a statement of it, so a later read sees it. */
+    fun testAWriteInASelectedCaseClauseIsRead() {
+        assertAttributesMatch(
+            AttributeCase("case 1 do\n  1 -> @w 1\nend\ndef r_w, do: @w\n@v 2\ndef r_v, do: @v", attributes = listOf("v", "w")),
+            AttributeCase("@x 1\ndef r_a, do: @x\nif true, do: @w(5)\ndef r_w, do: @w", attributes = listOf("x", "w")),
+        )
+    }
+
+    /** A write in a clause of a `case` whose subject the evaluator can't produce may run any number of times. */
+    fun testAWriteInACaseClauseTheEvaluatorCannotSelectMakesLaterReadsUnknown() {
         assertAttributesMatch(
             AttributeCase(
-                "case 1 do\n  1 -> @w 1\nend\ndef r_w, do: @w\n@v 2\ndef r_v, do: @v",
+                "case (receive do after 0 -> 1 end) do\n  1 -> @w 1\nend\ndef r_w, do: @w\n@v 2\ndef r_v, do: @v",
                 attributes = listOf("v"),
-                unknown = setOf("r_w"),
-            ),
-            AttributeCase(
-                "@x 1\ndef r_a, do: @x\nif true, do: @w(5)\ndef r_w, do: @w",
-                attributes = listOf("x"),
                 unknown = setOf("r_w"),
             ),
         )
@@ -385,7 +388,7 @@ class AttributeProbeTest : ProbeTestCase() {
                 )
             }
 
-            assertLeftNothingBehind(attempt)
+            harness.assertLeftNothingBehind(attempt)
         }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))

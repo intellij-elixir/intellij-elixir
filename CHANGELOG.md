@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4534](https://github.com/intellij-elixir/intellij-elixir/pull/4534) [@sh41](https://github.com/sh41)
+  - **The expander stores a definition each time a module body's `for`, an `fn` that `Enum.each/2` or `:lists.foreach/2` runs, or the branch a `case`, `if` or `unless` takes reaches it, as Elixir does, so functions defined per element and a function guarded by `x in @list` are expanded; nothing uses it yet.** Fixes [#4441](https://github.com/intellij-elixir/intellij-elixir/issues/4441).
+
 - [#4532](https://github.com/intellij-elixir/intellij-elixir/pull/4532) [@sh41](https://github.com/sh41)
   - **The mise integration can apply mise's environment, including the tools it puts on `PATH`, to the run configurations, builds and other processes the plugin starts.** Tick Apply mise environment under Preferences > Languages & Frameworks > Elixir > Tool Managers.
     - The Tool Managers settings are now saved for each user instead of in the shared `.idea/elixir.xml`, and move there on their own. If your team shares `.idea`, a teammate whose IDE has not moved them yet when the change reaches them ticks mise again.

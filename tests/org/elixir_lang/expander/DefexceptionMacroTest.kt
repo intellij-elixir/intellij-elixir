@@ -6,6 +6,7 @@ import org.elixir_lang.expander.StructEvents.DEFSTRUCT_QUOTED
 import org.elixir_lang.expander.StructEvents.INSPECTED
 import org.elixir_lang.expander.StructEvents.KERNEL_AT
 import org.elixir_lang.expander.StructEvents.put
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_BIND_QUOTED
 import org.elixir_lang.language_level.ElixirLanguageLevel
 
 /**
@@ -16,6 +17,11 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 class DefexceptionMacroTest : ExpanderTestCase() {
     override val exports: Exports = DefstructFixtures.EXPORTS
     override val kernel: KernelImports = DefstructFixtures.KERNEL
+
+    /** The output's `Map.has_key?(struct, :message)` runs from `Map`'s clause. */
+    override val clauses: ModuleClauses.Lookup by lazy {
+        fixtureClauses("defmodule Map do\n  def has_key?(map, key), do: :maps.is_key(key, map)\nend")
+    }
 
     fun testAnExceptionWithoutAMessageFieldDefinesTheExceptionFunction() =
         assertEvery("defmodule A do\n  defexception [:reason]\nend", "module Elixir.A compiled$STRUCT$EXCEPTION_1")
@@ -30,6 +36,13 @@ class DefexceptionMacroTest : ExpanderTestCase() {
         assertEvery(
             "defmodule A do\n  defexception message: \"m\", reason: 1\nend",
             "module Elixir.A compiled$STRUCT$MESSAGE$EXCEPTION_2",
+        )
+
+    /** In the branch an `if` selects, the output runs as it does at a statement. */
+    fun testADefexceptionInASelectedBranchDefinesAsAStatementDoes() =
+        assertEvery(
+            "defmodule A do\n  x = true\n  if x do\n    defexception [:message]\n  end\nend",
+            "module Elixir.A compiled | def __struct__/0 line 4 clauses 1 | def __struct__/1 line 4 clauses 1 | def message/1 line 4 clauses 1 | def exception/1 line 4 clauses 2",
         )
 
     fun testTheMessageFunctionCanBeOverridden() =
@@ -65,25 +78,34 @@ class DefexceptionMacroTest : ExpanderTestCase() {
 
     /**
      * Fields the expander can't follow stop the module, which keeps the definitions made overridable before the stop.
-     * Whether there is a `:message` field isn't known, so those its `if` branch adds are unordered.
+     * Whether there is a `:message` field isn't known, so those its `if` branch adds are unordered, as both arms'
+     * `__struct__/1` are up to 1.13, where the output's `case` on `@enforce_keys` is declined after the stop.
      */
     fun testFieldsTheExpanderCannotFollowStopTheModuleAfterTheOverridableDefinitions() {
         val code = "defmodule A do\n  defexception Foo.fields()\nend"
         val ordered = { version: String ->
             val level = ElixirLanguageLevel.of(version)
-            val module = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs).modules.single()
+            val module = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, clauses = clauses).modules.single()
 
             module.table.entries.map { (nameArity, entry) -> "${nameArity.name}/${nameArity.arity} ${entry.ordered}" }
         }
+        val expected = { version: String ->
+            "[__struct__/0 true, __struct__/1 ${bindsQuoted(version)}, message/1 false, exception/1 false]"
+        }
 
-        val expected = "[__struct__/0 true, __struct__/1 true, message/1 false, exception/1 false]"
-
-        assertEvery(code, "module Elixir.A stopped `defexception Foo.fields()`$STRUCT$MESSAGE$EXCEPTION_2")
+        assertLevels(code, LEVELS) { "module Elixir.A stopped `defexception Foo.fields()`${struct(it)}$MESSAGE$EXCEPTION_2" }
         assertEquals(
-            LEVELS.joinToString("\n") { "$it: $expected" },
+            LEVELS.joinToString("\n") { "$it: ${expected(it)}" },
             LEVELS.joinToString("\n") { "$it: ${ordered(it)}" },
         )
     }
+
+    /** Whether the output of `defstruct` binds its struct with `bind_quoted`, from 1.14: before it, a `case` on `@enforce_keys` defines `__struct__/1`. */
+    private fun bindsQuoted(version: String): Boolean = DEFSTRUCT_BIND_QUOTED.isSufficient(ElixirLanguageLevel.of(version))
+
+    /** [STRUCT] for a module that stopped at the `defexception`: up to 1.13 both arms' `__struct__/1` are stored. */
+    private fun struct(version: String): String =
+        " | def __struct__/0 line 2 clauses 1 | def __struct__/1 line 2 clauses ${stoppedStructClauses(ElixirLanguageLevel.of(version))}"
 
     fun testTheStructHoldsTheExceptionKey() =
         assertEvery(
@@ -102,7 +124,7 @@ class DefexceptionMacroTest : ExpanderTestCase() {
         val code = "defmodule A do\n  defexception [:message]\nend"
         val ordered = { version: String ->
             val level = ElixirLanguageLevel.of(version)
-            val module = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs).modules.single()
+            val module = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, clauses = clauses).modules.single()
 
             module.units.filter { it.owner is ExpansionResult.Owner.Definition }.map { it.ordered }
         }
@@ -174,7 +196,7 @@ class DefexceptionMacroTest : ExpanderTestCase() {
 
     override fun expandAndRender(code: String, version: String): String {
         val level = ElixirLanguageLevel.of(version)
-        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
+        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, clauses = clauses)
 
         return file.modules.joinToString("\n") { ModuleRendering.render(code, it) }
     }

@@ -324,12 +324,12 @@ class ModuleClausesTest : ExpanderTestCase() {
             """,
         )
 
-    /** Elixir may not define a definition the body may not run, so what the module defines isn't read. */
-    fun testAModuleWithADefinitionThatMayNotBeElixirsHasNoClauses() =
+    /** Elixir may not define a definition in a branch the evaluator can't select, so what the module defines isn't read. */
+    fun testAModuleWithADefinitionInABranchTheEvaluatorCannotSelectHasNoClauses() =
         assertClauses(
             """
             defmodule A do
-              if true do
+              if (receive do after 0 -> true end) do
                 def f, do: 1
               end
 
