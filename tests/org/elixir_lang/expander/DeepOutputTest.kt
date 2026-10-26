@@ -67,6 +67,46 @@ class DeepOutputTest : ExpanderTestCase() {
     }
 
     /**
+     * `x = f.(f, 100_000)`, a recursion the evaluator runs deeper than the thread's stack: its module stops at the match,
+     * and what the match binds is unknown there, as where its right side declines, so a module nested after it defines
+     * nothing from the value `x` held before.
+     */
+    fun testAMatchTooDeepToRunLeavesWhatItBindsUnknown() {
+        val match = "x = f.(f, $RECURSION)"
+        val code = "defmodule O do\n  x = :a\n  ${recursiveFn("  ")}\n  $match\n\n  defmodule N do\n    def unquote(x)(), do: 1\n  end\nend\n"
+        val outer = expandedOnADefaultStack(code, ElixirLanguageLevel.of("1.20.4"), RECURSION).modules.single { it.module == "Elixir.O" }
+
+        assertStoppedAt(code, match, outer.ended)
+        assertDefinesNoA(outer.nested.single { it.module == "Elixir.O.N" })
+    }
+
+    /** `x = f.(f, 100_000)` outside any module: the file stops at the match, and a module after it reads `x` as unknown. */
+    fun testAMatchTooDeepToRunOutsideAModuleLeavesWhatItBindsUnknown() {
+        val match = "x = f.(f, $RECURSION)"
+        val code = "x = :a\n${recursiveFn("")}\n$match\n\ndefmodule T do\n  def unquote(x)(), do: 1\nend\n"
+        val expansion = expandedOnADefaultStack(code, ElixirLanguageLevel.of("1.20.4"), RECURSION)
+        val top = expansion.top
+
+        assertTrue("top: $top", top is Expansion.Unported && top.at.meta.origin.substring(code) == match)
+        assertDefinesNoA(expansion.modules.single { it.module == "Elixir.T" })
+    }
+
+    /**
+     * `def unquote(f.(f, 100_000))()`: a fragment the evaluator runs deeper than the thread's stack is unknown, as one
+     * it declines is, so the definition is stored unnamed, its module stops at the fragment, and the definition after it
+     * is stored.
+     */
+    fun testADefinitionFragmentTooDeepToRunStoresTheDefinitionUnnamed() {
+        val fragment = "unquote(f.(f, $RECURSION))"
+        val code = "defmodule O do\n  ${recursiveFn("  ")}\n  def $fragment(), do: 1\n  def g, do: 1\nend\n"
+        val result = expandedOnADefaultStack(code, ElixirLanguageLevel.of("1.20.4"), RECURSION).modules.single { it.module == "Elixir.O" }
+
+        assertStoppedAt(code, fragment, result.ended)
+        assertEquals("${result.table.unnamed}", 1, result.table.unnamed.size)
+        assertTrue("${result.table.entries.keys}", result.table.entries.keys.any { it.name == "g" && it.arity == 0 })
+    }
+
+    /**
      * A macro's output defining a chain of shallow functions longer than a thread's stack holds, each calling the next:
      * the checks once the body has run walk the chain, and `B` compiles, as in Elixir.
      */
@@ -147,9 +187,25 @@ class DeepOutputTest : ExpanderTestCase() {
         }
     }
 
+    private fun assertStoppedAt(code: String, source: String, ended: ExpansionResult.Ended) {
+        assertTrue("not stopped: $ended", ended is ExpansionResult.Ended.Stopped)
+        assertEquals(source, (ended as ExpansionResult.Ended.Stopped).at.meta.origin.substring(code))
+    }
+
+    /** [result]'s module defines no `a`, the value `x` held before the match that stopped. */
+    private fun assertDefinesNoA(result: ExpansionResult) {
+        assertFalse("${result.module} defines ${result.table.entries.keys}", result.table.entries.keys.any { it.name == "a" })
+    }
+
     private companion object {
         /** Shallow enough to expand on any thread. */
         const val FIRST_DEPTH = 256
+
+        /** Deeper than the evaluator runs a recursion on any thread's default stack. */
+        const val RECURSION = 100_000
+
+        /** `f`, which calls itself `n` times, written at [indent]. */
+        fun recursiveFn(indent: String): String = "f = fn\n$indent  _, 0 -> :b\n$indent  f, n -> f.(f, n - 1)\n${indent}end"
 
         /** Deep enough to overflow any thread's default stack. */
         const val LAST_DEPTH = 1 shl 14

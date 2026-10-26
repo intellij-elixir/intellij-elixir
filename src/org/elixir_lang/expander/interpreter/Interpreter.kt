@@ -102,10 +102,18 @@ internal object Interpreter {
 
     /**
      * [node], code of a module body or of the file's top level, run where the body runs it, from the variables [values]
-     * holds, which it binds into.
+     * holds, which it binds into. Code that nests too deeply for the thread's stack [declinesTooDeep], or its overflow
+     * escapes to the walk, which stops at the unit running it.
      */
-    fun body(node: ElixirAst, values: HashMap<Binding, OtpErlangObject>, state: ExState, env: Env, run: Run): Evaluated =
-        evaluated(node, state, env, run) { evaluation ->
+    fun body(
+        node: ElixirAst,
+        values: HashMap<Binding, OtpErlangObject>,
+        state: ExState,
+        env: Env,
+        run: Run,
+        declinesTooDeep: Boolean,
+    ): Evaluated =
+        evaluated(node, state, env, run, declinesTooDeep) { evaluation ->
             evaluation.eval(node, Frame(run.bodyClauses(env.module), values))
         }
 
@@ -141,8 +149,15 @@ internal object Interpreter {
     fun quoteHelper(function: String, args: List<OtpErlangObject>, node: ElixirAst, state: ExState, env: Env, run: Run): Evaluated =
         evaluated(node, state, env, run) { evaluation -> evaluation.remote(atom("elixir_quote"), function, args) }
 
-    private fun evaluated(node: ElixirAst, state: ExState, env: Env, run: Run, value: (Evaluation) -> OtpErlangObject): Evaluated =
-        declining(run) { evaluatedIn(Evaluation(node, state, env, run), value) }
+    /** [value] of [node]'s evaluation, which [declinesTooDeep] where it overflows the thread's stack, else lets the overflow escape. */
+    private fun evaluated(
+        node: ElixirAst,
+        state: ExState,
+        env: Env,
+        run: Run,
+        declinesTooDeep: Boolean = true,
+        value: (Evaluation) -> OtpErlangObject,
+    ): Evaluated = declining(run) { evaluatedIn(Evaluation(node, state, env, run), declinesTooDeep, value) }
 
     /** [block], recording what the calls that decline in it are given ([Run.declinedGiven]) unless an outer one does. */
     private inline fun <T> declining(run: Run, block: () -> T): T {
@@ -156,10 +171,14 @@ internal object Interpreter {
         }
     }
 
-    private fun evaluatedIn(evaluation: Evaluation, value: (Evaluation) -> OtpErlangObject): Evaluated {
+    private fun evaluatedIn(evaluation: Evaluation, declinesTooDeep: Boolean, value: (Evaluation) -> OtpErlangObject): Evaluated {
         return try {
-            // Where the stack overflows, which calls were given what isn't known.
-            unlessTooDeep({ Evaluated.Declined(Given().apply { all() }) }) {
+            if (declinesTooDeep) {
+                // Where the stack overflows, which calls were given what isn't known.
+                unlessTooDeep({ Evaluated.Declined(Given().apply { all() }) }) {
+                    Evaluated.Value(value(evaluation))
+                }
+            } else {
                 Evaluated.Value(value(evaluation))
             }
         } catch (declined: Declined) {

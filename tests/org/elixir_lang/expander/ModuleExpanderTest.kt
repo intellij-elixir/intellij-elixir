@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
@@ -2786,8 +2787,12 @@ class ModuleExpanderTest : ExpanderTestCase() {
      * A macro output too deep to expand is given up on at the innermost guard on the stack, the macro's own or a port's
      * inside its output, in a function body, in the module body or in a module two levels in, without ending every
      * module around the caller, so a read of a module the output would have written, after the give-up, must not find
-     * the old value: at every depth the read is Elixir's or declines. The depth sweeps by quarters on a thread with the
-     * default stack, as the overflow point moves with the JIT.
+     * the old value: at every depth the read is Elixir's or declines. An output that expands but is too deep to run in
+     * the module body is given up on once, at the unit running it: were the units nested in it run again from the body,
+     * one at every level of a nested `if`, each would descend to the same boundary and be given up on there in turn,
+     * each repeat redoing the work below it, and the attempt would not finish. The depth sweeps by quarters on a thread
+     * with the default stack, from below the depth whose run overflows, as the overflow points move with the JIT, and
+     * each attempt is cancelled at a bound.
      */
     fun testAMacroOutputTooDeepToExpandMisleadsNoReadAfterIt() {
         val inFunction = { ones: String, nest: String ->
@@ -2868,18 +2873,41 @@ class ModuleExpanderTest : ExpanderTestCase() {
             nests.map { (nest, reducer) -> "$label $nest: " + sweepDepths { ones, version -> readAfterDeepOutput(code(ones, reducer), version) } }
         }.joinToString("\n")
 
-        assertFalse(sweep, sweep.contains("misled") || sweep.contains("unexpected"))
-        assertTrue(sweep, sweep.contains("in-body list: 1.20.4 300=elixir") && sweep.contains("two-levels-out list: 1.20.4 300=elixir"))
+        assertFalse(sweep, sweep.contains("misled") || sweep.contains("unexpected") || sweep.contains("unfinished"))
+        assertTrue(sweep, sweep.contains("in-body list: 1.20.4 100=elixir") && sweep.contains("two-levels-out list: 1.20.4 100=elixir"))
     }
 
-    /** What a read in `Two` found at [code] expanded at [version] on a thread with the default stack. */
+    /**
+     * What a read in `Two` found at [code] expanded at [version] on a thread with the default stack, or `unfinished` where
+     * the expansion was cancelled at [BOUND_MS].
+     */
     private fun readAfterDeepOutput(code: String, version: String): String {
+        val indicator = EmptyProgressIndicator()
         var rendered: String? = null
         var escaped: Throwable? = null
-        val thread = Thread(null, { try { rendered = expandAndRender(code, version) } catch (e: Throwable) { escaped = e } }, "default stack", 0)
+        val thread = Thread(
+            null,
+            {
+                try {
+                    ProgressManager.getInstance().runProcess({ rendered = expandAndRender(code, version) }, indicator)
+                } catch (e: Throwable) {
+                    escaped = e
+                }
+            },
+            "default stack",
+            0,
+        )
 
         thread.start()
-        thread.join()
+        thread.join(BOUND_MS)
+
+        if (thread.isAlive) {
+            indicator.cancel()
+            thread.join()
+
+            return "unfinished"
+        }
+
         assertNull("escaped: $escaped", escaped)
 
         val lines = rendered!!.lines()
@@ -2898,10 +2926,10 @@ class ModuleExpanderTest : ExpanderTestCase() {
         }
     }
 
-    /** [outcome] at each depth from 300 to 30000 by quarters, on 1.20.4 and 1.11.4, as `depth=outcome` pairs. */
+    /** [outcome] at each depth from 100 to 30000 by quarters, on 1.20.4 and 1.11.4, as `depth=outcome` pairs. */
     private fun sweepDepths(outcome: (String, String) -> String): String =
         listOf("1.20.4", "1.11.4").joinToString(" | ") { version ->
-            var depth = 300
+            var depth = 100
             val outcomes = mutableListOf<String>()
 
             while (depth <= 30000) {
@@ -3423,6 +3451,9 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
         /** The doublings of a one-element list whose fold into nested pairs nests deeper than a thread's stack goes. */
         const val DEEP_DOUBLINGS = 17
+
+        /** How long one attempt at a deep output may take before it is cancelled: a give-up repeated per level takes far longer. */
+        const val BOUND_MS = 60_000L
 
         /** A list `t` that holds itself twice at every depth: built in [DOUBLINGS] steps, walked in 2^[DOUBLINGS]. */
         val TREE = "t = []; " + "t = [t, t]; ".repeat(DOUBLINGS)

@@ -325,14 +325,19 @@ internal class BodyValues(
         known && ordered && !declined && running.all { it.certain } &&
             statements.allBefore(running.firstOrNull()?.site ?: site) { outcomes[it] }
 
-    /** [node], code of the body, run where the body runs it, from [bindings], the body's unless a statement's run has its own. */
+    /**
+     * [node], code of the body, run where the body runs it, from [bindings], the body's unless a statement's run has its
+     * own. Code that nests too deeply for the thread's stack declines, unless [node] is a [unit] the walk runs, a
+     * statement or a match, which the walk stops at instead ([Run.stoppedIfTooDeep]).
+     */
     fun evaluate(
         node: ElixirAst,
         state: ExState,
         env: Env,
         run: Run,
         bindings: HashMap<Binding, OtpErlangObject> = this.bindings,
-    ): Evaluated = recorded(Interpreter.body(node, bindings, state, env, run), node, run)
+        unit: Boolean = false,
+    ): Evaluated = recorded(Interpreter.body(node, bindings, state, env, run, declinesTooDeep = !unit), node, run)
 
     /**
      * The match [node], a statement of the body, run where the body runs it, binding into [bindings]. The statements of
@@ -392,7 +397,7 @@ internal class BodyValues(
         env: Env,
         run: Run,
         bindings: HashMap<Binding, OtpErlangObject> = this.bindings,
-    ): Evaluated = evaluate(node, state, env, run, bindings).also { if (it !is Evaluated.Raised) units[node] = it }
+    ): Evaluated = evaluate(node, state, env, run, bindings, unit = true).also { if (it !is Evaluated.Raised) units[node] = it }
 
     /**
      * [node]'s value, its statements run: a block's expressions are taken in turn ([partsOf]), and its value is its
@@ -416,7 +421,7 @@ internal class BodyValues(
             else -> when (node) {
                 // A unit the run reaches is stepped where the evaluator reaches it, which gives its value afresh.
                 in given if node !in run.reached -> Evaluated.Value(given.getValue(node))
-                in outcomes -> when (val value = units[node] ?: Interpreter.body(node, bindings, state, env, run)) {
+                in outcomes -> when (val value = units[node] ?: Interpreter.body(node, bindings, state, env, run, declinesTooDeep = false)) {
                     is Evaluated.Value -> value
                     // The unit counted what its calls were given as it ran.
                     is Evaluated.Declined -> Evaluated.Declined(Given(), value.holds)
@@ -426,7 +431,7 @@ internal class BodyValues(
                     (run.dispatchesAt(env)?.of(node) as? ModuleClauses.Dispatched.Macro)
                         ?.takeIf { run.statementsAt(env)?.isRewritten(node) == true && node !in run.reached }
                         ?.let { ran(it.output, state, env, run, bindings) }
-                        ?: evaluate(node, state, env, run, bindings)
+                        ?: evaluate(node, state, env, run, bindings, unit = true)
             }
         }
     }
@@ -924,13 +929,17 @@ internal fun compilePending(run: Run): Walked {
                 stepping.known = result.certain || result.ended.endsRun
                 null
             }
-            is Pending.Match -> stepping.reached(reaching(pending, values, run, ::step, stopsAt) { matched(pending, values, run, bindings) }, pending.node)
+            is Pending.Match -> run.stoppedIfTooDeep(pending.node) {
+                stepping.reached(reaching(pending, values, run, ::step, stopsAt) { matched(pending, values, run, bindings) }, pending.node)
+            }
             is Pending.Check -> {
                 ordered = pending.ordered
 
                 pending.check()
             }
-            is Pending.Statement -> stepping.reached(reaching(pending, values, run, ::step, stopsAt) { ran(pending, values, run, bindings) }, pending.node)
+            is Pending.Statement -> run.stoppedIfTooDeep(pending.node) {
+                stepping.reached(reaching(pending, values, run, ::step, stopsAt) { ran(pending, values, run, bindings) }, pending.node)
+            }
             is Pending.Definition, is Pending.Effect, is Pending.Attribute -> null
         } }
 
@@ -1252,9 +1261,6 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
     // expanded and nothing else it queued runs.
     fun runEnded() = compiling.ended?.endsRun == true
 
-    /** [unit], or a stop at [at] where a value it converts nests too deeply for the thread's stack. */
-    fun stoppedIfTooDeep(at: ElixirAst, unit: () -> Expansion?): Expansion? = run.unlessTooDeepToRun({ Expansion.Unported(at) }, unit)
-
     /**
      * [pending] run from [bindings], the body's or those the evaluator has where it reaches the unit inside a statement,
      * queueing what it queues onto [queue]: whether the module's run ends there, and the value the unit's code gives the
@@ -1287,7 +1293,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
             is Pending.Module if runEnded() -> null
             is Pending.Effect if runEnded() -> null
             is Pending.Check if runEnded() -> null
-            is Pending.Definition -> stoppedIfTooDeep(pending.node) {
+            is Pending.Definition -> run.stoppedIfTooDeep(pending.node) {
                 val unquoted = unquoted(pending, compiling, run, evaluates = !runEnded(), bindings = bindings)
 
                 ordered = unquoted.ordered
@@ -1311,7 +1317,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
                     stored
                 }
             }
-            is Pending.Attribute -> stoppedIfTooDeep(pending.at) {
+            is Pending.Attribute -> run.stoppedIfTooDeep(pending.at) {
                 // A write Elixir may run any number of times, with values that aren't known, isn't evaluated.
                 val raises = pending.raises?.takeIf { pending.statement && !runEnded() }?.invoke(bindings)
 
@@ -1334,7 +1340,9 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
             is Pending.Match -> if (runEnded()) {
                 null
             } else {
-                stepping.reached(reaching(pending, values, run, ::reach, stopsAt) { matched(pending, values, run, bindings) }, pending.node)
+                run.stoppedIfTooDeep(pending.node) {
+                    stepping.reached(reaching(pending, values, run, ::reach, stopsAt) { matched(pending, values, run, bindings) }, pending.node)
+                }
             }
             is Pending.Check -> {
                 ordered = pending.ordered
@@ -1344,9 +1352,11 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
             is Pending.Statement -> if (runEnded()) {
                 null
             } else {
-                stepping.reached(reaching(pending, values, run, ::reach, stopsAt) { ran(pending, values, run, bindings) }, pending.node)
+                run.stoppedIfTooDeep(pending.node) {
+                    stepping.reached(reaching(pending, values, run, ::reach, stopsAt) { ran(pending, values, run, bindings) }, pending.node)
+                }
             }
-            is Pending.Effect -> stoppedIfTooDeep(pending.node) {
+            is Pending.Effect -> run.stoppedIfTooDeep(pending.node) {
                 ordered = pending.ordered
 
                 val applied = pending.apply(compiling, pending.ordered, bindings)
@@ -1685,6 +1695,15 @@ private fun Run.calledBack(compiling: Compiling, name: String) =
  * ([unlessTooDeep]): the code never run may have written every module being compiled ([unfollowed]).
  */
 internal inline fun <T> Run.unlessTooDeepToRun(gaveUp: () -> T, block: () -> T): T = unlessTooDeep({ unfollowed(); gaveUp() }, block)
+
+/**
+ * [unit], a unit of a module body or of the file's top level, or a stop at [at] where a value it converts, or code it
+ * runs, nests too deeply for the thread's stack ([unlessTooDeepToRun]). The stop is the unit's: a unit nested in the
+ * unit descends to the same boundary where the walk steps it again, so a decline would repeat the give-up once per level
+ * between the first and the boundary, each repeat redoing the work below it.
+ */
+internal inline fun Run.stoppedIfTooDeep(at: ElixirAst, unit: () -> Expansion?): Expansion? =
+    unlessTooDeepToRun({ Expansion.Unported(at) }, unit)
 
 /**
  * A stop of [stopping] at [at], which [mayRaise] there: what Elixir runs after it in the module isn't followed, so every
