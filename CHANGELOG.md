@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4542](https://github.com/intellij-elixir/intellij-elixir/pull/4542) [@sh41](https://github.com/sh41)
+  - **Application env keys also link where the app is piped into `config`, the options list is in parentheses, `project/0` returns `[]`, or `Application` is reached through an alias, an import or a module attribute, and a call on a module aliased as `Application` no longer counts as a read.** Refs [#4539](https://github.com/intellij-elixir/intellij-elixir/issues/4539).
+
 - [#4537](https://github.com/intellij-elixir/intellij-elixir/pull/4537) [@sh41](https://github.com/sh41)
   - **Ctrl-Click on an application env key, as in `Application.get_env(:my_app, :retries)`, goes to the config lines that set it, Ctrl-Click on a key in a config file shows the code that reads it, and Find Usages on either lists both.** Refs [#4531](https://github.com/intellij-elixir/intellij-elixir/issues/4531).
 
