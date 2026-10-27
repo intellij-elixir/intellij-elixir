@@ -22,6 +22,7 @@ import com.intellij.find.usages.impl.buildQuery
 import com.intellij.find.usages.impl.searchTargets
 import com.intellij.model.Symbol
 import com.intellij.model.psi.impl.targetSymbols
+import com.intellij.platform.backend.presentation.TargetPresentation
 import com.intellij.openapi.util.TextRange
 import com.intellij.refactoring.rename.api.PsiRenameUsage
 import com.intellij.refactoring.rename.api.RenameTarget
@@ -38,7 +39,6 @@ import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.injected.editor.EditorWindow
-import com.intellij.platform.backend.presentation.TargetPresentation
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
