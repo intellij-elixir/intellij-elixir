@@ -636,19 +636,6 @@ object Import {
     fun reachedThroughImport(state: ResolveState): Boolean = state.get(FILTER) != null
 
     /**
-     * The highest arity of [definition] that the `import` the walk reached it through brings in, or `null` when no
-     * `import` reached it or its arities are open.
-     */
-    @RequiresReadLock
-    fun highestImportedArity(definition: Call, state: ResolveState): Arity? {
-        ThreadingAssertions.assertReadAccess()
-
-        val filter = state.get(FILTER) ?: return null
-
-        return export(definition, state)?.highestAdmittedArity(filter)
-    }
-
-    /**
      * The arities of [definition] that the `import` the walk reached it through brings in, as
      * [org.elixir_lang.declaration.Visible.importedArities] gives them.
      */
@@ -670,15 +657,6 @@ object Import {
             importedArities(nameArityInterval.arityInterval.arityKnowledge()) {
                 filter.admits(nameArityInterval.name, it, macro)
             }
-
-        fun highestAdmittedArity(filter: Filter): Arity? {
-            val maximum = nameArityInterval.arityInterval.maximum ?: return null
-
-            return when (val imported = importedArities(filter)) {
-                null -> maximum
-                else -> imported.maxOrNull()
-            }
-        }
     }
 
     private fun export(child: Call, resolveState: ResolveState): Export? =

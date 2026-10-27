@@ -12,10 +12,9 @@ import org.elixir_lang.code_insight.completeSoleCandidateAtCaret
  * form creates a call at an arity nothing defines, and every code-intelligence feature goes dark on
  * it. Zero-parameter targets are unaffected: they still get a bare `()`.
  *
- * Covers every site that attaches [CallDefinitionClause] (this insert handler): the two pre-existing
- * ones (remote/BEAM qualified completion, `defdelegate` from [org.elixir_lang.code_insight.completion.ModuleFunctionLookupElements])
- * and the seven local/unqualified ones in [org.elixir_lang.psi.scope.call_definition_clause.Variants]
- * that used to attach none at all.
+ * Covers every site that attaches [CallDefinitionClause] (this insert handler): remote/BEAM qualified completion and
+ * `defdelegate` from [org.elixir_lang.code_insight.completion.ModuleFunctionLookupElements], and each form unqualified
+ * completion offers through [org.elixir_lang.code_insight.completion.unqualifiedLookupElements].
  */
 class CallDefinitionClauseTest : PlatformTestCase() {
 

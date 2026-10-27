@@ -16,8 +16,8 @@ import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
-import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElements
+import org.elixir_lang.code_insight.completion.callableUnqualified
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.qualifierModulars
@@ -171,7 +171,7 @@ class VisibleTest : PlatformTestCase() {
     private fun assertEveryLookupIsVisible(call: Call) {
         val lookups = offered(call).map { it.lookupString to it.psiElement!! }.toSet()
         val visible = sourceFor(Feature.COMPLETION).visible(call)
-            .filter { call !is Unqualified || InspectAtom.classify(it.lookupName) != InspectAtom.Class.OTHER }
+            .filter { call !is Unqualified || callableUnqualified(it.lookupName) }
             .map { it.lookupName to it.element }
             .toSet()
 

@@ -28,10 +28,9 @@ import org.elixir_lang.structure_view.element.Callback
  * an arity nothing defines, so every code-intelligence feature that resolves the call goes dark. A
  * target with no parameters still gets a bare `()`.
  *
- * Attached at nine sites: the two remote/BEAM qualified and `defdelegate` ones through [QualifiedName], and
- * the seven local/unqualified ones in [org.elixir_lang.psi.scope.call_definition_clause.Variants]. Each site's
- * target PSI shape differs, so [parameters] dispatches on it independently of whatever produced the
- * [LookupElement].
+ * Attached by the two remote/BEAM qualified and `defdelegate` sites through [QualifiedName], and for every form
+ * unqualified completion offers by [org.elixir_lang.code_insight.completion.unqualifiedLookupElements]. The target
+ * PSI shape differs by form, so [parameters] dispatches on it independently of whatever produced the [LookupElement].
  */
 class CallDefinitionClause private constructor(private val arity: Arity?) : InsertHandler<LookupElement> {
     override fun handleInsert(context: InsertionContext, item: LookupElement) {
