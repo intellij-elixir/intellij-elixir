@@ -49,6 +49,13 @@ class ConfigKeyUsagesTest : PlatformTestCase() {
         )
     }
 
+    fun testUsagesIncludeAReadInAHeexFile() {
+        myFixture.addFileToProject("lib/my_app_web/page.html.heex", "<p><%= Application.get_env(:my_app, :retries) %></p>\n")
+        myFixture.caret(CONFIG, "retr<caret>ies: 3")
+
+        assertContainsElements(usages(), "page.html.heex:1 retries")
+    }
+
     fun testUsagesIncludeAnAliasKeyReadByExpansion() {
         myFixture.caret(CONFIG, "MyApp.Re<caret>po")
 

@@ -18,6 +18,7 @@ import com.intellij.psi.PsiManager
 import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
+import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.beam.ReadResult
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.junit.HeavyTestCase
@@ -102,6 +103,14 @@ class SdkInputsHeavyTest : HeavyTestCase() {
         assertEquals(SdkInputs.Answer.Ready(sdk, ProjectModules.Inputs(level(sdk), kernel(KERNEL))), a)
         assertEquals("1.18.4", (a as SdkInputs.Answer.Ready).inputs.level.elixirVersion)
         assertSame("a second file on the same SDK gets the SDK's held answer", a, b)
+    }
+
+    fun testATemplateFilesElixirViewGetsNoInputs() {
+        ModuleRootModificationUtil.setModuleSdk(module, sdk("template", home("1.18.4", KERNEL)))
+        val root = root(module, "template", "lib/page.html.heex")
+        val elixir = read { psi(root, "lib/page.html.heex").viewProvider.getPsi(ElixirLanguage)!! }
+
+        assertEquals(SdkInputs.Answer.Template, read { inputs.inputsFor(elixir) })
     }
 
     fun testTwoModulesOnTwoSdks() {

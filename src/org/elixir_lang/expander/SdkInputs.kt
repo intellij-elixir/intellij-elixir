@@ -14,6 +14,7 @@ import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.beam.ReadResult
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.sdk.PushedVersions
@@ -32,6 +33,9 @@ internal class SdkInputs(private val project: Project) {
         data class Ready(val sdk: Sdk, val inputs: ProjectModules.Inputs) : Answer
         data object NoSdk : Answer
 
+        /** The file is a template's Elixir view, which Elixir compiles into another file's module, so nothing expands it. */
+        data object Template : Answer
+
         /** The versions store hasn't read the SDK's home. */
         data class VersionUnread(val sdk: Sdk) : Answer
 
@@ -46,6 +50,8 @@ internal class SdkInputs(private val project: Project) {
 
     @RequiresReadLock
     fun inputsFor(file: PsiFile): Answer {
+        if (file.viewProvider.baseLanguage != ElixirLanguage) return Answer.Template
+
         val sdk = CachedValuesManager.getCachedValue(file, SDK_BY_FILE) {
             CachedValueProvider.Result.create(
                 ElixirSdkLookup.resolve(file).sdk,
