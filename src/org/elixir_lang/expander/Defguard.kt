@@ -2,9 +2,14 @@ package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.expander.DefinitionTable.Kind
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFGUARD_ARGS_FROM_ONE
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFGUARD_ARGS_IN_MODULE
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFGUARD_QUOTE_OPTIONS
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFGUARD_UNIQUE_ARGS
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFGUARD_UNQUOTE_NAMES
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Meta
 
 /** `Kernel.defguard/1`: `@doc guard: true`, then the macro the guard defines. */
 internal val DEFGUARD = defguard(Kind.DEFMACRO)
@@ -73,17 +78,37 @@ private fun isVariableArgument(arg: ElixirAst): Boolean =
     isVariable(arg) || isCall(arg, "\\\\", 2) && isVariable((arg as ElixirAst.Call).arguments!![0])
 
 /**
- * `Kernel.Utils.defguard/2`: its guard expanded as a guard that can read the variables of its arguments. What it
- * builds from the expanded guard is the macro's body, read when the guard is called, which needs the expanded guard
- * the expander doesn't give; its expansion is [Expansion.Opaque].
+ * `Kernel.Utils.defguard/2`: its guard expanded as a guard that can read the variables of its arguments, then the
+ * template `defguard/3` builds from the expanded guard, the macro's body: a `case` on `Macro.Env.in_guard?(__CALLER__)`
+ * of two `quote`s. A guard whose expansion isn't followed stops there.
  */
-internal val UTILS_DEFGUARD = Summary { dispatch, node, _, env, run ->
-    val (args, guard) = node.arguments!!
-    val variables = refs(args).distinct().withIndex().associate { (version, variable) -> variable to version }
-    val state = ExState.empty(run.level).copy(read = variables, version = variables.size)
+internal val UTILS_DEFGUARD = object : Summary.Rewrite() {
+    override fun output(dispatch: Dispatch, node: ElixirAst.Call, state: ExState, env: Env, run: Run): Summary.Output {
+        val (args, guard) = node.arguments!!
+        // `extract_refs_from_args/1` gives the variables last first, and `with_vars/2` versions them in that order.
+        val refs = refs(args).asReversed()
+        val read = refs.withIndex().associate { (version, variable) -> variable to version }
+        val guardState = ExState.empty(run.level).copy(read = read, version = read.size)
+        val expansion = run.askingAst { Expander.expand(guard, guardState, env.copy(context = Env.Context.GUARD), run) }
+        val expanded = ((expansion as? Expansion.Expanded)?.ast as? ExpandedAst.Built)?.node
+            ?: return Summary.Output.Stopped(expansion)
+        val s = Synthetic(node.meta)
+        val inGuard = literalQuote(s, unquoteEveryRef(s, expanded, refs.toSet()), emptyList(), run.level)
+        val outside = literalQuote(
+            s,
+            unquoteRefsOnce(s, expanded, refs, env.module, run),
+            listOf("generated" to s.atom("true")),
+            run.level,
+        )
+        val inGuardCall = s.remoteCall(
+            kernelAlias(s, "Macro", "Env"),
+            "in_guard?",
+            listOf(s.variable("__CALLER__", "Elixir.Kernel.Utils")),
+        )
 
-    Expander.expand(guard, state, env.copy(context = Env.Context.GUARD), run).then { _, _ ->
-        Expansion.Opaque(node, dispatch)
+        return Summary.Output.Built(
+            s.case(inGuardCall, listOf(s.arrow(listOf(s.atom("true")), inGuard), s.arrow(listOf(s.atom("false")), outside))),
+        )
     }
 }
 
@@ -95,4 +120,91 @@ private fun refs(node: ElixirAst, refs: MutableList<Variable> = mutableListOf())
     children(node).forEach { refs(it, refs) }
 
     return refs
+}
+
+/** `literal_quote/2`, or `literal_quote/1` before [DEFGUARD_QUOTE_OPTIONS]. */
+private fun literalQuote(
+    s: Synthetic,
+    ast: ElixirAst,
+    options: List<Pair<String, ElixirAst>>,
+    level: ElixirLanguageLevel,
+): ElixirAst =
+    s.call(
+        "quote",
+        (if (DEFGUARD_QUOTE_OPTIONS.isSufficient(level)) listOf(s.keywords(options)) else emptyList()) +
+            s.keywords(listOf("do" to ast)),
+    )
+
+/** `literal_unquote/1`. */
+private fun literalUnquote(s: Synthetic, ast: ElixirAst): ElixirAst = s.call("unquote", listOf(ast))
+
+/** `unquote_every_ref/2`: each variable of [refs] in [guard] unquoted. */
+private fun unquoteEveryRef(s: Synthetic, guard: ElixirAst, refs: Set<Variable>): ElixirAst =
+    postwalk(guard) { node -> if (isVariable(node) && variable(node) in refs) literalUnquote(s, node) else node }
+
+/**
+ * `unquote_refs_once/3`: each variable of [refs] in [guard] replaced by a fresh variable, bound once ahead of the
+ * guard to the unquoted argument. An argument the guard never reads is dropped.
+ */
+private fun unquoteRefsOnce(s: Synthetic, guard: ElixirAst, refs: List<Variable>, module: String?, run: Run): ElixirAst {
+    val used = LinkedHashMap<Variable, Pair<ElixirAst, ElixirAst>>()
+    val replaced = postwalk(guard) { node ->
+        val pair = if (isVariable(node)) variable(node) else null
+
+        if (pair == null || pair !in refs) {
+            node
+        } else {
+            used.getOrPut(pair) { uniqueArg(s, used.size, module, run) to node }.first
+        }
+    }
+    val allUsed = refs.asReversed().mapNotNull { used[it] }
+
+    return ElixirAst.Block(
+        s.meta(),
+        listOf(
+            s.call(
+                "=",
+                listOf(s.call("{}", allUsed.map { it.first }), s.call("{}", allUsed.map { literalUnquote(s, it.second) })),
+            ),
+            replaced,
+        ),
+    )
+}
+
+/** The variable `unquote_refs_once/3` makes for the argument after [index] others, `Macro.unique_var/2`'s from 1.14.2. */
+private fun uniqueArg(s: Synthetic, index: Int, module: String?, run: Run): ElixirAst {
+    val name = "arg${index + if (DEFGUARD_ARGS_FROM_ONE.isSufficient(run.level)) 1 else 0}"
+
+    return when {
+        DEFGUARD_ARGS_IN_MODULE.isSufficient(run.level) ->
+            s.variable(name, module ?: "nil", listOf(Meta.Key.Entry("counter", counterMetaValue(run.counters.next(module)))))
+        DEFGUARD_UNIQUE_ARGS.isSufficient(run.level) ->
+            s.variable(name, "Elixir", listOf(Meta.Key.Entry("counter", counterMetaValue(run.counters.next(null)))))
+        else -> s.variable(name, "Elixir")
+    }
+}
+
+/** `Macro.postwalk/2`: [transform] of each node after its children, a call's callee before its arguments. */
+private fun postwalk(node: ElixirAst, transform: (ElixirAst) -> ElixirAst): ElixirAst {
+    ProgressManager.checkCanceled()
+
+    return transform(
+        when (node) {
+            is ElixirAst.Call ->
+                if (node.arguments == null) {
+                    node
+                } else {
+                    ElixirAst.Call(
+                        node.meta,
+                        postwalk(node.callee, transform),
+                        node.arguments.map { postwalk(it, transform) },
+                        node.context,
+                    )
+                }
+            is ElixirAst.ListNode -> ElixirAst.ListNode(node.meta, node.elements.map { postwalk(it, transform) })
+            is ElixirAst.Tuple -> ElixirAst.Tuple(node.meta, node.elements.map { postwalk(it, transform) })
+            is ElixirAst.Block -> ElixirAst.Block(node.meta, node.expressions.map { postwalk(it, transform) })
+            is ElixirAst.Alias, is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> node
+        },
+    )
 }

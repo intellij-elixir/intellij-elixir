@@ -88,8 +88,6 @@ internal class ExpansionProbes(
      * @property tagRanges where the statement each statement probe follows is in the case body
      * @property definitions where each `def*` call is in the case body
      * @property unordered whether the comparison stops at a body Elixir may expand elsewhere
-     * @property guarded the traces made inside the call the module stops at, which Elixir makes right after its macro:
-     *   a `Kernel.Utils.defguard/2` expands its guard before it returns the template the expander doesn't follow
      */
     class CaseExpansion(
         val case: ProbeHarness.Case,
@@ -105,7 +103,6 @@ internal class ExpansionProbes(
         val definitions: List<TextRange>,
         val unordered: Boolean,
         val origin: Origin,
-        val guarded: List<String> = emptyList(),
     ) {
         val ended: Ended get() = result.ended
 
@@ -370,18 +367,10 @@ internal class ExpansionProbes(
                     ?: events.indexOfFirst { DispatchEvents.isMacro(it) && DispatchEvents.line(it) == line }
                 val prefix = if (end < 0) events + "no macro event on line $line" else events.take(end + 1)
 
-                // A guard template expands its guard before it returns, so those events follow the macro's and end where the
-                // template it returns begins.
-                val guarded = if (end < 0 || GUARD_TEMPLATE !in macro) {
-                    emptyList()
-                } else {
-                    events.drop(end + 1).takeWhile { TEMPLATE_BEGINS !in it }
-                }
-
                 comparisons[name] = Comparison(
-                    render(name, expansion.steps) + "\n" + (expansion.traces + macro + expansion.guarded).joinToString("\n"),
+                    render(name, expansion.steps) + "\n" + (expansion.traces + macro).joinToString("\n"),
                     render(name, observed, attempt.batch.probeModule, delivered(attempt, index)) + "\n" +
-                        (prefix + guarded).joinToString("\n"),
+                        prefix.joinToString("\n"),
                 )
             }
         }
@@ -1169,26 +1158,8 @@ internal class ExpansionProbes(
                 shape.definitions,
                 unordered != null && unordered == cut,
                 origin,
-                guarded(walked, stopped),
             )
         }
-
-        /**
-         * The traces made after the stop, inside the call [opaque] stands for: its own expansion, not the later
-         * statements'. The first is the dispatch of the macro itself.
-         */
-        private fun guarded(opaque: Expansion.Opaque?, stopped: Boolean): List<String> {
-            if (opaque == null || !stopped || !isGuardTemplate(opaque)) return emptyList()
-
-            val call = opaque.at.meta.origin
-
-            return traces.indices.filter { it >= stopTraces && sites[it].second != null && call.contains(sites[it].first) }
-                .drop(1)
-                .map(traces::get)
-        }
-
-        private fun isGuardTemplate(opaque: Expansion.Opaque) =
-            opaque.dispatch.receiver == "Elixir.Kernel.Utils" && opaque.dispatch.name == "defguard"
 
         /**
          * The [Expansion.Opaque] the walk stopped the module at, when no node's expansion did: an effect's, such as a
@@ -1430,12 +1401,6 @@ internal class ExpansionProbes(
         const val COMPILE_ERROR = "Elixir.CompileError"
 
         const val MAX_BATCH_PROBES = 1000
-
-        /** The macro `defguard` stops at. */
-        const val GUARD_TEMPLATE = "Elixir.Kernel.Utils.defguard/2"
-
-        /** The first event of the template `Kernel.Utils.defguard/2` returns: its `case Macro.Env.in_guard?(__CALLER__)`. */
-        const val TEMPLATE_BEGINS = "remote_function Elixir.Macro.Env.in_guard?/1"
 
         /** In a case body or preamble, the compile's token. */
         const val TOKEN = "{token}"

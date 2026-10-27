@@ -3078,13 +3078,10 @@ class InterpreterTest : PlatformTestCase() {
             macro("form:list", "defmacro m, do: [1, :a]"),
             macro("form:improper-list", "defmacro m, do: Macro.escape([1 | 2])"),
             macro("form:literal", """defmacro m, do: [1.5, "b", :c]"""),
-            // A module defining a guard stops at its `Kernel.Utils.defguard/2`, so it isn't loaded.
             macro(
                 "form:defguard-source",
                 "defguard is_even(x) when rem(x, 2) == 0",
                 "is_even(4)",
-                pins = { source, _ -> UNPORTED.takeIf { source == Source.SOURCE } },
-                ownEnd = "opaque at Elixir.Kernel.Utils.defguard",
             ),
             Row(
                 "form:defguard-in-guard",

@@ -5,16 +5,13 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.inspect
-import org.elixir_lang.psi.ElixirFile
 
 /**
  * Each module's definitions against what a `@before_compile` hook reads of them on the leg's Elixir: names, arities
  * and kinds on every leg, and from 1.12, when `Module.get_definition/2` gives them, each definition's line and
  * clause count, and from 1.20 whether it was stored for a default arity.
  */
-class DefinitionTableProbeTest : ProbeTestCase() {
-    private val probes = ExpansionProbes(harness) { createPsiFile(getTestName(false), it) as ElixirFile }
-
+class DefinitionTableProbeTest : SdkProbeTestCase() {
     fun testDefinitionsMatchTheHook() {
         assertTablesMatch(CASES) { case, attempt, module ->
             val status = attempt.compiled.status
@@ -85,7 +82,17 @@ class DefinitionTableProbeTest : ProbeTestCase() {
      * and a definition in a branch that may not run, each last in the module body.
      */
     fun testEntryEffects() {
-        assertTablesMatch(EFFECT_CASES, stopsAtTheGuardTemplate) { case, attempt, module ->
+        assertTablesMatch(EFFECT_CASES) { case, attempt, module ->
+            assertTrue("the hook ran in $module: $case", module in attempt.batch.hooks)
+        }
+    }
+
+    /**
+     * Each module defining one of [DefguardTemplateTest]'s guards stores the guard's macro and what follows it, the
+     * Kernel guards among them read from the SDK.
+     */
+    fun testEachTemplateCasesTableMatchesTheHook() {
+        assertTablesMatch(DefguardTemplateTest.bodies(legLevel()), clauses = sdk) { case, attempt, module ->
             assertTrue("the hook ran in $module: $case", module in attempt.batch.hooks)
         }
     }
@@ -103,24 +110,22 @@ class DefinitionTableProbeTest : ProbeTestCase() {
     /**
      * Expands and compiles each of [cases] alone with the hook, asserts [ran] of each compile, then compares the
      * expander's table with the hook's if it ran; afterwards each compile left no module behind and the compiler
-     * options are as they were. A case may stop only where [stopsAt] allows, and only its table is compared.
+     * options are as they were. No case may stop. A remote macro's clauses are read from [clauses].
      */
     private fun assertTablesMatch(
         cases: List<String>,
-        stopsAt: (ExpansionResult) -> Boolean = { false },
+        clauses: ModuleClauses.Lookup = ModuleClauses.Lookup.NONE,
         ran: (String, ProbeHarness.Attempt, String) -> Unit,
     ): String {
-        val options = compilerOptions()
+        val options = harness.compilerOptions()
         val expected = mutableListOf<String>()
         val actual = mutableListOf<String>()
 
         for (case in cases) {
-            val expansions = probes.expandAll(listOf(case), hook = ProbeHarness.Hook())
+            val expansions = probes.expandAll(listOf(case), hook = ProbeHarness.Hook(), clauses = clauses)
             val expansion = expansions.cases.single()
 
-            if (expansion.ended is ExpansionResult.Ended.Stopped) {
-                assertTrue("${case}: ${expansion.outcome}", stopsAt(expansion.result))
-            }
+            assertFalse("${case}: ${expansion.outcome}", expansion.ended is ExpansionResult.Ended.Stopped)
 
             val attempt = harness.attempt(expansions.layout)
             val module = expansions.layout.caseModule(0)
@@ -142,15 +147,9 @@ class DefinitionTableProbeTest : ProbeTestCase() {
         }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
-        assertEquals("compiler options", options, compilerOptions())
+        assertEquals("compiler options", options, harness.compilerOptions())
 
         return expected.joinToString("\n")
-    }
-
-    /** A bodied `defguard` stops the module at `Kernel.Utils.defguard/2`, whose output isn't followed, and nowhere else. */
-    private val stopsAtTheGuardTemplate = { result: ExpansionResult ->
-        result.opaque.isNotEmpty() &&
-            result.opaque.all { it.dispatch.receiver == "Elixir.Kernel.Utils" && it.dispatch.name == "defguard" }
     }
 
     private companion object {

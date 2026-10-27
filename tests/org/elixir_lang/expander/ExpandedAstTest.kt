@@ -38,15 +38,6 @@ class ExpandedAstTest : SdkProbeTestCase() {
         assertNoFailures(GUARD_CONTEXTS.mapNotNull { differsOnlyInGenerated(it, IN_RANGE, diverges) })
     }
 
-    /** A guard whose body calls another source guard stops at that call, since a source guard's call isn't expanded. */
-    fun testACallOfASourceGuardStopsTheGuard() {
-        for (context in GUARD_CONTEXTS) {
-            val dispatch = (probe(context, SOURCE_GUARD).expansion as? Expansion.Opaque)?.dispatch
-
-            assertEquals(context, "LOCAL_MACRO is_small/1", dispatch?.let { "${it.kind} ${it.name}/${it.arity}" })
-        }
-    }
-
     fun testBodies() = assertEqual("body", BODY_CASES)
 
     /**
@@ -294,7 +285,7 @@ class ExpandedAstTest : SdkProbeTestCase() {
             "indentation",
         )
 
-        private val GENERATED = POSITION_KEYS + "generated"
+        val GENERATED = POSITION_KEYS + "generated"
 
         /** [term] with [keys] (positions and `version` by default) dropped from each meta, and charlists as lists. */
         fun stripped(term: OtpErlangObject, keys: Set<String> = POSITION_KEYS): OtpErlangObject =
@@ -361,6 +352,7 @@ class ExpandedAstTest : SdkProbeTestCase() {
             Case("local_macro", "x", "x == one()", setup = "  defmacro one, do: 1\n"),
             Case("negative_literal", "x", "x > -1"),
             Case("no_arguments", "", "true"),
+            Case("source_guard", "x", "is_small(x) and x > 0", setup = "  defguard is_small(x) when x < 10\n"),
         )
 
         val BODY_CASES = listOf(
@@ -404,9 +396,6 @@ class ExpandedAstTest : SdkProbeTestCase() {
         private val GUARD_CONTEXTS = listOf("defguard", "guard", "case")
 
         private val IN_RANGE = Case("in_range", "x", "x in 1..10")
-
-        private val SOURCE_GUARD =
-            Case("source_guard", "x", "is_small(x) and x > 0", setup = "  defguard is_small(x) when x < 10\n")
 
         private val IF = Case("if", "x", "if x > 1, do: x + 1, else: 0")
 

@@ -1982,6 +1982,37 @@ enum class ElixirLanguageFeature(
     DEFGUARD_UNQUOTE_NAMES(sinceElixir = "1.18.0-rc.0"),
 
     /**
+     * `Kernel.Utils.defguard/3` names the variables of its outside-a-guard template `arg1`, `arg2`, ...; before, `arg0`,
+     * `arg1`, ....
+     *
+     * `elixir-lang/elixir@30373382e`, first released in v1.12.0-rc.0.
+     */
+    DEFGUARD_ARGS_FROM_ONE(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * `Kernel.Utils.defguard/3` makes those variables with `Macro.unique_var(_, Elixir)`, which draws a counter; before,
+     * `Macro.var(_, Elixir)`.
+     *
+     * `elixir-lang/elixir@123034569`, first released in v1.14.2.
+     */
+    DEFGUARD_UNIQUE_ARGS(sinceElixir = "1.14.2"),
+
+    /**
+     * `Kernel.Utils.defguard/3` makes those variables with `Macro.unique_var(_, module)`, the defining module's counter.
+     *
+     * `elixir-lang/elixir@e3fc947b9`, first released in v1.14.3.
+     */
+    DEFGUARD_ARGS_IN_MODULE(sinceElixir = "1.14.3"),
+
+    /**
+     * `Kernel.Utils.defguard/3`'s two `quote`s take options, `[]` in a guard and `generated: true` outside one; before,
+     * none.
+     *
+     * `elixir-lang/elixir@8c78a0ea9`, first released in v1.18.0-rc.0.
+     */
+    DEFGUARD_QUOTE_OPTIONS(sinceElixir = "1.18.0-rc.0"),
+
+    /**
      * `~r` leaves every escape but a line continuation as written, for the regular expression engine to read. Before
      * it, `\a`, `\f`, `\n`, `\r`, `\t` and `\v` are replaced by their control characters.
      *

@@ -1,11 +1,12 @@
 package org.elixir_lang.expander
 
+import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
+import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_VALIDATED_BY_UNQUOTE
 import org.elixir_lang.language_level.ElixirLanguageLevel
 
 /**
  * `defguard` and `defguardp`: the macro they define and the `@doc guard: true` before it, the guard expanded as a
- * guard, and each way they raise. The macro's body is `Kernel.Utils.defguard/2`'s, which isn't modelled past the
- * guard's own expansion.
+ * guard, and each way they raise.
  */
 class DefguardMacroTest : ExpanderTestCase() {
     override val exports: Exports = AttributeFixtures.EXPORTS
@@ -14,26 +15,26 @@ class DefguardMacroTest : ExpanderTestCase() {
     fun testADefguardDefinesAMacro() =
         assertEvery(
             "defmodule A do\n  defguard is_one(x) when x == 1\nend",
-            "module Elixir.A stopped `defguard is_one(x) when x == 1` | defmacro is_one/1 line 2 clauses 1",
+            "module Elixir.A compiled | defmacro is_one/1 line 2 clauses 1",
         )
 
     fun testADefguardpDefinesAPrivateMacro() =
         assertEvery(
             "defmodule A do\n  defguardp is_one(x) when x == 1\nend",
-            "module Elixir.A stopped `defguardp is_one(x) when x == 1` | defmacrop is_one/1 line 2 clauses 1",
+            "module Elixir.A compiled | defmacrop is_one/1 line 2 clauses 1",
         )
 
     fun testTheDefinitionsAroundItAreStoredAroundIt() =
         assertEvery(
             "defmodule A do\n  def a, do: 1\n  defguard is_one(x) when x == 1\n  def b, do: 2\nend",
-            "module Elixir.A stopped `defguard is_one(x) when x == 1` | def a/0 line 2 clauses 1 | " +
+            "module Elixir.A compiled | def a/0 line 2 clauses 1 | " +
                 "defmacro is_one/1 line 3 clauses 1 | def b/0 line 4 clauses 1",
         )
 
     fun testAGuardWithoutArgumentsIsAMacroOfNone() =
         assertEvery(
             "defmodule A do\n  defguard is_true when true\nend",
-            "module Elixir.A stopped `defguard is_true when true` | defmacro is_true/0 line 2 clauses 1",
+            "module Elixir.A compiled | defmacro is_true/0 line 2 clauses 1",
         )
 
     fun testTheNameMayBeAnUnquotedAtomFrom1_18() =
@@ -41,7 +42,7 @@ class DefguardMacroTest : ExpanderTestCase() {
             "defmodule A do\n  defguard unquote(:is_one)(x) when x == 1\nend",
             "1.18.0-rc.0",
             "module Elixir.A raised invalid_defguard `defguard unquote(:is_one)(x) when x == 1`",
-            "module Elixir.A stopped `defguard unquote(:is_one)(x) when x == 1` | defmacro is_one/1 line 2 clauses 1",
+            "module Elixir.A compiled | defmacro is_one/1 line 2 clauses 1",
         )
 
     fun testAGuardWithoutABodyHasNoClauseAndFailsTheModule() =
@@ -73,7 +74,7 @@ class DefguardMacroTest : ExpanderTestCase() {
     fun testADefaultArgumentOfAVariableIsAllowed() =
         assertEvery(
             "defmodule A do\n  defguard is_one(x \\\\ 1) when x == 1\nend",
-            "module Elixir.A stopped `defguard is_one(x \\\\ 1) when x == 1` | defmacro is_one/1 line 2 clauses 1 | " +
+            "module Elixir.A compiled | defmacro is_one/1 line 2 clauses 1 | " +
                 "defmacro is_one/0 line 2 clauses 1",
         )
 
@@ -122,10 +123,27 @@ class DefguardMacroTest : ExpanderTestCase() {
 
     fun testTheGuardIsExpandedWithItsOwnEvents() {
         val code = "defmodule A do\n  defguard is_one(x) when x == 1\nend"
-        val expected = listOf("remote_macro Elixir.Kernel.Utils.defguard/2", "imported_function erlang.==/2")
+        // The template's two `quote`s each validate their `unquote` from 1.18.
+        fun expected(version: String): List<String> {
+            val level = ElixirLanguageLevel.of(version)
+            val validate = when {
+                UNQUOTE_VALIDATED_BY_UNQUOTE.isSufficient(level) -> listOf("remote_function elixir_quote.unquote/1")
+                UNQUOTE_SHALLOW_VALIDATED.isSufficient(level) ->
+                    listOf("remote_function elixir_quote.shallow_validate_ast/1")
+                else -> emptyList()
+            }
+
+            return buildList {
+                add("remote_macro Elixir.Kernel.Utils.defguard/2")
+                add("imported_function erlang.==/2")
+                add("remote_function Elixir.Macro.Env.in_guard?/1")
+                addAll(validate)
+                addAll(validate)
+            }
+        }
 
         assertEquals(
-            LEVELS.joinToString("\n") { "$it: $expected" },
+            LEVELS.joinToString("\n") { "$it: ${expected(it)}" },
             LEVELS.joinToString("\n") { version ->
                 "$version: " + events(code, version).dropWhile { !it.contains("Utils.defguard") }
             },
