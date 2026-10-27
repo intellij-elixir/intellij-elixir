@@ -4429,6 +4429,7 @@ class InterpreterTest : PlatformTestCase() {
                 pins = { _, _ -> "{:error, :nofile}" },
             ),
             macro("native:ensure-loaded-function-clause", "defmacro m, do: :code.ensure_loaded(1)"),
+            macro("native:whereis-of-non-atom", "defmacro m, do: (_ = :erlang.whereis(123); :ok)"),
             // From source, a module whose definitions aren't known can't be read.
             macro(
                 "native:ensure-loaded-unreadable",

@@ -112,6 +112,19 @@ private val RETURNABLE = mapOf(
     Triple("elixir_def", "take_definition", 2) to emptyList(),
     Triple("Elixir.IO", "warn", 1) to emptyList(),
     Triple("Elixir.IO", "warn", 2) to emptyList(),
+    Triple("erlang", "whereis", 1) to emptyList(),
+)
+
+/**
+ * Each native that never returns, whatever it is given, by receiver, name and arity: those `raise`, `throw` and `exit`
+ * lower to. `erlang:raise/3` returns `badarg` where its class or stacktrace is invalid.
+ */
+private val NEVER_RETURNS = setOf(
+    Triple("erlang", "error", 1),
+    Triple("erlang", "error", 2),
+    Triple("erlang", "error", 3),
+    Triple("erlang", "throw", 1),
+    Triple("erlang", "exit", 1),
 )
 
 /**
@@ -209,6 +222,10 @@ internal class Natives(private val evaluation: Evaluation) {
     fun writes(module: String, function: String, args: List<OtpErlangObject>): List<OtpErlangObject> =
         listOfNotNull(ModuleEffects.target(module, function, args.size, level)?.let(args::get))
 
+    /** Whether [module]'s [function] of [arity] never returns ([NEVER_RETURNS]). */
+    fun neverReturns(module: String, function: String, arity: Int): Boolean =
+        Triple(module, function, arity) in NEVER_RETURNS
+
     /** `erlang:map_get/2`, as a guard's `map.key` reads it. */
     fun mapGet(key: OtpErlangObject, map: OtpErlangObject): OtpErlangObject = erlang("map_get/2", listOf(key, map))!!
 
@@ -294,6 +311,8 @@ internal class Natives(private val evaluation: Evaluation) {
             "=:=/2" -> bool(equal(args[0], args[1], true, level))
             "=/=/2" -> bool(!equal(args[0], args[1], true, level))
             "self/0" -> SELF
+            // The processes the build runs, which aren't known.
+            "whereis/1" -> if (isAtom(args[0])) Unknown else badarg()
             "make_ref/0" -> OtpErlangRef(LOCAL_NODE, intArrayOf(evaluation.run.nextRef(), 0, 0), 0)
             "</2" -> bool(compare(args[0], args[1], level) < 0)
             ">/2" -> bool(compare(args[0], args[1], level) > 0)
@@ -1690,7 +1709,7 @@ internal class Natives(private val evaluation: Evaluation) {
         }
 
         if (key.startsWith("get_env/") || key.startsWith("fetch_env")) {
-            if (key == "fetch_env!/2") assumeNoRaise()
+            if (key == "fetch_env!/2") evaluation.assumeNoRaise()
 
             return Unknown
         }
@@ -1700,7 +1719,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
         if (envFirst) {
             when {
-                env is UnknownValue -> assumeNoRaise()
+                env is UnknownValue -> evaluation.assumeNoRaise()
                 (env as? OtpErlangMap)?.get(atom("__struct__"))?.let(::seen) != atom("Elixir.Macro.Env") ->
                     functionClause("Elixir.Application", key.substringBefore('/'), args)
             }
@@ -1720,21 +1739,16 @@ internal class Natives(private val evaluation: Evaluation) {
 
         if (!envFirst) {
             when {
-                env is UnknownValue -> assumeNoRaise()
+                env is UnknownValue -> evaluation.assumeNoRaise()
                 typed(env) is OtpErlangBinary -> argumentError()
                 (env as? OtpErlangMap)?.get(atom("tracers")) == null -> decline("reads the tracers of %s", env)
             }
         }
 
         // `traverse_env/2` fetches each key after the first from the value before it, which may not be a container.
-        if (key.endsWith("!/3") || keys !is OtpErlangAtom && properElements(keys)?.size != 1) assumeNoRaise()
+        if (key.endsWith("!/3") || keys !is OtpErlangAtom && properElements(keys)?.size != 1) evaluation.assumeNoRaise()
 
         return Unknown
-    }
-
-    /** A raise whose inputs aren't known is taken not to happen: Elixir may have raised there (`Run.assumptions`). */
-    private fun assumeNoRaise() {
-        evaluation.run.assumptions++
     }
 
     /** Whether [term] is an atom, declining where that isn't known. */

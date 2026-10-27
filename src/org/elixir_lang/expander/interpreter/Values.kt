@@ -102,6 +102,9 @@ internal class Given {
         modules += other.modules
     }
 
+    /** Whether there are none. */
+    val none get() = !every && modules.isEmpty()
+
     /** Whether [module] is one of these. */
     operator fun contains(module: String) = every || module in modules
 

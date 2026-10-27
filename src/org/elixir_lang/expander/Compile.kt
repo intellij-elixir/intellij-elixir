@@ -978,7 +978,7 @@ internal fun compilePending(run: Run): Walked {
                     endedAt = stopped ?: (result.ended as? Ended.Stopped)?.let { Expansion.Unported(it.at) }
                 }
 
-                stepping.known = result.certain || result.ended.endsRun
+                stepping.compiled(result)
                 null
             }
             is Pending.Match -> run.stoppedIfTooDeep(pending.node) {
@@ -1021,10 +1021,16 @@ internal fun compilePending(run: Run): Walked {
 private class RunEnded(val values: BodyValues) : RuntimeException(null, null, false, false)
 
 /**
- * What running a unit gives: whether the body's run [ends] there, the [value] its code gives the code around it, and
- * the decline that code after it in the unit raised after ([Declined.ended]), which ends whatever holds the unit.
+ * What running a unit gives: whether the body's run [ends] there, the [value] its code gives the code around it,
+ * whether that code [declined], and the decline that code after it in the unit raised after ([Declined.ended]), which
+ * ends whatever holds the unit.
  */
-private class Stepped(val ends: Boolean, val value: OtpErlangObject, val endedDecline: Declined? = null)
+private class Stepped(
+    val ends: Boolean,
+    val value: OtpErlangObject,
+    val endedDecline: Declined? = null,
+    val declined: Boolean = false,
+)
 
 /**
  * What stepping a unit records as it runs: whether Elixir's outcome there is [known], whether a unit the statement
@@ -1036,6 +1042,7 @@ private class Stepping {
     var ends = false
     var value: OtpErlangObject = Unknown
     var endedDecline: Declined? = null
+    var declined = false
 
     /** [reached], what running the statement at [node] gave, recorded: its error, where it raised. */
     fun reached(reached: Reached, node: ElixirAst): Expansion? {
@@ -1043,11 +1050,22 @@ private class Stepping {
         ends = reached.ended
         value = reached.produced()
         endedDecline = reached.endedDecline
+        declined = reached.declined
 
         return reached.error(node)
     }
 
-    fun stepped(ends: Boolean = this.ends, endedDecline: Declined? = this.endedDecline) = Stepped(ends, value, endedDecline)
+    /**
+     * [result], a nested module's compilation, recorded. Where its outcome isn't known, Elixir may have raised in it, so
+     * the unit [declined], as a statement that declined does.
+     */
+    fun compiled(result: ExpansionResult) {
+        known = result.certain || result.ended.endsRun
+        declined = !result.certain
+    }
+
+    fun stepped(ends: Boolean = this.ends, endedDecline: Declined? = this.endedDecline) =
+        Stepped(ends, value, endedDecline, declined)
 }
 
 /**
@@ -1060,6 +1078,9 @@ private class Reached(private val evaluated: Evaluated?, val certain: Boolean) {
 
     /** The statement's decline where code after it raised ([Declined.ended]): a loop around the statement ends there. */
     val endedDecline: Declined? get() = (evaluated as? Evaluated.Declined)?.declined?.takeIf { it.ended }
+
+    /** Whether the statement's code declined. */
+    val declined: Boolean get() = evaluated is Evaluated.Declined
 
     fun produced(): OtpErlangObject = evaluated?.produced() ?: Unknown
 
@@ -1088,7 +1109,7 @@ private fun reaching(
     val inner = pending.inner
     val statement = pending.isStatement(values.statements)
     val reached: MutableSet<Pending> = Collections.newSetFromMap(IdentityHashMap())
-    val callbacks = IdentityHashMap<Pending, (HashMap<Binding, OtpErlangObject>) -> OtpErlangObject>()
+    val callbacks = IdentityHashMap<Pending, (HashMap<Binding, OtpErlangObject>) -> UnitRun>()
     val outerEntered = run.entered
     // The `fn`s running when this run starts were entered for it; each it enters was entered for the runs around it.
     val entered: MutableSet<ElixirAst> = Collections.newSetFromMap<ElixirAst>(IdentityHashMap()).apply { addAll(run.running) }
@@ -1111,7 +1132,7 @@ private fun reaching(
                 if (stepped.ends) throw RunEnded(values)
                 // The evaluator ends the loop or block holding the unit, as it does where it ran the raise itself.
                 stepped.endedDecline?.let { throw it }
-                stepped.value
+                UnitRun(stepped.value, stepped.declined)
             } finally {
                 run.reached[site] = callbacks.getValue(unit)
             }
@@ -1334,7 +1355,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
 
             while (!ends && queued.isNotEmpty()) ends = step(queued.removeFirst(), queued, bindings, stopsAt).ends
 
-            return Stepped(ends, stepped.value, stepped.endedDecline)
+            return Stepped(ends, stepped.value, stepped.endedDecline, stepped.declined)
         }
 
         // Whether Elixir ran the unit where the expander did, and whether what it did there is known: code the unit
@@ -1445,7 +1466,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
                 errorsFrom = run.errors.size
                 warningsFrom = run.warnings.size
                 nested += result
-                stepping.known = result.certain || result.ended.endsRun
+                stepping.compiled(result)
                 stepping.ends = result.ended.endsRunAt(statement)
                 when (val inner = result.ended) {
                     Ended.Compiled -> null

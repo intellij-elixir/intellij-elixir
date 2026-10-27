@@ -179,7 +179,8 @@ internal object Interpreter {
         run: Run,
         declinesTooDeep: Boolean = true,
         value: (Evaluation) -> OtpErlangObject,
-    ): Evaluated = declining(run) { evaluatedIn(Evaluation(node, state, env, run), declinesTooDeep, value) }
+    ): Evaluated =
+        declining(run) { evaluatedIn(Evaluation(node, state, env, run, run.catching), declinesTooDeep, value) }
 
     /** [block], recording what the calls that decline in it are given ([Run.declinedGiven]) unless an outer one does. */
     private inline fun <T> declining(run: Run, block: () -> T): T {
@@ -322,6 +323,11 @@ internal class Evaluation(
     private val state: ExState,
     private val env: Env,
     val run: Run,
+    /**
+     * How many bodies of a `try` with `catch` or `rescue` are being evaluated, any of which may catch a raise: this
+     * evaluation's, and those around the unit it runs ([Run.catching]).
+     */
+    private var catching: Int = 0,
 ) {
     /** Each term made from an argument's node, so the output keeps the nodes the macro passed through. */
     private val nodes = IdentityHashMap<OtpErlangObject, ElixirAst>()
@@ -581,15 +587,21 @@ internal class Evaluation(
 
         stack.addFirst(frame(module.module, function, integer(arity.toLong())))
         try {
+            val arms = Arms()
+
             for (clause in clauses) {
                 if (clause.args.size != args.size) continue
 
                 val frame = Frame(module)
 
-                if (matches(clause.args, args, frame) && guards(clause.guards, frame)) {
-                    return eval(clause.body ?: decline("$function/${args.size} matches a clause that stopped expanding"), frame)
+                val body = clause.body
+
+                if (arms.tested(body, frame) { matches(clause.args, args, frame) && guards(clause.guards, frame) }) {
+                    return arms.taken(body ?: decline("$function/${args.size} matches a clause that stopped expanding"), frame)
                 }
             }
+
+            arms.none()
         } finally {
             stack.removeFirst()
         }
@@ -626,6 +638,25 @@ internal class Evaluation(
     fun raiseAs(kind: String, reason: OtpErlangObject, stacktrace: OtpErlangObject? = null): Nothing =
         throw Thrown(kind, reason, stacktrace ?: list(stack.toList()))
 
+    /** A raise whose inputs aren't known is taken not to happen ([mayRaise]): Elixir may have raised there ([assume]). */
+    fun assumeNoRaise() {
+        mayRaise()
+        assume()
+    }
+
+    /**
+     * Code that may raise ran, and the evaluation goes on past it. Under a `try` that may catch the raise ([catching]),
+     * the build goes on either way, so it declines.
+     */
+    private fun mayRaise() {
+        if (catching > 0) decline("a raise a `try` may catch")
+    }
+
+    /** An answer that holds only where what it reads stays as read (`Run.assumptions`). */
+    fun assume() {
+        run.assumptions++
+    }
+
     /** Raises [module]'s exception, its struct with [fields] put. */
     fun raise(module: String, vararg fields: Pair<String, OtpErlangObject>): Nothing {
         val struct = remote(atom(module), "__struct__", emptyList()) as? OtpErlangMap ?: decline("$module has no struct")
@@ -650,7 +681,19 @@ internal class Evaluation(
         ProgressManager.checkCanceled()
 
         // A unit of the statement being run, which the walk runs where the evaluator reaches it.
-        run.reached[node]?.let { return it(frame.vars) }
+        run.reached[node]?.let { unit ->
+            val outer = run.catching
+            run.catching = catching
+
+            val reached = try {
+                unit(frame.vars)
+            } finally {
+                run.catching = outer
+            }
+            if (reached.declined) mayRaise()
+
+            return reached.value
+        }
 
         return when (node) {
             is ElixirAst.Literal.Atom -> atom(node.name).also { atoms += node.name }
@@ -1012,7 +1055,12 @@ internal class Evaluation(
             "case" if args.size == 2 -> {
                 val options = (frame.module.dispatches.of(node) as? Dispatched.Clauses)?.options ?: args[1]
                 val arrows = arrows(doOption(options))
-                val value = selecting(arrows, heads(arrows), emptyList(), frame) { eval(args[0], frame) }
+                val value = try {
+                    selecting(arrows, heads(arrows), emptyList(), frame) { eval(args[0], frame) }
+                } catch (declined: Declined) {
+                    // An arm after those that only raise may still be taken.
+                    return clauses(arrows, listOf(unknownOf(declined.holds)), frame, subject = declined)!!
+                }
 
                 clauses(arrows, listOf(value), frame) ?: error(tuple(atom("case_clause"), value))
             }
@@ -1195,14 +1243,19 @@ internal class Evaluation(
     }
 
     private fun cond(arrows: List<ElixirAst>, frame: Frame): OtpErlangObject {
+        val arms = Arms()
+
         for ((index, arrow) in arrows.withIndex()) {
             val (head, body) = arrowParts(arrow)
             val scope = frame.copy()
             val rest = listOf(body) + arrows.subList(index + 1, arrows.size)
 
-            if (selecting(rest, emptyList(), emptyList(), scope) { truthy(eval(head.single(), scope)) }) return eval(body, scope)
+            val test = { selecting(rest, emptyList(), emptyList(), scope) { truthy(eval(head.single(), scope)) } }
+
+            if (arms.tested(body, scope, test)) return arms.taken(body, scope)
         }
 
+        arms.none()
         error(atom("cond_clause"))
     }
 
@@ -1472,8 +1525,17 @@ internal class Evaluation(
         try {
             // Where the body declines, it may have raised, thrown or exited, or not.
             val branches = listOf("rescue", "catch", "else").flatMap { key -> optionOrNull(options, key)?.let(::arrows).orEmpty() }
+            val catches = listOf("rescue", "catch").any { optionOrNull(options, it) != null }
             val value = try {
-                selecting(branches, heads(branches), emptyList(), frame) { eval(doOption(options), frame.copy()) }
+                selecting(branches, heads(branches), emptyList(), frame) {
+                    if (catches) catching++
+
+                    try {
+                        eval(doOption(options), frame.copy())
+                    } finally {
+                        if (catches) catching--
+                    }
+                }
             } catch (thrown: Thrown) {
                 return rescued(thrown, options, frame) ?: throw thrown
             } catch (body: Declined) {
@@ -1935,7 +1997,11 @@ internal class Evaluation(
         for ((index, clause) in clauses.withIndex()) {
             if (!isCall(clause, "<-", 2)) {
                 // Where it declines, the clauses after it, the `do` and the `else` clauses may run.
-                val rest = clauses.subList(index + 1, clauses.size) + doOption(options) + elses
+                val rest = buildList {
+                    addAll(clauses.subList(index + 1, clauses.size))
+                    add(doOption(options))
+                    addAll(elses)
+                }
 
                 selecting(rest, heads(elses), emptyList(), scope) {
                     eval(clause, scope)
@@ -1946,7 +2012,11 @@ internal class Evaluation(
             val (head, right) = (clause as ElixirAst.Call).arguments!!
             val (patterns, guards) = clauseHead(ElixirAst.ListNode(head.meta, listOf(head)))
             // Where it declines, the clauses after it, the `do` and the `else` clauses may run.
-            val rest = clauses.subList(index + 1, clauses.size) + doOption(options) + elses
+            val rest = buildList {
+                addAll(clauses.subList(index + 1, clauses.size))
+                add(doOption(options))
+                addAll(elses)
+            }
             val matched = selecting(rest, listOf(head) + heads(elses), emptyList(), scope) {
                 val value = eval(right, scope)
 
@@ -1984,14 +2054,18 @@ internal class Evaluation(
 
     /**
      * The body of the first of [arrows] whose head matches [values], evaluated, or `null` where none does; [fresh] as
-     * [matches] takes it.
+     * [matches] takes it. Where [subject] declined, [values] hold what it would have given, and only an arm after one
+     * passed over is taken ([Arms]).
      */
     private fun clauses(
         arrows: List<ElixirAst>,
         values: List<OtpErlangObject>,
         frame: Frame,
         fresh: Boolean = false,
+        subject: Declined? = null,
     ): OtpErlangObject? {
+        val arms = Arms(subject)
+
         for ((index, arrow) in arrows.withIndex()) {
             val (head, body) = arrowParts(arrow)
             val (patterns, guards) = clauseHead(head)
@@ -2000,13 +2074,77 @@ internal class Evaluation(
 
             val scope = frame.copy()
             val rest = arrows.subList(index, arrows.size)
-
-            if (selecting(rest, heads(rest), values, frame) { matches(patterns, values, scope, fresh) && guards(guards, scope) }) {
-                return eval(body, scope)
+            val test = {
+                selecting(rest, heads(rest), values, frame) { matches(patterns, values, scope, fresh) && guards(guards, scope) }
             }
+
+            if (arms.tested(body, scope, test)) return arms.taken(body, scope)
         }
 
+        arms.none()
+
         return null
+    }
+
+    /**
+     * The arms of a loop that takes the first whose test holds. An arm whose test declines is passed over where its
+     * value only raises ([passesOver]): a project that compiles doesn't take it, so the next arm is tried, and one taken
+     * after it assumes the raise away. Where [subject], the decline that gave the values the arms test, is set, only an
+     * arm after one passed over is taken; otherwise the loop declines as [subject] did.
+     */
+    private inner class Arms(private val subject: Declined? = null) {
+        /** The decline of the first arm passed over. */
+        private var passed: Declined? = null
+
+        /** What [test], of the arm whose value is [body], gives: `false` where it declines and the arm is passed over. */
+        fun tested(body: ElixirAst?, frame: Frame, test: () -> Boolean): Boolean =
+            try {
+                test()
+            } catch (declined: Declined) {
+                if (subject?.let(::passable) == false || !passesOver(declined, body, frame)) throw subject ?: declined
+
+                passed = passed ?: declined
+                false
+            }
+
+        /** [body], of the arm taken, evaluated in [frame]. */
+        fun taken(body: ElixirAst, frame: Frame): OtpErlangObject {
+            if (passed == null) subject?.let { throw it } else assumeNoRaise()
+
+            return eval(body, frame)
+        }
+
+        /** No arm is taken: where one was passed over, or the values weren't known, the loop declines. */
+        fun none() {
+            (subject ?: passed)?.let { throw it }
+        }
+    }
+
+    /**
+     * Whether an arm whose test [declined] is passed over: its value, [body], is a call of a native that never returns
+     * ([Natives.neverReturns]) and the decline is [passable].
+     */
+    private fun passesOver(declined: Declined, body: ElixirAst?, frame: Frame): Boolean {
+        if (!passable(declined)) return false
+
+        val call = body?.let(frame::expanded) as? ElixirAst.Call ?: return false
+        val (module, function) = remoteOf(call, frame) ?: return false
+
+        return natives.neverReturns(module, function, call.arguments?.size ?: return false)
+    }
+
+    /** Whether [declined] leaves nothing a pass-over would drop: it neither stops nor ended, and was given no module. */
+    private fun passable(declined: Declined) = !declined.stops && !declined.ended && declined.given.none
+
+    /** The module and function [call] runs, where it is a remote call of a module its code names. */
+    private fun remoteOf(call: ElixirAst.Call, frame: Frame): Pair<String, String>? {
+        if (frame.source) return (frame.module.dispatches.of(call) as? Dispatched.Remote)?.let { it.module to it.name }
+
+        val callee = call.callee as? ElixirAst.Call ?: return null
+        if (!isCall(callee, ".", 2)) return null
+        val (left, right) = callee.arguments!!.map { (it as? ElixirAst.Literal.Atom)?.name ?: return null }
+
+        return left to right
     }
 
     /**

@@ -244,6 +244,9 @@ internal inline fun <T> Run.assuming(block: () -> T): Pair<T, Boolean> {
     return result to (assumptions > from)
 }
 
+/** What a unit the evaluator reached gives the code around it: its code's [value], and whether that code [declined]. */
+internal class UnitRun(val value: OtpErlangObject, val declined: Boolean)
+
 /** What every recursive expansion of one [Expander.expand] call shares. */
 internal class Run(
     val level: ElixirLanguageLevel,
@@ -276,6 +279,12 @@ internal class Run(
      * function that earlier code made reads them too, wherever it was made.
      */
     var declinedGiven: Given? = null
+
+    /**
+     * How many bodies of a `try` with `catch` or `rescue` are being evaluated around the unit the evaluator runs where it
+     * reaches it ([reached]), any of which may catch a raise in the unit's code.
+     */
+    var catching = 0
 
     /** The number of a reference no evaluation in the run has made before. */
     fun nextRef(): Int = ++refs
@@ -525,9 +534,9 @@ internal class Run(
 
     /**
      * Each unit of a statement being run, by its node, to what runs it where the evaluator reaches the node, from the
-     * bindings the evaluator has there, giving the value the unit's code gives the code around it.
+     * bindings the evaluator has there.
      */
-    val reached = IdentityHashMap<ElixirAst, (HashMap<Binding, OtpErlangObject>) -> OtpErlangObject>()
+    val reached = IdentityHashMap<ElixirAst, (HashMap<Binding, OtpErlangObject>) -> UnitRun>()
 
     /**
      * Each `fn` of a module body or the file's top level whose closure the evaluator has called in the run of the
