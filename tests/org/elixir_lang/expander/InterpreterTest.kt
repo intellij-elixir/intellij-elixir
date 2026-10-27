@@ -45,6 +45,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ENV_VERSIONED_
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ARGUMENTS_STOP_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ESCAPE_MARKS_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
+import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_UPDATE_RAISES_WHERE_DISCARDED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_ATTRIBUTES_IN
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_DELETE_DEFINITION
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_GET_LAST_ATTRIBUTE
@@ -174,6 +175,30 @@ class InterpreterTest : PlatformTestCase() {
         assertFile(
             "defmodule A do\n  case (receive do after 0 -> %{} end) do\n    m -> Map.fetch!(m, :k)\n  end\n  @a raise(ArgumentError)\nend",
             "top unported `@a raise(ArgumentError)`\nmodule Elixir.A stopped `@a raise(ArgumentError)`",
+        )
+
+    /**
+     * A module body's last expression is its value, which `defmodule` returns, so a map update there raises on every
+     * OTP.
+     */
+    fun testAMapUpdateAsTheBodysLastExpressionIsTheModules() =
+        assertFile(
+            "defmodule A do\n  m = %{}\n  %{m | a: 1}\nend",
+            "top expanded\nmodule Elixir.A raised Elixir.KeyError `%{m | a: 1}`",
+        )
+
+    /**
+     * A map update at a file's top level whose value is discarded raises where its map lacks a key from OTP 25.3.1, so
+     * the module after it isn't compiled; before it the compiler drops the update.
+     */
+    fun testADiscardedTopLevelMapUpdateRaisesFromOtp25_3_1() =
+        assertFile(
+            "m = %{}\n%{m | a: 1}\ndefmodule A do\nend",
+            if (MAP_UPDATE_RAISES_WHERE_DISCARDED.isSufficient(legLevel())) {
+                "top error Elixir.KeyError `%{m | a: 1}`"
+            } else {
+                "top expanded\nmodule Elixir.A compiled"
+            },
         )
 
     /** A `case` the evaluator runs raises where Elixir does. */
@@ -446,6 +471,89 @@ class InterpreterTest : PlatformTestCase() {
                 "defmodule B do\n  def g, do: %A{}\nend",
             "top expanded\nmodule Elixir.H compiled\nmodule Elixir.A compiled\nmodule Elixir.B compiled",
         )
+
+    /**
+     * A statement's code runs in order, so a match, a definition or an attribute write in a later argument or element
+     * reads what an earlier one wrote, as in Elixir.
+     */
+    fun testAUnitInALaterArgumentReadsAnEarlierArgumentsWrite() {
+        val write = "Module.put_attribute(__MODULE__, :flag, :new)"
+        val read = "Module.get_attribute(__MODULE__, :flag)"
+        val units = listOf(
+            "x = $read" to ":new = x",
+            "def(unquote($read)(), do: 1)" to "true = Module.defines?(__MODULE__, {:new, 0})",
+            "@copy $read" to ":new = @copy",
+        )
+        val statements = units.flatMap { (unit, check) ->
+            val calls = listOf(":erlang.min($write, $unit)", "{$write, $unit}", "[$write, $unit]")
+                .flatMap { listOf(it, "_ = $it") }
+            // A whole statement that is a write of its own. A `def` in an `@`'s value declines, as the `@` copies it.
+            val writes = listOfNotNull("@a {$write, $unit}".takeUnless { unit.startsWith("def") }, "Module.put_attribute(__MODULE__, :a, {$write, $unit})")
+
+            (calls + writes).map { it to check }
+        }
+
+        assertEquals(
+            statements.joinToString("\n") { (statement, _) -> "$statement: top expanded\nmodule Elixir.A compiled" },
+            statements.joinToString("\n") { (statement, check) ->
+                "$statement: " + file("defmodule A do\n  @flag :old\n  $statement\n  $check\nend")
+            },
+        )
+    }
+
+    /**
+     * A `defimpl` or `defdelegate` whose value the code around it takes defines what it defines where that code runs it,
+     * as where it is a statement of its own: on the statement path, and for `defimpl` in a body the walk follows.
+     */
+    fun testAMacroTheCodeAroundItTakesTheValueOfDefinesWhereThatCodeRunsIt() {
+        val impl = "defimpl P, for: Integer do\n    def f(x), do: x\n  end"
+        val delegate = "defdelegate(g(x), to: P, as: :f)"
+        val taken = { form: String -> listOf(form, "_ = $form", "{$form, :ok}", "[$form]", ":erlang.min($form, :ok)") }
+        val followed = listOf("if true do\n  $impl\nend", "_ = if true do\n  $impl\nend", "if Code.ensure_loaded?(String) do\n  $impl\nend")
+        val shapes = (taken(impl) + followed).map { it to "module Elixir.A compiled\n  module Elixir.P.Integer compiled" } +
+            taken(delegate).map { "$it\n  true = Module.defines?(__MODULE__, {:g, 1})" to "module Elixir.A compiled" }
+
+        assertEquals(
+            shapes.joinToString("\n") { (shape, ended) -> "$shape: top expanded\nmodule Elixir.P compiled\n$ended" },
+            shapes.joinToString("\n") { (shape, _) ->
+                "$shape: " + file("defprotocol P do\n  def f(x)\nend\ndefmodule A do\n  $shape\nend")
+            },
+        )
+    }
+
+    /** A module write whose argument holds a write in a body the walk doesn't follow writes both, as in Elixir. */
+    fun testAModuleWriteWhoseArgumentHoldsAWriteTheWalkDoesntFollowWritesBoth() {
+        val inner = "Module.put_attribute(__MODULE__, :b, 1)"
+        val shapes = listOf(
+            "cond do\n    true -> $inner\n  end" to ":ok = @a",
+            "try do\n    $inner\n  after\n    nil\n  end" to ":ok = @a",
+            "(try do\n    $inner\n  after\n    nil\n  end; 2)" to "2 = @a",
+        )
+
+        assertEquals(
+            shapes.joinToString("\n") { (value, _) -> "$value: top expanded\nmodule Elixir.A compiled" },
+            shapes.joinToString("\n") { (value, check) ->
+                "$value: " + file("defmodule A do\n  Module.put_attribute(__MODULE__, :a, $value)\n  $check\n  1 = @b\nend")
+            },
+        )
+    }
+
+    /** A match in a `defdelegate`'s options binds as the options are bound, and the delegation reads them. */
+    fun testAMatchInADefdelegatesOptionsBindsAsTheOptionsAreBound() {
+        val shapes = listOf(
+            "defdelegate(g(x), to: (m = P), as: :f)" to "P = m",
+            "defdelegate(g(x), to: P, as: (n = :f))" to ":f = n",
+        )
+
+        assertEquals(
+            shapes.joinToString("\n") { (shape, _) -> "$shape: top expanded\nmodule Elixir.P compiled\nmodule Elixir.A compiled" },
+            shapes.joinToString("\n") { (shape, check) ->
+                "$shape: " + file(
+                    "defprotocol P do\n  def f(x)\nend\ndefmodule A do\n  $shape\n  true = Module.defines?(__MODULE__, {:g, 1})\n  $check\nend",
+                )
+            },
+        )
+    }
 
     /**
      * A file of only modules stops at a name the fast path can't give, once the modules before it have compiled, and
@@ -982,11 +1090,7 @@ class InterpreterTest : PlatformTestCase() {
         assertFile("defmodule A do\n  read = fn k -> Application.fetch_env!(:nope, k) end\n  _ = read.(:k)\n  :ok = :bad\nend", stopped)
         assertFile("defmodule A do\n  read = &Application.fetch_env!(:nope, &1)\n  @a read.(:k)\n  :ok = :bad\nend", stopped)
         assertFile("_ = Application.fetch_env!(:nope, :k)\n:ok = :bad", "top unported `:ok = :bad`")
-        assertFile(
-            "defmodule A do\n  _ = {Application.fetch_env!(:nope, :k), :ok = :bad}\nend",
-            "top unported `_ = {Application.fetch_env!(:nope, :k), :ok = :bad}`\n" +
-                "module Elixir.A stopped `_ = {Application.fetch_env!(:nope, :k), :ok = :bad}`",
-        )
+        assertFile("defmodule A do\n  _ = {Application.fetch_env!(:nope, :k), :ok = :bad}\nend", stopped)
     }
 
     /** The reads that raise only on a guard raise nothing here, so the error after them is the module's. */
@@ -1916,6 +2020,30 @@ class InterpreterTest : PlatformTestCase() {
                   Macro.escape(%{x | b: 2})
                 end
                 """,
+            ),
+            // Before OTP 25.3.1 the compiler drops an update whose value the macro's body discards, so it raises nowhere.
+            macro(
+                "form:map-update-discarded-badkey",
+                """
+                defmacro m do
+                  x = %{a: 1}
+                  %{x | b: 2}
+                  :ok
+                end
+                """,
+            ),
+            // Whether anything reads a variable isn't known where it is bound, so before OTP 25.3.1 an update it binds
+            // declines.
+            macro(
+                "form:map-update-bound-badkey",
+                """
+                defmacro m do
+                  x = %{a: 1}
+                  y = %{x | b: 2}
+                  Macro.escape(y)
+                end
+                """,
+                pins = { _, level -> OPAQUE.takeUnless { MAP_UPDATE_RAISES_WHERE_DISCARDED.isSufficient(level) } },
             ),
             macro(
                 "form:struct",
@@ -7941,19 +8069,54 @@ class InterpreterTest : PlatformTestCase() {
             )
                 .map { (position, statement) -> caller("body:def-in-$position", "defmacro m, do: :ok", statement) }
                 .toTypedArray(),
-            // A map update raises where its map lacks a key it updates, as a statement and as an element of one.
-            caller("body:map-update-raises", "defmacro m, do: :ok", "m = %{}\n%{m | a: 1}\ndef f, do: 1", ends = { "raised Elixir.KeyError" }),
+            // A map update raises where its map lacks a key it updates. Before OTP 25.3.1 the compiler drops one whose
+            // value nothing reads, as a statement, an element of one, a statement of a `case` clause or bound to a
+            // variable nothing reads, so it raises only where its value is read.
+            *listOf(
+                "statement" to "%{m | a: 1}",
+                "in-tuple" to "{%{m | a: 1}, :ok}",
+                "in-case-clause" to "case :a do\n  :a ->\n    %{m | a: 1}\n    :ok\nend",
+                "bound" to "_x = %{m | a: 1}",
+            )
+                .map { (position, statement) ->
+                    caller(
+                        "body:map-update-$position-raises",
+                        "defmacro m, do: :ok",
+                        "m = %{}\n$statement\ndef f, do: 1",
+                        ends = { level -> "raised Elixir.KeyError".takeIf { MAP_UPDATE_RAISES_WHERE_DISCARDED.isSufficient(level) } },
+                    )
+                }
+                .toTypedArray(),
             caller(
-                "body:map-update-in-tuple-raises",
+                "body:map-update-argument-raises",
                 "defmacro m, do: :ok",
-                "m = %{}\n{%{m | a: 1}, :ok}\ndef f, do: 1",
+                "m = %{}\nList.wrap(%{m | a: 1})\ndef f, do: 1",
                 ends = { "raised Elixir.KeyError" },
             ),
-            // A raise after a statement whose elements are literals is the body's: a literal raises nowhere.
-            *listOf("tuple" to "{:ok, :ok}", "three-tuple" to "{:ok, :ok, :ok}", "map" to "%{a: :ok}", "list" to "[:ok, :ok]")
+            caller("body:map-update-of-non-map-raises", "defmacro m, do: :ok", "m = 1\n%{m | a: 1}\ndef f, do: 1", ends = { "raised Elixir.BadMapError" }),
+            // Nothing reads a `try`'s `after`, so before OTP 25.3.1 the compiler drops an update there, wherever the
+            // `try` is.
+            caller(
+                "body:map-update-in-after-raises",
+                "defmacro m, do: :ok",
+                "m = %{}\nList.wrap(try do :ok after %{m | a: 1} end)\ndef f, do: 1",
+                ends = { level -> "raised Elixir.KeyError".takeIf { MAP_UPDATE_RAISES_WHERE_DISCARDED.isSufficient(level) } },
+            ),
+            // A raise after a statement whose elements or arguments are literals or a variable is the body's: neither
+            // raises.
+            *listOf(
+                "literal-tuple" to "{:ok, :ok}",
+                "literal-three-tuple" to "{:ok, :ok, :ok}",
+                "literal-map" to "%{a: :ok}",
+                "literal-list" to "[:ok, :ok]",
+                "tuple-with-variable" to "m = 1\n{m, :ok}",
+                "tuple-with-negative" to "{-1, :ok}",
+                "negative" to "-1",
+                "call-of-literal" to "List.wrap(:ok)",
+            )
                 .map { (shape, statement) ->
                     caller(
-                        "body:raise-after-$shape-of-literals",
+                        "body:raise-after-$shape",
                         "defmacro m, do: :ok",
                         "$statement\n:erlang.error(:x)\ndef f, do: 1",
                         ends = { "raised Elixir.ErlangError" },

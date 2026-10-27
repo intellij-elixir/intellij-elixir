@@ -325,7 +325,8 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """.trimIndent()
         }
 
-    fun testADefinitionInAnotherCallsArgumentsIsUnordered() =
+    /** A tuple's elements run where the tuple does, so a definition in one runs in order. */
+    fun testADefinitionInATupleIsOrdered() =
         assertLevels(
             """
             defmodule A do
@@ -338,11 +339,11 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0 context ${topContext(version, "Elixir.A")}
             module Elixir.A compiled
-              def f/0 line 2 clauses 1 unordered
+              def f/0 line 2 clauses 1
               def g/0 line 3 clauses 1
               body: expanded {} next 0 context [Elixir.A]
-              def f/0 unordered: expanded {} next 0
-              def g/0 unordered: expanded {} next 0
+              def f/0: expanded {} next 0
+              def g/0: expanded {} next 0
             """.trimIndent()
         }
 
@@ -1856,6 +1857,13 @@ class ModuleExpanderTest : ExpanderTestCase() {
             }
         }
 
+    /**
+     * A map update at the file's top level raises where its map lacks a key, from OTP 25.3.1, as an unknown OTP is, so
+     * the module after it isn't defined.
+     */
+    fun testATopLevelMapUpdateOfAMissingKeyEndsTheFile() =
+        assertEvery("m = %{}\n%{m | a: 1}\ndefmodule A do\nend", "top error null `%{m | a: 1}`")
+
     /** A name led by a variable is an alias that doesn't expand to an atom. */
     fun testANameLedByAVariable() =
         assertEvery("x = 1\ndefmodule x.Foo, do: :ok", "top error invalid_alias `x.Foo`")
@@ -2602,7 +2610,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """
             defmodule M do
               defmodule N do
-                def $UNNAMED(), do: 1
+                def $unnamed(), do: 1
               end
               def __info__(x), do: 1
             end
@@ -2614,8 +2622,8 @@ class ModuleExpanderTest : ExpanderTestCase() {
             LEVELS,
         ) { version ->
             """
-            top unported `$UNNAMED`
-            module Elixir.M stopped `$UNNAMED`
+            top unported `$unnamed`
+            module Elixir.M stopped `$unnamed`
               body: expanded {} next 0 context [Elixir.M.N, Elixir.M]
               def __info__/1: unported `def __info__(x), do: 1`
             """.trimIndent() + "\n" + nestedStopped(version)
@@ -2632,7 +2640,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """
             defmodule M do
               defmodule N do
-                def $UNNAMED(), do: 1
+                def $unnamed(), do: 1
               end
               def f, do: 1
               defmacro f, do: 1
@@ -2645,8 +2653,8 @@ class ModuleExpanderTest : ExpanderTestCase() {
             LEVELS,
         ) { version ->
             """
-            top unported `$UNNAMED`
-            module Elixir.M stopped `$UNNAMED`
+            top unported `$unnamed`
+            module Elixir.M stopped `$unnamed`
               def f/0 line 5 clauses 1
               body: expanded {} next 0 context [Elixir.M.N, Elixir.M]
               def f/0: expanded {} next 0
@@ -2666,7 +2674,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             defmodule O do
               defmodule M do
                 defmodule N do
-                  def $UNNAMED(), do: 1
+                  def $unnamed(), do: 1
                 end
               end
               def __info__(x), do: 1
@@ -2679,26 +2687,26 @@ class ModuleExpanderTest : ExpanderTestCase() {
             LEVELS,
         ) { version ->
             """
-            top unported `$UNNAMED`
-            module Elixir.O stopped `$UNNAMED`
+            top unported `$unnamed`
+            module Elixir.O stopped `$unnamed`
               body: expanded {} next 0 context [Elixir.O.M, Elixir.O]
               def __info__/1: unported `def __info__(x), do: 1`
-              module Elixir.O.M stopped `$UNNAMED`
+              module Elixir.O.M stopped `$unnamed`
                 body: expanded {} next 0 context [Elixir.O.M.N, Elixir.O.M, Elixir.O]
-                module Elixir.O.M.N stopped `$UNNAMED`
+                module Elixir.O.M.N stopped `$unnamed`
                   def unnamed
                   body: expanded {} next ${if (isBefore(version, "1.20.0-rc.5")) 0 else 1} context [Elixir.O.M.N, Elixir.O.M, Elixir.O]
-                  def unnamed unordered: unported `$UNNAMED`
+                  def unnamed unordered: unported `$unnamed`
             """.trimIndent()
         }
 
-    /** `M.N`'s rendering where it stops at [UNNAMED]: from 1.20.0-rc.5 its body's counter counts the definition. */
+    /** `M.N`'s rendering where it stops at [unnamed]: from 1.20.0-rc.5 its body's counter counts the definition. */
     private fun nestedStopped(version: String) =
         """
-          module Elixir.M.N stopped `$UNNAMED`
+          module Elixir.M.N stopped `$unnamed`
             def unnamed
             body: expanded {} next ${if (isBefore(version, "1.20.0-rc.5")) 0 else 1} context [Elixir.M.N, Elixir.M]
-            def unnamed unordered: unported `$UNNAMED`
+            def unnamed unordered: unported `$unnamed`
         """.trimIndent().prependIndent("  ")
 
     /**
@@ -3384,10 +3392,10 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
     private fun source(code: String, node: ElixirAst) = node.meta.origin.substring(code)
 
-    /** The file's `context_modules` after only [module]: empty on the fast path from 1.13. */
     /** A definition whose name the evaluator can't produce, which stops the module. */
-    private val UNNAMED = "unquote((receive do after 0 -> :g end))"
+    private val unnamed = "unquote((receive do after 0 -> :g end))"
 
+    /** The file's `context_modules` after only [module]: empty on the fast path from 1.13. */
     private fun topContext(version: String, module: String) =
         if (isBefore(version, "1.13.0-rc.0")) "[$module]" else "[]"
 

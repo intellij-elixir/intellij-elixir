@@ -7,6 +7,7 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
 import org.elixir_lang.expander.interpreter.Binding
 import org.elixir_lang.expander.interpreter.Given
+import org.elixir_lang.expander.interpreter.ValueUse
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAILED_COMPILE_PURGES_MODULE
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAST_PATH_ADDS_CONTEXT_MODULE
@@ -56,24 +57,27 @@ object Expander {
      * where it is a statement its body runs where it is: a `=`, which the walk runs, or one whose value nothing takes,
      * which no unit queued and no macro's output replaced. One whose value is known, as it expanded or as the evaluator
      * takes it, or that a port built, raises nowhere, so it is inert instead, unless a body it runs holds units, which
-     * run only where it reaches them.
+     * run only where it reaches them. So does a variable, but in a body the walk follows it is a unit, so a value the
+     * evaluator doesn't have declines only the variable's, as a unit's decline does, not the code around it.
      */
     private fun queueStatement(node: ElixirAst, expansion: Expansion.Expanded, from: Int, state: ExState, env: Env, run: Run) {
         val statements = run.statementsAt(env)
-            ?.takeIf { env.function == null && env.context == Env.Context.NONE && (it.contains(node) || it.follows(node)) }
+            ?.takeIf { env.function == null && env.context == Env.Context.NONE && it.runs(node) }
             ?: return
-        // A unit of a body the walk follows runs where the evaluator reaches it as the statement runs; one of a body it
-        // doesn't runs before the statement, from the body's own bindings.
+        // A unit of the statement's code, on the statement path or in a body the walk follows, runs where the evaluator
+        // reaches it as the statement runs, after the code Elixir runs before it there; any other runs before the
+        // statement.
         val queued = run.pending.subList(from, run.pending.size).toList()
-        val (inner, before) = queued.partition { statements.follows(it.site) }
+        val (inner, before) = queued.partition { statements.runs(it.site) }
         val statement = statements.contains(node)
 
         when {
             isCall(node, "=", 2) -> run.replacePending(from, before + Pending.Match(node, state, env, statement, inner))
             !statements.isWhole(node) || statements.isRewritten(node) -> Unit
+            // A statement that is a unit's own node runs as that unit.
             queued.any { it.site === node } -> Unit
             inner.isNotEmpty() -> run.replacePending(from, before + Pending.Statement(node, state, env, statement, inner))
-            expansion.value == VARIABLE_NODE || isKnown(expansion.value) -> statements.inert(node)
+            expansion.value == VARIABLE_NODE && statement || isKnown(expansion.value) -> statements.inert(node)
             (run.dispatchesAt(env)?.of(node) as? ModuleClauses.Dispatched.Value)?.value?.let(::isKnown) == true ->
                 statements.inert(node)
             run.isPorted(node) -> statements.inert(node)
@@ -300,6 +304,9 @@ internal class Run(
      * reaches it ([reached]), any of which may catch a raise in the unit's code.
      */
     var catching = 0
+
+    /** Whether the value of the unit the evaluator runs where it reaches it ([reached]) is read, `null` outside one. */
+    var reachedUse: ValueUse? = null
 
     /** The number of a reference no evaluation in the run has made before. */
     fun nextRef(): Int = ++refs
@@ -583,7 +590,7 @@ internal class Run(
     val bodyQuotes = ModuleClauses.Quotes()
 
     /** The file's top-level statements. */
-    val fileStatements = Statements(level)
+    val fileStatements = Statements()
 
     /** What the file's top-level statements bound so far, and how far what ran is Elixir's. */
     val fileValues = BodyValues(fileStatements)
@@ -838,7 +845,7 @@ internal fun expandArg(arg: ElixirAst, acc: ExState, start: ExState, env: Env, r
     expandArg(arg, acc, start, env, run) { a, s, e -> Expander.expand(a, s, e, run) }
         .also { if (arg is ElixirAst.Literal) run.watched(arg, it) }
 
-/** `elixir_expand:expand_arg/3`, with [expand] for its `expand/3`; a pid in a macro's result isn't expanded either. */
+/** `elixir_expand:expand_arg/3`, with [expand] for its `expand/3`, which it skips for what it takes as it is. */
 internal inline fun expandArg(
     arg: ElixirAst,
     acc: ExState,
@@ -847,11 +854,14 @@ internal inline fun expandArg(
     run: Run,
     expand: (ElixirAst, ExState, Env) -> Expansion,
 ): Expansion =
-    when (arg) {
-        is ElixirAst.Literal -> Expansion.Expanded(acc, env, literalValue(arg), run.ast { arg })
-        is ElixirAst.Value if arg.term is OtpErlangPid -> Expansion.Expanded(acc, env, NODE, run.ast { arg })
-        else -> expand(arg, acc.resetRead(start), env)
+    when {
+        !isTakenAsIs(arg) -> expand(arg, acc.resetRead(start), env)
+        arg is ElixirAst.Literal -> Expansion.Expanded(acc, env, literalValue(arg), run.ast { arg })
+        else -> Expansion.Expanded(acc, env, NODE, run.ast { arg })
     }
+
+/** Whether `elixir_expand:expand_arg/3` takes [arg] as it is, unexpanded: a literal, or a pid in a macro's result. */
+internal fun isTakenAsIs(arg: ElixirAst): Boolean = arg is ElixirAst.Literal || arg is ElixirAst.Value && arg.term is OtpErlangPid
 
 internal fun literalValue(literal: ElixirAst.Literal): Term =
     when (literal) {

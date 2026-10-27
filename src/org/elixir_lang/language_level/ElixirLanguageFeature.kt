@@ -2680,6 +2680,16 @@ enum class ElixirLanguageFeature(
     BINARY_PART_REJECTS_BITSTRINGS(sinceOtp = "27.0-rc1"),
 
     /**
+     * A map update that lacks a key it updates raises `badkey` even where nothing reads its value. Before it, the
+     * compiler dropped such an update, keeping only its check that the map is one, so it raised `badmap` but never
+     * `badkey`.
+     *
+     * `erlang/otp@a5cb4f6fbc` ("Fix lost exception from map update", erlang/otp#6960), first released in OTP 25.3.1 and
+     * 26.0-rc2. 26.0-rc1, which lacks it, reads as having it.
+     */
+    MAP_UPDATE_RAISES_WHERE_DISCARDED(sinceOtp = "25.3.1"),
+
+    /**
      * An integer holds at most 65,535 words, about 4 Mbit, where it held 524,287, and arithmetic past it raises
      * `system_limit`.
      *

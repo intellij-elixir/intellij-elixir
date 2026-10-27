@@ -6,6 +6,7 @@ import org.elixir_lang.NameArity
 import org.elixir_lang.expander.interpreter.Binding
 import org.elixir_lang.expander.interpreter.Evaluated
 import org.elixir_lang.expander.interpreter.Natives
+import org.elixir_lang.expander.interpreter.shortCircuits
 import org.elixir_lang.expander.interpreter.termOf
 import org.elixir_lang.language_level.ElixirLanguageFeature.ANONYMOUS_CALL_OF_ATOM_REFUSED
 import org.elixir_lang.language_level.ElixirLanguageFeature.CLAUSES_REFUSED_IN_CALL
@@ -227,6 +228,7 @@ private fun expandLocal(node: ElixirAst.Call, state: ExState, env: Env, run: Run
 
     run.observer.dispatched(node, Dispatch(Dispatch.Kind.LOCAL_FUNCTION, env.module ?: "nil", name, args.size))
     recordDispatch(node, ModuleClauses.Dispatched.Local, env, run)
+    run.statementsAt(env)?.called(node)
 
     val inArguments = mutableListOf<LocalCall<ElixirAst>>()
 
@@ -304,6 +306,7 @@ internal fun expandAnonymousCall(node: ElixirAst.Call, state: ExState, env: Env,
     noMatchOrGuardScope(node, state, env)?.let { return it }
 
     val function = (node.callee as ElixirAst.Call).arguments!!.single()
+    run.statementsAt(env)?.called(node)
 
     return expandArgs(listOf(function) + node.arguments!!, state, env, run).thenAst { s, e, values, asts ->
         val called = (values as Term.List).elements.first()
@@ -483,6 +486,10 @@ private fun expandRemote(
         if (receiver is Term.Atom) ElixirAst.Literal.Atom(dotMeta, receiver.name) else receiverAst.node
     }
 
+    // `andalso` and `orelse` run their right only where their left doesn't decide.
+    val running = args.takeIf { receiver is Term.Atom && shortCircuits(receiver.name, name, args.size) }?.take(1) ?: args
+    run.statementsAt(env)?.called(node, running)
+
     if (receiver !is Term.Atom && receiver !is Term.Pair && receiver !is Term.Tuple && receiver !is Term.Node) {
         return Expansion.Error("invalid_call", node)
     }
@@ -522,8 +529,10 @@ private fun expandRemote(
         }
     }
 
+    val from = run.pending.size
+
     return mapfold(args, after, env, run) { arg, s, e -> expandArg(arg, s, state, e, run) }.thenAst { s, e, values, asts ->
-        if (env.context == Env.Context.NONE) queueEffect(receiver, name, node, values as Term.List, state, env, run)
+        if (env.context == Env.Context.NONE) queueEffect(receiver, name, node, values as Term.List, from, state, env, run)
 
         val closed = s.closeWrite(state)
         val arg = (values as Term.List).elements.singleOrNull()
@@ -550,6 +559,7 @@ private fun queueEffect(
     name: String,
     node: ElixirAst.Call,
     values: Term.List,
+    from: Int,
     state: ExState,
     env: Env,
     run: Run,
@@ -563,9 +573,14 @@ private fun queueEffect(
     val statements = compiling.statements
 
     // A statement whose value another takes, as a match's right side's, runs once inside it, where the native answers it.
+    // So does a statement of its own whose arguments queued units, each one the walk reaches as it runs, which would
+    // otherwise run before it, not in order with it. Where one runs before it anyway, apart from the code holding it,
+    // the write keeps its own unit.
+    val queuedRunInside = { run.pending.size > from && run.pending.drop(from).all { statements.runs(it.site) } }
+
     if ((receiver as? Term.Atom)?.name in Natives.WRITES_BY_ROW &&
-        (statements.contains(at) || statements.follows(at)) &&
-        !statements.isWhole(at)
+        statements.runs(at) &&
+        (!statements.isWhole(at) || at === node && queuedRunInside())
     ) {
         return
     }
