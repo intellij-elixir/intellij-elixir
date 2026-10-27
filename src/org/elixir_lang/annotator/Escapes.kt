@@ -30,5 +30,3 @@ internal fun endsWithBackslash(element: PsiElement): Boolean {
 
 internal fun isFinalBackslash(leaf: PsiElement?): Boolean =
     leaf != null && leaf.text == "\\" && leaf.textRange.endOffset == leaf.containingFile.textLength
-
-internal fun isUnicodeScalarValue(codePoint: Long): Boolean = codePoint !in 0xD800..0xDFFF && codePoint <= 0x10FFFF

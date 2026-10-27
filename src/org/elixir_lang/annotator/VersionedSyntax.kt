@@ -67,6 +67,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.*
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.unicode_util.Graphemes
+import org.elixir_lang.unicode_util.isScalarValue
 import java.text.Normalizer
 
 /**
@@ -573,7 +574,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
         if (!enclosed && digits.length != 1) return null
 
         val codePoint = digits.toLongOrNull(16) ?: return null
-        if (!isUnicodeScalarValue(codePoint)) return null
+        if (!isScalarValue(codePoint)) return null
 
         return if (HEXADECIMAL_ESCAPE_NEEDS_TWO_DIGITS.isSufficient(languageLevel())) {
             Problem(escape.textRange, INVALID_HEX_ESCAPE)

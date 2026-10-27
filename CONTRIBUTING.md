@@ -400,6 +400,14 @@ same value, so the two cannot disagree. If you switch it, expect one extra `rele
 it parsed, as `elixir-lang/elixir@<commit>/lib/...`. An Elixir that no pair declares has no corpus, and the
 suite reports a single failing test saying so.
 
+`EctoFixtureTest` compiles `testData/org/elixir_lang/expander/ecto`, a Mix project using Ecto, and compares the
+plugin's expansion of its queries with Elixir's. The project's dependencies are pinned per Elixir version in
+`locks/<elixir version>.lock`. On a cold cache `getEctoFixtureDeps` fetches them from Hex into
+`cache/<pair>-ecto-fixture/deps`, with hex and rebar of its own beside them, never into `testData`. An Elixir with
+no lock fetches nothing and the test asserts nothing; a lock whose dependencies are missing fails the test by name.
+To pin another Elixir, run `MIX_DEPS_PATH=<a scratch directory> mix deps.get` in the project with that Elixir,
+which writes its lock.
+
 Whole files never reach Elixir's hardest parser cases, which live in string literals inside its tests.
 `ElixirSnippetParsingTestCase` covers those: every source string that Elixir's parser, tokenizer, formatter and
 normalizer tests hand to the parser, from every release in `.github/ci-versions.json`, is committed once in

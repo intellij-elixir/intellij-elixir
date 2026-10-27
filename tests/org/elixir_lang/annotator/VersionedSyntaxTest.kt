@@ -199,6 +199,10 @@ class VersionedSyntaxTest private constructor(
         assertErrors(elixir("1.20.0"), "\"\\x{110000}\"", "\\x{110000}" to HEX)
     }
 
+    fun testHexadecimalEscapeOfASurrogateFrom1_20() {
+        assertErrors(elixir("1.20.0"), "\"\\x{D800}\"", "\\x{D800}" to HEX)
+    }
+
     fun testElixirInDocumentationIsNotChecked() {
         val source = "defmodule Sample do\n  @moduledoc \"\"\"\n      x = ..\n  \"\"\"\nend\n"
 

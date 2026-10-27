@@ -170,6 +170,28 @@ class DeprecatedCallTest : ExpanderTestCase() {
             "Dep: none\nUser: deprecated Dep.list/0 \"d\" line 6",
         )
 
+    /** A macro's `IO.warn/2` with a stacktrace is the macro call's warning, its stacktrace kept as given. */
+    fun testAMacroWarningWithAStacktraceIsRecorded() =
+        assertEvery(warns("[{User, :f, 0, [line: 1]}]"), "W: none\nUser: warn \"w\" [{'Elixir.User',f,0,[{line,1}]}] line 9")
+
+    fun testAMacroWarningWithNoStacktraceIsRecorded() =
+        assertEvery(warns("[]"), "W: none\nUser: warn \"w\" [] line 9")
+
+    /** `IO.warn/1` reports the caller's stacktrace, which the run doesn't have. */
+    fun testAMacroWarningWithoutAStacktraceIsRecordedWithoutOne() =
+        assertEvery(warns(null), "W: none\nUser: warn \"w\" caller's line 9")
+
+    /** Where `IO.warn/2` takes its location from an env or options, it isn't answered, so nothing is recorded. */
+    fun testAMacroWarningWithAnEnvIsNotRecorded() =
+        assertEvery(warns("__CALLER__"), "W: none\nUser: none")
+
+    fun testAMacroWarningWithOptionsIsNotRecorded() =
+        assertEvery(warns("[file: \"a.ex\", line: 1]"), "W: none\nUser: none")
+
+    /** A message that isn't a binary, such as chardata, isn't answered. */
+    fun testAMacroWarningOfChardataIsNotRecorded() =
+        assertEvery(warns("[]", message = "[?w]"), "W: none\nUser: none")
+
     override fun expandAndRender(code: String, version: String): String {
         val level = ElixirLanguageLevel.of(version)
         val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
@@ -191,6 +213,7 @@ class DeprecatedCallTest : ExpanderTestCase() {
                 "deprecated ${warning.module.removePrefix("Elixir.")}.${warning.name}/${warning.arity} " +
                     "\"${warning.reason}\" line $line"
             is Warning.CompileEnv -> "compile_env ${warning.name}/${warning.arity} line $line"
+            is Warning.Emitted -> "warn \"${warning.message}\" ${warning.stacktrace ?: "caller's"} line $line"
         }
     }
 
@@ -203,5 +226,13 @@ class DeprecatedCallTest : ExpanderTestCase() {
         fun old(line: Int) = "deprecated Dep.old/0 \"use new\" line $line"
 
         fun mac(line: Int) = "deprecated Dep.mac/0 \"use new_m\" line $line"
+
+        /** `W.w/0` calls `IO.warn(message, stacktrace)`, or `IO.warn(message)` without one, and `User` calls it on line 9. */
+        fun warns(stacktrace: String?, message: String = "\"w\""): String {
+            val warn = stacktrace?.let { "IO.warn($message, $it)" } ?: "IO.warn($message)"
+
+            return "defmodule W do\n  defmacro w do\n    $warn\n    nil\n  end\nend\n" +
+                "defmodule User do\n  require W\n  W.w()\nend"
+        }
     }
 }

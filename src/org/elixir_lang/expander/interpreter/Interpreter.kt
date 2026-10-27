@@ -6,6 +6,7 @@ import com.ericsson.otp.erlang.OtpErlangBitstr
 import com.ericsson.otp.erlang.OtpErlangDouble
 import com.ericsson.otp.erlang.OtpErlangExternalFun
 import com.ericsson.otp.erlang.OtpErlangList
+import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
@@ -28,9 +29,11 @@ import org.elixir_lang.expander.Place
 import org.elixir_lang.expander.RescueHead
 import org.elixir_lang.expander.Run
 import org.elixir_lang.expander.Summary
+import org.elixir_lang.expander.Warning
 import org.elixir_lang.expander.children
 import org.elixir_lang.expander.compilingKnown
 import org.elixir_lang.expander.forOptions
+import org.elixir_lang.expander.givenAt
 import org.elixir_lang.expander.isBitstringGenerator
 import org.elixir_lang.expander.isCall
 import org.elixir_lang.expander.isListGenerator
@@ -367,6 +370,11 @@ internal class Evaluation(
     /** `__CALLER__`, one term, so `Macro.expand/2` knows the env it is given. */
     private val caller by lazy { envOf(env) }
 
+    /** Records an `IO.warn` of [message] as the warning of the call being evaluated. */
+    fun warn(message: String, stacktrace: OtpErlangObject?) {
+        run.warnings += Warning.Emitted(call, message, stacktrace)
+    }
+
     /**
      * The output of the call, which dispatches as [dispatch], given [arguments].
      *
@@ -474,15 +482,15 @@ internal class Evaluation(
     }
 
     /**
-     * `Macro.expand/2`, or with [once] `Macro.expand_once/2`, of [ast] in [env], expanded where the call is. An env
-     * other than `__CALLER__` declines.
+     * `Macro.expand/2`, or with [once] `Macro.expand_once/2`, of [ast] in [env], expanded where the call is: in
+     * `__CALLER__`, or in `__CALLER__` with only its `:function` changed. Any other env declines.
      */
     fun macroExpand(ast: OtpErlangObject, env: OtpErlangObject, once: Boolean): OtpErlangObject {
-        if (env !== caller) decline("Macro.expand/2 in an env other than __CALLER__")
-
+        val given = if (env === caller) this.env else withFunction(env) ?: decline("Macro.expand/2 in an env other than __CALLER__")
+        val expanding = givenAt(given, lineAt(given), run.level)
         val node = codeOf(ast, call.meta.origin, values = true, known = nodes::get)
             ?: decline("Macro.expand/2 of a term it can't read or copy")
-        val expanded = if (once) macroExpandOnce(node, state, this.env, run) else macroExpand(node, state, this.env, run)
+        val expanded = if (once) macroExpandOnce(node, state, expanding, run) else macroExpand(node, state, expanding, run)
 
         return when (expanded) {
             // A node that didn't expand is the term given, metadata the node doesn't hold included.
@@ -490,6 +498,37 @@ internal class Evaluation(
             MacroExpanded.Dir -> decline("Macro.expand/2 of __DIR__")
             is MacroExpanded.Stopped -> decline("Macro.expand/2 stops")
         }
+    }
+
+    /**
+     * The env [given] stands for where it is `__CALLER__` on every key but `:function`, which is `{name, arity}` or
+     * `nil`: the call's, in that function. `null` where it is any other term.
+     */
+    private fun withFunction(given: OtpErlangObject): Env? {
+        val map = seen(given) as? OtpErlangMap ?: return null
+        val caller = caller as? OtpErlangMap ?: return null
+        val key = atom("function")
+
+        if (map.arity() != caller.arity()) return null
+
+        for ((field, value) in entries(caller)) {
+            val held = map.get(field) ?: return null
+
+            if (field != key && held !== value && !equal(held, value, true, run.level)) return null
+        }
+
+        val function = when (val value = seen(map.get(key)!!)) {
+            NIL -> null
+            is OtpErlangTuple -> {
+                val name = (value.elementAt(0) as? OtpErlangAtom)?.takeIf { value.arity() == 2 } ?: return null
+                val arity = (seen(value.elementAt(1)) as? OtpErlangLong)?.takeIf { it.signum() >= 0 && it.bitLength() < 32 } ?: return null
+
+                NameArity(name.atomValue(), arity.intValue())
+            }
+            else -> return null
+        }
+
+        return env.copy(function = function)
     }
 
     /** `run_on_definition_callbacks/8`'s call of `module:function/6` (`elixir_def.erl:255–262`). */
@@ -804,12 +843,15 @@ internal class Evaluation(
                 Env.Context.GUARD -> atom("guard")
             },
             "context_modules" to list(env.contextModules.map(::atom)),
-            "line" to integer(lineOf(call.meta).toLong()),
+            "line" to integer(lineAt(env).toLong()),
             "file" to (run.file?.let(::binary) ?: UnknownBinary),
         )
 
         macroEnv(held, unread = null)
     }
+
+    /** The line the macro runs at in [env]: [Env.line], or the call's. */
+    private fun lineAt(env: Env): Int = env.line ?: lineOf(call.meta)
 
     /** A `Macro.Env` whose every field is [ModuleUnknown], or that where the leg's fields aren't known. */
     private val unknownEnv: OtpErlangObject by lazy { macroEnv(emptyMap(), unread = ModuleUnknown) }

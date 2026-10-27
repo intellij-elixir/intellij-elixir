@@ -43,6 +43,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.HEREDOC_TERMINATOR_A
 import org.elixir_lang.language_level.ElixirLanguageFeature.HEXADECIMAL_ESCAPE_NEEDS_TWO_DIGITS
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNESCAPED_QUOTED_REMOTE_CALL_NAME
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.unicode_util.isScalarValue
 
 /**
  * Reports, as errors, constructs that Elixir's parser or string unescaping rejects and the plugin's parser accepts.
@@ -322,7 +323,7 @@ internal class InvalidConstruct : Annotator, DumbAware {
             ?: return null
         val codePoint = digits.toLongOrNull(16) ?: return null
 
-        if (!isUnicodeScalarValue(codePoint)) {
+        if (!isScalarValue(codePoint)) {
             val languageLevel = ElixirLanguageLevelResolver.languageLevelFor(escape)
             val hexadecimal = escape.hexadecimalEscapePrefix.text.endsWith("x")
 

@@ -245,6 +245,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             CALENDAR_SIGIL_STRUCT_SYNTAX to ("1.17.3" to "1.18.0-rc.0"),
             ISO_PARSES_SIGNED_YEAR to ("1.11.4" to "1.12.0-rc.0"),
             APPLICATION_ENV_IN_BODY to ("1.13.4" to "1.14.0-rc.0"),
+            MACRO_EXPAND_CALLER_AT_ENV_LINE to ("1.16.3" to "1.17.0-rc.0"),
             LOCAL_MACRO_CHECKED_FOR_DEPRECATION to ("1.16.3" to "1.17.0-rc.0"),
             PROTOCOL_METADATA_ATTRIBUTES to ("1.11.4" to "1.12.0-rc.0"),
             PROTOCOL_EXCLUDES_GUARDS to ("1.11.4" to "1.12.0-rc.0"),
@@ -341,6 +342,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             UNICODE_15_GRAPHEME_CLUSTERS to ("26.0-rc1" to "26.0-rc2"),
             INDIC_CONJUNCT_GRAPHEME_CLUSTERS to ("28.0-rc1" to "28.0-rc2"),
             WIDER_INDIC_CONJUNCT_GRAPHEME_CLUSTERS to ("28.5.0.7" to "29.0-rc1"),
+            GRAPHEME_CLUSTER_KEEPS_EMPTY_TAIL to ("25.0-rc2" to "25.0-rc3"),
             MAX_AND_MIN_GUARDS to ("25.3.2.21" to "26.0-rc1"),
             IS_INTEGER_RANGE_GUARD to ("28.5.0.7" to "29.0-rc1"),
             IS_RECORD_GUARD to ("28.5.0.7" to "29.0-rc1"),
@@ -355,6 +357,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             RAISE_FRAME_TAKES_A_CAPTURE to ("24.3.4.17" to "25.0-rc1"),
             MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER to ("25.3.2.21" to "26.0-rc1"),
             NEGATIVE_ZERO_IS_DISTINCT to ("26.2.5.21" to "27.0-rc1"),
+            BINARY_PART_REJECTS_BITSTRINGS to ("26.2.5.21" to "27.0-rc1"),
             INTEGERS_UP_TO_4_MBIT to ("26.0.1" to "26.0.2"),
         )
 

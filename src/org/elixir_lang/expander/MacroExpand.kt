@@ -1,7 +1,9 @@
 package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProgressManager
+import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_EXPAND_CALLER_AT_ENV_LINE
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_EXPAND_CHECKS_REMOTE_FUNCTION_DEPRECATION
+import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 
 /** What `Macro.expand/2` or `Macro.expand_once/2` gives a node. */
@@ -15,6 +17,13 @@ internal sealed class MacroExpanded {
     /** Where the port stops: an [Expansion.Error], [Expansion.Unported] or [Expansion.Opaque]. */
     data class Stopped(val expansion: Expansion) : MacroExpanded()
 }
+
+/**
+ * [env], at [line], as `Macro.expand/2` gives it to a macro: from 1.17 the macro's `__CALLER__` is that env, so it runs
+ * at [line] rather than at its call's.
+ */
+internal fun givenAt(env: Env, line: Int, level: ElixirLanguageLevel): Env =
+    if (MACRO_EXPAND_CALLER_AT_ENV_LINE.isSufficient(level)) env.copy(line = line) else env
 
 /** `Macro.expand/2` of [node] in [env]: [macroExpandOnce] until it leaves the node as it is. */
 internal fun macroExpand(node: ElixirAst, state: ExState, env: Env, run: Run): MacroExpanded {

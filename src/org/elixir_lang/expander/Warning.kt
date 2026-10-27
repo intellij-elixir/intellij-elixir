@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangObject
 import org.elixir_lang.lowering.ElixirAst
 
 /** A warning Elixir reports as it expands a module. It changes nothing about the expansion. */
@@ -22,4 +23,10 @@ internal sealed interface Warning {
 
     /** A call of `Application.get_env/fetch_env/fetch_env!` in a module body, where `compile_env` is meant. */
     data class CompileEnv(override val at: ElixirAst, val name: String, val arity: Int) : Warning
+
+    /**
+     * An `IO.warn/1,2` a macro made as it ran, at the macro call: its message, and its stacktrace as given, `null` for
+     * `IO.warn/1`, which Elixir gives the caller's.
+     */
+    data class Emitted(override val at: ElixirAst, val message: String, val stacktrace: OtpErlangObject?) : Warning
 }

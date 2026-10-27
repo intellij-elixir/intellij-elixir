@@ -20,8 +20,8 @@ import java.io.File
 import javax.inject.Inject
 
 /**
- * Fetches Mix dependencies for the Quoter project using the Elixir/Erlang SDK resolved by
- * `resolveElixirErlangSdks` (mise/PATH/env aware) - no from-source Elixir build required.
+ * Fetches a Mix project's dependencies - the Quoter's, and a test fixture's - using the Elixir/Erlang SDK
+ * resolved by `resolveElixirErlangSdks` (mise/PATH/env aware) - no from-source Elixir build required.
  */
 abstract class GetQuoterDepsTask : DefaultTask() {
 
@@ -31,14 +31,15 @@ abstract class GetQuoterDepsTask : DefaultTask() {
     abstract val sdkProperties: RegularFileProperty
 
     /**
-     * Working directory for `mix`. Deliberately @Internal, not @InputDirectory: this task's own
-     * `deps` output - and `releaseQuoter`'s `_build` output - are nested inside it, so tracking the
-     * whole tree as an input made every build invalidate this task and re-run `mix local.hex`
-     * (a network round-trip; `--force` skips the prompt, not the download). The inputs that actually
-     * decide the dependency set, `mix.exs` and `mix.lock`, are declared at the registration site.
+     * The Mix project, and the working directory for `mix`. Deliberately @Internal, not @InputDirectory:
+     * the quoter's `deps` output - and `releaseQuoter`'s `_build` output - are nested inside it, so
+     * tracking the whole tree as an input made every build invalidate this task and re-run
+     * `mix local.hex` (a network round-trip; `--force` skips the prompt, not the download). The inputs
+     * that actually decide the dependency set, `mix.exs` and the lock, are declared at each registration
+     * site.
      */
     @get:Internal
-    abstract val quoterDir: DirectoryProperty
+    abstract val projectDir: DirectoryProperty
 
     /**
      * MIX_HOME for this build's Elixir/OTP pair, wired from `build.gradle.kts`. Per-pair rather than
@@ -68,12 +69,13 @@ abstract class GetQuoterDepsTask : DefaultTask() {
     @get:OutputDirectory
     abstract val mixArchives: DirectoryProperty
 
+    /** Where `deps.get` writes, given to mix as `MIX_DEPS_PATH`, so it need not be under [projectDir]. */
     @get:OutputDirectory
     abstract val depsDir: DirectoryProperty
 
     /**
-     * MIX_ENV for the fetch, from `sdk.resolveMixEnv` - the same value `releaseQuoter` builds under, so
-     * `deps` holds what that release needs and nothing else.
+     * MIX_ENV for the fetch. The quoter's is from `sdk.resolveMixEnv` - the same value `releaseQuoter`
+     * builds under, so `deps` holds what that release needs and nothing else.
      *
      * It reaches `mix deps.get` twice over, and only the second one does anything. `deps.get` ignores
      * MIX_ENV by design, fetching every dependency in the lock whatever its `only:`, so the environment
@@ -101,9 +103,9 @@ abstract class GetQuoterDepsTask : DefaultTask() {
         // `--only <env>` can have nothing to fetch - a quoter whose every dependency is dev/test-only
         // has an empty prod set - and mix then does not create `deps` at all. It is a declared output
         // here and a declared input of `releaseQuoter`, so create it rather than leave that to mix.
-        depsDir.get().asFile.mkdirs()
-        val environment = mixEnvironment(elixirHome, erlangHome, home, archives, mixEnv.get())
-        val dir = quoterDir.get().asFile
+        val deps = depsDir.get().asFile.apply { mkdirs() }
+        val environment = mixEnvironment(elixirHome, erlangHome, home, archives, mixEnv.get(), deps)
+        val dir = projectDir.get().asFile
 
         fun mix(vararg args: String) {
             execOps.exec {
@@ -116,10 +118,10 @@ abstract class GetQuoterDepsTask : DefaultTask() {
         // hex + rebar are required to fetch dependencies.
         //
         // `--force` suppresses the overwrite prompt, not the download, so the only way to avoid the
-        // network round-trip is not to call it. This task cannot be made up-to-date or cacheable across
-        // a version switch - `deps` sits inside unzipQuoter's declared output directory, which disables
-        // caching, and up-to-date history holds one entry per task - so it re-executes whenever the
-        // targeted pair changes, and skipping the reinstall is what keeps that cheap.
+        // network round-trip is not to call it. The quoter's fetch cannot be made up-to-date or cacheable
+        // across a version switch - its `deps` sits inside unzipQuoter's declared output directory, which
+        // disables caching, and up-to-date history holds one entry per task - so it re-executes whenever
+        // the targeted pair changes, and skipping the reinstall is what keeps that cheap.
         //
         // Presence is a sound signal only because both directories are keyed on the Elixir/OTP pair:
         // anything in them was installed by this task for this pair. Neither is searched at a fixed

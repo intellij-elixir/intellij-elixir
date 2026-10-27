@@ -456,21 +456,9 @@ internal object Quote {
         if ((location as? Term.Atom)?.name != "keep" || file == null || moved) throw Stop(Expansion.Unported(call))
         if (QUOTE_KEEP_STORES_FULL_PATH.isSufficient(run.level)) return Term.Binary(file.toByteArray())
 
-        val directory = run.directories.of(file) ?: throw Stop(Expansion.Unported(call))
+        val relative = run.directories.relativeToCwd(file) ?: throw Stop(Expansion.Unported(call))
 
-        return Term.Binary(relativeTo(file, directory).toByteArray())
-    }
-
-    /** `Path.relative_to/2`: [path] relative to [directory] when below it, otherwise [path] itself. */
-    private fun relativeTo(path: String, directory: String): String {
-        val segments = splitPath(path)
-        val base = splitPath(directory)
-
-        return if (segments.size > base.size && segments.subList(0, base.size) == base) {
-            segments.drop(base.size).joinToString("/")
-        } else {
-            path
-        }
+        return Term.Binary(relative.toByteArray())
     }
 
     /** `bind_quoted:`'s `[{Key, Value}]`, validated as `elixir_expand` validates it. */
@@ -731,7 +719,3 @@ internal object Quote {
         return definitionHead(view, AstTerm.Node(head), level)?.let { (it as AstTerm.Node).node }
     }
 }
-
-/** `Path.split/1`: an absolute path's root, then each name. */
-private fun splitPath(path: String): List<String> =
-    listOfNotNull("/".takeIf { path.startsWith("/") }) + path.split("/").filter(String::isNotEmpty)

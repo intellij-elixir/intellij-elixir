@@ -99,7 +99,7 @@ class LoadedModulesTest : ProbeTestCase() {
         assertEquals(
             "unordered",
             unordered.map {
-                "$it\n  -> Present(functions=[], macros=[], hasInfo=true, behaviour=Unreadable, deprecated=Known(reasons={}))"
+                "$it\n  -> Present(functions=[], macros=[], hasInfo=true, behaviour=Unreadable, deprecated=Known(reasons={}), attributes=Unreadable)"
             },
             unordered.map { "$it\n  -> ${sourceExports(it)}" },
         )

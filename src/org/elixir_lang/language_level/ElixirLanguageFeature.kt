@@ -574,6 +574,14 @@ enum class ElixirLanguageFeature(
     WIDER_INDIC_CONJUNCT_GRAPHEME_CLUSTERS(sinceOtp = "29.0-rc1"),
 
     /**
+     * `unicode_util:gc/1` of a binary whose first cluster runs to its end keeps the empty binary as the tail, as it
+     * already did after a control: `[112|<<>>]` for `<<"p">>`, which was `[112]`. A cluster of Prepends still drops it.
+     *
+     * `erlang/otp@2f0bf4fbd4` and `erlang/otp@52c36fa7a6`, first released in OTP 25.0-rc3.
+     */
+    GRAPHEME_CLUSTER_KEEPS_EMPTY_TAIL(sinceOtp = "25.0-rc3"),
+
+    /**
      * Bidirectional formatting characters, U+202A to U+202E and U+2066 to U+2069, are rejected in comments and quoted
      * text.
      *
@@ -2174,6 +2182,15 @@ enum class ElixirLanguageFeature(
     MACRO_EXPAND_CHECKS_REMOTE_FUNCTION_DEPRECATION(removedInElixir = "1.17.0-rc.0"),
 
     /**
+     * A macro that `Macro.expand/2` or `Macro.expand_once/2` expands runs at the env's line, its `__CALLER__` being the
+     * env given; before, at its call's line, as on the compile path.
+     *
+     * `elixir-lang/elixir@097eee9d5` ("Add Macro.Env.expand_import/5 and Macro.Env.expand_require/6", #13421), first
+     * released in v1.17.0-rc.0.
+     */
+    MACRO_EXPAND_CALLER_AT_ENV_LINE(sinceElixir = "1.17.0-rc.0"),
+
+    /**
      * A call of a macro the module defines itself checks it for a deprecation, as a call of an imported or remote
      * macro does. Before it, `expand_import` answered a local macro without the check.
      *
@@ -2595,6 +2612,14 @@ enum class ElixirLanguageFeature(
      * 27.0-rc1.
      */
     NEGATIVE_ZERO_IS_DISTINCT(sinceOtp = "27.0-rc1"),
+
+    /**
+     * `erlang:binary_part/3` of a bitstring that isn't a binary raises `badarg`, where it took the part from its whole
+     * bytes: `<<1>>` for `binary_part(<<1, 2::4>>, 0, 1)`.
+     *
+     * `erlang/otp@0eb56f4fe8` ("binary module: Always reject bitstrings"), first released in OTP 27.0-rc1.
+     */
+    BINARY_PART_REJECTS_BITSTRINGS(sinceOtp = "27.0-rc1"),
 
     /**
      * An integer holds at most 65,535 words, about 4 Mbit, where it held 524,287, and arithmetic past it raises

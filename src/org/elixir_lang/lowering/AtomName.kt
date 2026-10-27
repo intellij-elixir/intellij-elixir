@@ -32,6 +32,7 @@ import org.elixir_lang.psi.SigilHeredocLiteral
 import org.elixir_lang.psi.SigilLine
 import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.impl.operatorTokenNode
+import org.elixir_lang.unicode_util.isScalarValue
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
@@ -345,7 +346,7 @@ internal fun content(parent: PsiElement, pieces: List<Piece>, languageLevel: Eli
                     else ->
                         buffer().add(
                             (sequence as? EscapeSequence ?: return null).codePoint()
-                                .takeIf { it <= Character.MAX_CODE_POINT && it !in SURROGATES } ?: return null
+                                .takeIf { isScalarValue(it.toLong()) } ?: return null
                         )
                 }
             }
@@ -395,6 +396,3 @@ internal fun utf8(codePoints: List<Int>): ByteArray {
 
     return bytes.toByteArray()
 }
-
-/** Code points Elixir refuses in an escape, as UTF-8 cannot encode them. */
-private val SURROGATES = Character.MIN_SURROGATE.code..Character.MAX_SURROGATE.code

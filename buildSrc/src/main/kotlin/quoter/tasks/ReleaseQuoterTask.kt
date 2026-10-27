@@ -6,6 +6,7 @@ import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputDirectory
@@ -41,7 +42,7 @@ abstract class ReleaseQuoterTask : DefaultTask() {
     /**
      * Working directory for `mix`. @Internal rather than @InputDirectory because this task's own
      * `_build` output is nested inside it, which would make it perpetually out of date. The real
-     * inputs (mix.exs, mix.lock, lib, config, deps) are declared at the registration site.
+     * inputs (mix.exs, mix.lock, lib, config) are declared at the registration site, and [depsDir] here.
      */
     @get:Internal
     abstract val quoterDir: DirectoryProperty
@@ -53,6 +54,11 @@ abstract class ReleaseQuoterTask : DefaultTask() {
     /** MIX_ARCHIVES for this build's Elixir/OTP pair; populated by `getQuoterDeps`, read here. */
     @get:Internal
     abstract val mixArchives: DirectoryProperty
+
+    /** The dependencies `getQuoterDeps` fetched, given to mix as `MIX_DEPS_PATH`. */
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val depsDir: DirectoryProperty
 
     @get:OutputDirectory
     abstract val buildDir: DirectoryProperty
@@ -103,7 +109,8 @@ abstract class ReleaseQuoterTask : DefaultTask() {
         val erlangHome = File(props["erlang.sdk.path"] ?: throw GradleException("Missing erlang.sdk.path"))
         val mixExe = mixExecutable(elixirHome)
         val archives = mixArchives.get().asFile
-        val environment = mixEnvironment(elixirHome, erlangHome, mixHome.get().asFile, archives, mixEnv.get())
+        val environment =
+            mixEnvironment(elixirHome, erlangHome, mixHome.get().asFile, archives, mixEnv.get(), depsDir.get().asFile)
 
         // Captured rather than streamed, because the reason has to outlive this task - the tests that
         // need the daemon fail later, in another JVM. One buffer for both streams keeps the failure in

@@ -23,10 +23,12 @@ import org.elixir_lang.expander.Compiling
 import org.elixir_lang.expander.DEFINITION_ARITIES
 import org.elixir_lang.expander.DefinitionTable
 import org.elixir_lang.expander.EffectOutcome
+import org.elixir_lang.expander.Env
 import org.elixir_lang.expander.EscapeOp
 import org.elixir_lang.expander.EscapeView
 import org.elixir_lang.expander.EscapeResult
 import org.elixir_lang.expander.Expansion
+import org.elixir_lang.expander.ModuleAttributes
 import org.elixir_lang.expander.ModuleEffects
 import org.elixir_lang.expander.ModuleExports
 import org.elixir_lang.expander.QuoteEscape
@@ -37,15 +39,16 @@ import org.elixir_lang.expander.annotation
 import org.elixir_lang.expander.defines
 import org.elixir_lang.expander.write
 import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTES_EXPANDED_LAZILY
+import org.elixir_lang.language_level.ElixirLanguageFeature.BINARY_PART_REJECTS_BITSTRINGS
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.ERLANG_ERROR_3
 import org.elixir_lang.language_level.ElixirLanguageFeature.GET_ATTRIBUTE_DEFAULT_FOR_REGISTERED
 import org.elixir_lang.language_level.ElixirLanguageFeature.GET_ATTRIBUTE_DEFAULT_ONLY_UNSET
+import org.elixir_lang.language_level.ElixirLanguageFeature.GRAPHEME_CLUSTER_KEEPS_EMPTY_TAIL
 import org.elixir_lang.language_level.ElixirLanguageFeature.INTEGERS_UP_TO_4_MBIT
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_SORT_KEEPS_EQUAL_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.RAISE_FRAME_TAKES_A_CAPTURE
-import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_ATTRIBUTES_IN
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_GET_LAST_ATTRIBUTE
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_OVERRIDABLES_IN
@@ -55,9 +58,12 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.STRING_TO_ATOM_REQUI
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
 import org.elixir_lang.lowering.fitsAnAtom
 import org.elixir_lang.psi.Import.Term
+import org.elixir_lang.unicode_util.Graphemes
+import org.elixir_lang.unicode_util.isScalarValue
 import java.io.ByteArrayOutputStream
 import java.math.BigInteger
 import java.nio.ByteBuffer
+import java.nio.CharBuffer
 import java.nio.charset.CharacterCodingException
 import kotlin.math.abs
 
@@ -70,7 +76,7 @@ private const val BACKTRACE_DEPTH = 8
  * came from no module, or a default: `get_env/3`'s and `compile_env/4`'s where the key isn't set (`App:724`, `:595` at
  * v1.20.4), and `__compile_env__/4`'s before it (`App:516` at v1.11.4). `Module`'s attribute reads, and
  * `delete_attribute/2`, return a value of the module their first argument names, or the default they are given; its
- * predicates and other writers a boolean or `:ok`, and its listings names.
+ * predicates and other writers a boolean or `:ok`, and its listings names. `IO.warn/1,2` returns `:ok`.
  */
 private val RETURNABLE = mapOf(
     Triple("Elixir.Application", "get_env", 2) to emptyList(),
@@ -104,6 +110,8 @@ private val RETURNABLE = mapOf(
     Triple("Elixir.Module", "make_overridable", 2) to emptyList(),
     Triple("Elixir.Module", "delete_definition", 2) to emptyList(),
     Triple("elixir_def", "take_definition", 2) to emptyList(),
+    Triple("Elixir.IO", "warn", 1) to emptyList(),
+    Triple("Elixir.IO", "warn", 2) to emptyList(),
 )
 
 /**
@@ -148,15 +156,22 @@ internal class Natives(private val evaluation: Evaluation) {
     fun call(module: String, function: String, args: List<OtpErlangObject>): OtpErlangObject? {
         val key = "$function/${args.size}"
 
+        if (key == "__info__/1") info(module, args[0])?.let { return it }
+
         return when (module) {
             "erlang" -> erlang(key, args)
             "lists" -> lists(key, args)
             "maps" -> maps(key, args)
             "elixir_quote" -> quote(key, args)
+            "elixir_module" -> elixirModule(key, args)
+            "code" -> code(key, args)
+            "unicode" -> unicode(key, args)
+            "unicode_util" -> if (key == "gc/1") gc(seen(args[0])) else null
             "Elixir.Keyword" -> keyword(key, args)
             "Elixir.Enum" -> enum(key, args)
             "Elixir.Access" -> access(key, args)
             "Elixir.Macro.Env" -> env(key, args)
+            "Elixir.IO" -> io(key, args)
             "Elixir.Module" -> module(key, args)
             "Elixir.Application" -> application(key, args)
             "Elixir.Atom" -> if (key == "to_string/1") erlang("atom_to_binary/1", args) else null
@@ -201,6 +216,60 @@ internal class Natives(private val evaluation: Evaluation) {
     fun enumerate(enumerable: OtpErlangObject): Sequence<OtpErlangObject> =
         properElements(enumerable)?.asSequence()?.onEach { ProgressManager.checkCanceled() } ?: range(enumerable)?.elements()
             ?: decline("enumerates %s", enumerable)
+
+    /**
+     * `Module.__info__(:attributes)` (`elixir_erl.erl:364-366`) of a module that has `__info__/1`, from the attributes its
+     * `.beam` persists, declining where they can't be read; `null`, as its clauses answer, for any other key or module.
+     */
+    private fun info(module: String, key: OtpErlangObject): OtpErlangObject? {
+        if (seen(key) != atom("attributes")) return null
+
+        val exports = evaluation.run.exports.of(module) as? ModuleExports.Present ?: return null
+
+        if (!exports.hasInfo) return null
+
+        return when (val attributes = exports.attributes) {
+            is ModuleAttributes.Known -> attributes.keyword
+            ModuleAttributes.Unreadable -> decline("$module's attributes aren't known")
+        }
+    }
+
+    /**
+     * `elixir_module:next_counter/1` (`elixir_module.erl:64-71`), from the [Counters][org.elixir_lang.expander.Counters]
+     * the run's expansions take theirs from: `{Module, N}` for a module being compiled, whose table holds its counter, and
+     * a unique integer for `nil` or any other term, as Elixir's `catch` gives.
+     */
+    private fun elixirModule(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
+        when (key) {
+            "next_counter/1" -> {
+                val module = (seen(args[0]) as? OtpErlangAtom)?.atomValue()?.takeIf { it in evaluation.run.compiling }
+
+                when (val counter = evaluation.run.counters.next(module)) {
+                    is Env.Counter.InModule -> tuple(atom(counter.module), integer(counter.n))
+                    is Env.Counter.Unique -> integer(counter.n)
+                }
+            }
+            else -> null
+        }
+
+    /**
+     * `code:ensure_loaded/1` (`code.erl:581-604`), which `Code.ensure_loaded/1`, `ensure_loaded?/1` and
+     * `ensure_compiled/1` reach, from the run's exports, as the code server answers in interactive mode: `{module, M}`
+     * for a module that loads, `{error, nofile}` for one that doesn't, and a decline where which isn't known.
+     */
+    private fun code(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
+        when (key) {
+            "ensure_loaded/1" -> {
+                val module = seen(args[0]) as? OtpErlangAtom ?: functionClause("code", "ensure_loaded", args)
+
+                when (evaluation.run.exports.of(module.atomValue())) {
+                    is ModuleExports.Present -> tuple(atom("module"), module)
+                    ModuleExports.Absent -> tuple(atom("error"), atom("nofile"))
+                    ModuleExports.Unreadable -> decline("whether ${module.atomValue()} loads isn't known")
+                }
+            }
+            else -> null
+        }
 
     private fun erlang(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
         val badarg = { evaluation.error(atom("badarg"), frame("erlang", key.substringBefore('/'), list(args))) }
@@ -258,7 +327,33 @@ internal class Natives(private val evaluation: Evaluation) {
             }
             "tuple_size/1" -> integer((seen(args[0]) as? OtpErlangTuple ?: badarg()).arity().toLong())
             "bit_size/1" -> integer(bitSize(seen(args[0]) as? OtpErlangBitstr ?: badarg()).toLong())
+            "binary_part/3" -> {
+                val bitstring = seen(args[0]) as? OtpErlangBitstr ?: badarg()
+
+                if (!isBinary(bitstring) && BINARY_PART_REJECTS_BITSTRINGS.isSufficient(level)) badarg()
+
+                // Before OTP 27 a bitstring's part is taken from its whole bytes.
+                val bytes = bitstring.binaryValue().copyOf(bitSize(bitstring) / Byte.SIZE_BITS)
+                val (start, length) = args.drop(1).map {
+                    (seen(it) as? OtpErlangLong)?.takeIf { long -> long.bitLength() < Int.SIZE_BITS }?.longValue() ?: badarg()
+                }
+                val (from, to) = if (length < 0) start + length to start else start to start + length
+
+                if (from < 0 || to > bytes.size) badarg()
+
+                OtpErlangBinary(bytes.copyOfRange(from.toInt(), to.toInt()))
+            }
             "byte_size/1" -> integer(((bitSize(seen(args[0]) as? OtpErlangBitstr ?: badarg()) + 7) / 8).toLong())
+            "iolist_to_binary/1" -> {
+                val bytes = Built()
+                val iodata = leaves(args[0], { bytes.write(it.binaryValue()) }) { byte ->
+                    bytes.write(byte.bigIntegerValue().takeIf { it.signum() >= 0 && it.bitLength() <= 8 }?.toInt() ?: badarg())
+                }
+
+                if (!iodata) badarg()
+
+                OtpErlangBinary(bytes.toByteArray())
+            }
             "setelement/3" -> {
                 val tuple = seen(args[1]) as? OtpErlangTuple ?: badarg()
                 val elements = tuple.elements()
@@ -291,11 +386,28 @@ internal class Natives(private val evaluation: Evaluation) {
                 finite(left / right)
             }
             "div/2", "rem/2" -> {
-                val (left, right) = args.map { (seen(it) as? OtpErlangLong)?.bigIntegerValue() ?: badarith() }
+                val (left, right) = args.map(::bigInteger)
 
                 if (right.signum() == 0) badarith()
 
                 integer(if (key == "div/2") left.divide(right) else left.rem(right))
+            }
+            "band/2", "bor/2", "bxor/2" -> {
+                val (left, right) = args.map(::bigInteger)
+
+                integer(
+                    when (key) {
+                        "band/2" -> left.and(right)
+                        "bor/2" -> left.or(right)
+                        else -> left.xor(right)
+                    }
+                )
+            }
+            "bnot/1" -> integer(bigInteger(args[0]).not())
+            "bsl/2", "bsr/2" -> {
+                val (value, by) = args.map(::bigInteger)
+
+                shifted(value, if (key == "bsl/2") by else by.negate())
             }
             "abs/1" -> when (val number = number(args[0])) {
                 is OtpErlangLong -> integer(number.bigIntegerValue().abs())
@@ -856,9 +968,6 @@ internal class Natives(private val evaluation: Evaluation) {
                 val entries = entries(map(args[0]))
 
                 if (entries.size > 32) decline("the order of a map of more than 32 keys")
-                if (MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER.isSufficient(level) && entries.count { it.first is OtpErlangAtom } > 1) {
-                    decline("the order of a map's atom keys")
-                }
 
                 list(entries.sortedWith { left, right -> compare(left.first, right.first, level, true) }.map { tuple(it.first, it.second) })
             }
@@ -1301,14 +1410,76 @@ internal class Natives(private val evaluation: Evaluation) {
         val context = when (key) {
             "in_guard?/1" -> "guard"
             "in_match?/1" -> "match"
+            "stacktrace/1" -> return stacktrace(macroEnv(args[0]) ?: functionClause("Elixir.Macro.Env", "stacktrace", args))
             else -> return null
         }
-        val env = (seen(args[0]) as? OtpErlangMap)
-            ?.takeIf { it.get(atom("__struct__"))?.let(::seen) == atom("Elixir.Macro.Env") }
-            ?.get(atom("context"))
-            ?: evaluation.error(atom("function_clause"), frame("Elixir.Macro.Env", key.substringBefore('/'), list(args)))
+        val env = macroEnv(args[0])?.get(atom("context"))
+            ?: functionClause("Elixir.Macro.Env", key.substringBefore('/'), args)
 
         return bool(seen(env) == atom(context))
+    }
+
+    /**
+     * `IO.warn/1,2` (`io.ex`), recorded as the macro call's warning, with its stacktrace as given: `IO.warn/1`'s is the
+     * caller's, which isn't known. A message that isn't a binary of UTF-8, and the location an env or options give,
+     * decline; a second argument that is none of those, `[]` or a stacktrace raises `function_clause`.
+     */
+    private fun io(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        if (key != "warn/1" && key != "warn/2") return null
+
+        val message = utf8(args[0]) ?: decline("IO.warn/${args.size} of %s", args[0])
+        val stacktrace = args.getOrNull(1)?.also { given ->
+            if (macroEnv(given) != null) decline("IO.warn/2 at a Macro.Env")
+
+            val (elements, _) = cells(seen(given)) ?: functionClause("Elixir.IO", "warn", args)
+
+            when ((elements.firstOrNull()?.let(::seen) as? OtpErlangTuple)?.arity()) {
+                null -> if (elements.isNotEmpty()) functionClause("Elixir.IO", "warn", args)
+                4 -> {}
+                2 -> decline("IO.warn/2 with options %s", given)
+                else -> functionClause("Elixir.IO", "warn", args)
+            }
+        }
+
+        evaluation.warn(message, stacktrace)
+
+        return atom("ok")
+    }
+
+    /** [term] where it is a `%Macro.Env{}`, `null` where it is something else. */
+    private fun macroEnv(term: OtpErlangObject): OtpErlangMap? =
+        (seen(term) as? OtpErlangMap)?.takeIf { it.get(atom("__struct__"))?.let(::seen) == atom("Elixir.Macro.Env") }
+
+    /**
+     * `Macro.Env.stacktrace/1` (`env.ex`): [env]'s one frame, the compiler's outside a module and the module body's
+     * outside a function, at its line and its file relative to where Elixir compiled it.
+     */
+    private fun stacktrace(env: OtpErlangMap): OtpErlangObject {
+        val field = { name: String -> env.get(atom(name))?.let(::seen) ?: decline("a Macro.Env without %s", atom(name)) }
+        val file = utf8(field("file")) ?: decline("Macro.Env.stacktrace/1 of a file that isn't UTF-8 text")
+        val relative = evaluation.run.directories.relativeToCwd(file)
+            ?: decline("Path.relative_to_cwd/1 of %s, whose compile directory isn't known", binary(file))
+        val location = list(
+            listOf(
+                tuple(atom("file"), list(relative.codePoints().toArray().map { integer(it.toLong()) })),
+                tuple(atom("line"), field("line")),
+            ),
+        )
+        val module = field("module")
+        val frame = when {
+            module == NIL -> tuple(atom("elixir_compiler"), atom("__FILE__"), integer(1), location)
+            else -> when (val function = field("function")) {
+                NIL -> tuple(module, atom("__MODULE__"), integer(0), location)
+                else -> {
+                    val (name, arity) = (function as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elements()
+                        ?: decline("Macro.Env.stacktrace/1 of the function %s", function)
+
+                    tuple(module, name, arity, location)
+                }
+            }
+        }
+
+        return list(listOf(frame))
     }
 
     private fun module(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
@@ -1846,6 +2017,22 @@ internal class Natives(private val evaluation: Evaluation) {
         }
     }
 
+    /** [term]'s integer, or `badarith` where it isn't one, as Erlang's integer operators raise. */
+    private fun bigInteger(term: OtpErlangObject): BigInteger = (seen(term) as? OtpErlangLong)?.bigIntegerValue() ?: badarith()
+
+    /**
+     * [value] shifted left [by] bits, or right where [by] is negative, as `bsl/2` gives it: a shift right past every bit
+     * leaves `0` or `-1`, and a nonzero [value] shifted left past the VM's largest integer raises `system_limit`.
+     */
+    private fun shifted(value: BigInteger, by: BigInteger): OtpErlangObject =
+        when {
+            value.signum() == 0 -> integer(0)
+            by.signum() < 0 ->
+                if (-by > value.bitLength().toBigInteger()) integer(value.signum().coerceAtMost(0).toLong()) else integer(value.shiftRight(-by.toInt()))
+            by > OLD_INTEGER_WORDS.toBigInteger() * Long.SIZE_BITS.toBigInteger() -> evaluation.error(atom("system_limit"))
+            else -> bounded(value.shiftLeft(by.toInt()))
+        }
+
     private fun finite(value: Double): OtpErlangObject =
         if (value.isNaN() || value.isInfinite()) badarith() else OtpErlangDouble(value)
 
@@ -1911,6 +2098,146 @@ internal class Natives(private val evaluation: Evaluation) {
             Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap((seen(term) as OtpErlangBitstr).binaryValue())).toString()
         } catch (_: CharacterCodingException) {
             null
+        }
+    }
+
+    /**
+     * `unicode:characters_to_binary/1` (`unicode.erl:305-311`): chardata as a UTF-8 binary, raising `badarg` for a term
+     * that isn't chardata, which OTP checks before it encodes any of the term, up to the first integer too large to be
+     * small. Where a binary isn't UTF-8 or an integer isn't a code point, it gives `{error, ...}` or
+     * `{incomplete, ...}`, which decline.
+     */
+    private fun unicode(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
+        when (key) {
+            "characters_to_binary/1" -> {
+                // One binary's bytes run on into the next's, so a character may be split between them.
+                val bytes = Built()
+                var codePoints = true
+                val chardata = leaves(args[0], { bytes.write(it.binaryValue()) }) { integer ->
+                    if (small(integer) == null) decline("characters_to_binary/1 of %s, which is no code point", integer)
+
+                    codePoint(integer)?.let { bytes.write(Character.toString(it).toByteArray()) } ?: run { codePoints = false }
+                }
+
+                if (!chardata) evaluation.error(atom("badarg"), frame("unicode", "characters_to_binary", list(args)))
+                if (!codePoints) decline("characters_to_binary/1 of %s, which holds no code point", args[0])
+
+                OtpErlangBinary(bytes.toByteArray()).takeIf { utf8(it) != null }
+                    ?: decline("characters_to_binary/1 of %s, which isn't UTF-8", args[0])
+            }
+            else -> null
+        }
+
+    /** [term] where it is a Unicode code point, which a surrogate isn't, `null` where it is something else. */
+    private fun codePoint(term: OtpErlangObject): Int? =
+        (term as? OtpErlangLong)?.takeIf { it.bitLength() < Int.SIZE_BITS }?.intValue()?.takeIf { isScalarValue(it.toLong()) }
+
+    /**
+     * `unicode_util:gc/1`: the first grapheme cluster of a binary or a flat list of code points, then the rest. Where
+     * the cluster ends, and whether a code point is a control or a Prepend, come from [Graphemes]; this builds OTP's
+     * term from them. A cluster is its one code point, or a list of them. A binary whose first code point isn't UTF-8
+     * gives `{error, Bin}`; one whose first cluster is followed directly by bytes that aren't, a list that holds
+     * anything but code points, and any other term decline.
+     */
+    private fun gc(term: OtpErlangObject): OtpErlangObject {
+        val graphemes = Graphemes.of(level)
+        val cluster = { codePoints: List<Int> -> codePoints.singleOrNull()?.let { integer(it.toLong()) } ?: list(codePoints.map { integer(it.toLong()) }) }
+
+        if (isBinary(term)) {
+            val bytes = (term as OtpErlangBitstr).binaryValue()
+
+            if (bytes.isEmpty()) return list(emptyList())
+
+            // `String`'s walks call this once per cluster, so it decodes only as far as the first cluster is seen to end.
+            var decoded = 0
+            var text: String
+            var end: Int
+            do {
+                decoded = maxOf(decoded * 2, 64).coerceAtMost(bytes.size)
+                text = utf8Prefix(bytes, decoded)
+                if (text.isEmpty()) return tuple(atom("error"), term)
+                end = graphemes.clusterEnd(text, 0)
+            } while (end == text.length && decoded < bytes.size)
+
+            if (end == text.length && text.toByteArray(Charsets.UTF_8).size < bytes.size) {
+                decline("unicode_util:gc/1 of %s, whose first cluster is followed by bytes that aren't UTF-8", term)
+            }
+
+            val codePoints = text.substring(0, end).codePoints().toArray().toList()
+            val tail = bytes.copyOfRange(text.substring(0, end).toByteArray(Charsets.UTF_8).size, bytes.size)
+            val last = codePoints.last()
+            val keepsEmptyTail = graphemes.isControl(last) ||
+                !graphemes.isPrepend(last) && GRAPHEME_CLUSTER_KEEPS_EMPTY_TAIL.isSufficient(level)
+
+            return if (tail.isEmpty() && !keepsEmptyTail) {
+                list(listOf(cluster(codePoints)))
+            } else {
+                cons(listOf(cluster(codePoints)), OtpErlangBinary(tail))
+            }
+        }
+
+        val (elements, tail) = cells(term) ?: decline("unicode_util:gc/1 of %s", term)
+        val codePoints = elements.map { codePoint(seen(it)) ?: decline("unicode_util:gc/1 of a list holding %s", it) }
+
+        if (tail != null) decline("unicode_util:gc/1 of a list whose tail is %s", tail)
+        if (codePoints.isEmpty()) return list(emptyList())
+
+        val text = buildString { codePoints.forEach(::appendCodePoint) }
+        val count = text.codePointCount(0, graphemes.clusterEnd(text, 0))
+
+        return list(listOf(cluster(codePoints.take(count))) + elements.drop(count))
+    }
+
+    /** The UTF-8 text of the first [size] of [bytes], up to the first byte that isn't UTF-8 or a code point they cut. */
+    private fun utf8Prefix(bytes: ByteArray, size: Int): String {
+        val decoded = CharBuffer.allocate(size)
+        Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes, 0, size), decoded, size == bytes.size)
+
+        return decoded.flip().toString()
+    }
+
+    /**
+     * Gives [binary] each binary and [integer] each integer of the iodata or chardata [term], in order, and answers whether
+     * [term] is such: a binary, or a list of integers, binaries and such lists whose tail is `[]` or a binary. It stops at
+     * the first term that isn't. Past [COPY_NODES] elements, nested lists' included, it declines, as their parts may be
+     * shared many times over.
+     */
+    private fun leaves(term: OtpErlangObject, binary: (OtpErlangBitstr) -> Unit, integer: (OtpErlangLong) -> Unit): Boolean {
+        var met = 0
+
+        fun walk(term: OtpErlangObject): Boolean {
+            ProgressManager.checkCanceled()
+
+            val known = seen(term)
+
+            if (known is OtpErlangBitstr) return (known.pad_bits() == 0).also { if (it) binary(known) }
+
+            val (elements, tail) = cells(known) ?: return false
+
+            for (element in elements) {
+                if (++met > COPY_NODES) decline("iodata or chardata of over $COPY_NODES elements")
+
+                val part = seen(element)
+
+                if (part is OtpErlangLong) integer(part) else if (!walk(part)) return false
+            }
+
+            return tail == null || seen(tail) is OtpErlangBitstr && walk(tail)
+        }
+
+        return walk(term)
+    }
+
+    /** The bytes a conversion writes, which decline past the size of a bitstring the interpreter builds. */
+    private class Built : ByteArrayOutputStream() {
+        override fun write(b: Int) {
+            reserveBits(count * 8L, 8)
+            super.write(b)
+        }
+
+        override fun write(b: ByteArray, off: Int, len: Int) {
+            reserveBits(count * 8L, len * 8L)
+            super.write(b, off, len)
         }
     }
 

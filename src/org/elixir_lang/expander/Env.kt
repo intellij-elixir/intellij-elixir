@@ -7,9 +7,9 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 
 /**
- * Elixir's expansion environment `E`, less `file`, `line`, `lexical_tracker`, `tracers` and the variables. Every name is
- * the text of the atom it quotes to; modules and aliases carry the `Elixir.` prefix. Each list is in the order `E` holds
- * it.
+ * Elixir's expansion environment `E`, less `file`, `lexical_tracker`, `tracers` and the variables, and less `line` but
+ * where [line] holds it. Every name is the text of the atom it quotes to; modules and aliases carry the `Elixir.`
+ * prefix. Each list is in the order `E` holds it.
  */
 data class Env(
     val aliases: List<Alias>,
@@ -24,6 +24,11 @@ data class Env(
     val module: String?,
     /** `null` where `E`'s `function` is `nil`: outside any function. */
     val function: NameArity?,
+    /**
+     * `E`'s `line` where a macro runs at it rather than at its call's: set only on an env given to `Macro.expand/2`
+     * (from 1.17).
+     */
+    val line: Int? = null,
 ) {
     /** `{alias, module}`: [alias] names [module]. */
     data class Alias(val alias: String, val module: String)
