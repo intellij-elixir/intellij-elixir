@@ -25,7 +25,8 @@ data class Variable(val name: String, val context: Context) {
  *
  * @property read the variables that can be read, each at its version
  * @property version the version the next new variable takes
- * @property stacktrace whether `__STACKTRACE__` can be read: inside the clauses of a `catch` or `rescue`
+ * @property stacktraces how many clauses of a `catch` or `rescue` the code is in, each of which lets it read
+ *   `__STACKTRACE__`
  * @property caller whether `__CALLER__` can be read: in a macro's body
  */
 data class ExState(
@@ -33,9 +34,12 @@ data class ExState(
     val write: Write,
     val prematch: Prematch,
     val version: Int,
-    val stacktrace: Boolean = false,
+    val stacktraces: Int = 0,
     val caller: Boolean = false,
 ) {
+    /** Whether `__STACKTRACE__` can be read: inside the clauses of a `catch` or `rescue`. */
+    val stacktrace: Boolean get() = stacktraces > 0
+
     /** The write half of `vars`: where bindings go that the expression being expanded can't read yet. */
     sealed interface Write {
         /** `false`: outside an argument scope, a binding is only read. */

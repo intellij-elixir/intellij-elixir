@@ -32,6 +32,8 @@ import org.elixir_lang.expander.Summary
 import org.elixir_lang.expander.Warning
 import org.elixir_lang.expander.children
 import org.elixir_lang.expander.compilingKnown
+import org.elixir_lang.expander.envField
+import org.elixir_lang.expander.envFields
 import org.elixir_lang.expander.forOptions
 import org.elixir_lang.expander.givenAt
 import org.elixir_lang.expander.isBitstringGenerator
@@ -489,14 +491,16 @@ internal class Evaluation(
 
     /**
      * `Macro.expand/2`, or with [once] `Macro.expand_once/2`, of [ast] in [env], expanded where the call is: in
-     * `__CALLER__`, or in `__CALLER__` with only its `:function` changed. Any other env declines.
+     * `__CALLER__`, in `__CALLER__` with only its `:function` changed, or in `Macro.Env.to_match/1` of `__CALLER__`.
+     * Any other env declines.
      */
     fun macroExpand(ast: OtpErlangObject, env: OtpErlangObject, once: Boolean): OtpErlangObject {
-        val given = if (env === caller) this.env else withFunction(env) ?: decline("Macro.expand/2 in an env other than __CALLER__")
+        val (given, expandState) = expansionEnv(env) ?: decline("Macro.expand/2 in an env other than __CALLER__")
         val expanding = givenAt(given, lineAt(given), run.level)
         val node = codeOf(ast, call.meta.origin, values = true, known = nodes::get)
             ?: decline("Macro.expand/2 of a term it can't read or copy")
-        val expanded = if (once) macroExpandOnce(node, state, expanding, run) else macroExpand(node, state, expanding, run)
+        val expanded =
+            if (once) macroExpandOnce(node, expandState, expanding, run) else macroExpand(node, expandState, expanding, run)
 
         return when (expanded) {
             // A node that didn't expand is the term given, metadata the node doesn't hold included.
@@ -872,52 +876,39 @@ internal class Evaluation(
         }
     }
 
-    /**
-     * [env] at the call, as `__CALLER__` reads it: the fields of the leg's `Macro.Env`, each one [Env] doesn't hold
-     * [ModuleUnknown].
-     */
+    /** [env] at the call, as `__CALLER__` reads it: each field of the leg's `Macro.Env` ([envField]). */
     private fun envOf(env: Env): OtpErlangObject = envs.getOrPut(env) {
-        val held = mapOf(
-            "module" to atom(env.module ?: "nil"),
-            "function" to (env.function?.let { tuple(atom(it.name), integer(it.arity.toLong())) } ?: NIL),
-            "context" to when (env.context) {
-                Env.Context.NONE -> NIL
-                Env.Context.MATCH -> atom("match")
-                Env.Context.GUARD -> atom("guard")
-            },
-            "context_modules" to list(env.contextModules.map(::atom)),
-            "line" to integer(lineAt(env).toLong()),
-            "file" to (run.file?.let(::binary) ?: UnknownBinary),
-        )
-
-        macroEnv(held, unread = null)
+        macroEnv { field -> envField(field, env, state, lineAt(env), false, run)!! }
     }
 
     /** The line the macro runs at in [env]: [Env.line], or the call's. */
     private fun lineAt(env: Env): Int = env.line ?: lineOf(call.meta)
 
-    /** A `Macro.Env` whose every field is [ModuleUnknown], or that where the leg's fields aren't known. */
-    private val unknownEnv: OtpErlangObject by lazy { macroEnv(emptyMap(), unread = ModuleUnknown) }
-
     /**
-     * The leg's `Macro.Env` with the [held] fields, each other [ModuleUnknown]; where the leg's fields can't be read,
-     * [unread], or a decline where that is `null`.
+     * The env and state [term] is: `__CALLER__`'s, `__CALLER__`'s with only its `:function` changed ([withFunction]), or
+     * the caller's in a match, as `Macro.Env.to_match/1` gives it, with the variables read before the match those it can
+     * read now.
      */
-    private fun macroEnv(held: Map<String, OtpErlangObject>, unread: OtpErlangObject?): OtpErlangObject {
-        val struct = try {
-            remote(atom("Elixir.Macro.Env"), "__struct__", emptyList()) as? OtpErlangMap
-        } catch (declined: Declined) {
-            if (unread == null) throw declined
+    private fun expansionEnv(term: OtpErlangObject): Pair<Env, ExState>? {
+        if (term === caller) return env to state
+        withFunction(term)?.let { return it to state }
 
-            null
-        } ?: return unread ?: decline("Macro.Env's fields")
-        val fields = struct.keys().map { (it as OtpErlangAtom).atomValue() } - "__struct__"
+        val matchEnv = env.copy(context = Env.Context.MATCH)
+        val matchState = state.copy(prematch = ExState.Prematch.InMatch(state.read, state.version, emptyMap(), emptyList()))
+        val match = macroEnv { field -> envField(field, matchEnv, matchState, lineAt(matchEnv), false, run)!! }
 
-        return mapOf(
-            listOf(atom("__struct__") to atom("Elixir.Macro.Env")) + fields.map { atom(it) to (held[it] ?: ModuleUnknown) },
+        return (matchEnv to matchState).takeIf { term == match }
+    }
+
+    /** A `Macro.Env` whose every field is [ModuleUnknown]. */
+    private val unknownEnv: OtpErlangObject by lazy { macroEnv { ModuleUnknown } }
+
+    /** The leg's `Macro.Env`, each field [valueOf] it. */
+    private fun macroEnv(valueOf: (String) -> OtpErlangObject): OtpErlangObject =
+        mapOf(
+            listOf(atom("__struct__") to atom("Elixir.Macro.Env")) + envFields(run.level).map { atom(it) to valueOf(it) },
             run.level,
         )
-    }
 
     /** `Left.right(args)`: a remote call, or a field of a map. */
     private fun dot(callee: ElixirAst.Call, node: ElixirAst.Call, args: List<ElixirAst>, frame: Frame): OtpErlangObject {

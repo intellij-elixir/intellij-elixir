@@ -2225,8 +2225,7 @@ class InterpreterTest : PlatformTestCase() {
                 """,
                 pins = DECLINED_FROM_SOURCE,
             ),
-            // Which variables the caller has bound is the expansion's to say.
-            macro("form:caller-vars", "defmacro m, do: Macro.Env.has_var?(__CALLER__, {:x, nil})", pins = DECLINED),
+            macro("form:caller-vars", "defmacro m, do: Macro.Env.has_var?(__CALLER__, {:x, nil})"),
             macro(
                 "form:stacktrace",
                 """
@@ -5460,10 +5459,10 @@ class InterpreterTest : PlatformTestCase() {
                 },
             ),
             // An unknown that decides whether a 3-tuple is a form declines, since Elixir decides on the real value.
-            macro("head:unknown-meta", "defmacro m, do: {1, __CALLER__.aliases, []}", pins = DECLINED),
+            macro("head:unknown-meta", "defmacro m, do: {1, __CALLER__.lexical_tracker, []}", pins = DECLINED),
             macro("head:unknown-head-and-meta", "defmacro m, do: {__CALLER__.lexical_tracker, __CALLER__.tracers, []}", pins = DECLINED),
             // `Macro.expand/2` reads each as the expander does, before any result is linified.
-            macro("head:unknown-meta-expanded", "defmacro m, do: (_ = Macro.expand({1, __CALLER__.aliases, []}, __CALLER__); :ok)", pins = DECLINED),
+            macro("head:unknown-meta-expanded", "defmacro m, do: (_ = Macro.expand({1, __CALLER__.lexical_tracker, []}, __CALLER__); :ok)", pins = DECLINED),
             macro(
                 "head:unknown-head-and-meta-expanded",
                 "defmacro m, do: (_ = Macro.expand({__CALLER__.lexical_tracker, __CALLER__.tracers, []}, __CALLER__); :ok)",
@@ -5490,7 +5489,7 @@ class InterpreterTest : PlatformTestCase() {
             // Linifying reads an unknown metadata as Elixir reads the list it may be.
             macro(
                 "head:linify-unknown-meta",
-                "defmacro m, do: [{:a, __CALLER__.aliases, [1 | 2]}, {:b, [{:line, 1} | 3], []}]",
+                "defmacro m, do: [{:a, __CALLER__.lexical_tracker, [1 | 2]}, {:b, [{:line, 1} | 3], []}]",
                 pins = DECLINED,
             ),
             // `rescue x in Alias` before Elixir reads only the key's presence.

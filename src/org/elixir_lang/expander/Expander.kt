@@ -657,9 +657,15 @@ internal fun ExpandedAst.or(source: ElixirAst): ElixirAst = (this as? ExpandedAs
 internal val ExpandedAst.elements: List<ElixirAst> get() = (node as ElixirAst.ListNode).elements
 
 /** `Macro.escape/1` of [term] at [at]'s position, or `null` where the port can't build it. */
-internal fun escaped(term: Term, at: ElixirAst, run: Run): ElixirAst? =
-    QuoteEscape(ImportTermEscapeView, AstEscapeBuilder(Synthetic(at.meta)), { literalOf(at, it) }, run.level, run.exports)
-        .escape(term)
+internal fun escaped(term: Term, at: ElixirAst, run: Run): ElixirAst? = escaped(ImportTermEscapeView, term, at, run) { literalOf(at, it) }
+
+/**
+ * `Macro.escape/1` of [input], which [view] reads, at [at]'s position, [insert] putting in a node it holds; `null`
+ * where the port can't build it.
+ */
+internal fun <I> escaped(view: EscapeView<I>, input: I, at: ElixirAst, run: Run, insert: (I) -> ElixirAst?): ElixirAst? =
+    QuoteEscape(view, AstEscapeBuilder(Synthetic(at.meta)), insert, run.level, run.exports)
+        .escape(input)
         .let { (it as? EscapeResult.Built)?.value }
 
 /** This expansion with [value] in place of its own, if it expanded. */

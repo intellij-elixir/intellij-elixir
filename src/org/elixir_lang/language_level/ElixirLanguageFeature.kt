@@ -1607,6 +1607,14 @@ enum class ElixirLanguageFeature(
     MACRO_ENV_VERSIONED_VARS(sinceElixir = "1.13.0-rc.0"),
 
     /**
+     * A remote macro is called, and its output expanded, from the state before its receiver. Before it, from the state
+     * after, whose write `elixir_env:prepare_write/1` opened, so `__CALLER__.current_vars` writes the caller's variables.
+     *
+     * `elixir-lang/elixir@739ad53fe` ("Break Macro.Env apart", #11164), first released in v1.13.0-rc.0.
+     */
+    REMOTE_MACRO_FROM_STATE_BEFORE_RECEIVER(sinceElixir = "1.13.0-rc.0"),
+
+    /**
      * Elixir's static options, `bootstrap` and `identifier_tokenizer`, are in `persistent_term`, read by
      * `elixir_config:is_bootstrap/0` and `identifier_tokenizer/0`. Before it they are in the config table, read by
      * `elixir_config:get/1,2`.

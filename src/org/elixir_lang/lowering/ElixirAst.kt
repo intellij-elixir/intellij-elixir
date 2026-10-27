@@ -75,8 +75,8 @@ sealed class ElixirAst {
     /**
      * A term in a macro's result that Elixir's expansion takes for no AST: a pid, a function, a reference, a port, a
      * map, a bitstring that isn't a binary, a tuple of neither two nor three elements, or a 3-tuple that is neither a
-     * form nor a call, as `{1, 2, 3}` is; or, in a definition's escape code that only the evaluator runs, a term it has
-     * already evaluated.
+     * form nor a call, as `{1, 2, 3}` is; in a definition's escape code that only the evaluator runs, a term it has
+     * already evaluated; or the value of an `__ENV__` field that the expansion gives in its place.
      */
     class Value(override val meta: Meta, val term: OtpErlangObject) : ElixirAst()
 

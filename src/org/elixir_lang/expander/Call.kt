@@ -13,6 +13,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.IMPORTED_FUNCTION_NO
 import org.elixir_lang.language_level.ElixirLanguageFeature.PARENS_MAP_LOOKUP_ATOM
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTED_IMPORT_FUNCTION_TRACED
 import org.elixir_lang.language_level.ElixirLanguageFeature.REMOTE_CALL_IN_PATTERN_EXPANDS_ARGUMENTS_IN_TURN
+import org.elixir_lang.language_level.ElixirLanguageFeature.REMOTE_MACRO_FROM_STATE_BEFORE_RECEIVER
 import org.elixir_lang.language_level.ElixirLanguageFeature.SIGNED_NUMBER_REWRITTEN_EVERYWHERE
 import org.elixir_lang.language_level.ElixirLanguageFeature.SYSTEM_STACKTRACE_REWRITTEN
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNREQUIRED_MACRO_CALLED_AS_FUNCTION
@@ -284,7 +285,9 @@ internal fun expandRemoteCall(node: ElixirAst.Call, state: ExState, env: Env, ru
         unknownStop(receiver, left)?.let { return@thenAst it }
 
         if (receiver is Term.Atom) {
-            dispatchRequire(receiver.name, name, node, state, receiverEnv, run) { functionReceiver, functionName ->
+            val macroState = if (REMOTE_MACRO_FROM_STATE_BEFORE_RECEIVER.isSufficient(run.level)) state else after
+
+            dispatchRequire(receiver.name, name, node, macroState, receiverEnv, run) { functionReceiver, functionName ->
                 remoteFunction(functionReceiver, functionName, node, state, after, receiverEnv, run)
             }
         } else {
