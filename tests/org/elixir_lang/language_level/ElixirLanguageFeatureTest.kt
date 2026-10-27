@@ -245,6 +245,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             CALENDAR_SIGIL_STRUCT_SYNTAX to ("1.17.3" to "1.18.0-rc.0"),
             ISO_PARSES_SIGNED_YEAR to ("1.11.4" to "1.12.0-rc.0"),
             APPLICATION_ENV_IN_BODY to ("1.13.4" to "1.14.0-rc.0"),
+            MACRO_EXPAND_CALLER_AT_ENV_LINE to ("1.16.3" to "1.17.0-rc.0"),
             LOCAL_MACRO_CHECKED_FOR_DEPRECATION to ("1.16.3" to "1.17.0-rc.0"),
             PROTOCOL_METADATA_ATTRIBUTES to ("1.11.4" to "1.12.0-rc.0"),
             PROTOCOL_EXCLUDES_GUARDS to ("1.11.4" to "1.12.0-rc.0"),

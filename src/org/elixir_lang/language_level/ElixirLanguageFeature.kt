@@ -2182,6 +2182,15 @@ enum class ElixirLanguageFeature(
     MACRO_EXPAND_CHECKS_REMOTE_FUNCTION_DEPRECATION(removedInElixir = "1.17.0-rc.0"),
 
     /**
+     * A macro that `Macro.expand/2` or `Macro.expand_once/2` expands runs at the env's line, its `__CALLER__` being the
+     * env given; before, at its call's line, as on the compile path.
+     *
+     * `elixir-lang/elixir@097eee9d5` ("Add Macro.Env.expand_import/5 and Macro.Env.expand_require/6", #13421), first
+     * released in v1.17.0-rc.0.
+     */
+    MACRO_EXPAND_CALLER_AT_ENV_LINE(sinceElixir = "1.17.0-rc.0"),
+
+    /**
      * A call of a macro the module defines itself checks it for a deprecation, as a call of an imported or remote
      * macro does. Before it, `expand_import` answered a local macro without the check.
      *

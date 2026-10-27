@@ -97,7 +97,14 @@ class EctoFixtureTest : HeavyTestCase() {
 
                     expected += "$step: " + (stops[step] ?: chain.getOrNull(index + 1)?.let { compared(it, compiled) } ?: UNEXPANDED)
                     actual += "$step: " +
-                        if (reached == null) "not reached" else described(macroExpandOnce(nodes[index], reached.first, reached.second, run), compiled)
+                        if (reached == null) {
+                            "not reached"
+                        } else {
+                            // The oracle's env is the one-line `def`'s, at the body's line.
+                            val env = givenAt(reached.second, lineIn(chain.first()), level)
+
+                            described(macroExpandOnce(nodes[index], reached.first, env, run), compiled)
+                        }
                 }
             }
         }
@@ -348,7 +355,14 @@ class EctoFixtureTest : HeavyTestCase() {
                     emptyMap()
                 }
 
+        /** The `line` in [term]'s own metadata, a node's that has one. */
+        fun lineIn(term: OtpErlangObject): Int =
+            ((term as OtpErlangTuple).elementAt(1) as OtpErlangList).elements()
+                .firstNotNullOf { (it as? OtpErlangTuple)?.takeIf { pair -> pair.elementAt(0) == LINE }?.elementAt(1) as? OtpErlangLong }
+                .intValue()
+
         val PLACE = listOf("line", "column", "file").map(::OtpErlangAtom)
+        val LINE = OtpErlangAtom("line")
         val COUNTER = OtpErlangAtom("counter")
         val DEF = Regex("^\\s*def (\\w+)", RegexOption.MULTILINE)
     }

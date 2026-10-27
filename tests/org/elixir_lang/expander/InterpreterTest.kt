@@ -4481,6 +4481,14 @@ class InterpreterTest : PlatformTestCase() {
                 """,
                 pins = DECLINED,
             ),
+            // The quoted call has no line: from 1.17 the macro runs at the env's, before at the call's.
+            macro(
+                "env:expand-caller-line",
+                """
+                defmacro l, do: __CALLER__.line == 0
+                defmacro m, do: Macro.expand(quote(do: {row}.l()), __CALLER__)
+                """,
+            ),
 
             // The natives: Elixir's functions
             macro(
@@ -4743,11 +4751,13 @@ class InterpreterTest : PlatformTestCase() {
                 "defmacro m(x, y), do: {Macro.expand_once(x, __CALLER__), Macro.expand(y, __CALLER__)}",
                 "m(unless(false, do: :x), __MODULE__)",
             ),
+            // The expanded call is on line 1, so its env is `__CALLER__`; the case's isn't, and an env with another line
+            // declines.
             macro(
                 "form:macro-expand-env",
                 "defmacro m(x), do: Macro.expand(x, %{__CALLER__ | line: 1})",
                 "m(__MODULE__)",
-                pins = DECLINED,
+                ends = { "stopped at `$ROW.m(__MODULE__)`" },
             ),
             // The read's line is the caller's, which differs between Elixir's call and the case's.
             macro(
