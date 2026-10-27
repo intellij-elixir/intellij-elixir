@@ -2,6 +2,7 @@ package org.elixir_lang.model.psi.config
 
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.expander.ImportMatch
+import org.elixir_lang.psi.Sigil
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 
@@ -17,24 +18,45 @@ data class ReadModule(val qualifier: Qualifier, val name: String, val arity: Int
         UNQUALIFIED(null),
     }
 
+    /** Whether a call is a read. */
+    enum class Answer {
+        READ,
+        NOT_READ,
+
+        /** The template's own Elixir names the call's module, which only expanding it could tell. */
+        UNDECIDED,
+    }
+
     /**
      * Whether [call], written as this says, calls a module with a read of [name] and [arity]: its qualifier names one
      * where the file's expansion reached it, or, unqualified, an import of one brings the read in. Where expansion did
-     * not reach, only [Qualifier.written] counts.
+     * not reach, only [Qualifier.written] counts. In a template [sigil] holds, each is named where [KeyAtom.place] says.
      */
     @RequiresReadLock
-    fun isRead(call: Call): Boolean {
+    fun isRead(call: Call, sigil: Sigil? = KeyAtom.injectedSigil(call)): Answer {
         val modules = Read.modules(name, arity)
 
         return when (qualifier) {
-            Qualifier.UNQUALIFIED ->
-                when (val match = KeyAtom.importOf(call, name, arity)) {
-                    is ImportMatch.Function -> match.receiver in modules
-                    is ImportMatch.Macro -> match.receiver in modules
-                    else -> false
+            Qualifier.UNQUALIFIED -> {
+                val at = KeyAtom.place(call, sigil) ?: return Answer.UNDECIDED
+
+                answer(
+                    when (val match = KeyAtom.importOf(call, name, arity, at)) {
+                        is ImportMatch.Function -> match.receiver in modules
+                        is ImportMatch.Macro -> match.receiver in modules
+                        else -> false
+                    }
+                )
+            }
+            Qualifier.APPLICATION, Qualifier.ERLANG_APPLICATION, Qualifier.OTHER -> {
+                val named = (call as? Qualified)?.qualifier()?.let { written ->
+                    KeyAtom.ofQualifier(written, KeyAtom.place(written, sigil) ?: return Answer.UNDECIDED)
                 }
-            Qualifier.APPLICATION, Qualifier.ERLANG_APPLICATION, Qualifier.OTHER ->
-                ((call as? Qualified)?.qualifier()?.let(KeyAtom::ofQualifier) ?: qualifier.written) in modules
+
+                answer((named ?: qualifier.written) in modules)
+            }
         }
     }
+
+    private fun answer(read: Boolean): Answer = if (read) Answer.READ else Answer.NOT_READ
 }

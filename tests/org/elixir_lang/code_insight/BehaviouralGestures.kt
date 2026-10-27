@@ -30,10 +30,12 @@ import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.injected.editor.EditorWindow
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
+import com.intellij.psi.impl.source.tree.injected.InjectedLanguageEditorUtil
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.SearchScope
 import com.intellij.psi.util.PsiUtilBase
@@ -131,6 +133,22 @@ fun CodeInsightTestFixture.gtduNavigationAtCaret(): GtduNavigation {
     val editor = editor
     return onPooledThread {
         ReadAction.nonBlocking(Callable { resolveGtduNavigation(project, editor, targetFile, offset) }).executeSynchronously()
+    }
+}
+
+/**
+ * [gtduNavigationAtCaret] with the caret in an injected fragment: the action resolves in the injected editor and file
+ * (`BaseCodeInsightAction.getEditor`), so this does too.
+ */
+fun CodeInsightTestFixture.gtduNavigationInInjectionAtCaret(): GtduNavigation {
+    PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+    val project = project
+    val injectedEditor = InjectedLanguageEditorUtil.getEditorForInjectedLanguageNoCommit(editor, file)
+    check(injectedEditor is EditorWindow) { "no injected fragment at the caret" }
+    val injectedFile = PsiDocumentManager.getInstance(project).getPsiFile(injectedEditor.document)!!
+    val offset = injectedEditor.caretModel.offset
+    return onPooledThread {
+        ReadAction.nonBlocking(Callable { resolveGtduNavigation(project, injectedEditor, injectedFile, offset) }).executeSynchronously()
     }
 }
 

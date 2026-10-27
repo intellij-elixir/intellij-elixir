@@ -10,7 +10,9 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.expander.LegSdk
 import org.elixir_lang.expander.edit
+import org.elixir_lang.injection.PsiLanguageInjectionHost
 import org.elixir_lang.model.psi.config.disableMixDepsCheck
+import org.elixir_lang.model.psi.config.withSigilInjection
 import java.io.File
 
 /** A key a config file sets for the project's own app, and that nothing reads. */
@@ -175,6 +177,12 @@ class UnreadConfigKeyTest : PlatformTestCase() {
         assertEquals(emptyList<String>(), reported())
     }
 
+    fun testReadOnlyInAHeexTemplateClears() {
+        reads("def render(assigns), do: ~H\"<p>{Application.get_env(:my_app, :retries)}</p>\"")
+
+        assertEquals(emptyList<String>(), templateReported("config :my_app, retries: 3"))
+    }
+
     fun testReadOnlyInAHeexFileClears() {
         myFixture.addFileToProject("lib/my_app_web/page.html.heex", "<p><%= Application.get_env(:my_app, :retries) %></p>\n")
 
@@ -197,6 +205,54 @@ class UnreadConfigKeyTest : PlatformTestCase() {
         myFixture.addFileToProject("lib/my_app_web/page.html.leex", "<p><%= Application.get_env(:my_app, :retries) %></p>\n")
 
         assertEquals(emptyList<String>(), reported("config :my_app, retries: 3"))
+    }
+
+    fun testReadOnlyInAnESigilClears() {
+        reads("def render(assigns), do: ~E\"<p><%= Application.get_env(:my_app, :retries) %></p>\"")
+
+        assertEquals(emptyList<String>(), templateReported("config :my_app, retries: 3"))
+    }
+
+    fun testReadOnlyInAnLSigilClears() {
+        reads("def render(assigns), do: ~L\"<p><%= Application.get_env(:my_app, :retries) %></p>\"")
+
+        assertEquals(emptyList<String>(), templateReported("config :my_app, retries: 3"))
+    }
+
+    fun testReadAfterTheTemplateAliasesApplicationAwayIsNotReported() {
+        aliasedAway()
+
+        assertEquals(emptyList<String>(), templateReported("config :my_app, retries: 3"))
+    }
+
+    fun testReadAfterTheTemplateAliasesApplicationAwayInAnInjectedTemplateIsNotReported() {
+        aliasedAway()
+
+        assertEquals(emptyList<String>(), myFixture.withSigilInjection { reported("config :my_app, retries: 3") })
+    }
+
+    fun testReadThroughTheTemplatesAliasOfApplicationIsNotReported() {
+        reads("def render(assigns), do: ~E\"<% alias Application, as: App %><%= App.get_env(:my_app, :retries) %>\"")
+
+        assertEquals(emptyList<String>(), templateReported("config :my_app, retries: 3"))
+    }
+
+    fun testReadThroughTheTemplatesAliasOfApplicationInAnInjectedTemplateIsNotReported() {
+        reads("def render(assigns), do: ~E\"<% alias Application, as: App %><%= App.get_env(:my_app, :retries) %>\"")
+
+        assertEquals(emptyList<String>(), myFixture.withSigilInjection { reported("config :my_app, retries: 3") })
+    }
+
+    fun testReadThroughTheTemplatesImportOfApplicationIsNotReported() {
+        reads("def render(assigns), do: ~E\"<% import Application %><%= get_env(:my_app, :retries) %>\"")
+
+        assertEquals(emptyList<String>(), templateReported("config :my_app, retries: 3"))
+    }
+
+    fun testReadThroughTheTemplatesImportOfApplicationInAnInjectedTemplateIsNotReported() {
+        reads("def render(assigns), do: ~E\"<% import Application %><%= get_env(:my_app, :retries) %>\"")
+
+        assertEquals(emptyList<String>(), myFixture.withSigilInjection { reported("config :my_app, retries: 3") })
     }
 
     fun testOwnAppWithErlangSourceIsNotJudged() {
@@ -250,6 +306,12 @@ class UnreadConfigKeyTest : PlatformTestCase() {
         )
     }
 
+    /** A template read of `:retries` after the template's own `alias` makes `Application` another module. */
+    private fun aliasedAway() {
+        myFixture.addFileToProject("lib/my_app/fake.ex", "defmodule MyApp.Fake do\n  def get_env(_app, _key), do: nil\nend\n")
+        reads("def render(assigns), do: ~E\"<% alias MyApp.Fake, as: Application %><%= Application.get_env(:my_app, :retries) %>\"")
+    }
+
     /** Writes a module in `lib/` whose body is [body]. */
     private fun reads(body: String) {
         myFixture.addFileToProject("lib/my_app/reader.ex", "defmodule MyApp.Reader do\n${body.trimIndent().prependIndent("  ")}\nend\n")
@@ -261,6 +323,13 @@ class UnreadConfigKeyTest : PlatformTestCase() {
         myFixture.configureFromTempProjectFile("config/config.exs")
 
         return reported()
+    }
+
+    /** [reported], where sigils are not injection hosts, so a template's reads are found without injected PSI. */
+    private fun templateReported(settings: String): List<String> {
+        assertFalse(PsiLanguageInjectionHost.sigilsAreHosts())
+
+        return reported(settings)
     }
 
     /** The keys this inspection reports in the open file. */

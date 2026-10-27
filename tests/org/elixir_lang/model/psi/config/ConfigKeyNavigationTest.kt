@@ -6,6 +6,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.GtduNavigation
 import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.gtduNavigationAtCaret
+import org.elixir_lang.code_insight.gtduNavigationInInjectionAtCaret
 import org.elixir_lang.code_insight.searchTargetsAtCaret
 import org.elixir_lang.expander.LegSdk
 
@@ -40,6 +41,57 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
         myFixture.caret(WORKER, "[:gree<caret>ting, :nested]")
 
         assertEquals(listOf("config/config.exs:3"), destinations())
+    }
+
+    fun testReadThroughAnAliasOfApplicationInAnInjectedTemplateGoesToSetting() {
+        assertEquals(
+            listOf("config/config.exs:3"),
+            injectedDestinations("alias Application, as: App", "<%= App.get_env(:my_app, :greeting) %>", ":gree<caret>ting"),
+        )
+    }
+
+    fun testReadOfApplicationAliasedAwayInAnInjectedTemplateGoesNowhere() {
+        assertEquals(
+            emptyList<String>(),
+            injectedDestinations("alias MyApp.Fake, as: Application", "<%= Application.get_env(:my_app, :greeting) %>", ":gree<caret>ting"),
+        )
+    }
+
+    fun testAliasKeyInAnInjectedTemplateGoesToSetting() {
+        assertEquals(
+            listOf("config/config.exs:4"),
+            injectedDestinations("alias MyApp.Repo", "<%= Application.get_env(:my_app, Repo) %>", "(:my_app, Re<caret>po)")
+                .filter { it.startsWith("config/") },
+        )
+    }
+
+    fun testAliasKeyAfterAnAliasInAnInjectedTemplateGoesToNoSetting() {
+        assertEquals(
+            emptyList<String>(),
+            injectedDestinations("alias MyApp.Repo", "<% alias Other.Repo %><%= Application.get_env(:my_app, Repo) %>", "(:my_app, Re<caret>po)")
+                .filter { it.startsWith("config/") },
+        )
+    }
+
+    fun testReadAfterTheTemplateAliasesApplicationAwayInAnInjectedTemplateGoesNowhere() {
+        assertEquals(
+            emptyList<String>(),
+            injectedDestinations("", "<% alias MyApp.Fake, as: Application %><%= Application.get_env(:my_app, :greeting) %>", ":gree<caret>ting"),
+        )
+    }
+
+    fun testReadThroughTheTemplatesAliasOfApplicationInAnInjectedTemplateGoesNowhere() {
+        assertEquals(
+            emptyList<String>(),
+            injectedDestinations("", "<% alias Application, as: App %><%= App.get_env(:my_app, :greeting) %>", ":gree<caret>ting"),
+        )
+    }
+
+    fun testReadThroughTheTemplatesImportOfApplicationInAnInjectedTemplateGoesNowhere() {
+        assertEquals(
+            emptyList<String>(),
+            injectedDestinations("", "<% import Application %><%= get_env(:my_app, :greeting) %>", ":gree<caret>ting"),
+        )
     }
 
     fun testPipedReadKeyGoesToSetting() {
@@ -174,8 +226,8 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
     }
 
     /** Where Ctrl-Click goes, as `path:line`, sorted; empty where it goes nowhere or shows usages. */
-    private fun destinations(): List<String> =
-        when (val navigation = myFixture.gtduNavigationAtCaret()) {
+    private fun destinations(navigation: GtduNavigation = myFixture.gtduNavigationAtCaret()): List<String> =
+        when (navigation) {
             is GtduNavigation.GotoDeclaration -> navigation.targets.map { target ->
                 val destination = target.destination!!
                 val file = destination.containingFile
@@ -186,11 +238,28 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
             GtduNavigation.None, is GtduNavigation.ShowUsages -> emptyList()
         }
 
+    /**
+     * [destinations] from [caret] in `~E"[template]"`, injected, in a function whose body runs [setup] before the
+     * sigil.
+     */
+    private fun injectedDestinations(setup: String, template: String, caret: String): List<String> {
+        myFixture.addFileToProject(
+            TEMPLATES,
+            "defmodule MyAppWeb.Templates do\n  def render(assigns) do\n    $setup\n\n    ~E\"$template\"\n  end\nend\n",
+        )
+
+        return myFixture.withSigilInjection {
+            myFixture.caret(TEMPLATES, caret)
+            destinations(myFixture.gtduNavigationInInjectionAtCaret())
+        }
+    }
+
     private companion object {
         const val ALIASED = "lib/my_app/aliased.ex"
         const val CONFIG = "config/config.exs"
         const val DEV = "config/dev.exs"
         const val REPO = "lib/my_app/repo.ex"
+        const val TEMPLATES = "lib/my_app_web/templates.ex"
         const val WORKER = "lib/my_app/worker.ex"
     }
 }

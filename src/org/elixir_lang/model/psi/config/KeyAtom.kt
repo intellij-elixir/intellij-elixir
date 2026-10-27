@@ -1,5 +1,6 @@
 package org.elixir_lang.model.psi.config
 
+import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.project.DumbService
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -9,49 +10,64 @@ import org.elixir_lang.expander.ImportMatch
 import org.elixir_lang.expander.ProjectModules
 import org.elixir_lang.expander.SdkInputs
 import org.elixir_lang.expander.findImportByNameArity
+import org.elixir_lang.injection.sigilInjection
+import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.psi.ElixirFile
+import org.elixir_lang.psi.Sigil
 import org.elixir_lang.psi.call.Call
 
 /**
- * What an element of a setting or a read names in its file's expansion. Each answer is `null` in dumb mode, where the
- * file's SDK gives no inputs, and where the file's expansion did not reach the element.
+ * What an element of a setting or a read names in the env `at` compiles in, which [place] gives. Each answer is `null`
+ * in dumb mode, where the file's SDK gives no inputs, and where the file's expansion did not reach `at`.
  */
 internal object KeyAtom {
-    /** The atom [key], an alias or `__MODULE__` key, names. */
+    /** The atom [key], an alias or `__MODULE__` key, names; `null` also where [at] is. */
     @RequiresReadLock
-    fun of(key: PsiElement): String? =
-        expanded(key)?.let { expanded ->
-            expanded.indexed.envs.atReached(key.textRange)?.let { env ->
-                EnvAtom.of(key, env, expanded.indexed.lowering, expanded.inputs, expanded.holder)
-            }
-        }
+    fun of(key: PsiElement, at: PsiElement? = place(key)): String? {
+        if (at == null) return null
+        val expanded = expanded(at) ?: return null
+        val env = expanded.indexed.envs.atReached(at.textRange) ?: return null
+
+        return expanded.lowering(key)?.let { lowering -> EnvAtom.of(key, env, lowering, expanded.inputs, expanded.holder, expanded.file) }
+    }
 
     /** The module [qualifier], a remote call's, names. */
     @RequiresReadLock
-    fun ofQualifier(qualifier: PsiElement): String? =
-        expanded(qualifier)?.let { expanded ->
+    fun ofQualifier(qualifier: PsiElement, at: PsiElement): String? =
+        expanded(at)?.let { expanded ->
             val indexed = expanded.indexed
 
-            EnvAtom.receiver(
-                qualifier,
-                indexed.receivers,
-                indexed.envs.atReached(qualifier.textRange),
-                indexed.lowering,
-                expanded.inputs,
-                expanded.holder,
-            )
+            expanded.lowering(qualifier)?.let { lowering ->
+                EnvAtom.receiver(
+                    qualifier,
+                    indexed.receivers.takeIf { qualifier.containingFile == expanded.file },
+                    indexed.envs.atReached(at.textRange),
+                    lowering,
+                    expanded.inputs,
+                    expanded.holder,
+                    expanded.file,
+                )
+            }
         }
 
     /** What the imports in [call]'s env give for an unqualified call of [name] and [arity]. */
     @RequiresReadLock
-    fun importOf(call: Call, name: String, arity: Int): ImportMatch? =
-        expanded(call)?.let { expanded ->
-            val indexed = expanded.indexed
-
-            indexed.envs.atReached(call.textRange)?.let { env ->
-                findImportByNameArity(indexed.lowering.lower(call).meta, name, arity, emptyList(), env, expanded.inputs.level)
+    fun importOf(call: Call, name: String, arity: Int, at: PsiElement): ImportMatch? =
+        expanded(at)?.let { expanded ->
+            expanded.indexed.envs.atReached(at.textRange)?.let { env ->
+                expanded.lowering(call)?.let { lowering ->
+                    findImportByNameArity(lowering.lower(call).meta, name, arity, emptyList(), env, expanded.inputs.level)
+                }
             }
         }
+
+    /**
+     * Where the env that names [element] is: [element] itself, or, in a template [sigil] holds, what
+     * [TemplateReads.placeOf] gives, which is `null` where only the template's own Elixir could tell.
+     */
+    @RequiresReadLock
+    fun place(element: PsiElement, sigil: Sigil? = injectedSigil(element)): PsiElement? =
+        if (sigil == null) element else TemplateReads.placeOf(element, sigil)
 
     /**
      * What this object's answers for [file]'s elements depend on beyond [file]'s own text: its expansion's env index,
@@ -65,15 +81,34 @@ internal object KeyAtom {
             else -> expansion
         }
 
+    /** The template sigil [element]'s injected template is in. */
+    @RequiresReadLock
+    fun injectedSigil(element: PsiElement): Sigil? =
+        (InjectedLanguageManager.getInstance(element.project).getInjectionHost(element) as? Sigil)?.takeIf { sigilInjection(it) != null }
+
     /** How a file's elements are named: through its [Expanded] expansion, or, for a file nothing expands, from its text alone. */
     private sealed interface Expansion
 
     private data object Unexpanded : Expansion
 
-    private class Expanded(val indexed: ProjectModules.Indexed, val inputs: ProjectModules.Inputs, val holder: ProjectModules) : Expansion
+    private class Expanded(
+        val file: ElixirFile,
+        val indexed: ProjectModules.Indexed,
+        val inputs: ProjectModules.Inputs,
+        val holder: ProjectModules,
+    ) : Expansion {
+        /** The lowering of [element]'s file: [file]'s own, or a template's. */
+        @RequiresReadLock
+        fun lowering(element: PsiElement): Lowering? =
+            when (val elementFile = element.containingFile) {
+                file -> indexed.lowering
+                is ElixirFile -> Lowering.of(elementFile, indexed.lowering.languageLevel)
+                else -> null
+            }
+    }
 
     @RequiresReadLock
-    private fun expanded(element: PsiElement): Expanded? = element.containingFile?.let(::expansion) as? Expanded
+    private fun expanded(at: PsiElement): Expanded? = at.containingFile?.let(::expansion) as? Expanded
 
     /** [file]'s expansion; `null` in dumb mode and where its SDK gives no inputs. */
     @RequiresReadLock
@@ -85,7 +120,7 @@ internal object KeyAtom {
             is SdkInputs.Answer.Ready -> (file as? ElixirFile)?.let {
                 val holder = ProjectModules.getInstance(project)
 
-                Expanded(holder.indexed(it, answer.inputs), answer.inputs, holder)
+                Expanded(it, holder.indexed(it, answer.inputs), answer.inputs, holder)
             }
             SdkInputs.Answer.Template -> Unexpanded
             else -> null

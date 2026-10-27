@@ -67,6 +67,25 @@ class ConfigKeyCompletionTest : PlatformTestCase() {
         }
     }
 
+    fun testReadKeyOffersAKeyReadOnlyInATemplate() {
+        typing(LIB, "def f, do: Application.get_env(:my_app, :template_b<caret>)")
+
+        assertEquals(module("def f, do: Application.get_env(:my_app, :template_banner)"), choose("template_banner"))
+    }
+
+    fun testReadAppOffersAnAppReadOnlyInATemplate() {
+        typing(LIB, "def f, do: Application.get_env(:app_t<caret>)")
+
+        assertEquals(module("def f, do: Application.get_env(:app_template)"), choose("app_template"))
+    }
+
+    fun testKeyATemplateReadsThroughItsOwnAliasIsNotOffered() {
+        typing(LIB, "def f, do: Application.get_env(:my_app, :template_u<caret>)")
+
+        assertDoesntContain(candidates(), "template_undecided")
+        assertEquals(module("def f, do: Application.get_env(:my_app, :template_u)"), choose(null))
+    }
+
     fun testCompileEnvKeyPathHeadOffersKeys() {
         typing(LIB, "@retries Application.compile_env(:my_app, [:ret<caret>])")
 
