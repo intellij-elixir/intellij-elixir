@@ -1,29 +1,39 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangObject
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.roots.OrderEnumerator
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.ModificationTracker
+import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
+import com.intellij.psi.search.FilenameIndex
+import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.expander.interpreter.Declined
+import org.elixir_lang.expander.interpreter.equal
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.mix.Project.MIX_EXS
+import org.elixir_lang.model.psi.config.ConfigFiles
+import org.elixir_lang.model.psi.config.ConfigSettings
 import org.elixir_lang.navigation.isDecompiled
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.Import.Term
@@ -31,6 +41,7 @@ import org.elixir_lang.reference.Resolver
 import org.elixir_lang.reference.resolver.Module
 import org.jetbrains.annotations.TestOnly
 import java.io.IOException
+import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -334,14 +345,8 @@ internal class ProjectModules(private val project: Project) {
         val loadable = Module.resolveLoadable(asker, org.elixir_lang.Module.indexName(atom))
         val chosen = Resolver.preferred(asker, false, loadable).mapNotNull { copy(it.element) }.distinctBy { it.virtualFile }
         val chosenFiles = chosen.mapTo(HashSet()) { it.virtualFile }
-        val index = ProjectFileIndex.getInstance(project)
-        // A `.beam` in the project's content is its own build output: Mix removes an app's stale ones before compiling it,
-        // and adds its consolidated protocols only once it has compiled.
         val fallback = loadable.mapNotNull { copy(it.element) }
-            .filter {
-                it.compiled && it.virtualFile !in chosenFiles &&
-                    index.isInLibraryClasses(it.virtualFile) && !index.isInContent(it.virtualFile)
-            }
+            .filter { it.compiled && it.virtualFile !in chosenFiles && isDependencyOutput(it.virtualFile) }
             .distinctBy { it.virtualFile }
         val copies = HeldCopies(chosen, fallback)
 
@@ -481,7 +486,7 @@ internal class ProjectModules(private val project: Project) {
         val looked = HashMap<String, Looked>()
         // A re-read answer joins the one it supersedes, as the expansion used both.
         val used = ArrayList<Looked>()
-        val clausesTransients = ArrayList<Transient>()
+        val transients = ArrayList<Transient>()
         val ask = { atom: String ->
             looked[atom]
                 ?.takeIf { it.transient.holdsWhile(within) }
@@ -501,7 +506,7 @@ internal class ProjectModules(private val project: Project) {
             inputs.level,
             { ask(it).exports },
             { ask(it).struct },
-            { _, _ -> AppEnvValue.Unreadable },
+            appEnv(inputs.level, stamps, virtualFile, inProgress) { transients += it },
             object : ExpansionObserver by observer {
                 override fun entering(node: ElixirAst, state: ExState, env: Env) {
                     envs?.entering(node, env)
@@ -546,17 +551,122 @@ internal class ProjectModules(private val project: Project) {
             clauses = { atom ->
                 clauses(file, atom, inputs, within).also { read ->
                     stamps.addAll(read.stamps)
-                    clausesTransients += read.transient
+                    transients += read.transient
                 }.clauses
             },
         )
         used.forEach { stamps.addAll(it.stamps) }
 
         val uncompiled = LoadedModules.uncompiledExports(expansion)?.let { Answer(it, ModuleStruct.Unreadable) }
-        val transient = Transient.merged(clausesTransients + used.map(Looked::transient)).leaving(compiling)
+        val transient = Transient.merged(transients + used.map(Looked::transient)).leaving(compiling)
 
         return Held(Loaded(inputs, modules, uncompiled, stamps), expansion, results, lowering, transient, envs, receivers)
     }
+
+    /** The app env a default build of the project sees, for an expansion that keeps no stamps. */
+    @RequiresReadLock
+    fun appEnv(inputs: Inputs): AppEnv = appEnv(inputs.level, Stamps(), null, emptyMap()) {}
+
+    /**
+     * The app env a default build of the project sees, as [AppEnv.of] orders it: a key a config file that counts sets,
+     * else what the app's `.app` file declares, read from a class root of the libraries and the SDK outside the
+     * project's content, as the `.beam` fallback is. The project's own apps are built from the sources being expanded,
+     * so their `.app` files aren't read. A read made expanding [file], a config file that counts, is configured: Mix
+     * loads the config before the dependencies' `.app` files. So is one made while a config file's expansion runs
+     * above [file]'s ([inProgress]), which holds only while it runs. [stamps] gain what each answer read, and
+     * [transient] what holds only for this run: in dumb mode nothing can be read, and each answer is unreadable.
+     */
+    private fun appEnv(
+        level: ElixirLanguageLevel,
+        stamps: Stamps,
+        file: VirtualFile?,
+        inProgress: Map<VirtualFile, Map<String, Answer>>,
+        transient: (Transient) -> Unit,
+    ): AppEnv {
+        val config by lazy {
+            // A `mix.exs` names its config directory, where a file created or deleted moves the settings.
+            stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+            FilenameIndex.getVirtualFilesByName(MIX_EXS, GlobalSearchScope.projectScope(project)).forEach(stamps::source)
+
+            ConfigFiles.scope(project).also { scope ->
+                FilenameIndex.getAllFilesByExt(project, "exs", scope).forEach(stamps::source)
+            }
+        }
+        val appFiles = HashMap<String, Optional<AppFile>>()
+
+        // Whether this file is expanded within a config file's expansion.
+        fun configRunning(): Boolean {
+            val running = inProgress.keys.filter(config::contains)
+            if (running.isNotEmpty()) transient(Transient(running.associateWith { emptyMap() }, false))
+
+            return running.isNotEmpty()
+        }
+
+        val env = AppEnv.of(
+            { app, key ->
+                file != null && config.contains(file) || configRunning() ||
+                    (key as? OtpErlangAtom)?.let { ConfigSettings.of(project, app, it.atomValue(), config).isNotEmpty() } == true
+            },
+            { app -> appFiles.getOrPut(app) { Optional.ofNullable(appFile(app, level, stamps)) }.orElse(null) },
+        )
+
+        return AppEnv { app, key ->
+            if (DumbService.isDumb(project)) {
+                transient(Transient.DUMB)
+                AppEnvValue.Unreadable
+            } else {
+                env.of(app, key)
+            }
+        }
+    }
+
+    /**
+     * Whether [file], a compiled file on the code path, is a dependency's build output rather than the project's own. A
+     * file in the project's content is its own build output: Mix removes an app's stale `.beam` files before compiling
+     * it, and adds its consolidated protocols only once it has compiled.
+     */
+    private fun isDependencyOutput(file: VirtualFile): Boolean {
+        val index = ProjectFileIndex.getInstance(project)
+
+        return index.isInLibraryClasses(file) && !index.isInContent(file)
+    }
+
+    /**
+     * [app]'s `.app` file as read from its copies on the code path, as a build in any of their envs sees it: `null`
+     * where there is none, one can't be read or names another app, or two differ in env, as `=:=` tells on [level]'s VM
+     * or by a zero's sign, which the VM keeps where `=:=` can't tell it.
+     */
+    private fun appFile(app: String, level: ElixirLanguageLevel, stamps: Stamps): AppFile? {
+        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+        stamps.track(ProjectRootManager.getInstance(project))
+        val copies = OrderEnumerator.orderEntries(project).classes().roots
+            .mapNotNull { it.findChild("$app.app") }
+            .filter(::isDependencyOutput)
+            .distinct()
+            .map { file ->
+                stamps.file(file)
+
+                try {
+                    AppFile.read(VfsUtilCore.loadText(file), level)
+                } catch (_: IOException) {
+                    null
+                } ?: return null
+            }
+
+        return copies.firstOrNull()?.takeIf { first -> copies.all { it.name == app && sameEnv(it.env, first.env, level) } }
+    }
+
+    private fun sameEnv(left: Map<OtpErlangObject, OtpErlangObject>, right: Map<OtpErlangObject, OtpErlangObject>, level: ElixirLanguageLevel) =
+        left.keys == right.keys &&
+            left.all { (key, value) ->
+                try {
+                    val other = right.getValue(key)
+
+                    equal(value, other, true, level) && !differInSign(value, other)
+                } catch (_: Declined) {
+                    false
+                }
+            }
 
     /**
      * The directory Elixir compiled [file] in: the innermost Mix project's holding it, as Mix compiles a dependency and
@@ -752,9 +862,14 @@ internal class ProjectModules(private val project: Project) {
 
         fun copy(copy: Copy) {
             when (copy) {
-                is Copy.Compiled -> read.getOrPut(copy.virtualFile) { Stamp(copy.virtualFile::getModificationStamp) }
+                is Copy.Compiled -> file(copy.virtualFile)
                 is Copy.Source -> source(copy.virtualFile)
             }
+        }
+
+        /** A file read from disk, not through its PSI. */
+        fun file(virtualFile: VirtualFile) {
+            read.getOrPut(virtualFile) { Stamp(virtualFile::getModificationStamp) }
         }
 
         fun addAll(stamps: Stamps) {
