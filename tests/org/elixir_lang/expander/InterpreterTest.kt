@@ -62,6 +62,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUED_ERROR_MESSAGE_FROM_ERROR_INFO
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_EXCEPTION_KEY_PRESENT
 import org.elixir_lang.language_level.ElixirLanguageFeature.SPLICE_EMPTY_BEFORE_TAIL_RAISES
+import org.elixir_lang.language_level.ElixirLanguageFeature.STATIC_OPTIONS_IN_PERSISTENT_TERM
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNREQUIRED_MACRO_CALLED_AS_FUNCTION
 import org.elixir_lang.language_level.ElixirLanguageFeature.WITH_OPTIONS_BEFORE_LAST_ARGUMENT
@@ -1771,9 +1772,6 @@ class InterpreterTest : PlatformTestCase() {
         /** The legs whose `Macro.Env` has `versioned_vars`, and those whose has the five fields it replaced. */
         val VERSIONED_VARS_LEGS: (ElixirLanguageLevel) -> Boolean = { MACRO_ENV_VERSIONED_VARS.isSufficient(it) }
         val UNVERSIONED_VARS_LEGS: (ElixirLanguageLevel) -> Boolean = { !MACRO_ENV_VERSIONED_VARS.isSufficient(it) }
-
-        /** The legs where Elixir's static options are in `persistent_term`, read by `elixir_config`'s own functions. */
-        val STATIC_OPTIONS_IN_PERSISTENT_TERM: (ElixirLanguageLevel) -> Boolean = { MACRO_ENV_VERSIONED_VARS.isSufficient(it) }
 
         /** A row whose case body `use`s the leg's [module], then holds [after]. */
         fun leg(module: String, options: String = "", after: String = "", stopsAfter: String? = null): Row {
@@ -9240,19 +9238,19 @@ class InterpreterTest : PlatformTestCase() {
             // Terms that compare equal give the first.
             macro("native:min", "defmacro m, do: [:erlang.min(1, 2), :erlang.min(2, 1), :erlang.min(1, 1.0), :erlang.min(1.0, 1), :erlang.min(:a, 1)]"),
             // Elixir's static options, which its boot sets.
-            macro("native:identifier_tokenizer", "defmacro m, do: :elixir_config.identifier_tokenizer()", legs = STATIC_OPTIONS_IN_PERSISTENT_TERM),
-            macro("native:is_bootstrap", "defmacro m, do: :elixir_config.is_bootstrap()", legs = STATIC_OPTIONS_IN_PERSISTENT_TERM),
+            macro("native:identifier_tokenizer", "defmacro m, do: :elixir_config.identifier_tokenizer()", legs = STATIC_OPTIONS_IN_PERSISTENT_TERM::isSufficient),
+            macro("native:is_bootstrap", "defmacro m, do: :elixir_config.is_bootstrap()", legs = STATIC_OPTIONS_IN_PERSISTENT_TERM::isSufficient),
             macro(
                 "native:elixir_config-get",
                 "defmacro m, do: [:elixir_config.get(:identifier_tokenizer, :x), :elixir_config.get(:bootstrap)]",
-                legs = { !STATIC_OPTIONS_IN_PERSISTENT_TERM(it) },
+                legs = { !STATIC_OPTIONS_IN_PERSISTENT_TERM.isSufficient(it) },
             ),
             // Every other key varies with how Mix runs Elixir; from v1.13 the static options aren't in the table.
             macro("native:elixir_config-get-other-key", "defmacro m, do: :elixir_config.get(:docs, :x)", pins = DECLINED),
             macro(
                 "native:elixir_config-get-static-key",
                 "defmacro m, do: :elixir_config.get(:bootstrap, :x)",
-                legs = STATIC_OPTIONS_IN_PERSISTENT_TERM,
+                legs = STATIC_OPTIONS_IN_PERSISTENT_TERM::isSufficient,
                 pins = DECLINED,
             ),
             macro("native:special_form", "defmacro m, do: [:elixir_import.special_form(:case, 2), :elixir_import.special_form(:case, 1), :elixir_import.special_form(:fn, :x), :elixir_import.special_form(:foo, 1)]"),

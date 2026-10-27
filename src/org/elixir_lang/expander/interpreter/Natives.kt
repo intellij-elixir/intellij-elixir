@@ -16,6 +16,8 @@ import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
+import org.elixir_lang.declaration.ArityKnowledge
+import org.elixir_lang.declaration.admits
 import org.elixir_lang.expander.Annotation
 import org.elixir_lang.expander.AttributeTable
 import org.elixir_lang.expander.AttributeValue
@@ -37,6 +39,7 @@ import org.elixir_lang.expander.TermEscapeBuilder
 import org.elixir_lang.expander.TermEscapeView
 import org.elixir_lang.expander.annotation
 import org.elixir_lang.expander.defines
+import org.elixir_lang.expander.specialFormArity
 import org.elixir_lang.expander.write
 import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTES_EXPANDED_LAZILY
 import org.elixir_lang.language_level.ElixirLanguageFeature.BINARY_PART_REJECTS_BITSTRINGS
@@ -54,6 +57,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_GET_LAST_ATTR
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_OVERRIDABLES_IN
 import org.elixir_lang.language_level.ElixirLanguageFeature.OVERRIDABLE_GUARDS_MODULE
 import org.elixir_lang.language_level.ElixirLanguageFeature.SPLICE_EMPTY_BEFORE_TAIL_RAISES
+import org.elixir_lang.language_level.ElixirLanguageFeature.STATIC_OPTIONS_IN_PERSISTENT_TERM
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRING_TO_ATOM_REQUIRES_BINARY
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
 import org.elixir_lang.lowering.fitsAnAtom
@@ -65,6 +69,7 @@ import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.nio.charset.CharacterCodingException
+import java.security.MessageDigest
 import kotlin.math.abs
 
 /** The frames a stacktrace `erlang:raise/3` stores holds at most: the default `backtrace_depth`, which Elixir keeps. */
@@ -192,6 +197,10 @@ internal class Natives(private val evaluation: Evaluation) {
             "Elixir.String.Chars" -> if (key == "to_string/1") toString(args[0]) else null
             "Elixir.Kernel" -> kernel(key, args)
             "Elixir.Macro" -> macro(key, args)
+            "ordsets" -> if (key == "is_element/2") isElement(args[0], args[1]) else null
+            "binary" -> if (key == "at/2") byteAt(args[0], args[1]) else null
+            "elixir_config" -> config(key, args)
+            "elixir_import" -> if (key == "special_form/2") isSpecialForm(args[0], args[1]) else null
             else -> null
         } ?: if (module in WRITES_BY_ROW) write(module, key, args) else null
     }
@@ -318,6 +327,7 @@ internal class Natives(private val evaluation: Evaluation) {
             ">/2" -> bool(compare(args[0], args[1], level) > 0)
             "=</2" -> bool(compare(args[0], args[1], level) <= 0)
             ">=/2" -> bool(compare(args[0], args[1], level) >= 0)
+            "min/2" -> if (compare(args[0], args[1], level) > 0) args[1] else args[0]
             "not/1" -> bool(!(boolean(args[0]) ?: badarg()))
             "and/2" -> bool((boolean(args[0]) ?: badarg()) and (boolean(args[1]) ?: badarg()))
             "or/2" -> bool((boolean(args[0]) ?: badarg()) or (boolean(args[1]) ?: badarg()))
@@ -363,16 +373,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 OtpErlangBinary(bytes.copyOfRange(from.toInt(), to.toInt()))
             }
             "byte_size/1" -> integer(((bitSize(seen(args[0]) as? OtpErlangBitstr ?: badarg()) + 7) / 8).toLong())
-            "iolist_to_binary/1" -> {
-                val bytes = Built()
-                val iodata = leaves(args[0], { bytes.write(it.binaryValue()) }) { byte ->
-                    bytes.write(byte.bigIntegerValue().takeIf { it.signum() >= 0 && it.bitLength() <= 8 }?.toInt() ?: badarg())
-                }
-
-                if (!iodata) badarg()
-
-                OtpErlangBinary(bytes.toByteArray())
-            }
+            "iolist_to_binary/1" -> OtpErlangBinary(iodataBytes(args[0], badarg))
             "setelement/3" -> {
                 val tuple = seen(args[1]) as? OtpErlangTuple ?: badarg()
                 val elements = tuple.elements()
@@ -442,6 +443,9 @@ internal class Natives(private val evaluation: Evaluation) {
                     null -> badarg()
                 }
             }
+            "atom_to_list/1" ->
+                list((seen(args[0]) as? OtpErlangAtom ?: badarg()).atomValue().codePoints().toArray().map { integer(it.toLong()) })
+            "md5/1" -> OtpErlangBinary(MessageDigest.getInstance("MD5").digest(iodataBytes(args[0], badarg)))
             "binary_to_atom/1", "binary_to_atom/2" -> {
                 val text = atomText(args) ?: badarg()
 
@@ -2104,6 +2108,69 @@ internal class Natives(private val evaluation: Evaluation) {
 
     private fun isBinary(term: OtpErlangObject) = typed(term).let { it is OtpErlangBitstr && it.pad_bits() == 0 }
 
+    /** `binary:at/2`: the byte of the binary [subject] at the zero-based [position]. */
+    private fun byteAt(subject: OtpErlangObject, position: OtpErlangObject): OtpErlangObject {
+        val badarg = { evaluation.error(atom("badarg"), frame("binary", "at", list(listOf(subject, position)))) }
+        val bytes = (seen(subject) as? OtpErlangBitstr)?.takeIf(::isBinary)?.binaryValue() ?: badarg()
+        val index = (seen(position) as? OtpErlangLong)?.takeIf { it.bitLength() < Int.SIZE_BITS }?.intValue() ?: badarg()
+
+        return integer((bytes.getOrNull(index) ?: badarg()).toLong() and 0xFF)
+    }
+
+    /**
+     * `ordsets:is_element/2`, by its clauses: the first element of [set] not below [element] decides, and a tail that
+     * isn't `[]` has no clause.
+     */
+    private fun isElement(element: OtpErlangObject, set: OtpErlangObject): OtpErlangObject {
+        val functionClause = { rest: OtpErlangObject ->
+            evaluation.error(atom("function_clause"), frame("ordsets", "is_element", list(listOf(element, rest))))
+        }
+        val (elements, tail) = cells(set) ?: functionClause(set)
+
+        for (each in elements) {
+            ProgressManager.checkCanceled()
+
+            val order = compare(element, each, level)
+
+            if (order < 0) return FALSE
+            if (order == 0) return TRUE
+        }
+
+        return if (tail == null) FALSE else functionClause(tail)
+    }
+
+    /**
+     * `elixir_config`'s readers of Elixir's static options ([STATIC_OPTIONS]): its own functions from
+     * [STATIC_OPTIONS_IN_PERSISTENT_TERM], `get/1,2` before it. Every other option varies with how Elixir is run.
+     */
+    private fun config(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        val persistent = STATIC_OPTIONS_IN_PERSISTENT_TERM.isSufficient(level)
+
+        return when (key) {
+            "is_bootstrap/0" -> STATIC_OPTIONS.getValue("bootstrap").takeIf { persistent }
+            "identifier_tokenizer/0" -> STATIC_OPTIONS.getValue("identifier_tokenizer").takeIf { persistent }
+            "get/1", "get/2" ->
+                STATIC_OPTIONS[(seen(args[0]) as? OtpErlangAtom)?.atomValue()].takeUnless { persistent }
+                    ?: decline("Elixir's option %s", args[0])
+            "static/1" -> decline("sets Elixir's static options")
+            else -> null
+        }
+    }
+
+    /**
+     * `elixir_import:special_form/2`: whether [name]/[arity] is a special form ([specialFormArity]). A name that is one
+     * at any arity is one whatever [arity] is, and any other term `false`, as its clauses match them.
+     */
+    private fun isSpecialForm(name: OtpErlangObject, arity: OtpErlangObject): OtpErlangObject {
+        val arities = (seen(name) as? OtpErlangAtom)?.let { specialFormArity(it.atomValue(), level) } ?: return FALSE
+
+        if (arities == ArityKnowledge.Open(0)) return TRUE
+
+        val int = (seen(arity) as? OtpErlangLong)?.takeIf { it.isLong }?.longValue()
+
+        return bool(int != null && int in Int.MIN_VALUE..Int.MAX_VALUE && arities.admits(int.toInt()))
+    }
+
     /** The text of the binary [term], `null` where it isn't a binary of UTF-8. */
     private fun utf8(term: OtpErlangObject): String? {
         if (!isBinary(term)) return null
@@ -2242,6 +2309,18 @@ internal class Natives(private val evaluation: Evaluation) {
         return walk(term)
     }
 
+    /** The bytes of the iodata [term], as `iolist_to_binary/1` gives them; [badarg] where [term] isn't iodata. */
+    private fun iodataBytes(term: OtpErlangObject, badarg: () -> Nothing): ByteArray {
+        val bytes = Built()
+        val iodata = leaves(term, { bytes.write(it.binaryValue()) }) { byte ->
+            bytes.write(byte.bigIntegerValue().takeIf { it.signum() >= 0 && it.bitLength() <= 8 }?.toInt() ?: badarg())
+        }
+
+        if (!iodata) badarg()
+
+        return bytes.toByteArray()
+    }
+
     /** The bytes a conversion writes, which decline past the size of a bitstring the interpreter builds. */
     private class Built : ByteArrayOutputStream() {
         override fun write(b: Int) {
@@ -2259,6 +2338,12 @@ internal class Natives(private val evaluation: Evaluation) {
     private val view = EscapeView<OtpErlangObject> { TermEscapeView.shape(seen(it)) }
 
 }
+
+/**
+ * Elixir's static options, as its boot sets them: `elixir:start/2`'s config before [STATIC_OPTIONS_IN_PERSISTENT_TERM],
+ * `elixir_config`'s defaults from it.
+ */
+private val STATIC_OPTIONS = mapOf("bootstrap" to FALSE, "identifier_tokenizer" to atom("Elixir.String.Tokenizer"))
 
 /** The node of a process or reference the evaluator makes. */
 private const val LOCAL_NODE = "nonode@nohost"

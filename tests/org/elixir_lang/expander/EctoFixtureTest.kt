@@ -61,7 +61,6 @@ class EctoFixtureTest : HeavyTestCase() {
 
         val holder = ProjectModules(project)
         val entered = HashMap<String, Pair<ExState, Env>>()
-        val stops = stops(LegManifest.environment("ELIXIR_VERSION"))
         val expected = mutableListOf<String>()
         val actual = mutableListOf<String>()
 
@@ -95,7 +94,7 @@ class EctoFixtureTest : HeavyTestCase() {
                 for (index in chain.indices) {
                     val step = "$form ${index + 1}"
 
-                    expected += "$step: " + (stops[step] ?: chain.getOrNull(index + 1)?.let { compared(it, compiled) } ?: UNEXPANDED)
+                    expected += "$step: " + (STOPS[step] ?: chain.getOrNull(index + 1)?.let { compared(it, compiled) } ?: UNEXPANDED)
                     actual += "$step: " +
                         if (reached == null) {
                             "not reached"
@@ -339,21 +338,10 @@ class EctoFixtureTest : HeavyTestCase() {
             }
 
         /**
-         * The steps the expander stops at where Elixir expands them, on the leg with [elixir]. `join/4` without `:on`
-         * names its schema in a warning through `inspect/1`, whose text isn't known. On 1.20.4, `Macro.to_string/1`
-         * classifies an atom through `atom_to_list/1` and `elixir_config:identifier_tokenizer/0`, which aren't answered.
+         * The steps the expander stops at where Elixir expands them. `join/4` without `:on` names its schema in a warning
+         * through `inspect/1`, whose text isn't known.
          */
-        fun stops(elixir: String): Map<String, String> =
-            mapOf("q_no_on 1" to "opaque Ecto.Query.join/4") +
-                if (elixir == "1.20.4") {
-                    mapOf(
-                        "q_from 2" to "opaque Ecto.Query.select/3",
-                        "q_parens 2" to "opaque Ecto.Query.where/3",
-                        "q_pipe 2" to "opaque Ecto.Query.where/3",
-                    )
-                } else {
-                    emptyMap()
-                }
+        val STOPS = mapOf("q_no_on 1" to "opaque Ecto.Query.join/4")
 
         /** The `line` in [term]'s own metadata, a node's that has one. */
         fun lineIn(term: OtpErlangObject): Int =

@@ -160,6 +160,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             PUT_ELEM_IN_GUARD to ("1.20.0-rc.5" to "1.20.0-rc.6"),
             ESCAPED_BINARY_SPEC_IS_A_NAME to ("1.14.5" to "1.15.0-rc.0"),
             MACRO_ENV_VERSIONED_VARS to ("1.12.3" to "1.13.0-rc.0"),
+            STATIC_OPTIONS_IN_PERSISTENT_TERM to ("1.12.3" to "1.13.0-rc.0"),
             RESCUE_CALL_EXPANDED_AS_MACRO to ("1.14.5" to "1.15.0-rc.0"),
             POST_MODULE_LOCAL_CHECKS_TYPED to ("1.17.3" to "1.18.0-rc.0"),
             LOCAL_CALL_CHECKED_BEFORE_ARGUMENTS to ("1.18.4" to "1.19.0-rc.0"),

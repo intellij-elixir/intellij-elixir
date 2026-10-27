@@ -1607,6 +1607,16 @@ enum class ElixirLanguageFeature(
     MACRO_ENV_VERSIONED_VARS(sinceElixir = "1.13.0-rc.0"),
 
     /**
+     * Elixir's static options, `bootstrap` and `identifier_tokenizer`, are in `persistent_term`, read by
+     * `elixir_config:is_bootstrap/0` and `identifier_tokenizer/0`. Before it they are in the config table, read by
+     * `elixir_config:get/1,2`.
+     *
+     * `elixir-lang/elixir@f97137894` ("Assume Elixir is not started when accessing configs"), first released in
+     * v1.13.0-rc.0.
+     */
+    STATIC_OPTIONS_IN_PERSISTENT_TERM(sinceElixir = "1.13.0-rc.0"),
+
+    /**
      * `erlang:max/2` and `erlang:min/2` are guard functions.
      *
      * `erlang/otp@5da4b90d86` ("Allow max/2 and min/2 to be used in guards"), first released in OTP 26.0-rc1.
