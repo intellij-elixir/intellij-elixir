@@ -28,6 +28,7 @@ import org.elixir_lang.expander.EscapeOp
 import org.elixir_lang.expander.EscapeView
 import org.elixir_lang.expander.EscapeResult
 import org.elixir_lang.expander.Expansion
+import org.elixir_lang.expander.ModuleAttributes
 import org.elixir_lang.expander.ModuleEffects
 import org.elixir_lang.expander.ModuleExports
 import org.elixir_lang.expander.QuoteEscape
@@ -149,6 +150,8 @@ internal class Natives(private val evaluation: Evaluation) {
     fun call(module: String, function: String, args: List<OtpErlangObject>): OtpErlangObject? {
         val key = "$function/${args.size}"
 
+        if (key == "__info__/1") info(module, args[0])?.let { return it }
+
         return when (module) {
             "erlang" -> erlang(key, args)
             "lists" -> lists(key, args)
@@ -204,6 +207,23 @@ internal class Natives(private val evaluation: Evaluation) {
     fun enumerate(enumerable: OtpErlangObject): Sequence<OtpErlangObject> =
         properElements(enumerable)?.asSequence()?.onEach { ProgressManager.checkCanceled() } ?: range(enumerable)?.elements()
             ?: decline("enumerates %s", enumerable)
+
+    /**
+     * `Module.__info__(:attributes)` (`elixir_erl.erl:364-366`) of a module that has `__info__/1`, from the attributes its
+     * `.beam` persists, declining where they can't be read; `null`, as its clauses answer, for any other key or module.
+     */
+    private fun info(module: String, key: OtpErlangObject): OtpErlangObject? {
+        if (seen(key) != atom("attributes")) return null
+
+        val exports = evaluation.run.exports.of(module) as? ModuleExports.Present ?: return null
+
+        if (!exports.hasInfo) return null
+
+        return when (val attributes = exports.attributes) {
+            is ModuleAttributes.Known -> attributes.keyword
+            ModuleAttributes.Unreadable -> decline("$module's attributes aren't known")
+        }
+    }
 
     /**
      * `elixir_module:next_counter/1` (`elixir_module.erl:64-71`), from the [Counters][org.elixir_lang.expander.Counters]

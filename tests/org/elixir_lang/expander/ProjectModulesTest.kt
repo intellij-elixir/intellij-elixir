@@ -1,5 +1,9 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangList
+import com.ericsson.otp.erlang.OtpErlangLong
+import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
@@ -31,6 +35,7 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.ElixirFile
 import java.io.File
+import java.math.BigInteger
 import java.util.concurrent.Callable
 
 /**
@@ -156,7 +161,7 @@ class ProjectModulesTest : PlatformTestCase() {
             "a:\n" +
                 "top expanded\n" +
                 "Elixir.A compiled errors[] loads Present(functions=[], macros=[NameArity(name=m, arity=0)], hasInfo=true, " +
-                "behaviour=None, deprecated=Known(reasons={}))\n" +
+                "behaviour=None, deprecated=Known(reasons={}), attributes=Unreadable)\n" +
                 "b:\n" +
                 "top expanded\n" +
                 "Elixir.B stopped `quote(location: :keep, do: :v)` unported quote errors[] loads Unreadable",
@@ -1211,11 +1216,11 @@ class ProjectModulesTest : PlatformTestCase() {
         assertEquals(
             listOf(
                 "Elixir.A compiled errors[] loads Present(functions=[NameArity(name=g, arity=0)], macros=[], hasInfo=true, " +
-                    "behaviour=None, deprecated=Known(reasons={}))",
+                    "behaviour=None, deprecated=Known(reasons={}), attributes=Unreadable)",
                 "Elixir.A compiled errors[] loads Present(functions=[NameArity(name=g, arity=0)], macros=[], hasInfo=true, " +
-                    "behaviour=Unreadable, deprecated=Known(reasons={}))",
+                    "behaviour=Unreadable, deprecated=Known(reasons={}), attributes=Unreadable)",
                 "Elixir.A compiled errors[] loads Present(functions=[NameArity(name=g, arity=0)], macros=[], hasInfo=true, " +
-                    "behaviour=None, deprecated=Unreadable)",
+                    "behaviour=None, deprecated=Unreadable, attributes=Unreadable)",
                 "Elixir.A compiled errors[] loads Unreadable",
             ).joinToString("\n"),
             rendered,
@@ -1843,6 +1848,7 @@ class ProjectModulesTest : PlatformTestCase() {
                 true,
                 ModuleExports.Behaviour.None,
                 Deprecations.Known(emptyMap()),
+                vsn("170776559974243269538155803473822908025"),
             ),
             exports(holder, a, "Elixir.LoadedCopy.Dep"),
         )
@@ -1859,6 +1865,7 @@ class ProjectModulesTest : PlatformTestCase() {
                 true,
                 ModuleExports.Behaviour.None,
                 Deprecations.Known(emptyMap()),
+                vsn("280858559122594208050365940252033341601"),
             ),
             exports(holder, a, "Elixir.LoadedCopy.Dep"),
         )
@@ -2587,6 +2594,10 @@ class ProjectModulesTest : PlatformTestCase() {
         expansion: FileExpansion,
         inputs: ProjectModules.Inputs = legInputs,
     ) = assertEquals(message, render(file, freshExpansion(project, file, inputs)), render(file, expansion))
+
+    /** The attributes of a `.beam` that persists only the `vsn` the compiler gives it. */
+    private fun vsn(vsn: String) =
+        ModuleAttributes.Known(OtpErlangList(arrayOf(OtpErlangTuple(arrayOf(OtpErlangAtom("vsn"), OtpErlangList(OtpErlangLong(BigInteger(vsn))))))))
 
     private fun show(bodies: List<String>, warnings: List<List<String>>) =
         bodies.indices.joinToString("\n\n") { "${bodies[it]}  => ${warnings[it].ifEmpty { listOf("none") }}" }

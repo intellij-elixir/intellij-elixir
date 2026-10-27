@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
@@ -145,6 +146,11 @@ internal object LoadedModules {
                     val macros = byMacro[DEFMACRO].orEmpty().map { it.toNameArity() }
                     val behaviour = if (ModuleExports.BEHAVIOUR_INFO in functions) callbacks(reader) else ModuleExports.Behaviour.None
                     val deprecated = CompiledDeprecations.of(reader)
+                    val attributes = when (val read = reader.attributesResult) {
+                        is ReadResult.Present ->
+                            ModuleAttributes.Known(OtpErlangList(read.value.map { OtpErlangTuple(arrayOf(it.key, it.value)) }.toTypedArray()))
+                        ReadResult.Absent, is ReadResult.Unreadable -> ModuleAttributes.Unreadable
+                    }
 
                     if (ModuleExports.INFO in functions) {
                         ModuleExports.Present(
@@ -153,9 +159,10 @@ internal object LoadedModules {
                             hasInfo = true,
                             behaviour,
                             deprecated,
+                            attributes,
                         )
                     } else {
-                        ModuleExports.Present(functions, macros, hasInfo = false, behaviour, deprecated)
+                        ModuleExports.Present(functions, macros, hasInfo = false, behaviour, deprecated, attributes)
                     }
                 }
                 ReadResult.Absent, is ReadResult.Unreadable -> ModuleExports.Unreadable

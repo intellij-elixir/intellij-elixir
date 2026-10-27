@@ -23,6 +23,7 @@ sealed class ModuleExports {
      * @property hasInfo whether the module exports `__info__/1`, as every Elixir module does
      * @property behaviour what `behaviour_info/1` answers, which [functions] leave out where [hasInfo]
      * @property deprecated what `__info__(:deprecated)` answers
+     * @property attributes what `__info__(:attributes)` answers
      */
     data class Present(
         val functions: List<NameArity>,
@@ -30,6 +31,7 @@ sealed class ModuleExports {
         val hasInfo: Boolean,
         val behaviour: Behaviour = Behaviour.Unreadable,
         val deprecated: Deprecations = Deprecations.Unreadable,
+        val attributes: ModuleAttributes = ModuleAttributes.Unreadable,
     ) : ModuleExports() {
         /**
          * Every function a remote call reaches: [functions], and with [hasInfo] those of [NOT_IN_INFO] the module
