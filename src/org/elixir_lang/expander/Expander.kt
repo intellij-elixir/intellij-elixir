@@ -133,7 +133,7 @@ object Expander {
         val (expanded, assumed) = run.assuming { unlessTooDeep({ Expansion.Unported(forms) }) { expand(forms, state, env, run) } }
         run.fileValues.expanded(expanded, assumed)
 
-        val top = expanded.certain(run.fileValues.known)
+        val top = expanded.certain(run.fileValues.expansionCertain)
 
         if (expanded is Expansion.Error) return FileExpansion(top, emptyList(), endsRun = true)
 

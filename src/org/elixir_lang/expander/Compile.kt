@@ -40,12 +40,14 @@ internal class Compiling(
     body: ElixirAst,
     level: ElixirLanguageLevel,
     /**
-     * Whether Elixir runs the body where the expander does: its `defmodule` is a statement the body around it is
-     * certain at.
+     * Whether Elixir runs the body where the expander does: its `defmodule` is a statement that runs once in the body
+     * around it ([BodyValues.runsOnce]).
      */
     known: Boolean = true,
     /** Whether its `defmodule`, and each one around it, is placed where Elixir runs it ([BodyValues.placed]). */
     placed: Boolean = true,
+    /** Whether Elixir reaches its `defmodule` with no assumption the expander made ([BodyValues.reached]). */
+    reached: Boolean = true,
 ) {
     val table = DefinitionTable(level)
 
@@ -109,7 +111,7 @@ internal class Compiling(
     val statements = Statements().apply { add(body) }
 
     /** What the module body's statements bound so far, and how far what ran is Elixir's. */
-    val values = BodyValues(statements, known, placed, ::site)
+    val values = BodyValues(statements, known, placed, reached, ::site)
 
     /**
      * Whether code the expander doesn't follow may have written the module ([mayHaveWritten]): its tables are then
@@ -187,7 +189,7 @@ internal class BodyValues(
     val statements: Statements,
     /**
      * Whether Elixir runs the body where the expander does: the file's, and a module body's where its `defmodule` is a
-     * statement the body around it is certain at, until the body's own expansion stops ([expanded]).
+     * statement that runs once in the body around it ([runsOnce]), until the body's own expansion stops ([expanded]).
      */
     known: Boolean = true,
     /**
@@ -196,6 +198,11 @@ internal class BodyValues(
      * can't read ([unread]) or stopped expanding ([expanded]).
      */
     placed: Boolean = true,
+    /**
+     * Whether Elixir reaches the body's code with no assumption the expander made ([Run.assumptions]): the
+     * `defmodule`'s, and until the body's own expansion makes one ([expanded]).
+     */
+    reached: Boolean = true,
     /** Where a node of the code an `@` built is in the source, where an attribute unit's outcome is kept. */
     private val site: (ElixirAst) -> ElixirAst = { it },
 ) {
@@ -203,6 +210,9 @@ internal class BodyValues(
         private set
 
     var placed = placed
+        private set
+
+    var reached = reached
         private set
 
     /** Whether a definition of the body holds code the port can't read. */
@@ -237,12 +247,14 @@ internal class BodyValues(
     private val running = ArrayDeque<Running>()
 
     /**
-     * A statement being run, and whether every unit the evaluator reached in it so far had Elixir's outcome; a unit
-     * reached after the evaluator went on past more declines than the [continuedDeclines] when the run started may
-     * never run, and one reached after more [assumptions] than when it started may run where Elixir raised.
+     * A statement being run, and whether every unit the evaluator reached in it so far had Elixir's outcome ([certain]);
+     * a unit reached after the evaluator went on past more declines than the [continuedDeclines] when the run started
+     * may never run ([once]), and one reached after more [assumptions] than when it started may run where Elixir
+     * raised.
      */
     class Running(val site: ElixirAst, val continuedDeclines: Int, val assumptions: Int) {
         var certain = true
+        var once = true
     }
 
     /**
@@ -262,12 +274,14 @@ internal class BodyValues(
     }
 
     /**
-     * The body's code expanded to [expansion] before any of it ran. Where the expansion stopped, or a macro's output in
-     * it [assumed] a raise not to happen, Elixir may have raised expanding it, so whether it runs the body isn't known;
-     * where it stopped, nor is what it defines.
+     * The body's code expanded to [expansion] before any of it ran. Where the expansion stopped, whether Elixir runs the
+     * body isn't known, nor is what it defines. Where a macro's output in it made an assumption ([assumed]), Elixir may
+     * have done otherwise expanding it, so a raise in the body isn't the body's for certain; the body still runs, as what
+     * later code sees assumes the project compiles.
      */
     fun expanded(expansion: Expansion, assumed: Boolean) {
-        if (!expansion.runs || assumed) known = false
+        if (!expansion.runs) known = false
+        if (assumed) reached = false
         if (!expansion.runs) placed = false
     }
 
@@ -318,6 +332,7 @@ internal class BodyValues(
      */
     fun reachedAfter(continuedDeclines: Int, assumptions: Int) {
         running.lastOrNull()?.let {
+            if (continuedDeclines > it.continuedDeclines) it.once = false
             if (continuedDeclines > it.continuedDeclines || assumptions > it.assumptions) it.certain = false
         }
     }
@@ -328,11 +343,36 @@ internal class BodyValues(
      * assumption so far. `null` is the body's end.
      */
     fun certainAt(site: ElixirAst?): Boolean =
-        known && ordered && !declined && running.all { it.certain } &&
+        reached && known && ordered && !declined && running.all { it.certain } &&
             statements.allBefore(running.firstOrNull()?.site ?: site) { outcomes[it] }
+
+    /**
+     * Whether the code running now runs once, where Elixir runs it, which depends on where it is, not on what ran
+     * before it: Elixir runs the body, the code is on the statement path (the outermost statement running it, else the
+     * unit being stepped, is a statement) and in no unit stepped unordered ([unordered]), the unit running it declined
+     * none of its code so far, and nothing in the statements running it was reached where it may never run. What
+     * earlier code may have written is for the module's marks to decide.
+     */
+    val runsOnce: Boolean
+        get() = known && !declined && unorderedSteps == 0 && running.all { it.once } &&
+            (running.firstOrNull()?.site ?: stepping.lastOrNull())?.let(statements::contains) != false
 
     /** The sites of the units the walk is running, innermost last. */
     private val stepping = ArrayDeque<ElixirAst>()
+
+    // How many runs of units stepped unordered the code running now is in.
+    private var unorderedSteps = 0
+
+    /** [block], which steps units unordered: Elixir may run each any number of times, or never. */
+    fun <T> unordered(block: () -> T): T {
+        unorderedSteps++
+
+        try {
+            return block()
+        } finally {
+            unorderedSteps--
+        }
+    }
 
     /** [block], the run of the unit at [site], whose code the evaluator runs. */
     fun <T> stepping(site: ElixirAst, block: () -> T): T {
@@ -345,12 +385,16 @@ internal class BodyValues(
         }
     }
 
+    /** Whether a raise expanding the body is the body's for certain: Elixir runs it and reaches it ([reached]). */
+    val expansionCertain: Boolean
+        get() = known && reached
+
     /**
-     * Whether the code the evaluator runs now runs once, where Elixir runs it: the unit running it is certain
-     * ([certainAt]), or, where the walk runs none, it is a macro's body, which runs once as the body expands, where the
+     * Whether the code the evaluator runs now runs once, where Elixir runs it: the unit running it does
+     * ([runsOnce]), or, where the walk runs none, it is a macro's body, which runs once as the body expands, where the
      * body's `defmodule`, and each around it, is a statement ([placed]).
      */
-    fun certainHere(): Boolean = stepping.lastOrNull()?.let(::certainAt) ?: placed
+    fun certainHere(): Boolean = if (stepping.isEmpty()) placed else runsOnce
 
     /**
      * [node], code of the body, run where the body runs it, from [bindings], the body's unless a statement's run has its
@@ -1294,13 +1338,15 @@ private fun reaching(
         is Evaluated.Raised, null -> emptyList()
     }
 
-    for (unit in unrun) {
-        // A statement of a body the walk follows that holds no unit runs only where the evaluator reaches it.
-        if (unit.inner.isEmpty() && !unit.isStatement(values.statements) && (unit is Pending.Match || unit is Pending.Statement)) continue
-        if (step(unit, values.bindings, stopsAt ?: pending.site).ends) return Reached(null, false)
+    val ended = values.unordered {
+        unrun.any { unit ->
+            // A statement of a body the walk follows that holds no unit runs only where the evaluator reaches it.
+            !(unit.inner.isEmpty() && !unit.isStatement(values.statements) && (unit is Pending.Match || unit is Pending.Statement)) &&
+                step(unit, values.bindings, stopsAt ?: pending.site).ends
+        }
     }
 
-    return Reached(evaluated, certain)
+    return if (ended) Reached(null, false) else Reached(evaluated, certain)
 }
 
 /** The `fn`s whose closures [values] hold, by their nodes. */
@@ -1368,7 +1414,8 @@ private val Expansion?.runs: Boolean
  * defines in the order Elixir evaluates the body, then the checks of its local calls. A module a call's output wrote
  * compiles after that output, so the call is restored as the one injecting what it defines. Its body reads the
  * variables it is given from [enclosing], the values the body it is in has bound, and whether Elixir runs it where the
- * expander does: at a statement [enclosing] is certain at.
+ * expander does: at a statement that runs once in [enclosing], and whether it reaches it with no raise taken not to
+ * happen.
  */
 internal fun compileModule(
     module: Pending.Module,
@@ -1397,7 +1444,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
     val name = module.name
     val statement = module.isStatement(enclosing.statements)
     val placed = statement && module.placed
-    val compiling = Compiling(module.body, run.level, statement && enclosing.certainAt(module.node), placed)
+    val compiling = Compiling(module.body, run.level, statement && enclosing.runsOnce, placed, enclosing.certainAt(module.node))
     val values = compiling.values
 
     for ((version, outer) in module.outer) {
@@ -1410,7 +1457,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
     nameError(name, module.isAtom, run)?.let { kind ->
         return ExpansionResult(
             name, compiling.table, emptyList(), emptyList(), emptyList(),
-            ended(Expansion.Error(kind, module.node), values.known, compiling, run)!!,
+            ended(Expansion.Error(kind, module.node), values.expansionCertain, compiling, run)!!,
             emptyList(), emptySet(), emptyList(), AttributeLog.EMPTY, null, certain = false,
             definitionsKnown = false,
         )
@@ -1438,9 +1485,9 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
     }
     values.expanded(expanded, assumed)
 
-    val body = expanded.certain(values.known)
+    val body = expanded.certain(values.expansionCertain)
 
-    compiling.ended = ended(expanded, values.known, compiling, run).skipping()
+    compiling.ended = ended(expanded, values.expansionCertain, compiling, run).skipping()
     units += ExpansionResult.Unit(Owner.ModuleBody, module.body, true, body)
 
     // A body or callback that raised, or reached a raise that may be Elixir's, keeps the definitions it queued before
