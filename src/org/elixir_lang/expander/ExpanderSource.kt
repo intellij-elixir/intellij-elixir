@@ -26,6 +26,7 @@ import org.elixir_lang.declaration.Head
 import org.elixir_lang.declaration.Reach
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
+import org.elixir_lang.declaration.importedArities
 import org.elixir_lang.declaration.admits
 import org.elixir_lang.Module
 import org.elixir_lang.lowering.ElixirAst
@@ -105,19 +106,24 @@ internal object ExpanderSource : CandidateSource {
 
     private fun visibleWith(position: Call, inputs: ProjectModules.Inputs): List<Visible> {
         val at = at(position, inputs) ?: return emptyList()
-        val defined = if (position is Qualified) {
+        if (position is Qualified) {
             val module = receiver(at, position) ?: return emptyList()
-            eachNameOnce(ofModule(at, module, null).filter { it.declaration.visibility != Visibility.PRIVATE })
-        } else {
-            buildList {
-                addAll(ownDefined(at, null))
-                importedDefined(at, at.file, at.env, null).mapTo(this) { it.defined }
-                addAll(specialFormsDefined(at, null))
-            }
+
+            return eachNameOnce(ofModule(at, module, null).filter { it.declaration.visibility != Visibility.PRIVATE })
+                .map { visible(it, null) }
         }
 
-        return defined.map { Visible(it.declaration.name, it.declaration.name, it.declaration, it.element, null) }
+        return buildList {
+            ownDefined(at, null).mapTo(this) { visible(it, null) }
+            importedDefined(at, at.file, at.env, null).mapTo(this) { (defined, _, _, arities) ->
+                visible(defined, importedArities(defined.declaration.arity) { it in arities })
+            }
+            specialFormsDefined(at, null).mapTo(this) { visible(it, null) }
+        }
     }
+
+    private fun visible(defined: Defined, importedArities: Set<Int>?): Visible =
+        Visible(defined.declaration.name, defined.declaration.name, defined.declaration, defined.element, importedArities)
 
     /**
      * [defined] as completion offers a module's functions: of a source module's, the preferred head of each name its
