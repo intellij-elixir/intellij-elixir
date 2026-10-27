@@ -1155,6 +1155,26 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
     }
 
+    fun testVisibleGivesAnOnlyImportsArities() {
+        val file = file(
+            """
+            defmodule Pad do
+              def pad(a, b \\ 1), do: {a, b}
+            end
+
+            defmodule PadUser do
+              import Pad, only: [pad: 1]
+              def one, do: pad(1)
+            end
+            """
+        )
+
+        val visible = visible(file, "do: pad(1)", "pad(1)").single { it.lookupName == "pad" }
+
+        assertEquals("pad/1..2 line 2", renderVisible(listOf(visible)))
+        assertEquals(setOf(1), visible.importedArities)
+    }
+
     fun testADefmoduleCallsCandidates() {
         val file = file(
             """
