@@ -92,7 +92,7 @@ private class Offer(val name: String, val element: PsiElement, val form: Form?) 
             else -> Declarations.named(form, element as Call, name)
         }
 
-        return Visible(name, declaration?.name, declaration, element)
+        return Visible(name, declaration?.name, declaration, element, null)
     }
 }
 

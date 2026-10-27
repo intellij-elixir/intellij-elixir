@@ -66,7 +66,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
         for ((text, declaration) in Declarations.of(form, declaring, state)) {
             key(text)?.let { element ->
                 visibleByPsiElementName.computeIfAbsent(element to text) {
-                    Visible(text, declaration?.name, declaration, declaring)
+                    Visible(text, declaration?.name, declaration, declaring, null)
                 }
             }
         }
@@ -83,7 +83,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
                     visibleByPsiElementName.computeIfAbsent(element to name) {
                         val declaration = element.declaration()
 
-                        Visible(name, declaration.name, declaration, element)
+                        Visible(name, declaration.name, declaration, element, null)
                     }
                 }
             }

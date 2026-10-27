@@ -116,7 +116,7 @@ internal object ExpanderSource : CandidateSource {
             }
         }
 
-        return defined.map { Visible(it.declaration.name, it.declaration.name, it.declaration, it.element) }
+        return defined.map { Visible(it.declaration.name, it.declaration.name, it.declaration, it.element, null) }
     }
 
     /**
