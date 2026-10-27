@@ -9,6 +9,7 @@ import org.elixir_lang.expander.ExState.Write
 import org.elixir_lang.language_level.ElixirLanguageFeature.DUPLICATE_MATCH_UNPACKED_ONCE
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Meta
 import org.elixir_lang.lowering.ParserOptions
 
 /**
@@ -35,11 +36,11 @@ internal fun match(
 ): Expansion {
     val callState = after.copy(prematch = InMatch(before.read, after.version, emptyMap(), emptyList()))
 
-    return expand(callState, env.copy(context = Env.Context.MATCH)).thenValue { state, patternEnv, value ->
+    return expand(callState, env.copy(context = Env.Context.MATCH)).thenAst { state, patternEnv, value, ast ->
         if (isCyclic(state.prematch as InMatch)) {
             Expansion.Error("recursive", at)
         } else {
-            Expansion.Expanded(state.copy(prematch = before.prematch), patternEnv.copy(context = env.context), value)
+            Expansion.Expanded(state.copy(prematch = before.prematch), patternEnv.copy(context = env.context), value, ast)
         }
     }
 }
@@ -50,13 +51,14 @@ internal fun match(
  */
 internal fun parallelMatch(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
     val writes = mutableListOf<Map<Variable, Int>>()
+    val sides = unpackMatch(node, node.meta, emptyList(), run.level)
 
-    return mapfold(unpackMatch(node, emptyList(), run.level), state, env) { side, sideState, sideEnv ->
-        Expander.expand(side, sideState.copy(write = Write.Writing(emptyMap())), sideEnv, run).then { s, e ->
+    return mapfold(sides.map { it.second }, state, env, run) { side, sideState, sideEnv ->
+        Expander.expand(side, sideState.copy(write = Write.Writing(emptyMap())), sideEnv, run).thenAst { s, e, _, ast ->
             writes.add((s.write as Write.Writing).vars)
-            Expansion.Expanded(s, e, NODE)
+            Expansion.Expanded(s, e, NODE, ast)
         }
-    }.then { matched, matchedEnv ->
+    }.thenAst { matched, matchedEnv, _, asts ->
         val prematch = matched.prematch as InMatch
         val stored = storeCycles(writes.asReversed(), prematch)
         val write = when (val outer = state.write) {
@@ -68,6 +70,14 @@ internal fun parallelMatch(node: ElixirAst, state: ExState, env: Env, run: Run):
             matched.copy(write = write, prematch = prematch.copy(cycles = stored.cycles, skip = stored.skip)),
             matchedEnv,
             NODE,
+            run.ast {
+                val callee = (node as ElixirAst.Call).callee
+                val built = asts.elements
+
+                built.dropLast(1).zip(sides).foldRight(built.last()) { (side, held), acc ->
+                    ElixirAst.Call(held.first, callee, listOf(side, acc))
+                }
+            },
         )
     }
 }
@@ -85,7 +95,7 @@ internal fun refuteParallelBitstringMatch(
     level: ElixirLanguageLevel,
 ): Expansion =
     parallelBitstring(expandedShape(left), expandedShape(right), parallel, env, level)
-        ?: Expansion.Expanded(state, env, NODE)
+        ?: Expansion.Expanded(state, env, NODE, ExpandedAst.NotAsked)
 
 /** The error, or the `Unported`, that matching [left] and [right] in parallel gives, if any. */
 private fun parallelBitstring(
@@ -188,13 +198,19 @@ private fun literalKeyed(
     }
 
 /**
- * `elixir_clauses:unpack_match/4`: a chain of matches as its sides, left to right. From 1.18.0 a match of a 3-tuple
- * against the same term, metadata and all, is the one side, which Elixir warns of.
+ * `elixir_clauses:unpack_match/4`: a chain of matches as its sides, left to right, each with the metadata of the match
+ * that held it, or [meta] for [node] itself. From 1.18.0 a match of a 3-tuple against the same term, metadata and all,
+ * is the one side, which Elixir warns of.
  */
-private fun unpackMatch(node: ElixirAst, acc: List<ElixirAst>, level: ElixirLanguageLevel): List<ElixirAst> {
+private fun unpackMatch(
+    node: ElixirAst,
+    meta: Meta,
+    acc: List<Pair<Meta, ElixirAst>>,
+    level: ElixirLanguageLevel,
+): List<Pair<Meta, ElixirAst>> {
     ProgressManager.checkCanceled()
 
-    if (!isCall(node, "=", 2)) return listOf(node) + acc
+    if (!isCall(node, "=", 2)) return listOf(meta to node) + acc
 
     val (left, right) = (node as ElixirAst.Call).arguments!!
 
@@ -204,11 +220,11 @@ private fun unpackMatch(node: ElixirAst, acc: List<ElixirAst>, level: ElixirLang
         val term = left.toOtp(options)
 
         if ((term as? OtpErlangTuple)?.arity() == 3 && exactlyEqual(term, right.toOtp(options), level)) {
-            return unpackMatch(left, acc, level)
+            return unpackMatch(left, node.meta, acc, level)
         }
     }
 
-    return unpackMatch(left, unpackMatch(right, acc, level), level)
+    return unpackMatch(left, node.meta, unpackMatch(right, node.meta, acc, level), level)
 }
 
 /** `=:=`, where two terms only the VM orders are two different ones. */

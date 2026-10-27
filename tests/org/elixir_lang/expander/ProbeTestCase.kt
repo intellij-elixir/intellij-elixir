@@ -92,11 +92,14 @@ abstract class ProbeTestCase : ParsingTestCase() {
     protected val harness = ProbeHarness { createPsiFile(getTestName(false), it) as ElixirFile }
 
     /** `Code.compiler_options/0` as a compile sees it. */
-    protected fun compilerOptions(): OtpErlangObject {
-        val compiled = harness.compileSource("IntellijElixir.Quoter.Probe.send(__ENV__, Code.compiler_options())")
+    protected fun compilerOptions(): OtpErlangObject = harness.compilerOptions()
+}
 
-        assertEquals("compiler options compile status", OtpErlangAtom("ok"), compiled.status)
+/** `Code.compiler_options/0` as a compile sees it. */
+internal fun ProbeHarness.compilerOptions(): OtpErlangObject {
+    val compiled = compileSource("IntellijElixir.Quoter.Probe.send(__ENV__, Code.compiler_options())")
 
-        return compiled.messages.single()
-    }
+    assertEquals("compiler options compile status", OtpErlangAtom("ok"), compiled.status)
+
+    return compiled.messages.single()
 }

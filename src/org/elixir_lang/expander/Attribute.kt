@@ -21,7 +21,12 @@ internal val ATTRIBUTE = Summary { _, node, state, env, run ->
             run.counters.next(env.module)
             recordDispatch(node, ModuleClauses.Dispatched.Value(returned.term), env, run)
 
-            Expansion.Expanded(state, env, returned.term)
+            Expansion.Expanded(
+                state,
+                env,
+                returned.term,
+                run.ast { (output(returned, node, run) as? Summary.Output.Built)?.ast ?: node },
+            )
         }
         is Returned.Code -> {
             val counter = run.counters.next(env.module)

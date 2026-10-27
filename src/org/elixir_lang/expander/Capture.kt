@@ -142,7 +142,7 @@ private fun importFunction(
             recordImport(NameArity(name, arity), match.receiver, env, run)
             checkDeprecated(CalledKind.FUNCTION, call, match.receiver, name, arity, env, run)
 
-            Expansion.Expanded(state, env, NODE)
+            Expansion.Expanded(state, env, NODE, run.ast { amp })
         }
         is ImportMatch.Macro -> null
         is ImportMatch.Quoted -> requireFunction(amp, call, match.receiver, name, arity, state, env, run)
@@ -165,7 +165,7 @@ private fun importFunction(
                     } else {
                         recordLocal(call, nameArity, emptyList(), env, run)
 
-                        Expansion.Expanded(state, env, NODE)
+                        Expansion.Expanded(state, env, NODE, run.ast { amp })
                     }
                 }
             }
@@ -210,7 +210,7 @@ private fun captureRequire(
                 VARIABLE_NODE -> {
                     recordDispatch(amp, ModuleClauses.Dispatched.Apply, e, run)
 
-                    Expansion.Expanded(s, e, NODE)
+                    Expansion.Expanded(s, e, NODE, run.ast { amp })
                 }
                 is Term.Atom ->
                     requireFunction(amp, call, value.name, remoteName(call), call.arguments!!.size, s, e, run)
@@ -256,7 +256,7 @@ private fun requireFunction(
     run.observer.dispatched(call, Dispatch(Dispatch.Kind.REMOTE_FUNCTION, inlinedReceiver, inlinedName, arity))
     recordDispatch(amp, ModuleClauses.Dispatched.Remote(inlinedReceiver, inlinedName), env, run)
 
-    return Expansion.Expanded(state, env, NODE)
+    return Expansion.Expanded(state, env, NODE, run.ast { amp })
 }
 
 /** [call], a remote call, with [module] as its module part. */

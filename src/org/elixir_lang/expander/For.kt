@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.NameArity
+import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
 import org.elixir_lang.language_level.ElixirLanguageFeature.CATCH_WHEN_ARITY_CHECKED
 import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CHECKS_TYPED
 import org.elixir_lang.lowering.ElixirAst
@@ -35,16 +36,22 @@ internal fun expandFor(node: ElixirAst.Call, state: ExState, env: Env, run: Run)
     val doOption = block.firstOrNull { keyOf(it) == "do" } ?: return Expansion.Error("missing_option", node)
     val options = block - doOption
 
+    var optionsAst: ExpandedAst = ExpandedAst.NotAsked
+    var casesAst: ExpandedAst = ExpandedAst.NotAsked
+
+    // Elixir 1.20 also adds `into: []` to a `for` whose value is used, which the expander isn't told.
     return argumentScope(state) { scope ->
-        expandList(options, scope, env) { option, s, e -> expandArg(option, s, state, e, run) }
-    }.thenValue { optionsState, optionsEnv, expanded ->
-        mapfold(cases, optionsState, optionsEnv) { case, s, e -> generator(case, s, e, run) }
-            .thenValue { generatorsState, generatorsEnv, values ->
+        expandList(options, scope, env, run) { option, s, e -> expandArg(option, s, state, e, run) }
+    }.thenAst { optionsState, optionsEnv, expanded, ast ->
+        optionsAst = ast
+        mapfold(cases, optionsState, optionsEnv, run) { case, s, e -> generator(case, s, e, run) }
+            .thenAst { generatorsState, generatorsEnv, values, generatorsAst ->
+                casesAst = generatorsAst
                 // `assert_generator_start/3` reads the expanded cases.
                 val first = cases.firstOrNull()
 
                 if (first?.let(::isGenerator) != true && (values as Term.List).elements.firstOrNull() != GENERATOR_NODE) {
-                    return@thenValue Expansion.Error("for_generator_start", node)
+                    return@thenAst Expansion.Error("for_generator_start", node)
                 }
 
                 val reduce = options.any { keyOf(it) == "reduce" }
@@ -52,7 +59,13 @@ internal fun expandFor(node: ElixirAst.Call, state: ExState, env: Env, run: Run)
                 validateOptions(node, options, (expanded as Term.List).elements)
                     ?: doBlock(node, valueOf(doOption), reduce, generatorsState, generatorsEnv, run)
             }
-    }.then { s, _ -> Expansion.Expanded(s.restoreVars(state), env, NODE) }.endConstruct(env, run)
+    }.thenAst { s, _, _, doAst ->
+        Expansion.Expanded(s.restoreVars(state), env, NODE, run.ast {
+            val doPair = ElixirAst.Tuple(doOption.meta, listOf((doOption as ElixirAst.Tuple).elements[0], doAst.or(valueOf(doOption))))
+
+            ElixirAst.ListNode(LIST_META, casesAst.elements + ElixirAst.ListNode(LIST_META, listOf(doPair) + optionsAst.elements))
+        })
+    }.endConstruct(node, env, run) { (it as ElixirAst.ListNode).elements }
 }
 
 /** [option] as `validate_opts/5` reads it before it is expanded: a pair by its key. */
@@ -114,8 +127,14 @@ private fun bitstringGenerator(node: ElixirAst.Call, state: ExState, env: Env, r
     val (last, right) = (segments.last() as ElixirAst.Call).arguments!!
     val pattern = ElixirAst.Call(node.meta, node.callee, segments.dropLast(1) + last)
 
-    return generatorPattern(right, state, env, run) { after, before, patternEnv ->
+    return generatorPattern(right, state, env, run, segments.last() as ElixirAst.Call) { after, before, patternEnv ->
         match(after, before, patternEnv, node) { s, e -> expandBitstring(pattern, s, e, run, requireSize = true) }
+    }.thenAst { s, e, value, arrowAst ->
+        Expansion.Expanded(s, e, value, run.ast {
+            val meta = if (BITSTRING_SIZE_EXPANDED_AS_GUARD.isSufficient(run.level)) node.meta else Synthetic(node.meta).meta()
+
+            ElixirAst.Call(meta, node.callee, listOf(arrowAst.or(segments.last())))
+        })
     }
 }
 
@@ -155,7 +174,7 @@ private fun doBlock(node: ElixirAst, body: ElixirAst, reduce: Boolean, state: Ex
         else -> {
             val accHead: HeadExpansion = { arrow, args, s, e -> head(arrow, args, s, e, run) }
 
-            mapfold(clauses, state, env) { clause, s, _ ->
+            mapfold(clauses, state, env, run) { clause, s, _ ->
                 val args = ((clause as? ElixirAst.Call)?.arguments?.takeIf { it.size == 2 }?.first() as? ElixirAst.ListNode)
                     ?.elements
                     ?.singleOrNull()

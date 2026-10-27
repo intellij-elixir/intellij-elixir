@@ -11,8 +11,8 @@ import org.elixir_lang.psi.Import.Term
 /**
  * The macros that define definitions, `defstruct`, `defexception`, `defguard`, `defoverridable` and `super`, compiled
  * in module bodies on the leg's Elixir: at each probe the env, the variables and the hygiene counters taken, each
- * error they raise, and the dispatch events where the module compiles. A module that stops at a macro the expander
- * doesn't model, a `@derive`'s `__deriving__` or a guard's template, equals Elixir up to that macro.
+ * error they raise, and the dispatch events where the module compiles. A module that stops at a `@derive`'s
+ * `__deriving__`, which the expander doesn't model, equals Elixir up to that macro.
  */
 class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
     /** Each case ends as the compiler ends it, whether it compiles or raises, and ports every macro it calls. */
@@ -52,26 +52,34 @@ class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
     }
 
     /**
-     * A guard's macro is stored, its guard expanded, and the module stops at the template that builds its body. The
-     * dispatches of the guard follow the macro's in Elixir's trace, and the expander's equal them.
+     * A guard's macro is stored, its guard expanded and the template that builds its body expanded, so the module goes
+     * on past it, and its dispatches are the compiler's.
      */
-    fun testAGuardStopsAtItsTemplate() {
+    fun testAGuardsModuleGoesOnPastItsTemplate() {
         val bodies = guards()
         val expansions = bodies.associateWith { expand(it, "") }
 
-        assertEquals(
-            "a guard that dispatches is compared by them",
-            bodies.map { it != "defguard always when true" },
-            bodies.map { expansions.getValue(it).guarded.isNotEmpty() },
-        )
+        assertCompiled(expansions)
+        printed { probes.assertMatchesElixir(expansions) }
+        printed { probes.assertTracesMatchElixir(probes.expandAll(bodies, clauses = sdk)) }
+    }
 
-        assertEquals(
-            bodies.joinToString("\n") { "${it.replace("\n", "; ")}: opaque" },
-            expansions.map { (body, expansion) ->
-                "${body.replace("\n", "; ")}: ${if (expansion.outcome is Expansion.Opaque) "opaque" else expansion.outcome}"
-            }.joinToString("\n"),
-        )
-        printed { probes.assertMatchesElixirUpToMacro(expansions) }
+    /** Each module defining one of [DefguardTemplateTest]'s guards goes on past its template as Elixir does. */
+    fun testEachTemplateCasesModuleMatchesElixir() {
+        val bodies = DefguardTemplateTest.bodies(legLevel())
+        val expansions = bodies.associateWith { expand(it, "") }
+
+        assertCompiled(expansions)
+        printed { probes.assertMatchesElixir(expansions) }
+        printed { probes.assertTracesMatchElixir(probes.expandAll(bodies, clauses = sdk)) }
+    }
+
+    /** An attribute on the right of `in` in a function's guard is read and escaped as Elixir's `@` does. */
+    fun testAnAttributeOnTheRightOfInInAGuardMatchesElixir() {
+        val expansions = IN_ATTRIBUTE.associateWith { expand(it, "") }
+
+        assertCompiled(expansions)
+        printed { probes.assertMatchesElixir(expansions) }
     }
 
     /**
@@ -145,6 +153,11 @@ class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
 
     /** Each compiles on some legs and raises on others. */
     private fun either(): List<String> = EITHER
+
+    private fun assertCompiled(expansions: Map<String, ExpansionProbes.CaseExpansion>) = assertEquals(
+        expansions.keys.joinToString("\n") { "${it.replace("\n", "; ")}: Compiled" },
+        expansions.map { (body, expansion) -> "${body.replace("\n", "; ")}: ${expansion.ended}" }.joinToString("\n"),
+    )
 
     private fun guards(): List<String> =
         GUARDS + if (DEFGUARD_UNQUOTE_NAMES.isSufficient(legLevel())) listOf(UNQUOTED_GUARD) else emptyList()
@@ -264,7 +277,7 @@ class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
             "@derive Inspect\ndefexception [:message]",
         )
 
-        /** Each stops at the template of the macro it defines, whose guard it has expanded. */
+        /** Each defines a guard's macro, whose template it expands. */
         val GUARDS = listOf(
             "defguard is_even(x) when is_integer(x) and rem(x, 2) == 0",
             "defguard always when true",
@@ -273,6 +286,8 @@ class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
             "defguardp is_p(x) when is_integer(x)",
             "def a, do: 1\ndefguard is_one(x) when x == 1\ndef b, do: 2",
         )
+
+        val IN_ATTRIBUTE = listOf("@a [1, 2]\ndef f(x) when x in @a, do: x", "@a 1..3\ndef f(x) when x in @a, do: x")
 
         const val DOCUMENTED =
             "defguard is_one(x) when x == 1\ndefguardp is_two(x) when x == 2\n" +

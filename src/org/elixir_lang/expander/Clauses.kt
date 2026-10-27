@@ -3,6 +3,7 @@ package org.elixir_lang.expander
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
+import org.elixir_lang.language_level.ElixirLanguageFeature.CATCH_VALUE_THROWN
 import org.elixir_lang.language_level.ElixirLanguageFeature.CATCH_WHEN_ARITY_CHECKED
 import org.elixir_lang.language_level.ElixirLanguageFeature.CLAUSES_TAKE_VERSION
 import org.elixir_lang.language_level.ElixirLanguageFeature.PARALLEL_MATCH
@@ -63,7 +64,7 @@ internal typealias HeadExpansion = (arrow: ElixirAst.Call, args: List<ElixirAst>
 internal fun expandCase(node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
     val (subject, opts) = node.arguments!!
 
-    return Expander.expand(subject, state, env, run).thenValue { subjectState, subjectEnv, subjectValue ->
+    return Expander.expand(subject, state, env, run).thenAst { subjectState, subjectEnv, subjectValue, subjectAst ->
         val rewritten = if (isOptimizeBoolean(node) && returnsBoolean(subjectValue)) {
             rewriteCaseClauses(opts, run.level).also {
                 recordDispatch(node, ModuleClauses.Dispatched.Clauses(it), env, run)
@@ -72,12 +73,12 @@ internal fun expandCase(node: ElixirAst.Call, state: ExState, env: Env, run: Run
             opts
         }
 
-        options(node, rewritten, listOf("do"), subjectState, subjectEnv) { key, value, s ->
+        options(node, rewritten, listOf("do"), subjectState, subjectEnv, run) { key, value, s ->
             when (key) {
                 "do" -> expandClauses(node, expandHead(node, run), value, s, subjectEnv, run)
                 else -> Expansion.Error("unexpected_option", node)
             }
-        }.endConstruct(subjectEnv, run, ::clausesValueOf)
+        }.endConstruct(node, subjectEnv, run, ::clausesValueOf) { listOf(subjectAst.or(subject), it) }
     }
 }
 
@@ -97,21 +98,21 @@ internal fun expandCond(node: ElixirAst.Call, state: ExState, env: Env, run: Run
 
     underscoreInCond(node, opts)?.let { return it }
 
-    return options(node, opts, listOf("do"), state, env) { key, value, s ->
+    return options(node, opts, listOf("do"), state, env, run) { key, value, s ->
         when (key) {
             "do" -> expandClauses(node, expandOne(node, run), value, s, env, run)
             else -> Expansion.Error("unexpected_option", node)
         }
-    }.endConstruct(env, run, ::clausesValueOf)
+    }.endConstruct(node, env, run, ::clausesValueOf) { listOf(it) }
 }
 
 /** `elixir_expand:expand/3`'s `receive`, through `elixir_clauses:'receive'/4`. */
 internal fun expandReceive(node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion =
-    options(node, node.arguments!!.single(), listOf("do", "after"), state, env) { key, value, s ->
+    options(node, node.arguments!!.single(), listOf("do", "after"), state, env, run) { key, value, s ->
         when (key) {
             "do" ->
                 if (value is ElixirAst.Block && value.expressions.isEmpty()) {
-                    Expansion.Expanded(s, env, NODE)
+                    Expansion.Expanded(s, env, NODE, run.ast { value })
                 } else {
                     expandClauses(node, expandHead(node, run), value, s, env, run)
                 }
@@ -123,7 +124,7 @@ internal fun expandReceive(node: ElixirAst.Call, state: ExState, env: Env, run: 
                 }
             else -> Expansion.Error("unexpected_option", node)
         }
-    }.endConstruct(env, run)
+    }.endConstruct(node, env, run) { listOf(it) }
 
 /** `elixir_expand:expand/3`'s `try`, through `elixir_clauses:'try'/4`. */
 internal fun expandTry(node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
@@ -133,18 +134,18 @@ internal fun expandTry(node: ElixirAst.Call, state: ExState, env: Env, run: Run)
         return Expansion.Error("missing_option", node)
     }
 
-    return options(node, opts, listOf("do", "rescue", "catch", "else", "after"), state, env) { key, value, s ->
+    return options(node, opts, listOf("do", "rescue", "catch", "else", "after"), state, env, run) { key, value, s ->
         when (key) {
             "do", "after" ->
-                Expander.expand(value, s, env, run).then { body, _ ->
-                    Expansion.Expanded(body.restoreVars(s), env, NODE)
+                Expander.expand(value, s, env, run).thenAst { body, _, _, ast ->
+                    Expansion.Expanded(body.restoreVars(s), env, NODE, ast)
                 }
             "else" -> expandClauses(node, expandHead(node, run), value, s, env, run)
             "catch" -> withStacktrace(s) { expandClauses(node, expandCatch(run), value, it, env, run) }
             "rescue" -> withStacktrace(s) { expandClauses(node, expandRescue(run), value, it, env, run) }
             else -> Expansion.Error("unexpected_option", node)
         }
-    }.endConstruct(env, run)
+    }.endConstruct(node, env, run) { listOf(it) }
 }
 
 /**
@@ -177,7 +178,13 @@ internal fun clause(
     val (args, body) = arrow.arguments!!
     val elements = (args as? ElixirAst.ListNode)?.elements ?: return Expansion.Unported(args)
 
-    return head(arrow, elements, state, env).then { s, e -> Expander.expand(body, s, e, run) }
+    return head(arrow, elements, state, env).thenAst { s, e, _, headAst ->
+        Expander.expand(body, s, e, run).thenAst { bodyState, bodyEnv, value, bodyAst ->
+            Expansion.Expanded(bodyState, bodyEnv, value, run.ast {
+                ElixirAst.Call(arrow.meta, arrow.callee, listOf(headAst.or(args), bodyAst.or(body)))
+            })
+        }
+    }
 }
 
 /**
@@ -197,7 +204,7 @@ internal fun head(
     val all = args.singleOrNull()?.let(::whenArguments)
 
     return if (!all.isNullOrEmpty()) {
-        guardedHead(arrow, all.dropLast(1), all.last(), state, env, run, before)
+        guardedHead(arrow, args.single() as ElixirAst.Call, all.dropLast(1), all.last(), state, env, run, before)
     } else {
         match(state, before, env, arrow) { s, e -> expandArgs(args, s, e, run) }
     }
@@ -209,6 +216,7 @@ internal fun head(
  */
 private fun guardedHead(
     arrow: ElixirAst,
+    whenNode: ElixirAst.Call,
     args: List<ElixirAst>,
     guardNode: ElixirAst,
     state: ExState,
@@ -216,9 +224,15 @@ private fun guardedHead(
     run: Run,
     before: ExState = state,
 ): Expansion =
-    match(state, before, env, arrow) { s, e -> expandArgs(args, s, e, run) }.then { s, e ->
-        guard(guardNode, s, e.copy(context = Env.Context.GUARD), run)
-    }.then { s, e -> Expansion.Expanded(s, e.copy(context = Env.Context.NONE), NODE) }
+    match(state, before, env, arrow) { s, e -> expandArgs(args, s, e, run) }.thenAst { s, e, _, argsAst ->
+        guard(guardNode, s, e.copy(context = Env.Context.GUARD), run).thenAst { gs, ge, _, guardAst ->
+            Expansion.Expanded(gs, ge.copy(context = Env.Context.NONE), NODE, run.ast {
+                val all = argsAst.elements + guardAst.or(guardNode)
+
+                ElixirAst.ListNode(LIST_META, listOf(ElixirAst.Call(whenNode.meta, whenNode.callee, all)))
+            })
+        }
+    }
 
 /**
  * `elixir_clauses:expand_head/2`: one argument, as a pattern. A clause of another arity raises at the construct before
@@ -253,9 +267,9 @@ private fun expandCatch(run: Run): HeadExpansion = { arrow, args, state, env ->
     when {
         whenArgs != null && whenArgs.size >= 4 && CATCH_WHEN_ARITY_CHECKED.isSufficient(run.level) ->
             Expansion.Error("wrong_number_of_args_for_clause", arrow)
-        whenArgs != null && whenArgs.size >= 4 -> head(arrow, args, state, env, run)
-        whenArgs != null && whenArgs.size == 3 -> guardedHead(arrow, whenArgs.dropLast(1), whenArgs.last(), state, env, run)
-        whenArgs != null && whenArgs.size == 2 -> guardedHead(arrow, listOf(thrown, whenArgs[0]), whenArgs[1], state, env, run)
+        single != null && !CATCH_VALUE_THROWN.isSufficient(run.level) -> head(arrow, args, state, env, run)
+        whenArgs != null && whenArgs.size == 3 -> guardedHead(arrow, single as ElixirAst.Call, whenArgs.dropLast(1), whenArgs.last(), state, env, run)
+        whenArgs != null && whenArgs.size == 2 -> guardedHead(arrow, single as ElixirAst.Call, listOf(thrown, whenArgs[0]), whenArgs[1], state, env, run)
         single != null -> head(arrow, listOf(thrown, single), state, env, run)
         args.size == 2 -> head(arrow, args, state, env, run)
         else -> Expansion.Error("wrong_number_of_args_for_clause", arrow)
@@ -269,7 +283,9 @@ private fun expandRescue(run: Run): HeadExpansion = { arrow, args, state, env ->
     if (single == null) {
         Expansion.Error("wrong_number_of_args_for_clause", arrow)
     } else {
-        rescue(arrow, single, state, env, run)
+        rescue(arrow, single, state, env, run).thenAst { s, e, value, ast ->
+            Expansion.Expanded(s, e, value, ast.map { ElixirAst.ListNode(LIST_META, listOf(it)) })
+        }
     }
 }
 
@@ -355,7 +371,7 @@ private fun rescueIn(
             }
 
             if (leftValue == VARIABLE_NODE && rights.all { it is Term.Atom }) {
-                Expansion.Expanded(s, e, NODE)
+                Expansion.Expanded(s, e, NODE, ExpandedAst.NotAsked)
             } else {
                 Expansion.Error("invalid_rescue_clause", arrow)
             }
@@ -368,8 +384,8 @@ private fun underscore(at: ElixirAst): ElixirAst =
 
 /** `elixir_clauses:expand_clauses_with_stacktrace/5`: `__STACKTRACE__` is readable in the clauses [expand] expands. */
 private inline fun withStacktrace(state: ExState, expand: (ExState) -> Expansion): Expansion =
-    expand(state.copy(stacktrace = true)).thenValue { s, e, v ->
-        Expansion.Expanded(s.copy(stacktrace = state.stacktrace), e, v)
+    expand(state.copy(stacktrace = true)).thenAst { s, e, v, ast ->
+        Expansion.Expanded(s.copy(stacktrace = state.stacktrace), e, v, ast)
     }
 
 /**
@@ -387,7 +403,7 @@ internal fun expandClauses(
     val elements = (clauses as? ElixirAst.ListNode)?.elements?.takeIf { it.isNotEmpty() }
         ?: return Expansion.Error("bad_or_missing_clauses", construct)
 
-    return mapfold(elements, state, env) { each, s, _ -> clauseFrom(construct, head, each, s, env, run) }
+    return mapfold(elements, state, env, run) { each, s, _ -> clauseFrom(construct, head, each, s, env, run) }
 }
 
 /** [each] as a [clause] from [state], with [state]'s variables after it; the value is its body's. */
@@ -399,8 +415,8 @@ internal fun clauseFrom(
     env: Env,
     run: Run,
 ): Expansion =
-    clause(construct, head, each, state, env, run).thenValue { clauseState, _, value ->
-        Expansion.Expanded(clauseState.restoreVars(state), env, value)
+    clause(construct, head, each, state, env, run).thenAst { clauseState, _, value, ast ->
+        Expansion.Expanded(clauseState.restoreVars(state), env, value, ast)
     }
 
 /** `elixir_env:merge_and_check_unused_vars/3`: [before]'s variables, with everything else this state reached. */
@@ -416,6 +432,7 @@ private inline fun options(
     once: List<String>,
     state: ExState,
     env: Env,
+    run: Run,
     expand: (key: String?, value: ElixirAst, ExState) -> Expansion,
 ): Expansion {
     if (options !is ElixirAst.ListNode) return Expansion.Error("invalid_args", construct)
@@ -424,12 +441,16 @@ private inline fun options(
         return Expansion.Error("duplicated_clauses", construct)
     }
 
-    return mapfold(options.elements, state, env) { option, s, _ ->
+    return mapfold(options.elements, state, env, run) { option, s, _ ->
         // Elixir has no clause for an option that isn't a pair.
         if (option !is ElixirAst.Tuple || option.elements.size != 2) {
             Expansion.Unported(option)
         } else {
-            expand(keyOf(option), option.elements[1], s)
+            expand(keyOf(option), option.elements[1], s).thenAst { os, oe, value, ast ->
+                Expansion.Expanded(os, oe, value, run.ast {
+                    ElixirAst.Tuple(option.meta, listOf(option.elements[0], ast.or(option.elements[1])))
+                })
+            }
         }
     }
 }
@@ -439,14 +460,27 @@ internal fun keyOf(option: ElixirAst): String? =
     ((option as? ElixirAst.Tuple)?.takeIf { it.elements.size == 2 }?.elements?.first() as? ElixirAst.Literal.Atom)?.name
 
 /**
- * The end of a `case`, `cond`, `receive`, `try` or `fn`: its clauses' state, which from 1.20 takes a version, and
- * [env], the env it returns. Its value is [value] of what its options gave.
+ * The end of a `case`, `cond`, `receive`, `try`, `for`, `with` or `fn`: its clauses' state, which from 1.20 takes a
+ * version that the node carries, and [env], the env it returns. Its value is [value] of what its options gave, and its
+ * node's arguments are [arguments] of what they built.
  */
-internal fun Expansion.endConstruct(env: Env, run: Run, value: (Term) -> Term = { NODE }): Expansion =
-    thenValue { state, _, options ->
-        val version = if (CLAUSES_TAKE_VERSION.isSufficient(run.level)) state.version + 1 else state.version
+internal inline fun Expansion.endConstruct(
+    node: ElixirAst,
+    env: Env,
+    run: Run,
+    noinline value: (Term) -> Term = { NODE },
+    crossinline arguments: (ElixirAst) -> List<ElixirAst>,
+): Expansion =
+    thenAst { state, _, options, ast ->
+        val versioned = CLAUSES_TAKE_VERSION.isSufficient(run.level)
+        val built = run.ast {
+            val call = node as ElixirAst.Call
+            val meta = if (versioned) call.meta.ahead(versionEntry(state.version)) else call.meta
 
-        Expansion.Expanded(state.copy(version = version), env, value(options))
+            (ast as? ExpandedAst.Built)?.let { ElixirAst.Call(meta, call.callee, arguments(it.node)) } ?: node
+        }
+
+        Expansion.Expanded(state.copy(version = if (versioned) state.version + 1 else state.version), env, value(options), built)
     }
 
 /** `elixir_expand:assert_no_underscore_clause_in_cond/2`, which reads only a lone `do`. */

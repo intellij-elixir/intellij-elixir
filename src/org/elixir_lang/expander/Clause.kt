@@ -55,28 +55,33 @@ internal enum class Clause(vararg val heads: Head) {
                 Env.Context.GUARD -> noGuardScope(node, state)
                 // Only below 1.18, where `match` passes the pattern straight to `expand`.
                 Env.Context.MATCH ->
-                    Expander.expand(right, state, env, run).then { rightState, rightEnv ->
-                        Expander.expand(left, rightState, rightEnv, run)
-                    }.then { s, e -> refuteParallelBitstringMatch(left, right, true, s, e, run.level) }
+                    Expander.expand(right, state, env, run).thenAst { rightState, rightEnv, _, rightAst ->
+                        Expander.expand(left, rightState, rightEnv, run).thenAst { s, e, _, leftAst ->
+                            refuteParallelBitstringMatch(left, right, true, s, e, run.level)
+                                .withAst(run.call(node, leftAst, rightAst))
+                        }
+                    }
                 Env.Context.NONE -> {
                     val seesRightSide = PATTERN_SEES_RIGHT_SIDE_ENV.isSufficient(run.level)
 
-                    Expander.expand(right, state, env, run).then { after, rightEnv ->
+                    Expander.expand(right, state, env, run).thenAst { after, rightEnv, _, rightAst ->
                         if (seesRightSide) {
                             match(left, after, state, rightEnv, run, node)
                         } else {
-                            match(left, after, state, env, run, node).then { s, _ ->
-                                Expansion.Expanded(s, rightEnv, NODE)
+                            match(left, after, state, env, run, node).thenAst { s, _, _, leftAst ->
+                                Expansion.Expanded(s, rightEnv, NODE, leftAst)
                             }
-                        }
-                    }.then { s, e ->
-                        when {
-                            PARALLEL_MATCH.isSufficient(run.level) -> Expansion.Expanded(s, e, NODE)
-                            seesRightSide -> refuteParallelBitstringMatch(left, right, false, s, e, run.level)
-                            else ->
-                                refuteParallelBitstringMatch(left, right, false, s, env, run.level).then { rs, _ ->
-                                    Expansion.Expanded(rs, e, NODE)
-                                }
+                        }.thenAst { s, e, _, leftAst ->
+                            val ast = run.call(node, leftAst, rightAst)
+
+                            when {
+                                PARALLEL_MATCH.isSufficient(run.level) -> Expansion.Expanded(s, e, NODE, ast)
+                                seesRightSide -> refuteParallelBitstringMatch(left, right, false, s, e, run.level)
+                                else ->
+                                    refuteParallelBitstringMatch(left, right, false, s, env, run.level).then { rs, _ ->
+                                        Expansion.Expanded(rs, e, NODE, ast)
+                                    }
+                            }.withAst(ast)
                         }
                     }
                 }
@@ -89,11 +94,17 @@ internal enum class Clause(vararg val heads: Head) {
             node is ElixirAst.Tuple && node.elements.size != 2 || isNamedCall(node, "{}")
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            expandArgs((node as? ElixirAst.Tuple)?.elements ?: (node as ElixirAst.Call).arguments!!, state, env, run).thenValue { s, e, values ->
+            expandArgs((node as? ElixirAst.Tuple)?.elements ?: (node as ElixirAst.Call).arguments!!, state, env, run).thenAst { s, e, values, asts ->
                 val elements = (values as Term.List).elements
+                val ast = run.ast {
+                    when (node) {
+                        is ElixirAst.Tuple -> ElixirAst.Tuple(node.meta, asts.elements)
+                        else -> ElixirAst.Call(node.meta, (node as ElixirAst.Call).callee, asts.elements)
+                    }
+                }
 
                 // `elixir_expand` keeps `{:{}, meta, [a, b]}` as that node, not as the pair `{a, b}`.
-                Expansion.Expanded(s, e, if (elements.size == 2) NODE else Term.Tuple(elements))
+                Expansion.Expanded(s, e, if (elements.size == 2) NODE else Term.Tuple(elements), ast)
             }
     },
 
@@ -152,7 +163,7 @@ internal enum class Clause(vararg val heads: Head) {
             node is ElixirAst.Block && node.expressions.isEmpty()
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            Expansion.Expanded(state, env, NIL)
+            Expansion.Expanded(state, env, NIL, run.ast { ElixirAst.Literal.Atom(node.meta, "nil") })
     },
 
     SINGLE_BLOCK(expandHead("{'__block__',_,[_]}")) {
@@ -171,14 +182,16 @@ internal enum class Clause(vararg val heads: Head) {
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
             val expressions = (node as ElixirAst.Block).expressions
 
-            return mapfold(expressions, state, env) { expression, s, e ->
+            return mapfold(expressions, state, env, run) { expression, s, e ->
                 val discarded = if (expression !== expressions.last()) discardedFor(expression) else null
 
                 Expander.expand(discarded ?: expression, s, e, run)
-            }.thenValue { s, e, values ->
+            }.thenAst { s, e, values, asts ->
                 val last = (values as Term.List).elements.last()
 
-                Expansion.Expanded(s, e, if (returnsBoolean(last)) BOOLEAN_NODE else NODE)
+                Expansion.Expanded(s, e, if (returnsBoolean(last)) BOOLEAN_NODE else NODE, run.ast {
+                    ElixirAst.Block(node.meta, asts.elements)
+                })
             }
         }
     },
@@ -232,7 +245,9 @@ internal enum class Clause(vararg val heads: Head) {
             isVariableNamed(node, "__MODULE__")
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            Expansion.Expanded(state, env, Term.Atom(env.module ?: "nil"))
+            Expansion.Expanded(state, env, Term.Atom(env.module ?: "nil"), run.ast {
+                ElixirAst.Literal.Atom(node.meta, env.module ?: "nil")
+            })
     },
 
     /** `__DIR__`, whose binary isn't known: `Env` holds no file. */
@@ -241,7 +256,8 @@ internal enum class Clause(vararg val heads: Head) {
             isVariableNamed(node, "__DIR__")
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            recordingValue(node, env, run, Expansion.Expanded(state, env, Term.Binary(null)))
+            // Can't build: Elixir gives the file's directory as a binary, which `Env` doesn't hold.
+            recordingValue(node, env, run, Expansion.Expanded(state, env, Term.Binary(null), run.ast { node }))
     },
 
     CALLER(expandHead("{'__CALLER__',_,V1} when is_atom(V1)")) {
@@ -258,9 +274,11 @@ internal enum class Clause(vararg val heads: Head) {
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
             (if (COMPILER_VARIABLES_REFUSED_IN_PATTERN.isSufficient(run.level)) noMatchScope(node, env) else null)
                 ?: if (state.stacktrace) {
-                    Expansion.Expanded(state, env, VARIABLE_NODE, node)
+                    Expansion.Expanded(state, env, VARIABLE_NODE, run.ast { node }, node)
                 } else {
-                    report(ErrorSite.STACKTRACE_NOT_ALLOWED, node, env, run) { Expansion.Expanded(state, env, NODE) }
+                    report(ErrorSite.STACKTRACE_NOT_ALLOWED, node, env, run) {
+                        Expansion.Expanded(state, env, NODE, run.ast { node })
+                    }
                 }
     },
 
@@ -465,12 +483,13 @@ internal enum class Clause(vararg val heads: Head) {
             }
             val pinState = state.copy(read = before, prematch = OutsideMatch(OutsideMatch.Mode.Pin))
 
-            return Expander.expand(arg, pinState, env.copy(context = Env.Context.NONE), run).thenValue { _, _, value ->
+            return Expander.expand(arg, pinState, env.copy(context = Env.Context.NONE), run).thenAst { _, _, value, a ->
                 if (value == VARIABLE_NODE) {
-                    Expansion.Expanded(state, env, Term.Node(Term.Node.Kind.PIN))
+                    Expansion.Expanded(state, env, Term.Node(Term.Node.Kind.PIN), run.call(node, a))
                 } else {
+                    // The `^` keeps the argument as written.
                     report(ErrorSite.INVALID_ARG_FOR_PIN, node, env, run) {
-                        Expansion.Expanded(state, env, Term.Node(Term.Node.Kind.PIN))
+                        Expansion.Expanded(state, env, Term.Node(Term.Node.Kind.PIN), run.ast { node })
                     }
                 }
             }
@@ -483,7 +502,7 @@ internal enum class Clause(vararg val heads: Head) {
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
             report(ErrorSite.PIN_OUTSIDE_OF_MATCH, node, env, run) {
-                Expansion.Expanded(state, env, Term.Node(Term.Node.Kind.PIN))
+                Expansion.Expanded(state, env, Term.Node(Term.Node.Kind.PIN), run.ast { node })
             }
     },
 
@@ -493,7 +512,8 @@ internal enum class Clause(vararg val heads: Head) {
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
             val version = if (UNDERSCORE_TAKES_VERSION.isSufficient(run.level)) state.version + 1 else state.version
-            val expanded = Expansion.Expanded(state.copy(version = version), env, VARIABLE_NODE, node)
+            val ast = if (UNDERSCORE_TAKES_VERSION.isSufficient(run.level)) run.versioned(node, state.version) else run.ast { node }
+            val expanded = Expansion.Expanded(state.copy(version = version), env, VARIABLE_NODE, ast, node)
 
             return if (env.context == Env.Context.MATCH) {
                 expanded
@@ -519,7 +539,13 @@ internal enum class Clause(vararg val heads: Head) {
                 }
 
                 recordVersion(node, bound, env, run)
-                Expansion.Expanded(state.copy(write = state.write.plus(variable, written)), env, VARIABLE_NODE, node)
+                Expansion.Expanded(
+                    state.copy(write = state.write.plus(variable, written)),
+                    env,
+                    VARIABLE_NODE,
+                    run.versioned(node, bound),
+                    node,
+                )
             } else {
                 recordVersion(node, state.version, env, run)
                 Expansion.Expanded(
@@ -530,6 +556,7 @@ internal enum class Clause(vararg val heads: Head) {
                     ),
                     env,
                     VARIABLE_NODE,
+                    run.versioned(node, state.version),
                     node,
                 )
             }
@@ -543,8 +570,10 @@ internal enum class Clause(vararg val heads: Head) {
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion =
             when (val outcome = variableOutcome(node as ElixirAst.Call, state, run.level)) {
                 VariableOutcome.Read -> {
-                    recordVersion(node, state.read.getValue(variable(node)), env, run)
-                    Expansion.Expanded(state, env, VARIABLE_NODE, node)
+                    val version = state.read.getValue(variable(node))
+
+                    recordVersion(node, version, env, run)
+                    Expansion.Expanded(state, env, VARIABLE_NODE, run.versioned(node, version), node)
                 }
                 VariableOutcome.LocalCall -> {
                     val call = zeroArityCall(node)
@@ -554,7 +583,9 @@ internal enum class Clause(vararg val heads: Head) {
                     }
                 }
                 is VariableOutcome.Reported ->
-                    report(outcome.site, node, env, run) { Expansion.Expanded(state, env, VARIABLE_NODE, node) }
+                    report(outcome.site, node, env, run) {
+                        Expansion.Expanded(state, env, VARIABLE_NODE, run.ast { node }, node)
+                    }
                 is VariableOutcome.Error -> Expansion.Error(outcome.kind, node)
             }
     },
@@ -618,10 +649,10 @@ internal enum class Clause(vararg val heads: Head) {
             node is ElixirAst.Tuple && node.elements.size == 2
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            expandArgs((node as ElixirAst.Tuple).elements, state, env, run).thenValue { s, e, values ->
+            expandArgs((node as ElixirAst.Tuple).elements, state, env, run).thenAst { s, e, values, asts ->
                 val (first, second) = (values as Term.List).elements
 
-                Expansion.Expanded(s, e, Term.Pair(first, second))
+                Expansion.Expanded(s, e, Term.Pair(first, second), run.ast { ElixirAst.Tuple(node.meta, asts.elements) })
             }
     },
 
@@ -630,7 +661,7 @@ internal enum class Clause(vararg val heads: Head) {
             node is ElixirAst.ListNode && env.context == Env.Context.MATCH
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            expandList((node as ElixirAst.ListNode).elements, state, env) { element, s, e ->
+            expandList((node as ElixirAst.ListNode).elements, state, env, run) { element, s, e ->
                 Expander.expand(element, s, e, run)
             }
     },
@@ -641,7 +672,7 @@ internal enum class Clause(vararg val heads: Head) {
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
             argumentScope(state) { scope ->
-                expandList((node as ElixirAst.ListNode).elements, scope, env) { element, s, e ->
+                expandList((node as ElixirAst.ListNode).elements, scope, env, run) { element, s, e ->
                     expandArg(element, s, state, e, run)
                 }
             }
@@ -656,7 +687,7 @@ internal enum class Clause(vararg val heads: Head) {
                 ZERO_FLOAT_MATCH_WARNS.isSufficient(level)
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            Expansion.Expanded(state, env, Term.NonTuple)
+            Expansion.Expanded(state, env, Term.NonTuple, run.ast { node })
     },
 
     LITERAL(expandHead("V1 when is_number(V1); is_atom(V1); is_binary(V1)")) {
@@ -664,7 +695,7 @@ internal enum class Clause(vararg val heads: Head) {
             node is ElixirAst.Literal || node is ElixirAst.Placeholder && !node.stopsExpansion
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            Expansion.Expanded(state, env, if (node is ElixirAst.Literal) literalValue(node) else NODE)
+            Expansion.Expanded(state, env, if (node is ElixirAst.Literal) literalValue(node) else NODE, run.ast { node })
     },
 
     /** A function in a macro's result: a remote capture with no environment is `elixir_quote:fun_to_quoted/1`'s. */
@@ -674,7 +705,7 @@ internal enum class Clause(vararg val heads: Head) {
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
             if ((node as ElixirAst.Value).term is OtpErlangExternalFun) {
-                Expansion.Expanded(state, env, NODE)
+                Expansion.Expanded(state, env, NODE, run.ast { node })
             } else {
                 Expansion.Error(INVALID_QUOTED_EXPR, node)
             }
@@ -689,7 +720,7 @@ internal enum class Clause(vararg val heads: Head) {
             if (env.function != null && PID_IN_FUNCTION_RAISES_MATCH_ERROR.isSufficient(run.level)) {
                 Expansion.Error("invalid_pid_in_function", node).also { run.crash = Crash(it, MATCH_ERROR) }
             } else {
-                Expansion.Expanded(state, env, NODE)
+                Expansion.Expanded(state, env, NODE, run.ast { node })
             }
     },
 

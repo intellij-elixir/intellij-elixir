@@ -17,41 +17,42 @@ internal fun expandStruct(node: ElixirAst.Call, state: ExState, env: Env, run: R
     val map = withoutStructKey(right as ElixirAst.Call)
     var pairs: List<Term> = emptyList()
 
-    return expandArgs(listOf(left, map), state, env) { arg, s, e ->
+    return expandArgs(listOf(left, map), state, env, run) { arg, s, e ->
         if (arg === map) {
             Expander.observed(map, s, e, run) {
-                expandMapPairs(map, s, e, run).thenValue { ss, ee, value ->
+                expandMapPairs(map, s, e, run).thenAst { ss, ee, value, ast ->
                     pairs = (value as Term.List).elements
-                    Expansion.Expanded(ss, ee, NODE)
+                    Expansion.Expanded(ss, ee, NODE, ast)
                 }
             }
         } else {
             Expander.expand(arg, s, e, run)
         }
-    }.thenValue { s, e, values ->
+    }.thenAst { s, e, values, asts ->
         val name = (values as Term.List).elements.first()
         val match = env.context == Env.Context.MATCH
+        val ast = run.ast { ElixirAst.Call(node.meta, node.callee, asts.elements) }
 
-        unknownStop(name, node)?.let { return@thenValue it }
+        unknownStop(name, node)?.let { return@thenAst it }
 
         when {
             name is Term.Atom -> {
-                val keys = pairs.map { (it as? Term.Pair)?.first ?: return@thenValue Expansion.Unported(node) }
+                val keys = pairs.map { (it as? Term.Pair)?.first ?: return@thenAst Expansion.Unported(node) }
 
                 keys.zip(pairNodes(map))
                     .firstNotNullOfOrNull { (key, pair) ->
                         unknownStop(key, (expandedShape(pair) as ElixirAst.Tuple).elements[0])
                     }
-                    ?.let { return@thenValue it }
+                    ?.let { return@thenAst it }
 
                 structError(node, name.name, keys, mapUpdate(map) != null, env, run)
                     ?: traced(keys)?.let { traced ->
-                        Expansion.Expanded(s, e, NODE).also { run.observer.structExpanded(node, name.name, traced) }
+                        Expansion.Expanded(s, e, NODE, ast).also { run.observer.structExpanded(node, name.name, traced) }
                     }
                     ?: Expansion.Unported(node)
             }
             match && (name == Term.Node(Term.Node.Kind.VARIABLE) || name == Term.Node(Term.Node.Kind.PIN)) ->
-                Expansion.Expanded(s, e, NODE)
+                Expansion.Expanded(s, e, NODE, ast)
             match -> Expansion.Error("invalid_struct_name_in_match", node)
             else -> Expansion.Error("invalid_struct_name", node)
         }

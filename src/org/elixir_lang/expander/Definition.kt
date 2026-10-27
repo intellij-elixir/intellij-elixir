@@ -152,13 +152,13 @@ internal fun define(
     var next = 0
 
     return argumentScope(state) { scope ->
-        mapfold(values, scope, env) { value, s, e ->
+        mapfold(values, scope, env, run) { value, s, e ->
             when (val piece = pieces[next++]) {
                 is Piece.Fragment, is Piece.Evaluated -> expandArg(value, s, state, e, run)
                 is Piece.Quoted -> {
                     run.observer.dispatched(node, Dispatch(Dispatch.Kind.REMOTE_FUNCTION, piece.receiver, piece.name, piece.arity))
 
-                    Expansion.Expanded(s, e, NODE)
+                    Expansion.Expanded(s, e, NODE, run.ast { value })
                 }
             }
         }
@@ -191,7 +191,8 @@ internal fun define(
             followed = run.compiling[env.module]?.statements?.follows(node) == true,
         )
 
-        Expansion.Expanded(s, e, NODE)
+        // Not built: Elixir's `:elixir_def.store_definition/5` call; the body is queued, not expanded here.
+        Expansion.Expanded(s, e, NODE, run.ast { node })
     }
 }
 
@@ -1060,7 +1061,7 @@ private fun expandDefaults(
     val full = env.function!!
     val calls = mutableListOf<List<LocalCall<ElixirAst>>>()
     var state = fresh
-    var expansion: Expansion = Expansion.Expanded(fresh, env, NODE)
+    var expansion: Expansion = Expansion.Expanded(fresh, env, NODE, ExpandedAst.NotAsked)
 
     for (default in defaults) {
         ProgressManager.checkCanceled()
@@ -1126,7 +1127,7 @@ private fun defaultClauses(
         val variable = { version: Int ->
             val keys = listOf(
                 Meta.Key.Entry("generated", Meta.Value.Atom("true")),
-                Meta.Key.Entry("version", Meta.Value.Integer(version.toLong())),
+                versionEntry(version),
             )
 
             synthetic.variable("x$version", "elixir_def", keys).also { dispatches.putVersion(it, version) }
@@ -1136,9 +1137,7 @@ private fun defaultClauses(
         val rest = defaultsArgs.drop(index).map { arg ->
             if (isDefault(arg)) null to (arg as ElixirAst.Call).arguments!![1] else variable(next++).let { it to it }
         }
-        val superKeys = listOf(
-            Meta.Key.Entry("super", Meta.Value.Tuple(listOf(Meta.Value.Atom(kind.name.lowercase()), Meta.Value.Atom(name)))),
-        ) + default.meta.keys
+        val superKeys = listOf(superEntry(kind, name)) + default.meta.keys
 
         ModuleClauses.Clause(
             base + rest.mapNotNull { it.first },
@@ -1186,14 +1185,14 @@ private fun clause(
 
         repeat(errors) { reportOrEnd(ErrorSite.INVALID_FUNCTION_HEAD, node, env, run)?.let { return it } }
 
-        return Expansion.Expanded(state, env, NODE)
+        return Expansion.Expanded(state, env, NODE, ExpandedAst.NotAsked)
     }
 
     if (body == null) return Expansion.Error("missing_option", node)
 
     return match(state, state, env, node) { s, e -> expandArgs(args, s, e, run) }
         .then { s, e ->
-            guards.fold(Expansion.Expanded(s, e, NODE) as Expansion) { expansion, guard ->
+            guards.fold(Expansion.Expanded(s, e, NODE, ExpandedAst.NotAsked) as Expansion) { expansion, guard ->
                 expansion.then { s, e -> guard(guard, s, e.copy(context = Env.Context.GUARD), run) }
             }
         }

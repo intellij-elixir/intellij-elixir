@@ -137,7 +137,8 @@ private fun queueModule(
                 ),
             )
 
-            Expansion.Expanded(state, env, NODE)
+            // Not built: Elixir's `:elixir_module.compile/6` call; the body is queued, not expanded here.
+            Expansion.Expanded(state, env, NODE, run.ast { node })
         }
     }
 }
