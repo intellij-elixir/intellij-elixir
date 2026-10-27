@@ -32,8 +32,9 @@ class DefguardTemplateTest : SdkProbeTestCase() {
     }
 
     /**
-     * An `in` of a literal range: from 1.20 Elixir marks every node of its output `generated: true`, and the plugin's
-     * expansion keeps the mark on the `is_integer` call only. That meta is a deferred divergence: no answer reads it.
+     * An `in` of a range, literal or an attribute's: from 1.20 Elixir marks every node of its output
+     * `generated: true`, and the plugin's expansion keeps the mark on the `is_integer` call only. That meta is a
+     * deferred divergence: no answer reads it.
      */
     fun testAnInOfARangeDiffersOnlyInGenerated() {
         val diverges = IN_RANGE_LITERAL_GENERATED.isSufficient(legLevel())
@@ -54,6 +55,15 @@ class DefguardTemplateTest : SdkProbeTestCase() {
         }
 
         assertTrue(failures.joinToString("\n"), failures.isEmpty())
+    }
+
+    /** An `in` of an attribute that isn't set: `@` gives `nil`, so the guard's `in` raises, as Elixir's does. */
+    fun testAnInOfAnUnsetAttributeRaises() {
+        val body = "defguard is_unset(x) when x in @unset\n$AFTER"
+        val expansion = expand(body, "")
+
+        assertTrue("${expansion.ended}", expansion.ended is ExpansionResult.Ended.Raised)
+        printed { probes.assertMatchesElixir(mapOf(body to expansion)) }
     }
 
     /**
@@ -236,6 +246,7 @@ class DefguardTemplateTest : SdkProbeTestCase() {
                 "microsecond in 0..999_999 and precision in 0..6",
                 kind = "defguardp",
             ),
+            Case("in_attribute_range", "is_small(x)", "x", "x in @r", setup = "  @r 1..3", kind = "defguardp"),
         )
 
         val CASES = listOf(
@@ -319,6 +330,7 @@ class DefguardTemplateTest : SdkProbeTestCase() {
                 "is_one(x) or x == 2",
                 setup = "  defguard is_one(x) when x == 1",
             ),
+            Case("in_attribute_list", "is_kind(kind)", "kind", "kind in @kinds", setup = "  @kinds [:a, :b]"),
         )
     }
 }

@@ -74,6 +74,14 @@ class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
         printed { probes.assertTracesMatchElixir(probes.expandAll(bodies, clauses = sdk)) }
     }
 
+    /** An attribute on the right of `in` in a function's guard is read and escaped as Elixir's `@` does. */
+    fun testAnAttributeOnTheRightOfInInAGuardMatchesElixir() {
+        val expansions = IN_ATTRIBUTE.associateWith { expand(it, "") }
+
+        assertCompiled(expansions)
+        printed { probes.assertMatchesElixir(expansions) }
+    }
+
     /**
      * `@doc guard: true` is no hook's to see, so the Docs chunk of the compiled module says which of its macros are
      * guards, and the expander says the same of the definitions it stored: those a `@doc guard: true` it wrote lies
@@ -278,6 +286,8 @@ class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
             "defguardp is_p(x) when is_integer(x)",
             "def a, do: 1\ndefguard is_one(x) when x == 1\ndef b, do: 2",
         )
+
+        val IN_ATTRIBUTE = listOf("@a [1, 2]\ndef f(x) when x in @a, do: x", "@a 1..3\ndef f(x) when x in @a, do: x")
 
         const val DOCUMENTED =
             "defguard is_one(x) when x == 1\ndefguardp is_two(x) when x == 2\n" +
