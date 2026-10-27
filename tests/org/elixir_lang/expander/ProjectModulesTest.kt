@@ -4,6 +4,7 @@ import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangTuple
+import com.intellij.codeInsight.completion.OffsetsInFile
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
@@ -1783,6 +1784,28 @@ class ProjectModulesTest : PlatformTestCase() {
         }
     }
 
+    fun testACopyHoldsItsExpansionUntilItChanges() {
+        val a = add("a.ex", "defmodule A do\n  require B\nend\n")
+        add("b.ex", "defmodule B do\nend\n")
+        val copy = completionCopy(a)
+
+        assertTrue("the second ask is answered from the hold", expansion(holder, copy) === expansion(holder, copy))
+    }
+
+    fun testAnEditedCopyIsExpandedAgain() {
+        val a = add("a.ex", "defmodule A do\n  require B\nend\n")
+        add("b.ex", "defmodule B do\nend\n")
+        val copy = completionCopy(a)
+        val before = expansion(holder, copy)
+
+        replaceInCopy(a, copy, "defmodule ".length, "defmodule A".length, "C")
+
+        val after = expansion(holder, copy)
+        assertNotSame(before, after)
+        assertTrue(render(copy, after), render(copy, after).contains("Elixir.C compiled"))
+        assertFresh("the edited copy", copy, after)
+    }
+
     fun testSeveralCopiesUnreadable() {
         val a = add("a.ex", "defmodule A do\n  require B\nend\n")
         add("b1.ex", "defmodule B do\n  def f, do: 1\nend\n")
@@ -2587,6 +2610,19 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     private fun psi(virtualFile: VirtualFile): PsiFile = PsiManager.getInstance(project).findFile(virtualFile)!!
+
+    /** [file]'s copy as completion makes it, which has no virtual file. */
+    private fun completionCopy(file: PsiFile): PsiFile =
+        ReadAction.nonBlocking(Callable { file.copy() as PsiFile }).executeSynchronously().also {
+            assertNull("a copy has no virtual file", it.virtualFile)
+        }
+
+    /** [copy] re-synced to [original]'s text with [replacement] in `start until end`, as completion re-syncs a reused copy. */
+    private fun replaceInCopy(original: PsiFile, copy: PsiFile, start: Int, end: Int, replacement: String) {
+        WriteAction.runAndWait<Throwable> {
+            OffsetsInFile(original).replaceInCopy(copy, start, end, replacement).ensureUpdatedAndGetNewOffsets()
+        }
+    }
 
     private fun assertFresh(
         message: String,
