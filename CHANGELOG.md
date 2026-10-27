@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4551](https://github.com/intellij-elixir/intellij-elixir/pull/4551) [@sh41](https://github.com/sh41)
+  - **The expander goes on past a `defguard` to the rest of the module, building the macro the guard defines as Elixir does.** Refs [#4465](https://github.com/intellij-elixir/intellij-elixir/issues/4465).
+
 - [#4545](https://github.com/intellij-elixir/intellij-elixir/pull/4545) [@sh41](https://github.com/sh41)
   - **A new inspection, Config key never read, on by default as a weak warning, flags a key a config file sets for the project's own application that no code reads, except in an application with Erlang source, whose reads it does not see; and Find Usages on a config key now lists reads inside `~H`, `~E` and `~L` templates.** Refs [#4539](https://github.com/intellij-elixir/intellij-elixir/issues/4539).
 
