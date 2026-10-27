@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4555](https://github.com/intellij-elixir/intellij-elixir/pull/4555) [@sh41](https://github.com/sh41)
+  - **Completing a config key again in a large file you haven't edited since no longer works the whole file out again.** Refs [#4554](https://github.com/intellij-elixir/intellij-elixir/issues/4554).
+
 - [#4552](https://github.com/intellij-elixir/intellij-elixir/pull/4552) [@sh41](https://github.com/sh41)
   - **The expander answers more of the Erlang and Elixir functions that Ecto's query macros and `use Ecto.Repo` call while compiling, so most of them now expand as Elixir expands them.** Refs [#4527](https://github.com/intellij-elixir/intellij-elixir/issues/4527).
 
