@@ -1918,23 +1918,73 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
-     * A macro of the SDK's compiled `EEx` is dispatched to remotely, though `EEx`'s sources are attached too, and its
-     * output stops at the `def` whose name is a fragment.
+     * A macro of the SDK's compiled `EEx` is dispatched to remotely, though `EEx`'s sources are attached too, and the
+     * function its output defines is exported, its body unknown.
      */
     fun testCompiledEex() {
-        val lib = File(LegManifest.environment("ELIXIR_LANG_ELIXIR_PATH"), "lib")
-        addLibrary("leg_elixir", File(lib, "elixir/ebin"))
-        addLibrary("leg_eex", File(lib, "eex/ebin"), File(lib, "eex/lib"))
+        addCompiledEex()
         val a = add("a.ex", "defmodule A do\n  require EEx\n  EEx.function_from_string(:def, :f, \"x\")\nend\n")
         val rendered = render(a, expansion(holder, a))
 
         assertEquals(
             "top expanded\n" +
-                "Elixir.A stopped `EEx.function_from_string(:def, :f, \"x\")` unported unquote errors[] " +
-                "loads Unreadable",
+                "Elixir.A compiled errors[] loads Present(functions=[NameArity(name=f, arity=0)], macros=[], " +
+                "hasInfo=true, behaviour=None, deprecated=Known(reasons={}), attributes=Unreadable)",
             rendered,
         )
         assertFresh("the compiled EEx read", a, expansion(holder, a))
+    }
+
+    /**
+     * Options that hold the module give the declined `EEx.compile_string/2` the module, so it loads unreadable, and
+     * the `@before_compile` it may have written stops the module at its end, a known divergence: Elixir compiles it.
+     */
+    fun testCompiledEexGivenTheModuleIsUnreadable() {
+        addCompiledEex()
+        val a = add("a.ex", "defmodule A do\n  require EEx\n  EEx.function_from_string(:def, :f, \"x\", [], m: __MODULE__)\nend\n")
+        val expansion = expansion(holder, a)
+
+        assertEquals(
+            "top expanded\nElixir.A stopped `defmodule A do` unported defmodule errors[] loads Unreadable",
+            render(a, expansion),
+        )
+        assertEquals(setOf(NameArity("f", 0)), expansion.modules.single().table.entries.keys)
+    }
+
+    /**
+     * Options an unknown fragment gives whole leave the body unknown, so a call from another module's body declines,
+     * where Elixir runs the body the options hold.
+     */
+    fun testUnknownOptionsLeaveTheBodyUnknownWhereCalled() {
+        addLegElixir()
+        add("a.ex", "defmodule A do\n  o = Application.get_env(:m2, :o, [do: 1])\n  def f, unquote(o)\nend\n")
+        val b = add("b.ex", "defmodule B do\n  @x A.f()\n  def x, do: @x\nend\n")
+
+        assertEquals(
+            "top expanded\n" +
+                "Elixir.B compiled errors[] loads Present(functions=[NameArity(name=x, arity=0)], macros=[], " +
+                "hasInfo=true, behaviour=None, deprecated=Known(reasons={}), attributes=Unreadable)",
+            render(b, expansion(holder, b)),
+        )
+    }
+
+    /**
+     * A kind that isn't known is a subject the evaluator can't produce for `EEx`'s `case`, so the module stops there,
+     * where Elixir defines the one function of the kind it reads.
+     */
+    fun testCompiledEexOfAnUnknownKindStopsAtItsCase() {
+        addCompiledEex()
+        val call = "EEx.function_from_string(kind, :k, \"x\")"
+        val a = add("a.ex", "defmodule A do\n  require EEx\n  kind = Application.get_env(:m2, :kind, :defp)\n  $call\nend\n")
+
+        assertEquals("top expanded\nElixir.A stopped `$call` unported case errors[] loads Unreadable", render(a, expansion(holder, a)))
+    }
+
+    /** The leg's compiled `Elixir` and `EEx`, `EEx` with its sources. */
+    private fun addCompiledEex() {
+        val lib = File(LegManifest.environment("ELIXIR_LANG_ELIXIR_PATH"), "lib")
+        addLibrary("leg_elixir", File(lib, "elixir/ebin"))
+        addLibrary("leg_eex", File(lib, "eex/ebin"), File(lib, "eex/lib"))
     }
 
     fun testCycleAnswersAbsent() {
