@@ -16,7 +16,7 @@ import org.elixir_lang.coverage.ExpanderProgress
 import org.elixir_lang.coverage.macroName
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.junit.HeavyTestCase
-import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_IN_VM_ORDER
+import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.inspect
 import org.elixir_lang.psi.ElixirFile
@@ -293,11 +293,11 @@ class EctoFixtureTest : HeavyTestCase() {
         /**
          * [term] as Elixir's `inspect` prints it once each side's differences that aren't the expansion's are gone: a
          * node's line, column and file, the path of the file the steps are in, and the hygiene counters' values, numbered
-         * in the order they first appear with their modules kept. Where [ESCAPED_MAP_IN_VM_ORDER] holds, a map's pairs
-         * are sorted, as Elixir's order is the atoms' index in the VM.
+         * in the order they first appear with their modules kept. Where [MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER] holds, a map's
+         * pairs are sorted, as Elixir's order is the atoms' index in the VM, where the expander's is term order.
          */
         fun compared(term: OtpErlangObject, compiled: Compiled): String {
-            val sorts = ESCAPED_MAP_IN_VM_ORDER.isSufficient(legLevel())
+            val sorts = MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER.isSufficient(legLevel())
             val path = File(compiled.project, "lib/queries.ex").path
 
             return inspect(CounterNumbers().renumbered(withoutPlace(term, path, sorts)))

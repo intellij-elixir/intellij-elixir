@@ -49,7 +49,6 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.INTEGERS_UP_TO_4_MBI
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_SORT_KEEPS_EQUAL_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.RAISE_FRAME_TAKES_A_CAPTURE
-import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_ATTRIBUTES_IN
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_GET_LAST_ATTRIBUTE
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_OVERRIDABLES_IN
@@ -969,9 +968,6 @@ internal class Natives(private val evaluation: Evaluation) {
                 val entries = entries(map(args[0]))
 
                 if (entries.size > 32) decline("the order of a map of more than 32 keys")
-                if (MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER.isSufficient(level) && entries.count { it.first is OtpErlangAtom } > 1) {
-                    decline("the order of a map's atom keys")
-                }
 
                 list(entries.sortedWith { left, right -> compare(left.first, right.first, level, true) }.map { tuple(it.first, it.second) })
             }
