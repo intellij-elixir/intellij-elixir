@@ -1651,8 +1651,8 @@ private fun Ended?.skipping(): Ended? = if (this is Ended.Stopped) copy(skipped 
 /**
  * `run_on_definition_callbacks/8` (`elixir_def.erl:255–262`): each `@on_definition` entry of [compiling]'s
  * ([AttributeTable.callbacks]), newest first, run on [owner], which [definition] stored from [unquoted]. What they gave:
- * a value where each ran, else the first's raise, or a decline where the first isn't known or the evaluator declines
- * it, after which none runs.
+ * a value where each ran, else the first's raise, or a decline where the first isn't known, the evaluator declines it
+ * or [unquoted]'s body is unknown, which the port doesn't have to give it, after which none runs.
  */
 private fun onDefinition(
     definition: Pending.Definition,
@@ -1670,6 +1670,7 @@ private fun onDefinition(
         val pair = (entry as? AttributeValue.Known)?.term as? Term.Pair ?: return Evaluated.Declined(Given())
         val module = (pair.first as? Term.Atom)?.name ?: return Evaluated.Declined(Given())
         val function = (pair.second as? Term.Atom)?.name ?: return Evaluated.Declined(Given())
+        if (unquoted.bodyUnknown) return Evaluated.Declined(Given())
         val ran = Interpreter.onDefinition(
             module, function, owner.kind.name.lowercase(), args, guards, unquoted.body, definition.node, env, run,
         )

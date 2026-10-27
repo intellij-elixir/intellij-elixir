@@ -119,9 +119,8 @@ class ImplMacroTest : ExpanderTestCase() {
     }
 
     /**
-     * Where the file may not run the call, a check that fails stops the implementation, and the file where the walk
-     * lost Elixir's path, while the modules after it compile. From v1.19 the implementation's `@behaviour` requires the
-     * protocol, before `__impl__/1`.
+     * Where the file may not run the call, the file stops where the walk lost Elixir's path, while the modules after it
+     * compile. From v1.19 the implementation's `@behaviour` requires the protocol, before `__impl__/1`.
      */
     fun testATopLevelImplementationTheFileMayNotRunStops() {
         val implementation = "defimpl NoSuch, for: Integer do\n  end"
@@ -129,13 +128,13 @@ class ImplMacroTest : ExpanderTestCase() {
         val code = "defmodule B do\nend\n$branch\ndefmodule C do\nend"
 
         assertLevels(code, LEVELS) { version ->
-            val definitions = when {
-                isBefore(version, IMPL_TARGET_REMOVED) -> " | def __impl__/1 line 4 clauses 3"
-                isBefore(version, "1.19.0-rc.0") -> " | def __impl__/1 line 4 clauses 2"
-                else -> ""
+            val ended = when {
+                isBefore(version, IMPL_TARGET_REMOVED) -> "compiled | def __impl__/1 line 4 clauses 3"
+                isBefore(version, "1.19.0-rc.0") -> "compiled | def __impl__/1 line 4 clauses 2"
+                else -> "stopped `$implementation`"
             }
 
-            "module Elixir.B compiled\nmodule Elixir.NoSuch.Integer stopped `$implementation`$definitions\n" +
+            "module Elixir.B compiled\nmodule Elixir.NoSuch.Integer $ended\n" +
                 "module Elixir.C compiled\ntop unported `$branch`"
         }
     }

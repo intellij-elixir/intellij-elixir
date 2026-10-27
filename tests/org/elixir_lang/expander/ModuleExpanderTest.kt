@@ -1079,8 +1079,8 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """.trimIndent()
         }
 
-    /** A clause stopped at a fragment is still a clause of its macro, so a call it matches stops, not the next. */
-    fun testACallMatchingAStoppedMacroClause() =
+    /** A clause whose body is unknown is still a clause of its macro, so a call it matches stops, not the next. */
+    fun testACallMatchingAMacroClauseWithAnUnknownBody() =
         assertLevels(
             """
             defmodule A do
@@ -1094,12 +1094,12 @@ class ModuleExpanderTest : ExpanderTestCase() {
         ) { version ->
             """
             top expanded {} next 0 context ${topContext(version, "Elixir.A")}
-            module Elixir.A stopped `unquote(receive do after 0 -> 1 end)`
+            module Elixir.A stopped `m(:a)`
               defmacrop m/1 line 2 clauses 2
               def f/0 line 4 clauses 1
               def g/0 line 5 clauses 1
               body: expanded {} next ${if (isBefore(version, "1.20.0-rc.5")) 0 else 1} context [Elixir.A]
-              defmacrop m/1: unported `unquote(receive do after 0 -> 1 end)`
+              defmacrop m/1: expanded {} next 0
               defmacrop m/1: expanded {x:0} next 1
               def f/0: opaque local_macro Elixir.A.m/1 `m(:a)`
               def g/0: expanded {} next 0 value b

@@ -1952,6 +1952,21 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
+     * An implementation of a missing protocol, in a branch the file may not run, is not present to other files: Elixir
+     * never defines it, as `Protocol.assert_protocol!` raises before it wherever the branch runs.
+     */
+    fun testAnImplementationOfAMissingProtocolInABranchTheFileMayNotRunIsNotPresent() {
+        addLegElixir()
+        val a = add(
+            "a.ex",
+            "case (receive do after 0 -> 1 end) do\n  2 -> defimpl NoSuch, for: Integer do\n  end\n  _ -> :ok\nend\n",
+        )
+        val implementation = render(a, expansion(holder, a)).lines().single { it.startsWith("Elixir.NoSuch.Integer ") }
+
+        assertFalse(implementation, implementation.contains(" loads Present"))
+    }
+
+    /**
      * Options an unknown fragment gives whole leave the body unknown, so a call from another module's body declines,
      * where Elixir runs the body the options hold.
      */
@@ -2360,13 +2375,14 @@ class ProjectModulesTest : PlatformTestCase() {
             // A statement the evaluator declines may have run the units nested in its statements any number of times.
             Triple("case-declined-if-expander-unreadable", "case (receive do after 0 -> :a end) do\n    :a -> if true do def f, do: 1 end\n    _ -> :ok\n  end", "Unreadable Compiled"),
             Triple("case-declined-for-expander-unreadable", "case (receive do after 0 -> :a end) do\n    :a -> for n <- [:f], do: def unquote(n)(), do: 1\n    _ -> :ok\n  end", "Unreadable Compiled"),
-            // A definition whose name or body the elements the evaluator couldn't follow decide stops the module.
+            // A definition whose name the elements the evaluator couldn't follow decide stops the module.
             Triple("for-declined-case-expander-unreadable", "for n <- (receive do after 0 -> [:f] end) do\n    case n do\n      _ -> def unquote(n)(), do: 1\n    end\n  end", "Unreadable Stopped"),
             // A unit reached for one element may have run for the elements the evaluator couldn't follow.
             Triple("for-filter-declined-expander-unreadable", "for x <- [:a, :b], x == :a or (receive do after 0 -> true end), do: def unquote(x)(), do: 1", "Unreadable Stopped"),
             Triple("each-element-declined-expander-unreadable", "x = receive do after 0 -> {:ok, :g} end\n  Enum.each([{:ok, :f}, x], fn {:ok, n} -> def unquote(n)(), do: 1 end)", "Unreadable Stopped"),
             Triple("foreach-element-declined-expander-unreadable", "x = receive do after 0 -> {:ok, :g} end\n  :lists.foreach(fn {:ok, n} -> def unquote(n)(), do: 1 end, [{:ok, :f}, x])", "Unreadable Stopped"),
-            Triple("for-filter-declined-body-expander-unreadable", "for x <- [1, 2], x == 1 or (receive do after 0 -> true end), do: def f, do: unquote(x)", "Unreadable Stopped"),
+            // A body they decide is unknown, and the module runs on.
+            Triple("for-filter-declined-body-expander-unreadable", "for x <- [1, 2], x == 1 or (receive do after 0 -> true end), do: def f, do: unquote(x)", "Unreadable Compiled"),
             // An `fn` a call doesn't run defines where it is called later, which the walk doesn't follow.
             Triple("fn-returned-expander-unreadable", "f = Function.identity(fn -> def g, do: 1 end)\n  f.()", "Unreadable Compiled"),
             Triple("fn-in-map-expander-unreadable", "callbacks = Map.put(%{}, :init, fn -> def init, do: :ok end)\n  callbacks.init.()", "Unreadable Compiled"),

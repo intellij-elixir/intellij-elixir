@@ -6272,7 +6272,7 @@ class InterpreterTest : PlatformTestCase() {
                   def r, do: unquote(v)
                 end
                 """,
-                pins = CALLS_A_STOPPED_MODULE,
+                pins = DECLINED_FROM_SOURCE,
             ),
             macro(
                 "body:has-attribute-given-module",

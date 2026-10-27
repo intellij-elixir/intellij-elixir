@@ -14,7 +14,9 @@ import org.elixir_lang.expander.interpreter.Binding
 import org.elixir_lang.expander.interpreter.EMPTY
 import org.elixir_lang.expander.interpreter.Evaluated
 import org.elixir_lang.expander.interpreter.NIL
+import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.expander.interpreter.codeOf
+import org.elixir_lang.expander.interpreter.isUnknown
 import org.elixir_lang.expander.interpreter.properElements
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFAULT_ARGUMENTS_THREAD_STATE
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINER_REFUSED_IN_MATCH_OR_GUARD
@@ -24,6 +26,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CH
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
+import java.util.Collections
 import java.util.IdentityHashMap
 
 /**
@@ -109,7 +112,7 @@ internal fun define(
     val pieces = mutableListOf<Piece>()
     val parts = listOfNotNull(head.takeIf { escapesHead }, body?.takeIf { escapesBody })
 
-    parts.forEach { fragments.collect(it, listed = pairIsCall) }
+    parts.forEach { fragments.collectPart(it, listed = pairIsCall, inBody = it === body) }
 
     val escaped = if (pairIsCall) listOf(ElixirAst.Tuple(node.meta, listOf(head, pairBody))) else parts
     // Code the port can't read may hold an `unquote`, which Elixir expands with the body whether or not the definition
@@ -167,11 +170,15 @@ internal fun define(
             val term = (terms as Term.List).elements[i]
 
             when (val piece = pieces[i]) {
-                is Piece.Fragment -> Fragment(piece.call, values[i], term, piece.call.arguments!!.single())
+                is Piece.Fragment ->
+                    Fragment(piece.call, values[i], term, piece.call.arguments!!.single(), inBody = fragments.inBody(piece.call))
                 is Piece.Evaluated -> piece.placement.let {
                     val checkedAfter = (piece.helper?.end?.let(before::get) ?: before[i + 1]) - 1
 
-                    Fragment(it.call, values[i], term, piece.expression, it.kind, checkedAfter, it.named, it.list, checkOf(piece), piece.helper?.call, piece.helper?.name)
+                    Fragment(
+                        it.call, values[i], term, piece.expression, it.kind, checkedAfter, it.named, it.list, checkOf(piece),
+                        piece.helper?.call, piece.helper?.name, fragments.inBody(it.call),
+                    )
                 }
                 is Piece.Quoted -> null
             }
@@ -227,6 +234,7 @@ internal class Fragments(
  * @property check what the helper the escape hands the value to checks before the value is placed, if it checks it
  * @property helper that helper's call, where the escape built one
  * @property helperName that helper's function
+ * @property inBody whether it is in the body, `def`'s second argument, rather than its head
  */
 internal class Fragment(
     val call: ElixirAst,
@@ -240,6 +248,7 @@ internal class Fragment(
     val check: Check? = null,
     val helper: ElixirAst.Call? = null,
     val helperName: String? = null,
+    val inBody: Boolean,
 ) {
     enum class Kind {
         UNQUOTE,
@@ -288,6 +297,8 @@ internal class Fragment(
  * @property unnamedAt the name's fragment, when its value isn't an atom, or the first fragment that stops a head whose
  *   name or argument count a fragment decides
  * @property stop the first other fragment whose value isn't code, or is placed nowhere
+ * @property bodyUnknown whether a body fragment has no value ([Held.leavesBodyUnknown]), so the body isn't expanded:
+ *   each such fragment stands in [body] as [Unknown]
  * @property ordered whether the `def*` call is a statement of the module body, and named
  * @property raised what the escape raises, which ends the module body before the definition is stored
  */
@@ -298,14 +309,16 @@ internal class Unquoted(
     val stop: ElixirAst?,
     val ordered: Boolean,
     val raised: Expansion? = null,
+    val bodyUnknown: Boolean = false,
 )
 
 /**
  * [definition] as the `def` runs it: each fragment's value is what its expansion knows, or, if [evaluates], what the
  * evaluator gives from [bindings], the values [compiling]'s body has bound or those the
  * evaluator has where it reaches the `def` inside a statement. A value a helper checks ([Fragment.check]) is checked
- * once the fragments the helper's arguments hold are evaluated. The definition stops at the first value that isn't
- * known, or that it places nowhere, and a fragment or helper raises only where every value evaluated before it is known.
+ * once the fragments the helper's arguments hold are evaluated. A body fragment with no value leaves the body unknown
+ * ([Held.leavesBodyUnknown]). Otherwise the definition stops at the first value that isn't placed, or that it places
+ * nowhere, and a fragment or helper raises only where nothing before it stopped the definition.
  */
 internal fun unquoted(
     definition: Pending.Definition,
@@ -324,7 +337,7 @@ internal fun unquoted(
     val replacements = IdentityHashMap<ElixirAst, ElixirAst>()
     val splices = IdentityHashMap<ElixirAst, List<ElixirAst>>()
     var unnamedAt: ElixirAst? = null
-    // The first fragment whose value isn't known, after which none is evaluated.
+    // The first fragment whose value isn't placed, after which none is evaluated.
     var stop: ElixirAst? = null
     // The first fragment the definition stops at: the stop, or one read as code whose value is placed nowhere.
     var stopsAt: ElixirAst? = null
@@ -334,8 +347,25 @@ internal fun unquoted(
     // Each fragment's value and each helper's result, by the node of the escape's code that gives it.
     val escapedValues = IdentityHashMap<ElixirAst, ElixirAst>()
 
-    fun place(fragment: Fragment, placed: Any?) {
+    var bodyUnknown = false
+    // The nodes of the escape's code that give the value of a fragment or helper that left the body unknown.
+    val unknownResults = Collections.newSetFromMap(IdentityHashMap<ElixirAst, Boolean>())
+
+    fun readsUnknown(node: ElixirAst): Boolean {
+        ProgressManager.checkCanceled()
+
+        return node in unknownResults || children(node).any(::readsUnknown)
+    }
+
+    fun place(holding: Held, placed: Any?) {
+        val fragment = holding.fragment
+
         when {
+            holding.leavesBodyUnknown -> {
+                bodyUnknown = true
+                replacements[fragment.call] = ElixirAst.Value(fragment.call.meta, Unknown)
+                unknownResults += listOfNotNull(fragment.escaped, fragment.helper)
+            }
             placed != null -> {}
             fragment.call === name -> unnamedAt = fragment.call
             else -> {
@@ -355,7 +385,8 @@ internal fun unquoted(
         val term = held.term ?: return held.evaluated
         if (!evaluates || stop != null || unnamedAt != null) return null
         val (function, args) = when (fragment.check!!) {
-            Fragment.Check.LIST -> fragment.helper?.arguments?.let { arguments ->
+            // `validate_list/1` of the value alone: whatever the unknown result holds, Elixir raises where it fails.
+            Fragment.Check.LIST -> if (held.inputUnknown) "list" to listOf(term, EMPTY) else fragment.helper?.arguments?.let { arguments ->
                 // The helper the escape built: its arguments after the value are the escape's code, run with the values
                 // of the fragments and helpers they hold.
                 fragment.helperName!! to listOf(term) + arguments.drop(1).map { node ->
@@ -403,21 +434,24 @@ internal fun unquoted(
             when {
                 fragment.check != null -> held.addLast(holding)
                 fragment.kind == Fragment.Kind.UNQUOTE ->
-                    place(fragment, (known ?: holding.term?.let { valueNode(it, fragment.call) })
+                    place(holding, (known ?: holding.term?.let { valueNode(it, fragment.call) })
                         ?.let { replacements[fragment.call] = it })
-                else -> place(fragment, nowhere(fragment, holding.term))
+                else -> place(holding, nowhere(fragment, holding.term))
             }
         }
 
         while (held.lastOrNull()?.fragment?.checkedAfter?.let { it <= index } == true) {
-            val checking = held.removeLast()
+            // A helper whose arguments read an unknown result gives none either.
+            val checking = held.removeLast().let { holding ->
+                if (holding.fragment.helper?.arguments.orEmpty().drop(1).any(::readsUnknown)) holding.copy(inputUnknown = true) else holding
+            }
             val call = checking.fragment.call
             // Only a called name's placement reads its `Left`.
             val left = ((call as? ElixirAst.Call)?.callee as? ElixirAst.Call)
                 ?.takeIf { checking.fragment.kind == Fragment.Kind.NAME }
                 ?.let { substitute(it.arguments!![0], replacements, splices) }
             val leftTerm = left?.toOtp()
-            val escaped = checked(checking, leftTerm)
+            val escaped = if (checking.leavesBodyUnknown && !checking.inputUnknown) null else checked(checking, leftTerm)
 
             if (escaped is Evaluated.Raised) {
                 return Unquoted(definition.head, definition.body, null, null, definition.statement, Expansion.Error(escaped.exception, call))
@@ -425,7 +459,9 @@ internal fun unquoted(
 
             val value = (escaped as? Evaluated.Value)?.value
 
-            if (value != null) checking.fragment.helper?.let { escapedValues[it] = ElixirAst.Value(it.meta, value) }
+            if (value != null && !checking.leavesBodyUnknown) {
+                checking.fragment.helper?.let { escapedValues[it] = ElixirAst.Value(it.meta, value) }
+            }
 
             val placed = when (checking.fragment.kind) {
                 Fragment.Kind.SPLICE ->
@@ -441,7 +477,7 @@ internal fun unquoted(
                 else -> nowhere(checking.fragment, value)
             }
 
-            place(checking.fragment, placed)
+            place(checking, placed)
         }
     }
 
@@ -455,6 +491,7 @@ internal fun unquoted(
         unnamedAt,
         stopsAt,
         definition.statement && unnamedAt == null,
+        bodyUnknown = bodyUnknown,
     )
 }
 
@@ -481,10 +518,17 @@ private fun copied(node: ElixirAst, run: Run): ElixirAst {
     return copy
 }
 
-/** A fragment's value, [known] from its expansion or [evaluated], held until its helper runs where one checks it. */
-private data class Held(val fragment: Fragment, val known: ElixirAst?, val evaluated: Evaluated?) {
+/**
+ * A fragment's value, [known] from its expansion or [evaluated], held until its helper runs where one checks it, and
+ * whether [inputUnknown]: the helper reads the result of a fragment that left the body unknown.
+ */
+private data class Held(val fragment: Fragment, val known: ElixirAst?, val evaluated: Evaluated?, val inputUnknown: Boolean = false) {
     /** The value, `null` where it isn't known. */
     val term: OtpErlangObject? = known?.toOtp() ?: (evaluated as? Evaluated.Value)?.value
+
+    /** Whether the body is unknown at this fragment: one in the body, whose evaluation or helper gives no value. */
+    val leavesBodyUnknown: Boolean =
+        fragment.inBody && (inputUnknown || evaluated is Evaluated.Declined || evaluated is Evaluated.Value && isUnknown(evaluated.value))
 }
 
 /**
@@ -635,34 +679,52 @@ private class Placement(
 private class Unquotes {
     private val fragments = IdentityHashMap<ElixirAst, ElixirAst.Call>()
     private val evaluated = IdentityHashMap<ElixirAst, Placement>()
+    private val bodyCalls: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
+    private var collectingBody = false
+
+    /** Collects [part], the definition's body where [inBody], else its head, as [collect] does. */
+    fun collectPart(part: ElixirAst, listed: Boolean, inBody: Boolean) {
+        collectingBody = inBody
+        collect(part, listed)
+        collectingBody = false
+    }
+
+    /** Whether the fragment [call] was collected from the definition's body. */
+    fun inBody(call: ElixirAst): Boolean = call in bodyCalls
+
+    private fun unquote(call: ElixirAst.Call) {
+        fragments[call.arguments!!.single()] = call
+        if (collectingBody) bodyCalls += call
+    }
+
+    private fun evaluate(call: ElixirAst.Call, kind: Fragment.Kind, named: ElixirAst.Call? = null, list: List<ElixirAst>? = null) {
+        evaluated[call.arguments!!.single()] = Placement(call, kind, named, list)
+        if (collectingBody) bodyCalls += call
+    }
 
     /**
      * @param listed whether [node] is one of the [quotedElements] of the node that holds it, or of a pair that
      * [isSplicingPair], where `do_quote/2` splices an `unquote_splicing` call; anywhere else that call is a call like any
      * other
      */
-    fun collect(node: ElixirAst, listed: Boolean = false) {
+    private fun collect(node: ElixirAst, listed: Boolean = false) {
         ProgressManager.checkCanceled()
 
         when {
-            isCall(node, "unquote", 1) -> (node as ElixirAst.Call).let { fragments[it.arguments!!.single()] = it }
+            isCall(node, "unquote", 1) -> unquote(node as ElixirAst.Call)
             isCall(node, "quote", 1) -> {}
             isCall(node, "quote", 2) -> collect((node as ElixirAst.Call).arguments!![0])
-            listed && isCall(node, "unquote_splicing", 1) -> {
-                val call = node as ElixirAst.Call
-
-                evaluated[call.arguments!!.single()] = Placement(call, Fragment.Kind.SPLICE)
-            }
+            listed && isCall(node, "unquote_splicing", 1) -> evaluate(node as ElixirAst.Call, Fragment.Kind.SPLICE)
             isUnquotedCall(node) -> {
                 val call = node as ElixirAst.Call
 
-                evaluated[call.arguments!!.single()] = Placement(call, Fragment.Kind.STOP)
+                evaluate(call, Fragment.Kind.STOP)
                 collect((call.callee as ElixirAst.Call).arguments!![0])
             }
             node is ElixirAst.Call && isUnquotedCall(node.callee) -> {
                 val name = node.callee as ElixirAst.Call
 
-                evaluated[name.arguments!!.single()] = Placement(name, Fragment.Kind.NAME, node)
+                evaluate(name, Fragment.Kind.NAME, node)
                 collect((name.callee as ElixirAst.Call).arguments!![0])
                 collectAll(quotedElements(node).orEmpty())
             }
@@ -695,7 +757,7 @@ private class Unquotes {
             elements.forEach { collect(it, listed = true) }
         } else {
             elements.dropLast(1).forEach { collect(it, listed = true) }
-            evaluated[splice.arguments!!.single()] = Placement(splice, Fragment.Kind.SPLICE, list = elements)
+            evaluate(splice, Fragment.Kind.SPLICE, list = elements)
             collect((elements.last() as ElixirAst.Call).arguments!![1], listed = true)
         }
     }
@@ -966,11 +1028,14 @@ internal fun storeDefinition(
     val nameArity = NameArity(name, arity)
     val args = defaultsArgs.map { arg -> if (isDefault(arg)) (arg as ElixirAst.Call).arguments!![0] else arg }
 
+    // A clause whose body is `null` declines where a call matches it.
+    fun addClause(body: ElixirAst?) {
+        compiling.clauses.getOrPut(nameArity) { mutableListOf() } += ModuleClauses.Clause(args, guards, body)
+    }
+
     /** The definition stored with this clause in its place, stopped at [at]. */
     fun stopped(at: ElixirAst): Pair<Owner, Expansion> {
-        if (unquoted.body != null) {
-            compiling.clauses.getOrPut(nameArity) { mutableListOf() } += ModuleClauses.Clause(args, guards, null)
-        }
+        if (unquoted.body != null) addClause(null)
         store(definition, unquoted, name, arity, defaults.size, compiling, run)
 
         return owner to Expansion.Unported(at)
@@ -984,12 +1049,14 @@ internal fun storeDefinition(
     val (defaulted, expansion) = unlessTooDeep({ return stopped(node) }) {
         val defaulted = expandDefaults(defaults, fresh, env, run, compiling, node)
 
-        defaulted to defaulted.then { _, _ -> clause(node, args, guards, unquoted.body, body, fresh, env, run) }
+        defaulted to defaulted.then { _, _ ->
+            clause(node, args, guards, unquoted.body, body, fresh, env, run, expandsBody = !unquoted.bodyUnknown)
+        }
     }
 
     if (expansion is Expansion.Error) return owner to expansion
 
-    body?.let { compiling.clauses.getOrPut(nameArity) { mutableListOf() } += ModuleClauses.Clause(args, guards, it) }
+    if (unquoted.bodyUnknown) addClause(null) else body?.let(::addClause)
     if (defaulted is Expansion.Expanded) {
         val counter = if (DEFAULT_ARGUMENTS_THREAD_STATE.isSufficient(run.level)) defaulted.state.version else 0
 
@@ -1162,9 +1229,9 @@ private fun clauseBody(node: ElixirAst.Call, options: ElixirAst): ElixirAst? {
 }
 
 /**
- * `def_to_clauses/6`, then `elixir_clauses:def/3` for the clause: the arguments as a pattern, the guard, then the
- * [body] of [options]. A bodiless head stores no clause: each argument that isn't a variable is an error, and so is a
- * guard.
+ * `def_to_clauses/6`, then `elixir_clauses:def/3` for the clause: the arguments as a pattern, the guard, then, where
+ * [expandsBody], the [body] of [options]. A bodiless head stores no clause: each argument that isn't a variable is an
+ * error, and so is a guard.
  */
 private fun clause(
     node: ElixirAst.Call,
@@ -1175,6 +1242,7 @@ private fun clause(
     state: ExState,
     env: Env,
     run: Run,
+    expandsBody: Boolean,
 ): Expansion {
     if (options == null) {
         if (guards.isNotEmpty() && !FUNCTION_HEAD_GUARDS_CONTINUE.isSufficient(run.level)) {
@@ -1188,7 +1256,8 @@ private fun clause(
         return Expansion.Expanded(state, env, NODE, ExpandedAst.NotAsked)
     }
 
-    if (body == null) return Expansion.Error("missing_option", node)
+    // An unknown fragment may stand for the `do` the options don't show.
+    if (body == null && expandsBody) return Expansion.Error("missing_option", node)
 
     return match(state, state, env, node) { s, e -> expandArgs(args, s, e, run) }
         .then { s, e ->
@@ -1196,7 +1265,10 @@ private fun clause(
                 expansion.then { s, e -> guard(guard, s, e.copy(context = Env.Context.GUARD), run) }
             }
         }
-        .then { s, e -> Expander.expand(body, s, e.copy(context = Env.Context.NONE), run) }
+        .then { s, e ->
+            body?.takeIf { expandsBody }?.let { Expander.expand(it, s, e.copy(context = Env.Context.NONE), run) }
+                ?: Expansion.Expanded(s, e, NODE, ExpandedAst.NotAsked)
+        }
 }
 
 private const val ALIASES = "__aliases__"
