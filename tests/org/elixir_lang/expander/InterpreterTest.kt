@@ -7570,6 +7570,7 @@ class InterpreterTest : PlatformTestCase() {
                 pins = { source, level ->
                     DECLINED_FROM_SOURCE(source, level)?.takeUnless { DEFSTRUCT_ESCAPES_STRUCT.isSufficient(level) }
                 },
+                unordered = true,
                 helper = """
                 defmodule {row}.S do
                   fields = [a: 1, b: 2]
@@ -8022,6 +8023,7 @@ class InterpreterTest : PlatformTestCase() {
                 pins = { source, level ->
                     DECLINED_FROM_SOURCE(source, level)?.takeUnless { DEFSTRUCT_ESCAPES_STRUCT.isSufficient(level) }
                 },
+                unordered = true,
                 helper = """
                 defmodule {row}.NS do
                   x = true
@@ -8039,6 +8041,7 @@ class InterpreterTest : PlatformTestCase() {
                 pins = { source, level ->
                     DECLINED_FROM_SOURCE(source, level)?.takeUnless { DEFSTRUCT_ESCAPES_STRUCT.isSufficient(level) }
                 },
+                unordered = true,
                 helper = """
                 defmodule {row}.SB do
                   x = true
