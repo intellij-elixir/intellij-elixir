@@ -179,12 +179,11 @@ internal class ProjectModules(private val project: Project) {
         compute(file, inputs, emptyMap(), Memo(), observer = observer).expansion
 
     private fun held(file: ElixirFile, inputs: Inputs): Held {
-        val virtualFile = file.virtualFile ?: return compute(file, inputs, emptyMap(), Memo(), records = true)
         file.getUserData(held)?.takeIf { it.loaded.isCurrent(inputs) }?.let { return it }
 
         val computed = compute(file, inputs, emptyMap(), Memo(), records = true)
         if (computed.transient.isNone) {
-            files[virtualFile] = computed.loaded
+            file.virtualFile?.let { files[it] = computed.loaded }
             file.putUserData(held, computed)
         }
 
@@ -474,7 +473,7 @@ internal class ProjectModules(private val project: Project) {
     ): Held {
         val virtualFile = file.virtualFile
         val stamps = Stamps()
-        virtualFile?.let { stamps.source(it) }
+        if (virtualFile != null) stamps.source(virtualFile) else stamps.own(file)
         val modules = HashMap<String, Answer>()
         val results = HashMap<String, ExpansionResult>()
         val compiling = fileOf(file)
@@ -743,6 +742,11 @@ internal class ProjectModules(private val project: Project) {
                     }
                 }
             }
+        }
+
+        /** A file with no virtual file, as completion's copy of the file being edited is: its own stamp. */
+        fun own(file: PsiFile) {
+            read.getOrPut(file) { Stamp(file::getModificationStamp) }
         }
 
         fun copy(copy: Copy) {
