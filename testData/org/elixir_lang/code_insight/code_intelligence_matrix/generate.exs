@@ -178,7 +178,12 @@ defmodule Matrix do
     # An attribute whose value raises and is rescued in place, then read; the definitions follow.
     "x_attribute_raise_rescued" => {["@matrix_raised (try do raise(ArgumentError) rescue _ -> 1 end)", "if @matrix_raised == 1 do"], ["end"]},
     # A statement `=` whose right side is a parenthesised block holding another.
-    "x_match_nested" => {["_outer = (inner = 1", "_ = inner"], [")"]}
+    "x_match_nested" => {["_outer = (inner = 1", "_ = inner"], [")"]},
+    # A typespec writer no evaluator native answers, where a statement's value is taken: a match's right side, a
+    # block's earlier expression, a case subject. A later `@matrix_seen` read must still see the attribute.
+    "x_typespec_match" => {["@matrix_seen 1", "_ = (@type matrix_t :: integer)", "if @matrix_seen == 1 do"], ["end"]},
+    "x_typespec_block" => {["@matrix_seen 1", "_ = (", "  @type matrix_t :: integer", "  1", ")", "if @matrix_seen == 1 do"], ["end"]},
+    "x_typespec_case" => {["@matrix_seen 1", "case (@type matrix_t :: integer) do", "  _ ->", "    if @matrix_seen == 1 do"], ["    end", "end"]}
   }
   @wrapper_worlds Map.keys(@wrappers)
 
