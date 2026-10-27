@@ -11,7 +11,9 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiFileFactory
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.language_level.ElixirLanguageFeature.ANNOTATE_CASE
+import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_SORTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.IN_RANGE_LITERAL_GENERATED
+import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ENV_VERSIONED_VARS
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.lowering.inspect
@@ -46,6 +48,21 @@ class ExpandedAstTest : SdkProbeTestCase() {
      */
     fun testAnIfDiffersOnlyInItsClausesGenerated() =
         assertNoFailures(listOfNotNull(differsOnlyInGenerated("body", IF, !ANNOTATE_CASE.isSufficient(legLevel()))))
+
+    /** `__ENV__.versioned_vars`: Elixir's node is the field's map itself. */
+    fun testAnEnvFieldHoldingAMap() {
+        if (MACRO_ENV_VERSIONED_VARS.isSufficient(legLevel())) assertEqual("body", listOf(ENV_VERSIONED_VARS))
+    }
+
+    /** `__ENV__.current_vars` before 1.13: Elixir's node is the field's tuple, each map in it escaped. */
+    fun testAnEnvFieldHoldingMapsInATuple() {
+        if (!MACRO_ENV_VERSIONED_VARS.isSufficient(legLevel())) assertEqual("body", listOf(ENV_CURRENT_VARS))
+    }
+
+    /** A map of more than 32 keys, whose escaped pairs are sorted as a smaller map's are, from when the escape sorts. */
+    fun testAnEnvFieldHoldingAMapOfMoreThan32Keys() {
+        if (ESCAPED_MAP_ENTRIES_SORTED.isSufficient(legLevel())) assertEqual("body", listOf(ENV_VERSIONED_VARS_OVER_32))
+    }
 
     /** Sites that keep the node as written, where Elixir builds another. */
     fun testSitesThatHoldTheSourceNode() =
@@ -398,6 +415,13 @@ class ExpandedAstTest : SdkProbeTestCase() {
         private val IN_RANGE = Case("in_range", "x", "x in 1..10")
 
         private val IF = Case("if", "x", "if x > 1, do: x + 1, else: 0")
+
+        private val ENV_VERSIONED_VARS = Case("env_versioned_vars", "x, a", "{__ENV__.versioned_vars, x + a}")
+
+        private val ENV_CURRENT_VARS = Case("env_current_vars", "x, a", "{__ENV__.current_vars, x + a}")
+
+        private val ENV_VERSIONED_VARS_OVER_32 =
+            Case("env_versioned_vars_over_32", (1..33).joinToString { "v$it" }, "{__ENV__.versioned_vars, v1}")
 
         /** Cases whose site keeps the node as written: `__DIR__`, a bitstring and an interpolation. */
         private val SOURCE_NODE_CASES = listOf(
