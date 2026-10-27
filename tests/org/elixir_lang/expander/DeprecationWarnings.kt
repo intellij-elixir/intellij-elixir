@@ -60,6 +60,7 @@ internal object DeprecationWarnings {
             is Warning.CompileEnv ->
                 "Application.${warning.name}/${warning.arity} is discouraged in the module body, " +
                     "use Application.compile_env/3 instead line $line"
+            is Warning.Emitted -> "${warning.message} line $line"
         }
     }
 

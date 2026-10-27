@@ -6,6 +6,7 @@ import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.io.FileUtil
@@ -268,7 +269,25 @@ class EctoFixtureTest : HeavyTestCase() {
             return when (warning) {
                 is Warning.Deprecated -> "deprecated ${warning.module}.${warning.name}/${warning.arity} line $line"
                 is Warning.CompileEnv -> "compile_env ${warning.name}/${warning.arity} line $line"
+                is Warning.Emitted ->
+                    (listOf(warning.message) + (warning.stacktrace as? OtpErlangList)?.elements().orEmpty().map(::entry))
+                        .joinToString("\n")
             }
+        }
+
+        /** A stacktrace entry as `Exception.format_stacktrace_entry/1` prints it: `file:line: Module.function/arity`. */
+        fun entry(entry: OtpErlangObject): String {
+            val (module, function, arity, location) = (entry as OtpErlangTuple).elements()
+            val keyword = (location as OtpErlangList).elements().associate {
+                ((it as OtpErlangTuple).elementAt(0) as OtpErlangAtom).atomValue() to it.elementAt(1)
+            }
+            val file = when (val charlist = keyword.getValue("file")) {
+                is OtpErlangString -> charlist.stringValue()
+                else -> (charlist as OtpErlangList).elements().joinToString("") { Character.toString((it as OtpErlangLong).intValue()) }
+            }
+            val name = (module as OtpErlangAtom).atomValue().let { if (it.startsWith("Elixir.")) it.removePrefix("Elixir.") else ":$it" }
+
+            return "$file:${keyword.getValue("line")}: $name.${(function as OtpErlangAtom).atomValue()}/$arity"
         }
 
         /**

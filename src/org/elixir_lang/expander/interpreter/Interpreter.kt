@@ -28,6 +28,7 @@ import org.elixir_lang.expander.Place
 import org.elixir_lang.expander.RescueHead
 import org.elixir_lang.expander.Run
 import org.elixir_lang.expander.Summary
+import org.elixir_lang.expander.Warning
 import org.elixir_lang.expander.children
 import org.elixir_lang.expander.compilingKnown
 import org.elixir_lang.expander.forOptions
@@ -366,6 +367,11 @@ internal class Evaluation(
 
     /** `__CALLER__`, one term, so `Macro.expand/2` knows the env it is given. */
     private val caller by lazy { envOf(env) }
+
+    /** Records an `IO.warn` of [message] as the warning of the call being evaluated. */
+    fun warn(message: String, stacktrace: OtpErlangObject?) {
+        run.warnings += Warning.Emitted(call, message, stacktrace)
+    }
 
     /**
      * The output of the call, which dispatches as [dispatch], given [arguments].

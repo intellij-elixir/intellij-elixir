@@ -74,7 +74,7 @@ private const val BACKTRACE_DEPTH = 8
  * came from no module, or a default: `get_env/3`'s and `compile_env/4`'s where the key isn't set (`App:724`, `:595` at
  * v1.20.4), and `__compile_env__/4`'s before it (`App:516` at v1.11.4). `Module`'s attribute reads, and
  * `delete_attribute/2`, return a value of the module their first argument names, or the default they are given; its
- * predicates and other writers a boolean or `:ok`, and its listings names.
+ * predicates and other writers a boolean or `:ok`, and its listings names. `IO.warn/1,2` returns `:ok`.
  */
 private val RETURNABLE = mapOf(
     Triple("Elixir.Application", "get_env", 2) to emptyList(),
@@ -108,6 +108,8 @@ private val RETURNABLE = mapOf(
     Triple("Elixir.Module", "make_overridable", 2) to emptyList(),
     Triple("Elixir.Module", "delete_definition", 2) to emptyList(),
     Triple("elixir_def", "take_definition", 2) to emptyList(),
+    Triple("Elixir.IO", "warn", 1) to emptyList(),
+    Triple("Elixir.IO", "warn", 2) to emptyList(),
 )
 
 /**
@@ -166,6 +168,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "Elixir.Enum" -> enum(key, args)
             "Elixir.Access" -> access(key, args)
             "Elixir.Macro.Env" -> env(key, args)
+            "Elixir.IO" -> io(key, args)
             "Elixir.Module" -> module(key, args)
             "Elixir.Application" -> application(key, args)
             "Elixir.Atom" -> if (key == "to_string/1") erlang("atom_to_binary/1", args) else null
@@ -1414,6 +1417,33 @@ internal class Natives(private val evaluation: Evaluation) {
             ?: functionClause("Elixir.Macro.Env", key.substringBefore('/'), args)
 
         return bool(seen(env) == atom(context))
+    }
+
+    /**
+     * `IO.warn/1,2` (`io.ex`), recorded as the macro call's warning, with its stacktrace as given: `IO.warn/1`'s is the
+     * caller's, which isn't known. A message that isn't a binary of UTF-8, and the location an env or options give,
+     * decline; a second argument that is none of those, `[]` or a stacktrace raises `function_clause`.
+     */
+    private fun io(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        if (key != "warn/1" && key != "warn/2") return null
+
+        val message = utf8(args[0]) ?: decline("IO.warn/${args.size} of %s", args[0])
+        val stacktrace = args.getOrNull(1)?.also { given ->
+            if (macroEnv(given) != null) decline("IO.warn/2 at a Macro.Env")
+
+            val (elements, _) = cells(seen(given)) ?: functionClause("Elixir.IO", "warn", args)
+
+            when ((elements.firstOrNull()?.let(::seen) as? OtpErlangTuple)?.arity()) {
+                null -> if (elements.isNotEmpty()) functionClause("Elixir.IO", "warn", args)
+                4 -> {}
+                2 -> decline("IO.warn/2 with options %s", given)
+                else -> functionClause("Elixir.IO", "warn", args)
+            }
+        }
+
+        evaluation.warn(message, stacktrace)
+
+        return atom("ok")
     }
 
     /** [term] where it is a `%Macro.Env{}`, `null` where it is something else. */
