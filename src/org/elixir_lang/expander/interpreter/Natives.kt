@@ -1407,14 +1407,49 @@ internal class Natives(private val evaluation: Evaluation) {
         val context = when (key) {
             "in_guard?/1" -> "guard"
             "in_match?/1" -> "match"
+            "stacktrace/1" -> return stacktrace(macroEnv(args[0]) ?: functionClause("Elixir.Macro.Env", "stacktrace", args))
             else -> return null
         }
-        val env = (seen(args[0]) as? OtpErlangMap)
-            ?.takeIf { it.get(atom("__struct__"))?.let(::seen) == atom("Elixir.Macro.Env") }
-            ?.get(atom("context"))
-            ?: evaluation.error(atom("function_clause"), frame("Elixir.Macro.Env", key.substringBefore('/'), list(args)))
+        val env = macroEnv(args[0])?.get(atom("context"))
+            ?: functionClause("Elixir.Macro.Env", key.substringBefore('/'), args)
 
         return bool(seen(env) == atom(context))
+    }
+
+    /** [term] where it is a `%Macro.Env{}`, `null` where it is something else. */
+    private fun macroEnv(term: OtpErlangObject): OtpErlangMap? =
+        (seen(term) as? OtpErlangMap)?.takeIf { it.get(atom("__struct__"))?.let(::seen) == atom("Elixir.Macro.Env") }
+
+    /**
+     * `Macro.Env.stacktrace/1` (`env.ex`): [env]'s one frame, the compiler's outside a module and the module body's
+     * outside a function, at its line and its file relative to where Elixir compiled it.
+     */
+    private fun stacktrace(env: OtpErlangMap): OtpErlangObject {
+        val field = { name: String -> env.get(atom(name))?.let(::seen) ?: decline("a Macro.Env without %s", atom(name)) }
+        val file = utf8(field("file")) ?: decline("Macro.Env.stacktrace/1 of a file that isn't UTF-8 text")
+        val relative = evaluation.run.directories.relativeToCwd(file)
+            ?: decline("Path.relative_to_cwd/1 of %s, whose compile directory isn't known", binary(file))
+        val location = list(
+            listOf(
+                tuple(atom("file"), list(relative.codePoints().toArray().map { integer(it.toLong()) })),
+                tuple(atom("line"), field("line")),
+            ),
+        )
+        val module = field("module")
+        val frame = when {
+            module == NIL -> tuple(atom("elixir_compiler"), atom("__FILE__"), integer(1), location)
+            else -> when (val function = field("function")) {
+                NIL -> tuple(module, atom("__MODULE__"), integer(0), location)
+                else -> {
+                    val (name, arity) = (function as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elements()
+                        ?: decline("Macro.Env.stacktrace/1 of the function %s", function)
+
+                    tuple(module, name, arity, location)
+                }
+            }
+        }
+
+        return list(listOf(frame))
     }
 
     private fun module(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
