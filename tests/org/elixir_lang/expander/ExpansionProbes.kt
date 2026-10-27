@@ -122,6 +122,7 @@ internal class ExpansionProbes(
         val preamble: String,
         val exports: Exports,
         val structs: Structs,
+        val appEnv: AppEnv,
         val hook: ProbeHarness.Hook?,
         val standIns: List<StandIn>,
         val clauses: ModuleClauses.Lookup,
@@ -160,29 +161,32 @@ internal class ExpansionProbes(
 
     /**
      * [body] as the body of a case module of its own, after [preamble]'s modules, with [exports] and [structs] standing
-     * for the modules Elixir loads, [standIns] for the preamble's macros and [hook] on every module it defines.
+     * for the modules Elixir loads, [appEnv] for the application environment, [standIns] for the preamble's macros and
+     * [hook] on every module it defines.
      */
     fun expand(
         body: String,
         preamble: String = "",
         exports: Exports = legExports,
         structs: Structs = legStructs,
+        appEnv: AppEnv = legAppEnv(),
         standIns: List<StandIn> = emptyList(),
         hook: ProbeHarness.Hook? = null,
-    ): CaseExpansion = expandAll(listOf(body), preamble, exports, structs, hook, standIns = standIns).cases.single()
+    ): CaseExpansion = expandAll(listOf(body), preamble, exports, structs, appEnv, hook, standIns = standIns).cases.single()
 
     /**
      * Each of [bodies] as the body of a case module, in one file after [preamble]'s modules, with `{token}` in either
-     * standing for the compile's token, [exports] and [structs] for the modules Elixir loads and [standIns] for the
-     * preamble's macros. [hook] adds that hook to each case module, [top] the top-level probe to the end of the
-     * file, and [values] sends each case's `q` after its last statement. [clauses], [file] and [directories] are the
-     * expander's inputs of those names.
+     * standing for the compile's token, [exports] and [structs] for the modules Elixir loads, [appEnv] for the
+     * application environment and [standIns] for the preamble's macros. [hook] adds that hook to each case module,
+     * [top] the top-level probe to the end of the file, and [values] sends each case's `q` after its last statement.
+     * [clauses], [file] and [directories] are the expander's inputs of those names.
      */
     fun expandAll(
         bodies: List<String>,
         preamble: String = "",
         exports: Exports = legExports,
         structs: Structs = legStructs,
+        appEnv: AppEnv = legAppEnv(),
         hook: ProbeHarness.Hook? = null,
         top: Boolean = false,
         values: Boolean = false,
@@ -225,6 +229,7 @@ internal class ExpansionProbes(
                 level,
                 exports,
                 structs,
+                appEnv,
                 observer,
                 counters,
                 file,
@@ -247,6 +252,7 @@ internal class ExpansionProbes(
                     preamble,
                     exports,
                     structs,
+                    appEnv,
                     hook,
                     standIns,
                     clauses,
@@ -895,6 +901,7 @@ internal class ExpansionProbes(
                     origin.preamble,
                     origin.exports,
                     origin.structs,
+                    origin.appEnv,
                     origin.hook,
                     standIns = origin.standIns,
                     clauses = origin.clauses,
@@ -914,6 +921,7 @@ internal class ExpansionProbes(
                 origin.preamble,
                 origin.exports,
                 origin.structs,
+                origin.appEnv,
                 origin.hook,
                 standIns = origin.standIns,
                 clauses = origin.clauses,

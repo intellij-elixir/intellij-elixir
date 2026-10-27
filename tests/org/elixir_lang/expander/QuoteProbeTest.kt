@@ -66,7 +66,7 @@ class QuoteProbeTest : SdkProbeTestCase() {
 
         assertEquals("compile status", OtpErlangAtom("ok"), attempt.compiled.status)
 
-        val run = Run(level, ExpansionObserver.NONE, legExports, legStructs)
+        val run = Run(level, ExpansionObserver.NONE, legExports, legStructs, NO_APP_ENV)
         val expected = expansions.cases.mapIndexed { index, expansion ->
             val (state, env) = expansion.starts.last()
             val quote = (expansion.statements.last() as ElixirAst.Call).arguments!![1] as ElixirAst.Call

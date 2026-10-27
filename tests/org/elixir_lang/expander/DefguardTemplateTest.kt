@@ -140,7 +140,7 @@ class DefguardTemplateTest : SdkProbeTestCase() {
                 if (isTemplate(node)) template = node
             }
         }
-        val run = Run(level, observer, legExports, legStructs, clauses = sdk)
+        val run = Run(level, observer, legExports, legStructs, legAppEnv(), clauses = sdk)
         Expander.expandFile(forms, Env.empty(level, legKernel), run)
 
         return template

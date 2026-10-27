@@ -46,6 +46,7 @@ abstract class ExpanderTestCase : ParsingTestCase() {
             level,
             exports,
             structs,
+            NO_APP_ENV,
             observer,
         )
 
@@ -71,7 +72,7 @@ abstract class ExpanderTestCase : ParsingTestCase() {
             }
         }
 
-        Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, observer)
+        Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV, observer)
 
         return ModuleClauses.Lookup { loaded[it] }
     }
@@ -88,7 +89,7 @@ abstract class ExpanderTestCase : ParsingTestCase() {
             }
         }
 
-        Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, observer, clauses = clauses)
+        Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV, observer, clauses = clauses)
 
         return events
     }

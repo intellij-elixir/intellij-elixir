@@ -129,7 +129,7 @@ class StructInFunctionExpanderTest : ExpanderTestCase() {
     /** The expansion, then each error Elixir reports and carries on after. */
     override fun expandAndRender(code: String, version: String): String {
         val level = ElixirLanguageLevel.of(version)
-        val run = Run(level, ExpansionObserver.NONE, exports, structs)
+        val run = Run(level, ExpansionObserver.NONE, exports, structs, NO_APP_ENV)
         val env = Env.empty(level, kernel).copy(module = module, contextModules = contextModules, function = function)
         val expansion = Expander.expand(lower(code, level), ExState.empty(level), env, run)
         val reported = run.errors.map { "reported ${it.kind} `${it.at.meta.origin.substring(code)}`" }

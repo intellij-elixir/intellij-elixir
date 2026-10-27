@@ -647,7 +647,7 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
         val forms = lower(code, level)
 
         return {
-            Expander.expandFile(forms, Env.empty(level, kernel), level, exports, structs, clauses = clauses)
+            Expander.expandFile(forms, Env.empty(level, kernel), level, exports, structs, NO_APP_ENV, clauses = clauses)
                 .modules.joinToString { "${it.module} ${it.ended::class.simpleName}" }
         }
     }

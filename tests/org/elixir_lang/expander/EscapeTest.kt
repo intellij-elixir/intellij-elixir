@@ -43,7 +43,7 @@ class EscapeTest : ExpanderTestCase() {
     fun testAnEscapedQuoteIsPlacedAtTheQuote() {
         val level = ElixirLanguageLevel.of("1.20.4")
         val node = lower("[quote(do: 1)]", level)
-        val run = Run(level, ExpansionObserver.NONE, exports, structs)
+        val run = Run(level, ExpansionObserver.NONE, exports, structs, NO_APP_ENV)
         val escape = Quote.escape(node, node.meta, run) as Quote.Escaped.Built
         val tuple = (escape.node as ElixirAst.ListNode).elements.single()
 
@@ -94,7 +94,7 @@ class EscapeTest : ExpanderTestCase() {
 
     private fun escaped(code: String, level: ElixirLanguageLevel): String {
         val node = lower(code, level)
-        val run = Run(level, ExpansionObserver.NONE, exports, structs)
+        val run = Run(level, ExpansionObserver.NONE, exports, structs, NO_APP_ENV)
 
         return when (val escape = Quote.escape(node, node.meta, run)) {
             is Quote.Escaped.Built -> written(escape.node.toOtp(ParserOptions(columns = COMPILER_PARSES_COLUMNS.isSufficient(level))))

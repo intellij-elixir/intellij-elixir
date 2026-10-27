@@ -492,7 +492,7 @@ class LoadedModulesTest : ProbeTestCase() {
         val forms = ReadAction.computeBlocking<_, Throwable> {
             Lowering.lower(createPsiFile(getTestName(false), code) as ElixirFile, level)
         }
-        val file = Expander.expandFile(forms, Env.empty(level, legKernel), level, legExports, legStructs)
+        val file = Expander.expandFile(forms, Env.empty(level, legKernel), level, legExports, legStructs, NO_APP_ENV)
         val results = generateSequence(file.modules) { layer -> layer.flatMap { it.nested }.takeIf { it.isNotEmpty() } }
             .flatten()
             .associateBy { it.module.removePrefix("Elixir.") }
@@ -517,7 +517,7 @@ class LoadedModulesTest : ProbeTestCase() {
         val forms = ReadAction.computeBlocking<_, Throwable> {
             Lowering.lower(createPsiFile(getTestName(false), code) as ElixirFile, level)
         }
-        val file = Expander.expandFile(forms, Env.empty(level, legKernel), level, legExports, legStructs)
+        val file = Expander.expandFile(forms, Env.empty(level, legKernel), level, legExports, legStructs, NO_APP_ENV)
 
         return LoadedModules.exports(file.modules.single())
     }

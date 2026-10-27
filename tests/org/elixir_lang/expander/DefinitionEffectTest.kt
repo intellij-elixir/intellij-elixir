@@ -91,7 +91,7 @@ class DefinitionEffectTest : ExpanderTestCase() {
     }
 
     fun testTheSliceAMacroQueuedIsReplaced() {
-        val run = Run(level, ExpansionObserver.NONE, exports, structs)
+        val run = Run(level, ExpansionObserver.NONE, exports, structs, NO_APP_ENV)
         val node = lower(":ok", level)
         val queued = List(4) { Pending.Effect(node, ordered = true) { _, _, _ -> null } }
 
@@ -160,7 +160,7 @@ class DefinitionEffectTest : ExpanderTestCase() {
 
         val forms = lower(code, level)
 
-        run = Run(level, observer, exports, structs)
+        run = Run(level, observer, exports, structs, NO_APP_ENV)
         run.fileStatements.add(forms)
         Expander.expand(forms, ExState.empty(level), Env.empty(level, kernel), run)
 

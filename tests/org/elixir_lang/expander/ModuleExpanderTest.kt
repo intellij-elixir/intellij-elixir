@@ -632,7 +632,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             FAST_PATH_LEVELS.joinToString("\n") { "$it: Elixir.A Present f/0" },
             FAST_PATH_LEVELS.joinToString("\n") { version ->
                 val level = ElixirLanguageLevel.of(version)
-                val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
+                val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
 
                 "$version: " + file.modules.filter { it.module == "Elixir.A" }.joinToString { result ->
                     val loaded = LoadedModules.exports(result)
@@ -2377,6 +2377,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
                     level,
                     exports,
                     structs,
+                NO_APP_ENV,
                 )
 
                 "$version: " + file.modules.single().table.entries.keys.joinToString(" ") { "${it.name}/${it.arity}" }
@@ -2393,7 +2394,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
         fun loadings(code: String, version: String): String {
             val level = ElixirLanguageLevel.of(version)
-            val file = Expander.expandFile(placeholding(lower(code, level), "c", unlowered), Env.empty(level, kernel), level, exports, structs)
+            val file = Expander.expandFile(placeholding(lower(code, level), "c", unlowered), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
 
             return file.modules.joinToString(" ") { "${it.module} ${LoadedModules.exports(it)::class.simpleName}" }
         }
@@ -2448,7 +2449,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
                 val lowered = lower(code, level).let { if (placeholder == null) it else placeholding(it, placeholder) }
 
-                Expander.expandFile(lowered, Env.empty(level, kernel), level, exports, structs, observer)
+                Expander.expandFile(lowered, Env.empty(level, kernel), level, exports, structs, NO_APP_ENV, observer)
 
                 "$version: " + calls.joinToString()
             },
@@ -3332,7 +3333,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
     override fun expandAndRender(code: String, version: String): String {
         val level = ElixirLanguageLevel.of(version)
-        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
+        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
 
         return (listOf("top " + renderUnit(code, file.top, context = true)) + file.modules.flatMap { renderModule(code, it, "") })
             .joinToString("\n")
@@ -3405,7 +3406,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
                     }
                 }
 
-                Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, observer)
+                Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV, observer)
 
                 "$version: ${events.joinToString("; ")}"
             },
@@ -3422,7 +3423,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
                     if (node is ElixirAst.Literal.Atom && source(code, node).startsWith(":")) entered += node.name
                 }
 
-                Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, observer)
+                Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV, observer)
 
                 "$version: ${entered.joinToString(" ")}"
             },

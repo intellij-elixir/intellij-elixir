@@ -4,15 +4,14 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.NameArity
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.expander.AppEnvValue
 import org.elixir_lang.expander.Env
 import org.elixir_lang.expander.ExState
 import org.elixir_lang.expander.Expander
 import org.elixir_lang.expander.Expansion
-import org.elixir_lang.expander.Exports
 import org.elixir_lang.expander.KernelImports
 import org.elixir_lang.expander.ModuleExports
 import org.elixir_lang.expander.ModuleStruct
-import org.elixir_lang.expander.Structs
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
@@ -105,8 +104,9 @@ class ImportFilterOracleTest : PlatformTestCase() {
             state,
             env,
             languageLevel,
-            Exports { ModuleExports.Absent },
-            Structs { ModuleStruct.Absent },
+            { ModuleExports.Absent },
+            { ModuleStruct.Absent },
+            { _, _ -> AppEnvValue.Unreadable },
         ) as? Expansion.Expanded
 
     private fun imported(case: File, exports: Import.Imports, languageLevel: ElixirLanguageLevel): List<String> {
@@ -129,7 +129,12 @@ class ImportFilterOracleTest : PlatformTestCase() {
             .joinToString("\n")
 
     private fun lines(imports: Import.Imports): List<String> =
-        listOf("functions") + lines(imports.functions) + listOf("macros") + lines(imports.macros)
+        buildList {
+            add("functions")
+            addAll(lines(imports.functions))
+            add("macros")
+            addAll(lines(imports.macros))
+        }
 
     private fun lines(nameArities: Set<NameArity>): List<String> =
         nameArities.sortedWith(compareBy({ it.name }, { it.arity })).map { "  ${it.name}/${it.arity}" }

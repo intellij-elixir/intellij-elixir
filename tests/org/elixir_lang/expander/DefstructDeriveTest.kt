@@ -104,7 +104,7 @@ class DefstructDeriveTest : ExpanderTestCase() {
 
     override fun expandAndRender(code: String, version: String): String {
         val level = ElixirLanguageLevel.of(version)
-        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
+        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
 
         return file.modules.joinToString("\n") { result ->
             (listOf(ModuleRendering.render(code, result)) + result.opaque.map { "opaque ${render(it.dispatch)}" })

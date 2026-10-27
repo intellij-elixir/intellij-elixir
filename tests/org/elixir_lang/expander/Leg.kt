@@ -1,13 +1,16 @@
 package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangObject
 import junit.framework.TestCase.assertEquals
 import org.elixir_lang.beam.ReadResult
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import java.io.File
+import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.jvm.optionals.getOrNull
 import kotlin.time.Duration.Companion.seconds
 
 /** The leg's Elixir, and its Erlang/OTP when the test JVM is told it: an empty or missing version leaves it unknown. */
@@ -35,6 +38,29 @@ internal val legStructs: Structs by lazy {
     val cache = ConcurrentHashMap<String, ModuleStruct>()
 
     Structs { module -> cache.computeIfAbsent(module, ::moduleStruct) }
+}
+
+/** No application's `.app` can be read. */
+internal val NO_APP_ENV = AppEnv { _, _ -> AppEnvValue.Unreadable }
+
+/**
+ * The env a default build sees with [apps]' `.app` texts, by name, and the leg's apps' `.app` files, and with
+ * [configured] saying whether a config file sets an app's key.
+ */
+internal fun legAppEnv(
+    apps: Map<String, String> = emptyMap(),
+    configured: (app: String, key: OtpErlangObject) -> Boolean = { _, _ -> false },
+): AppEnv {
+    val level = legLevel()
+    val cache = ConcurrentHashMap<String, Optional<AppFile>>()
+
+    return AppEnv.of(configured) { app ->
+        cache.computeIfAbsent(app) {
+            val text = apps[app] ?: legEbins.map { File(it, "$app.app") }.firstOrNull(File::isFile)?.readText()
+
+            Optional.ofNullable(text?.let { AppFile.read(it, level) })
+        }.getOrNull()
+    }
 }
 
 private val legEbins: List<File> by lazy { appEbins("ELIXIR_LANG_ELIXIR_PATH") + appEbins("ERLANG_SDK_HOME") }

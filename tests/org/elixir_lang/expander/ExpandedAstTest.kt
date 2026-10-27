@@ -198,7 +198,7 @@ class ExpandedAstTest : SdkProbeTestCase() {
                 left[node.meta.origin] = node to expansion
             }
         }
-        val run = Run(level, observer, legExports, legStructs, clauses = sdk)
+        val run = Run(level, observer, legExports, legStructs, legAppEnv(), clauses = sdk)
 
         run.askingAst { Expander.expandFile(forms, Env.empty(level, legKernel), run) }
 

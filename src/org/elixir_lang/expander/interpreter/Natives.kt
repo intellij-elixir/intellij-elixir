@@ -19,6 +19,7 @@ import org.elixir_lang.NameArity
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.admits
 import org.elixir_lang.expander.Annotation
+import org.elixir_lang.expander.AppEnvValue
 import org.elixir_lang.expander.AttributeTable
 import org.elixir_lang.expander.AttributeValue
 import org.elixir_lang.expander.Compiling
@@ -81,7 +82,8 @@ private const val BACKTRACE_DEPTH = 8
  * came from no module, or a default: `get_env/3`'s and `compile_env/4`'s where the key isn't set (`App:724`, `:595` at
  * v1.20.4), and `__compile_env__/4`'s before it (`App:516` at v1.11.4). `Module`'s attribute reads, and
  * `delete_attribute/2`, return a value of the module their first argument names, or the default they are given; its
- * predicates and other writers a boolean or `:ok`, and its listings names. `IO.warn/1,2` returns `:ok`.
+ * predicates and other writers a boolean or `:ok`, and its listings names. `IO.warn/1,2` returns `:ok`, as do
+ * `application`'s env writers.
  */
 private val RETURNABLE = mapOf(
     Triple("Elixir.Application", "get_env", 2) to emptyList(),
@@ -118,6 +120,12 @@ private val RETURNABLE = mapOf(
     Triple("Elixir.IO", "warn", 1) to emptyList(),
     Triple("Elixir.IO", "warn", 2) to emptyList(),
     Triple("erlang", "whereis", 1) to emptyList(),
+    Triple("application", "set_env", 1) to emptyList(),
+    Triple("application", "set_env", 2) to emptyList(),
+    Triple("application", "set_env", 3) to emptyList(),
+    Triple("application", "set_env", 4) to emptyList(),
+    Triple("application", "unset_env", 2) to emptyList(),
+    Triple("application", "unset_env", 3) to emptyList(),
 )
 
 /**
@@ -183,6 +191,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "elixir_quote" -> quote(key, args)
             "elixir_module" -> elixirModule(key, args)
             "code" -> code(key, args)
+            "application" -> envWrite(key, args)
             "unicode" -> unicode(key, args)
             "unicode_util" -> if (key == "gc/1") gc(seen(args[0])) else null
             "Elixir.Keyword" -> keyword(key, args)
@@ -1708,13 +1717,13 @@ internal class Natives(private val evaluation: Evaluation) {
     /**
      * `Application.compile_env/4` and `compile_env!/3` from [COMPILE_ENV_TAKES_ENV_FIRST] (`App:595–646` at v1.20.4),
      * `__compile_env__/4` and `__compile_env__!/3` before it (`App:516–552` at v1.11.4): their env match, then
-     * `fetch_compile_env`'s key and `fetch_env/2`'s app guards, then the application's environment as the build
-     * configures it, which isn't known, so whether `compile_env!` finds it isn't either and its raise is assumed away.
-     * An env that isn't known is taken to be one, which assumes away the raise where it isn't; before
-     * [COMPILE_ENV_TAKES_ENV_FIRST] it is read only for its tracers, after the guards, where a binary raises. A tracer
-     * the env names records the read, and writes no module. `get_env/2,3`, `fetch_env/2` and `fetch_env!/2`
-     * (`App:724–783` at v1.20.4, `App:620–668` at v1.11.4) read the same environment after their `is_atom(app)` guard;
-     * `get_env/2` is `get_env/3`'s default.
+     * `fetch_compile_env`'s key and `fetch_env/2`'s app guards, then the application's environment as a default build
+     * sees it ([fetched]), and `traverse_env/2` down the rest of the path through `Access.fetch/2`. Where it isn't
+     * known, nor is whether `compile_env!` finds it, and its raise is assumed away. An env that isn't known is taken to
+     * be one, which assumes away the raise where it isn't; before [COMPILE_ENV_TAKES_ENV_FIRST] it is read only for its
+     * tracers, after the guards, where a binary raises. A tracer the env names records the read, and writes no module.
+     * `get_env/2,3`, `fetch_env/2` and `fetch_env!/2` (`App:724–783` at v1.20.4, `App:620–668` at v1.11.4) read the
+     * same environment after their `is_atom(app)` guard; `get_env/2` is `get_env/3`'s default.
      */
     private fun application(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
         val envFirst = COMPILE_ENV_TAKES_ENV_FIRST.isSufficient(level)
@@ -1729,9 +1738,14 @@ internal class Natives(private val evaluation: Evaluation) {
         }
 
         if (key.startsWith("get_env/") || key.startsWith("fetch_env")) {
-            if (key == "fetch_env!/2") evaluation.assumeNoRaise()
+            val fetched = fetched(args[0], args[1])
+            val value = (fetched as? OtpErlangTuple)?.elementAt(1)
 
-            return Unknown
+            return when (key) {
+                "fetch_env/2" -> fetched
+                "fetch_env!/2" -> value.also { if (it == null) evaluation.assumeNoRaise() }
+                else -> if (fetched == atom("error")) args.getOrElse(2) { NIL } else value
+            } ?: Unknown
         }
 
         val env = if (envFirst) args[0] else args.last()
@@ -1746,10 +1760,11 @@ internal class Natives(private val evaluation: Evaluation) {
         }
 
         val keys = seen(path)
-        val first = when (keys) {
-            is OtpErlangAtom -> keys
-            else -> cells(keys)?.let { (elements, _) -> elements.firstOrNull() }?.let(::seen)
-        }
+        val (elements, tail) =
+            if (keys is OtpErlangAtom) listOf(keys) to null
+            else cells(keys) ?: (emptyList<OtpErlangObject>() to null)
+        val first = elements.firstOrNull()?.let(::seen)
+        val rest = elements.drop(1)
 
         if (first !is OtpErlangAtom) {
             functionClause("Elixir.Application", "fetch_compile_env", listOf(app, path, env))
@@ -1765,10 +1780,108 @@ internal class Natives(private val evaluation: Evaluation) {
             }
         }
 
-        // `traverse_env/2` fetches each key after the first from the value before it, which may not be a container.
-        if (key.endsWith("!/3") || keys !is OtpErlangAtom && properElements(keys)?.size != 1) evaluation.assumeNoRaise()
+        var traversed = fetched(app, first)
+        for (next in rest) {
+            val value = (traversed as? OtpErlangTuple)?.elementAt(1) ?: break
+            traversed = if (isUnknown(value) || isUnknown(next)) {
+                null
+            } else {
+                evaluation.remote(atom("Elixir.Access"), "fetch", listOf(value, next))
+            }
+        }
+        // `traverse_env/2` takes the path's tail as a list: one that isn't raises where a value was fetched before it.
+        if (tail != null && traversed is OtpErlangTuple) {
+            traversed = if (isUnknown(tail)) null
+            else functionClause("Elixir.Application", "traverse_env", listOf(traversed, tail))
+        }
+        val default = when {
+            key.endsWith("!/3") -> null
+            envFirst -> args[3]
+            else -> args[2]
+        }
 
-        return Unknown
+        return when (traversed) {
+            is OtpErlangTuple if seen(traversed.elementAt(0)) == atom("ok") -> traversed.elementAt(1)
+            atom("error") if default != null -> default
+            else -> {
+                // `traverse_env/2` fetches each key after the first from the value before it, which may not be a
+                // container.
+                if (default == null || traversed == null && (rest.isNotEmpty() || tail != null)) {
+                    evaluation.assumeNoRaise()
+                }
+                Unknown
+            }
+        }
+    }
+
+    /**
+     * `fetch_env/2`'s answer for [app]'s [key] in the environment a default build sees, the run's `appEnv`:
+     * `{:ok, value}` where the `.app` declares it, `:error` where nothing sets it, and unknown where a config file may
+     * set it, its `.app` can't be read, the run wrote the app's env
+     * ([Run.wroteEnvOf][org.elixir_lang.expander.Run.wroteEnvOf]) or [key] isn't an atom. Each answer it knows is an
+     * assumption: the environment may change before the read.
+     */
+    private fun fetched(app: OtpErlangObject, key: OtpErlangObject): OtpErlangObject? {
+        if (key !is OtpErlangAtom) return null
+        val name = (seen(app) as OtpErlangAtom).atomValue()
+        if (evaluation.run.wroteEnvOf(name)) return null
+
+        val answer = when (val value = evaluation.run.appEnv.of(name, key)) {
+            is AppEnvValue.Declared -> tuple(atom("ok"), value.term)
+            AppEnvValue.Unset -> atom("error")
+            AppEnvValue.Configured, AppEnvValue.Unreadable -> return null
+        }
+        evaluation.assume()
+
+        return answer
+    }
+
+    /**
+     * `application:set_env/1,2,3,4` and `unset_env/2,3` (`application.erl:767–894` at OTP 29.0.6, `:324–377` at OTP
+     * 24.3.4.6), which `Application`'s writers call. Each runs its guards, then records on the run the apps it writes
+     * ([Run.wroteEnv][org.elixir_lang.expander.Run.wroteEnv]), every app where one isn't known, and gives `:ok`.
+     * Whether `set_env/1,2`'s config is one the controller takes isn't known.
+     */
+    private fun envWrite(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        when (key) {
+            "set_env/1", "set_env/2" -> {
+                if (args.any { !isUnknown(it) && cells(it) == null }) functionClause("application", "set_env", args)
+                val config = args[0]
+                when (val elements = if (isUnknown(config)) null else properElements(config)) {
+                    null -> evaluation.run.wroteEnv(null)
+                    else -> elements.forEach { element ->
+                        when {
+                            isUnknown(element) -> evaluation.run.wroteEnv(null)
+                            element is OtpErlangTuple && element.arity() == 2 -> wroteEnv(element.elementAt(0))
+                        }
+                    }
+                }
+
+                decline("whether %s is a config the application controller takes isn't known", config)
+            }
+            "set_env/3", "unset_env/2" -> wroteEnv(args[0])
+            "set_env/4", "unset_env/3" -> {
+                val opts = args.last()
+                when {
+                    isUnknown(opts) -> evaluation.assumeNoRaise()
+                    opts == atom("infinity") || opts is OtpErlangList || opts is OtpErlangString -> {}
+                    opts is OtpErlangLong && opts.bigIntegerValue().signum() >= 0 -> {}
+                    else -> functionClause("application", key.substringBefore('/'), args)
+                }
+                wroteEnv(args[0])
+            }
+            else -> return null
+        }
+
+        return atom("ok")
+    }
+
+    /** Records that [app]'s env was written, every app's where [app] isn't known; another term names no app read. */
+    private fun wroteEnv(app: OtpErlangObject) {
+        when {
+            isUnknown(app) -> evaluation.run.wroteEnv(null)
+            app is OtpErlangAtom -> evaluation.run.wroteEnv(app.atomValue())
+        }
     }
 
     /** Whether [term] is an atom, declining where that isn't known. */

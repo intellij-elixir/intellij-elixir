@@ -21,7 +21,8 @@ internal fun guard(
     level: ElixirLanguageLevel,
     exports: Exports,
     structs: Structs,
-): Expansion = guard(node, state, env, Run(level, ExpansionObserver.NONE, exports, structs))
+    appEnv: AppEnv,
+): Expansion = guard(node, state, env, Run(level, ExpansionObserver.NONE, exports, structs, appEnv))
 
 internal fun guard(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
     ProgressManager.checkCanceled()

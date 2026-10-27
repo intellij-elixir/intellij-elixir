@@ -197,7 +197,7 @@ class OverridableMacroTest : ExpanderTestCase() {
         val code = "defmodule A do\n  def f(x), do: x\n  case (receive do after 0 -> 1 end) do\n    _ -> defoverridable f: 1\n  end\n  def g, do: 1\nend"
         val answer = { version: String ->
             val level = ElixirLanguageLevel.of(version)
-            val module = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs).modules.single()
+            val module = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV).modules.single()
             val ordered = module.units.filter { it.owner is ExpansionResult.Owner.Definition }.map { it.ordered }
 
             "$ordered ${module.table.entries.keys.map { "${it.name}/${it.arity}" }}"
@@ -217,7 +217,7 @@ class OverridableMacroTest : ExpanderTestCase() {
 
     override fun expandAndRender(code: String, version: String): String {
         val level = ElixirLanguageLevel.of(version)
-        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
+        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
 
         return file.modules.joinToString("\n") { ModuleRendering.render(code, it) }
     }

@@ -80,7 +80,7 @@ class DefinedDirectiveTest : ExpanderTestCase() {
                 val level = ElixirLanguageLevel.of(version)
                 val node = defining(lower(code, level), module)
                 val env = Env.empty(level, kernel).copy(aliases = aliases)
-                val expansion = Expander.expand(node, ExState.empty(level), env, level, exports, structs)
+                val expansion = Expander.expand(node, ExState.empty(level), env, level, exports, structs, NO_APP_ENV)
 
                 "$version: " + render(code, expansion)
             },

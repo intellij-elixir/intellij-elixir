@@ -501,6 +501,7 @@ internal class ProjectModules(private val project: Project) {
             inputs.level,
             { ask(it).exports },
             { ask(it).struct },
+            { _, _ -> AppEnvValue.Unreadable },
             object : ExpansionObserver by observer {
                 override fun entering(node: ElixirAst, state: ExState, env: Env) {
                     envs?.entering(node, env)

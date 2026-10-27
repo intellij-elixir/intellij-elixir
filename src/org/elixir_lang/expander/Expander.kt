@@ -23,10 +23,10 @@ import java.util.IdentityHashMap
 object Expander {
     /**
      * [ast] expanded from [state] and [env] as Elixir at [level] expands it, with [exports] standing for the modules
-     * Elixir would load and [structs] for their structs, up to the first error Elixir raises or the first node that
-     * isn't ported. [observer] is told of each node reached, and [counters] gives each macro expansion its hygiene
-     * counter. An error Elixir reports and carries on after isn't returned, and a definition or module [ast] defines is
-     * never compiled; [expandFile] does both.
+     * Elixir would load, [structs] for their structs and [appEnv] for the application environment, up to the first
+     * error Elixir raises or the first node that isn't ported. [observer] is told of each node reached, and
+     * [counters] gives each macro expansion its hygiene counter. An error Elixir reports and carries on after isn't
+     * returned, and a definition or module [ast] defines is never compiled; [expandFile] does both.
      */
     internal fun expand(
         ast: ElixirAst,
@@ -35,9 +35,10 @@ object Expander {
         level: ElixirLanguageLevel,
         exports: Exports,
         structs: Structs,
+        appEnv: AppEnv,
         observer: ExpansionObserver = ExpansionObserver.NONE,
         counters: Counters = Counters(),
-    ): Expansion = expand(ast, state, env, Run(level, observer, exports, structs, counters))
+    ): Expansion = expand(ast, state, env, Run(level, observer, exports, structs, appEnv, counters))
 
     internal fun expand(ast: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
         val from = run.pending.size
@@ -95,6 +96,7 @@ object Expander {
         level: ElixirLanguageLevel,
         exports: Exports,
         structs: Structs,
+        appEnv: AppEnv,
         observer: ExpansionObserver = ExpansionObserver.NONE,
         counters: Counters = Counters(),
         file: String? = null,
@@ -102,7 +104,7 @@ object Expander {
         clauses: ModuleClauses.Lookup = ModuleClauses.Lookup.NONE,
         virtualFile: VirtualFile? = null,
     ): FileExpansion =
-        expandFile(forms, env, Run(level, observer, exports, structs, counters, file, directories, clauses, virtualFile))
+        expandFile(forms, env, Run(level, observer, exports, structs, appEnv, counters, file, directories, clauses, virtualFile))
 
     /** A file's top-level [forms] expanded from [env] in [run], as the other `expandFile` expands them. */
     internal fun expandFile(forms: ElixirAst, env: Env, run: Run): FileExpansion {
@@ -236,7 +238,7 @@ internal class Place(val file: VirtualFile?, val origin: TextRange)
  */
 internal fun builtBy(node: ElixirAst, call: ElixirAst): Boolean = node.meta.origin == call.meta.origin
 
-/** [block]'s result, and whether code it expanded or ran took a raise not to happen ([Run.assumptions]). */
+/** [block]'s result, and whether code it expanded or ran made an assumption ([Run.assumptions]). */
 internal inline fun <T> Run.assuming(block: () -> T): Pair<T, Boolean> {
     val from = assumptions
     val result = block()
@@ -253,6 +255,7 @@ internal class Run(
     val observer: ExpansionObserver,
     exports: Exports,
     val structs: Structs,
+    val appEnv: AppEnv,
     val counters: Counters = Counters(),
     /** The path of the file the run expands, where it is known. */
     val file: String? = null,
@@ -268,10 +271,22 @@ internal class Run(
     private var refs = 0
 
     /**
-     * How many raises whose inputs aren't known the run's evaluations took not to happen, in a native or a macro's
-     * output: Elixir may have raised at each.
+     * How many answers the run's evaluations assumed, in a native or a macro's output, each of which Elixir may not have
+     * given: a raise whose inputs aren't known taken not to happen, or an answer that holds only where what it reads
+     * stays as read.
      */
     var assumptions = 0
+
+    /** The apps whose env the run's evaluations wrote, `null` once one wrote an app that isn't known. */
+    private var written: MutableSet<String>? = HashSet()
+
+    /** Records that an evaluation wrote [app]'s env, or, `null`, an app that isn't known. */
+    fun wroteEnv(app: String?) {
+        if (app == null) written = null else written?.add(app)
+    }
+
+    /** Whether an evaluation in the run wrote [app]'s env, so its value isn't [appEnv]'s. */
+    fun wroteEnvOf(app: String): Boolean = written?.contains(app) != false
 
     /**
      * The modules being compiled that calls declined in the module-body code or macro being run were given, any of

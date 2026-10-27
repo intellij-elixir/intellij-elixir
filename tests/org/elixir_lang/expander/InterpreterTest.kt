@@ -1018,7 +1018,7 @@ class InterpreterTest : PlatformTestCase() {
         if (!result) return
 
         val implementation = Expander
-            .expandFile(lowered(code, level), Env.empty(level, legKernel), level, sdkExports, legStructs, clauses = sdk)
+            .expandFile(lowered(code, level), Env.empty(level, legKernel), level, sdkExports, legStructs, legAppEnv(), clauses = sdk)
             .modules
             .single { it.module == "Elixir.String.Chars.S" }
 
@@ -1090,7 +1090,7 @@ class InterpreterTest : PlatformTestCase() {
     /** How [code]'s file expanded and each module it compiled ended, one per line, with [tables] each one's table. */
     private fun file(code: String, tables: Boolean = false): String {
         val level = legLevel()
-        val file = Expander.expandFile(lowered(code, level), Env.empty(level, legKernel), level, sdkExports, legStructs, clauses = sdk)
+        val file = Expander.expandFile(lowered(code, level), Env.empty(level, legKernel), level, sdkExports, legStructs, legAppEnv(), clauses = sdk)
 
         fun source(node: ElixirAst) = node.meta.origin.substring(code)
 
@@ -1305,6 +1305,7 @@ class InterpreterTest : PlatformTestCase() {
                     level,
                     sdkExports,
                     legStructs,
+                    legAppEnv(),
                     observer,
                     file = FILE,
                     directories = DIRECTORIES,
@@ -1331,6 +1332,7 @@ class InterpreterTest : PlatformTestCase() {
                 ExpansionObserver.NONE,
                 exports,
                 legStructs,
+                legAppEnv(),
                 file = FILE,
                 directories = DIRECTORIES,
                 clauses = clauses,

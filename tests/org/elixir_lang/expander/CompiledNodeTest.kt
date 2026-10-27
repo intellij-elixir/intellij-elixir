@@ -50,7 +50,7 @@ class CompiledNodeTest : ExpanderTestCase() {
         sites.forEach { (site, code) ->
             val literal = code.replace(Regex("""\bc\b"""), "\"s\"")
             val level = ElixirLanguageLevel.of("1.20.4")
-            val expanded = Expander.expand(lower(literal, level), ExState.empty(level), Env.empty(level, kernel), level, exports, structs)
+            val expanded = Expander.expand(lower(literal, level), ExState.empty(level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
 
             assertEquals(site, render(literal, expanded).replace("\"s\"", "c"), render(code, ElixirAst.Placeholder.Reason.Compiled))
         }
@@ -65,7 +65,7 @@ class CompiledNodeTest : ExpanderTestCase() {
         val code = "defmodule A do\n@re c\n@known 1\nend"
         val level = ElixirLanguageLevel.of("1.20.4")
         val node = placeholding(lower(code, level), "c", ElixirAst.Placeholder.Reason.Compiled)
-        val module = Expander.expandFile(node, Env.empty(level, kernel), level, exports, structs).modules.single()
+        val module = Expander.expandFile(node, Env.empty(level, kernel), level, exports, structs, NO_APP_ENV).modules.single()
 
         assertEquals(AttributeValue.Unknown, module.attributes.final["re"])
         assertEquals(AttributeValue.Known(Term.Integer(1.toBigInteger())), module.attributes.final["known"])
@@ -75,7 +75,7 @@ class CompiledNodeTest : ExpanderTestCase() {
         val level = ElixirLanguageLevel.of("1.20.4")
         val node = placeholding(lower(code, level), "c", reason)
 
-        return Expander.expand(node, ExState.empty(level), Env.empty(level, kernel), level, exports, structs)
+        return Expander.expand(node, ExState.empty(level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
     }
 
     private fun render(code: String, reason: ElixirAst.Placeholder.Reason): String = render(code, expansion(code, reason))

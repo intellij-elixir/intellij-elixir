@@ -30,7 +30,7 @@ class UnitOutOfRangeTest : ExpanderTestCase() {
               def g, do: A.m()
             end
         """.trimIndent() + "\n"
-        val expansion = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
+        val expansion = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
         val ended = expansion.modules.single { it.module == "Elixir.B" }.ended
 
         assertTrue("$ended", ended is ExpansionResult.Ended.Stopped)

@@ -73,7 +73,7 @@ class EnvStacktraceTest {
     }
 
     private fun call(env: OtpErlangObject, directories: CompileDirectories = CompileDirectories { ROOT }): OtpErlangObject? {
-        val run = Run(level, ExpansionObserver.NONE, { ModuleExports.Absent }, { ModuleStruct.Absent }, directories = directories)
+        val run = Run(level, ExpansionObserver.NONE, { ModuleExports.Absent }, { ModuleStruct.Absent }, NO_APP_ENV, directories = directories)
         val evaluation = Evaluation(NODE, ExState.empty(level), Env.empty(level, KernelImports(emptyList(), emptyList())), run)
 
         return evaluation.natives.call("Elixir.Macro.Env", "stacktrace", listOf(env))

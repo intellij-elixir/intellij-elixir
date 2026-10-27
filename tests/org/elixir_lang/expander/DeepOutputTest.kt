@@ -145,7 +145,7 @@ class DeepOutputTest : ExpanderTestCase() {
             null,
             {
                 try {
-                    expansion = Expander.expandFile(forms, Env.empty(level, kernel), level, exports, structs)
+                    expansion = Expander.expandFile(forms, Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
                 } catch (e: Throwable) {
                     escaped = e
                 }

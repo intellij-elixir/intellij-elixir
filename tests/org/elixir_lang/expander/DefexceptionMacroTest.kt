@@ -85,7 +85,7 @@ class DefexceptionMacroTest : ExpanderTestCase() {
         val code = "defmodule A do\n  defexception Foo.fields()\nend"
         val ordered = { version: String ->
             val level = ElixirLanguageLevel.of(version)
-            val module = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, clauses = clauses).modules.single()
+            val module = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV, clauses = clauses).modules.single()
 
             module.table.entries.map { (nameArity, entry) -> "${nameArity.name}/${nameArity.arity} ${entry.ordered}" }
         }
@@ -124,7 +124,7 @@ class DefexceptionMacroTest : ExpanderTestCase() {
         val code = "defmodule A do\n  defexception [:message]\nend"
         val ordered = { version: String ->
             val level = ElixirLanguageLevel.of(version)
-            val module = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, clauses = clauses).modules.single()
+            val module = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV, clauses = clauses).modules.single()
 
             module.units.filter { it.owner is ExpansionResult.Owner.Definition }.map { it.ordered }
         }
@@ -196,7 +196,7 @@ class DefexceptionMacroTest : ExpanderTestCase() {
 
     override fun expandAndRender(code: String, version: String): String {
         val level = ElixirLanguageLevel.of(version)
-        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, clauses = clauses)
+        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV, clauses = clauses)
 
         return file.modules.joinToString("\n") { ModuleRendering.render(code, it) }
     }

@@ -271,8 +271,8 @@ internal class BodyValues(
     }
 
     /**
-     * The unit being run, [pending], took a raise not to happen, in code it ran or a macro's output it expanded: Elixir
-     * may have raised there. A nested module's assumptions are its own.
+     * The unit being run, [pending], made an assumption ([Run.assumptions]), in code it ran or a macro's output it
+     * expanded: Elixir may have done otherwise there. A nested module's assumptions are its own.
      */
     fun assumed(pending: Pending) {
         if (pending !is Pending.Module) declined = true
@@ -292,8 +292,8 @@ internal class BodyValues(
      * The walk ran the unit at [site], which gave [raw], classified once: its raise is the body's only where the body
      * is certain at it and the raise is [raiseKnown] to be Elixir's, which a definition's store's is before the
      * callbacks it runs. Elixir ran the unit where the expander did when it is [ordered], and its outcome is Elixir's
-     * when it is [known] as well, it didn't stop, and the evaluator declined none of its code and assumed no raise
-     * away.
+     * when it is [known] as well, it didn't stop, and the evaluator declined none of its code and made no
+     * assumption in it ([Run.assumptions]).
      */
     fun outcome(site: ElixirAst, raw: Expansion?, ordered: Boolean, known: Boolean, raiseKnown: Boolean = known): Expansion? {
         val expansion = raw?.certain(certainAt(site) && raiseKnown, site)
@@ -320,8 +320,8 @@ internal class BodyValues(
 
     /**
      * Whether a raise at [site], a unit's node, is the body's for certain: every statement before it, and every unit
-     * reached before it in the statement running it, ran with Elixir's outcome, and nothing declined or assumed a raise
-     * away so far. `null` is the body's end.
+     * reached before it in the statement running it, ran with Elixir's outcome, and nothing declined or made an
+     * assumption so far. `null` is the body's end.
      */
     fun certainAt(site: ElixirAst?): Boolean =
         known && ordered && !declined && running.all { it.certain } &&
