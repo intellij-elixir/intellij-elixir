@@ -47,6 +47,7 @@ import sdk.ResolveElixirErlangSdksTask
 import sdk.mixPairDir
 import sdk.pairToken
 import sdk.quoterReleaseExecutablePath
+import sdk.readPropertiesFile
 import sdk.resolveMixEnv
 import sdk.versionWithoutBuildTag
 import sdk.elixirTestEnvironment
@@ -64,6 +65,7 @@ import versioning.ChangelogSettings
 import versioning.GitSourceIdValueSource
 import versioning.PluginVersion
 import versioning.VersionFetcher
+import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.time.Duration
 import java.util.*
@@ -936,7 +938,7 @@ val getQuoterDeps: TaskProvider<GetQuoterDepsTask> = tasks.register<GetQuoterDep
     dependsOn(unzipQuoter, resolveElixirErlangSdks)
 
     // Configure the task
-    quoterDir.set(quoterUnzippedPath)
+    projectDir.set(quoterUnzippedPath)
     depsDir.set(quoterUnzippedPath.dir("deps"))
     sdkProperties.set(sdkPropertiesFile)
     mixHome.set(mixHomeForPair)
@@ -952,6 +954,43 @@ val getQuoterDeps: TaskProvider<GetQuoterDepsTask> = tasks.register<GetQuoterDep
         .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
+// The expander tests' Ecto fixture: a Mix project with a lock for each Elixir it is tested on, its `mix.exs` choosing
+// the one for the running Elixir. Its dependencies are fetched into the cache, never beside the committed project, with
+// a MIX_HOME and MIX_ARCHIVES of their own, since getQuoterDeps declares the quoter's as its outputs.
+val ectoFixturePath: Directory = layout.projectDirectory.dir("testData/org/elixir_lang/expander/ecto")
+val ectoFixtureLocks: Directory = ectoFixturePath.dir("locks")
+val ectoFixtureCachePath: Directory = cachePath.dir("$quoterPairToken-ecto-fixture")
+val ectoFixtureDeps: Directory = ectoFixtureCachePath.dir("deps")
+val ectoFixtureMixHome: Directory = ectoFixtureCachePath.dir("mix_home")
+val ectoFixtureMixArchives: Directory = ectoFixtureCachePath.dir("mix_archives")
+
+val getEctoFixtureDeps: TaskProvider<GetQuoterDepsTask> = tasks.register<GetQuoterDepsTask>("getEctoFixtureDeps") {
+    description = "Fetches the Ecto fixture's dependencies, for an Elixir it has a lock for"
+    dependsOn(resolveElixirErlangSdks)
+
+    projectDir.set(ectoFixturePath)
+    depsDir.set(ectoFixtureDeps)
+    sdkProperties.set(sdkPropertiesFile)
+    mixHome.set(ectoFixtureMixHome)
+    mixArchives.set(ectoFixtureMixArchives)
+    mixEnv.set("dev")
+
+    inputs.file(ectoFixturePath.file("mix.exs"))
+        .withPropertyName("mixExs")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    // Every lock, since which one `mix.exs` reads is known only once the SDK is resolved.
+    inputs.dir(ectoFixtureLocks)
+        .withPropertyName("mixLocks")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+
+    // The resolved Elixir's, as `mix.exs` and the test read it: `-PelixirVersion=1.20` resolves to a 1.20.4.
+    val resolvedSdks = sdkPropertiesFile.get().asFile
+    val locks = ectoFixtureLocks.asFile
+    onlyIf("the Ecto fixture has a lock for this Elixir") {
+        File(locks, "${readPropertiesFile(resolvedSdks)["elixir.version"]}.lock").isFile
+    }
+}
+
 val releaseQuoter: TaskProvider<ReleaseQuoterTask> = tasks.register<ReleaseQuoterTask>("releaseQuoter") {
     description = "Builds the Quoter tool"
     dependsOn(getQuoterDeps)
@@ -964,9 +1003,10 @@ val releaseQuoter: TaskProvider<ReleaseQuoterTask> = tasks.register<ReleaseQuote
     sdkProperties.set(sdkPropertiesFile)
     mixHome.set(mixHomeForPair)
     mixArchives.set(mixArchivesForPair)
+    depsDir.set(getQuoterDeps.flatMap { it.depsDir })
     mixEnv.set(quoterMixEnv)
 
-    // INPUTS: mix.exs, lockfile, source code, and dependencies
+    // INPUTS: mix.exs, lockfile and source code; the dependencies are depsDir
     inputs.files(
         quoterUnzippedPath.file("mix.exs"),
         quoterUnzippedPath.file("mix.lock")
@@ -974,7 +1014,6 @@ val releaseQuoter: TaskProvider<ReleaseQuoterTask> = tasks.register<ReleaseQuote
     inputs.dir(quoterUnzippedPath.dir("lib")).withPathSensitivity(PathSensitivity.RELATIVE)
     // A file tree rather than inputs.dir, which fails validation when the quoter has no config/.
     inputs.files(quoterUnzippedPath.dir("config").asFileTree).withPathSensitivity(PathSensitivity.RELATIVE)
-    inputs.dir(quoterUnzippedPath.dir("deps")).withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 // Written by resolveElixirErlangSdks below. Declared here because a build service's `parameters {}`
@@ -1013,9 +1052,20 @@ tasks.register<CachePathsTask>("quoterCachePaths") {
             // Without these getQuoterDeps reinstalls hex and rebar from builds.hex.pm on every leg.
             mixHomeForPair,
             mixArchivesForPair,
+            ectoFixtureDeps.asFile,
+            ectoFixtureMixHome.asFile,
+            ectoFixtureMixArchives.asFile,
         ).map { projectPath.relativize(it.toPath()).joinToString("/") } +
             // Sockets, not build output - actions/cache cannot archive them.
             "!cache/**/tmp/pipe/**"
+    )
+    // The cache is saved only when its key misses, so a lock bump must change the key for the new dependencies to
+    // be saved. CI asks for this before any SDK is resolved, so the lock is named by the requested Elixir, which
+    // CI gives in full.
+    key.set(
+        providers.fileContents(ectoFixtureLocks.file("$elixirVersion.lock")).asBytes
+            .map { bytes -> MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) } }
+            .orElse("none")
     )
 }
 
@@ -1116,7 +1166,7 @@ tasks.named<Test>("test") {
     // decompiler tests read the Elixir stdlib ebin, and the parser tests read stdlib sources.
     // Resolved paths are only known at execution, so set env in a doFirst reading the resolver
     // output.
-    dependsOn("prepareTestSandbox", resolveElixirErlangSdks, startQuoter)
+    dependsOn("prepareTestSandbox", resolveElixirErlangSdks, startQuoter, getEctoFixtureDeps)
     usesService(quoterService)
     // Backstop for local runs, which have no step limit of CI's: a full run took 5m54s locally on 9 forks,
     // and a stuck test fork otherwise runs until someone notices.
@@ -1140,6 +1190,11 @@ tasks.named<Test>("test") {
     val quoterAvailability = quoterAvailabilityFile.asFile
     val quoterStarted = quoterStartedFile.asFile
     val corpusRoot = elixirParsingCorpusRoot.asFile.takeIf { elixirParsingCorpus.isNotEmpty() }
+    val ectoFixtureMix = mapOf(
+        "elixir.ectoFixture.deps" to ectoFixtureDeps.asFile,
+        "elixir.ectoFixture.mixHome" to ectoFixtureMixHome.asFile,
+        "elixir.ectoFixture.mixArchives" to ectoFixtureMixArchives.asFile,
+    )
     doFirst {
         // `startQuoter` writes the start marker every run and copies the build marker's reason when it
         // skips, so where it exists it is the later and more complete answer. Falling back to the build
@@ -1147,6 +1202,9 @@ tasks.named<Test>("test") {
         val effective = if (quoterStarted.isFile) quoterStarted else quoterAvailability
         environment(elixirTestEnvironment(sdkProps.get().asFile, effective))
         corpusRoot?.let { environment("ELIXIR_PARSING_CORPUS", it.absolutePath) }
+        // Set here rather than as inputs: each is a path under this checkout, and the lock that decides what the
+        // deps hold is already an input as part of testData.
+        ectoFixtureMix.forEach { (name, dir) -> systemProperty(name, dir.absolutePath) }
     }
 
     inputs.files(elixirParsingCorpusTask)

@@ -241,10 +241,10 @@ jobs:
           build-scan-publish: 'true'
           skip-searchable-options: 'true'
 
-      # Restore the quoter cache (the quoter source zip, its deps and _build, and the pair's hex and
-      # rebar) so the Build quoter step goes incremental without the network. This and its Save
-      # counterpart live here, not in setup-env, so the whole cache lifecycle sits next to the quoter
-      # build.
+      # Restore the quoter cache (the quoter source zip, its deps and _build, the pair's hex and rebar, and the
+      # Ecto test fixture's dependencies, keyed by its lock) so the Build quoter step goes incremental without the
+      # network. This and its Save counterpart live here, not in setup-env, so the whole cache lifecycle sits
+      # next to the quoter build.
       #
       # The patterns come from the build rather than being derived here. Deriving them meant grepping
       # quoterRef out of gradle.properties and rebuilding the Elixir/OTP pair token in bash - second
@@ -270,14 +270,15 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ${{ steps.quoter-cache.outputs.paths }}
-          key: elixir-${{ runner.os }}-${{ runner.arch }}-${{ matrix.beam.elixir }}-otp-${{ matrix.beam.otp }}-quoter-${{ hashFiles('gradle.properties') }}
+          key: elixir-${{ runner.os }}-${{ runner.arch }}-${{ matrix.beam.elixir }}-otp-${{ matrix.beam.otp }}-quoter-${{ hashFiles('gradle.properties') }}-${{ steps.quoter-cache.outputs.key }}
           restore-keys: |
             elixir-${{ runner.os }}-${{ runner.arch }}-${{ matrix.beam.elixir }}-otp-${{ matrix.beam.otp }}-
 
       # Timed phases; Gradle up-to-date checking makes each reuse the prior step's output (no rework):
       #   Compile         - fail-fast compile gate; no packaging, Elixir, or quoter.
       #   Prepare sandbox - stage the plugin into the test sandbox (not the buildPlugin distribution).
-      #   Build quoter    - releaseQuoter builds the executable; does not start the daemon.
+      #   Build quoter    - releaseQuoter builds the executable; does not start the daemon. getEctoFixtureDeps
+      #                     fetches the Ecto test fixture's dependencies, so the Save below holds them too.
       #   Download corpus - elixirParsingCorpus fetches and extracts the parser tests' corpus.
       #   Run tests       - check (test + :jps-builder:test), or :test alone for the heavy part, since
       #                     -PtestPart narrows only the root test task; owns the quoter daemon start/stop.
@@ -294,9 +295,9 @@ jobs:
       - name: Build quoter
         id: build-quoter
         continue-on-error: ${{ matrix.continue-on-error || false }}
-        run: ./gradlew $GRADLE_FLAGS releaseQuoter
+        run: ./gradlew $GRADLE_FLAGS releaseQuoter getEctoFixtureDeps
 
-      # Saved here because the cached paths do not exist until releaseQuoter has run. `path` must stay
+      # Saved here because the cached paths do not exist until the Build quoter step has run. `path` must stay
       # the shared output, never a list written out here - see Resolve quoter cache paths for what
       # diverging from Restore costs.
       - name: Save Elixir cache

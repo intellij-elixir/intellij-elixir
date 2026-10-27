@@ -75,20 +75,23 @@ fun quoterReleaseExecutablePath(mixEnv: String): String =
  * hex/rebar and fetched dependencies are cached under the project rather than the user's home, and
  * MIX_ENV so neither the environment the build inherits nor mix's own default decides it.
  *
- * Pass both the per-pair directories from [mixPairDir], never a shared root - see that function - and
- * [mixEnv] from [resolveMixEnv].
+ * Pass both the per-pair directories from [mixPairDir], never a shared root - see that function - and,
+ * for the quoter, [mixEnv] from [resolveMixEnv]. [depsPath] is `MIX_DEPS_PATH`, given to every `mix` command of a
+ * project alike, as one inherited from the build would otherwise reach the ones that don't set it.
  */
 fun mixEnvironment(
     elixirHome: File,
     erlangHome: File,
     mixHome: File,
     mixArchives: File,
-    mixEnv: String
+    mixEnv: String,
+    depsPath: File,
 ): Map<String, String> =
     sdkRuntimeEnvironment(elixirHome, erlangHome) + mapOf(
         "MIX_HOME" to mixHome.absolutePath,
         "MIX_ARCHIVES" to mixArchives.absolutePath,
         "MIX_ENV" to mixEnv,
+        "MIX_DEPS_PATH" to depsPath.absolutePath,
     )
 
 /**
