@@ -52,6 +52,7 @@ internal fun expandLocalCall(node: ElixirAst.Call, state: ExState, env: Env, run
 
             stacktrace(inlinedReceiver, inlined, node, state, env, run) ?: expandRemote(
                 Term.Atom(inlinedReceiver),
+                ExpandedAst.NotAsked,
                 inlined,
                 node,
                 state,
@@ -214,7 +215,9 @@ private fun expandLocal(node: ElixirAst.Call, state: ExState, env: Env, run: Run
 
     if (env.context != Env.Context.NONE) {
         return report(ErrorSite.INVALID_LOCAL_INVOCATION, node, env, run) {
-            expandArgs(args, state, env, run).withValue(NODE)
+            expandArgs(args, state, env, run).thenAst { s, e, _, asts ->
+                Expansion.Expanded(s, e, NODE, run.ast { ElixirAst.Call(node.meta, node.callee, asts.elements) })
+            }
         }
     }
 
@@ -235,7 +238,14 @@ private fun expandLocal(node: ElixirAst.Call, state: ExState, env: Env, run: Run
     }
     recordLocal(node, called, inArguments, env, run)
 
-    return expansion.withValue(if (called == GENERATOR_CALL) GENERATOR_NODE else NODE)
+    return expansion.thenAst { s, e, _, asts ->
+        Expansion.Expanded(
+            s,
+            e,
+            if (called == GENERATOR_CALL) GENERATOR_NODE else NODE,
+            run.ast { ElixirAst.Call(node.meta, node.callee, asts.elements) },
+        )
+    }
 }
 
 /**
@@ -268,10 +278,10 @@ internal fun expandRemoteCall(node: ElixirAst.Call, state: ExState, env: Env, ru
     val (left, right) = (node.callee as ElixirAst.Call).arguments!!
     val name = (right as ElixirAst.Literal.Atom).name
 
-    return Expander.expand(left, receiverState(state, env, run), env, run).thenValue { after, receiverEnv, receiver ->
+    return Expander.expand(left, receiverState(state, env, run), env, run).thenAst { after, receiverEnv, receiver, leftAst ->
         run.observer.receiver(left, receiver)
         // `dispatch_require/7` reads it.
-        unknownStop(receiver, left)?.let { return@thenValue it }
+        unknownStop(receiver, left)?.let { return@thenAst it }
 
         if (receiver is Term.Atom) {
             dispatchRequire(receiver.name, name, node, state, receiverEnv, run) { functionReceiver, functionName ->
@@ -279,7 +289,7 @@ internal fun expandRemoteCall(node: ElixirAst.Call, state: ExState, env: Env, ru
             }
         } else {
             recordDispatch(node, ModuleClauses.Dispatched.Apply, env, run)
-            expandRemote(receiver, name, node, state, after, receiverEnv, run)
+            expandRemote(receiver, leftAst, name, node, state, after, receiverEnv, run)
         }
     }
 }
@@ -292,15 +302,22 @@ internal fun expandAnonymousCall(node: ElixirAst.Call, state: ExState, env: Env,
 
     val function = (node.callee as ElixirAst.Call).arguments!!.single()
 
-    return expandArgs(listOf(function) + node.arguments!!, state, env, run).thenValue { s, e, values ->
+    return expandArgs(listOf(function) + node.arguments!!, state, env, run).thenAst { s, e, values, asts ->
         val called = (values as Term.List).elements.first()
 
-        if (ANONYMOUS_CALL_OF_ATOM_REFUSED.isSufficient(run.level)) unknownStop(called, function)?.let { return@thenValue it }
+        if (ANONYMOUS_CALL_OF_ATOM_REFUSED.isSufficient(run.level)) unknownStop(called, function)?.let { return@thenAst it }
+
+        val ast = run.ast {
+            val dot = node.callee
+            val (expr, args) = asts.elements.let { it.first() to it.drop(1) }
+
+            ElixirAst.Call(node.meta, ElixirAst.Call(dot.meta, dot.callee, listOf(expr)), args)
+        }
 
         if (called is Term.Atom && ANONYMOUS_CALL_OF_ATOM_REFUSED.isSufficient(run.level)) {
-            report(ErrorSite.INVALID_FUNCTION_CALL, node, env, run) { Expansion.Expanded(s, e, NODE) }
+            report(ErrorSite.INVALID_FUNCTION_CALL, node, env, run) { Expansion.Expanded(s, e, NODE, ast) }
         } else {
-            Expansion.Expanded(s, e, NODE)
+            Expansion.Expanded(s, e, NODE, ast)
         }
     }
 }
@@ -328,7 +345,7 @@ private fun stacktrace(
         val variable = Synthetic(node.meta).variable("__STACKTRACE__", "nil")
 
         recordDispatch(node, ModuleClauses.Dispatched.Macro(variable), env, run)
-        Expansion.Expanded(state, env, VARIABLE_NODE, variable)
+        Expansion.Expanded(state, env, VARIABLE_NODE, run.ast { variable }, variable)
     } else {
         null
     }
@@ -433,19 +450,21 @@ private fun remoteFunction(
     run.observer.dispatched(node, Dispatch(Dispatch.Kind.REMOTE_FUNCTION, receiver, name, node.arguments!!.size))
     recordDispatch(node, ModuleClauses.Dispatched.Remote(receiver, name), env, run)
 
-    return expandRemote(Term.Atom(receiver), name, node, state, after, env, run)
+    return expandRemote(Term.Atom(receiver), ExpandedAst.NotAsked, name, node, state, after, env, run)
 }
 
 /**
  * `expand_remote/8`: [node]'s arguments expanded, and the call rewritten for its context by `elixir_rewrite`.
  *
  * @param receiver the expanded receiver, after `inline/3`
+ * @param receiverAst the expanded receiver's node, read only where it isn't an atom
  * @param name the name, after `inline/3`
  * @param state the state before the call, `S`
  * @param after the state after the receiver, `SL`
  */
 private fun expandRemote(
     receiver: Term,
+    receiverAst: ExpandedAst,
     name: String,
     node: ElixirAst.Call,
     state: ExState,
@@ -455,6 +474,11 @@ private fun expandRemote(
 ): Expansion {
     val level = run.level
     val args = node.arguments!!
+    // An imported call's dot takes the call's metadata.
+    val dotMeta = (node.callee as? ElixirAst.Call)?.meta ?: node.meta
+    val receiverNode = {
+        if (receiver is Term.Atom) ElixirAst.Literal.Atom(dotMeta, receiver.name) else receiverAst.node
+    }
 
     if (receiver !is Term.Atom && receiver !is Term.Pair && receiver !is Term.Tuple && receiver !is Term.Node) {
         return Expansion.Error("invalid_call", node)
@@ -463,10 +487,20 @@ private fun expandRemote(
     if (CLAUSES_REFUSED_IN_CALL.isSufficient(level) && hasClauses(args)) return Expansion.Error("invalid_clauses", node)
 
     if (env.context == Env.Context.GUARD && receiver !is Term.Atom) {
+        val ast = run.ast {
+            val dot = ElixirAst.Call(
+                dotMeta,
+                ElixirAst.Literal.Atom(dotMeta, "."),
+                listOf(receiverNode(), ElixirAst.Literal.Atom(dotMeta, name)),
+            )
+
+            ElixirAst.Call(node.meta, dot, emptyList())
+        }
+
         return when {
-            isNoParens(node.meta) -> Expansion.Expanded(after, env, NODE)
+            isNoParens(node.meta) -> Expansion.Expanded(after, env, NODE, ast)
             PARENS_MAP_LOOKUP_ATOM.isSufficient(level) ->
-                report(ErrorSite.PARENS_MAP_LOOKUP, node, env, run) { Expansion.Expanded(after, env, NODE) }
+                report(ErrorSite.PARENS_MAP_LOOKUP, node, env, run) { Expansion.Expanded(after, env, NODE, ast) }
             else -> Expansion.Error("parens_map_lookup_guard", node)
         }
     }
@@ -475,28 +509,30 @@ private fun expandRemote(
 
     if (env.context != Env.Context.NONE && REMOTE_CALL_IN_PATTERN_EXPANDS_ARGUMENTS_IN_TURN.isSufficient(level)) {
         if (isSign && isSignedNumber(name, args)) {
-            return folded(node, name, literalValue(args.single() as ElixirAst.Literal), after, env, run)
+            val literal = args.single()
+
+            return folded(node, name, literalValue(literal as ElixirAst.Literal), run.ast { literal }, after, env, run)
         }
 
-        return mapfold(args, after, env) { arg, s, e -> Expander.expand(arg, s, e, run) }.thenValue { s, e, values ->
-            rewrite(receiver, name, values as Term.List, node, s, e, run)
+        return mapfold(args, after, env, run) { arg, s, e -> Expander.expand(arg, s, e, run) }.thenAst { s, e, values, asts ->
+            rewrite(receiver, name, values as Term.List, node, s, e, run, run.ast { receiverNode() }, dotMeta, asts)
         }
     }
 
-    return mapfold(args, after, env) { arg, s, e -> expandArg(arg, s, state, e, run) }.thenValue { s, e, values ->
+    return mapfold(args, after, env, run) { arg, s, e -> expandArg(arg, s, state, e, run) }.thenAst { s, e, values, asts ->
         if (env.context == Env.Context.NONE) queueEffect(receiver, name, node, values as Term.List, state, env, run)
 
         val closed = s.closeWrite(state)
         val arg = (values as Term.List).elements.singleOrNull()
         val folds = env.context == Env.Context.MATCH || SIGNED_NUMBER_REWRITTEN_EVERYWHERE.isSufficient(level)
 
-        if (isSign && folds) unknownStop(arg, node)?.let { return@thenValue it }
+        if (isSign && folds) unknownStop(arg, node)?.let { return@thenAst it }
 
         // Every `NonTuple` the expander gives is a float.
         if (isSign && folds && (arg is Term.Integer || arg is Term.NonTuple)) {
-            folded(node, name, arg, closed, e, run)
+            folded(node, name, arg, asts.map { (it as ElixirAst.ListNode).elements.single() }, closed, e, run)
         } else {
-            rewrite(receiver, name, values, node, closed, e, run)
+            rewrite(receiver, name, values, node, closed, e, run, run.ast { receiverNode() }, dotMeta, asts)
         }
     }
 }
@@ -642,22 +678,45 @@ private fun rewrite(
     state: ExState,
     env: Env,
     run: Run,
+    receiverAst: ExpandedAst,
+    dotMeta: Meta,
+    argAsts: ExpandedAst,
 ): Expansion {
     val atom = (receiver as? Term.Atom)?.name
+    val rewrittenNode = {
+        val row = atom?.let { rewriteRow(it, name, args.elements.size, env.context, run.level) }
+        val rule = row?.rewritten
+        // `guard/6`'s own clauses increment an index with the call's metadata, `inner_rewrite/5`'s with the dot's.
+        val incrementMeta = if (row?.ownGuardClause == true) node.meta else dotMeta
+        val erlangModule = rule?.erlangModule?.let { ElixirAst.Literal.Atom(dotMeta, it) } ?: receiverAst.node
+        val erlangName = rule?.erlangName ?: name
+        val erlangArgs = rule?.let { rewrittenArgs(it, argAsts.elements, incrementMeta) } ?: argAsts.elements
+        val dot = ElixirAst.Call(
+            dotMeta,
+            ElixirAst.Literal.Atom(dotMeta, "."),
+            listOf(erlangModule, ElixirAst.Literal.Atom(dotMeta, erlangName)),
+        )
+
+        ElixirAst.Call(node.meta, dot, erlangArgs)
+    }
 
     return when (env.context) {
-        // The `String.Chars.to_string/1` fold: a binary is its own string.
+        // The `String.Chars.to_string/1` fold: a binary is its own string, and an argument that is always one is its
+        // own node.
         Env.Context.NONE -> {
             val arg = args.elements.singleOrNull()
-            val isToString = atom == STRING_CHARS && name == "to_string"
+            val isToString = atom == STRING_CHARS && name == "to_string" && arg != null
 
             if (isToString) unknownStop(arg, node)?.let { return it }
 
-            Expansion.Expanded(
-                state,
-                env,
-                if (isToString && arg is Term.Binary) arg else callValue(atom, name, args.elements, run.level),
-            )
+            val ast = if (isToString) {
+                run.ast { argAsts.elements.single().takeIf(::isAlwaysString) ?: rewrittenNode() }
+            } else {
+                run.ast(rewrittenNode)
+            }
+            val value = if (isToString && arg is Term.Binary) arg else callValue(atom, name, args.elements, run.level)
+
+            Expansion.Expanded(state, env, value, ast)
         }
         Env.Context.MATCH ->
             if (atom == ERLANG && name == "++" && args.elements.size == 2) {
@@ -666,14 +725,20 @@ private fun rewrite(
                     return it
                 }
 
-                staticAppend(args.elements[0], args.elements[1])?.let { Expansion.Expanded(state, env, it) }
+                staticAppend(args.elements[0], args.elements[1])?.let {
+                    Expansion.Expanded(state, env, it, run.ast {
+                        val (left, right) = argAsts.elements
+
+                        staticAppendNode(left, right, node.meta)
+                    })
+                }
                     ?: Expansion.Error("invalid_match_append", node)
             } else {
                 Expansion.Error("invalid_match", node)
             }
         Env.Context.GUARD ->
             if (atom != null && isAllowedInGuard(atom, name, args.elements.size, run.level)) {
-                Expansion.Expanded(state, env, NODE)
+                Expansion.Expanded(state, env, NODE, run.ast(rewrittenNode))
             } else {
                 Expansion.Error("invalid_guard", node)
             }
@@ -687,19 +752,56 @@ internal fun isSignedNumber(name: String?, args: List<ElixirAst>): Boolean =
 /**
  * [node], `+N` or `-N` over [number], an integer or a float, folded: `translate/3` receives the signed number in its
  * place. A float's value isn't held, so its sign is applied to its literal, when the argument is written as one.
+ *
+ * @param numberAst the expanded number's node
  */
-private fun folded(node: ElixirAst.Call, name: String, number: Term, state: ExState, env: Env, run: Run): Expansion {
-    val negated = name == "-"
+private fun folded(
+    node: ElixirAst.Call,
+    name: String,
+    number: Term,
+    numberAst: ExpandedAst,
+    state: ExState,
+    env: Env,
+    run: Run,
+): Expansion {
+    val signed = { literal: ElixirAst -> if (name == "-") negated(literal) else literal }
     val dispatched = when (number) {
-        is Term.Integer -> ModuleClauses.Dispatched.Value(if (negated) Term.Integer(number.value.negate()) else number)
+        is Term.Integer -> ModuleClauses.Dispatched.Value(if (name == "-") Term.Integer(number.value.negate()) else number)
         else -> (node.arguments!!.single() as? ElixirAst.Literal.Float)?.let {
-            ModuleClauses.Dispatched.Macro(ElixirAst.Literal.Float(node.meta, if (negated) -it.value else it.value))
+            ModuleClauses.Dispatched.Macro(signed(ElixirAst.Literal.Float(node.meta, it.value)))
         }
     }
 
     dispatched?.let { recordDispatch(node, it, env, run) }
 
-    return Expansion.Expanded(state, env, (dispatched as? ModuleClauses.Dispatched.Value)?.value ?: number)
+    return Expansion.Expanded(state, env, (dispatched as? ModuleClauses.Dispatched.Value)?.value ?: number, numberAst.map(signed))
+}
+
+/** The number literal [node] negated. */
+private fun negated(node: ElixirAst): ElixirAst =
+    when (node) {
+        is ElixirAst.Literal.Integer -> ElixirAst.Literal.Integer(node.meta, node.value.negate())
+        is ElixirAst.Literal.Float -> ElixirAst.Literal.Float(node.meta, -node.value)
+        else -> node
+    }
+
+/** `static_append/3` of the expanded list [left] and [right]: the last element becomes `{'|', Meta, [Last, Right]}`. */
+private fun staticAppendNode(left: ElixirAst, right: ElixirAst, meta: Meta): ElixirAst {
+    val elements = (left as ElixirAst.ListNode).elements
+
+    if (elements.isEmpty()) return right
+
+    val last = elements.last()
+    val bar = ElixirAst.Literal.Atom(meta, "|")
+    val tail = if (isCall(last, "|", 2)) {
+        val (head, innerTail) = (last as ElixirAst.Call).arguments!!
+
+        ElixirAst.Call(last.meta, last.callee, listOf(head, staticAppendNode(innerTail, right, meta)))
+    } else {
+        ElixirAst.Call(meta, bar, listOf(last, right))
+    }
+
+    return ElixirAst.ListNode(left.meta, elements.dropLast(1) + tail)
 }
 
 /** `assert_no_clauses/4`: whether the last of [args] is a keyword list with `->` clauses as a value. */
@@ -726,6 +828,26 @@ private fun isTrue(meta: Meta, key: String): Boolean =
 private fun isNoParens(meta: Meta) = isTrue(meta, "no_parens")
 
 private fun isRequiredByMeta(meta: Meta) = isTrue(meta, "required")
+
+/** `elixir_rewrite:is_always_string/1`: a binary, or a remote call of a function that always gives one. */
+private fun isAlwaysString(node: ElixirAst): Boolean {
+    if (node is ElixirAst.Literal.Binary) return true
+
+    val dot = (node as? ElixirAst.Call)?.callee as? ElixirAst.Call ?: return false
+    val (module, function) = dot.takeIf { isCall(it, ".", 2) }?.arguments?.map { (it as? ElixirAst.Literal.Atom)?.name } ?: return false
+
+    return (module to function) in ALWAYS_STRING
+}
+
+/** The functions `is_always_string/3` holds of, at any arity. */
+private val ALWAYS_STRING = setOf(
+    "Elixir.Enum" to "join",
+    "Elixir.Enum" to "map_join",
+    "Elixir.Kernel" to "inspect",
+    "Elixir.Macro" to "to_string",
+    STRING_CHARS to "to_string",
+    "Elixir.Path" to "join",
+)
 
 private const val STRING_CHARS = "Elixir.String.Chars"
 private const val SYSTEM = "Elixir.System"

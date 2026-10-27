@@ -4,6 +4,7 @@ import org.elixir_lang.NameArity
 import org.elixir_lang.expander.DefinitionTable.Kind
 import org.elixir_lang.language_level.ElixirLanguageFeature.SUPER_TRACES_LOCAL_FUNCTION
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
 import java.math.BigInteger
 
@@ -286,10 +287,18 @@ internal fun expandSuper(node: ElixirAst.Call, state: ExState, env: Env, run: Ru
                 )
             }
 
-            expandArgs(args, state, env, run).thenValue { s, e, _ -> Expansion.Expanded(s, e, NODE) }
+            expandArgs(args, state, env, run).thenAst { s, e, _, asts ->
+                Expansion.Expanded(s, e, NODE, run.ast {
+                    ElixirAst.Call(node.meta.ahead(superEntry(resolved.stored.kind, resolved.stored.name)), node.callee, asts.elements)
+                })
+            }
         }
     }
 }
+
+/** `{super, {Kind, Name}}`, which Elixir adds ahead of a `super` call's metadata for the definition it calls. */
+internal fun superEntry(kind: Kind, name: String): Meta.Key.Entry =
+    Meta.Key.Entry("super", Meta.Value.Tuple(listOf(Meta.Value.Atom(kind.name.lowercase()), Meta.Value.Atom(name))))
 
 /** The two forms of a capture of `super`. */
 internal enum class SuperCapture { CALL, ARITY }
@@ -314,7 +323,7 @@ internal fun expandCaptureSuper(
             form == SuperCapture.ARITY && !SUPER_TRACES_LOCAL_FUNCTION.isSufficient(run.level) -> {
                 recordDispatch(node, ModuleClauses.Dispatched.Super(resolved.stored.kind, resolved.stored.name), env, run)
 
-                Expansion.Expanded(state, env, NODE)
+                Expansion.Expanded(state, env, NODE, run.ast { node })
             }
             else -> {
                 val renamed = named(node, form, resolved.stored.name)

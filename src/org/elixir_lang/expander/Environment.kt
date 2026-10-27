@@ -10,9 +10,9 @@ import java.math.BigInteger
 internal fun expandCaller(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion =
     (if (COMPILER_VARIABLES_REFUSED_IN_PATTERN.isSufficient(run.level)) noMatchScope(node, env) else null)
         ?: if (state.caller) {
-            Expansion.Expanded(state, env, NODE)
+            Expansion.Expanded(state, env, NODE, run.ast { node })
         } else {
-            report(ErrorSite.CALLER_NOT_ALLOWED, node, env, run) { Expansion.Expanded(state, env, NODE) }
+            report(ErrorSite.CALLER_NOT_ALLOWED, node, env, run) { Expansion.Expanded(state, env, NODE, run.ast { node }) }
         }
 
 /** `__ENV__`, the escaped env, which is a map's AST. */
@@ -21,7 +21,8 @@ internal fun expandEnv(node: ElixirAst, state: ExState, env: Env, run: Run): Exp
         ?: if (env.context == Env.Context.MATCH) {
             Expansion.Error("env_not_allowed", node)
         } else {
-            Expansion.Expanded(state, env, NODE)
+            // Can't build: Elixir gives the escaped env, a map's AST of fields `Env` doesn't hold.
+            Expansion.Expanded(state, env, NODE, run.ast { node })
         }
 
 /**
@@ -55,9 +56,9 @@ internal fun expandEnvField(node: ElixirAst.Call, state: ExState, env: Env, run:
         // A map's AST.
         "versioned_vars" -> NODE.takeIf { MACRO_ENV_VERSIONED_VARS.isSufficient(run.level) }
         else -> null
-    } ?: return Expansion.Expanded(state, env, NODE)
+    } ?: return Expansion.Expanded(state, env, NODE, run.ast { node })
 
-    return recordingValue(node, env, run, Expansion.Expanded(state, env, value))
+    return recordingValue(node, env, run, Expansion.Expanded(state, env, value, run.ast { escaped(value, node, run) ?: node }))
 }
 
 private fun atom(name: String?): Term = name?.let(Term::Atom) ?: NIL

@@ -29,7 +29,12 @@ internal fun guard(node: ElixirAst, state: ExState, env: Env, run: Run): Expansi
     return if (isCall(node, "when", 2)) {
         val (left, right) = (node as ElixirAst.Call).arguments!!
 
-        guard(left, state, env, run).then { s, e -> guard(right, s, e, run) }
+        guard(left, state, env, run).thenAst { s, e, _, leftAst ->
+            val expansion = guard(right, s, e, run)
+            val rightAst = (expansion as? Expansion.Expanded)?.ast ?: ExpandedAst.NotAsked
+
+            expansion.withAst(run.ast { ElixirAst.Call(node.meta, node.callee, listOf(leftAst.or(left), rightAst.or(right))) })
+        }
     } else {
         Expander.expand(node, state, env, run)
     }

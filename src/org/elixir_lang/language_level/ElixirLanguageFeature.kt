@@ -893,7 +893,8 @@ enum class ElixirLanguageFeature(
      * A bitstring size in a pattern is expanded as a guard, reading only the variables bound before the pattern or by
      * the bitstring itself, and an expression other than a variable or integer is allowed. Before it, the size is
      * expanded outside any match, and `elixir_bitstring` then rejects anything but a variable or integer
-     * (`bad_size_argument`) and a variable the pattern bound outside the bitstring (`undefined_var_in_spec`).
+     * (`bad_size_argument`) and a variable the pattern bound outside the bitstring (`undefined_var_in_spec`). The
+     * `<<>>` a bitstring generator expands to also keeps the generator's meta from it, where it had none.
      *
      * `elixir-lang/elixir@c92724d9b` ("EEP 52: Support for size expression in bitstring matching", #11558) and
      * `elixir-lang/elixir@00c35ad4d` ("Allow any expression in bitstring size outside of matches/guards"), first
@@ -995,6 +996,15 @@ enum class ElixirLanguageFeature(
      * #13785), first released in v1.18.0-rc.0.
      */
     CATCH_WHEN_ARITY_CHECKED(sinceElixir = "1.18.0-rc.0"),
+
+    /**
+     * A `catch` clause of one argument, guarded or not, expands as `:throw` and that argument. Before it, the head
+     * expands as written.
+     *
+     * `elixir-lang/elixir@01474e0cd` ("Type checking of try") and `elixir-lang/elixir@a7c8be77e` ("Ensure one arity
+     * catch is always expanded to :throw"), first released in v1.18.0-rc.0.
+     */
+    CATCH_VALUE_THROWN(sinceElixir = "1.18.0-rc.0"),
 
     /**
      * What the right side of a `<-` in `with` or `for` binds is not visible to its pattern or anything after it, and its
@@ -1747,7 +1757,8 @@ enum class ElixirLanguageFeature(
 
     /**
      * The `case` of `if`, `!`, `and` and `or` has `type_check: :expr` after `optimize_boolean: true`, and that of `&&`
-     * and `||` has it alone.
+     * and `||` has it alone. The `false` and `true` clauses `rewrite_case_clauses` builds are no longer
+     * `generated: true`.
      *
      * `elixir-lang/elixir@c3dc6c86d` ("Detect never matching clauses and patterns", #13968), first released in
      * v1.18.0-rc.0.

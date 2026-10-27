@@ -101,8 +101,12 @@ object Expander {
         directories: CompileDirectories = CompileDirectories.UNKNOWN,
         clauses: ModuleClauses.Lookup = ModuleClauses.Lookup.NONE,
         virtualFile: VirtualFile? = null,
-    ): FileExpansion {
-        val run = Run(level, observer, exports, structs, counters, file, directories, clauses, virtualFile)
+    ): FileExpansion =
+        expandFile(forms, env, Run(level, observer, exports, structs, counters, file, directories, clauses, virtualFile))
+
+    /** A file's top-level [forms] expanded from [env] in [run], as the other `expandFile` expands them. */
+    internal fun expandFile(forms: ElixirAst, env: Env, run: Run): FileExpansion {
+        val level = run.level
         val state = ExState.empty(level)
 
         val expansion =
@@ -157,7 +161,11 @@ object Expander {
 
         val walked = compilePending(run)
 
-        return FileExpansion(walked.ended ?: Expansion.Expanded(state, env, NODE), walked.modules, walked.endsRun)
+        return FileExpansion(
+            walked.ended ?: Expansion.Expanded(state, env, NODE, ExpandedAst.NotAsked),
+            walked.modules,
+            walked.endsRun,
+        )
     }
 
     /** `expand_defmodule/2`'s walk: each `defmodule` in [forms], into nested blocks. */
@@ -271,6 +279,19 @@ internal class Run(
 
     /** The number of a reference no evaluation in the run has made before. */
     fun nextRef(): Int = ++refs
+
+    /** How many expansions in progress asked for the expanded AST of every node below them. */
+    var asking = 0
+
+    /** [body], with every node it expands building its expanded AST. */
+    inline fun <T> askingAst(body: () -> T): T {
+        asking++
+        try {
+            return body()
+        } finally {
+            asking--
+        }
+    }
 
     /** The nodes being expanded whose value a summary reads, by identity, until they are read. */
     val watching = IdentityHashMap<ElixirAst, Watched>()
@@ -569,8 +590,11 @@ internal inline fun Expansion.then(next: (ExState, Env) -> Expansion): Expansion
     thenValue { state, env, _ -> next(state, env) }
 
 internal inline fun Expansion.thenValue(next: (ExState, Env, Term) -> Expansion): Expansion =
+    thenAst { state, env, value, _ -> next(state, env, value) }
+
+internal inline fun Expansion.thenAst(next: (ExState, Env, Term, ExpandedAst) -> Expansion): Expansion =
     when (this) {
-        is Expansion.Expanded -> next(state, env, value)
+        is Expansion.Expanded -> next(state, env, value, ast)
         is Expansion.Error, is Expansion.Unported, is Expansion.Opaque -> this
     }
 
@@ -581,9 +605,60 @@ internal inline fun Expansion.thenValue(next: (ExState, Env, Term) -> Expansion)
 internal fun unknownStop(value: Term?, at: ElixirAst): Expansion.Unported? =
     if (value == Term.Unexpanded) Expansion.Unported(at) else null
 
+/** [build]'s node where [this] run asks for expanded ASTs. */
+internal inline fun Run.ast(build: () -> ElixirAst): ExpandedAst =
+    if (asking > 0) ExpandedAst.Built(build()) else ExpandedAst.NotAsked
+
+/** The node of an [ExpandedAst] a run that asks for them built. */
+internal val ExpandedAst.node: ElixirAst
+    get() = (this as? ExpandedAst.Built)?.node ?: error("an expanded AST the run didn't build")
+
+/** [transform] of the node, where it was built. */
+internal inline fun ExpandedAst.map(transform: (ElixirAst) -> ElixirAst): ExpandedAst =
+    when (this) {
+        is ExpandedAst.Built -> ExpandedAst.Built(transform(node))
+        ExpandedAst.NotAsked -> this
+    }
+
+/** A list's meta: a list has none of its own. */
+internal val LIST_META = Meta(TextRange.EMPTY_RANGE, Meta.Position(0, 0), Meta.Position(0, 0), built = true)
+
+/** [node] with [arguments], built where [this] run asks, in place of its own arguments. */
+internal fun Run.call(node: ElixirAst.Call, vararg arguments: ExpandedAst): ExpandedAst =
+    ast { ElixirAst.Call(node.meta, node.callee, arguments.map { it.node }, node.context) }
+
+/** The variable [node] read or written at [version]: Elixir adds `version` ahead of its metadata. */
+internal fun Run.versioned(node: ElixirAst, version: Int): ExpandedAst =
+    ast {
+        val call = node as ElixirAst.Call
+
+        ElixirAst.Call(call.meta.ahead(versionEntry(version)), call.callee, null, call.context)
+    }
+
+/** `{version, Version}`. */
+internal fun versionEntry(version: Int): Meta.Key.Entry = Meta.Key.Entry("version", Meta.Value.Integer(version.toLong()))
+
+/** This metadata with [key] ahead of its keys. */
+internal fun Meta.ahead(key: Meta.Key): Meta = Meta(origin, start, end, listOf(key) + keys, built)
+
+/** The node, or [source] where the run didn't build one. */
+internal fun ExpandedAst.or(source: ElixirAst): ElixirAst = (this as? ExpandedAst.Built)?.node ?: source
+
+/** The elements of a list node an expansion built. */
+internal val ExpandedAst.elements: List<ElixirAst> get() = (node as ElixirAst.ListNode).elements
+
+/** `Macro.escape/1` of [term] at [at]'s position, or `null` where the port can't build it. */
+internal fun escaped(term: Term, at: ElixirAst, run: Run): ElixirAst? =
+    QuoteEscape(ImportTermEscapeView, AstEscapeBuilder(Synthetic(at.meta)), { literalOf(at, it) }, run.level, run.exports)
+        .escape(term)
+        .let { (it as? EscapeResult.Built)?.value }
+
 /** This expansion with [value] in place of its own, if it expanded. */
 internal fun Expansion.withValue(value: Term): Expansion =
     if (this is Expansion.Expanded) copy(value = value, variable = null) else this
+
+/** This expansion with [ast] in place of its own, if it expanded. */
+internal fun Expansion.withAst(ast: ExpandedAst): Expansion = if (this is Expansion.Expanded) copy(ast = ast) else this
 
 /** `?line(Meta)`: the `line` in [meta], or 0. */
 internal fun line(meta: Meta): Int = location(meta)?.line ?: 0
@@ -615,11 +690,14 @@ internal inline fun mapfold(
     nodes: List<ElixirAst>,
     state: ExState,
     env: Env,
+    run: Run,
     expand: (ElixirAst, ExState, Env) -> Expansion,
 ): Expansion {
     var accState = state
     var accEnv = env
     val values = ArrayList<Term>(nodes.size)
+    var asts: ArrayList<ElixirAst>? = null
+    var built = true
 
     for (node in nodes) {
         ProgressManager.checkCanceled()
@@ -629,12 +707,26 @@ internal inline fun mapfold(
                 accState = expansion.state
                 accEnv = expansion.env
                 values.add(expansion.value)
+
+                val ast = expansion.ast
+
+                if (built && ast is ExpandedAst.Built) {
+                    (asts ?: ArrayList<ElixirAst>(nodes.size).also { asts = it }).add(ast.node)
+                } else {
+                    built = false
+                }
             }
             is Expansion.Error, is Expansion.Unported, is Expansion.Opaque -> return expansion
         }
     }
 
-    return Expansion.Expanded(accState, accEnv, Term.List(values))
+    val ast = when {
+        !built -> ExpandedAst.NotAsked
+        asts == null -> run.ast { ElixirAst.ListNode(LIST_META, emptyList()) }
+        else -> ExpandedAst.Built(ElixirAst.ListNode(LIST_META, asts))
+    }
+
+    return Expansion.Expanded(accState, accEnv, Term.List(values), ast)
 }
 
 /**
@@ -642,23 +734,24 @@ internal inline fun mapfold(
  * value is the list of the arguments' values.
  */
 internal fun expandArgs(args: List<ElixirAst>, state: ExState, env: Env, run: Run): Expansion =
-    expandArgs(args, state, env) { arg, s, e -> Expander.expand(arg, s, e, run) }
+    expandArgs(args, state, env, run) { arg, s, e -> Expander.expand(arg, s, e, run) }
 
 /** `elixir_expand:expand_args/3`, with [expand] for its `expand/3`. */
 internal inline fun expandArgs(
     args: List<ElixirAst>,
     state: ExState,
     env: Env,
+    run: Run,
     expand: (ElixirAst, ExState, Env) -> Expansion,
 ): Expansion =
     when {
-        args.size == 1 -> expand(args.single(), state, env).thenValue { s, e, v ->
-            Expansion.Expanded(s, e, Term.List(listOf(v)))
+        args.size == 1 -> expand(args.single(), state, env).thenAst { s, e, v, a ->
+            Expansion.Expanded(s, e, Term.List(listOf(v)), a.map { ElixirAst.ListNode(LIST_META, listOf(it)) })
         }
-        env.context == Env.Context.MATCH -> mapfold(args, state, env, expand)
+        env.context == Env.Context.MATCH -> mapfold(args, state, env, run, expand)
         else ->
             argumentScope(state) { scope ->
-                mapfold(args, scope, env) { arg, s, e -> expandArg(arg, s, state, e, expand) }
+                mapfold(args, scope, env, run) { arg, s, e -> expandArg(arg, s, state, e, run, expand) }
             }
     }
 
@@ -672,22 +765,31 @@ internal inline fun expandList(
     elements: List<ElixirAst>,
     state: ExState,
     env: Env,
+    run: Run,
     crossinline expand: (ElixirAst, ExState, Env) -> Expansion,
 ): Expansion =
-    mapfold(elements.dropLast(1), state, env) { element, s, e -> expand(element, s, e) }.thenValue { s, e, init ->
+    mapfold(elements.dropLast(1), state, env, run) { element, s, e -> expand(element, s, e) }.thenAst { s, e, init, initAst ->
         val values = (init as Term.List).elements
         val last = elements.lastOrNull()
+        val appended = { lastAst: ExpandedAst ->
+            if (initAst is ExpandedAst.Built && lastAst is ExpandedAst.Built) {
+                ExpandedAst.Built(ElixirAst.ListNode(LIST_META, initAst.elements + lastAst.node))
+            } else {
+                ExpandedAst.NotAsked
+            }
+        }
 
         when {
-            last == null -> Expansion.Expanded(s, e, init)
+            last == null -> Expansion.Expanded(s, e, init, initAst)
             isCall(last, "|", 2) ->
-                mapfold((last as ElixirAst.Call).arguments!!, s, e) { arg, ss, ee -> expand(arg, ss, ee) }
-                    .thenValue { ss, ee, pair ->
+                mapfold((last as ElixirAst.Call).arguments!!, s, e, run) { arg, ss, ee -> expand(arg, ss, ee) }
+                    .thenAst { ss, ee, pair, pairAst ->
                         val (head, tail) = (pair as Term.List).elements
+                        val cons = pairAst.map { ElixirAst.Call(last.meta, last.callee, (it as ElixirAst.ListNode).elements) }
 
-                        Expansion.Expanded(ss, ee, Term.List(values + head, tail))
+                        Expansion.Expanded(ss, ee, Term.List(values + head, tail), appended(cons))
                     }
-            else -> expand(last, s, e).thenValue { ss, ee, v -> Expansion.Expanded(ss, ee, Term.List(values + v)) }
+            else -> expand(last, s, e).thenAst { ss, ee, v, a -> Expansion.Expanded(ss, ee, Term.List(values + v), appended(a)) }
         }
     }
 
@@ -696,14 +798,14 @@ internal inline fun expandList(
  * it.
  */
 internal inline fun argumentScope(state: ExState, body: (ExState) -> Expansion): Expansion =
-    body(state.prepareWrite()).thenValue { s, e, v -> Expansion.Expanded(s.closeWrite(state), e, v) }
+    body(state.prepareWrite()).thenAst { s, e, v, a -> Expansion.Expanded(s.closeWrite(state), e, v, a) }
 
 /**
  * `elixir_expand:expand_arg/3`: an argument reads only what [start], the scope's start, could. A literal isn't expanded,
  * so [Expander.observed] never reports it to the watch, and this does.
  */
 internal fun expandArg(arg: ElixirAst, acc: ExState, start: ExState, env: Env, run: Run): Expansion =
-    expandArg(arg, acc, start, env) { a, s, e -> Expander.expand(a, s, e, run) }
+    expandArg(arg, acc, start, env, run) { a, s, e -> Expander.expand(a, s, e, run) }
         .also { if (arg is ElixirAst.Literal) run.watched(arg, it) }
 
 /** `elixir_expand:expand_arg/3`, with [expand] for its `expand/3`; a pid in a macro's result isn't expanded either. */
@@ -712,11 +814,12 @@ internal inline fun expandArg(
     acc: ExState,
     start: ExState,
     env: Env,
+    run: Run,
     expand: (ElixirAst, ExState, Env) -> Expansion,
 ): Expansion =
     when (arg) {
-        is ElixirAst.Literal -> Expansion.Expanded(acc, env, literalValue(arg))
-        is ElixirAst.Value if arg.term is OtpErlangPid -> Expansion.Expanded(acc, env, NODE)
+        is ElixirAst.Literal -> Expansion.Expanded(acc, env, literalValue(arg), run.ast { arg })
+        is ElixirAst.Value if arg.term is OtpErlangPid -> Expansion.Expanded(acc, env, NODE, run.ast { arg })
         else -> expand(arg, acc.resetRead(start), env)
     }
 

@@ -42,7 +42,7 @@ internal fun expandBitstring(
             if (!BITSTRING_PATTERN_SEGMENT_VALIDATED.isSufficient(run.level) && segments.any(::containsMatch)) {
                 Expansion.Error("nested_match", node)
             } else {
-                Expansion.Expanded(s, e, NODE)
+                Expansion.Expanded(s, e, NODE, run.ast { node })
             }
         }
     } else {
@@ -131,7 +131,8 @@ private fun expandSegments(
     // literal, which the pattern and guard readers of `Term.Binary` take it for.
     val binary = context == Env.Context.NONE && alignment == 0 && parts.isNotEmpty() && parts.all { it.alone == "binary" }
 
-    return Expansion.Expanded(accState, accEnv, if (binary) Term.Binary(null) else NODE)
+    // Can't build: Elixir gives each segment as `{'::', Meta, [Expr, Spec]}` with the spec `elixir_bitstring` normalises.
+    return Expansion.Expanded(accState, accEnv, if (binary) Term.Binary(null) else NODE, run.ast { bitstring })
 }
 
 /** `is_match_size/2`: whether segment [index] is in a pattern and another follows it. */
@@ -163,7 +164,7 @@ private fun expandValue(value: ElixirAst, state: ExState, original: ExState, env
     return expand(inline).thenValue { s, e, v ->
         unknownStop(v, inline)?.let { return@thenValue it }
 
-        if (v is Term.Binary) Expansion.Expanded(s, e, v) else expand(value)
+        if (v is Term.Binary) Expansion.Expanded(s, e, v, run.ast { value }) else expand(value)
     }
 }
 

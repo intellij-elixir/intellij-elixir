@@ -14,7 +14,10 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.PROCESS_ALIAS_INLINE
 import org.elixir_lang.language_level.ElixirLanguageFeature.PUT_ELEM_IN_GUARD
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRING_TO_ATOM_INLINED
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
+import java.math.BigInteger
 
 /**
  * `elixir_rewrite:inline/3`: the Erlang function [module].[name]/[arity] compiles to at [level], as its module and
@@ -38,16 +41,38 @@ internal fun rewrite(module: String, name: String, arity: Int, level: ElixirLang
  * is allowed in a guard at [level]: a guard clause of its own, or a guard function once [rewrite] has rewritten it.
  */
 internal fun isAllowedInGuard(receiver: String, name: String, arity: Int, level: ElixirLanguageLevel): Boolean {
-    val row = REWRITTEN[Triple(receiver, name, arity)]
+    val row = rewriteRow(receiver, name, arity, Env.Context.GUARD, level)
 
-    if (row != null && row.guardClause && row.removedBy?.isSufficient(level) == true) return true
+    if (row?.ownGuardClause == true) return true
 
-    val rewritten = rewrite(receiver, name, arity, level)
-    val module = rewritten?.erlangModule ?: receiver
-    val nameArity = rewritten?.let { NameArity(it.erlangName, it.erlangArity) } ?: NameArity(name, arity)
+    val module = row?.rewritten?.erlangModule ?: receiver
+    val nameArity = row?.rewritten?.let { NameArity(it.erlangName, it.erlangArity) } ?: NameArity(name, arity)
 
     return module == ERLANG && isGuardFunction(nameArity, level)
 }
+
+/**
+ * The row a call of [module].[name]/[arity] in [context] compiles through at [level]: [rewrite]'s, or in a guard
+ * `guard/6`'s own clause.
+ */
+internal fun rewriteRow(
+    module: String,
+    name: String,
+    arity: Int,
+    context: Env.Context,
+    level: ElixirLanguageLevel,
+): RewriteRow? =
+    rewrite(module, name, arity, level)?.let { RewriteRow(it, ownGuardClause = false) }
+        ?: guardClause(module, name, arity, level)
+            ?.takeIf { context == Env.Context.GUARD }
+            ?.let { RewriteRow(it, ownGuardClause = true) }
+
+/** @property ownGuardClause whether [rewritten] is `guard/6`'s own clause, not `inner_rewrite/5`'s */
+internal data class RewriteRow(val rewritten: Rewritten, val ownGuardClause: Boolean)
+
+/** `guard/6`'s own clause for [module].[name]/[arity] at [level]: a row [rewrite] has dropped that a guard keeps. */
+private fun guardClause(module: String, name: String, arity: Int, level: ElixirLanguageLevel): Rewritten? =
+    REWRITTEN[Triple(module, name, arity)]?.takeIf { it.guardClause && it.removedBy?.isSufficient(level) == true }
 
 /** `elixir_rewrite:allowed_guard/2` on the Erlang/OTP [level] runs on, which an unknown OTP takes as the newest. */
 private fun isGuardFunction(nameArity: NameArity, level: ElixirLanguageLevel): Boolean =
@@ -265,6 +290,7 @@ internal val INLINED = listOf(
 /**
  * A row of `rewrite/5`'s table.
  *
+ * @property arguments how the Erlang call takes the Elixir call's arguments
  * @property since the entry that adds the row
  * @property removedBy the entry that drops the row
  * @property guardClause whether `guard/6` keeps the rewrite, allowed in a guard, as a clause of its own from
@@ -277,6 +303,7 @@ internal class Rewritten(
     val erlangModule: String,
     val erlangName: String,
     val erlangArity: Int,
+    val arguments: RewrittenArgs,
     val since: ElixirLanguageFeature? = null,
     val removedBy: ElixirLanguageFeature? = null,
     val guardClause: Boolean = false,
@@ -284,10 +311,47 @@ internal class Rewritten(
 
 /** `rewrite/5`'s table: the `?rewrite` rows, and the `inner_rewrite` clauses that move a tuple index. */
 internal val REWRITTEN = listOf(
-    Rewritten("Elixir.Atom", "to_string", 1, "erlang", "atom_to_binary", 2, removedBy = ATOM_TO_STRING_INLINED),
-    Rewritten("Elixir.Float", "to_charlist", 1, "erlang", "float_to_list", 2, since = MAP_FROM_KEYS_INLINED),
-    Rewritten("Elixir.Float", "to_string", 1, "erlang", "float_to_binary", 2, since = MAP_FROM_KEYS_INLINED),
-    Rewritten("Elixir.Kernel", "elem", 2, "erlang", "element", 2, removedBy = PUT_ELEM_IN_GUARD, guardClause = true),
+    Rewritten(
+        "Elixir.Atom",
+        "to_string",
+        1,
+        "erlang",
+        "atom_to_binary",
+        2,
+        RewrittenArgs.UTF8,
+        removedBy = ATOM_TO_STRING_INLINED,
+    ),
+    Rewritten(
+        "Elixir.Float",
+        "to_charlist",
+        1,
+        "erlang",
+        "float_to_list",
+        2,
+        RewrittenArgs.SHORT,
+        since = MAP_FROM_KEYS_INLINED,
+    ),
+    Rewritten(
+        "Elixir.Float",
+        "to_string",
+        1,
+        "erlang",
+        "float_to_binary",
+        2,
+        RewrittenArgs.SHORT,
+        since = MAP_FROM_KEYS_INLINED,
+    ),
+    Rewritten(
+        "Elixir.Kernel",
+        "elem",
+        2,
+        "erlang",
+        "element",
+        2,
+        RewrittenArgs.INDEX,
+        removedBy = PUT_ELEM_IN_GUARD,
+        guardClause = true,
+    ),
     Rewritten(
         "Elixir.Kernel",
         "is_map_key",
@@ -295,6 +359,7 @@ internal val REWRITTEN = listOf(
         "erlang",
         "is_map_key",
         2,
+        RewrittenArgs.SWAPPED,
         removedBy = PUT_ELEM_IN_GUARD,
         guardClause = true,
     ),
@@ -305,22 +370,68 @@ internal val REWRITTEN = listOf(
         "erlang",
         "setelement",
         3,
+        RewrittenArgs.INDEX,
         removedBy = PUT_ELEM_IN_GUARD,
         guardClause = true,
     ),
-    Rewritten("Elixir.Map", "delete", 2, "maps", "remove", 2, removedBy = PUT_ELEM_IN_GUARD),
-    Rewritten("Elixir.Map", "fetch", 2, "maps", "find", 2, removedBy = PUT_ELEM_IN_GUARD),
-    Rewritten("Elixir.Map", "fetch!", 2, "maps", "get", 2, removedBy = PUT_ELEM_IN_GUARD),
-    Rewritten("Elixir.Map", "has_key?", 2, "maps", "is_key", 2, removedBy = PUT_ELEM_IN_GUARD),
-    Rewritten("Elixir.Map", "put", 3, "maps", "put", 3, removedBy = PUT_ELEM_IN_GUARD),
-    Rewritten("Elixir.Map", "replace!", 3, "maps", "update", 3, removedBy = PUT_ELEM_IN_GUARD),
-    Rewritten("Elixir.Port", "monitor", 1, "erlang", "monitor", 2),
-    Rewritten("Elixir.Process", "group_leader", 2, "erlang", "group_leader", 2, removedBy = PUT_ELEM_IN_GUARD),
-    Rewritten("Elixir.Process", "monitor", 1, "erlang", "monitor", 2),
-    Rewritten("Elixir.Process", "monitor", 2, "erlang", "monitor", 3, since = PROCESS_ALIAS_INLINED),
-    Rewritten("Elixir.Process", "send_after", 3, "erlang", "send_after", 3, removedBy = PUT_ELEM_IN_GUARD),
-    Rewritten("Elixir.Process", "send_after", 4, "erlang", "send_after", 4, removedBy = PUT_ELEM_IN_GUARD),
-    Rewritten("Elixir.String", "to_atom", 1, "erlang", "binary_to_atom", 2, removedBy = STRING_TO_ATOM_INLINED),
+    Rewritten("Elixir.Map", "delete", 2, "maps", "remove", 2, RewrittenArgs.SWAPPED, removedBy = PUT_ELEM_IN_GUARD),
+    Rewritten("Elixir.Map", "fetch", 2, "maps", "find", 2, RewrittenArgs.SWAPPED, removedBy = PUT_ELEM_IN_GUARD),
+    Rewritten("Elixir.Map", "fetch!", 2, "maps", "get", 2, RewrittenArgs.SWAPPED, removedBy = PUT_ELEM_IN_GUARD),
+    Rewritten("Elixir.Map", "has_key?", 2, "maps", "is_key", 2, RewrittenArgs.SWAPPED, removedBy = PUT_ELEM_IN_GUARD),
+    Rewritten("Elixir.Map", "put", 3, "maps", "put", 3, RewrittenArgs.MAP_LAST, removedBy = PUT_ELEM_IN_GUARD),
+    Rewritten("Elixir.Map", "replace!", 3, "maps", "update", 3, RewrittenArgs.MAP_LAST, removedBy = PUT_ELEM_IN_GUARD),
+    Rewritten("Elixir.Port", "monitor", 1, "erlang", "monitor", 2, RewrittenArgs.PORT),
+    Rewritten(
+        "Elixir.Process",
+        "group_leader",
+        2,
+        "erlang",
+        "group_leader",
+        2,
+        RewrittenArgs.SWAPPED,
+        removedBy = PUT_ELEM_IN_GUARD,
+    ),
+    Rewritten("Elixir.Process", "monitor", 1, "erlang", "monitor", 2, RewrittenArgs.PROCESS),
+    Rewritten(
+        "Elixir.Process",
+        "monitor",
+        2,
+        "erlang",
+        "monitor",
+        3,
+        RewrittenArgs.PROCESS,
+        since = PROCESS_ALIAS_INLINED,
+    ),
+    Rewritten(
+        "Elixir.Process",
+        "send_after",
+        3,
+        "erlang",
+        "send_after",
+        3,
+        RewrittenArgs.TIME_FIRST,
+        removedBy = PUT_ELEM_IN_GUARD,
+    ),
+    Rewritten(
+        "Elixir.Process",
+        "send_after",
+        4,
+        "erlang",
+        "send_after",
+        4,
+        RewrittenArgs.TIME_FIRST,
+        removedBy = PUT_ELEM_IN_GUARD,
+    ),
+    Rewritten(
+        "Elixir.String",
+        "to_atom",
+        1,
+        "erlang",
+        "binary_to_atom",
+        2,
+        RewrittenArgs.UTF8,
+        removedBy = STRING_TO_ATOM_INLINED,
+    ),
     Rewritten(
         "Elixir.String",
         "to_existing_atom",
@@ -328,9 +439,92 @@ internal val REWRITTEN = listOf(
         "erlang",
         "binary_to_existing_atom",
         2,
+        RewrittenArgs.UTF8,
         removedBy = STRING_TO_ATOM_INLINED,
     ),
-    Rewritten("Elixir.Tuple", "delete_at", 2, "erlang", "delete_element", 2, removedBy = PUT_ELEM_IN_GUARD),
-    Rewritten("Elixir.Tuple", "duplicate", 2, "erlang", "make_tuple", 2, removedBy = PUT_ELEM_IN_GUARD),
-    Rewritten("Elixir.Tuple", "insert_at", 3, "erlang", "insert_element", 3, removedBy = PUT_ELEM_IN_GUARD),
+    Rewritten(
+        "Elixir.Tuple",
+        "delete_at",
+        2,
+        "erlang",
+        "delete_element",
+        2,
+        RewrittenArgs.INDEX,
+        removedBy = PUT_ELEM_IN_GUARD,
+    ),
+    Rewritten(
+        "Elixir.Tuple",
+        "duplicate",
+        2,
+        "erlang",
+        "make_tuple",
+        2,
+        RewrittenArgs.SWAPPED,
+        removedBy = PUT_ELEM_IN_GUARD,
+    ),
+    Rewritten(
+        "Elixir.Tuple",
+        "insert_at",
+        3,
+        "erlang",
+        "insert_element",
+        3,
+        RewrittenArgs.INDEX,
+        removedBy = PUT_ELEM_IN_GUARD,
+    ),
 ).associateBy { Triple(it.module, it.name, it.arity) }
+
+/** How `rewrite/5` puts an Elixir call's arguments in its Erlang call's. */
+internal enum class RewrittenArgs {
+    /** The encoding `utf8` after the argument. */
+    UTF8,
+
+    /** The options `[short]` after the argument. */
+    SHORT,
+
+    /** The type `port` before the argument. */
+    PORT,
+
+    /** The type `process` before the arguments. */
+    PROCESS,
+
+    /** The index, incremented, before the tuple, then the rest. */
+    INDEX,
+
+    /** The map after the key and the value. */
+    MAP_LAST,
+
+    /** The time before the destination and the message, then the options. */
+    TIME_FIRST,
+
+    /** The two arguments swapped. */
+    SWAPPED,
+}
+
+/**
+ * The expanded arguments [args] of [row]'s Elixir call, as its Erlang call takes them; an index is incremented with
+ * [meta].
+ */
+internal fun rewrittenArgs(row: Rewritten, args: List<ElixirAst>, meta: Meta): List<ElixirAst> {
+    val atom = { name: String -> ElixirAst.Literal.Atom(meta, name) }
+    val increment = { index: ElixirAst ->
+        if (index is ElixirAst.Literal.Integer) {
+            ElixirAst.Literal.Integer(index.meta, index.value + BigInteger.ONE)
+        } else {
+            val plus = ElixirAst.Call(meta, ElixirAst.Literal.Atom(meta, "."), listOf(atom(ERLANG), atom("+")))
+
+            ElixirAst.Call(meta, plus, listOf(index, ElixirAst.Literal.Integer(meta, BigInteger.ONE)))
+        }
+    }
+
+    return when (row.arguments) {
+        RewrittenArgs.UTF8 -> args + atom("utf8")
+        RewrittenArgs.SHORT -> args + ElixirAst.ListNode(meta, listOf(atom("short")))
+        RewrittenArgs.PORT -> listOf(atom("port")) + args
+        RewrittenArgs.PROCESS -> listOf(atom("process")) + args
+        RewrittenArgs.INDEX -> listOf(increment(args[1]), args[0]) + args.drop(2)
+        RewrittenArgs.MAP_LAST -> listOf(args[1], args[2], args[0])
+        RewrittenArgs.TIME_FIRST -> listOf(args[2], args[0], args[1]) + args.drop(3)
+        RewrittenArgs.SWAPPED -> listOf(args[1], args[0])
+    }
+}

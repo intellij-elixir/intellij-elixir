@@ -19,14 +19,23 @@ internal fun expandMapPairs(node: ElixirAst.Call, state: ExState, env: Env, run:
 
     return when {
         update == null ->
-            expandArgs(args, state, env, run).thenValue { s, e, pairs -> validated(node, args, s, e, pairs, run.level) }
+            expandArgs(args, state, env, run).thenAst { s, e, pairs, asts ->
+                validated(node, args, s, e, pairs, run.level, run.ast { ElixirAst.Call(node.meta, node.callee, asts.elements) })
+            }
         env.context != Env.Context.NONE -> Expansion.Error("update_syntax_in_wrong_context", node)
         else -> {
             val (map, pairs) = update.arguments!!
 
             if (pairs is ElixirAst.ListNode) {
-                expandArgs(listOf(map) + pairs.elements, state, env, run).thenValue { s, e, values ->
-                    validated(node, pairs.elements, s, e, Term.List((values as Term.List).elements.drop(1)), run.level)
+                expandArgs(listOf(map) + pairs.elements, state, env, run).thenAst { s, e, values, asts ->
+                    val ast = run.ast {
+                        val (expandedMap, expandedPairs) = asts.elements.let { it.first() to it.drop(1) }
+                        val bar = ElixirAst.Call(update.meta, update.callee, listOf(expandedMap, ElixirAst.ListNode(pairs.meta, expandedPairs)))
+
+                        ElixirAst.Call(node.meta, node.callee, listOf(bar))
+                    }
+
+                    validated(node, pairs.elements, s, e, Term.List((values as Term.List).elements.drop(1)), run.level, ast)
                 }
             } else {
                 Expansion.Unported(node)
@@ -46,7 +55,8 @@ private fun validated(
     env: Env,
     pairs: Term,
     level: ElixirLanguageLevel,
-) = kvError(kv, env, level)?.let { Expansion.Error(it, node) } ?: Expansion.Expanded(state, env, pairs)
+    ast: ExpandedAst,
+) = kvError(kv, env, level)?.let { Expansion.Error(it, node) } ?: Expansion.Expanded(state, env, pairs, ast)
 
 /**
  * The error `elixir_map:validate_kv/4` raises, if any: each argument must be a pair, and in a pattern each key must be

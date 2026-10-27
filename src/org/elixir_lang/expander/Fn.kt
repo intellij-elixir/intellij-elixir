@@ -11,7 +11,7 @@ internal fun expandFn(node: ElixirAst.Call, state: ExState, env: Env, run: Run):
 
     val fnHead: HeadExpansion = { arrow, args, headState, headEnv -> head(arrow, args, headState, headEnv, run) }
 
-    return mapfold(clauses, state, env) { each, s, _ ->
+    return mapfold(clauses, state, env, run) { each, s, _ ->
         val args = (each as? ElixirAst.Call)?.arguments?.takeIf { it.size == 2 }?.first() as? ElixirAst.ListNode
 
         when {
@@ -20,11 +20,11 @@ internal fun expandFn(node: ElixirAst.Call, state: ExState, env: Env, run: Run):
             args.elements.any { isNamedCall(it, "\\\\") } -> Expansion.Error("defaults_in_args", node)
             else -> clauseFrom(node, fnHead, each, s, env, run)
         }
-    }.then { s, e ->
+    }.thenAst { s, e, _, clausesAst ->
         val arities = clauses.map { arity((it as ElixirAst.Call).arguments!!.first() as ElixirAst.ListNode) }.distinct()
 
         if (arities.size == 1) {
-            Expansion.Expanded(s, e, NODE).endConstruct(env, run)
+            Expansion.Expanded(s, e, NODE, clausesAst).endConstruct(node, env, run) { (it as ElixirAst.ListNode).elements }
         } else {
             Expansion.Error("clauses_with_different_arities", node)
         }

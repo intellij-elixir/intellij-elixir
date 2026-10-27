@@ -96,6 +96,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             BARE_SEGMENT_PASSES_BITSTRING_META to ("1.20.0-rc.4" to "1.20.0-rc.5"),
             COMPILER_VARIABLES_REFUSED_IN_PATTERN to ("1.12.3" to "1.13.0-rc.0"),
             CATCH_WHEN_ARITY_CHECKED to ("1.17.3" to "1.18.0-rc.0"),
+            CATCH_VALUE_THROWN to ("1.17.3" to "1.18.0-rc.0"),
             GENERATOR_RIGHT_SIDE_SCOPED to ("1.12.3" to "1.13.0-rc.0"),
             BIT_GENERATOR_SKIP_KEEPS_DEFAULT_SIZE_ONLY to ("1.20.0-rc.4" to "1.20.0-rc.5"),
             BIT_GENERATOR_SKIP_KEEPS_OUTER_SIZES to ("1.20.1" to "1.20.2"),
