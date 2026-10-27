@@ -1,16 +1,13 @@
 package org.elixir_lang.coverage
 
-import com.intellij.execution.configurations.GeneralCommandLine
-import com.intellij.execution.process.CapturingProcessHandler
 import com.intellij.execution.process.ProcessOutput
 import com.intellij.openapi.util.io.FileUtil
-import com.intellij.util.system.OS
 import org.elixir_lang.Module
 import org.elixir_lang.elixir_surface.LegManifest.environment
 import org.elixir_lang.expander.Dispatch
+import org.elixir_lang.expander.MixProcess
 import org.elixir_lang.expander.Summaries
 import java.io.File
-import java.util.concurrent.TimeUnit
 
 /** The macro [dispatch] names, as `Module.name/arity`. */
 internal fun macroName(dispatch: Dispatch): String =
@@ -113,31 +110,21 @@ internal class MacroCensus(val elixirVersion: String, val project: String, val e
 
             try {
                 val output = File(scratch, "events.tsv")
-                val bin = File(environment("ELIXIR_LANG_ELIXIR_PATH"), "bin")
-                val elixir = File(bin, if (OS.CURRENT == OS.Windows) "elixir.bat" else "elixir")
-
-                fun mix(vararg arguments: String): ProcessOutput {
-                    val commandLine = GeneralCommandLine(elixir.path, "-r", File(TRACER).absolutePath, File(bin, "mix").path, *arguments)
-                        .withWorkingDirectory(project.absoluteFile.toPath())
-                        .withParentEnvironmentType(GeneralCommandLine.ParentEnvironmentType.NONE)
-                        // Outranks MIX_BUILD_ROOT, so an ambient value would send the build, and every dependency's, there.
-                        .withEnvironment(parentEnvironment.filterKeys { !it.equals("MIX_BUILD_PATH", ignoreCase = true) })
-                        .withEnvironment("MIX_BUILD_ROOT", File(scratch, "build").path)
-                        .withEnvironment(OUTPUT, output.path)
-
+                // Outranks MIX_BUILD_ROOT, so an ambient value would send the build, and every dependency's, there.
+                val mixEnvironment = parentEnvironment.filterKeys { !it.equals("MIX_BUILD_PATH", ignoreCase = true) } +
+                    mapOf("MIX_BUILD_ROOT" to File(scratch, "build").path, OUTPUT to output.path) +
                     if (isolateMix) {
                         // The test JVM inherits the Mix home and archives of the shell's Elixir, whose Hex archive another leg cannot load.
-                        commandLine.withEnvironment("MIX_HOME", File(scratch, "mix-home").apply { mkdirs() }.path)
-                        commandLine.withEnvironment("MIX_ARCHIVES", File(scratch, "mix-archives").apply { mkdirs() }.path)
+                        mapOf(
+                            "MIX_HOME" to File(scratch, "mix-home").apply { mkdirs() }.path,
+                            "MIX_ARCHIVES" to File(scratch, "mix-archives").apply { mkdirs() }.path,
+                        )
+                    } else {
+                        emptyMap()
                     }
 
-                    val result = CapturingProcessHandler(commandLine).runProcess(TimeUnit.MINUTES.toMillis(timeoutMinutes).toInt())
-
-                    check(!result.isTimeout) { "mix ${arguments.first()} timed out:\n${result.stdout}\n${result.stderr}" }
-                    check(result.exitCode == 0) { "mix ${arguments.first()} failed:\n${result.stdout}\n${result.stderr}" }
-
-                    return result
-                }
+                fun mix(vararg arguments: String): ProcessOutput =
+                    MixProcess.run(project, mixEnvironment, arguments.toList(), listOf("-r", File(TRACER).absolutePath), timeoutMinutes)
 
                 // An umbrella's children compile in their own directories, so they would be counted as dependencies.
                 check(!mix("run", "--no-compile", "--no-deps-check", "--no-start", "-e", "IO.write(Mix.Project.umbrella?())").stdout.trim().endsWith("true")) {
