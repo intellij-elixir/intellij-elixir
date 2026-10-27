@@ -1443,6 +1443,9 @@ class InterpreterTest : PlatformTestCase() {
 
         /** Broken code on every release, which the lowering leaves as a placeholder the port can't read. */
         const val UNREAD = "\"\\u{110000}\""
+
+        /** The escape of U+0301, a combining acute accent: two bytes of UTF-8, which extend the cluster before them. */
+        const val ACUTE = "\\u0301"
         const val ROW = "{row}"
         const val OPAQUE = "opaque"
         const val UNPORTED = "unported"
@@ -4218,11 +4221,235 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "pure:maps-to-list-atom-keys",
                 "defmacro m, do: :maps.to_list(%{b: 1, a: 2})",
-                pins = { _, level -> OPAQUE.takeIf { MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER.isSufficient(level) } },
+                legs = { !MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER.isSufficient(it) },
+            ),
+            // Elixir's order is the atoms' index in the VM, so only the set is compared.
+            macro(
+                "pure:maps-to-list-atom-keys-sorted",
+                "defmacro m, do: :lists.sort(:maps.to_list(%{b: 1, a: 2}))",
+                legs = { MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER.isSufficient(it) },
             ),
             macro("pure:maps-badmap", "defmacro m, do: :maps.get(:a, 1)"),
             macro("pure:maps-badkey", "defmacro m, do: :maps.get(:b, %{a: 1})"),
             macro("pure:maps-from-list-badarg", "defmacro m, do: :maps.from_list([1])"),
+
+            // The natives: loading
+            macro("native:ensure-loaded-loaded", "defmacro m, do: Macro.escape(:code.ensure_loaded(Enum))"),
+            // The quoter's release runs in embedded mode, which answers `{:error, :embedded}`; a Mix compile is interactive.
+            macro(
+                "native:ensure-loaded-nofile",
+                "defmacro m, do: Macro.escape(:code.ensure_loaded({row}.Missing))",
+                pins = { _, _ -> "{:error, :nofile}" },
+            ),
+            macro("native:ensure-loaded-function-clause", "defmacro m, do: :code.ensure_loaded(1)"),
+            // From source, a module whose definitions aren't known can't be read.
+            macro(
+                "native:ensure-loaded-unreadable",
+                "defmacro m, do: Macro.escape(:code.ensure_loaded({row}.U))",
+                pins = DECLINED_FROM_SOURCE,
+                helper = """
+                defmodule {row}.U do
+                  def unquote(Application.get_env(:app, :name, :g))(), do: 1
+                end
+                """,
+            ),
+            // From source, a module the run compiled has no beam to read its attributes from.
+            macro(
+                "native:info-attributes",
+                "defmacro m, do: Macro.escape({row}.A.__info__(:attributes))",
+                pins = DECLINED_FROM_SOURCE,
+                helper = """
+                defmodule {row}.A do
+                  Module.register_attribute(__MODULE__, :k, persist: true)
+                  @k 1
+                  def f, do: 1
+                end
+                """,
+            ),
+            // An Erlang module has no `__info__/1`.
+            macro("native:info-attributes-erlang", "defmacro m, do: Macro.escape(:lists.__info__(:attributes))", pins = DECLINED),
+
+            // The natives: warnings
+            macro("native:io-warn-1", "defmacro m, do: IO.warn(\"w\")"),
+            macro("native:io-warn-empty", "defmacro m, do: IO.warn(\"w\", [])"),
+            macro("native:io-warn-env", "defmacro m, do: IO.warn(\"w\", __CALLER__)", pins = DECLINED),
+            macro("native:io-warn-keyword", "defmacro m, do: IO.warn(\"w\", file: \"a.ex\", line: 1)", pins = DECLINED),
+            macro("native:io-warn-chardata", "defmacro m, do: IO.warn([?w], [])", pins = DECLINED),
+            macro("native:io-warn-function-clause", "defmacro m, do: IO.warn(\"w\", :x)"),
+
+            // The natives: text
+            macro("native:iolist-to-binary", "defmacro m, do: :erlang.iolist_to_binary([\"a\", [98, \"c\"], 255 | \"d\"])"),
+            macro("native:iolist-to-binary-badarg", "defmacro m, do: :erlang.iolist_to_binary([256])"),
+            macro(
+                "native:characters-to-binary",
+                "defmacro m, do: :unicode.characters_to_binary([\"a\", [128512, 98], \"\\u00e9\" | \"c\"])",
+            ),
+            macro(
+                "native:characters-to-binary-error",
+                "defmacro m, do: Macro.escape(:unicode.characters_to_binary([97, 55296]))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:characters-to-binary-incomplete",
+                "defmacro m, do: Macro.escape(:unicode.characters_to_binary(<<97, 195>>))",
+                pins = DECLINED,
+            ),
+            macro("native:characters-to-binary-badarg", "defmacro m, do: :unicode.characters_to_binary(:a)"),
+            // The term's shape is checked before any of it is encoded.
+            macro("native:characters-to-binary-badarg-after-error", "defmacro m, do: :unicode.characters_to_binary([<<255>>, :a])"),
+            // The check stops at an integer too large for a small one, which gives an error whatever follows it.
+            macro(
+                "native:characters-to-binary-bignum-then-badarg",
+                "defmacro m, do: Macro.escape(:unicode.characters_to_binary([:erlang.bsl(1, 64), :a]))",
+                pins = DECLINED,
+            ),
+            macro("native:characters-to-binary-split", "defmacro m, do: :unicode.characters_to_binary([<<195>>, <<169>>])"),
+            // Three parts that share one 8 MiB binary, and a list of 2^21 empty lists, whose parts share one another.
+            macro(
+                "native:iolist-to-binary-past-the-bitstring-limit",
+                """
+                defmacro m, do: byte_size(:erlang.iolist_to_binary(List.duplicate(grow("a", 23), 3)))
+
+                defp grow(b, 0), do: b
+                defp grow(b, n), do: grow(b <> b, n - 1)
+                """,
+                pins = DECLINED,
+            ),
+            macro(
+                "native:characters-to-binary-past-the-bitstring-limit",
+                """
+                defmacro m, do: byte_size(:unicode.characters_to_binary(List.duplicate(grow("a", 23), 3)))
+
+                defp grow(b, 0), do: b
+                defp grow(b, n), do: grow(b <> b, n - 1)
+                """,
+                pins = DECLINED,
+            ),
+            macro(
+                "native:iolist-to-binary-past-the-node-limit",
+                """
+                defmacro m, do: :erlang.iolist_to_binary(nest([], 21))
+
+                defp nest(x, 0), do: x
+                defp nest(x, n), do: nest([x, x], n - 1)
+                """,
+                pins = DECLINED,
+            ),
+            macro(
+                "native:characters-to-binary-past-the-node-limit",
+                """
+                defmacro m, do: :unicode.characters_to_binary(nest([], 21))
+
+                defp nest(x, 0), do: x
+                defp nest(x, n), do: nest([x, x], n - 1)
+                """,
+                pins = DECLINED,
+            ),
+            macro(
+                "native:gc-list",
+                "defmacro m, do: Macro.escape(for l <- [[], [97], [97, 98], [13, 10, 120], [97, 769, 98]], do: :unicode_util.gc(l))",
+            ),
+            // A cluster that ends the binary: before OTP 25.0-rc3, an empty tail is dropped.
+            macro(
+                "native:gc-binary",
+                """
+                defmacro m do
+                  for b <- [<<>>, "a", "ab", "a\u0301b", "\r\n", "\r\nx", "\u00e9a", "\u00e9", "p"] do
+                    Macro.escape(:unicode_util.gc(b))
+                  end
+                end
+                """,
+            ),
+            macro("native:gc-control", "defmacro m, do: Macro.escape(for b <- [\"\\n\", \"\\r\"], do: :unicode_util.gc(b))"),
+            // U+0600, a Prepend, which ends only a cluster of Prepends.
+            macro(
+                "native:gc-prepend",
+                """
+                defmacro m do
+                  for b <- [<<216, 128>>, <<216, 128, 216, 128>>, <<216, 128, 97>>, <<216, 128, 10>>] do
+                    Macro.escape(:unicode_util.gc(b))
+                  end
+                end
+                """,
+            ),
+            macro(
+                "native:gc-invalid-first",
+                """
+                defmacro m do
+                  for b <- [<<255>>, <<255, 97>>, <<195>>, <<237, 160, 128>>], do: Macro.escape(:unicode_util.gc(b))
+                end
+                """,
+            ),
+            macro("native:gc-invalid-later", "defmacro m, do: Macro.escape(:unicode_util.gc(<<97, 204, 129, 98, 255>>))"),
+            // Clusters of more than 64 bytes, and one followed by a code point that straddles the 64th.
+            macro(
+                "native:gc-long-cluster",
+                """
+                defmacro m do
+                  for b <- ["e${ACUTE.repeat(40)}x", "e${ACUTE.repeat(40)}", "e${ACUTE.repeat(31)}\u00e9"] do
+                    Macro.escape(:unicode_util.gc(b))
+                  end
+                end
+                """,
+            ),
+            macro(
+                "native:gc-invalid-after-long-cluster",
+                "defmacro m, do: Macro.escape(:unicode_util.gc(\"e${ACUTE.repeat(40)}\" <> <<255>>))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:gc-invalid-after-cluster",
+                "defmacro m, do: Macro.escape(:unicode_util.gc(<<97, 204, 129, 255>>))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:gc-invalid-after-code-point",
+                "defmacro m, do: Macro.escape(:unicode_util.gc(<<97, 255>>))",
+                pins = DECLINED,
+            ),
+            macro("native:gc-nested", "defmacro m, do: Macro.escape(:unicode_util.gc([[97], 98]))", pins = DECLINED),
+            macro("native:gc-binary-tail", "defmacro m, do: Macro.escape(:unicode_util.gc([13 | \"x\"]))", pins = DECLINED),
+            macro("native:gc-binary-element", "defmacro m, do: Macro.escape(:unicode_util.gc([97, \"b\"]))", pins = DECLINED),
+            macro("native:gc-surrogate", "defmacro m, do: Macro.escape(:unicode_util.gc([55296]))", pins = DECLINED),
+            macro("native:gc-not-a-code-point", "defmacro m, do: Macro.escape(:unicode_util.gc([1114112]))", pins = DECLINED),
+
+            // `Macro.expand/2` in the caller's env with only `:function` changed
+            macro(
+                "env:expand-function",
+                """
+                defmacro k, do: :k
+                defmacro m, do: Macro.expand(quote(do: {row}.k()), %{__CALLER__ | function: {:g, 0}})
+                """,
+            ),
+            macro(
+                "env:expand-function-read",
+                """
+                defmacro f, do: Macro.escape(__CALLER__.function)
+                defmacro m, do: Macro.expand(quote(do: {row}.f()), %{__CALLER__ | function: {:g, 0}})
+                """,
+            ),
+            macro(
+                "env:expand-function-nil",
+                """
+                defmacro f, do: Macro.escape(__CALLER__.function)
+                defmacro m, do: Macro.expand(quote(do: {row}.f()), %{__CALLER__ | function: nil})
+                """,
+            ),
+            macro(
+                "env:expand-function-map-put",
+                """
+                defmacro f, do: Macro.escape(__CALLER__.function)
+                defmacro m, do: Macro.expand(quote(do: {row}.f()), Map.put(__CALLER__, :function, {:g, 1}))
+                """,
+            ),
+            macro(
+                "env:expand-function-other-key",
+                """
+                defmacro f, do: Macro.escape(__CALLER__.function)
+                defmacro m, do: Macro.expand(quote(do: {row}.f()), %{__CALLER__ | line: 7})
+                """,
+                pins = DECLINED,
+            ),
 
             // The natives: Elixir's functions
             macro(
