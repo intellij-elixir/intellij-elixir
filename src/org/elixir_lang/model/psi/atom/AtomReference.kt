@@ -39,11 +39,7 @@ class AtomReference(
             incompleteCode = true
         )
 
-        val insertHandler = myElement.line
-            ?.let { QualifiedName.quotedAtom(if (it.isCharList) '\'' else '"') }
-            ?: QualifiedName.ATOM
-
-        return callDefinitionClauseLookupElements(modulars, insertHandler).toTypedArray()
+        return callDefinitionClauseLookupElements(modulars, QualifiedName.forAtom(myElement)).toTypedArray()
     }
 
     override fun getAbsoluteRange(): TextRange =

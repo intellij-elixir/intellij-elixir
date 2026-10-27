@@ -284,6 +284,10 @@
                 implementationClass="org.elixir_lang.code_insight.completion.contributor.ModuleAttribute"
                 language="Elixir"/>
 
+        <completion.contributor
+                implementationClass="org.elixir_lang.code_insight.completion.contributor.ConfigKey"
+                language="Elixir"/>
+
         <codeInsight.lineMarkerProvider
                 implementationClass="org.elixir_lang.code_insight.line_marker_provider.CallDefinition"
                 language="Elixir"/>

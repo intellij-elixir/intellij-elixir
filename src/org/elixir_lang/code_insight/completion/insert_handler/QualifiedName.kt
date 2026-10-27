@@ -4,6 +4,7 @@ import com.intellij.codeInsight.completion.InsertHandler
 import com.intellij.codeInsight.completion.InsertionContext
 import com.intellij.codeInsight.lookup.LookupElement
 import org.elixir_lang.code.InspectAtom
+import org.elixir_lang.psi.ElixirAtom
 
 /**
  * Inserts a function's name as Elixir writes it in a qualified position, then hands a [CALL] to
@@ -39,6 +40,10 @@ class QualifiedName private constructor(
         /** `apply(Mod, :"<caret>", args)`: the function atom's body, between the user's [delimiter]s. */
         fun quotedAtom(delimiter: Char): QualifiedName =
             QualifiedName({ InspectAtom.escape(it, delimiter) }, call = false)
+
+        /** [atom] being written: [quotedAtom] between its quotes, else [ATOM]. */
+        fun forAtom(atom: ElixirAtom): QualifiedName =
+            atom.line?.let { quotedAtom(if (it.isCharList) '\'' else '"') } ?: ATOM
 
         /**
          * An alias, `nil`, `true` or `false` has a literal with no colon (`Elixir.Foo`'s is `Foo`), so after the user's

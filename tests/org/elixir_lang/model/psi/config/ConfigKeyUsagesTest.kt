@@ -3,13 +3,7 @@
 package org.elixir_lang.model.psi.config
 
 import com.intellij.find.usages.api.PsiUsage
-import com.intellij.openapi.application.WriteAction
-import com.intellij.openapi.roots.ModuleRootModificationUtil
-import com.intellij.openapi.roots.OrderRootType
-import com.intellij.openapi.roots.libraries.Library
-import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar
 import com.intellij.openapi.util.text.StringUtil
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiManager
 import com.intellij.psi.search.LocalSearchScope
 import com.intellij.psi.util.PsiTreeUtil
@@ -92,24 +86,10 @@ class ConfigKeyUsagesTest : PlatformTestCase() {
     }
 
     fun testUsagesIncludeALibraryRead() {
-        val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(File(testDataPath, "usages_library").absoluteFile)!!
-        val library = WriteAction.computeAndWait<Library, Throwable> {
-            LibraryTablesRegistrar.getInstance().getLibraryTable(project).createLibrary("library_app").also { library ->
-                library.modifiableModel.apply {
-                    addRoot(root, OrderRootType.SOURCES)
-                    commit()
-                }
-            }
-        }
-        ModuleRootModificationUtil.addDependency(myFixture.module, library)
-
-        try {
+        myFixture.withSourceLibrary("library_app", File(testDataPath, "usages_library")) {
             myFixture.caret(CONFIG, "time<caret>out: 5")
 
             assertContainsElements(usages(), "library_app.ex:2 timeout")
-        } finally {
-            ModuleRootModificationUtil.removeDependency(myFixture.module, library)
-            WriteAction.runAndWait<Throwable> { LibraryTablesRegistrar.getInstance().getLibraryTable(project).removeLibrary(library) }
         }
     }
 
