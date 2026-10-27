@@ -155,6 +155,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "maps" -> maps(key, args)
             "elixir_quote" -> quote(key, args)
             "elixir_module" -> elixirModule(key, args)
+            "code" -> code(key, args)
             "Elixir.Keyword" -> keyword(key, args)
             "Elixir.Enum" -> enum(key, args)
             "Elixir.Access" -> access(key, args)
@@ -217,6 +218,25 @@ internal class Natives(private val evaluation: Evaluation) {
                 when (val counter = evaluation.run.counters.next(module)) {
                     is Env.Counter.InModule -> tuple(atom(counter.module), integer(counter.n))
                     is Env.Counter.Unique -> integer(counter.n)
+                }
+            }
+            else -> null
+        }
+
+    /**
+     * `code:ensure_loaded/1` (`code.erl:581-604`), which `Code.ensure_loaded/1`, `ensure_loaded?/1` and
+     * `ensure_compiled/1` reach, from the run's exports, as the code server answers in interactive mode: `{module, M}`
+     * for a module that loads, `{error, nofile}` for one that doesn't, and a decline where which isn't known.
+     */
+    private fun code(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
+        when (key) {
+            "ensure_loaded/1" -> {
+                val module = seen(args[0]) as? OtpErlangAtom ?: functionClause("code", "ensure_loaded", args)
+
+                when (evaluation.run.exports.of(module.atomValue())) {
+                    is ModuleExports.Present -> tuple(atom("module"), module)
+                    ModuleExports.Absent -> tuple(atom("error"), atom("nofile"))
+                    ModuleExports.Unreadable -> decline("whether ${module.atomValue()} loads isn't known")
                 }
             }
             else -> null
