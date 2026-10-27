@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4552](https://github.com/intellij-elixir/intellij-elixir/pull/4552) [@sh41](https://github.com/sh41)
+  - **The expander answers more of the Erlang and Elixir functions that Ecto's query macros and `use Ecto.Repo` call while compiling, so most of them now expand as Elixir expands them.** Refs [#4527](https://github.com/intellij-elixir/intellij-elixir/issues/4527).
+
 - [#4551](https://github.com/intellij-elixir/intellij-elixir/pull/4551) [@sh41](https://github.com/sh41)
   - **The expander goes on past a `defguard` to the rest of the module, building the macro the guard defines as Elixir does.** Refs [#4465](https://github.com/intellij-elixir/intellij-elixir/issues/4465).
 
