@@ -1632,6 +1632,46 @@ enum class ElixirLanguageFeature(
     MAX_AND_MIN_GUARDS(sinceOtp = "26.0-rc1"),
 
     /**
+     * `application:load/1` refuses an application whose env has an entry other than `{Key, Value}` with an atom key no
+     * other entry has. Before it, any key is taken, and a later entry for a key replaces an earlier one.
+     *
+     * `erlang/otp@753c719a43` ("kernel: Reject .app files with invalid parameters"), first released in OTP 26.0-rc1.
+     */
+    APP_ENV_PARAMETERS_CHECKED(sinceOtp = "26.0-rc1"),
+
+    /**
+     * `erl_scan` takes a caret escape only of `?`, which is DEL, `@` to `_` and `a` to `z`. Before it, `\^C` is any
+     * character's code with all but its five low bits cleared, so `\^?` is 31.
+     *
+     * `erlang/otp@b0b36babf2` ("Reject invalid use of caret notation"), first released in OTP 26.0-rc1.
+     */
+    CARET_NOTATION_CHECKED(sinceOtp = "26.0-rc1"),
+
+    /**
+     * `erlang:make_fun/3` takes an arity only up to 255. Before it, any small arity is taken whole.
+     *
+     * `erlang/otp@04b85c6580` ("erts: Shrink ErlFunThing structure"), first released in OTP 25.0-rc3.
+     */
+    MAKE_FUN_ARITY_CHECKED(sinceOtp = "25.0-rc3"),
+
+    /**
+     * `erl_scan` reads `"""` as the start of a triple-quoted string. Before it, `"""` is an empty string and the start of
+     * another, which `erl_parse` joins.
+     *
+     * `erlang/otp@ff367d9f56` ("Implement triple-quoted strings"), first released in OTP 27.0-rc1.
+     */
+    TRIPLE_QUOTED_STRINGS(sinceOtp = "27.0-rc1"),
+
+    /**
+     * `erl_scan` refuses two adjacent string literals with no white space between them. Before it, `erl_parse` joins
+     * them.
+     *
+     * `erlang/otp@e82b029542` ("Make an error of adjacent string literals without intervening white space"), first
+     * released in OTP 27.0-rc1.
+     */
+    ADJACENT_STRINGS_NEED_WHITE_SPACE(sinceOtp = "27.0-rc1"),
+
+    /**
      * `erlang:is_integer/3` is a guard function.
      *
      * `erlang/otp@64b2fde4e5` ("erts: Add guard BIF `erlang:is_integer/3`"), first released in OTP 29.0-rc1.
