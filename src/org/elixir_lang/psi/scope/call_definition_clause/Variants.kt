@@ -50,24 +50,23 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
 
         if ((entranceCallDefinitionClause == null || !element.isEquivalentTo(entranceCallDefinitionClause)) && element is Named) {
             addCallDefinitionClauseToLookupElementByPsiElement(element, state)
-            element.name?.let { name -> recordVisible(Form.CLAUSE, element, state) { if (it == name) element else null } }
+            // A clause declares one name, which an `unquote` head spells otherwise than its lookup.
+            element.name?.let { name -> recordVisible(Form.CLAUSE, element, state) { element to name } }
         }
 
         return true
     }
 
     /**
-     * Records each declaration [form] gives [declaring] under the same key as its lookup element: the element [key]
-     * gives for its spelling, if any, and that spelling.
+     * Records each declaration [form] gives [declaring] under the same key as its lookup element, which [key] gives for
+     * its spelling: the element and the lookup's name.
      */
-    private fun recordVisible(form: Form, declaring: Call, state: ResolveState, key: (String) -> PsiElement?) {
+    private fun recordVisible(form: Form, declaring: Call, state: ResolveState, key: (String) -> Pair<PsiElement, String>) {
         if (!recordsVisible) return
 
         for ((text, declaration) in Declarations.of(form, declaring, state)) {
-            key(text)?.let { element ->
-                visibleByPsiElementName.computeIfAbsent(element to text) {
-                    Visible(text, declaration?.name, declaration, declaring, null)
-                }
+            visibleByPsiElementName.computeIfAbsent(key(text)) { (_, lookupName) ->
+                Visible(lookupName, declaration?.name, declaration, declaring, null)
             }
         }
     }
@@ -123,7 +122,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
                 ?.let { it as? Named }
                 ?.let { head ->
                     addCallbackToLookupElementByPsiElement(element, head)
-                    recordVisible(Form.CALLBACK, element, state) { head }
+                    recordVisible(Form.CALLBACK, element, state) { head to it }
                 }
 
         return true
@@ -147,7 +146,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
 
             CallDefinitionHead.nameArityInterval(head, state)?.let { headNameArityInterval ->
                 val headName = headNameArityInterval.name
-                recordVisible(Form.DELEGATION, element, state) { head }
+                recordVisible(Form.DELEGATION, element, state) { head to it }
 
                 if (callableUnqualified(headName)) lookupElementByPsiElementName.computeIfAbsent(head to headName) { (_, headName) ->
                     LookupElementBuilder.createWithSmartPointer(
@@ -164,7 +163,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
     }
 
     override fun executeOnEExFunctionFrom(element: Call, state: ResolveState): Boolean {
-        recordVisible(Form.EEX_FUNCTION_FROM, element, state) { element }
+        recordVisible(Form.EEX_FUNCTION_FROM, element, state) { element to it }
         element.finalArguments()?.let { arguments ->
             arguments[1]
                 .stripAccessExpression()
@@ -187,7 +186,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
     }
 
     override fun executeOnException(element: Call, state: ResolveState): Boolean {
-        recordVisible(Form.EXCEPTION, element, state) { element }
+        recordVisible(Form.EXCEPTION, element, state) { element to it }
         Exception.NAME_ARITY_LIST.forEach { nameArity ->
             val name = nameArity.name
 
@@ -205,7 +204,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
     }
 
     override fun executeOnMixGeneratorEmbed(element: Call, state: ResolveState): Boolean {
-        recordVisible(Form.GENERATOR_EMBED, element, state) { element }
+        recordVisible(Form.GENERATOR_EMBED, element, state) { element to it }
         element.finalArguments()?.first()?.stripAccessExpression()?.let { it as? ElixirAtom }?.let(::quotedAtomValue)?.let { prefix ->
             val suffix = element.functionName()!!.removePrefix("embed_")
             val name = "${prefix}_${suffix}".takeIf(::callableUnqualified) ?: return true

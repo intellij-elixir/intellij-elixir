@@ -20,6 +20,7 @@ definitions.ex:1:1  `defmodule`  headed  ->  headed/1..2 clause  definitions.ex:
 definitions.ex:1:1  `defmodule`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:1:1  `defmodule`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:1:1  `defmodule`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:1:1  `defmodule`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:1:1  `defmodule`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:2:13  `a`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:2:13  `a`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
@@ -29,6 +30,7 @@ definitions.ex:2:13  `a`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:2:13  `a`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:2:13  `a`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:2:13  `a`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:2:13  `a`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:2:13  `a`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:2:21  `a`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
 definitions.ex:2:21  `a`  multi  ->  multi/1 clause  definitions.ex:4:3
@@ -37,6 +39,7 @@ definitions.ex:2:21  `a`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:2:21  `a`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:2:21  `a`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:2:21  `a`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:2:21  `a`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:2:21  `a`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:3:16  `a`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
 definitions.ex:3:16  `a`  exact  ->  exact/1 clause  definitions.ex:2:3
@@ -46,6 +49,7 @@ definitions.ex:3:16  `a`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:3:16  `a`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:3:16  `a`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:3:16  `a`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:3:16  `a`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:3:16  `a`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:3:19  `b`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
 definitions.ex:3:19  `b`  exact  ->  exact/1 clause  definitions.ex:2:3
@@ -55,6 +59,7 @@ definitions.ex:3:19  `b`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:3:19  `b`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:3:19  `b`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:3:19  `b`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:3:19  `b`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:3:19  `b`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:3:27  `c`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
 definitions.ex:3:27  `c`  exact  ->  exact/1 clause  definitions.ex:2:3
@@ -64,6 +69,7 @@ definitions.ex:3:27  `c`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:3:27  `c`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:3:27  `c`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:3:27  `c`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:3:27  `c`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:3:27  `c`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:3:41  `a`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:3:41  `a`  multi  ->  multi/1 clause  definitions.ex:4:3
@@ -72,6 +78,7 @@ definitions.ex:3:41  `a`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:3:41  `a`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:3:41  `a`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:3:41  `a`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:3:41  `a`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:3:41  `a`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:3:44  `b`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:3:44  `b`  multi  ->  multi/1 clause  definitions.ex:4:3
@@ -80,6 +87,7 @@ definitions.ex:3:44  `b`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:3:44  `b`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:3:44  `b`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:3:44  `b`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:3:44  `b`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:3:44  `b`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:3:47  `c`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:3:47  `c`  multi  ->  multi/1 clause  definitions.ex:4:3
@@ -88,6 +96,7 @@ definitions.ex:3:47  `c`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:3:47  `c`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:3:47  `c`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:3:47  `c`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:3:47  `c`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:3:47  `c`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:5:13  `n`  multi  ->  multi/1 clause  definitions.ex:5:3
 definitions.ex:5:13  `n`  exact  ->  exact/1 clause  definitions.ex:2:3
@@ -97,6 +106,7 @@ definitions.ex:5:13  `n`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:5:13  `n`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:5:13  `n`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:5:13  `n`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:5:13  `n`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:5:13  `n`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:5:21  `n`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:5:21  `n`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
@@ -105,6 +115,7 @@ definitions.ex:5:21  `n`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:5:21  `n`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:5:21  `n`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:5:21  `n`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:5:21  `n`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:5:21  `n`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:6:14  `a`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:6:14  `a`  exact  ->  exact/1 clause  definitions.ex:2:3
@@ -114,6 +125,7 @@ definitions.ex:6:14  `a`  multi  ->  multi/1 clause  definitions.ex:5:3
 definitions.ex:6:14  `a`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:6:14  `a`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:6:14  `a`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:6:14  `a`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:6:14  `a`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:6:17  `b`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:6:17  `b`  exact  ->  exact/1 clause  definitions.ex:2:3
@@ -123,6 +135,7 @@ definitions.ex:6:17  `b`  multi  ->  multi/1 clause  definitions.ex:5:3
 definitions.ex:6:17  `b`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:6:17  `b`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:6:17  `b`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:6:17  `b`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:6:17  `b`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:7:14  `a`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:7:14  `a`  exact  ->  exact/1 clause  definitions.ex:2:3
@@ -132,6 +145,7 @@ definitions.ex:7:14  `a`  multi  ->  multi/1 clause  definitions.ex:5:3
 definitions.ex:7:14  `a`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:7:14  `a`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:7:14  `a`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:7:14  `a`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:7:14  `a`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:7:17  `b`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:7:17  `b`  exact  ->  exact/1 clause  definitions.ex:2:3
@@ -141,6 +155,7 @@ definitions.ex:7:17  `b`  multi  ->  multi/1 clause  definitions.ex:5:3
 definitions.ex:7:17  `b`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:7:17  `b`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:7:17  `b`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:7:17  `b`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:7:17  `b`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:7:26  `a`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:7:26  `a`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
@@ -149,6 +164,7 @@ definitions.ex:7:26  `a`  multi  ->  multi/1 clause  definitions.ex:5:3
 definitions.ex:7:26  `a`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:7:26  `a`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:7:26  `a`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:7:26  `a`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:7:26  `a`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:7:29  `b`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:7:29  `b`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
@@ -157,6 +173,7 @@ definitions.ex:7:29  `b`  multi  ->  multi/1 clause  definitions.ex:5:3
 definitions.ex:7:29  `b`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:7:29  `b`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:7:29  `b`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:7:29  `b`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:7:29  `b`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:9:3  `args`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:9:3  `args`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
@@ -166,6 +183,7 @@ definitions.ex:9:3  `args`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:9:3  `args`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:9:3  `args`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:9:3  `args`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:9:3  `args`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:9:3  `args`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:10:15  `unquote_splicing`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:10:15  `unquote_splicing`  exact  ->  exact/1 clause  definitions.ex:2:3
@@ -175,6 +193,7 @@ definitions.ex:10:15  `unquote_splicing`  multi  ->  multi/1 clause  definitions
 definitions.ex:10:15  `unquote_splicing`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:10:15  `unquote_splicing`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:10:15  `unquote_splicing`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:10:15  `unquote_splicing`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:10:15  `unquote_splicing`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:10:32  `args`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:10:32  `args`  exact  ->  exact/1 clause  definitions.ex:2:3
@@ -184,6 +203,7 @@ definitions.ex:10:32  `args`  multi  ->  multi/1 clause  definitions.ex:5:3
 definitions.ex:10:32  `args`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:10:32  `args`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:10:32  `args`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:10:32  `args`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:10:32  `args`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:11:21  `a`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
 definitions.ex:11:21  `a`  exact  ->  exact/1 clause  definitions.ex:2:3
@@ -193,6 +213,7 @@ definitions.ex:11:21  `a`  multi  ->  multi/1 clause  definitions.ex:5:3
 definitions.ex:11:21  `a`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:11:21  `a`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:11:21  `a`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
+definitions.ex:11:21  `a`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:11:21  `a`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:11:24  `unquote_splicing`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
 definitions.ex:11:24  `unquote_splicing`  exact  ->  exact/1 clause  definitions.ex:2:3
@@ -202,6 +223,7 @@ definitions.ex:11:24  `unquote_splicing`  multi  ->  multi/1 clause  definitions
 definitions.ex:11:24  `unquote_splicing`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:11:24  `unquote_splicing`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:11:24  `unquote_splicing`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
+definitions.ex:11:24  `unquote_splicing`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:11:24  `unquote_splicing`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:11:41  `args`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
 definitions.ex:11:41  `args`  exact  ->  exact/1 clause  definitions.ex:2:3
@@ -211,6 +233,7 @@ definitions.ex:11:41  `args`  multi  ->  multi/1 clause  definitions.ex:5:3
 definitions.ex:11:41  `args`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:11:41  `args`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:11:41  `args`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
+definitions.ex:11:41  `args`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:11:41  `args`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:11:53  `a`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:11:53  `a`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
@@ -219,6 +242,7 @@ definitions.ex:11:53  `a`  multi  ->  multi/1 clause  definitions.ex:5:3
 definitions.ex:11:53  `a`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:11:53  `a`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:11:53  `a`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
+definitions.ex:11:53  `a`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:11:53  `a`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:13:3  `name`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:13:3  `name`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
@@ -228,7 +252,9 @@ definitions.ex:13:3  `name`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:13:3  `name`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:13:3  `name`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:13:3  `name`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:13:3  `name`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:13:3  `name`  conditional  ->  conditional/1 clause  definitions.ex:17:5
+definitions.ex:14:15  `name`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:14:15  `name`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:14:15  `name`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
 definitions.ex:14:15  `name`  multi  ->  multi/1 clause  definitions.ex:4:3
@@ -238,6 +264,7 @@ definitions.ex:14:15  `name`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:14:15  `name`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:14:15  `name`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
 definitions.ex:14:15  `name`  conditional  ->  conditional/1 clause  definitions.ex:17:5
+definitions.ex:14:21  `a`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:14:21  `a`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:14:21  `a`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
 definitions.ex:14:21  `a`  multi  ->  multi/1 clause  definitions.ex:4:3
@@ -266,6 +293,7 @@ definitions.ex:17:21  `a`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:17:21  `a`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:17:21  `a`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:17:21  `a`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:17:21  `a`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:17:29  `a`  exact  ->  exact/1 clause  definitions.ex:2:3
 definitions.ex:17:29  `a`  defaults  ->  defaults/1..3 clause  definitions.ex:3:3
 definitions.ex:17:29  `a`  multi  ->  multi/1 clause  definitions.ex:4:3
@@ -274,6 +302,7 @@ definitions.ex:17:29  `a`  headed  ->  headed/1..2 clause  definitions.ex:6:3
 definitions.ex:17:29  `a`  headed  ->  headed/2 clause  definitions.ex:7:3
 definitions.ex:17:29  `a`  spliced  ->  spliced/0.. clause  definitions.ex:10:3
 definitions.ex:17:29  `a`  spliced_after  ->  spliced_after/1.. clause  definitions.ex:11:3
+definitions.ex:17:29  `a`  unquote  ->  (no atom)  definitions.ex:14:3
 definitions.ex:20:3  `defmodule`  inner  ->  inner/0 clause  definitions.ex:21:5
 definitions.ex:20:3  `defmodule`  conditional  ->  conditional/1 clause  definitions.ex:17:5
 definitions.ex:25:1  `defimpl`  to_string  ->  to_string/1 clause  definitions.ex:26:3
