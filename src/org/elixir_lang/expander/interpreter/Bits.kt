@@ -14,6 +14,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPAN
 import org.elixir_lang.language_level.ElixirLanguageFeature.BIT_GENERATOR_SKIP_KEEPS_DEFAULT_SIZE_ONLY
 import org.elixir_lang.language_level.ElixirLanguageFeature.BIT_GENERATOR_SKIP_KEEPS_OUTER_SIZES
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.unicode_util.isScalarValue
 import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
@@ -368,7 +369,7 @@ internal class Bits(private val evaluation: Evaluation) {
 
                 val code = reader.integer(offset, 32, false, spec.little).toInt()
 
-                if (!isScalar(code)) return null
+                if (!isScalarValue(code.toLong())) return null
 
                 integer(code.toLong()) to offset + 32
             }
@@ -406,7 +407,7 @@ internal class Bits(private val evaluation: Evaluation) {
             else -> 0x10000
         }
 
-        if (code < minimum || !isScalar(code)) return null
+        if (code < minimum || !isScalarValue(code.toLong())) return null
 
         return integer(code.toLong()) to offset + count * 8
     }
@@ -474,10 +475,9 @@ internal class Bits(private val evaluation: Evaluation) {
                 true
             }
             Type.UTF8, Type.UTF16, Type.UTF32 -> {
-                val code = (value as? OtpErlangLong)?.takeIf { it.isLong }?.longValue()?.takeIf { it in 0..0x10FFFF }?.toInt()
-                    ?: return false
+                val code = (value as? OtpErlangLong)?.takeIf { it.bitLength() < Int.SIZE_BITS }?.intValue() ?: return false
 
-                if (!isScalar(code)) return false
+                if (!isScalarValue(code.toLong())) return false
 
                 val bytes = when (spec.type) {
                     Type.UTF8 -> String(Character.toChars(code)).toByteArray(Charsets.UTF_8)
@@ -595,8 +595,6 @@ internal class Bits(private val evaluation: Evaluation) {
 
         return text.codePoints().toArray()
     }
-
-    private fun isScalar(code: Int) = code in 0..0x10FFFF && code !in 0xD800..0xDFFF
 
     private class Writer {
         private var bytes = ByteArray(16)

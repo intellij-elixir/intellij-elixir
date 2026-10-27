@@ -39,6 +39,7 @@ import org.elixir_lang.expander.annotation
 import org.elixir_lang.expander.defines
 import org.elixir_lang.expander.write
 import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTES_EXPANDED_LAZILY
+import org.elixir_lang.language_level.ElixirLanguageFeature.BINARY_PART_REJECTS_BITSTRINGS
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.ERLANG_ERROR_3
 import org.elixir_lang.language_level.ElixirLanguageFeature.GET_ATTRIBUTE_DEFAULT_FOR_REGISTERED
@@ -57,6 +58,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.STRING_TO_ATOM_REQUI
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
 import org.elixir_lang.lowering.fitsAnAtom
 import org.elixir_lang.psi.Import.Term
+import org.elixir_lang.unicode_util.isScalarValue
 import java.io.ByteArrayOutputStream
 import java.math.BigInteger
 import java.nio.ByteBuffer
@@ -159,6 +161,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "elixir_quote" -> quote(key, args)
             "elixir_module" -> elixirModule(key, args)
             "code" -> code(key, args)
+            "unicode" -> unicode(key, args)
             "Elixir.Keyword" -> keyword(key, args)
             "Elixir.Enum" -> enum(key, args)
             "Elixir.Access" -> access(key, args)
@@ -318,7 +321,33 @@ internal class Natives(private val evaluation: Evaluation) {
             }
             "tuple_size/1" -> integer((seen(args[0]) as? OtpErlangTuple ?: badarg()).arity().toLong())
             "bit_size/1" -> integer(bitSize(seen(args[0]) as? OtpErlangBitstr ?: badarg()).toLong())
+            "binary_part/3" -> {
+                val bitstring = seen(args[0]) as? OtpErlangBitstr ?: badarg()
+
+                if (!isBinary(bitstring) && BINARY_PART_REJECTS_BITSTRINGS.isSufficient(level)) badarg()
+
+                // Before OTP 27 a bitstring's part is taken from its whole bytes.
+                val bytes = bitstring.binaryValue().copyOf(bitSize(bitstring) / Byte.SIZE_BITS)
+                val (start, length) = args.drop(1).map {
+                    (seen(it) as? OtpErlangLong)?.takeIf { long -> long.bitLength() < Int.SIZE_BITS }?.longValue() ?: badarg()
+                }
+                val (from, to) = if (length < 0) start + length to start else start to start + length
+
+                if (from < 0 || to > bytes.size) badarg()
+
+                OtpErlangBinary(bytes.copyOfRange(from.toInt(), to.toInt()))
+            }
             "byte_size/1" -> integer(((bitSize(seen(args[0]) as? OtpErlangBitstr ?: badarg()) + 7) / 8).toLong())
+            "iolist_to_binary/1" -> {
+                val bytes = Built()
+                val iodata = leaves(args[0], { bytes.write(it.binaryValue()) }) { byte ->
+                    bytes.write(byte.bigIntegerValue().takeIf { it.signum() >= 0 && it.bitLength() <= 8 }?.toInt() ?: badarg())
+                }
+
+                if (!iodata) badarg()
+
+                OtpErlangBinary(bytes.toByteArray())
+            }
             "setelement/3" -> {
                 val tuple = seen(args[1]) as? OtpErlangTuple ?: badarg()
                 val elements = tuple.elements()
@@ -351,11 +380,28 @@ internal class Natives(private val evaluation: Evaluation) {
                 finite(left / right)
             }
             "div/2", "rem/2" -> {
-                val (left, right) = args.map { (seen(it) as? OtpErlangLong)?.bigIntegerValue() ?: badarith() }
+                val (left, right) = args.map(::bigInteger)
 
                 if (right.signum() == 0) badarith()
 
                 integer(if (key == "div/2") left.divide(right) else left.rem(right))
+            }
+            "band/2", "bor/2", "bxor/2" -> {
+                val (left, right) = args.map(::bigInteger)
+
+                integer(
+                    when (key) {
+                        "band/2" -> left.and(right)
+                        "bor/2" -> left.or(right)
+                        else -> left.xor(right)
+                    }
+                )
+            }
+            "bnot/1" -> integer(bigInteger(args[0]).not())
+            "bsl/2", "bsr/2" -> {
+                val (value, by) = args.map(::bigInteger)
+
+                shifted(value, if (key == "bsl/2") by else by.negate())
             }
             "abs/1" -> when (val number = number(args[0])) {
                 is OtpErlangLong -> integer(number.bigIntegerValue().abs())
@@ -1906,6 +1952,22 @@ internal class Natives(private val evaluation: Evaluation) {
         }
     }
 
+    /** [term]'s integer, or `badarith` where it isn't one, as Erlang's integer operators raise. */
+    private fun bigInteger(term: OtpErlangObject): BigInteger = (seen(term) as? OtpErlangLong)?.bigIntegerValue() ?: badarith()
+
+    /**
+     * [value] shifted left [by] bits, or right where [by] is negative, as `bsl/2` gives it: a shift right past every bit
+     * leaves `0` or `-1`, and a nonzero [value] shifted left past the VM's largest integer raises `system_limit`.
+     */
+    private fun shifted(value: BigInteger, by: BigInteger): OtpErlangObject =
+        when {
+            value.signum() == 0 -> integer(0)
+            by.signum() < 0 ->
+                if (-by > value.bitLength().toBigInteger()) integer(value.signum().coerceAtMost(0).toLong()) else integer(value.shiftRight(-by.toInt()))
+            by > OLD_INTEGER_WORDS.toBigInteger() * Long.SIZE_BITS.toBigInteger() -> evaluation.error(atom("system_limit"))
+            else -> bounded(value.shiftLeft(by.toInt()))
+        }
+
     private fun finite(value: Double): OtpErlangObject =
         if (value.isNaN() || value.isInfinite()) badarith() else OtpErlangDouble(value)
 
@@ -1971,6 +2033,82 @@ internal class Natives(private val evaluation: Evaluation) {
             Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap((seen(term) as OtpErlangBitstr).binaryValue())).toString()
         } catch (_: CharacterCodingException) {
             null
+        }
+    }
+
+    /**
+     * `unicode:characters_to_binary/1` (`unicode.erl:305-311`): chardata as a UTF-8 binary, raising `badarg` for a term
+     * that isn't chardata, which OTP checks before it encodes any of the term, up to the first integer too large to be
+     * small. Where a binary isn't UTF-8 or an integer isn't a code point, it gives `{error, ...}` or
+     * `{incomplete, ...}`, which decline.
+     */
+    private fun unicode(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
+        when (key) {
+            "characters_to_binary/1" -> {
+                // One binary's bytes run on into the next's, so a character may be split between them.
+                val bytes = Built()
+                var codePoints = true
+                val chardata = leaves(args[0], { bytes.write(it.binaryValue()) }) { integer ->
+                    if (small(integer) == null) decline("characters_to_binary/1 of %s, which is no code point", integer)
+
+                    codePoint(integer)?.let { bytes.write(Character.toString(it).toByteArray()) } ?: run { codePoints = false }
+                }
+
+                if (!chardata) evaluation.error(atom("badarg"), frame("unicode", "characters_to_binary", list(args)))
+                if (!codePoints) decline("characters_to_binary/1 of %s, which holds no code point", args[0])
+
+                OtpErlangBinary(bytes.toByteArray()).takeIf { utf8(it) != null }
+                    ?: decline("characters_to_binary/1 of %s, which isn't UTF-8", args[0])
+            }
+            else -> null
+        }
+
+    /** [term] where it is a Unicode code point, which a surrogate isn't, `null` where it is something else. */
+    private fun codePoint(term: OtpErlangObject): Int? =
+        (term as? OtpErlangLong)?.takeIf { it.bitLength() < Int.SIZE_BITS }?.intValue()?.takeIf { isScalarValue(it.toLong()) }
+
+    /**
+     * Gives [binary] each binary and [integer] each integer of the iodata or chardata [term], in order, and answers whether
+     * [term] is such: a binary, or a list of integers, binaries and such lists whose tail is `[]` or a binary. It stops at
+     * the first term that isn't. Past [COPY_NODES] elements, nested lists' included, it declines, as their parts may be
+     * shared many times over.
+     */
+    private fun leaves(term: OtpErlangObject, binary: (OtpErlangBitstr) -> Unit, integer: (OtpErlangLong) -> Unit): Boolean {
+        var met = 0
+
+        fun walk(term: OtpErlangObject): Boolean {
+            ProgressManager.checkCanceled()
+
+            val known = seen(term)
+
+            if (known is OtpErlangBitstr) return (known.pad_bits() == 0).also { if (it) binary(known) }
+
+            val (elements, tail) = cells(known) ?: return false
+
+            for (element in elements) {
+                if (++met > COPY_NODES) decline("iodata or chardata of over $COPY_NODES elements")
+
+                val part = seen(element)
+
+                if (part is OtpErlangLong) integer(part) else if (!walk(part)) return false
+            }
+
+            return tail == null || seen(tail) is OtpErlangBitstr && walk(tail)
+        }
+
+        return walk(term)
+    }
+
+    /** The bytes a conversion writes, which decline past the size of a bitstring the interpreter builds. */
+    private class Built : ByteArrayOutputStream() {
+        override fun write(b: Int) {
+            reserveBits(count * 8L, 8)
+            super.write(b)
+        }
+
+        override fun write(b: ByteArray, off: Int, len: Int) {
+            reserveBits(count * 8L, len * 8L)
+            super.write(b, off, len)
         }
     }
 

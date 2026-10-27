@@ -2597,6 +2597,14 @@ enum class ElixirLanguageFeature(
     NEGATIVE_ZERO_IS_DISTINCT(sinceOtp = "27.0-rc1"),
 
     /**
+     * `erlang:binary_part/3` of a bitstring that isn't a binary raises `badarg`, where it took the part from its whole
+     * bytes: `<<1>>` for `binary_part(<<1, 2::4>>, 0, 1)`.
+     *
+     * `erlang/otp@0eb56f4fe8` ("binary module: Always reject bitstrings"), first released in OTP 27.0-rc1.
+     */
+    BINARY_PART_REJECTS_BITSTRINGS(sinceOtp = "27.0-rc1"),
+
+    /**
      * An integer holds at most 65,535 words, about 4 Mbit, where it held 524,287, and arithmetic past it raises
      * `system_limit`.
      *

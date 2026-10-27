@@ -48,6 +48,7 @@ class AtomNameTest : PlatformTestCase() {
     fun testTruncatedUtf8SequenceAtom() = assertLoweringsName(":\"\\xC3\"", ElixirAtom::class.java, null)
     fun testNonUtf8ByteKeywordKey() = assertLoweringsName("[\"\\xFF\": 1]", ElixirKeywordKey::class.java, null)
     fun testSurrogateEscapeAtom() = assertLoweringsName(":\"\\u{D800}\"", ElixirAtom::class.java, null)
+    fun testPastTheLastCodePointEscapeAtom() = assertLoweringsName(":\"\\u{110000}\"", ElixirAtom::class.java, null)
     fun testInterpolatedAtom() = assertLoweringsName(":\"a#{x}\"", ElixirAtom::class.java, null)
     fun testNonAsciiAtom() = assertLoweringsName(":café", ElixirAtom::class.java, "café")
     fun testMicroSignAtom() = assertLoweringsName(":duration_µs", ElixirAtom::class.java, "duration_μs")

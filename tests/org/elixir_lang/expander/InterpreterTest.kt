@@ -4346,6 +4346,37 @@ class InterpreterTest : PlatformTestCase() {
                 pins = DECLINED,
             ),
             macro(
+                "native:bitwise",
+                """
+                defmacro m do
+                  [
+                    :erlang.band(12, -6),
+                    :erlang.bor(12, 10),
+                    :erlang.bxor(-12, 10),
+                    :erlang.bnot(5),
+                    :erlang.bsl(1, 70),
+                    :erlang.bsl(-5, -1),
+                    :erlang.bsr(-9, 1),
+                    :erlang.bsr(-5, :erlang.bsl(1, 100)),
+                    :erlang.bsl(0, :erlang.bsl(1, 100))
+                  ]
+                end
+                """,
+            ),
+            macro("native:bitwise-badarith", "defmacro m, do: :erlang.band(1, 1.0)"),
+            macro("native:bnot-badarith", "defmacro m, do: :erlang.bnot(:a)"),
+            macro("native:bsl-system-limit", "defmacro m, do: :erlang.bsl(1, :erlang.bsl(1, 64))"),
+            // Past the integer size limit from OTP 26.0.2, within the one before it; below 26.0.2 it depends on the patch release.
+            macro(
+                "native:bsl-between-limits",
+                "defmacro m, do: :erlang.bsl(1, 5_000_000) > 0",
+                pins = { _, level -> OPAQUE.takeUnless { INTEGERS_UP_TO_4_MBIT.isSufficient(level) } },
+            ),
+            macro("native:binary-part", """defmacro m, do: [:erlang.binary_part("abc", 3, -2), :erlang.binary_part("abc", 0, 0)]"""),
+            macro("native:binary-part-badarg", """defmacro m, do: :erlang.binary_part("abc", 1, 3)"""),
+            macro("native:binary-part-bitstring", "defmacro m, do: :erlang.binary_part(<<1, 2::4>>, 0, 1)"),
+            macro("native:binary-part-bitstring-tail", "defmacro m, do: :erlang.binary_part(<<1, 2::4>>, 1, 1)"),
+            macro(
                 "native:gc-list",
                 "defmacro m, do: Macro.escape(for l <- [[], [97], [97, 98], [13, 10, 120], [97, 769, 98]], do: :unicode_util.gc(l))",
             ),
@@ -4683,6 +4714,7 @@ class InterpreterTest : PlatformTestCase() {
                 "m(${BigInteger.ONE.shiftLeft(1100)})",
             ),
             macro("pure:utf-overflow", "defmacro m(c), do: <<c::utf8>>", "m(4294967361)"),
+            macro("pure:utf-negative", "defmacro m(c), do: <<-c::utf8>>", "m(1)"),
             macro(
                 "pure:bitstring-little-odd",
                 "defmacro m, do: Macro.escape([<<0x123::12-little>>, (<<x::12-little, _::4>> = <<35, 16>>; x)])",

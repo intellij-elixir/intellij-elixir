@@ -6,6 +6,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.HEXADECIMAL_ESCAPE_N
 import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_KEEPS_ESCAPES
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNESCAPE_DROPS_ESCAPED_NEWLINE
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.unicode_util.isScalarValue
 import java.io.ByteArrayOutputStream
 
 /** What `elixir_interpolation:unescape_string/2` gives. */
@@ -120,7 +121,7 @@ private class Unescaper(private val string: ByteArray, private val map: EscapeMa
     private fun appendCodePoint(from: Int, to: Int, next: Int): Unescaped.Failed? {
         val codePoint = String(string, from, to - from, Charsets.ISO_8859_1).toInt(16)
 
-        if (!Character.isValidCodePoint(codePoint) || codePoint in SURROGATES) {
+        if (!isScalarValue(codePoint.toLong())) {
             return Unescaped.Failed("unicode_code_point_reserved")
         }
 
@@ -138,8 +139,6 @@ private class Unescaper(private val string: ByteArray, private val map: EscapeMa
     private companion object {
         const val BACKSLASH = '\\'.code
         const val NEWLINE = '\n'.code
-
-        val SURROGATES = 0xD800..0xDFFF
 
         val DEFAULT_REPLACEMENTS = mapOf('0' to 0, 'a' to 7, 'b' to 8, 'd' to 127, 'e' to 27, 'f' to 12, 'n' to 10, 'r' to 13, 's' to 32, 't' to 9, 'v' to 11)
 
