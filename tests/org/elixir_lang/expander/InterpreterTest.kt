@@ -4736,7 +4736,7 @@ class InterpreterTest : PlatformTestCase() {
                 "pure:enum-range-lazy",
                 "defmacro m, do: [Enum.member?(1..1_000_000_000, 1), Enum.any?(1..1_000_000_000), Enum.all?(1..3)]",
             ),
-            macro("pure:enum-map", "defmacro m, do: Enum.map(%{a: 1}, fn {k, _} -> k end)", pins = DECLINED),
+            macro("pure:enum-map", "defmacro m, do: Enum.map(%{a: 1}, fn {k, _} -> k end)"),
             macro(
                 "pure:function-clause-arity",
                 """

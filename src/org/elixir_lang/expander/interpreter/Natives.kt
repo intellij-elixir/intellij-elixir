@@ -238,9 +238,19 @@ internal class Natives(private val evaluation: Evaluation) {
     /** `erlang:map_get/2`, as a guard's `map.key` reads it. */
     fun mapGet(key: OtpErlangObject, map: OtpErlangObject): OtpErlangObject = erlang("map_get/2", listOf(key, map))!!
 
-    /** The elements a comprehension's generator takes from [enumerable], a list's or a range's, each after a cancellation check. */
+    /**
+     * The elements a comprehension's generator takes from [enumerable], each after a cancellation check: a list's, a
+     * range's, or a map's entries as `Enumerable.Map` takes them, from `maps:to_list/1` ([inOrder]). Another struct
+     * enumerates through its own implementation.
+     */
     fun enumerate(enumerable: OtpErlangObject): Sequence<OtpErlangObject> =
         properElements(enumerable)?.asSequence()?.onEach { ProgressManager.checkCanceled() } ?: range(enumerable)?.elements()
+            ?: (enumerable as? OtpErlangMap)?.takeIf { it.get(atom("__struct__")) == null }?.let { map ->
+                inOrder(map).asSequence().map { (key, value) ->
+                    ProgressManager.checkCanceled()
+                    tuple(key, value)
+                }
+            }
             ?: decline("enumerates %s", enumerable)
 
     /**
@@ -987,15 +997,21 @@ internal class Natives(private val evaluation: Evaluation) {
                     level,
                 )
             }
-            "to_list/1" -> {
-                val entries = entries(map(args[0]))
-
-                if (entries.size > 32) decline("the order of a map of more than 32 keys")
-
-                list(entries.sortedWith { left, right -> compare(left.first, right.first, level, true) }.map { tuple(it.first, it.second) })
-            }
+            "to_list/1" -> list(inOrder(map(args[0])).map { tuple(it.first, it.second) })
+            "keys/1" -> list(inOrder(map(args[0])).map { it.first })
             else -> null
         }
+
+    /**
+     * [map]'s entries in the order `maps:to_list/1` gives them: term order, declining over 32 keys.
+     */
+    private fun inOrder(map: OtpErlangMap): List<Pair<OtpErlangObject, OtpErlangObject>> {
+        val entries = entries(map)
+
+        if (entries.size > 32) decline("the order of a map of more than 32 keys")
+
+        return entries.sortedWith { left, right -> compare(left.first, right.first, level, true) }
+    }
 
     /** `elixir_quote`'s run-time helpers, which an expanded `quote` calls. */
     private fun quote(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
