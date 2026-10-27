@@ -341,6 +341,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             UNICODE_15_GRAPHEME_CLUSTERS to ("26.0-rc1" to "26.0-rc2"),
             INDIC_CONJUNCT_GRAPHEME_CLUSTERS to ("28.0-rc1" to "28.0-rc2"),
             WIDER_INDIC_CONJUNCT_GRAPHEME_CLUSTERS to ("28.5.0.7" to "29.0-rc1"),
+            GRAPHEME_CLUSTER_KEEPS_EMPTY_TAIL to ("25.0-rc2" to "25.0-rc3"),
             MAX_AND_MIN_GUARDS to ("25.3.2.21" to "26.0-rc1"),
             IS_INTEGER_RANGE_GUARD to ("28.5.0.7" to "29.0-rc1"),
             IS_RECORD_GUARD to ("28.5.0.7" to "29.0-rc1"),

@@ -574,6 +574,14 @@ enum class ElixirLanguageFeature(
     WIDER_INDIC_CONJUNCT_GRAPHEME_CLUSTERS(sinceOtp = "29.0-rc1"),
 
     /**
+     * `unicode_util:gc/1` of a binary whose first cluster runs to its end keeps the empty binary as the tail, as it
+     * already did after a control: `[112|<<>>]` for `<<"p">>`, which was `[112]`. A cluster of Prepends still drops it.
+     *
+     * `erlang/otp@2f0bf4fbd4` and `erlang/otp@52c36fa7a6`, first released in OTP 25.0-rc3.
+     */
+    GRAPHEME_CLUSTER_KEEPS_EMPTY_TAIL(sinceOtp = "25.0-rc3"),
+
+    /**
      * Bidirectional formatting characters, U+202A to U+202E and U+2066 to U+2069, are rejected in comments and quoted
      * text.
      *

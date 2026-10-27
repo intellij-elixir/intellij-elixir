@@ -44,6 +44,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_EN
 import org.elixir_lang.language_level.ElixirLanguageFeature.ERLANG_ERROR_3
 import org.elixir_lang.language_level.ElixirLanguageFeature.GET_ATTRIBUTE_DEFAULT_FOR_REGISTERED
 import org.elixir_lang.language_level.ElixirLanguageFeature.GET_ATTRIBUTE_DEFAULT_ONLY_UNSET
+import org.elixir_lang.language_level.ElixirLanguageFeature.GRAPHEME_CLUSTER_KEEPS_EMPTY_TAIL
 import org.elixir_lang.language_level.ElixirLanguageFeature.INTEGERS_UP_TO_4_MBIT
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_SORT_KEEPS_EQUAL_ORDER
@@ -58,10 +59,12 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.STRING_TO_ATOM_REQUI
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
 import org.elixir_lang.lowering.fitsAnAtom
 import org.elixir_lang.psi.Import.Term
+import org.elixir_lang.unicode_util.Graphemes
 import org.elixir_lang.unicode_util.isScalarValue
 import java.io.ByteArrayOutputStream
 import java.math.BigInteger
 import java.nio.ByteBuffer
+import java.nio.CharBuffer
 import java.nio.charset.CharacterCodingException
 import kotlin.math.abs
 
@@ -164,6 +167,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "elixir_module" -> elixirModule(key, args)
             "code" -> code(key, args)
             "unicode" -> unicode(key, args)
+            "unicode_util" -> if (key == "gc/1") gc(seen(args[0])) else null
             "Elixir.Keyword" -> keyword(key, args)
             "Elixir.Enum" -> enum(key, args)
             "Elixir.Access" -> access(key, args)
@@ -2131,6 +2135,70 @@ internal class Natives(private val evaluation: Evaluation) {
     /** [term] where it is a Unicode code point, which a surrogate isn't, `null` where it is something else. */
     private fun codePoint(term: OtpErlangObject): Int? =
         (term as? OtpErlangLong)?.takeIf { it.bitLength() < Int.SIZE_BITS }?.intValue()?.takeIf { isScalarValue(it.toLong()) }
+
+    /**
+     * `unicode_util:gc/1`: the first grapheme cluster of a binary or a flat list of code points, then the rest. Where
+     * the cluster ends, and whether a code point is a control or a Prepend, come from [Graphemes]; this builds OTP's
+     * term from them. A cluster is its one code point, or a list of them. A binary whose first code point isn't UTF-8
+     * gives `{error, Bin}`; one whose first cluster is followed directly by bytes that aren't, a list that holds
+     * anything but code points, and any other term decline.
+     */
+    private fun gc(term: OtpErlangObject): OtpErlangObject {
+        val graphemes = Graphemes.of(level)
+        val cluster = { codePoints: List<Int> -> codePoints.singleOrNull()?.let { integer(it.toLong()) } ?: list(codePoints.map { integer(it.toLong()) }) }
+
+        if (isBinary(term)) {
+            val bytes = (term as OtpErlangBitstr).binaryValue()
+
+            if (bytes.isEmpty()) return list(emptyList())
+
+            // `String`'s walks call this once per cluster, so it decodes only as far as the first cluster is seen to end.
+            var decoded = 0
+            var text: String
+            var end: Int
+            do {
+                decoded = maxOf(decoded * 2, 64).coerceAtMost(bytes.size)
+                text = utf8Prefix(bytes, decoded)
+                if (text.isEmpty()) return tuple(atom("error"), term)
+                end = graphemes.clusterEnd(text, 0)
+            } while (end == text.length && decoded < bytes.size)
+
+            if (end == text.length && text.toByteArray(Charsets.UTF_8).size < bytes.size) {
+                decline("unicode_util:gc/1 of %s, whose first cluster is followed by bytes that aren't UTF-8", term)
+            }
+
+            val codePoints = text.substring(0, end).codePoints().toArray().toList()
+            val tail = bytes.copyOfRange(text.substring(0, end).toByteArray(Charsets.UTF_8).size, bytes.size)
+            val last = codePoints.last()
+            val keepsEmptyTail = graphemes.isControl(last) ||
+                !graphemes.isPrepend(last) && GRAPHEME_CLUSTER_KEEPS_EMPTY_TAIL.isSufficient(level)
+
+            return if (tail.isEmpty() && !keepsEmptyTail) {
+                list(listOf(cluster(codePoints)))
+            } else {
+                cons(listOf(cluster(codePoints)), OtpErlangBinary(tail))
+            }
+        }
+
+        val (elements, tail) = cells(term) ?: decline("unicode_util:gc/1 of %s", term)
+        val codePoints = elements.map { codePoint(seen(it)) ?: decline("unicode_util:gc/1 of a list holding %s", it) }
+
+        if (tail != null) decline("unicode_util:gc/1 of a list whose tail is %s", tail)
+        if (codePoints.isEmpty()) return list(emptyList())
+
+        val text = buildString { codePoints.forEach(::appendCodePoint) }
+        val count = text.codePointCount(0, graphemes.clusterEnd(text, 0))
+
+        return list(listOf(cluster(codePoints.take(count))) + elements.drop(count))
+    }
+
+    /** The UTF-8 text of the first [size] of [bytes], up to the first byte that isn't UTF-8 or a code point they cut. */
+    private fun utf8Prefix(bytes: ByteArray, size: Int): String {
+        val decoded = CharBuffer.allocate(size)
+        Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes, 0, size), decoded, size == bytes.size)
+
+        return decoded.flip().toString()
+    }
 
     /**
      * Gives [binary] each binary and [integer] each integer of the iodata or chardata [term], in order, and answers whether

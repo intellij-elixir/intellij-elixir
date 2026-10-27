@@ -32,6 +32,12 @@ class Graphemes private constructor(
         }
     }
 
+    /** Whether [codePoint] is a control, which a cluster ends after. */
+    fun isControl(codePoint: Int): Boolean = table.properties(codePoint) has CONTROL
+
+    /** Whether [codePoint] is a Prepend, which takes the cluster after it. */
+    fun isPrepend(codePoint: Int): Boolean = table.properties(codePoint) has PREPEND
+
     /** The clusters of [text], each as its start and end. */
     fun clusters(text: CharSequence): Sequence<IntRange> {
         fun from(start: Int): IntRange? = if (start < text.length) start until clusterEnd(text, start) else null
