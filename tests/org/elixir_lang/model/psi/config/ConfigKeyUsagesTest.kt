@@ -12,6 +12,10 @@ import org.elixir_lang.code_insight.chosenTargetPsiUsagesAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaretInScope
 import org.elixir_lang.expander.LegSdk
+import org.elixir_lang.injection.PsiLanguageInjectionHost
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.language_level.elixir
 import org.elixir_lang.psi.call.Call
 import java.io.File
 
@@ -47,6 +51,13 @@ class ConfigKeyUsagesTest : PlatformTestCase() {
             ),
             usages(),
         )
+    }
+
+    fun testUsagesIncludeAReadInAHeexFile() {
+        myFixture.addFileToProject("lib/my_app_web/page.html.heex", "<p><%= Application.get_env(:my_app, :retries) %></p>\n")
+        myFixture.caret(CONFIG, "retr<caret>ies: 3")
+
+        assertContainsElements(usages(), "page.html.heex:1 retries")
     }
 
     fun testUsagesIncludeAnAliasKeyReadByExpansion() {
@@ -208,6 +219,181 @@ class ConfigKeyUsagesTest : PlatformTestCase() {
         assertEquals(listOf("config.exs:22 guarded_head") + EVERY_KEY, usages())
     }
 
+    fun testUsagesIncludeAHeexBraceRead() {
+        myFixture.caret(TEMPLATES_CONFIG, "heex_br<caret>ace: true")
+
+        assertEquals(
+            listOf(
+                "templates.ex:2 heex_brace",
+                "test.exs:3 heex_brace",
+                "worker.ex:7 Application.get_all_env(:my_app)",
+                "worker.ex:9 key",
+            ),
+            templateUsages(),
+        )
+    }
+
+    fun testUsagesIncludeAHeexTagRead() {
+        myFixture.caret(TEMPLATES_CONFIG, "heex_t<caret>ag: true")
+
+        assertContainsElements(templateUsages(), "templates.ex:3 heex_tag")
+    }
+
+    fun testUsagesIncludeAnESigilRead() {
+        myFixture.caret(TEMPLATES_CONFIG, "e_sig<caret>il: true")
+
+        assertContainsElements(templateUsages(), "templates.ex:4 e_sigil")
+    }
+
+    fun testUsagesIncludeAnLSigilRead() {
+        myFixture.caret(TEMPLATES_CONFIG, "l_sig<caret>il: true")
+
+        assertContainsElements(templateUsages(), "templates.ex:5 l_sigil")
+    }
+
+    fun testUsagesIncludeAHeredocTemplateRead() {
+        myFixture.caret(TEMPLATES_CONFIG, "heredoc_temp<caret>late: true")
+
+        assertContainsElements(templateUsages(), "templates.ex:10 heredoc_template")
+    }
+
+    fun testUsagesIncludeAReadInAnIfSpanningTemplateParts() {
+        myFixture.caret(TEMPLATES_CONFIG, "ban<caret>ner: true")
+
+        assertContainsElements(templateUsages(), "templates.ex:18 banner")
+    }
+
+    fun testUsagesIncludeAnAliasKeyReadInATemplate() {
+        myFixture.caret(TEMPLATES_CONFIG, "MyApp.Mai<caret>ler")
+
+        assertContainsElements(templateUsages(::configKeyUsages), "templates.ex:29 Mailer")
+    }
+
+    fun testUsagesIncludeAModuleKeyReadInATemplate() {
+        myFixture.caret(TEMPLATES_CONFIG, "MyAppWeb.Templa<caret>tes")
+
+        assertContainsElements(templateUsages(::configKeyUsages), "templates.ex:32 __MODULE__")
+    }
+
+    fun testUsagesIncludeAnEscapedTerminatorKeyReadInATemplate() {
+        myFixture.caret(TEMPLATES_CONFIG, "\"banner-te<caret>xt\": true")
+
+        assertContainsElements(templateUsages(), "templates.ex:59 banner-text")
+    }
+
+    fun testUsagesIncludeAnEscapedTerminatorKeyReadInAnInjectedTemplate() {
+        myFixture.caret(TEMPLATES_CONFIG, "\"banner-te<caret>xt\": true")
+
+        assertContainsElements(myFixture.withSigilInjection(::usages), "templates.ex:59 banner-text")
+    }
+
+    fun testUsagesIncludeAReadWithAnEscapedTerminatorDefaultInATemplate() {
+        myFixture.caret(TEMPLATES_CONFIG, "tit<caret>le: \"Home\"")
+
+        assertContainsElements(templateUsages(), "templates.ex:61 title")
+    }
+
+    fun testUsagesIncludeAReadAfterAnEscapedHeredocTerminatorInATemplate() {
+        assertContainsElements(afterEscapeUsagesOn(elixir("1.13.0")), "templates.ex:68 after_escape")
+    }
+
+    /** Before 1.13, Elixir keeps the `\` of `\"""` in an uppercase sigil's heredoc, so the template's Elixir differs. */
+    fun testUsagesExcludeAReadAfterAnEscapedHeredocTerminatorInATemplateBeforeElixir113() {
+        assertDoesntContain(afterEscapeUsagesOn(elixir("1.12.3")), "templates.ex:68 after_escape")
+    }
+
+    /** [templateUsages] of `:after_escape` with the project at [languageLevel]. */
+    private fun afterEscapeUsagesOn(languageLevel: ElixirLanguageLevel): List<String> {
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, languageLevel)
+
+        try {
+            myFixture.caret(TEMPLATES_CONFIG, "after_esc<caret>ape: true")
+
+            return templateUsages()
+        } finally {
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, null)
+        }
+    }
+
+    fun testUsagesExcludeAnAliasKeyReadAfterAnAliasInTheTemplate() {
+        myFixture.caret(TEMPLATES_CONFIG, "Cryp<caret>to, enabled")
+
+        assertDoesntContain(templateUsages(::configKeyUsages), "templates.ex:37 Crypto")
+    }
+
+    fun testUsagesIncludeATemplateReadThroughAnAliasOfApplication() {
+        myFixture.caret(TEMPLATES_CONFIG, "template_alia<caret>sed: true")
+
+        assertContainsElements(templateUsages(), "templates.ex:44 template_aliased")
+    }
+
+    fun testUsagesExcludeATemplateReadOfApplicationAliasedToAnotherModule() {
+        myFixture.caret(TEMPLATES_CONFIG, "template_aliased_aw<caret>ay: true")
+
+        assertEquals(listOf("test.exs:9 template_aliased_away") + EVERY_KEY, templateUsages())
+    }
+
+    fun testUsagesIncludeAnImportedApplicationReadInATemplate() {
+        myFixture.caret(TEMPLATES_CONFIG, "template_impor<caret>ted: true")
+
+        assertContainsElements(templateUsages(), "templates.ex:56 template_imported")
+    }
+
+    fun testUsagesExcludeAReadAfterTheTemplateAliasesApplicationAway() {
+        myFixture.caret(TEMPLATES_CONFIG, "own_aliased_aw<caret>ay: true")
+
+        assertEquals(listOf("test.exs:9 own_aliased_away") + EVERY_KEY, templateUsages())
+    }
+
+    fun testUsagesExcludeAReadAfterTheTemplateAliasesApplicationAwayInAnInjectedTemplate() {
+        myFixture.caret(TEMPLATES_CONFIG, "own_aliased_aw<caret>ay: true")
+
+        assertEquals(listOf("test.exs:9 own_aliased_away") + EVERY_KEY, myFixture.withSigilInjection(::usages))
+    }
+
+    fun testUsagesExcludeAParenthesisedReadAfterTheTemplateAliasesApplicationAway() {
+        myFixture.caret(TEMPLATES_CONFIG, "own_parenthesised_aw<caret>ay: true")
+
+        assertEquals(listOf("test.exs:9 own_parenthesised_away") + EVERY_KEY, templateUsages())
+    }
+
+    fun testUsagesExcludeAParenthesisedReadAfterTheTemplateAliasesApplicationAwayInAnInjectedTemplate() {
+        myFixture.caret(TEMPLATES_CONFIG, "own_parenthesised_aw<caret>ay: true")
+
+        assertEquals(listOf("test.exs:9 own_parenthesised_away") + EVERY_KEY, myFixture.withSigilInjection(::usages))
+    }
+
+    fun testUsagesExcludeAReadThroughTheTemplatesAliasOfApplication() {
+        myFixture.caret(TEMPLATES_CONFIG, "own_alia<caret>sed: true")
+
+        assertEquals(listOf("test.exs:9 own_aliased") + EVERY_KEY, templateUsages())
+    }
+
+    fun testUsagesExcludeAReadThroughTheTemplatesAliasOfApplicationInAnInjectedTemplate() {
+        myFixture.caret(TEMPLATES_CONFIG, "own_alia<caret>sed: true")
+
+        assertEquals(listOf("test.exs:9 own_aliased") + EVERY_KEY, myFixture.withSigilInjection(::usages))
+    }
+
+    fun testUsagesExcludeAReadThroughTheTemplatesImportOfApplication() {
+        myFixture.caret(TEMPLATES_CONFIG, "own_impor<caret>ted: true")
+
+        assertEquals(listOf("test.exs:9 own_imported") + EVERY_KEY, templateUsages())
+    }
+
+    fun testUsagesExcludeAReadThroughTheTemplatesImportOfApplicationInAnInjectedTemplate() {
+        myFixture.caret(TEMPLATES_CONFIG, "own_impor<caret>ted: true")
+
+        assertEquals(listOf("test.exs:9 own_imported") + EVERY_KEY, myFixture.withSigilInjection(::usages))
+    }
+
+    /** [usages], where sigils are not injection hosts, so a template's reads are found without injected PSI. */
+    private fun templateUsages(usages: () -> List<String> = ::usages): List<String> {
+        assertFalse(PsiLanguageInjectionHost.sigilsAreHosts())
+
+        return usages()
+    }
+
     /** Find Usages of the one search target at the caret. */
     private fun usages(): List<String> = labels(myFixture.singleTargetPsiUsagesAtCaret(project))
 
@@ -227,6 +413,7 @@ class ConfigKeyUsagesTest : PlatformTestCase() {
     private companion object {
         const val CONFIG = "config/config.exs"
         const val DEV = "config/dev.exs"
+        const val TEMPLATES_CONFIG = "config/test.exs"
 
         /** The reads in `worker.ex` of every key of `:my_app`. */
         val EVERY_KEY = listOf("worker.ex:7 Application.get_all_env(:my_app)", "worker.ex:9 key")

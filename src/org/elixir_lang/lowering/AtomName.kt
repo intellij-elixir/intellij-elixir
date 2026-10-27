@@ -273,6 +273,29 @@ internal class Piece(val elementType: IElementType, val text: String, val node: 
  */
 internal const val RAW_BYTE_OFFSET = 0x1000000
 
+/**
+ * What Elixir's tokenizer keeps of an escape in [sigil]'s body: the escape as written, except that it drops the `\`
+ * before the terminator, and in an interpolating sigil before [ESCAPED_NEWLINE_KEPT_IN_EXTRACTED_BUFFER] a `\` ending a
+ * line with its newline. `null` for any other piece, or an escaped terminator it cannot read.
+ */
+internal fun sigilEscape(sigil: Sigil, piece: Piece, languageLevel: ElixirLanguageLevel): String? =
+    when (piece.elementType) {
+        ElixirTypes.ESCAPED_CHARACTER -> {
+            val terminator = (sigil as? SigilLine)?.terminator()
+
+            if (terminator != null && piece.text == "\\$terminator") "$terminator" else piece.text
+        }
+        ElixirTypes.ESCAPED_EOL ->
+            if (sigil !is Interpolated || ESCAPED_NEWLINE_KEPT_IN_EXTRACTED_BUFFER.isSufficient(languageLevel)) "\\\n" else ""
+        ElixirTypes.ESCAPED_HEREDOC_TERMINATOR, ElixirTypes.ESCAPED_LINE_TERMINATOR ->
+            if (sigil is SigilHeredocLiteral && !UNESCAPED_SIGIL_HEREDOC_TERMINATOR.isSufficient(languageLevel)) {
+                piece.text
+            } else {
+                piece.node?.psi?.lastChild?.text
+            }
+        else -> null
+    }
+
 /** [parent]'s text as Elixir's tokenizer extracts it, or `null` when a node is one it cannot extract. */
 internal fun content(parent: PsiElement, pieces: List<Piece>, languageLevel: ElixirLanguageLevel): Content? {
     if (pieces.isEmpty()) return Content.Empty
@@ -288,25 +311,17 @@ internal fun content(parent: PsiElement, pieces: List<Piece>, languageLevel: Eli
             ElixirTypes.FRAGMENT, ElixirTypes.EOL -> buffer().addAll(codePoints(piece.text))
             ElixirTypes.ESCAPED_CHARACTER ->
                 if (parent is Sigil) {
-                    val text = piece.text
-                    val terminator = (parent as? SigilLine)?.terminator()
-
-                    buffer().addAll(codePoints(if (terminator != null && text == "\\$terminator") "$terminator" else text))
+                    buffer().addAll(codePoints(sigilEscape(parent, piece, languageLevel) ?: return null))
                 } else {
                     buffer().add((piece.node?.psi as? ElixirEscapedCharacter ?: return null).codePoint())
                 }
             ElixirTypes.ESCAPED_EOL ->
-                buffer().apply {
-                    if (parent is Sigil && (parent !is Interpolated || keepsEmptyBuffer)) addAll(listOf('\\'.code, '\n'.code))
-                }
+                buffer().addAll(codePoints(if (parent is Sigil) sigilEscape(parent, piece, languageLevel) ?: return null else ""))
             ElixirTypes.ESCAPED_HEREDOC_TERMINATOR, ElixirTypes.ESCAPED_LINE_TERMINATOR ->
                 buffer().addAll(
                     codePoints(
-                        if (parent is SigilHeredocLiteral && !UNESCAPED_SIGIL_HEREDOC_TERMINATOR.isSufficient(languageLevel)) {
-                            piece.text
-                        } else {
-                            piece.node?.psi?.lastChild?.text ?: return null
-                        }
+                        (if (parent is Sigil) sigilEscape(parent, piece, languageLevel) else piece.node?.psi?.lastChild?.text)
+                            ?: return null
                     )
                 )
             ElixirTypes.HEXADECIMAL_ESCAPE_PREFIX -> buffer().addAll(codePoints(piece.text))

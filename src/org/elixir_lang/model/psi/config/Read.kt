@@ -66,7 +66,7 @@ class Read(val app: ReadApp, val key: WrittenKey, val element: PsiElement, val c
             val qualifier = qualifier(call)
             val (readArity, shape) = (arity..MAX_ARITY).firstNotNullOfOrNull { readArity ->
                 SHAPES[Signature(name, readArity)]
-                    ?.takeIf { ReadModule(qualifier, name, readArity).isRead(call) }
+                    ?.takeIf { ReadModule(qualifier, name, readArity).isRead(call) == ReadModule.Answer.READ }
                     ?.let { readArity to it.shape }
             } ?: return null
 

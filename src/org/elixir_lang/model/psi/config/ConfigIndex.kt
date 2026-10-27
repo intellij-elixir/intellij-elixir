@@ -110,6 +110,39 @@ internal object ConfigIndexing {
         }
     }
 
+    /** Each candidate read [file] holds, with the app it is filed under, as written. */
+    @RequiresReadLock
+    fun reads(file: PsiFile): List<Pair<ReadApp, Written>> {
+        val virtualFile = file.virtualFile ?: return emptyList()
+
+        return FileBasedIndex.getInstance().getFileData(NAME, virtualFile, file.project).flatMap { (app, entries) ->
+            if (app !is ReadApp) return@flatMap emptyList()
+
+            entries
+                .filterIsInstance<ConfigEntry.KeyEntry>()
+                .filter { it.kind is ConfigEntry.Kind.Read }
+                .mapNotNull { entry -> element(file, entry.range)?.let { app to Written(entry.kind, entry.key, it) } }
+        }
+    }
+
+    /** Each file in [scope] with a candidate read filed under [app], with how each of those reads writes its key. */
+    @RequiresReadLock
+    fun readKeys(app: ReadApp, scope: GlobalSearchScope): List<Pair<VirtualFile, List<WrittenKey>>> {
+        val files = mutableListOf<Pair<VirtualFile, List<WrittenKey>>>()
+        FileBasedIndex.getInstance().processValues(
+            NAME,
+            app,
+            null,
+            { file, entries ->
+                files += file to entries.filterIsInstance<ConfigEntry.KeyEntry>().filter { it.kind is ConfigEntry.Kind.Read }.map { it.key }
+                true
+            },
+            scope,
+        )
+
+        return files
+    }
+
     /** A setting or a candidate read of [key], written at [element]. */
     class Written(val kind: ConfigEntry.Kind, val key: WrittenKey, val element: PsiElement)
 

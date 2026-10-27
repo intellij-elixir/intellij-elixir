@@ -36,6 +36,13 @@ object ConfigFiles {
     @RequiresReadLock
     fun ownApps(project: Project): kotlin.collections.Set<String> = projects(project).mapNotNullTo(mutableSetOf()) { (_, entry) -> entry.app }
 
+    /** Each app a content `mix.exs` file names, and the folders of the `mix.exs` files that name it. */
+    @RequiresReadLock
+    fun ownAppFolders(project: Project): Map<String, List<VirtualFile>> =
+        projects(project)
+            .mapNotNull { (mixExs, entry) -> entry.app?.let { app -> mixExs.parent?.let { app to it } } }
+            .groupBy({ it.first }, { it.second })
+
     /** Each content `mix.exs` file and its project entry. */
     private fun projects(project: Project): List<Pair<VirtualFile, ConfigEntry.ProjectEntry>> {
         val projects = mutableListOf<Pair<VirtualFile, ConfigEntry.ProjectEntry>>()

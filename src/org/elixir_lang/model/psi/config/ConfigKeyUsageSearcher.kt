@@ -33,14 +33,14 @@ internal class ConfigKeyUsageSearcher : UsageSearcher {
         override fun processResults(consumer: Processor<in PsiUsage>): Boolean =
             ReadAction.nonBlocking(Callable {
                 val scope = GlobalSearchScopeUtil.toGlobalSearchScope(searchScope, project)
-                val keys =
-                    ConfigReads.of(project, symbol.app, symbol.key, scope) +
-                        ConfigSettings.of(project, symbol.app, symbol.key, ConfigFiles.scope(project).intersectWith(scope))
+                val reads = ConfigReads.of(project, symbol.app, symbol.key, scope).filter { it.decided }.map { it.element to it.range }
+                val settings =
+                    ConfigSettings.of(project, symbol.app, symbol.key, ConfigFiles.scope(project).intersectWith(scope)).map { it to Keys.range(it) }
 
                 // The global scope bounds whole files; a local scope bounds elements within them too.
-                keys
-                    .filter { PsiSearchScopeUtil.isInScope(searchScope, it) }
-                    .all { consumer.process(PsiUsage.textUsage(it, Keys.range(it))) }
+                (reads + settings)
+                    .filter { (element, _) -> PsiSearchScopeUtil.isInScope(searchScope, element) }
+                    .all { (element, range) -> consumer.process(PsiUsage.textUsage(element, range)) }
             }).executeSynchronously()
     }
 }

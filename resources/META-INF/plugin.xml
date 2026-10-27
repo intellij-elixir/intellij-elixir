@@ -484,6 +484,9 @@
         <localInspection displayName="Elixir references" shortName="ElixirReferences" enabledByDefault="false"
                          groupName="Elixir" implementationClass="org.elixir_lang.inspection.References"
                          language="Elixir" level="ERROR"/>
+        <localInspection displayName="Config key never read" shortName="UnreadConfigKey" enabledByDefault="true"
+                         groupName="Elixir" implementationClass="org.elixir_lang.inspection.UnreadConfigKey"
+                         language="Elixir" level="WEAK WARNING"/>
         <localInspection displayName="Unresolvable module qualifier" enabledByDefault="true" groupName="Elixir"
                          implementationClass="org.elixir_lang.inspection.UnresolvableModuleQualifier"
                          language="Elixir" level="ERROR" shortName="UnresolvableModuleQualifier"/>

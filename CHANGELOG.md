@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4545](https://github.com/intellij-elixir/intellij-elixir/pull/4545) [@sh41](https://github.com/sh41)
+  - **A new inspection, Config key never read, on by default as a weak warning, flags a key a config file sets for the project's own application that no code reads, except in an application with Erlang source, whose reads it does not see; and Find Usages on a config key now lists reads inside `~H`, `~E` and `~L` templates.** Refs [#4539](https://github.com/intellij-elixir/intellij-elixir/issues/4539).
+
 - [#4543](https://github.com/intellij-elixir/intellij-elixir/pull/4543) [@sh41](https://github.com/sh41)
   - **The expander sees the attributes and definitions that a function called from a module body, a macro or an `@on_definition` callback writes with `Module`, and keeps attribute values such as maps and ranges, as Elixir does.** Refs [#4526](https://github.com/intellij-elixir/intellij-elixir/issues/4526).
 
