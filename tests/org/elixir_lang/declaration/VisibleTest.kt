@@ -18,11 +18,11 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElements
 import org.elixir_lang.code_insight.completion.callableUnqualified
+import org.elixir_lang.code_insight.completion.unqualifiedLookupElements
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.qualifierModulars
 import org.elixir_lang.psi.qualification.Unqualified
-import org.elixir_lang.psi.scope.call_definition_clause.Variants
 import java.io.File
 
 /** What completion offers at the start of each reference: its lookup elements, each with what it declares. */
@@ -208,10 +208,10 @@ class VisibleTest : PlatformTestCase() {
         }
     }
 
-    /** `Callable.getVariants` offers the walk's call definitions only at an unqualified call. */
+    /** `Callable.getVariants` offers call definitions only at an unqualified call. */
     private fun offered(call: Call): List<LookupElement> =
         when (call) {
-            is Unqualified -> Variants.lookupElementList(call)
+            is Unqualified -> unqualifiedLookupElements(call, appendParentheses = true)
             is Qualified -> call.qualifier().qualifierModulars()?.let { callDefinitionClauseLookupElements(it) }.orEmpty()
             else -> emptyList()
         }

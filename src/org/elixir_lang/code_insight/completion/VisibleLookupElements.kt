@@ -18,11 +18,18 @@ import org.elixir_lang.code_insight.lookup.element_renderer.mix.generator.EmbedT
 import org.elixir_lang.code_insight.lookup.element_renderer.mix.generator.EmbedText as EmbedTextRenderer
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Declared
+import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Visible
+import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.model.psi.ElixirUsageQueries
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
+
+/** What unqualified completion offers at [position], from what is visible there. */
+@RequiresReadLock
+fun unqualifiedLookupElements(position: Call, appendParentheses: Boolean): List<LookupElement> =
+    unqualifiedLookupElements(sourceFor(Feature.COMPLETION).visible(position), appendParentheses)
 
 /**
  * What unqualified completion offers from [visible]: one lookup for each name Elixir can write unquoted and the element

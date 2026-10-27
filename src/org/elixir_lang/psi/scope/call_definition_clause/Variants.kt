@@ -20,6 +20,7 @@ import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.scope.CallDefinitionClause
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Callback
+import org.jetbrains.annotations.TestOnly
 
 /** Records a [Visible] for each callable the walk reaches, keyed as completion offers it. */
 class Variants : CallDefinitionClause() {
@@ -119,22 +120,17 @@ class Variants : CallDefinitionClause() {
     companion object {
         private val ENTRANCE_CALL_DEFINITION_CLAUSE = Key<Call>("ENTRANCE_CALL_DEFINITION_CLAUSE")
 
-        @JvmStatic
-        @JvmOverloads
-        fun lookupElementList(entrance: Call, appendParentheses: Boolean = true): List<LookupElement> =
-            unqualifiedLookupElements(visible(entrance), appendParentheses)
-
-        /** The lookup elements at [position], and the [Visible] beside each, from one walk. */
+        /** What unqualified completion offers at [entrance]. */
+        @TestOnly
         @RequiresReadLock
-        fun lookupElementsAndVisible(position: PsiElement): Pair<List<LookupElement>, List<Visible>> {
+        fun lookupElementList(entrance: Call): List<LookupElement> =
+            unqualifiedLookupElements(entrance, appendParentheses = true)
+
+        /** What the walk finds visible at [position]. */
+        @RequiresReadLock
+        fun visible(position: PsiElement): List<Visible> {
             ThreadingAssertions.assertReadAccess()
 
-            val visible = visible(position)
-
-            return unqualifiedLookupElements(visible, appendParentheses = true) to visible
-        }
-
-        private fun visible(position: PsiElement): List<Visible> {
             val variants = Variants()
             walk(variants, position, (position as? Call)?.let(::entranceCallDefinitionClause))
 

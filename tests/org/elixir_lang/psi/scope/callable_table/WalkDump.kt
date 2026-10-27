@@ -11,6 +11,7 @@ import com.intellij.psi.PsiRecursiveElementWalkingVisitor
 import com.intellij.psi.PsiReferenceService
 import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
 import com.intellij.testFramework.fixtures.CodeInsightTestFixture
+import org.elixir_lang.code_insight.completion.unqualifiedLookupElements
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.psi.scope.CallableTable
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
@@ -86,7 +87,8 @@ class WalkDump(private val project: Project, private val root: VirtualFile) {
         }
 
         guarded(lines, "$use  variants") {
-            val (lookups, visible) = Variants.lookupElementsAndVisible(call)
+            val visible = Variants.visible(call)
+            val lookups = unqualifiedLookupElements(visible, appendParentheses = true)
             lines += "$use  variants  " + lookups.joinToString(" ") { "${it.lookupString}@${location(it.psiElement)}" }
             lines += "$use  visible  " + visible.joinToString(" ") { v ->
                 "${v.lookupName}|${v.name}|${v.declaration?.let { "${it.name}/${it.arity}/${it.visibility}" }}@${location(v.element)}"

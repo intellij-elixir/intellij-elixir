@@ -21,6 +21,7 @@ import com.intellij.usageView.UsageViewTypeLocation
 import com.intellij.util.IncorrectOperationException
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.annotator.Parameter
+import org.elixir_lang.code_insight.completion.unqualifiedLookupElements
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.model.psi.variable.VariableReference
 import org.elixir_lang.model.psi.variable.VariableSymbol
@@ -90,7 +91,7 @@ class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
             }
 
             val callDefinitionClauseLookupElementList =
-                org.elixir_lang.psi.scope.call_definition_clause.Variants.lookupElementList(myElement)
+                unqualifiedLookupElements(myElement, appendParentheses = true)
 
             (variableLookupElementList + callDefinitionClauseLookupElementList).toTypedArray()
         } else {

@@ -12,6 +12,7 @@ import com.intellij.psi.impl.source.resolve.ResolveCache
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElements
 import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
+import org.elixir_lang.code_insight.completion.unqualifiedLookupElements
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
@@ -20,7 +21,6 @@ import org.elixir_lang.psi.operation.Prefix
 import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.psi.qualification.Qualified
 import org.elixir_lang.psi.qualification.Unqualified
-import org.elixir_lang.psi.scope.call_definition_clause.Variants
 import org.elixir_lang.reference.resolver.CaptureNameArity as Resolver
 
 typealias Arity = Int
@@ -51,7 +51,7 @@ class CaptureNameArity(element: NonNumeric, val nameElement: Call, val arity: Ar
     override fun getVariants(): Array<Any> =
         when (nameElement) {
             is Unqualified ->
-                Variants.lookupElementList(nameElement, appendParentheses = false).ofRequestedArity().toTypedArray()
+                unqualifiedLookupElements(nameElement, appendParentheses = false).ofRequestedArity().toTypedArray()
 
             is Qualified ->
                 (nameElement as Qualified).qualifier()
