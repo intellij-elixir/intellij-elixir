@@ -343,9 +343,10 @@ internal class BodyValues(
 
     /**
      * Whether the code the evaluator runs now runs once, where Elixir runs it: the unit running it is certain
-     * ([certainAt]), or, where the walk runs none, it is a macro's body, which runs once as the body expands.
+     * ([certainAt]), or, where the walk runs none, it is a macro's body, which runs once as the body expands, where the
+     * body's `defmodule`, and each around it, is a statement ([placed]).
      */
-    fun certainHere(): Boolean = stepping.lastOrNull()?.let(::certainAt) ?: true
+    fun certainHere(): Boolean = stepping.lastOrNull()?.let(::certainAt) ?: placed
 
     /**
      * [node], code of the body, run where the body runs it, from [bindings], the body's unless a statement's run has its
