@@ -179,9 +179,9 @@ internal object LoadedModules {
                 if (STRUCT in exports.functions) {
                     val (bytes, path) = beam()
                     val struct = BeamReader.readResult(bytes, path) { reader ->
-                        ((reader.debugInfoResult as? ReadResult.Present)?.value as? V1)?.struct
-                            ?.takeUnless { it == NIL }
-                            ?.let(ModuleStruct::from)
+                        ((reader.debugInfoResult as? ReadResult.Present)?.value as? V1)?.let { v1 ->
+                            v1.struct?.takeUnless { it == NIL }?.let { ModuleStruct.from(it, v1.map?.get(DEFINITIONS)) }
+                        }
                     }
 
                     (struct as? ReadResult.Present)?.value ?: ModuleStruct.Unreadable
@@ -225,4 +225,5 @@ internal object LoadedModules {
 
     private val STRUCT = NameArity("__struct__", 1)
     private val NIL = OtpErlangAtom("nil")
+    private val DEFINITIONS = OtpErlangAtom("definitions")
 }
