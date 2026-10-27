@@ -23,6 +23,7 @@ import org.elixir_lang.expander.Compiling
 import org.elixir_lang.expander.DEFINITION_ARITIES
 import org.elixir_lang.expander.DefinitionTable
 import org.elixir_lang.expander.EffectOutcome
+import org.elixir_lang.expander.Env
 import org.elixir_lang.expander.EscapeOp
 import org.elixir_lang.expander.EscapeView
 import org.elixir_lang.expander.EscapeResult
@@ -153,6 +154,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "lists" -> lists(key, args)
             "maps" -> maps(key, args)
             "elixir_quote" -> quote(key, args)
+            "elixir_module" -> elixirModule(key, args)
             "Elixir.Keyword" -> keyword(key, args)
             "Elixir.Enum" -> enum(key, args)
             "Elixir.Access" -> access(key, args)
@@ -201,6 +203,24 @@ internal class Natives(private val evaluation: Evaluation) {
     fun enumerate(enumerable: OtpErlangObject): Sequence<OtpErlangObject> =
         properElements(enumerable)?.asSequence()?.onEach { ProgressManager.checkCanceled() } ?: range(enumerable)?.elements()
             ?: decline("enumerates %s", enumerable)
+
+    /**
+     * `elixir_module:next_counter/1` (`elixir_module.erl:64-71`), from the [Counters][org.elixir_lang.expander.Counters]
+     * the run's expansions take theirs from: `{Module, N}` for a module being compiled, whose table holds its counter, and
+     * a unique integer for `nil` or any other term, as Elixir's `catch` gives.
+     */
+    private fun elixirModule(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
+        when (key) {
+            "next_counter/1" -> {
+                val module = (seen(args[0]) as? OtpErlangAtom)?.atomValue()?.takeIf { it in evaluation.run.compiling }
+
+                when (val counter = evaluation.run.counters.next(module)) {
+                    is Env.Counter.InModule -> tuple(atom(counter.module), integer(counter.n))
+                    is Env.Counter.Unique -> integer(counter.n)
+                }
+            }
+            else -> null
+        }
 
     private fun erlang(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
         val badarg = { evaluation.error(atom("badarg"), frame("erlang", key.substringBefore('/'), list(args))) }
