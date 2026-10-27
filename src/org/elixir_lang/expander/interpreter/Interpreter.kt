@@ -149,6 +149,25 @@ internal object Interpreter {
     fun quoteHelper(function: String, args: List<OtpErlangObject>, node: ElixirAst, state: ExState, env: Env, run: Run): Evaluated =
         evaluated(node, state, env, run) { evaluation -> evaluation.remote(atom("elixir_quote"), function, args) }
 
+    /**
+     * `module:function(env, kind, name, args, guards, body)`, an `@on_definition` callback of the definition at [node]
+     * that [env]'s function names, given its head's [args] and [guards] and its [body].
+     */
+    fun onDefinition(
+        module: String,
+        function: String,
+        kind: String,
+        args: List<ElixirAst>,
+        guards: List<ElixirAst>,
+        body: ElixirAst?,
+        node: ElixirAst,
+        env: Env,
+        run: Run,
+    ): Evaluated =
+        evaluated(node, ExState.empty(run.level), env, run) { evaluation ->
+            evaluation.onDefinition(module, function, kind, args, guards, body)
+        }
+
     /** [value] of [node]'s evaluation, which [declinesTooDeep] where it overflows the thread's stack, else lets the overflow escape. */
     private fun evaluated(
         node: ElixirAst,
@@ -296,7 +315,7 @@ internal class Frame(
 
 /** An evaluation of code at [call]: a macro's clauses for its call, or a module body's own code. */
 internal class Evaluation(
-    private val call: ElixirAst,
+    val call: ElixirAst,
     private val state: ExState,
     private val env: Env,
     val run: Run,
@@ -320,6 +339,9 @@ internal class Evaluation(
     val atoms = HashSet<String>()
 
     val natives = Natives(this)
+
+    /** The module whose code is evaluated, its body's or the macro's caller's, or `null` at the file's top level. */
+    val module: String? get() = env.module
 
     /**
      * [module], being compiled, where its table and attributes are Elixir's here: as the walk has them
@@ -470,6 +492,28 @@ internal class Evaluation(
         }
     }
 
+    /** `run_on_definition_callbacks/8`'s call of `module:function/6` (`elixir_def.erl:255–262`). */
+    fun onDefinition(
+        module: String,
+        function: String,
+        kind: String,
+        args: List<ElixirAst>,
+        guards: List<ElixirAst>,
+        body: ElixirAst?,
+    ): OtpErlangObject =
+        remote(
+            atom(module),
+            function,
+            listOf(
+                envOf(env),
+                atom(kind),
+                atom(env.function!!.name),
+                list(args.map(::termOf)),
+                list(guards.map(::termOf)),
+                body?.let(::termOf) ?: NIL,
+            ),
+        )
+
     /** [node] as the term a macro is given, each of its terms remembering the node it came from. */
     private fun termOf(node: ElixirAst): OtpErlangObject =
         node.toOtp(ParserOptions.DEFAULT) { each, term ->
@@ -609,8 +653,33 @@ internal class Evaluation(
         ((term as? OtpErlangTuple)?.takeIf { it.arity() == 3 }?.elementAt(1) as? OtpErlangList)?.elements()?.asList()
             .orEmpty()
 
-    /** The last of [expressions], each evaluated in turn as [parts] are, so one that declines runs those after it. */
-    private fun block(expressions: List<ElixirAst>, frame: Frame): OtpErlangObject = parts(expressions, frame).lastOrNull() ?: NIL
+    /**
+     * The last of [expressions], each evaluated in turn as [parts] are, so one that declines runs those after it, past
+     * those before the last the walk ran without a value
+     * ([ranWithoutValue][org.elixir_lang.expander.BodyValues.ranWithoutValue]). One the walk ran gives what it gave
+     * ([ranGave][org.elixir_lang.expander.BodyValues.ranGave]), not a second run.
+     */
+    private fun block(expressions: List<ElixirAst>, frame: Frame): OtpErlangObject {
+        val last = expressions.lastOrNull()
+        val values = module?.let(run.compiling::get)?.values ?: run.fileValues
+        val taken = expressions.filter { it === last || !values.ranWithoutValue(it) }
+        val outcome = partsOf(taken) { node ->
+            part {
+                when (val gave = values.ranGave(node, run)) {
+                    null -> eval(node, frame)
+                    is Evaluated.Value -> gave.value
+                    is Evaluated.Declined -> throw Declined("code the walk ran").apply { holds += gave.holds }
+                    is Evaluated.Raised -> throw Declined("code the walk ran")
+                }
+            }
+        }
+
+        return when (outcome) {
+            is PartsOutcome.Values -> outcome.values.lastOrNull() ?: NIL
+            is PartsOutcome.Declines -> throw outcome.declined
+            is PartsOutcome.Raises -> throw outcome.raise
+        }
+    }
 
     private fun evalList(elements: List<ElixirAst>, frame: Frame): OtpErlangObject {
         val last = elements.lastOrNull()
@@ -979,20 +1048,17 @@ internal class Evaluation(
         return DefinitionTable.Kind.entries.find { it.name.lowercase() == kind }?.let { Dispatched.Super(it, name) }
     }
 
-    /** An attribute's [value], as the escaped value `@` gives in a function evaluates to. */
-    fun otpOf(value: Term): OtpErlangObject {
-        ProgressManager.checkCanceled()
+    /** An attribute's [value], as the escaped value `@` gives in a function evaluates to, its atoms seen. */
+    fun otpOf(value: Term): OtpErlangObject = otpOf(value) { atoms += it }
 
-        return when (value) {
-            is Term.Atom -> atom(value.name).also { atoms += value.name }
-            is Term.Integer -> integer(value.value)
-            is Term.Binary -> value.bytes?.let(::OtpErlangBinary) ?: UnknownBinary
-            is Term.List -> cons(value.elements.map(::otpOf), value.tail?.let(::otpOf) ?: EMPTY)
-            is Term.Pair -> tuple(otpOf(value.first), otpOf(value.second))
-            is Term.Tuple -> OtpErlangTuple(value.elements.map(::otpOf).toTypedArray())
-            else -> Unknown
+    /** An attribute's [value] that a [Term] can't hold, as the table keeps it, its atoms seen. */
+    fun held(value: OtpErlangObject): OtpErlangObject =
+        value.also {
+            anyHeld(listOf(it)) { term ->
+                if (term is OtpErlangAtom) atoms += term.atomValue()
+                false
+            }
         }
-    }
 
     /** A call of a function of the clause's own module. */
     private fun local(name: String, args: List<ElixirAst>, frame: Frame): OtpErlangObject {
@@ -1300,15 +1366,22 @@ internal class Evaluation(
     /**
      * [module]`.`[function]`(`[args]`)` where it is a native, else `null`. Where it declines, what it didn't return may
      * hold the arguments it can return ([Natives.returnable]), and where it [marks] what it is given, it may have
-     * written what those it runs give it ([Natives.runs]).
+     * written what those it runs give it ([Natives.runs]) and the module it writes ([Natives.writes]). A write whose
+     * effect the walk applies declines, as its row applies it.
      */
     private fun native(module: String, function: String, args: List<OtpErlangObject>, marks: Boolean): OtpErlangObject? =
         try {
+            if (!marks && natives.writes(module, function, args).isNotEmpty()) {
+                decline("$module:$function/${args.size}'s effect is applied by the walk")
+            }
+
             natives.call(module, function, args)
         } catch (declined: Declined) {
             declined.holds += natives.returnable(module, function, args)
             if (!marks) throw declined
-            throw gave(declined) { add(natives.runs(module, function, args), run.compiling.keys) }
+            throw gave(declined) {
+                add(natives.runs(module, function, args) + natives.writes(module, function, args), run.compiling.keys)
+            }
         }
 
     /** [module]`.`[function]`(`[args]`)`, from its clauses: what Elixir runs where it isn't a native. */
@@ -1400,8 +1473,7 @@ internal class Evaluation(
                 declined.caught()
             }
         } catch (other: Declined) {
-            declined.given.add(other.given)
-            declined.holds.addAll(other.holds)
+            declined.absorb(other)
             if (other.ended) declined.end(other.endedBy) else declined.caught()
         } catch (thrown: Thrown) {
             declined.end(thrown)
@@ -1427,7 +1499,8 @@ internal class Evaluation(
         try {
             eval(after, frame.copy())
         } catch (other: Declined) {
-            declined.given.add(other.given)
+            // `after`'s value isn't the `try`'s.
+            declined.absorb(other, holds = false)
             if (other.ended) declined.end(other.endedBy)
         } catch (thrown: Thrown) {
             declined.end(thrown)

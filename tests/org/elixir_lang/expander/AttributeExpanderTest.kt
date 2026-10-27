@@ -115,6 +115,39 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
         )
 
+    /** A typespec a match's right side writes is written by its row, as a whole statement's is. */
+    fun testATypespecInAMatchIsWritten() =
+        assertEvery(
+            """
+            defmodule S do
+              @a 1
+              @type t :: integer
+              def r, do: @a
+            end
+
+            defmodule M do
+              @a 1
+              _ = (@type t :: integer)
+              def r, do: @a
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.S compiled
+              write a 1 `@a 1`
+              typespec type `@type t :: integer`
+              read a in def r/0: 1
+              final a: 1
+              final type: unknown
+            module Elixir.M compiled
+              write a 1 `@a 1`
+              typespec type `@type t :: integer`
+              read a in def r/0: 1
+              final a: 1
+              final type: unknown
+            """.trimIndent(),
+        )
+
     fun testATypespec() =
         assertEvery(
             """
@@ -314,6 +347,562 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
         )
 
+    /**
+     * A called function's write before another's decline is kept, and the walk goes on past the decline, after which
+     * what it may have written isn't known; the module stops only at its end.
+     */
+    fun testADeclinedCallKeepsAnEarlierWriteAndTheWalkGoesOn() =
+        assertEvery(
+            """
+            defmodule W do
+              def a(mod), do: Module.put_attribute(mod, :a, 1)
+
+              def b(mod) do
+                Module.put_attribute(mod, :c, 3)
+                Module.put_attribute(mod, :b, Process.get(:k, 2))
+              end
+            end
+
+            defmodule U do
+              W.a(__MODULE__)
+              def fa, do: @a
+              W.b(__MODULE__)
+              def fb, do: @a
+              def g, do: 1
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.W compiled
+            module Elixir.U stopped `defmodule U do
+              W.a(__MODULE__)
+              def fa, do: @a
+              W.b(__MODULE__)
+              def fb, do: @a
+              def g, do: 1
+            end`
+              write a 1 `W.a(__MODULE__)`
+              write c 3 `W.b(__MODULE__)`
+              read a in def fa/0: 1
+              read a in def fb/0: unexpanded
+              final a: unknown
+              final c: unknown
+              attributes fb/0: impls [unknown]; doc unknown; deprecated unknown
+              attributes g/0: impls [unknown]; doc unknown; deprecated unknown
+            """.trimIndent(),
+        )
+
+    /** The walk goes on past a match or an attribute value whose call declines, after which what it may have written isn't known. */
+    fun testTheWalkGoesOnPastADeclineInAMatchOrAnAttributeValue() =
+        assertEvery(
+            """
+            defmodule W do
+              def b(mod), do: Module.put_attribute(mod, :b, Process.get(:k, 2))
+            end
+
+            defmodule X do
+              @a 1
+              x = W.b(__MODULE__)
+              def f, do: @a
+            end
+
+            defmodule Y do
+              @a 1
+              @x W.b(__MODULE__)
+              def f, do: @a
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.W compiled
+            module Elixir.X stopped `defmodule X do
+              @a 1
+              x = W.b(__MODULE__)
+              def f, do: @a
+            end`
+              write a 1 `@a 1`
+              read a in def f/0: unexpanded
+              final a: unknown
+              attributes f/0: impls [unknown]; doc unknown; deprecated unknown
+            module Elixir.Y stopped `defmodule Y do
+              @a 1
+              @x W.b(__MODULE__)
+              def f, do: @a
+            end`
+              write a 1 `@a 1`
+              write x node `@x W.b(__MODULE__)`
+              read a in def f/0: unexpanded
+              final a: unknown
+              final x: unknown
+              attributes f/0: impls [unknown]; doc unknown; deprecated unknown
+            """.trimIndent(),
+        )
+
+    /** A `@deprecated` that isn't a binary raises at its write, so the walk stops there, a value a term can't hold too. */
+    fun testADeprecatedThatIsntABinaryStopsAtItsWrite() =
+        assertEvery(
+            """
+            defmodule F do
+              @deprecated 1.0
+              def f, do: 1
+            end
+
+            defmodule M do
+              @deprecated %{}
+              def f, do: 1
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.F stopped `@deprecated 1.0`
+              write deprecated non-tuple `@deprecated 1.0`
+              final deprecated: :nil
+            module Elixir.M stopped `@deprecated %{}`
+              write deprecated node `@deprecated %{}`
+              final deprecated: :nil
+            """.trimIndent(),
+        )
+
+    /**
+     * A called function's `take_definition/2` stops the module at the call that ran it, inside an attribute's value, a
+     * tuple, or a `try`'s `after` or `rescue` too.
+     */
+    fun testACalledFunctionsTakeDefinitionStopsAtTheUnitThatCalledIt() =
+        assertEvery(
+            """
+            defmodule W do
+              def take(mod), do: :elixir_def.take_definition(mod, {:g, 0})
+              def both(mod), do: {Process.get(:k), :elixir_def.take_definition(mod, {:g, 0})}
+
+              def after_take(mod) do
+                try do
+                  Process.get(:k)
+                after
+                  :elixir_def.take_definition(mod, {:g, 0})
+                end
+              end
+
+              def rescue_take(mod) do
+                try do
+                  {Process.get(:k), :erlang.error(:x)}
+                rescue
+                  _ -> :elixir_def.take_definition(mod, {:g, 0})
+                end
+              end
+            end
+
+            defmodule U do
+              def g, do: 1
+              @x W.take(__MODULE__)
+              def r, do: 1
+            end
+
+            defmodule B do
+              def g, do: 1
+              W.both(__MODULE__)
+              def r, do: 1
+            end
+
+            defmodule T do
+              def g, do: 1
+              W.after_take(__MODULE__)
+              def r, do: 1
+            end
+
+            defmodule R do
+              def g, do: 1
+              W.rescue_take(__MODULE__)
+              def r, do: 1
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.W compiled
+            module Elixir.U stopped `W.take(__MODULE__)`
+              attributes r/0: impls [unknown]; doc unknown; deprecated unknown
+            module Elixir.B stopped `W.both(__MODULE__)`
+              attributes r/0: impls [unknown]; doc unknown; deprecated unknown
+            module Elixir.T stopped `W.after_take(__MODULE__)`
+              attributes r/0: impls [unknown]; doc unknown; deprecated unknown
+            module Elixir.R stopped `W.rescue_take(__MODULE__)`
+              attributes r/0: impls [unknown]; doc unknown; deprecated unknown
+            """.trimIndent(),
+        )
+
+    /** A writer in an attribute's value runs once where the walk reaches it, so what it gives and writes is known. */
+    fun testAWriterInAnAttributesValueIsAnsweredByTheEvaluator() =
+        assertEvery(
+            """
+            defmodule U do
+              @a 1
+              @b Module.delete_attribute(__MODULE__, :a)
+              def r, do: {@b, @a}
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.U compiled
+              write a 1 `@a 1`
+              delete a `Module.delete_attribute(__MODULE__, :a)`
+              write b 1 `@b Module.delete_attribute(__MODULE__, :a)`
+              read b in def r/0: 1
+              read a in def r/0: :nil
+              final a: :nil
+              final b: 1
+            """.trimIndent(),
+        )
+
+    /**
+     * A writer before the last expression of a block an attribute's value is runs once, as a statement, so the block
+     * gives its last expression's value.
+     */
+    fun testABlockAnAttributesValueIsGivesItsLastValuePastAWriter() =
+        assertEvery(
+            """
+            defmodule U do
+              @a 1
+              @b (Module.delete_attribute(__MODULE__, :a); 42)
+              def r, do: {@b, @a}
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.U compiled
+              write a 1 `@a 1`
+              delete a `Module.delete_attribute(__MODULE__, :a)`
+              write b 42 `@b (Module.delete_attribute(__MODULE__, :a); 42)`
+              read b in def r/0: 42
+              read a in def r/0: :nil
+              final a: :nil
+              final b: 42
+            """.trimIndent(),
+        )
+
+    /**
+     * A module before the last expression of a block an attribute's value is runs once, as a statement, so the block
+     * gives its last expression's value.
+     */
+    fun testABlockAnAttributesValueIsGivesItsLastValuePastAModule() =
+        assertEvery(
+            """
+            defmodule U do
+              @b (defmodule N do end; 42)
+              def r, do: @b
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.U compiled
+              write b 42 `@b (defmodule N do end; 42)`
+              read b in def r/0: 42
+              final b: 42
+              module Elixir.U.N compiled
+            """.trimIndent(),
+        )
+
+    /**
+     * A writer before the last expression of a block a `case`'s subject is runs once, as a statement, so the `case`
+     * matches its last expression's value.
+     */
+    fun testABlockACaseSubjectIsGivesItsLastValuePastAWriter() =
+        assertEvery(
+            """
+            defmodule U do
+              x = case (Module.put_attribute(__MODULE__, :a, 2); 1) do
+                1 -> :one
+              end
+
+              def unquote(x)(), do: @a
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.U compiled
+              write a 2 `Module.put_attribute(__MODULE__, :a, 2)`
+              read a in def one/0: 2
+              final a: 2
+            """.trimIndent(),
+        )
+
+    /**
+     * A called function's write before the last expression of a block a `case`'s subject or an attribute's value is, or
+     * as the subject itself, runs once, as a statement, so it writes once; a match there still binds for the code after it.
+     */
+    fun testAStatementACaseSubjectOrAttributesValueHoldsRunsOnce() =
+        assertEvery(
+            """
+            defmodule W do
+              def add(mod), do: Module.put_attribute(mod, :acc, 1)
+            end
+
+            defmodule U do
+              Module.register_attribute(__MODULE__, :acc, accumulate: true)
+
+              x = case (W.add(__MODULE__); 1) do
+                1 -> :one
+              end
+
+              def unquote(x)(), do: @acc
+            end
+
+            defmodule A do
+              Module.register_attribute(__MODULE__, :acc, accumulate: true)
+              @b (W.add(__MODULE__); 42)
+              def r, do: {@b, @acc}
+            end
+
+            defmodule S do
+              Module.register_attribute(__MODULE__, :acc, accumulate: true)
+
+              x = case W.add(__MODULE__) do
+                :ok -> :one
+              end
+
+              def unquote(x)(), do: @acc
+            end
+
+            defmodule B do
+              x = case (y = 1; y + 1) do
+                2 -> :two
+              end
+
+              def unquote(x)(), do: :ok
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.W compiled
+            module Elixir.U compiled
+              register acc accumulate true `Module.register_attribute(__MODULE__, :acc, accumulate: true)`
+              write acc 1 `W.add(__MODULE__)`
+              read acc in def one/0: [1]
+              final acc: [1]
+            module Elixir.A compiled
+              register acc accumulate true `Module.register_attribute(__MODULE__, :acc, accumulate: true)`
+              write acc 1 `W.add(__MODULE__); 42`
+              write b 42 `@b (W.add(__MODULE__); 42)`
+              read b in def r/0: 42
+              read acc in def r/0: [1]
+              final acc: [1]
+              final b: 42
+            module Elixir.S compiled
+              register acc accumulate true `Module.register_attribute(__MODULE__, :acc, accumulate: true)`
+              write acc 1 `case W.add(__MODULE__) do
+                :ok -> :one
+              end`
+              read acc in def one/0: [1]
+              final acc: [1]
+            module Elixir.B compiled
+            """.trimIndent(),
+        )
+
+    /**
+     * A writer before the last expression of a body the statement runs, a `for`'s or a `case` clause's, writes where the
+     * evaluator reaches it. In an `fn` that `Enum.each/2` calls, the walk doesn't run a write as a statement, so a later
+     * read is unknown.
+     */
+    fun testAWriterBeforeTheLastExpressionOfAFollowedBodyWrites() =
+        assertEvery(
+            """
+            defmodule F do
+              for x <- [1] do
+                Module.put_attribute(__MODULE__, :a, x)
+                :ok
+              end
+
+              def r, do: @a
+            end
+
+            defmodule E do
+              Enum.each([2], fn x ->
+                Module.put_attribute(__MODULE__, :a, x)
+                :ok
+              end)
+
+              def r, do: @a
+            end
+
+            defmodule C do
+              case 1 do
+                1 ->
+                  Module.put_attribute(__MODULE__, :a, 3)
+                  :ok
+              end
+
+              def r, do: @a
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.F compiled
+              write a 1 `Module.put_attribute(__MODULE__, :a, x)`
+              read a in def r/0: 1
+              final a: 1
+            module Elixir.E compiled
+              write a node not a statement `Module.put_attribute(__MODULE__, :a, x)`
+              read a in def r/0: unexpanded
+              final a: unknown
+            module Elixir.C compiled
+              write a 3 `Module.put_attribute(__MODULE__, :a, 3)`
+              read a in def r/0: 3
+              final a: 3
+            """.trimIndent(),
+        )
+
+    /** A `delete_definition/2` in a `case`'s subject runs once where the walk reaches it, so whether it removes is known. */
+    fun testADeleteDefinitionInACaseSubjectIsAnsweredByTheEvaluator() =
+        assertSplit(
+            """
+            defmodule D do
+              def f, do: 1
+
+              case Module.delete_definition(__MODULE__, {:g, 0}) do
+                _ -> :ok
+              end
+
+              def r, do: 1
+            end
+            """.trimIndent(),
+            "1.12.0-rc.0",
+            """
+            top expanded {} next 0
+            module Elixir.D stopped `defmodule D do
+              def f, do: 1
+
+              case Module.delete_definition(__MODULE__, {:g, 0}) do
+                _ -> :ok
+              end
+
+              def r, do: 1
+            end`
+              attributes r/0: impls [unknown]; doc unknown; deprecated unknown
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.D compiled
+            """.trimIndent(),
+        )
+
+    /** A macro's `delete_definition/2` in a module whose run isn't certain stops it, as the module's own call does. */
+    fun testAMacrosDeleteDefinitionInAModuleThatMayNotRunStops() =
+        assertSplit(
+            """
+            defmodule M do
+              defmacro del do
+                Module.delete_definition(__CALLER__.module, {:f, 0})
+                :ok
+              end
+            end
+
+            defmodule O do
+              case Process.get(:k) do
+                nil ->
+                  defmodule I do
+                    require M
+                    def f, do: 1
+                    M.del()
+                  end
+
+                  defmodule J do
+                    def f, do: 1
+                    Module.delete_definition(__MODULE__, {:f, 0})
+                  end
+
+                _ ->
+                  :ok
+              end
+            end
+            """.trimIndent(),
+            "1.12.0-rc.0",
+            """
+            top expanded {} next 0
+            module Elixir.M compiled
+            module Elixir.O stopped `case Process.get(:k) do
+                nil ->
+                  defmodule I do
+                    require M
+                    def f, do: 1
+                    M.del()
+                  end
+
+                  defmodule J do
+                    def f, do: 1
+                    Module.delete_definition(__MODULE__, {:f, 0})
+                  end
+
+                _ ->
+                  :ok
+              end`
+              module Elixir.O.I stopped `M.del()`
+                attributes f/0: impls [unknown]; doc unknown; deprecated unknown
+              module Elixir.O.J stopped `defmodule J do
+                    def f, do: 1
+                    Module.delete_definition(__MODULE__, {:f, 0})
+                  end`
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.M compiled
+            module Elixir.O stopped `case Process.get(:k) do
+                nil ->
+                  defmodule I do
+                    require M
+                    def f, do: 1
+                    M.del()
+                  end
+
+                  defmodule J do
+                    def f, do: 1
+                    Module.delete_definition(__MODULE__, {:f, 0})
+                  end
+
+                _ ->
+                  :ok
+              end`
+              module Elixir.O.I stopped `M.del()`
+                attributes f/0: impls [unknown]; doc unknown; deprecated unknown
+              module Elixir.O.J stopped `Module.delete_definition(__MODULE__, {:f, 0})`
+            """.trimIndent(),
+        )
+
+    /**
+     * A definition whose `@on_definition` callback declines is stored, and nothing stops at the callback, after which
+     * what it may have written isn't known: the attributes the definition takes once its callbacks ran included.
+     */
+    fun testADefinitionWhoseOnDefinitionCallbackDeclinesIsStored() =
+        assertEvery(
+            """
+            defmodule Mac do
+              def on_def(_env, _kind, _name, _args, _guards, _body), do: Process.get(:k)
+            end
+
+            defmodule U do
+              @a 1
+              @on_definition {Mac, :on_def}
+              def f, do: @a
+              def g, do: @a
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.Mac compiled
+            module Elixir.U stopped `defmodule U do
+              @a 1
+              @on_definition {Mac, :on_def}
+              def f, do: @a
+              def g, do: @a
+            end`
+              write a 1 `@a 1`
+              write on_definition {:Elixir.Mac, :on_def} `@on_definition {Mac, :on_def}`
+              read a in def f/0: 1
+              read a in def g/0: unexpanded
+              final a: unknown
+              final on_definition: unknown
+              attributes f/0: impls [unknown]; doc unknown; deprecated unknown
+              attributes g/0: impls [unknown]; doc unknown; deprecated unknown
+            """.trimIndent(),
+        )
+
     /** A refused value raises where the body runs it, so nothing after it is expanded. */
     fun testARefusedValue() =
         assertEvery(
@@ -454,7 +1043,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             module Elixir.A compiled
               write x node `@x self()`
               read x in def r_x/0: unexpanded
-              final x: unknown
+              final x: held #Pid<nonode@nohost.0.0>
             """.trimIndent(),
         )
 
@@ -1684,6 +2273,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
     private fun render(value: AttributeValue): String =
         when (value) {
             is AttributeValue.Known -> render(value.term)
+            is AttributeValue.Held -> "held ${value.value}"
             AttributeValue.Unknown -> "unknown"
         }
 

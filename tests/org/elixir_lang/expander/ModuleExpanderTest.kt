@@ -914,12 +914,14 @@ class ModuleExpanderTest : ExpanderTestCase() {
         assertCancelledAt("($bitstrings :erlang.<(a, b))", uncompared + bits / 2)
     }
 
-    /** A macro ordering such a list is cancelled while it walks it for an unknown value. */
-    fun testAComparedTermIsCancelledAsItIsWalked() {
+    /** A macro ordering such a list walks each of its shared parts once for an unknown value. */
+    fun testAComparedTermIsWalkedInBoundedWork() {
         // Building the list makes most of the checks, so the walk's are counted from the same body's not ordering it.
         val unwalked = checks("($TREE :erlang.is_list(t))")
+        val walked = checks("($TREE :erlang.<(t, {:a}))") - unwalked
 
-        assertCancelledAt("($TREE :erlang.<(t, {:a}))", unwalked + (1 shl DOUBLINGS) / 2)
+        // A walk of each part where it appears would check each of the list's leaves.
+        assertTrue("$walked checks", walked < (1 shl DOUBLINGS) / 2)
     }
 
     /** A macro keying a map by such a list is cancelled while it looks in the key for a function. */
@@ -3093,15 +3095,15 @@ class ModuleExpanderTest : ExpanderTestCase() {
         }
 
     /**
-     * A macro the expander can't follow, expanded in a function body of a nested module, ran given the module around
-     * it by its argument, so a later read of that module's attributes declines: Elixir reads what the macro wrote.
+     * A macro expanded in a function body of a nested module writes the module around it, given by its argument, and a
+     * later read of that module's attributes reads what it wrote, as Elixir's does.
      */
-    fun testAnUnfollowedMacroGivenTheEnclosingModuleLeavesItsAttributesUnknown() =
+    fun testAMacroWritingTheEnclosingModuleIsReadAfterIt() =
         assertLevels(
             """
             defmodule W do
               defmacro w(module) do
-                Module.put_attribute(module, :x, 2)
+                Module.put_attribute(module, :x, :written)
                 :ok
               end
 
@@ -3128,14 +3130,14 @@ class ModuleExpanderTest : ExpanderTestCase() {
               body: expanded {} next 0 context [Elixir.W]
               defmacro w/1: expanded {module:0} next 1
               defmacro r/2: expanded {key:1 module:0} next 2
-            module Elixir.NS stopped `W.w(:"Elixir.NS")`
+            module Elixir.NS compiled
               body: expanded {} next 0 context ${innerContext(version)}
-              module Elixir.NS.Inner stopped `W.w(:"Elixir.NS")`
+              module Elixir.NS.Inner compiled
                 def h/0 line 15 clauses 1
                 def g/0 line 16 clauses 1
                 body: expanded {} next 0 context ${innerContext(version)}
-                def h/0: opaque remote_macro Elixir.W.w/1 `W.w(:"Elixir.NS")`
-                def g/0: opaque remote_macro Elixir.W.r/2 `W.r(:"Elixir.NS", :x)`
+                def h/0: expanded {} next 0 value ok
+                def g/0: expanded {} next 0 value written
             """.trimIndent()
         }
 
@@ -3237,7 +3239,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
         if (isBefore(version, "1.13.0-rc.0")) "[Elixir.NS.Inner, Elixir.NS, Elixir.W]" else "[Elixir.NS.Inner, Elixir.NS]"
 
     /** Each module-body call of a remover's name and arity reaches the table or stops, whatever its receiver and target. */
-    fun testEachRemoverCallStopsItsModule() {
+    fun testEachRemoverCallReachesTheTableOrStopsItsModule() {
         val code =
             """
             defmodule DD do
@@ -3297,10 +3299,10 @@ class ModuleExpanderTest : ExpanderTestCase() {
             }
             val lines = listOf(2, 7, 13, 18, 23, 29, 34, 40)
 
-            fun module(index: Int, stop: String, bound: String, inner: List<String> = emptyList()) =
-                listOf(
+            fun module(index: Int, stop: String, bound: String, inner: List<String> = emptyList(), removed: Boolean = false) =
+                listOfNotNull(
                     "module Elixir.${names[index]} ${if (stop.isEmpty()) "compiled" else "stopped `$stop`"}",
-                    "  def f/0 line ${lines[index]} clauses 1",
+                    "  def f/0 line ${lines[index]} clauses 1".takeUnless { removed },
                     "  body: expanded {$bound} next ${if (bound.isEmpty()) 0 else 1} context ${context(index, inner)}",
                     "  def f/0: expanded {} next 0",
                 ).joinToString("\n")
@@ -3311,7 +3313,8 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
             listOf(
                 "top expanded {} next 0 context ${if (before) listed(names.reversed()) else "[]"}",
-                module(0, delete("Module.delete_definition(__MODULE__, {:f, 0})", 0), ""),
+                // From 1.12 the call takes `f/0` out of the table, as Elixir's does.
+                if (deletes) module(0, "", "", removed = true) else module(0, code.split("\n\n")[0], ""),
                 module(1, delete("m.delete_definition(__MODULE__, {:f, 0})", 1), "m:0"),
                 module(2, delete("Module.delete_definition(Application.get_env(:app, :t, __MODULE__), {:f, 0})", 2), ""),
                 module(3, "Module.make_overridable(Application.get_env(:app, :t, __MODULE__), f: 0)", ""),

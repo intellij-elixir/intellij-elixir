@@ -25,9 +25,13 @@ internal val ATTRIBUTE = Summary { _, node, state, env, run ->
         }
         is Returned.Code -> {
             val counter = run.counters.next(env.module)
-            val linified = linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, run.level, returned.node, run::carrySupplied)
+            val compiling = run.compiling[env.module!!]
+            val linified = linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, run.level, returned.node) { original, copy ->
+                run.carrySupplied(original, copy)
+                compiling?.built(copy, original)
+            }
 
-            run.compiling[env.module!!]?.built(linified, node)
+            compiling?.built(linified, node)
             recordDispatch(node, ModuleClauses.Dispatched.Macro(linified), env, run)
 
             Expander.expand(linified, state, env, run)
@@ -37,23 +41,41 @@ internal val ATTRIBUTE = Summary { _, node, state, env, run ->
 
 /** What `Macro.expand/2` takes from `@` at [node]: the code, or a function's value escaped. */
 internal fun attributeOutput(node: ElixirAst.Call, env: Env, run: Run): Summary.Output =
-    when (val returned = returned(node, env, run)) {
+    output(returned(node, env, run), node, run)
+
+/** [returned] as `Macro.expand/2` takes it from `@` at [node]: a value escaped, where a term the port can't shape stops. */
+private fun output(returned: Returned, node: ElixirAst.Call, run: Run): Summary.Output =
+    when (returned) {
         is Returned.Ended -> Summary.Output.Stopped(returned.expansion)
-        is Returned.Value -> escaped(returned.term, node, run)
+        is Returned.Value -> {
+            val escaped = escaped(ImportTermEscapeView, { literalOf(node, it) }, returned.term, node, run) {
+                Returned.Ended(Expansion.Unported(node))
+            }
+
+            output(escaped, node, run)
+        }
         is Returned.Code -> Summary.Output.Built(returned.node)
     }
 
 /**
- * `do_at_escape/2`: [term], the value a function reads, escaped as `Macro.escape(value, generated: true)` escapes it.
- * The escape's `ArgumentError` is re-raised; a term the port can't shape stops at [node].
+ * `do_at_escape/2` at [node]: [value], which [view] reads, [insert] putting in a node it holds, escaped as
+ * `Macro.escape(value, generated: true)` escapes it, the escape's `ArgumentError` re-raised; [unread] where the port
+ * can't build it.
  */
-private fun escaped(term: Term, node: ElixirAst.Call, run: Run): Summary.Output {
-    val escape = QuoteEscape(ImportTermEscapeView, AstEscapeBuilder(Synthetic(node.meta)), { literalOf(node, it) }, run.level, run.exports, generated = { { true } })
+private fun <I> escaped(
+    view: EscapeView<I>,
+    insert: (I) -> ElixirAst?,
+    value: I,
+    node: ElixirAst.Call,
+    run: Run,
+    unread: () -> Returned,
+): Returned {
+    val escape = QuoteEscape(view, AstEscapeBuilder(Synthetic(node.meta)), insert, run.level, run.exports, generated = { { true } })
 
-    return when (val escaped = escape.escape(term)) {
-        is EscapeResult.Built -> Summary.Output.Built(escaped.value)
-        is EscapeResult.Raised -> Summary.Output.Raised(escaped.exception)
-        is EscapeResult.Unread, EscapeResult.Declined -> Summary.Output.Unported(node)
+    return when (val escaped = escape.escape(value)) {
+        is EscapeResult.Built -> Returned.Code(escaped.value)
+        is EscapeResult.Raised -> Returned.Ended(Expansion.Error(escaped.exception, node))
+        is EscapeResult.Unread, EscapeResult.Declined -> unread()
     }
 }
 
@@ -151,8 +173,9 @@ private fun write(
 }
 
 /**
- * `do_at/5` with no argument: in a function, the value as it stands; in the module body,
- * `Module.__get_attribute__/3,4`, whose value is known only at run time, with a doc's line dropped.
+ * `do_at/5` with no argument: in a function, the value as it stands, or the code its escape builds where a [Term]
+ * can't hold it, unknown where the port can't build that; in the module body, `Module.__get_attribute__/3,4`, whose
+ * value is known only at run time, with a doc's line dropped.
  */
 private fun read(name: String, node: ElixirAst.Call, env: Env, run: Run): Returned {
     val module = env.module!!
@@ -160,11 +183,14 @@ private fun read(name: String, node: ElixirAst.Call, env: Env, run: Run): Return
     if (env.function != null) {
         val compiling = run.compiling[module] ?: return Returned.Ended(Expansion.Unported(node))
         val value = compiling.attributes.read(name)
+        val term = (value as? AttributeValue.Known)?.term ?: Term.Unexpanded
 
         if (compiling.attributes.mayHaveChanged(name)) compiling.readChanged = true
-        compiling.read(name, node, value)
+        compiling.read(name, node, term)
 
-        return Returned.Value(value)
+        if (value !is AttributeValue.Held) return Returned.Value(term)
+
+        return escaped(TermEscapeView, { null }, value.value, node, run) { Returned.Value(term) }
     }
 
     val lazily = ATTRIBUTES_EXPANDED_LAZILY.isSufficient(run.level)
@@ -245,7 +271,13 @@ internal fun takeDefinitionAttributes(
     val kind = owner.kind
     val impl = attributes.take("impl")
     val deprecated = attributes.take("deprecated")
-        ?.takeIf { it == AttributeValue.Unknown || (it as AttributeValue.Known).term is Term.Binary }
+        ?.takeIf {
+            when (it) {
+                AttributeValue.Unknown -> true
+                is AttributeValue.Held -> false
+                is AttributeValue.Known -> it.term is Term.Binary
+            }
+        }
     val doc = docPart(attributes.take("doc"))
 
     if (!definition.statement) attributes.markUnknown("impl", "deprecated", "doc")
@@ -253,7 +285,7 @@ internal fun takeDefinitionAttributes(
     val impls = listOfNotNull(impl?.let { AttributeLog.Impl(kind, line(definition.node.meta), it) })
     val truthy = when (impl) {
         null -> false
-        AttributeValue.Unknown -> null
+        is AttributeValue.Held, AttributeValue.Unknown -> null
         is AttributeValue.Known -> impl.term.isTruthy()
     }
     val name = owner.name
@@ -308,7 +340,7 @@ internal fun takeDefinitionAttributes(
 private fun docPart(doc: AttributeValue?): AttributeValue =
     when (doc) {
         null -> AttributeValue.Known(NIL)
-        AttributeValue.Unknown -> doc
+        is AttributeValue.Held, AttributeValue.Unknown -> doc
         is AttributeValue.Known -> AttributeValue.Known((doc.term as? Term.Pair)?.second ?: doc.term)
     }
 

@@ -750,6 +750,20 @@ enum class ElixirLanguageFeature(
     MODULE_DELETE_DEFINITION(sinceElixir = "1.12.0-rc.0"),
 
     /**
+     * `Module.attributes_in/1` exists.
+     *
+     * `elixir-lang/elixir@a861af39d` ("Add Module.attributes_in/1, see #11145"), first released in v1.13.0-rc.0.
+     */
+    MODULE_ATTRIBUTES_IN(sinceElixir = "1.13.0-rc.0"),
+
+    /**
+     * `Module.overridables_in/1` exists.
+     *
+     * `elixir-lang/elixir@2eb9f1c04` ("Add Module.overridables_in/1, see #11145"), first released in v1.13.0-rc.0.
+     */
+    MODULE_OVERRIDABLES_IN(sinceElixir = "1.13.0-rc.0"),
+
+    /**
      * A doc attribute read in the module body binds what isn't `{line, doc}` to `value`. Before it, to `other`.
      *
      * `elixir-lang/elixir@76c64a0f3` ("Recompile regexes when escaped from module attributes"), first released in
@@ -764,6 +778,21 @@ enum class ElixirLanguageFeature(
      * `elixir-lang/elixir@ea185b82f` ("Add `Module.get_last_attribute/3`"), first released in v1.15.0-rc.1.
      */
     GET_ATTRIBUTE_DEFAULT_ONLY_UNSET(sinceElixir = "1.15.0-rc.1"),
+
+    /**
+     * `Module.get_last_attribute/2,3` exists.
+     *
+     * `elixir-lang/elixir@ea185b82f` ("Add `Module.get_last_attribute/3`"), first released in v1.15.0-rc.1.
+     */
+    MODULE_GET_LAST_ATTRIBUTE(sinceElixir = "1.15.0-rc.1"),
+
+    /**
+     * `Module.overridable?/2` guards its module with `is_atom/1`, so one that isn't an atom raises `FunctionClauseError`.
+     *
+     * `elixir-lang/elixir@b77e65dd8` ("Improve funcion signatures and guard consistency in Module"), first released in
+     * v1.20.0-rc.4.
+     */
+    OVERRIDABLE_GUARDS_MODULE(sinceElixir = "1.20.0-rc.4"),
 
     /**
      * `Module.get_attribute/3` gives its default for an attribute registered and never written.

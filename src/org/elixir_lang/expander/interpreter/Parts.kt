@@ -16,7 +16,7 @@ internal fun Evaluated.part(): PartOutcome<Evaluated.Raised> =
     when (this) {
         is Evaluated.Value -> PartOutcome.Value(value)
         is Evaluated.Declined ->
-            PartOutcome.Declines(Declined("a part of a value").also { declined ->
+            PartOutcome.Declines(Declined("a part of a value", stops = declined?.stops == true).also { declined ->
                 declined.given.add(given)
                 declined.holds += holds
             })
@@ -67,8 +67,7 @@ internal class InTurn<R>(private val before: List<OtpErlangObject> = emptyList()
                 if (first == null) {
                     declined = outcome.declined.also { it.holds += before; it.holds += values }
                 } else {
-                    first.given.add(outcome.declined.given)
-                    first.holds += outcome.declined.holds
+                    first.absorb(outcome.declined)
                 }
                 raised = outcome.declined.ended
                 raise = outcome.declined.endedBy

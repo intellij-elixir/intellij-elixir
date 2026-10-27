@@ -498,6 +498,7 @@ class AttributeProbeTest : ProbeTestCase() {
     private fun render(value: AttributeValue): String =
         when (value) {
             is AttributeValue.Known -> render(value.term)
+            is AttributeValue.Held -> render(value.value)
             AttributeValue.Unknown -> UNKNOWN
         }
 

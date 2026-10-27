@@ -388,6 +388,17 @@ internal class Run(
         }
     }
 
+    /**
+     * `Module.open?/1` of [module]: whether it is being compiled, or `null` for one the run didn't compile, which another
+     * file may be compiling.
+     */
+    fun isOpen(module: String): Boolean? =
+        when (module) {
+            in compiling -> true
+            in compiled -> false
+            else -> null
+        }
+
     /** The struct of each module the run compiled, which Elixir loads once `elixir_module:compile` returns. */
     private val compiledStructs = HashMap<String, ModuleStruct>()
 

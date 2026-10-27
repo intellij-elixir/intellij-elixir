@@ -31,7 +31,7 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
     /** A macro written by another macro, reading an attribute that holds a large value, is cancelled as it reads it. */
     fun testAWrittenMacrosAttributeIsCancelledAsItIsRead() =
         assertCancelledIn(
-            EVALUATION,
+            VALUES,
             "otpOf",
             "defmacro m, do: ($TREE {:__block__, [], [{:@, [], [{:a, [], [t]}]}, " +
                 "{:defmacro, [], [{:n, [], []}, [do: {:@, [], [{:a, [], nil}]}]]}]})",

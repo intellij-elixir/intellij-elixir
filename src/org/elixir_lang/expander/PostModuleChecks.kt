@@ -132,7 +132,7 @@ private class Steps<At>(
     fun onLoad(): Boolean {
         val named = when (val value = attribute("on_load").firstOrNull()) {
             null -> return true
-            AttributeValue.Unknown -> return stop()
+            is AttributeValue.Held, AttributeValue.Unknown -> return stop()
             is AttributeValue.Known -> value.term
         }
         val defined = defined(named)
@@ -157,7 +157,7 @@ private class Steps<At>(
 
         val options = when (val value = attribute("dialyzer").firstOrNull()) {
             null -> return true
-            AttributeValue.Unknown -> return stop()
+            is AttributeValue.Held, AttributeValue.Unknown -> return stop()
             is AttributeValue.Known -> flatten(value.term) ?: return stop()
         }
         val refusesMacros = DIALYZER_REFUSES_MACROS.isSufficient(level)
@@ -177,7 +177,7 @@ private class Steps<At>(
 
         val nifs = when (val value = attribute("nifs").firstOrNull()) {
             null -> return true
-            AttributeValue.Unknown -> return stop()
+            is AttributeValue.Held, AttributeValue.Unknown -> return stop()
             is AttributeValue.Known -> flatten(value.term) ?: return stop()
         }
 
@@ -204,7 +204,7 @@ private class Steps<At>(
     fun inline(): Boolean =
         attribute("compile").all { value ->
             when (value) {
-                AttributeValue.Unknown -> stop()
+                is AttributeValue.Held, AttributeValue.Unknown -> stop()
                 is AttributeValue.Known -> compileOption(value.term)
             }
         }

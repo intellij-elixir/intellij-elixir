@@ -39,19 +39,47 @@ internal fun makeOverridable(compiling: Compiling, nameArity: NameArity, ordered
 
     if (previous != null && previous.entry.kind.macro != entry.kind.macro) return Overriding.BAD_KIND
 
+    compiling.overridable[nameArity] = Overridable(
+        (previous?.count ?: 0) + 1,
+        entry,
+        takeCalls(compiling, nameArity),
+        compiling.clauses.remove(nameArity).orEmpty(),
+        ordered,
+    )
+    unbuild(compiling, nameArity)
+
+    return Overriding.RECORDED
+}
+
+/**
+ * `Module.delete_definition/2` of [nameArity], which [compiling]'s table holds: its entry, its clauses and its body's
+ * local calls taken out.
+ */
+internal fun deleteDefinition(compiling: Compiling, nameArity: NameArity) {
+    compiling.table.remove(nameArity)
+    compiling.clauses.remove(nameArity)
+    takeCalls(compiling, nameArity)
+    unbuild(compiling, nameArity)
+}
+
+/**
+ * [nameArity], taken out of [compiling]'s table, no longer builds the struct `defstruct` recorded where it built it,
+ * and what builds it after isn't followed.
+ */
+private fun unbuild(compiling: Compiling, nameArity: NameArity) {
+    if (buildsStruct(nameArity) && compiling.struct is ModuleStruct.Present) compiling.struct = ModuleStruct.Unreadable
+}
+
+/**
+ * The local calls of [nameArity]'s body, taken out of [compiling]; those a hidden definition's body brought back under
+ * its name stay ([Compiling.hiddenCalls]).
+ */
+private fun takeCalls(compiling: Compiling, nameArity: NameArity): List<LocalCall<ElixirAst>> {
     val (hidden, calls) = compiling.calls.remove(nameArity).orEmpty().partition { it in compiling.hiddenCalls }
 
     if (hidden.isNotEmpty()) compiling.calls[nameArity] = hidden.toMutableList()
 
-    compiling.overridable[nameArity] =
-        Overridable((previous?.count ?: 0) + 1, entry, calls, compiling.clauses.remove(nameArity).orEmpty(), ordered)
-
-    // The generated `__struct__` is no longer what builds the struct, and what replaces it isn't followed.
-    if (buildsStruct(nameArity) && compiling.struct is ModuleStruct.Present) {
-        compiling.struct = ModuleStruct.Unreadable
-    }
-
-    return Overriding.RECORDED
+    return calls
 }
 
 /**
@@ -135,15 +163,20 @@ internal fun makeAllOverridable(
             pair.second is Term.Node || pair.second == Term.Unexpanded -> return Expansion.Unported(at)
         }
 
-        val name = (pair.first as? Term.Atom)?.name
-        val arity = (pair.second as? Term.Integer)?.value?.takeIf { it in ARITIES }?.toInt()
+        val nameArity = definitionNamed(pair) ?: return Expansion.Error("overridable_bad_element", at)
 
-        if (name == null || arity == null) return Expansion.Error("overridable_bad_element", at)
-
-        take(compiling, NameArity(name, arity), at, ordered)?.let { return it }
+        take(compiling, nameArity, at, ordered)?.let { return it }
     }
 
     return null
+}
+
+/** The definition [pair], a `{name, arity}`, names, where `Module`'s guards take it: an atom and an arity to 255. */
+internal fun definitionNamed(pair: Term.Pair): NameArity? {
+    val name = (pair.first as? Term.Atom)?.name ?: return null
+    val arity = (pair.second as? Term.Integer)?.value?.takeIf { it in DEFINITION_ARITIES }?.toInt() ?: return null
+
+    return NameArity(name, arity)
 }
 
 /** [makeOverridable] of [nameArity] as the call at [at] raises: the error, if it does, or `null`. */
@@ -157,7 +190,8 @@ private fun take(compiling: Compiling, nameArity: NameArity, at: ElixirAst, orde
     }
 }
 
-private val ARITIES = BigInteger.ZERO..BigInteger.valueOf(255)
+/** The arities `Module`'s guards take in a `{name, arity}`. */
+internal val DEFINITION_ARITIES = BigInteger.ZERO..BigInteger.valueOf(255)
 
 /**
  * `Module.make_overridable/2` of a [behaviour] (`check_module_for_overridable`): the module's definitions that are its

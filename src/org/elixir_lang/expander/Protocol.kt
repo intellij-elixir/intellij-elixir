@@ -116,7 +116,7 @@ private fun knowFunctions(shape: ProtocolFunction.Declared, from: Int, run: Run)
     val declared = Term.Pair(Term.Atom(shape.name), Term.Integer(BigInteger.valueOf(shape.arguments.size.toLong())))
 
     run.pending[index] = Pending.Attribute(write.effect, write.at, statement = true, write.raises) { attributes, bindings ->
-        val before = attributes.read(attribute) as? Term.List
+        val before = (attributes.read(attribute) as? AttributeValue.Known)?.term as? Term.List
 
         if (before == null || before.tail != null) {
             write.resolve?.invoke(attributes, bindings) ?: write.effect

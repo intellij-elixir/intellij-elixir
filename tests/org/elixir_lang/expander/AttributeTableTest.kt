@@ -1,6 +1,12 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangList
+import com.ericsson.otp.erlang.OtpErlangLong
+import com.ericsson.otp.erlang.OtpErlangMap
+import com.ericsson.otp.erlang.OtpErlangObject
 import org.elixir_lang.expander.Effect.*
+import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.psi.Import.Term
 import org.junit.Assert.assertEquals
@@ -181,24 +187,45 @@ class AttributeTableTest {
         }
 
     @Test
-    fun `a value with no exact term reads as unexpanded`() =
-        assertTrace("1.20.4", Write("x", list(int(1), NODE)) to null, read("x") to "unexpanded")
+    fun `a value with no exact term reads as unknown`() =
+        assertTrace("1.20.4", Write("x", list(int(1), NODE)) to null, read("x") to "unknown")
 
     @Test
-    fun `an accumulating attribute with one unknown write reads as unexpanded`() =
+    fun `an accumulating attribute with one unknown write reads as unknown`() =
         assertTrace(
             "1.20.4",
             Write("compile", atom("a")) to null,
             Write("compile", NODE) to null,
             Write("compile", atom("b")) to null,
-            read("compile") to "unexpanded",
+            read("compile") to "unknown",
+        )
+
+    @Test
+    fun `a value only the evaluator holds reads as it gave it`() =
+        assertTrace("1.20.4", Write("x", Term.Unexpanded, MAP) to null, read("x") to "held $MAP")
+
+    @Test
+    fun `an evaluated value holding an unknown reads as unknown`() =
+        assertTrace(
+            "1.20.4",
+            Write("x", Term.Unexpanded, OtpErlangList(arrayOf(MAP, Unknown))) to null,
+            read("x") to "unknown",
+        )
+
+    @Test
+    fun `an accumulating attribute with a write only the evaluator holds reads as the list it holds`() =
+        assertTrace(
+            "1.20.4",
+            Write("compile", atom("a")) to null,
+            Write("compile", Term.Unexpanded, MAP) to null,
+            read("compile") to "held ${OtpErlangList(arrayOf(MAP, OtpErlangAtom("a")))}",
         )
 
     @Test
     fun `an unknown value written to a checked attribute is not checked`() =
         everyLeg {
             for (name in listOf("impl", "deprecated", "doc", "external_resource", "file", "on_load")) {
-                assertTrace(it, Write(name, NODE) to UNCHECKED, read(name) to "unexpanded")
+                assertTrace(it, Write(name, NODE) to UNCHECKED, read(name) to "unknown")
             }
         }
 
@@ -208,8 +235,8 @@ class AttributeTableTest {
             "1.20.4",
             Write("x", int(1)) to null,
             UnknownEffect to UNCHECKED,
-            read("x") to "unexpanded",
-            read("never") to "unexpanded",
+            read("x") to "unknown",
+            read("never") to "unknown",
         )
 
     @Test
@@ -219,9 +246,9 @@ class AttributeTableTest {
             Write("x", int(1)) to null,
             Write("y", int(1)) to null,
             elsewhere(Write("x", int(2))) to null,
-            read("x") to "unexpanded",
+            read("x") to "unknown",
             Write("x", int(3)) to null,
-            read("x") to "unexpanded",
+            read("x") to "unknown",
             read("y") to "1",
         )
 
@@ -231,8 +258,8 @@ class AttributeTableTest {
             "1.20.4",
             elsewhere(Register("r", accumulate = true)) to null,
             elsewhere(Delete("d")) to null,
-            read("r") to "unexpanded",
-            read("d") to "unexpanded",
+            read("r") to "unknown",
+            read("d") to "unknown",
         )
 
     @Test
@@ -241,18 +268,18 @@ class AttributeTableTest {
 
     @Test
     fun `an unknown effect that is not a statement makes every later read unknown`() =
-        assertTrace("1.20.4", elsewhere(UnknownEffect) to null, read("x") to "unexpanded")
+        assertTrace("1.20.4", elsewhere(UnknownEffect) to null, read("x") to "unknown")
 
     @Test
     fun `a register whose accumulate option is unknown makes its attribute unknown`() =
-        assertTrace("1.20.4", Register("r", accumulate = null) to null, read("r") to "unexpanded")
+        assertTrace("1.20.4", Register("r", accumulate = null) to null, read("r") to "unknown")
 
     @Test
     fun `a typespec is an unknown value on its attribute`() =
         everyLeg {
             assertTrace(
                 it,
-                *TYPESPECS.flatMap { name -> listOf(TypespecWrite(name, null) to null, read(name) to "unexpanded") }.toTypedArray(),
+                *TYPESPECS.flatMap { name -> listOf(TypespecWrite(name, null) to null, read(name) to "unknown") }.toTypedArray(),
             )
         }
 
@@ -529,6 +556,7 @@ class AttributeTableTest {
     private fun render(value: AttributeValue): String =
         when (value) {
             is AttributeValue.Known -> render(value.term)
+            is AttributeValue.Held -> "held ${value.value}"
             AttributeValue.Unknown -> "unknown"
         }
 
@@ -565,6 +593,9 @@ class AttributeTableTest {
         const val INVALID = "raises invalid_attribute_value"
         const val ON_DEFINITION_ENTRY = "{:Elixir.Module, :compile_definition_attributes}"
         const val ON_DEFINITION = "[$ON_DEFINITION_ENTRY]"
+
+        /** `%{a: 1}`, which no [Term] holds. */
+        val MAP = OtpErlangMap(arrayOf<OtpErlangObject>(OtpErlangAtom("a")), arrayOf<OtpErlangObject>(OtpErlangLong(1)))
 
         val LEGS =
             listOf("1.11.4", "1.12.3", "1.13.4", "1.14.5", "1.15.8", "1.16.3", "1.17.3", "1.18.4", "1.19.5", "1.20.4")

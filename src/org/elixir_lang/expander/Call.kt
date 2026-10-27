@@ -5,6 +5,7 @@ import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.interpreter.Binding
 import org.elixir_lang.expander.interpreter.Evaluated
+import org.elixir_lang.expander.interpreter.Natives
 import org.elixir_lang.expander.interpreter.termOf
 import org.elixir_lang.language_level.ElixirLanguageFeature.ANONYMOUS_CALL_OF_ATOM_REFUSED
 import org.elixir_lang.language_level.ElixirLanguageFeature.CLAUSES_REFUSED_IN_CALL
@@ -520,6 +521,16 @@ private fun queueEffect(
     if (env.function != null) return
 
     val at = compiling.site(node)
+    val statements = compiling.statements
+
+    // A statement whose value another takes, as a match's right side's, runs once inside it, where the native answers it.
+    if ((receiver as? Term.Atom)?.name in Natives.WRITES_BY_ROW &&
+        (statements.contains(at) || statements.follows(at)) &&
+        !statements.isWhole(at)
+    ) {
+        return
+    }
+
     val statement = compiling.isStatement(at)
     val nodes = node.arguments.orEmpty()
     val change = ModuleEffects.of(receiver, name, values.elements, nodes, module, run.level) ?: return
@@ -535,7 +546,7 @@ private fun queueEffect(
     }
     val evaluated = { bindings: HashMap<Binding, OtpErlangObject> ->
         (arguments(bindings) as? ArgumentValues.Evaluated)?.let {
-            ModuleEffects.of(receiver, name, it.terms, nodes, module, run.level)
+            ModuleEffects.of(receiver, name, it.terms, nodes, module, run.level, it.values)
         }
     }
 
@@ -571,15 +582,16 @@ private fun queueEffect(
 
 /** A call's arguments, evaluated where the walk reaches it. */
 internal sealed interface ArgumentValues {
-    class Evaluated(val terms: List<Term>) : ArgumentValues
+    /** @property values what the evaluator gave for each of [terms] that a [Term] can't hold, where it did */
+    class Evaluated(val terms: List<Term>, val values: List<OtpErlangObject?>) : ArgumentValues
 
-    /** Evaluating one of them raises, ending the module body with [expansion]. */
+    /** Evaluating one of them raises or stops, ending the module body with [expansion]. */
     class Raised(val expansion: Expansion) : ArgumentValues
 }
 
 /**
  * [terms], the values [nodes] expanded to, each one that isn't known evaluated from the values [compiling]'s body has
- * bound, or kept where the evaluator can't produce it.
+ * bound, or kept where the evaluator can't produce it or a [Term] can't hold what it produces.
  */
 internal fun evaluatedArguments(
     terms: List<Term>,
@@ -591,21 +603,31 @@ internal fun evaluatedArguments(
     bindings: HashMap<Binding, OtpErlangObject> = compiling.values.bindings,
 ): ArgumentValues {
     val evaluated = ArrayList<Term>(terms.size)
+    val values = ArrayList<OtpErlangObject?>(terms.size)
 
     for ((term, node) in terms.zip(nodes)) {
         if (AttributeValue.of(term) is AttributeValue.Known) {
             evaluated += term
+            values += null
             continue
         }
 
-        evaluated += when (val value = compiling.values.evaluate(node, state, env, run, bindings)) {
-            is Evaluated.Value -> termOf(value.value).takeIf { AttributeValue.of(it) is AttributeValue.Known } ?: term
-            is Evaluated.Declined -> term
-            is Evaluated.Raised -> return ArgumentValues.Raised(Expansion.Error(value.exception, node))
+        val value = compiling.values.evaluate(node, state, env, run, bindings)
+
+        value.error(node)?.let { return ArgumentValues.Raised(it) }
+
+        if (value is Evaluated.Value) {
+            val known = termOf(value.value).takeIf { AttributeValue.of(it) is AttributeValue.Known }
+
+            evaluated += known ?: term
+            values += value.value.takeIf { known == null }
+        } else {
+            evaluated += term
+            values += null
         }
     }
 
-    return ArgumentValues.Evaluated(evaluated)
+    return ArgumentValues.Evaluated(evaluated, values)
 }
 
 /**

@@ -852,7 +852,7 @@ internal fun orGuards(node: ElixirAst): List<ElixirAst> {
 private fun moved(file: AttributeValue?, head: ElixirAst, run: Run): Boolean {
     val path = when (file) {
         null -> keptFile(extractGuards(head).first.meta) ?: return false
-        AttributeValue.Unknown -> return true
+        is AttributeValue.Held, AttributeValue.Unknown -> return true
         is AttributeValue.Known -> fileOf(file.term) ?: return true
     }
     val joined = when {

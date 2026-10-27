@@ -29,7 +29,7 @@ import java.util.Collections
 import java.util.IdentityHashMap
 
 /** The evaluator can't follow the macro body any further, for [reason]. */
-internal class Declined(val reason: String) : RuntimeException(reason, null, false, false) {
+internal class Declined(val reason: String, stops: Boolean = false) : RuntimeException(reason, null, false, false) {
     /** The modules being compiled that the calls it declined in were given, any of which those calls may have written. */
     val given = Given()
 
@@ -46,6 +46,23 @@ internal class Declined(val reason: String) : RuntimeException(reason, null, fal
     /** The raise that [ended] it, where the evaluator ran it: a `rescue` or `catch` clause can take it. */
     var endedBy: Thrown? = null
         private set
+
+    /**
+     * Whether the call it declined stops the module whose code ran it, at the unit running that code: the call took a
+     * definition out of a table where the expander doesn't follow it.
+     */
+    var stops = stops
+        private set
+
+    /**
+     * Takes in [other], a decline of code it ran: what that code was given, and its stop; and, where [other]'s value is
+     * a part of its own, what that value [holds].
+     */
+    fun absorb(other: Declined, holds: Boolean = true) {
+        given.add(other.given)
+        if (holds) this.holds += other.holds
+        if (other.stops) stops = true
+    }
 
     /** It [ended], by [raise]. */
     fun end(raise: Thrown?) {
@@ -232,7 +249,7 @@ internal sealed class UnknownValue : OtpErlangObject() {
     override fun toString() = "#Unknown"
 }
 
-/** A value the evaluator doesn't know that came from no module, such as an attribute's map. */
+/** A value the evaluator doesn't know that came from no module. */
 internal object Unknown : UnknownValue() {
     // Java serialization calls it.
     @Suppress("unused")
@@ -442,23 +459,43 @@ private fun holdsFloat(term: OtpErlangObject): Boolean {
 internal fun entries(map: OtpErlangMap): List<Pair<OtpErlangObject, OtpErlangObject>> = map.keys().zip(map.values())
 
 /** [term], which must hold nothing unknown ([isUnknown]), as a map key or a compared term must. */
-internal fun known(term: OtpErlangObject): OtpErlangObject {
-    ProgressManager.checkCanceled()
+internal fun known(term: OtpErlangObject): OtpErlangObject =
+    if (holdsUnknown(term)) decline("an unknown value") else term
 
-    when (term) {
-        is UnknownValue, UnknownBinary -> decline("an unknown value")
-        is OtpErlangTuple -> term.elements().forEach(::known)
-        is OtpErlangList -> {
-            term.elements().forEach(::known)
-            term.lastTail?.let(::known)
-        }
-        is OtpErlangMap -> {
-            term.keys().forEach(::known)
-            term.values().forEach(::known)
+/** Whether [term] is or holds anything unknown ([isUnknown]), each of its shared parts read once. */
+internal fun holdsUnknown(term: OtpErlangObject): Boolean {
+    val read = Collections.newSetFromMap(IdentityHashMap<OtpErlangObject, Boolean>())
+
+    fun holds(term: OtpErlangObject): Boolean {
+        ProgressManager.checkCanceled()
+
+        return read.add(term) && when (term) {
+            is UnknownValue, UnknownBinary -> true
+            is OtpErlangTuple -> term.elements().any(::holds)
+            is OtpErlangList -> term.elements().any(::holds) || term.lastTail?.let(::holds) == true
+            is OtpErlangMap -> term.keys().any(::holds) || term.values().any(::holds)
+            else -> false
         }
     }
 
-    return term
+    return holds(term)
+}
+
+/** An attribute's [value], as the escaped value `@` gives in a function evaluates to; [seen] is told each atom in it. */
+internal fun otpOf(value: Term, seen: (String) -> Unit = {}): OtpErlangObject {
+    ProgressManager.checkCanceled()
+
+    val part = { term: Term -> otpOf(term, seen) }
+
+    return when (value) {
+        is Term.Atom -> atom(value.name).also { seen(value.name) }
+        is Term.Integer -> integer(value.value)
+        is Term.Binary -> value.bytes?.let(::OtpErlangBinary) ?: UnknownBinary
+        is Term.List -> cons(value.elements.map(part), value.tail?.let(part) ?: EMPTY)
+        is Term.Pair -> tuple(part(value.first), part(value.second))
+        is Term.Tuple -> OtpErlangTuple(value.elements.map(part).toTypedArray())
+        else -> Unknown
+    }
 }
 
 private fun holdsClosure(term: OtpErlangObject): Boolean {

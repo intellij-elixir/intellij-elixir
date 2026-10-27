@@ -435,11 +435,11 @@ private fun enforceKeysOf(compiling: Compiling, level: ElixirLanguageLevel): Lis
     val term = if (bound) {
         when (val row = compiling.attributes.row("enforce_keys")) {
             null -> return emptyList()
-            AttributeValue.Unknown -> return null
+            is AttributeValue.Held, AttributeValue.Unknown -> return null
             is AttributeValue.Known -> row.term
         }
     } else {
-        compiling.attributes.read("enforce_keys")
+        (compiling.attributes.read("enforce_keys") as? AttributeValue.Known)?.term ?: return null
     }
 
     return when (term) {

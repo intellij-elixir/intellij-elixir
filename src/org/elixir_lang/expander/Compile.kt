@@ -108,7 +108,7 @@ internal class Compiling(
     val statements = Statements(level).apply { add(body) }
 
     /** What the module body's statements bound so far, and how far what ran is Elixir's. */
-    val values = BodyValues(statements, known, placed)
+    val values = BodyValues(statements, known, placed, ::site)
 
     /**
      * Whether code the expander doesn't follow may have written the module ([mayHaveWritten]): its tables are then
@@ -134,7 +134,7 @@ internal class Compiling(
      */
     fun tablesCertain(): Boolean = values.ordered && !values.unread && !readChanged && !written
 
-    /** Each call `@` built, to the `@`. */
+    /** Each node of the code an `@` built to where it is in the source: the `@`, or the node of its value it copies. */
     private val built = IdentityHashMap<ElixirAst, ElixirAst>()
 
     /** Whether [node] is a statement of the module body, or of a block that is one. */
@@ -142,12 +142,12 @@ internal class Compiling(
 
     fun rewrote(call: ElixirAst, rewrite: ElixirAst) = statements.rewrote(call, rewrite)
 
-    /** [call] was built by [at], an `@`. */
+    /** [call], in the code an `@` built, is [at] in the source: the `@`, or the node of its value [call] copies. */
     fun built(call: ElixirAst, at: ElixirAst) {
         built[call] = at
     }
 
-    /** Where [call] is in the source: the `@` that built it, or itself. */
+    /** Where [call] is in the source: what it is in the code an `@` built ([built]), or itself. */
     fun site(call: ElixirAst): ElixirAst = built[call] ?: call
 
     /** `@name` at [at], in the definition being stored, injected [value]. */
@@ -195,6 +195,8 @@ internal class BodyValues(
      * can't read ([unread]) or stopped expanding ([expanded]).
      */
     placed: Boolean = true,
+    /** Where a node of the code an `@` built is in the source, where an attribute unit's outcome is kept. */
+    private val site: (ElixirAst) -> ElixirAst = { it },
 ) {
     var known = known
         private set
@@ -325,6 +327,26 @@ internal class BodyValues(
         known && ordered && !declined && running.all { it.certain } &&
             statements.allBefore(running.firstOrNull()?.site ?: site) { outcomes[it] }
 
+    /** The sites of the units the walk is running, innermost last. */
+    private val stepping = ArrayDeque<ElixirAst>()
+
+    /** [block], the run of the unit at [site], whose code the evaluator runs. */
+    fun <T> stepping(site: ElixirAst, block: () -> T): T {
+        stepping.addLast(site)
+
+        try {
+            return block()
+        } finally {
+            stepping.removeLast()
+        }
+    }
+
+    /**
+     * Whether the code the evaluator runs now runs once, where Elixir runs it: the unit running it is certain
+     * ([certainAt]), or, where the walk runs none, it is a macro's body, which runs once as the body expands.
+     */
+    fun certainHere(): Boolean = stepping.lastOrNull()?.let(::certainAt) ?: true
+
     /**
      * [node], code of the body, run where the body runs it, from [bindings], the body's unless a statement's run has its
      * own. Code that nests too deeply for the thread's stack declines, unless [node] is a [unit] the walk runs, a
@@ -390,6 +412,37 @@ internal class BodyValues(
     /** What the effect that stood in for [node] gave where the body last ran it, or `null` where it gave nothing. */
     fun givenBy(node: ElixirAst): OtpErlangObject? = given[node]
 
+    /** [node]'s entry: at [node], or, for code an `@` built, where it is in the source. */
+    private fun <V> IdentityHashMap<ElixirAst, V>.at(node: ElixirAst): V? = this[node] ?: this[site(node)]
+
+    /**
+     * Whether [node] is a definition or effect the walk ran as a unit of its own, which gave no value: a block holding
+     * it before its last expression takes nothing from it, so doesn't run it again.
+     */
+    fun ranWithoutValue(node: ElixirAst): Boolean =
+        outcomes.at(node) != null && units.at(node) == null && given.at(node) == null
+
+    /**
+     * What [node] gave where the walk ran it, which the code around it takes in place of running it again: what the
+     * effect that stood in for it gave, unless the run steps it where the evaluator reaches it, which gives its value
+     * afresh; or the value or decline of a match or statement the walk ran as a unit of its own. `null` where the walk
+     * didn't run it, or it raised.
+     */
+    fun ranGave(node: ElixirAst, run: Run): Evaluated? {
+        given.at(node)?.takeIf { node !in run.reached }?.let { return Evaluated.Value(it) }
+
+        return units.at(node)?.takeIf { outcomes.at(node) != null }?.let(::taken)
+    }
+
+    /** What code around a unit the walk ran takes from its outcome [value]. */
+    private fun taken(value: Evaluated): Evaluated =
+        when (value) {
+            is Evaluated.Value -> value
+            // The unit counted what its calls were given as it ran.
+            is Evaluated.Declined -> Evaluated.Declined(Given(), value.holds)
+            is Evaluated.Raised -> Evaluated.Declined(Given())
+        }
+
     /** [node], a statement of the body whose value nothing takes, run where the body runs it, from [bindings]. */
     fun statement(
         node: ElixirAst,
@@ -411,22 +464,14 @@ internal class BodyValues(
         return when (node) {
             is ElixirAst.Block if node.expressions.isNotEmpty() -> {
                 val last = node.expressions.last()
-                // A definition or effect the walk ran gave no value a block before its last takes.
-                val taken = node.expressions.filter { it === last || it !in outcomes || it in units || it in given }
+                val taken = node.expressions.filter { it === last || !ranWithoutValue(it) }
 
                 built(partsOf(taken) { ran(it, state, env, run, bindings).part() }) { it.last() }
             }
             is ElixirAst.ListNode if node.elements.none { isCall(it, "|", 2) } ->
                 built(partsOf(node.elements) { ran(it, state, env, run, bindings).part() }) { list(it) }
-            else -> when (node) {
-                // A unit the run reaches is stepped where the evaluator reaches it, which gives its value afresh.
-                in given if node !in run.reached -> Evaluated.Value(given.getValue(node))
-                in outcomes -> when (val value = units[node] ?: Interpreter.body(node, bindings, state, env, run, declinesTooDeep = false)) {
-                    is Evaluated.Value -> value
-                    // The unit counted what its calls were given as it ran.
-                    is Evaluated.Declined -> Evaluated.Declined(Given(), value.holds)
-                    is Evaluated.Raised -> Evaluated.Declined(Given())
-                }
+            else -> ranGave(node, run) ?: when {
+                outcomes.at(node) != null -> taken(Interpreter.body(node, bindings, state, env, run, declinesTooDeep = false))
                 else ->
                     (run.dispatchesAt(env)?.of(node) as? ModuleClauses.Dispatched.Macro)
                         ?.takeIf { run.statementsAt(env)?.isRewritten(node) == true && node !in run.reached }
@@ -571,9 +616,9 @@ internal class Statements(private val level: ElixirLanguageLevel) {
      * A block's expressions are statements, as `expand_block/5` runs them: a `_ = for` before the last is its `for`, and
      * where the block's value is taken, as a match takes its right side's, only its last expression's is. So are the
      * elements of a statement that is a list, as `defimpl`'s output for a list of types is, and the head and tail of
-     * its `[h | t]`, and what a statement that is a match binds, within it: each runs where the statement does. The
-     * bodies the statement runs where it does, as many times as it does, are [followed] ([followedBodies]), each in the
-     * `fn` that [holder] names where one holds it.
+     * its `[h | t]`, and, within it, what a statement that is a match binds, the value an `@` writes, and a `case`'s
+     * subject: each runs where the statement does. The bodies the statement runs where it does, as many times as it
+     * does, are [followed] ([followedBodies]), each in the `fn` that [holder] names where one holds it.
      */
     fun add(node: ElixirAst, isWhole: Boolean = true, within: ElixirAst? = null, followed: Boolean = false, holder: ElixirAst? = null) {
         ProgressManager.checkCanceled()
@@ -604,9 +649,7 @@ internal class Statements(private val level: ElixirLanguageLevel) {
                 }
                 if (isWhole) whole += node
 
-                if (isCall(node, "=", 2)) {
-                    add((node as ElixirAst.Call).arguments!![1], isWhole = false, within = node, followed = followed, holder = holder)
-                }
+                takenValue(node)?.let { add(it, isWhole = false, within = node, followed = followed, holder = holder) }
                 followedBodies(node).forEach { (body, fn) ->
                     if (fn != null && holder != null) holders[fn] = holder
                     add(body, followed = true, holder = fn ?: holder)
@@ -614,6 +657,15 @@ internal class Statements(private val level: ElixirLanguageLevel) {
             }
         }
     }
+
+    /** What [node] takes the value of as it runs: a match's right side, the value an `@` writes, or a `case`'s subject. */
+    private fun takenValue(node: ElixirAst): ElixirAst? =
+        when {
+            isCall(node, "=", 2) -> (node as ElixirAst.Call).arguments!![1]
+            isCall(node, "@", 1) -> ((node as ElixirAst.Call).arguments!![0] as? ElixirAst.Call)?.arguments?.singleOrNull()
+            isCall(node, "case", 2) -> (node as ElixirAst.Call).arguments!![0]
+            else -> null
+        }
 
     /**
      * The bodies of [node] the walk follows as [node] runs, which [add] enters: a `for`'s `do`, or each clause's body
@@ -1165,9 +1217,13 @@ private fun Evaluated.produced(): OtpErlangObject =
         is Evaluated.Raised -> Unknown
     }
 
-/** How the unit at [node] that gave this ends the body, if it does: the error it raised. */
-private fun Evaluated.error(node: ElixirAst): Expansion? =
-    (this as? Evaluated.Raised)?.let { Expansion.Error(it.exception, node) }
+/** How the unit at [node] that gave this ends the body, if it does: the error it raised, or a stop a call it declined made. */
+internal fun Evaluated.error(node: ElixirAst): Expansion? =
+    when (this) {
+        is Evaluated.Raised -> Expansion.Error(exception, node)
+        is Evaluated.Declined -> Expansion.Unported(node).takeIf { declined?.stops == true }
+        is Evaluated.Value -> null
+    }
 
 /** `store_definition/3`'s value: the name and arity the definition stored, where a named one was. */
 private fun Owner.defined(): OtpErlangObject =
@@ -1290,7 +1346,13 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
         // The unit's record, given its expansion once classified.
         var unit: ((Expansion) -> ExpansionResult.Unit)? = null
 
-        val (raw, assumed) = run.assuming { when (pending) {
+        // An error computed from the tables, where code Elixir may have run otherwise changed them, is assumed not to
+        // happen: the walk goes on.
+        fun inputsCertain() =
+            pending !is Pending.Definition && pending !is Pending.Effect && pending !is Pending.Check ||
+                compiling.tablesCertain()
+
+        val (raw, assumed) = values.stepping(pending.site) { run.assuming { when (pending) {
             is Pending.Module if runEnded() -> null
             is Pending.Effect if runEnded() -> null
             is Pending.Check if runEnded() -> null
@@ -1298,11 +1360,20 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
                 val unquoted = unquoted(pending, compiling, run, evaluates = !runEnded(), bindings = bindings)
 
                 ordered = unquoted.ordered
-                stepping.known = !compiling.attributes.callsBack("on_definition")
 
                 val (owner, stored) = storeDefinition(pending, unquoted, compiling, run, expand = !runEnded())
 
                 compiling.storedReads(owner)
+
+                val called = (owner as? Owner.Definition)
+                    ?.takeIf { stored is Expansion.Expanded && !runEnded() }
+                    ?.let { onDefinition(pending, unquoted, it, compiling, run) }
+
+                stepping.known = called?.let { it !is Evaluated.Declined } ?: !compiling.attributes.callsBack("on_definition")
+                // A store that raises runs no callback; the callbacks run before the definition takes its attributes.
+                if (!stepping.known && !(stored is Expansion.Error && inputsCertain()) && !runEnded()) {
+                    run.calledBack(compiling, "on_definition")
+                }
 
                 if (stored !is Expansion.Error) {
                     takeDefinitionAttributes(pending, unquoted.head, owner as Owner.Definition, compiling)
@@ -1315,7 +1386,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
 
                     unit = { ExpansionResult.Unit(owner, pending.node, isOrdered, it) }
                     if (stored is Expansion.Expanded) stepping.value = owner.defined()
-                    stored
+                    called?.error(pending.node) ?: stored
                 }
             }
             is Pending.Attribute -> run.stoppedIfTooDeep(pending.at) {
@@ -1328,9 +1399,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
                     val effect =
                         pending.resolve?.takeIf { pending.statement }?.invoke(compiling.attributes, bindings) ?: pending.effect
 
-                    compiling.effects += AttributeLog.Logged(effect, pending.at, pending.statement)
-
-                    when (val outcome = applied(effect, pending.statement, compiling, run)) {
+                    when (val outcome = compiling.write(effect, pending.at, pending.statement, run)) {
                         is EffectOutcome.Raises -> Expansion.Error(outcome.kind, pending.at)
                         // Whether Elixir raises there isn't known, so nothing after it can be compared.
                         EffectOutcome.Unchecked -> Expansion.Unported(pending.at)
@@ -1388,23 +1457,14 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
                     is Ended.Stopped -> Expansion.Unported(inner.at)
                 }
             }
-        } }
+        } } }
 
         if (assumed) values.assumed(pending)
 
-        // An error computed from the tables, where code Elixir may have run otherwise changed them, is assumed not to
-        // happen: the walk goes on.
-        val inputsCertain =
-            pending !is Pending.Definition && pending !is Pending.Effect && pending !is Pending.Check ||
-                compiling.tablesCertain()
         // A raise from certain inputs: Elixir raised there or before it.
-        val raised = raw is Expansion.Error && inputsCertain
-        // A definition's store raises before it runs the `@on_definition` callbacks, whose code isn't followed
-        // (`run_on_definition_callbacks`), and runs none where it raised.
+        val raised = raw is Expansion.Error && inputsCertain()
+        // A definition's store raises before it runs the `@on_definition` callbacks (`run_on_definition_callbacks`).
         val raiseKnown = stepping.known || pending is Pending.Definition
-        if (pending is Pending.Definition && !stepping.known && !raised && !runEnded()) {
-            run.calledBack(compiling, "on_definition")
-        }
         val expansion = values.outcome(pending.site, raw, ordered, stepping.known, raiseKnown).stoppingAt(stopsAt)
         val unitEnded = expansion?.let { ended(it, compiling, run) }
 
@@ -1527,6 +1587,16 @@ private fun nameError(name: String, isAtom: Boolean, run: Run): String? {
 }
 
 /**
+ * [effect], of a call at [at] in this module's body that is a [statement] or not, logged and [applied]: a call the walk
+ * runs as its own unit, or one the evaluator reaches in code the body runs.
+ */
+internal fun Compiling.write(effect: Effect, at: ElixirAst, statement: Boolean, run: Run): EffectOutcome {
+    effects += AttributeLog.Logged(effect, at, statement)
+
+    return applied(effect, statement, this, run)
+}
+
+/**
  * [effect], of a call in [compiling]'s body that is a [statement] or not, applied to [compiling]'s attributes and to
  * those of each other module being compiled that it changes, where it is a statement only if Elixir runs [compiling]'s
  * body wherever the expander does: the first outcome that isn't [EffectOutcome.Stored], if any is. A named module not
@@ -1578,12 +1648,44 @@ private fun ended(expansion: Expansion, isCertain: Boolean, compiling: Compiling
 /** This ending, where it is a stop, as one that [skipped][Ended.Stopped.skipped] what Elixir runs after it. */
 private fun Ended?.skipping(): Ended? = if (this is Ended.Stopped) copy(skipped = true) else this
 
+/**
+ * `run_on_definition_callbacks/8` (`elixir_def.erl:255–262`): each `@on_definition` entry of [compiling]'s
+ * ([AttributeTable.callbacks]), newest first, run on [owner], which [definition] stored from [unquoted]. What they gave:
+ * a value where each ran, else the first's raise, or a decline where the first isn't known or the evaluator declines
+ * it, after which none runs.
+ */
+private fun onDefinition(
+    definition: Pending.Definition,
+    unquoted: Unquoted,
+    owner: Owner.Definition,
+    compiling: Compiling,
+    run: Run,
+): Evaluated {
+    val name = owner.name ?: return Evaluated.Declined(Given())
+    val env = definition.env.copy(function = NameArity(name, owner.arity))
+    val (call, guards) = extractGuards(unquoted.head)
+    val args = (call as? ElixirAst.Call)?.arguments.orEmpty()
+
+    for (entry in compiling.attributes.callbacks("on_definition").asReversed()) {
+        val pair = (entry as? AttributeValue.Known)?.term as? Term.Pair ?: return Evaluated.Declined(Given())
+        val module = (pair.first as? Term.Atom)?.name ?: return Evaluated.Declined(Given())
+        val function = (pair.second as? Term.Atom)?.name ?: return Evaluated.Declined(Given())
+        val ran = Interpreter.onDefinition(
+            module, function, owner.kind.name.lowercase(), args, guards, unquoted.body, definition.node, env, run,
+        )
+
+        if (ran !is Evaluated.Value) return ran
+    }
+
+    return Evaluated.Value(Unknown)
+}
+
 /** The `@before_compile` entries [compiling] holds, oldest first, or `null` where they aren't known. */
 private fun callbacks(compiling: Compiling): List<Term>? =
     when (val value = compiling.attributes.final["before_compile"]) {
         null -> emptyList()
         is AttributeValue.Known -> (value.term as? Term.List)?.elements?.asReversed()
-        AttributeValue.Unknown -> null
+        is AttributeValue.Held, AttributeValue.Unknown -> null
     }
 
 /**
@@ -1662,9 +1764,9 @@ internal fun Run.compilingNamed(module: String?): List<Compiling?> =
     if (module == null) compiling.values.toList() else listOf(compiling[module])
 
 /**
- * Code the expander doesn't follow, a macro's expansion, an `@on_definition` or `@after_compile` callback, or code whose
- * expansion nests too deeply to follow, may have written every module being compiled: each encloses it, since a run
- * compiles one file and a module that finished compiling can't be written, and a module it was given is one of them.
+ * Code the expander doesn't follow, a macro's expansion, a callback, or code whose expansion nests too deeply to follow,
+ * may have written every module being compiled: each encloses it, since a run compiles one file and a module that
+ * finished compiling can't be written, and a module it was given is one of them.
  */
 internal fun Run.unfollowed() = mayHaveWritten(open())
 

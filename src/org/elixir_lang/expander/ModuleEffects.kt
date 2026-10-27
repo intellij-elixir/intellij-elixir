@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangObject
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTES_EXPANDED_LAZILY
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_DELETE_DEFINITION
@@ -30,16 +31,24 @@ internal object ModuleEffects {
      * @property unknownReceiver what a call of its name and arity does through a receiver that isn't known at expansion,
      *   which may be this function's
      * @property change the change to `module` of a call with `args`, expanded from `nodes`, once its receiver is known
+     * @property target the index of the argument naming the module it changes
      */
     private class Row(
         val unknownReceiver: Change,
-        val change: (module: String, args: List<Term>, nodes: List<ElixirAst>) -> Change?,
+        val target: Int = 0,
+        val change: (module: String, args: Arguments, nodes: List<ElixirAst>) -> Change?,
     )
+
+    /** A call's arguments: [terms], and [values], what the evaluator gave for each where it did. */
+    private class Arguments(val terms: List<Term>, val values: List<OtpErlangObject?>) {
+        operator fun get(index: Int): Term = terms[index]
+    }
 
     /**
      * What a call in [module]'s body of [receiver]'s [name] with [args], expanded from [nodes], does: `null` for
-     * nothing, as for a call of a function that changes no module. A receiver that isn't known at expansion may be any
-     * row's with the call's name and arity, so the call does the most any of them does through one: a remover's stops.
+     * nothing, as for a call of a function that changes no module. [values] are what the evaluator gave for [args],
+     * where it did. A receiver that isn't known at expansion may be any row's with the call's name and arity, so the
+     * call does the most any of them does through one: a remover's stops.
      */
     fun of(
         receiver: Term,
@@ -48,6 +57,7 @@ internal object ModuleEffects {
         nodes: List<ElixirAst>,
         module: String,
         level: ElixirLanguageLevel,
+        values: List<OtpErlangObject?> = emptyList(),
     ): Change? {
         val rows = rows(level)
         val key = (receiver as? Term.Atom)?.let { Triple(it.name, name, args.size) }
@@ -55,8 +65,15 @@ internal object ModuleEffects {
                 .map(Row::unknownReceiver)
                 .let { changes -> changes.firstOrNull { it is Change.Definitions } ?: changes.firstOrNull() }
 
-        return rows[key]?.change(module, args, nodes)
+        return rows[key]?.change(module, Arguments(args, values), nodes)
     }
+
+    /**
+     * The index of the argument naming the module [receiver]'s [name] of [arity] changes at [level], or `null` where it
+     * has no row: where it is no function that changes a module.
+     */
+    fun target(receiver: String, name: String, arity: Int, level: ElixirLanguageLevel): Int? =
+        rows(level)[Triple(receiver, name, arity)]?.target
 
     /** The module [target], a call's module argument, names: `null` where it isn't an atom ([Run.compilingNamed]). */
     private fun moduleNamed(target: Term?): String? = (target as? Term.Atom)?.name
@@ -73,7 +90,7 @@ internal object ModuleEffects {
         }
 
     /** `Module`'s attribute functions take the module first and the attribute second (`Mod:1595`, `:1729`, `:1782`). */
-    private fun attributeCall(effect: (name: String, args: List<Term>) -> Effect) =
+    private fun attributeCall(effect: (name: String, args: Arguments) -> Effect) =
         Row(UNKNOWN_MODULE) { module, args, _ ->
             targeting(args[0], module) { named(args[1]) { effect(it, args) } }
         }
@@ -85,15 +102,15 @@ internal object ModuleEffects {
 
     private val UNKNOWN_MODULE = Change.Attributes(Effect.OtherModule(null, Effect.UnknownEffect))
 
-    private val WRITE = attributeCall { name, args -> Effect.Write(name, args[2]) }
+    private val WRITE = attributeCall { name, args -> Effect.Write(name, args[2], args.values.getOrNull(2)) }
 
     private val REGISTER = attributeCall { name, args -> Effect.Register(name, accumulate(args[2])) }
 
     private val DELETE = attributeCall { name, _ -> Effect.Delete(name) }
 
     /** `deftypespec(kind, expr, line, file, module, pos)`, where `kind` is the attribute and `expr` the spec, escaped. */
-    private val TYPESPEC_WRITE = Row(UNKNOWN_MODULE) { module, args, nodes ->
-        targeting(args[4], module) {
+    private val TYPESPEC_WRITE = Row(UNKNOWN_MODULE, TYPESPEC_MODULE) { module, args, nodes ->
+        targeting(args[TYPESPEC_MODULE], module) {
             named(args[0]) { Effect.TypespecWrite(it, specHead(nodes[1])) }
         }
     }
@@ -151,6 +168,30 @@ internal object ModuleEffects {
         }
     }
 
+    /**
+     * `Module.delete_definition(module, {name, arity})` (`Mod:1478–1483` at v1.20.4): the definition taken out of the
+     * module's table where the call is the module's own, Elixir surely runs it there, and whether the table holds the
+     * definition is known ([Compiling.defines]); otherwise it stops.
+     */
+    private val DELETE_DEFINITION = Row(STOP) { module, args, _ ->
+        val definition = (args[1] as? Term.Pair)?.let(::definitionNamed)
+
+        if (moduleNamed(args[0]) == module && definition != null) {
+            Change.Definitions { compiling, at, run, ordered ->
+                val defined = compiling.defines(definition, null)
+
+                if (ordered && compiling.values.certainHere() && defined != null) {
+                    if (defined) deleteDefinition(compiling, definition)
+                    null
+                } else {
+                    stop(args[0]).apply(compiling, at, run, ordered)
+                }
+            }
+        } else {
+            stop(args[0])
+        }
+    }
+
     /** A remover this doesn't follow, which stops the module whatever its target. */
     private val STOPS = Row(STOP) { _, args, _ -> stop(args[0]) }
 
@@ -160,7 +201,7 @@ internal object ModuleEffects {
      */
     private val REMOVERS = mapOf(
         Triple(ELIXIR_MODULE, "make_overridable", 2) to MAKE_OVERRIDABLE,
-        Triple(ELIXIR_MODULE, "delete_definition", 2) to STOPS,
+        Triple(ELIXIR_MODULE, "delete_definition", 2) to DELETE_DEFINITION,
         Triple(ELIXIR_DEF, "take_definition", 2) to STOPS,
     )
 
@@ -214,3 +255,6 @@ internal const val ELIXIR_MODULE = "Elixir.Module"
 private const val ELIXIR_DEF = "elixir_def"
 
 internal const val KERNEL_TYPESPEC = "Elixir.Kernel.Typespec"
+
+/** The argument of `Kernel.Typespec.deftypespec/6` naming the module it writes. */
+private const val TYPESPEC_MODULE = 4
