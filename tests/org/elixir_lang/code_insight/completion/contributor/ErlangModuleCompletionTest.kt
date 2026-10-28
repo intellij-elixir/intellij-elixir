@@ -14,7 +14,7 @@ import java.io.File
  * Three references reach a BEAM module and each gets a test: the module atom
  * (`GeneralAtomReference` -> `psi.scope.atom.Variants`, an `AllName` prefix search over
  * `:`-prefixed keys), functions after an atom qualifier (`provider.CallDefinitionClause` ->
- * `callDefinitionClauseLookupElements`, which appends `()`), and the function atom of an MFA
+ * `qualifiedLookupElements`, which appends `()`), and the function atom of an MFA
  * (`AtomReference`, the same lookup elements without parentheses).
  *
  * `sqrt/1` and `sin/1` are both stable OTP exports, so the `s` prefix keeps two candidates alive and
@@ -59,7 +59,7 @@ class ErlangModuleCompletionTest : BeamLibraryTestCase() {
      * `:math.s<caret>` offers `sqrt` - the exported functions of a decompiled Erlang module, reached
      * through the atom qualifier.
      *
-     * Only the `BeamModule` branch of `callDefinitionClauseLookupElements` makes BEAM functions
+     * Only the `BeamModule` branch of `callDefinitionClauseVisible` makes BEAM functions
      * offerable; a `Call`-only path discards the decompiled module and offers nothing.
      */
     fun testErlangModuleFunctionsAreOfferedAfterAtomQualifier() {
@@ -141,7 +141,7 @@ class ErlangModuleCompletionTest : BeamLibraryTestCase() {
      * `apply(:math, :s<caret>, [1])` offers `sqrt` - the `apply/3` shape of the same MFA path.
      *
      * `AtomCompletionTest` covers this for an Elixir source module; a BEAM module reaches
-     * `callDefinitionClauseLookupElements` through the `BeamModule` branch instead.
+     * `callDefinitionClauseVisible` through the `BeamModule` branch instead.
      */
     fun testErlangApplyFunctionAtomOffersModuleFunctions() {
         myFixture.configureByText(

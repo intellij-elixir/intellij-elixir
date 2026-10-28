@@ -1,8 +1,11 @@
 package org.elixir_lang.code_insight.completion
 
+import com.intellij.codeInsight.completion.CompletionUtil
 import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInsight.lookup.LookupElementBuilder
 import com.intellij.codeInsight.lookup.LookupElementRenderer
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Arity
@@ -16,7 +19,9 @@ import org.elixir_lang.code_insight.lookup.element_renderer.EExFunctionFrom as E
 import org.elixir_lang.code_insight.lookup.element_renderer.exception.CallDefinitionClause as ExceptionRenderer
 import org.elixir_lang.code_insight.lookup.element_renderer.mix.generator.EmbedTemplate as EmbedTemplateRenderer
 import org.elixir_lang.code_insight.lookup.element_renderer.mix.generator.EmbedText as EmbedTextRenderer
+import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
 import org.elixir_lang.declaration.ArityKnowledge
+import org.elixir_lang.declaration.CompletionPosition
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Form
@@ -60,7 +65,26 @@ fun unqualifiedLookupElements(visible: List<Visible>, appendParentheses: Boolean
 /** A name Elixir can write only quoted is not offered unqualified. */
 fun callableUnqualified(name: String): Boolean = InspectAtom.classify(name) != InspectAtom.Class.OTHER
 
-private fun lookupElement(visible: Visible, appendParentheses: Boolean): LookupElement? {
+private fun lookupElement(visible: Visible, appendParentheses: Boolean): LookupElement? =
+    builder(visible, visible.element)?.let {
+        if (appendParentheses) it.withInsertHandler(CallDefinitionClauseInsertHandler.at(arity(visible))) else it
+    }
+
+/**
+ * What completion offers at [position] after a qualifier, from what is visible there: one lookup for each entry,
+ * including a name Elixir can write only quoted, written by [insertHandler]. The lookup points into the file being
+ * edited, not into completion's copy of it.
+ */
+@RequiresReadLock
+fun qualifiedLookupElements(position: CompletionPosition, insertHandler: QualifiedName): List<LookupElement> {
+    ThreadingAssertions.assertReadAccess()
+
+    return sourceFor(Feature.COMPLETION).visible(position).mapNotNull { visible ->
+        builder(visible, visible.element.inOriginalFile())?.withInsertHandler(insertHandler)
+    }
+}
+
+private fun builder(visible: Visible, element: PsiElement): LookupElementBuilder? {
     val name = visible.lookupName
     val form = when (val declared = visible.declaration?.declared) {
         is Declared.Compiled -> Form.CLAUSE
@@ -68,11 +92,10 @@ private fun lookupElement(visible: Visible, appendParentheses: Boolean): LookupE
         null -> (visible.element as? Call)?.let(DeclaringForm::syntacticForm)
     } ?: return null
     val renderer = renderer(form, visible) ?: return null
-    val builder = LookupElementBuilder.createWithSmartPointer(name, visible.element).withRenderer(renderer).let {
-        if (form == Form.EXCEPTION) it else it.withLookupStrings(ElixirUsageQueries.lookupStrings(name, visible.element))
-    }
 
-    return if (appendParentheses) builder.withInsertHandler(CallDefinitionClauseInsertHandler.at(arity(visible))) else builder
+    return LookupElementBuilder.createWithSmartPointer(name, element).withRenderer(renderer).let {
+        if (form == Form.EXCEPTION) it else it.withLookupStrings(ElixirUsageQueries.lookupStrings(name, element))
+    }
 }
 
 private fun renderer(form: Form, visible: Visible): LookupElementRenderer<LookupElement>? {
@@ -101,3 +124,29 @@ private fun arity(visible: Visible): Arity? =
             is ArityKnowledge.Range -> arity.maximum
             is ArityKnowledge.Open, ArityKnowledge.Unknown, null -> null
         }
+
+/**
+ * [CompletionUtil.getOriginalOrSelf] hands back the copy rather than null when it cannot map, so a lookup
+ * element built from its result silently pins the throwaway file. It fails two ways here: the declaration
+ * enclosing the caret has a same-class node that runs past the translated end, and one the trailing dot
+ * swallowed has no node of its own at all.
+ */
+private fun PsiElement.inOriginalFile(): PsiElement {
+    val mapped = CompletionUtil.getOriginalOrSelf(this)
+    val copyFile = mapped.containingFile ?: return mapped
+
+    if (copyFile.isPhysical) return mapped
+
+    val startOffset = mapped.textRange?.startOffset ?: return mapped
+    val originalLeaf = copyFile.findElementAt(startOffset)
+        ?.let(CompletionUtil::getOriginalOrSelf)
+        ?.takeIf { it.containingFile?.isPhysical == true }
+        ?: return mapped
+    val originalOffset = originalLeaf.textRange.startOffset
+
+    val sameClass = generateSequence(originalLeaf) { it.parent }
+        .takeWhile { it !is PsiFile }
+        .firstOrNull { mapped.javaClass.isInstance(it) && it.textRange?.startOffset == originalOffset }
+
+    return sameClass ?: originalLeaf
+}

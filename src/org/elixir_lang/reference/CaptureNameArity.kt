@@ -7,12 +7,12 @@ import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReferenceBase
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.impl.source.resolve.ResolveCache
-import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElements
 import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
+import org.elixir_lang.code_insight.completion.qualifiedLookupElements
 import org.elixir_lang.code_insight.completion.unqualifiedLookupElements
+import org.elixir_lang.declaration.CompletionPosition
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.operation.Prefix
 import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.psi.qualification.Qualified
@@ -50,15 +50,7 @@ class CaptureNameArity(element: NonNumeric, val nameElement: Call, val arity: Ar
                 unqualifiedLookupElements(nameElement, capturedArity = arity).toTypedArray()
 
             is Qualified ->
-                (nameElement as Qualified).qualifier()
-                    .maybeModularNameToModulars(
-                        maxScope = nameElement.containingFile,
-                        useCall = null,
-                        incompleteCode = true
-                    )
-                    .let { modulars ->
-                        callDefinitionClauseLookupElements(modulars, QualifiedName.CAPTURE, arity).toTypedArray()
-                    }
+                qualifiedLookupElements(CompletionPosition.Capture(nameElement, arity), QualifiedName.CAPTURE).toTypedArray()
 
             else -> emptyArray()
         }

@@ -19,14 +19,14 @@ import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
-import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElements
+import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
 import org.elixir_lang.code_insight.completion.callableUnqualified
+import org.elixir_lang.code_insight.completion.qualifiedLookupElements
 import org.elixir_lang.code_insight.completion.unqualifiedLookupElements
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
-import org.elixir_lang.psi.impl.qualifierModulars
 import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.psi.qualification.Unqualified
 import org.elixir_lang.reference.CaptureNameArity
@@ -273,7 +273,7 @@ class VisibleTest : PlatformTestCase() {
     private fun offered(call: Call): List<LookupElement> =
         when (call) {
             is Unqualified -> unqualifiedLookupElements(call)
-            is Qualified -> call.qualifier().qualifierModulars()?.let { callDefinitionClauseLookupElements(it) }.orEmpty()
+            is Qualified -> qualifiedLookupElements(CompletionPosition.OfCall(call), QualifiedName.CALL)
             else -> emptyList()
         }
 
