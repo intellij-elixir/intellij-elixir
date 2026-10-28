@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4559](https://github.com/intellij-elixir/intellij-elixir/pull/4559) [@sh41](https://github.com/sh41)
+  - **The expander gives `__ENV__.file` and `__DIR__` the file's own path and directory, so it sees the function `EEx.function_from_file` defines from a template named relative to the file.** Refs [#4553](https://github.com/intellij-elixir/intellij-elixir/issues/4553).
+
 - [#4558](https://github.com/intellij-elixir/intellij-elixir/pull/4558) [@sh41](https://github.com/sh41)
   - **The expander compiles ExUnit test modules to the tests and functions Elixir defines for them, and answers `Application` env reads in a module body from the project's config and its dependencies' `.app` files, as a default build sees them.** Refs [#4546](https://github.com/intellij-elixir/intellij-elixir/issues/4546).
 
