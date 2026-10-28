@@ -72,7 +72,7 @@ internal object ExpanderSource : CandidateSource {
         val at = at(call, inputs) ?: return emptyList()
         val name = (use as? Use.Named)?.name
         val reached = if (call is Qualified) {
-            val module = receiver(at, call) ?: return emptyList()
+            val module = receiver(at, call.qualifier()) ?: return emptyList()
             inModule(at, module, name, use.arity, imports = false, emptySet())
         } else {
             buildList {
@@ -87,7 +87,8 @@ internal object ExpanderSource : CandidateSource {
 
     /**
      * At an unqualified call, the definitions of the module it is in, what its env imports and `Kernel.SpecialForms`;
-     * after a qualifier, the public definitions of the module it names, as completion offers them ([eachNameOnce]).
+     * after a qualifier, the public definitions of the module it names, as completion offers them ([eachNameOnce]), with
+     * a clause that takes a capture's arity for a capture.
      */
     @RequiresReadLock
     override fun visible(position: CompletionPosition): List<Visible> {
@@ -107,18 +108,27 @@ internal object ExpanderSource : CandidateSource {
 
     private fun visibleWith(position: CompletionPosition, inputs: ProjectModules.Inputs): List<Visible> =
         when (position) {
-            is CompletionPosition.OfCall -> visibleAt(position.call, inputs)
-            is CompletionPosition.AfterDot, is CompletionPosition.Capture, is CompletionPosition.Mfa -> emptyList()
+            is CompletionPosition.OfCall ->
+                if (position.call is Qualified) visibleAfterQualifier(position, inputs, null) else visibleAt(position.call, inputs)
+            is CompletionPosition.AfterDot, is CompletionPosition.Mfa -> visibleAfterQualifier(position, inputs, null)
+            is CompletionPosition.Capture -> visibleAfterQualifier(position, inputs, position.arity)
         }
+
+    /**
+     * The public definitions of the module [position] names, with a clause that takes [arity] arguments where it is not
+     * `null`, as a capture of that arity needs.
+     */
+    private fun visibleAfterQualifier(position: CompletionPosition, inputs: ProjectModules.Inputs, arity: Int?): List<Visible> {
+        val at = at(position.element, inputs) ?: return emptyList()
+        val module = position.module?.let { receiver(at, it) } ?: return emptyList()
+
+        return eachNameOnce(
+            ofModule(at, module, null).filter { it.declaration.visibility != Visibility.PRIVATE && it.admits(arity) },
+        ).map { visible(it, null) }
+    }
 
     private fun visibleAt(position: Call, inputs: ProjectModules.Inputs): List<Visible> {
         val at = at(position, inputs) ?: return emptyList()
-        if (position is Qualified) {
-            val module = receiver(at, position) ?: return emptyList()
-
-            return eachNameOnce(ofModule(at, module, null).filter { it.declaration.visibility != Visibility.PRIVATE })
-                .map { visible(it, null) }
-        }
 
         return buildList {
             ownDefined(at, null).mapTo(this) { visible(it, null) }
@@ -171,14 +181,14 @@ internal object ExpanderSource : CandidateSource {
     }
 
     /** `null` in dumb mode. */
-    private fun at(call: Call, inputs: ProjectModules.Inputs): At? {
-        val file = call.containingFile as? ElixirFile ?: return null
+    private fun at(element: PsiElement, inputs: ProjectModules.Inputs): At? {
+        val file = element.containingFile as? ElixirFile ?: return null
         if (DumbService.isDumb(file.project)) return null
         val holder = ProjectModules.getInstance(file.project)
 
         val indexed = holder.indexed(file, inputs)
 
-        return At(file, call.textRange, inputs, indexed.envs.at(call.textRange), holder, indexed.receivers, indexed.lowering)
+        return At(file, element.textRange, inputs, indexed.envs.at(element.textRange), holder, indexed.receivers, indexed.lowering)
     }
 
     /**
@@ -507,9 +517,9 @@ internal object ExpanderSource : CandidateSource {
         return arities.any { it in interval }
     }
 
-    /** The module [call]'s qualifier names, in the env at [call] where the expansion didn't reach it. */
-    private fun receiver(at: At, call: Qualified): String? =
-        EnvAtom.receiver(call.qualifier(), at.receivers, at.env, at.lowering, at.inputs, at.holder)
+    /** The module [qualifier] names, in the env at [at] where the expansion didn't reach it. */
+    private fun receiver(at: At, qualifier: PsiElement): String? =
+        EnvAtom.receiver(qualifier, at.receivers, at.env, at.lowering, at.inputs, at.holder)
 
     private fun found(reached: Reached, use: Use.OfCall): Found? =
         applicability(reached, use)?.let { applicability ->

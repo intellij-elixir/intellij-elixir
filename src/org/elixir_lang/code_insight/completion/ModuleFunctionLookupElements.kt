@@ -62,12 +62,15 @@ fun callDefinitionClauseLookupElements(
     arity: Arity? = null
 ): List<LookupElement> = offers(modulars, arity).map { it.lookupElement(insertHandler) }
 
-/** What [callDefinitionClauseLookupElements] offers for [modulars], each entry with what it declares. */
+/**
+ * What [callDefinitionClauseLookupElements] offers for [modulars], each entry with what it declares. [arity] is as it is
+ * there.
+ */
 @RequiresReadLock
-fun callDefinitionClauseVisible(modulars: Collection<PsiElement>): List<Visible> {
+fun callDefinitionClauseVisible(modulars: Collection<PsiElement>, arity: Arity? = null): List<Visible> {
     ThreadingAssertions.assertReadAccess()
 
-    return offers(modulars).map(Offer::visible)
+    return offers(modulars, arity).map(Offer::visible)
 }
 
 /** One function name a modular offers, from the [element] that declares it: [form] is `null` for a `.beam` export. */

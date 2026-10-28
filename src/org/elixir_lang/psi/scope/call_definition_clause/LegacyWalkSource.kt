@@ -77,18 +77,28 @@ object LegacyWalkSource : CandidateSource {
         ThreadingAssertions.assertReadAccess()
 
         return when (position) {
-            is CompletionPosition.OfCall -> visibleAt(position.call)
-            is CompletionPosition.AfterDot, is CompletionPosition.Capture, is CompletionPosition.Mfa -> emptyList()
+            // Completion offers the walk's lookups only at an unqualified call; after a qualifier it offers that module's.
+            is CompletionPosition.OfCall ->
+                when (position.call) {
+                    is Unqualified -> Variants.visible(position.call)
+                    is Qualified -> visibleAfterQualifier(position)
+                    else -> emptyList()
+                }
+            is CompletionPosition.AfterDot -> visibleAfterQualifier(position)
+            is CompletionPosition.Capture -> visibleAfterModule(position, position.arity)
+            is CompletionPosition.Mfa -> visibleAfterModule(position, null)
         }
     }
 
-    // Completion offers the walk's lookups only at an unqualified call; after a qualifier it offers that module's.
-    private fun visibleAt(call: Call): List<Visible> =
-        when (call) {
-            is Unqualified -> Variants.visible(call)
-            is Qualified -> call.qualifier().qualifierModulars()?.let(::callDefinitionClauseVisible).orEmpty()
-            else -> emptyList()
-        }
+    private fun visibleAfterQualifier(position: CompletionPosition): List<Visible> =
+        position.module?.qualifierModulars()?.let(::callDefinitionClauseVisible).orEmpty()
+
+    /** The modulars [position]'s module names while being typed, with a clause of [arity] where it is not `null`. */
+    private fun visibleAfterModule(position: CompletionPosition, arity: Int?): List<Visible> =
+        position.module
+            ?.maybeModularNameToModulars(maxScope = position.element.containingFile, useCall = null, incompleteCode = true)
+            ?.let { callDefinitionClauseVisible(it, arity) }
+            .orEmpty()
 
     private fun found(result: VisitedElementSetResolveResult, use: Use): List<Found> =
         result.reached.mapNotNull { reached ->
