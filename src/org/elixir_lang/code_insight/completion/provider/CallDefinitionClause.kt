@@ -6,27 +6,20 @@ import com.intellij.codeInsight.completion.CompletionResultSet
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.ProcessingContext
-import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElements
-import org.elixir_lang.psi.QualifiableAlias
+import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
+import org.elixir_lang.code_insight.completion.qualifiedLookupElements
+import org.elixir_lang.declaration.CompletionPosition
 import org.elixir_lang.psi.operation.capture.NonNumeric
-import org.elixir_lang.psi.qualifier
-import org.elixir_lang.psi.impl.qualifierModulars
 import org.elixir_lang.reference.CaptureNameArity
 
 class CallDefinitionClause : CompletionProvider<CompletionParameters>() {
     /** The copy is read first: its dummy identifier terminates the qualified name. */
-    private fun maybeModularName(parameters: CompletionParameters): PsiElement? =
-        maybeModularNameAt(parameters.position) ?: maybeModularNameAt(parameters.originalPosition)
+    private fun positionAfterDot(parameters: CompletionParameters): CompletionPosition? =
+        positionAfterDotAt(parameters.position) ?: positionAfterDotAt(parameters.originalPosition)
 
-    private fun maybeModularNameAt(position: PsiElement?): PsiElement? =
-        position?.parent?.parent?.let { qualifiedName ->
-            // Bare, the copy's dummy makes `Mod.` a qualified alias; with a prefix typed it is a call.
-            when (qualifiedName) {
-                is org.elixir_lang.psi.qualification.Qualified -> qualifiedName.qualifier()
-                is QualifiableAlias -> qualifiedName.qualifier()
-                else -> null
-            }
-        }
+    /** Bare, the copy's dummy makes `Mod.` a qualified alias; with a prefix typed it is a call. */
+    private fun positionAfterDotAt(position: PsiElement?): CompletionPosition? =
+        position?.parent?.parent?.let(CompletionPosition::AfterDot)?.takeIf { it.module != null }
 
     /** A capture's name, `&Mod.<caret>/arity`, is offered by its [CaptureNameArity] reference, not as a call. */
     private fun isCaptureName(position: PsiElement?): Boolean =
@@ -42,16 +35,14 @@ class CallDefinitionClause : CompletionProvider<CompletionParameters>() {
     ) {
         if (isCaptureName(parameters.originalPosition) || isCaptureName(parameters.position)) return
 
-        maybeModularName(parameters)?.qualifierModulars()?.let { modulars ->
+        positionAfterDot(parameters)?.let { position ->
             val modularsResultSet = if (resultSet.prefixMatcher.prefix.endsWith(".")) {
                 resultSet.withPrefixMatcher("")
             } else {
                 resultSet
             }
 
-            modularsResultSet.addAllElements(
-                callDefinitionClauseLookupElements(modulars)
-            )
+            modularsResultSet.addAllElements(qualifiedLookupElements(position, QualifiedName.CALL))
         }
     }
 }

@@ -7,13 +7,13 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.psi.*
 import com.intellij.psi.impl.source.resolve.ResolveCache
 import com.intellij.util.concurrency.annotations.RequiresReadLock
-import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElements
+import org.elixir_lang.code_insight.completion.qualifiedLookupElements
 import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
+import org.elixir_lang.declaration.CompletionPosition
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.ElixirAtom
-import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.impl.quotedAtomValue
 
 @Suppress("UnstableApiUsage")
@@ -33,13 +33,7 @@ class AtomReference(
     override fun getVariants(): Array<Any> {
         if (functionName == null) return emptyArray()
 
-        val modulars = moduleElement.maybeModularNameToModulars(
-            maxScope = myElement.containingFile,
-            useCall = null,
-            incompleteCode = true
-        )
-
-        return callDefinitionClauseLookupElements(modulars, QualifiedName.forAtom(myElement)).toTypedArray()
+        return qualifiedLookupElements(CompletionPosition.Mfa(myElement, moduleElement), QualifiedName.forAtom(myElement)).toTypedArray()
     }
 
     override fun getAbsoluteRange(): TextRange =

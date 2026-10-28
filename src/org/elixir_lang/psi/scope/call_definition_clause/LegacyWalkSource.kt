@@ -9,6 +9,7 @@ import org.elixir_lang.declaration.Applicability
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Candidate
 import org.elixir_lang.declaration.CandidateSource
+import org.elixir_lang.declaration.CompletionPosition
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Reach
@@ -72,16 +73,32 @@ object LegacyWalkSource : CandidateSource {
         MultiResolve.resolveResults(name, arity, incompleteCode, modular, ResolveState.initial(), atom = true)
 
     @RequiresReadLock
-    override fun visible(position: Call): List<Visible> {
+    override fun visible(position: CompletionPosition): List<Visible> {
         ThreadingAssertions.assertReadAccess()
 
-        // Completion offers the walk's lookups only at an unqualified call; after a qualifier it offers that module's.
         return when (position) {
-            is Unqualified -> Variants.visible(position)
-            is Qualified -> position.qualifier().qualifierModulars()?.let(::callDefinitionClauseVisible).orEmpty()
-            else -> emptyList()
+            // Completion offers the walk's lookups only at an unqualified call; after a qualifier it offers that module's.
+            is CompletionPosition.OfCall ->
+                when (position.call) {
+                    is Unqualified -> Variants.visible(position.call)
+                    is Qualified -> visibleAfterQualifier(position)
+                    else -> emptyList()
+                }
+            is CompletionPosition.AfterDot -> visibleAfterQualifier(position)
+            is CompletionPosition.Capture -> visibleAfterModule(position, position.arity)
+            is CompletionPosition.Mfa -> visibleAfterModule(position, null)
         }
     }
+
+    private fun visibleAfterQualifier(position: CompletionPosition): List<Visible> =
+        position.module?.qualifierModulars()?.let(::callDefinitionClauseVisible).orEmpty()
+
+    /** The modulars [position]'s module names while being typed, with a clause of [arity] where it is not `null`. */
+    private fun visibleAfterModule(position: CompletionPosition, arity: Int?): List<Visible> =
+        position.module
+            ?.maybeModularNameToModulars(maxScope = position.element.containingFile, useCall = null, incompleteCode = true)
+            ?.let { callDefinitionClauseVisible(it, arity) }
+            .orEmpty()
 
     private fun found(result: VisitedElementSetResolveResult, use: Use): List<Found> =
         result.reached.mapNotNull { reached ->

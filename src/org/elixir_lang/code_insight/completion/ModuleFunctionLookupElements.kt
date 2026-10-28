@@ -1,10 +1,6 @@
 package org.elixir_lang.code_insight.completion
 
-import com.intellij.codeInsight.completion.CompletionUtil
-import com.intellij.codeInsight.lookup.LookupElement
-import com.intellij.codeInsight.lookup.LookupElementBuilder
 import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiFile
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
@@ -13,76 +9,35 @@ import org.elixir_lang.code_insight.eachNameOnce
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Visible
-import org.elixir_lang.model.psi.ElixirUsageQueries
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.code_insight.lookup.element_renderer.CallDefinitionClause as CallDefinitionClauseRenderer
 import com.intellij.psi.ResolveState
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.scope.call_definition_clause.Declarations
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Delegation
 import org.elixir_lang.psi.CallDefinitionClause as CallDefinitionClausePsi
-import org.elixir_lang.code_insight.lookup.element_renderer.Delegation as DelegationRenderer
-import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
 import org.elixir_lang.Arity
 import org.elixir_lang.NameArityInterval
 
 /**
- * The function-name [LookupElement]s a modular ([scope]) offers when completing a **remote**
- * reference: one entry per public function name, preferring bare function heads. Only public
- * (exported) functions are offered because a remote / MFA dispatch (`Mod.fun(...)`,
- * `apply(Mod, :fun, args)`, `{Mod, :fun, arity}`) can never reach a private function - a private
- * function is callable only through a local unqualified call inside its own module. Handles both
- * source modules ([Call]) and BEAM-decompiled modules ([BeamModule]); any other element type yields
- * nothing.
- *
- * @param insertHandler how the name is written where it is completed.
- *
- * Shared by qualified `Mod.<caret>` completion
- * ([org.elixir_lang.code_insight.completion.provider.CallDefinitionClause]), capture completion
- * ([org.elixir_lang.reference.CaptureNameArity.getVariants]) and MFA atom completion
- * ([org.elixir_lang.model.psi.atom.AtomReference.getVariants]).
- */
-fun callDefinitionClauseLookupElements(
-    scope: PsiElement,
-    insertHandler: QualifiedName = QualifiedName.CALL
-): Iterable<LookupElement> = offers(scope).map { it.lookupElement(insertHandler) }
-
-/**
- * The remote-completion [LookupElement]s offered by the set of [modulars] a modular name resolved to
- * (via [org.elixir_lang.psi.impl.maybeModularNameToModulars]).
+ * The functions a set of [modulars] offers when completing a **remote** reference, each entry with what it declares:
+ * one entry per public function name, preferring bare function heads. Only public (exported) functions are offered
+ * because a remote / MFA dispatch (`Mod.fun(...)`, `apply(Mod, :fun, args)`, `{Mod, :fun, arity}`) can never reach a
+ * private function, which is callable only through a local unqualified call inside its own module. Source modules
+ * ([Call]) and BEAM-decompiled modules ([BeamModule]) are handled; any other element type yields nothing.
  *
  * @param arity when not `null`, only names with a definition of that arity are offered, as a capture `&Mod.name/arity`
  *   needs.
- * @see callDefinitionClauseLookupElements for the per-modular contract and [insertHandler].
  */
-fun callDefinitionClauseLookupElements(
-    modulars: Collection<PsiElement>,
-    insertHandler: QualifiedName = QualifiedName.CALL,
-    arity: Arity? = null
-): List<LookupElement> = offers(modulars, arity).map { it.lookupElement(insertHandler) }
-
-/** What [callDefinitionClauseLookupElements] offers for [modulars], each entry with what it declares. */
 @RequiresReadLock
-fun callDefinitionClauseVisible(modulars: Collection<PsiElement>): List<Visible> {
+fun callDefinitionClauseVisible(modulars: Collection<PsiElement>, arity: Arity? = null): List<Visible> {
     ThreadingAssertions.assertReadAccess()
 
-    return offers(modulars).map(Offer::visible)
+    return offers(modulars, arity).map(Offer::visible)
 }
 
 /** One function name a modular offers, from the [element] that declares it: [form] is `null` for a `.beam` export. */
 private class Offer(val name: String, val element: PsiElement, val form: Form?) {
-    fun lookupElement(insertHandler: QualifiedName): LookupElement =
-        if (form == Form.DELEGATION) {
-            LookupElementBuilder
-                .createWithSmartPointer(name, element.inOriginalFile())
-                .withLookupStrings(ElixirUsageQueries.lookupStrings(name, element.inOriginalFile()))
-                .withRenderer(DelegationRenderer(name))
-                .withInsertHandler(insertHandler)
-        } else {
-            lookupElement(name, element, insertHandler)
-        }
-
     @RequiresReadLock
     fun visible(): Visible {
         ThreadingAssertions.assertReadAccess()
@@ -125,9 +80,6 @@ private fun offers(scope: Call, arity: Arity?): List<Offer> {
  *
  * `Delegation.is` and `CallDefinitionClause.is` are disjoint, so delegates need their own pass or they
  * are never offered. Visibility is not filtered because there is no `defdelegatep`.
- *
- * A delegate's insert handler appends parentheses like a `def`'s, so it inserts `Mod.values()` and opens
- * parameter info, and stays a bare name for a capture or an MFA atom, where a name is not a call.
  */
 private fun delegationOffers(childCalls: List<Call>, arity: Arity?): List<Pair<String, Offer>> =
     childCalls
@@ -149,36 +101,3 @@ private fun offers(moduleImpl: BeamModule, arity: Arity?): List<Offer> =
             // MaybeExported documents exportedName() as null only when isExported() is false.
             callDefinition.exportedName()?.let { Offer(it, callDefinition, null) }
         }
-
-private fun lookupElement(name: String, element: PsiElement, insertHandler: QualifiedName): LookupElement =
-    LookupElementBuilder
-        .createWithSmartPointer(name, element.inOriginalFile())
-        .withLookupStrings(ElixirUsageQueries.lookupStrings(name, element.inOriginalFile()))
-        .withRenderer(CallDefinitionClauseRenderer(name))
-        .withInsertHandler(insertHandler)
-
-/**
- * [CompletionUtil.getOriginalOrSelf] hands back the copy rather than null when it cannot map, so a lookup
- * element built from its result silently pins the throwaway file. It fails two ways here: the declaration
- * enclosing the caret has a same-class node that runs past the translated end, and one the trailing dot
- * swallowed has no node of its own at all.
- */
-private fun PsiElement.inOriginalFile(): PsiElement {
-    val mapped = CompletionUtil.getOriginalOrSelf(this)
-    val copyFile = mapped.containingFile ?: return mapped
-
-    if (copyFile.isPhysical) return mapped
-
-    val startOffset = mapped.textRange?.startOffset ?: return mapped
-    val originalLeaf = copyFile.findElementAt(startOffset)
-        ?.let(CompletionUtil::getOriginalOrSelf)
-        ?.takeIf { it.containingFile?.isPhysical == true }
-        ?: return mapped
-    val originalOffset = originalLeaf.textRange.startOffset
-
-    val sameClass = generateSequence(originalLeaf) { it.parent }
-        .takeWhile { it !is PsiFile }
-        .firstOrNull { mapped.javaClass.isInstance(it) && it.textRange?.startOffset == originalOffset }
-
-    return sameClass ?: originalLeaf
-}
