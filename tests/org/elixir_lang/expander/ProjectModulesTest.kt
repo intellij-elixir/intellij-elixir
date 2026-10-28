@@ -23,6 +23,7 @@ import com.intellij.psi.impl.PsiManagerEx
 import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.util.FileContentUtilCore
+import com.intellij.util.system.OS
 import org.elixir_lang.NameArity
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
@@ -92,7 +93,7 @@ class ProjectModulesTest : PlatformTestCase() {
             "b" to add("umbrella/apps/b/lib/nested/b.ex", kept("B") + caller("B")),
             "outside" to add("outside.ex", kept("Outside") + caller("Outside")),
         )
-        val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of("1.13.4"), legKernel)
+        val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of("1.13.4"), legKernel, OS.CURRENT)
 
         assertEquals(
             "a: lib/a.ex\nb: lib/nested/b.ex\noutside: none",
@@ -107,14 +108,14 @@ class ProjectModulesTest : PlatformTestCase() {
         add("umbrella/apps/b/mix.exs", MIX_EXS)
         add("umbrella/apps/a/lib/a.ex", kept("A"))
         val b = add("umbrella/apps/b/lib/b.ex", caller("A"))
-        val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of("1.13.4"), legKernel)
+        val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of("1.13.4"), legKernel, OS.CURRENT)
 
         assertEquals("lib/a.ex", keptFiles(b, inputs))
     }
 
     /** A `mix.exs` written above a file that keeps a quote's location moves the file's directory. */
     fun testAMixProjectAddedAboveAKeptQuoteRecomputes() {
-        val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of("1.13.4"), legKernel)
+        val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of("1.13.4"), legKernel, OS.CURRENT)
         val a = add("later/lib/a.ex", kept("A"))
         val before = expansion(holder, a, inputs)
 
@@ -2023,7 +2024,7 @@ class ProjectModulesTest : PlatformTestCase() {
         val x = add("x.ex", "defmodule X do\nend\n")
 
         for (version in listOf("1.20.4", "1.12.3")) {
-            val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of(version), legKernel)
+            val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of(version), legKernel, OS.CURRENT)
 
             edit(project, a, "defmodule A do\n  require B\n  B.m()\n  defmacro n, do: :ok\nend\n")
             edit(project, b, "defmodule B do\n  require A\n  A.n()\n  defmacro m, do: :ok\nend\n")
@@ -2048,7 +2049,7 @@ class ProjectModulesTest : PlatformTestCase() {
             assertTrue(render(c, later).contains("Elixir.C raised unloaded_module `require D`"))
         }
 
-        val level = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel)
+        val level = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel, OS.CURRENT)
         edit(project, a, "defmodule A do\n  def f, do: B.f()\n  defmacro g, do: :ok\nend\n")
         edit(project, b, "defmodule B do\n  def f, do: A.g()\nend\n")
         inBothOrders("1.12.3, B calls A's macro unrequired", a, b, x, level) { _, ofB ->
@@ -2059,8 +2060,8 @@ class ProjectModulesTest : PlatformTestCase() {
     fun testOtherInputsRecompute() {
         val a = add("a.ex", "defmodule A do\n  def f, do: B.f()\n  defmacro g, do: :ok\nend\n")
         val b = add("b.ex", "defmodule B do\n  def f, do: A.g()\nend\n")
-        val newer = ProjectModules.Inputs(ElixirLanguageLevel.of("1.20.4"), legKernel)
-        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel)
+        val newer = ProjectModules.Inputs(ElixirLanguageLevel.of("1.20.4"), legKernel, OS.CURRENT)
+        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel, OS.CURRENT)
         val holder = ProjectModules(project)
         expansion(holder, a, newer)
         expansion(holder, b, newer)
@@ -2120,7 +2121,7 @@ class ProjectModulesTest : PlatformTestCase() {
      * expansion per path through the group.
      */
     fun testAGroupOfFilesThatCallEachOtherIsExpandedOncePerState() {
-        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel)
+        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel, OS.CURRENT)
         val n = 8
         val group = (1..n).map { i ->
             val calls = (1..n).filter { it != i }.joinToString(", ") { "M$it.f()" }
@@ -2154,7 +2155,7 @@ class ProjectModulesTest : PlatformTestCase() {
      * which now compiles, so D stops at C's remote macro, as it does from a fresh run of D.
      */
     fun testAFileExpandedWhileAModuleWasUnfinishedIsExpandedAgainOnceItFinishes() {
-        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel)
+        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel, OS.CURRENT)
         val a = add(
             "a.ex",
             "defmodule A0 do\n  def g, do: C.f()\nend\n\ndefmodule A1 do\nend\n\ndefmodule A2 do\n  require D\nend\n",
@@ -2173,7 +2174,7 @@ class ProjectModulesTest : PlatformTestCase() {
      * call reads C's exports, finds none, and is a function call, so G and A2 compile.
      */
     fun testAFileThatReadAnotherAsLoadedIsExpandedAgainWhileThatOneIsCompiling() {
-        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel)
+        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel, OS.CURRENT)
         val a = add("a.ex", "defmodule A0 do\n  def g, do: C.y()\nend\n\ndefmodule A2 do\n  require G\nend\n")
         add("c.ex", "defmodule C do\n  require X\n  def y, do: A2.h()\n  defmacro x, do: :ok\nend\n")
         add("f.ex", "defmodule G do\n  def g, do: C.x()\nend\n\ndefmodule X do\nend\n")
@@ -2188,7 +2189,7 @@ class ProjectModulesTest : PlatformTestCase() {
      * reads C again, which now compiles and defines `f`, as Elixir compiles all three.
      */
     fun testLaterModuleRereads() {
-        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel)
+        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel, OS.CURRENT)
         val a = add(
             "a.ex",
             "defmodule A0 do\n  def g, do: C.f()\nend\n\ndefmodule A1 do\nend\n\ndefmodule A2 do\n  require C\nend\n",
@@ -2219,7 +2220,7 @@ class ProjectModulesTest : PlatformTestCase() {
      * stops at `require C`, as its C saw A1's macro.
      */
     fun testASupersededAnswerKeepsWhatItRead() {
-        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel)
+        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel, OS.CURRENT)
         val a = add(
             "a.ex",
             "defmodule A0 do\n  def g, do: C.f()\nend\n\ndefmodule A1 do\n  defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))\nend\n\n" +

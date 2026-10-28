@@ -66,7 +66,7 @@ object CliArguments {
         ) ?: throw ExecutionException("Unable to compute CLI arguments for SDK ${elixirSdk.name}")
     }
 
-    private fun effectiveOS(elixirSdk: Sdk): OS {
+    internal fun effectiveOS(elixirSdk: Sdk): OS {
         if (OS.CURRENT == OS.Windows) {
             elixirSdk.homePath?.let { if (WslPath.isWslUncPath(it)) return OS.Linux }
         }

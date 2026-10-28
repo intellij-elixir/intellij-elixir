@@ -16,6 +16,7 @@ import com.intellij.psi.util.CachedValuesManager
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.beam.ReadResult
+import org.elixir_lang.cli.CliArguments
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.sdk.PushedVersions
 import org.elixir_lang.sdk.SdkVersionsStore
@@ -115,7 +116,7 @@ internal class SdkInputs(private val project: Project) {
             null -> Answer.KernelNotBeam(sdk)
             ReadResult.Absent -> Answer.KernelAbsent(sdk)
             is ReadResult.Unreadable -> Answer.KernelUnreadable(sdk, read.reason)
-            is ReadResult.Present -> Answer.Ready(sdk, ProjectModules.Inputs(level, read.value))
+            is ReadResult.Present -> Answer.Ready(sdk, ProjectModules.Inputs(level, read.value, CliArguments.effectiveOS(sdk)))
         }
     }
 

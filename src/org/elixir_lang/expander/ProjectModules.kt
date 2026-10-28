@@ -24,6 +24,7 @@ import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
+import com.intellij.util.system.OS
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.expander.interpreter.Declined
@@ -52,7 +53,7 @@ import java.util.concurrent.ConcurrentHashMap
 @Service(Service.Level.PROJECT)
 internal class ProjectModules(private val project: Project) {
     /** What an expansion reads besides the project's files. An answer held for other inputs is recomputed. */
-    data class Inputs(val level: ElixirLanguageLevel, val kernel: KernelImports)
+    data class Inputs(val level: ElixirLanguageLevel, val kernel: KernelImports, val os: OS)
 
     private val files = ByFile<Loaded>()
     private val beams = ByFile<Read>()
@@ -543,6 +544,7 @@ internal class ProjectModules(private val project: Project) {
             },
             file = virtualFile?.path,
             virtualFile = virtualFile,
+            os = inputs.os,
             directories = { path ->
                 // A `mix.exs` created or deleted above the file moves its answer.
                 stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)

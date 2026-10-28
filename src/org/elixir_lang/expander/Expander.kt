@@ -5,6 +5,7 @@ import com.ericsson.otp.erlang.OtpErlangPid
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.util.system.OS
 import org.elixir_lang.expander.interpreter.Binding
 import org.elixir_lang.expander.interpreter.Given
 import org.elixir_lang.expander.interpreter.ValueUse
@@ -107,8 +108,9 @@ object Expander {
         directories: CompileDirectories = CompileDirectories.UNKNOWN,
         clauses: ModuleClauses.Lookup = ModuleClauses.Lookup.NONE,
         virtualFile: VirtualFile? = null,
+        os: OS? = null,
     ): FileExpansion =
-        expandFile(forms, env, Run(level, observer, exports, structs, appEnv, counters, file, directories, clauses, virtualFile))
+        expandFile(forms, env, Run(level, observer, exports, structs, appEnv, counters, file, directories, clauses, virtualFile, os))
 
     /** A file's top-level [forms] expanded from [env] in [run], as the other `expandFile` expands them. */
     internal fun expandFile(forms: ElixirAst, env: Env, run: Run): FileExpansion {
@@ -267,6 +269,8 @@ internal class Run(
     private val clauses: ModuleClauses.Lookup = ModuleClauses.Lookup.NONE,
     /** The file the run expands, where [ProjectModules] holds it. */
     val virtualFile: VirtualFile? = null,
+    /** The OS the file's SDK runs as, where it is known. */
+    val os: OS? = null,
 ) {
     /** The modules whose exports the run read, in the order it read them. */
     val consulted = mutableListOf<String>()

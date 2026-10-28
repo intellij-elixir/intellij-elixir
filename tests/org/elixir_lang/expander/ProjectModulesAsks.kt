@@ -5,12 +5,13 @@ import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
+import com.intellij.util.system.OS
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.ElixirFile
 import java.util.concurrent.Callable
 
 /** The leg's inputs, which an ask of [ProjectModules] in the tests passes unless it names others. */
-internal val legInputs: ProjectModules.Inputs by lazy { ProjectModules.Inputs(legLevel(), legKernel) }
+internal val legInputs: ProjectModules.Inputs by lazy { ProjectModules.Inputs(legLevel(), legKernel, OS.CURRENT) }
 
 internal fun expansion(holder: ProjectModules, file: PsiFile, inputs: ProjectModules.Inputs = legInputs): FileExpansion =
     ReadAction.nonBlocking(Callable { holder.expansion(file as ElixirFile, inputs) }).executeSynchronously()
