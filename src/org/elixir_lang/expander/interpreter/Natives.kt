@@ -1508,16 +1508,17 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /**
      * `Macro.Env.stacktrace/1` (`env.ex`): [env]'s one frame, the compiler's outside a module and the module body's
-     * outside a function, at its line and its file relative to where Elixir compiled it.
+     * outside a function, at its line and its file relative to where Elixir compiled it, which is unknown where that
+     * directory is (`Run.workingDirectory`).
      */
     private fun stacktrace(env: OtpErlangMap): OtpErlangObject {
         val field = { name: String -> env.get(atom(name))?.let(::seen) ?: decline("a Macro.Env without %s", atom(name)) }
         val file = utf8(field("file")) ?: decline("Macro.Env.stacktrace/1 of a file that isn't UTF-8 text")
-        val relative = evaluation.run.directories.relativeToCwd(file)
-            ?: decline("Path.relative_to_cwd/1 of %s, whose compile directory isn't known", binary(file))
+        val os = evaluation.run.os ?: decline("Path.relative_to_cwd/1 of a file whose SDK's OS isn't known")
+        val relative = evaluation.run.relativeToCwd(file, os)
         val location = list(
             listOf(
-                tuple(atom("file"), list(relative.codePoints().toArray().map { integer(it.toLong()) })),
+                tuple(atom("file"), relative?.let { list(it.codePoints().toArray().map { point -> integer(point.toLong()) }) } ?: Unknown),
                 tuple(atom("line"), field("line")),
             ),
         )
@@ -2279,7 +2280,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** `file:get_cwd/0`: `{ok, Directory}`, the directory Elixir compiles the run's file in now (`Run.workingDirectory`). */
     private fun workingDirectory(): OtpErlangObject {
-        val file = evaluation.run.file ?: decline("file:get_cwd/0 of a file with no path")
+        val file = evaluation.run.file() ?: decline("file:get_cwd/0 of a file with no path")
         val directory = evaluation.run.workingDirectory(file) ?: decline("file:get_cwd/0 where the compile directory isn't known")
 
         return tuple(atom("ok"), list(directory.codePoints().toArray().map { integer(it.toLong()) }))

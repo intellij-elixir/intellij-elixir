@@ -105,7 +105,7 @@ object Expander {
         appEnv: AppEnv,
         observer: ExpansionObserver = ExpansionObserver.NONE,
         counters: Counters = Counters(),
-        file: String? = null,
+        file: () -> String? = { null },
         directories: CompileDirectories = CompileDirectories.UNKNOWN,
         clauses: ModuleClauses.Lookup = ModuleClauses.Lookup.NONE,
         virtualFile: VirtualFile? = null,
@@ -264,8 +264,8 @@ internal class Run(
     val structs: Structs,
     val appEnv: AppEnv,
     val counters: Counters = Counters(),
-    /** The path of the file the run expands, where it is known. */
-    val file: String? = null,
+    /** The path of the file the run expands, `null` where it isn't known; read through here, never held. */
+    val file: () -> String? = { null },
     val directories: CompileDirectories = CompileDirectories.UNKNOWN,
     private val clauses: ModuleClauses.Lookup = ModuleClauses.Lookup.NONE,
     /** The file the run expands, where [ProjectModules] holds it. */
@@ -337,6 +337,9 @@ internal class Run(
 
         return if (os == OS.Windows) String(Filename.lowercaseDrive(directory.toByteArray())) else directory
     }
+
+    /** `Path.relative_to_cwd/1` of [file], its SDK running as [os], where Elixir compiled it ([workingDirectory]); `null` where that isn't known. */
+    fun relativeToCwd(file: String, os: OS): String? = workingDirectory(file)?.let { relativeTo(file, it, os) }
 
     /** The number of a reference no evaluation in the run has made before. */
     fun nextRef(): Int = ++refs

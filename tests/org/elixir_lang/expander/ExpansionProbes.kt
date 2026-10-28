@@ -235,7 +235,7 @@ internal class ExpansionProbes(
                 appEnv,
                 observer,
                 counters,
-                file,
+                { file },
                 directories,
                 clauses,
                 os = os,

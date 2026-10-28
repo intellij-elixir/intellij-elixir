@@ -2182,6 +2182,35 @@ class ProjectModulesTest : PlatformTestCase() {
         assertEquals("stopped []", defines(mirror))
     }
 
+    /** A file on a local file system, which names its own path, as one on the host's disk does. */
+    private fun local(path: String): VirtualFile =
+        object : LightVirtualFile(path.substringAfterLast('/'), ElixirFileType.INSTANCE, "") {
+            override fun getPath() = path
+
+            override fun isInLocalFileSystem() = true
+        }
+
+    /** The path of a file the run reads is the one it is on, where its SDK runs as the host does. */
+    fun testAFileOnTheHostsDiskNamesItsPath() {
+        assertEquals("/src/a.ex", ProjectModules.runPath(local("/src/a.ex"), OS.Linux, OS.Linux))
+        assertEquals("/src/a.ex", ProjectModules.runPath(local("/src/a.ex"), OS.macOS, OS.macOS))
+        assertNull(ProjectModules.runPath(null, OS.Linux, OS.Linux))
+        assertNull(ProjectModules.runPath(LightVirtualFile("a.ex", ElixirFileType.INSTANCE, ""), OS.Linux, OS.Linux))
+    }
+
+    /** `path:drive-letter`: Elixir lowercases the drive letter of each file it compiles on Windows. */
+    fun testAnUppercaseDriveLetterIsLowercased() {
+        assertEquals("c:/Src/A.ex", ProjectModules.runPath(local("C:/Src/A.ex"), OS.Windows, OS.Windows))
+        assertEquals("c:/Src/A.ex", ProjectModules.runPath(local("c:/Src/A.ex"), OS.Windows, OS.Windows))
+        assertEquals("//server/share/A.ex", ProjectModules.runPath(local("//server/share/A.ex"), OS.Windows, OS.Windows))
+    }
+
+    /** `path:wsl`: an SDK running as Linux under a Windows IDE compiles at a path the IDE's own isn't. */
+    fun testAnSdkOfAnotherOsLeavesThePathUnknown() {
+        assertNull(ProjectModules.runPath(local("C:/src/a.ex"), OS.Linux, OS.Windows))
+        assertNull(ProjectModules.runPath(local("/src/a.ex"), OS.Windows, OS.Linux))
+    }
+
     /** `module`, defining the one function [name] gives. */
     private fun named(module: String, name: String) =
         "defmodule $module do\n  name = String.to_atom($name)\n  def unquote(name)(), do: 1\nend\n"

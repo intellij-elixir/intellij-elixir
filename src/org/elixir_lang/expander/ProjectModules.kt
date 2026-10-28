@@ -28,6 +28,7 @@ import com.intellij.util.system.OS
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.expander.interpreter.Declined
+import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.equal
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
@@ -542,7 +543,11 @@ internal class ProjectModules(private val project: Project) {
                     observer.loaded(result, exports, struct)
                 }
             },
-            file = virtualFile?.path,
+            file = {
+                // A rename or move raises the count, which discards this run's answers.
+                stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+                runPath(virtualFile, inputs.os, OS.CURRENT)
+            },
             virtualFile = virtualFile,
             os = inputs.os,
             directories = { path ->
@@ -899,6 +904,16 @@ internal class ProjectModules(private val project: Project) {
 
     companion object {
         fun getInstance(project: Project): ProjectModules = project.service()
+
+        /**
+         * The path Elixir compiles [file] at, where its SDK runs as [sdk] and the IDE as [host]: the file's own path where
+         * it is on a local file system and the two are the same OS, else `null`. A drive letter is lowercased, as
+         * Elixir's `Path.expand/1` has it on Windows.
+         */
+        fun runPath(file: VirtualFile?, sdk: OS, host: OS): String? =
+            file?.takeIf { it.isInLocalFileSystem && sdk == host }?.path?.let { path ->
+                if (sdk == OS.Windows) String(Filename.lowercaseDrive(path.toByteArray())) else path
+            }
 
         /** Each module [expansion] compiled, a nested module after those around it. */
         fun results(expansion: FileExpansion): Sequence<ExpansionResult> =

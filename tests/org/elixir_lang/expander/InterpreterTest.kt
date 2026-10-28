@@ -577,6 +577,27 @@ class InterpreterTest : PlatformTestCase() {
     }
 
     /**
+     * A relative `@file` is made absolute against the directory the compile runs in now, so a definition that took one
+     * is in the run's file where that directory is known, and moved after code that may have changed it.
+     */
+    fun testARelativeFileOfADefinitionIsMovedAfterTheDirectoryMayHaveChanged() {
+        val run = RunInputs(OS.Linux, "/proj/lib/a.ex", CompileDirectories { "/proj" })
+        val code = { cd: String ->
+            "defmodule A do\n  $cd\n  @file \"lib/a.ex\"\n  defmacro n, do: __ENV__.file\nend\n" +
+                "defmodule B do\n  require A\n  def unquote(:erlang.binary_to_atom(A.n(), :utf8))(), do: 1\nend"
+        }
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B compiled [/proj/lib/a.ex/0 def]",
+            file(code(""), tables = true, run = run),
+        )
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B stopped `A.n()` []",
+            file(code(":file.set_cwd(\"/other\")"), tables = true, run = run),
+        )
+    }
+
+    /**
      * An absolute path expanded against an absolute directory reads the working directory only where Elixir does: from
      * 1.16.0-rc.1 not at all on a unix host, and on a Windows host always, as a path with no drive letter is relative to
      * the volume.
@@ -599,6 +620,32 @@ class InterpreterTest : PlatformTestCase() {
 
         assertEquals("top expanded\nmodule Elixir.A compiled [C:/0 def]", file(code, tables = true, run = RunInputs(OS.Linux)))
         assertEquals("top expanded\nmodule Elixir.A compiled [c://0 def]", file(code, tables = true, run = RunInputs(OS.Windows)))
+    }
+
+    /** A definition that took an `@file` is compiled as in that file, so its `__ENV__.file` isn't the run's. */
+    fun testTheEnvFileOfAMovedDefinitionIsUnknown() {
+        val run = RunInputs(OS.Linux, "/proj/lib/a.ex")
+        val code = { macros: String ->
+            """
+                defmodule A do
+                  @file "/templates/view.ex"
+                  $macros
+                end
+                defmodule B do
+                  require A
+                  def unquote(:erlang.binary_to_atom(A.n(), :utf8))(), do: 1
+                end
+            """.trimIndent()
+        }
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled\nmodule Elixir.B stopped `A.n()`",
+            file(code("defmacro n, do: __ENV__.file"), run = run),
+        )
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled\nmodule Elixir.B compiled",
+            file(code("defmacro m, do: 1\n  defmacro n, do: __ENV__.file"), run = run),
+        )
     }
 
     /**
@@ -1334,7 +1381,7 @@ class InterpreterTest : PlatformTestCase() {
             legStructs,
             legAppEnv(),
             clauses = sdk,
-            file = run.path,
+            file = { run.path },
             directories = run.directories,
             os = run.os,
         )
@@ -1556,7 +1603,7 @@ class InterpreterTest : PlatformTestCase() {
                     legStructs,
                     legAppEnv(),
                     observer,
-                    file = FILE,
+                    file = { FILE },
                     directories = DIRECTORIES,
                     clauses = sdk,
                     os = OS.CURRENT,
@@ -1583,7 +1630,7 @@ class InterpreterTest : PlatformTestCase() {
                 exports,
                 legStructs,
                 legAppEnv(),
-                file = FILE,
+                file = { FILE },
                 directories = DIRECTORIES,
                 clauses = clauses,
                 os = OS.CURRENT,
@@ -9082,7 +9129,6 @@ class InterpreterTest : PlatformTestCase() {
                 "body:unknown-rescue",
                 "x = Application.get_env(:m2, :x, :ok)\ndef f do\n  raise \"x\"\nrescue\n  _ -> unquote(x)\nend",
             ),
-            fragments("body:unknown-bytes", "def f, do: unquote(__ENV__.file)"),
             fragments("body:unknown-uncalled-name", "n = Application.get_env(:m2, :n, :node)\ndef f, do: Kernel.unquote(n)"),
             // A helper whose input an unknown fragment gives is unknown too.
             fragments(

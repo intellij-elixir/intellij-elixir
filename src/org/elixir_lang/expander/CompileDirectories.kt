@@ -1,33 +1,23 @@
 package org.elixir_lang.expander
 
+import com.intellij.util.system.OS
+import org.elixir_lang.expander.interpreter.Filename
+
 /** The directory Elixir compiled each file in, the working directory a kept `quote`'s file is taken relative to. */
 fun interface CompileDirectories {
     /** The directory [file], a path, was compiled in, or `null` where it isn't known. */
     fun of(file: String): String?
-
-    /**
-     * `Path.relative_to_cwd/1` of [file] where Elixir compiled it: relative to its directory ([of]) when below it,
-     * otherwise [file] itself; `null` where the directory isn't known.
-     */
-    fun relativeToCwd(file: String): String? = of(file)?.let { relativeTo(file, it) }
 
     companion object {
         val UNKNOWN = CompileDirectories { null }
     }
 }
 
-/** `Path.relative_to/2`: [path] relative to [directory] when below it, otherwise [path] itself. */
-private fun relativeTo(path: String, directory: String): String {
-    val segments = splitPath(path)
-    val base = splitPath(directory)
+/** `Path.relative_to/2`: [path] relative to [directory] when below it, otherwise [path] itself, each split as [os] splits. */
+internal fun relativeTo(path: String, directory: String, os: OS): String {
+    val segments = Filename.split(path.toByteArray(), os)
+    val base = Filename.split(directory.toByteArray(), os)
+    val below = segments.size > base.size && base.indices.all { segments[it].contentEquals(base[it]) }
 
-    return if (segments.size > base.size && segments.subList(0, base.size) == base) {
-        segments.drop(base.size).joinToString("/")
-    } else {
-        path
-    }
+    return if (below) segments.drop(base.size).joinToString("/") { String(it) } else path
 }
-
-/** `Path.split/1`: an absolute path's root, then each name. */
-private fun splitPath(path: String): List<String> =
-    listOfNotNull("/".takeIf { path.startsWith("/") }) + path.split("/").filter(String::isNotEmpty)
