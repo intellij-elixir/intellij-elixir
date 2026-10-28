@@ -7,6 +7,7 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.util.system.OS
 import org.elixir_lang.expander.interpreter.Binding
+import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.Given
 import org.elixir_lang.expander.interpreter.ValueUse
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
@@ -311,6 +312,31 @@ internal class Run(
 
     /** Whether the value of the unit the evaluator runs where it reaches it ([reached]) is read, `null` outside one. */
     var reachedUse: ValueUse? = null
+
+    /**
+     * Whether code the expander doesn't follow ran, which may have changed the directory the compile runs in
+     * ([workingDirectory]); once set it stays.
+     */
+    var directoryMayHaveChanged = false
+        private set
+
+    /** Code the expander doesn't follow ran, or may have: a decline the walk went on past, a stop, a macro or callback it lost. */
+    fun unfollowedCodeRan() {
+        directoryMayHaveChanged = true
+    }
+
+    /**
+     * The directory Elixir compiles [file] in now, which `file:get_cwd/0`, `Path.relative_to_cwd/1` and `filename:absname/1`
+     * read, `null` where it isn't known: where [directories] doesn't have it, or code the expander doesn't follow may
+     * have changed it ([directoryMayHaveChanged]). On Windows its drive letter is lowercase, as OTP gives it.
+     */
+    fun workingDirectory(file: String): String? {
+        if (directoryMayHaveChanged) return null
+
+        val directory = directories.of(file) ?: return null
+
+        return if (os == OS.Windows) String(Filename.lowercaseDrive(directory.toByteArray())) else directory
+    }
 
     /** The number of a reference no evaluation in the run has made before. */
     fun nextRef(): Int = ++refs

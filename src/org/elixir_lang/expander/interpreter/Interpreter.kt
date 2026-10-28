@@ -204,13 +204,19 @@ internal object Interpreter {
         return try {
             if (declinesTooDeep) {
                 // Where the stack overflows, which calls were given what isn't known.
-                unlessTooDeep({ Evaluated.Declined(Given().apply { all() }) }) {
+                unlessTooDeep({
+                    evaluation.run.unfollowedCodeRan()
+
+                    Evaluated.Declined(Given().apply { all() })
+                }) {
                     Evaluated.Value(value(evaluation))
                 }
             } else {
                 Evaluated.Value(value(evaluation))
             }
         } catch (declined: Declined) {
+            evaluation.run.unfollowedCodeRan()
+
             Evaluated.Declined(declined.given, declined.holds, declined)
         } catch (thrown: Thrown) {
             val exception = try {
@@ -2170,6 +2176,7 @@ internal class Evaluation(
             } catch (declined: Declined) {
                 if (subject?.let(::passable) == false || !passesOver(declined, body, frame)) throw subject ?: declined
 
+                run.unfollowedCodeRan()
                 passed = passed ?: declined
                 false
             }

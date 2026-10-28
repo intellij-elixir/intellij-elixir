@@ -5,6 +5,7 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.TextRange
+import com.intellij.util.system.OS
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.expander.ExpansionResult.Owner
@@ -128,6 +129,7 @@ internal class ExpansionProbes(
         val clauses: ModuleClauses.Lookup,
         val file: String?,
         val directories: CompileDirectories,
+        val os: OS?,
         val layout: ProbeHarness.Layout,
         val index: Int,
     )
@@ -179,7 +181,7 @@ internal class ExpansionProbes(
      * standing for the compile's token, [exports] and [structs] for the modules Elixir loads, [appEnv] for the
      * application environment and [standIns] for the preamble's macros. [hook] adds that hook to each case module,
      * [top] the top-level probe to the end of the file, and [values] sends each case's `q` after its last statement.
-     * [clauses], [file] and [directories] are the expander's inputs of those names.
+     * [clauses], [file], [directories] and [os] are the expander's inputs of those names.
      */
     fun expandAll(
         bodies: List<String>,
@@ -194,6 +196,7 @@ internal class ExpansionProbes(
         clauses: ModuleClauses.Lookup = ModuleClauses.Lookup.NONE,
         file: String? = null,
         directories: CompileDirectories = CompileDirectories.UNKNOWN,
+        os: OS? = null,
     ): Expansions {
         val level = legLevel()
         val token = harness.token()
@@ -235,6 +238,7 @@ internal class ExpansionProbes(
                 file,
                 directories,
                 clauses,
+                os = os,
             )
         val cases = recorders.mapIndexed { index, recorder ->
             val module = layout.caseModule(index)
@@ -258,6 +262,7 @@ internal class ExpansionProbes(
                     clauses,
                     file,
                     directories,
+                    os,
                     layout,
                     index,
                 ),
@@ -870,7 +875,7 @@ internal class ExpansionProbes(
         cases.keys
             .groupBy { name ->
                 cases.getValue(name).origin.let {
-                    listOf(it.preamble, it.exports, it.structs, it.hook, it.standIns, it.clauses, it.file, it.directories)
+                    listOf(it.preamble, it.exports, it.structs, it.hook, it.standIns, it.clauses, it.file, it.directories, it.os)
                 }
             }
             .values
@@ -907,6 +912,7 @@ internal class ExpansionProbes(
                     clauses = origin.clauses,
                     file = origin.file,
                     directories = origin.directories,
+                    os = origin.os,
                 )
             }
 
@@ -927,6 +933,7 @@ internal class ExpansionProbes(
                 clauses = origin.clauses,
                 file = origin.file,
                 directories = origin.directories,
+                os = origin.os,
             ).cases.single()
         }
 

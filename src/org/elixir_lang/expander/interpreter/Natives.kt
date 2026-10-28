@@ -83,7 +83,7 @@ private const val BACKTRACE_DEPTH = 8
  * v1.20.4), and `__compile_env__/4`'s before it (`App:516` at v1.11.4). `Module`'s attribute reads, and
  * `delete_attribute/2`, return a value of the module their first argument names, or the default they are given; its
  * predicates and other writers a boolean or `:ok`, and its listings names. `IO.warn/1,2` returns `:ok`, as do
- * `application`'s env writers.
+ * `application`'s env writers. `binary:split/3` and `filename:basename/2` return parts of their first argument alone.
  */
 private val RETURNABLE = mapOf(
     Triple("Elixir.Application", "get_env", 2) to emptyList(),
@@ -126,7 +126,12 @@ private val RETURNABLE = mapOf(
     Triple("application", "set_env", 4) to emptyList(),
     Triple("application", "unset_env", 2) to emptyList(),
     Triple("application", "unset_env", 3) to emptyList(),
+    Triple("binary", "split", 3) to listOf(0),
+    Triple("filename", "basename", 2) to listOf(0),
 )
+
+/** The `filename` functions answered here, by name and arity. */
+private val FILENAME_NATIVES = setOf("dirname/1", "basename/1", "basename/2", "split/1")
 
 /**
  * Each native that never returns, whatever it is given, by receiver, name and arity: those `raise`, `throw` and `exit`
@@ -207,7 +212,10 @@ internal class Natives(private val evaluation: Evaluation) {
             "Elixir.Kernel" -> kernel(key, args)
             "Elixir.Macro" -> macro(key, args)
             "ordsets" -> if (key == "is_element/2") isElement(args[0], args[1]) else null
-            "binary" -> if (key == "at/2") byteAt(args[0], args[1]) else null
+            "binary" -> binaries(key, args)
+            "os" -> if (key == "type/0") osType() else null
+            "file" -> if (key == "get_cwd/0") workingDirectory() else null
+            "filename" -> filename(key, args)
             "elixir_config" -> config(key, args)
             "elixir_import" -> if (key == "special_form/2") isSpecialForm(args[0], args[1]) else null
             else -> null
@@ -2236,6 +2244,81 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun bitSize(bitstring: OtpErlangBitstr) = bitstring.binaryValue().size * 8 - bitstring.pad_bits()
 
     private fun isBinary(term: OtpErlangObject) = typed(term).let { it is OtpErlangBitstr && it.pad_bits() == 0 }
+
+    private fun binaries(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
+        when (key) {
+            "at/2" -> byteAt(args[0], args[1])
+            "split/3" -> binarySplit(args[0], args[1], args[2])
+            else -> null
+        }
+
+    /**
+     * `binary:split/3` of a binary at a binary or a list of them, none empty, with `[]` or `[global]`; any other
+     * argument, such as the `trim` options, declines.
+     */
+    private fun binarySplit(subject: OtpErlangObject, pattern: OtpErlangObject, options: OtpErlangObject): OtpErlangObject {
+        val patterns = (properElements(seen(pattern))?.takeIf { it.isNotEmpty() } ?: listOf(pattern)).map {
+            nameBytes("binary:split/3", it).takeIf { bytes -> bytes.isNotEmpty() } ?: decline("binary:split/3 of an empty pattern")
+        }
+        val flags = properElements(seen(options)) ?: decline("binary:split/3 of %s, which is no list of options", options)
+        val global = when {
+            flags.isEmpty() -> false
+            flags.size == 1 && seen(flags[0]) == atom("global") -> true
+            else -> decline("binary:split/3 with the options %s", options)
+        }
+
+        return list(Filename.binarySplit(nameBytes("binary:split/3", subject), patterns, global).map(::OtpErlangBinary))
+    }
+
+    /** `os:type/0`: the OS family and name the run's SDK runs as. */
+    private fun osType(): OtpErlangObject {
+        val (family, name) = evaluation.run.os?.let(Filename::osType) ?: decline("os:type/0 of a run whose OS isn't known")
+
+        return tuple(atom(family), atom(name))
+    }
+
+    /** `file:get_cwd/0`: `{ok, Directory}`, the directory Elixir compiles the run's file in now (`Run.workingDirectory`). */
+    private fun workingDirectory(): OtpErlangObject {
+        val file = evaluation.run.file ?: decline("file:get_cwd/0 of a file with no path")
+        val directory = evaluation.run.workingDirectory(file) ?: decline("file:get_cwd/0 where the compile directory isn't known")
+
+        return tuple(atom("ok"), list(directory.codePoints().toArray().map { integer(it.toLong()) }))
+    }
+
+    /**
+     * `filename:dirname/1`, `basename/1,2` and `split/1` of binaries, by the syntax of the OS the run's SDK runs as; a
+     * list or atom name declines.
+     */
+    private fun filename(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        if (key !in FILENAME_NATIVES) return null
+
+        val os = evaluation.run.os ?: decline("filename:$key of a run whose OS isn't known")
+        val name = nameBytes("filename:$key", args[0])
+
+        return when (key) {
+            "dirname/1" -> OtpErlangBinary(Filename.dirname(name, os))
+            "basename/1" -> OtpErlangBinary(Filename.basename(name, os))
+            "basename/2" -> OtpErlangBinary(Filename.basename(name, extensionBytes(args[1]), os))
+            else -> list(Filename.split(name, os).map(::OtpErlangBinary))
+        }
+    }
+
+    /**
+     * The extension `filename:basename/2` is given: a binary, or a list of code points, which `filename_string_to_binary/1`
+     * encodes (`filename.erl:1109`). A list holding anything else declines.
+     */
+    private fun extensionBytes(term: OtpErlangObject): ByteArray {
+        val elements = properElements(seen(term)) ?: return nameBytes("filename:basename/2", term)
+
+        if (elements.any { small(it) == null }) decline("filename:basename/2 of the extension %s, which is no list of code points", term)
+
+        return (unicode("characters_to_binary/1", listOf(term)) as? OtpErlangBitstr)?.binaryValue()
+            ?: decline("filename:basename/2 of the extension %s, which is no text", term)
+    }
+
+    /** The bytes of the binary [term], declining where it is not one, as a list or atom name is not. */
+    private fun nameBytes(function: String, term: OtpErlangObject): ByteArray =
+        (seen(term) as? OtpErlangBitstr)?.takeIf(::isBinary)?.binaryValue() ?: decline("$function of %s, which is no binary", term)
 
     /** `binary:at/2`: the byte of the binary [subject] at the zero-based [position]. */
     private fun byteAt(subject: OtpErlangObject, position: OtpErlangObject): OtpErlangObject {
