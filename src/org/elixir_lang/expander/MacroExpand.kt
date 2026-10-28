@@ -11,7 +11,6 @@ internal sealed class MacroExpanded {
     /** [node], which [expanded] says is an expansion of the node given rather than that node. */
     data class Node(val node: ElixirAst, val expanded: Boolean) : MacroExpanded()
 
-    /** `__DIR__`'s binary, the directory of the file, which [Env] doesn't hold. */
     data object Dir : MacroExpanded()
 
     /** Where the port stops: an [Expansion.Error], [Expansion.Unported] or [Expansion.Opaque]. */
@@ -137,7 +136,7 @@ internal fun macroExpandOnce(node: ElixirAst, state: ExState, env: Env, run: Run
         isVariable(node) ->
             when ((node.callee as ElixirAst.Literal.Atom).name) {
                 "__MODULE__" -> MacroExpanded.Node(ElixirAst.Literal.Atom(node.meta, env.module ?: "nil"), expanded = true)
-                "__DIR__" -> MacroExpanded.Dir
+                "__DIR__" -> dirOf(run, env)?.let { MacroExpanded.Node(ElixirAst.Literal.Binary(node.meta, it), expanded = true) } ?: MacroExpanded.Dir
                 "__ENV__" -> MacroExpanded.Stopped(Expansion.Unported(node))
                 else -> unchanged
             }

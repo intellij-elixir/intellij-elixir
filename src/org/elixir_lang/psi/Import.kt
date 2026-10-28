@@ -75,7 +75,7 @@ object Import {
 
         data class Integer(val value: BigInteger) : Term()
 
-        /** @property bytes `null` where the content isn't known, as `__DIR__`'s isn't */
+        /** @property bytes `null` where the content isn't known */
         class Binary(val bytes: ByteArray?) : Term()
 
         /** @property tail what follows a `|` in the last element, as in `[h | t]` */

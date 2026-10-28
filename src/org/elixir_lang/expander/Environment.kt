@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangObject
 import org.elixir_lang.expander.interpreter.EMPTY
+import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.FALSE
 import org.elixir_lang.expander.interpreter.ModuleUnknown
 import org.elixir_lang.expander.interpreter.NIL
@@ -80,6 +81,17 @@ internal fun envFields(level: ElixirLanguageLevel): List<String> =
  */
 internal fun fileOf(run: Run, env: Env): String? =
     run.file()?.takeUnless { env.function != null && run.compiling[env.module]?.definitionMoved == true }
+
+/**
+ * `__DIR__`: `filename:dirname/1` of [env]'s file, by the OS its SDK runs as; `null` where either is unknown, as
+ * `filename:dirname/1` declines without the OS.
+ */
+internal fun dirOf(run: Run, env: Env): ByteArray? {
+    val file = fileOf(run, env) ?: return null
+    val os = run.os ?: return null
+
+    return Filename.dirname(file.toByteArray(), os)
+}
 
 /**
  * The [field] of the env at [line] where [env] and [state] hold, on [run]'s leg; `null` where its `Macro.Env` has no

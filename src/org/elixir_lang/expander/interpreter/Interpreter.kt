@@ -562,7 +562,7 @@ internal class Evaluation(
         return when (expanded) {
             // A node that didn't expand is the term given, metadata the node doesn't hold included.
             is MacroExpanded.Node -> if (expanded.expanded) termOf(expanded.node) else ast
-            MacroExpanded.Dir -> decline("Macro.expand/2 of __DIR__")
+            MacroExpanded.Dir -> UnknownBinary
             is MacroExpanded.Stopped -> decline("Macro.expand/2 stops")
         }
     }

@@ -622,6 +622,17 @@ class InterpreterTest : PlatformTestCase() {
         assertEquals("top expanded\nmodule Elixir.A compiled [c://0 def]", file(code, tables = true, run = RunInputs(OS.Windows)))
     }
 
+    /** `__DIR__` is `:filename.dirname/1` of the file's path, by the OS its SDK runs as, and unknown without either. */
+    fun testTheDirIsTheDirectoryOfTheFilesPathByTheOsTheSdkRunsAs() {
+        val code = "defmodule A do\n  def unquote(:erlang.binary_to_atom(__DIR__, :utf8))(), do: 1\nend"
+        val stopped = "top expanded\nmodule Elixir.A stopped `unquote(:erlang.binary_to_atom(__DIR__, :utf8))` []"
+
+        assertEquals("top expanded\nmodule Elixir.A compiled [/proj/lib/0 def]", file(code, tables = true, run = RunInputs(OS.Linux, "/proj/lib/a.ex")))
+        assertEquals("top expanded\nmodule Elixir.A compiled [c:/proj/lib/0 def]", file(code, tables = true, run = RunInputs(OS.Windows, "c:/proj/lib\\a.ex")))
+        assertEquals(stopped, file(code, tables = true, run = RunInputs(OS.Linux)))
+        assertEquals(stopped, file(code, tables = true, run = RunInputs(null, "/proj/lib/a.ex")))
+    }
+
     /** A definition that took an `@file` is compiled as in that file, so its `__ENV__.file` isn't the run's. */
     fun testTheEnvFileOfAMovedDefinitionIsUnknown() {
         val run = RunInputs(OS.Linux, "/proj/lib/a.ex")
@@ -729,6 +740,61 @@ class InterpreterTest : PlatformTestCase() {
                 )
             },
         )
+    }
+
+    /**
+     * A definition that took an `@file` is compiled as in that file, so its `__DIR__` is that file's directory, which
+     * isn't known; the module body and a definition after it are in the run's file.
+     */
+    fun testTheDirOfAMovedDefinitionIsUnknown() {
+        val run = RunInputs(OS.Linux, "/proj/lib/a.ex")
+        val moved = """
+            defmodule A do
+              @file "/templates/view.ex"
+              defmacro m, do: __DIR__
+            end
+            defmodule B do
+              require A
+              def unquote(:erlang.binary_to_atom(A.m(), :utf8))(), do: 1
+            end
+        """.trimIndent()
+        val own = """
+            defmodule A do
+              @file "/templates/view.ex"
+              defmacro m, do: 1
+              defmacro n, do: __DIR__
+            end
+            defmodule B do
+              require A
+              def unquote(:erlang.binary_to_atom(A.n(), :utf8))(), do: 1
+            end
+        """.trimIndent()
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled\nmodule Elixir.B stopped `A.m()`",
+            file(moved, run = run),
+        )
+        assertEquals("top expanded\nmodule Elixir.A compiled\nmodule Elixir.B compiled", file(own, run = run))
+    }
+
+    /** `Macro.expand/2` of `__DIR__` is a binary whose bytes are unknown where the file's path or OS is, as `__CALLER__.file` is. */
+    fun testMacroExpandOfTheDirIsABinaryWhereItIsUnknown() {
+        val code = """
+            defmodule A do
+              defmacro m do
+                if is_binary(Macro.expand(quote(do: __DIR__), __CALLER__)), do: quote(do: def(a, do: 1)), else: quote(do: def(b, do: 1))
+              end
+            end
+            defmodule B do
+              require A
+              A.m()
+            end
+        """.trimIndent()
+        val known = "top expanded\nmodule Elixir.A compiled\nmodule Elixir.B compiled"
+
+        assertEquals(known, file(code, run = RunInputs(OS.Linux, "/proj/lib/a.ex")))
+        assertEquals(known, file(code, run = RunInputs(OS.Linux)))
+        assertEquals(known, file(code, run = RunInputs(null, "/proj/lib/a.ex")))
     }
 
     /**
