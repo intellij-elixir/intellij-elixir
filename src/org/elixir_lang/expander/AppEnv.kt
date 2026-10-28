@@ -9,18 +9,23 @@ internal fun interface AppEnv {
 
     companion object {
         /**
-         * The env in which a key a counted config file sets ([configured]) isn't known, else a key the app's `.app`
-         * declares is its term, else the key is unset, where [appFile] gives the app's `.app` as read, `null` where it
-         * can't be read.
+         * The env in which a key a counted config file sets ([configured]) isn't known, nor is any other key of an app
+         * a setting that can't be read may set ([unread]), else a key the app's `.app` declares is its term, else the
+         * key is unset, where [appFile] gives the app's `.app` as read, `null` where it can't be read.
          */
-        fun of(configured: (app: String, key: OtpErlangObject) -> Boolean, appFile: (app: String) -> AppFile?): AppEnv =
+        fun of(
+            configured: (app: String, key: OtpErlangObject) -> Boolean,
+            unread: (app: String) -> Boolean,
+            appFile: (app: String) -> AppFile?,
+        ): AppEnv =
             AppEnv { app, key ->
-                if (configured(app, key)) {
-                    AppEnvValue.Configured
-                } else {
-                    appFile(app)
-                        ?.let { file -> file.env[key]?.let(AppEnvValue::Declared) ?: AppEnvValue.Unset }
-                        ?: AppEnvValue.Unreadable
+                when {
+                    configured(app, key) -> AppEnvValue.Configured
+                    unread(app) -> AppEnvValue.Unreadable
+                    else ->
+                        appFile(app)
+                            ?.let { file -> file.env[key]?.let(AppEnvValue::Declared) ?: AppEnvValue.Unset }
+                            ?: AppEnvValue.Unreadable
                 }
             }
     }
@@ -39,6 +44,6 @@ internal sealed class AppEnvValue {
     /** Nothing sets the key. */
     data object Unset : AppEnvValue()
 
-    /** The app's `.app` can't be read, so whether the key is set isn't known. */
+    /** A config setting of the app, or the app's `.app`, can't be read, so whether the key is set isn't known. */
     data object Unreadable : AppEnvValue()
 }

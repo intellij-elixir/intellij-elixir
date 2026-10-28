@@ -569,12 +569,13 @@ internal class ProjectModules(private val project: Project) {
 
     /**
      * The app env a default build of the project sees, as [AppEnv.of] orders it: a key a config file that counts sets,
-     * else what the app's `.app` file declares, read from a class root of the libraries and the SDK outside the
-     * project's content, as the `.beam` fallback is. The project's own apps are built from the sources being expanded,
-     * so their `.app` files aren't read. A read made expanding [file], a config file that counts, is configured: Mix
-     * loads the config before the dependencies' `.app` files. So is one made while a config file's expansion runs
-     * above [file]'s ([inProgress]), which holds only while it runs. [stamps] gain what each answer read, and
-     * [transient] what holds only for this run: in dumb mode nothing can be read, and each answer is unreadable.
+     * or may set where one of its settings can't be read, else what the app's `.app` file declares, read from a class
+     * root of the libraries and the SDK outside the project's content, as the `.beam` fallback is. The project's own
+     * apps are built from the sources being expanded, so their `.app` files aren't read. A read made expanding [file],
+     * a config file that counts, is configured: Mix loads the config before the dependencies' `.app` files. So is one
+     * made while a config file's expansion runs above [file]'s ([inProgress]), which holds only while it runs. [stamps]
+     * gain what each answer read, and [transient] what holds only for this run: in dumb mode nothing can be read, and
+     * each answer is unreadable.
      */
     private fun appEnv(
         level: ElixirLanguageLevel,
@@ -583,13 +584,15 @@ internal class ProjectModules(private val project: Project) {
         inProgress: Map<VirtualFile, Map<String, Answer>>,
         transient: (Transient) -> Unit,
     ): AppEnv {
+        val configFiles = ArrayList<VirtualFile>()
         val config by lazy {
             // A `mix.exs` names its config directory, where a file created or deleted moves the settings.
             stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
             FilenameIndex.getVirtualFilesByName(MIX_EXS, GlobalSearchScope.projectScope(project)).forEach(stamps::source)
 
             ConfigFiles.scope(project).also { scope ->
-                FilenameIndex.getAllFilesByExt(project, "exs", scope).forEach(stamps::source)
+                configFiles += FilenameIndex.getAllFilesByExt(project, "exs", scope)
+                configFiles.forEach(stamps::source)
             }
         }
         val appFiles = HashMap<String, Optional<AppFile>>()
@@ -607,6 +610,7 @@ internal class ProjectModules(private val project: Project) {
                 file != null && config.contains(file) || configRunning() ||
                     (key as? OtpErlangAtom)?.let { ConfigSettings.of(project, app, it.atomValue(), config).isNotEmpty() } == true
             },
+            { app -> ConfigSettings.unread(project, app, config) },
             { app -> appFiles.getOrPut(app) { Optional.ofNullable(appFile(app, level, stamps)) }.orElse(null) },
         )
 
@@ -615,7 +619,11 @@ internal class ProjectModules(private val project: Project) {
                 transient(Transient.DUMB)
                 AppEnvValue.Unreadable
             } else {
-                env.of(app, key)
+                env.of(app, key).also {
+                    // Whether a config file's call sets or writes a key rests on the module its expansion names, so on
+                    // what that expansion read.
+                    configFiles.forEach { file -> files[file]?.stamps?.takeIf { it.isCurrent() }?.let(stamps::addAll) }
+                }
             }
         }
     }

@@ -8,10 +8,13 @@ package org.elixir_lang.declaration
  * the enclosing module. It is not variable or directive scope: `if` is [Block.IN_PLACE], yet a variable bound or an
  * `alias` made in its block does not outlive the block.
  *
+ * [value] is what a call's value can be. A `for` or `with` runs its block in place, as an `if` does, but gives its own
+ * value, not its block's last expression.
+ *
  * The table is keyed by name, and some names are a macro at one arity and a function at another (`get_in/1` and
  * `get_in/2`), so a role does not say that a call is a macro call.
  */
-data class MacroRole(val modelling: Modelling, val block: Block) {
+data class MacroRole(val modelling: Modelling, val block: Block, val value: Value = Value.ANY) {
     enum class Modelling {
         /** A form of `Kernel.SpecialForms`, which the expander implements itself. */
         SPECIAL_FORM,
@@ -40,17 +43,31 @@ data class MacroRole(val modelling: Modelling, val block: Block) {
         NOT_A_BLOCK
     }
 
+    enum class Value {
+        /** The last expression of one of the call's blocks. */
+        BLOCK_TAIL,
+
+        /** Never a keyword list, so never a config file's config: a module, a list of modules or a `{:module, ...}` tuple. */
+        NEVER_CONFIG,
+
+        /** Any value the table doesn't narrow. */
+        ANY
+    }
+
     companion object {
         private val BY_NAME: Map<String, MacroRole> =
             listOf(
-                MacroRole(Modelling.SPECIAL_FORM, Block.IN_PLACE) to
-                    listOf("case", "cond", "for", "receive", "try", "with"),
+                MacroRole(Modelling.SPECIAL_FORM, Block.IN_PLACE, Value.BLOCK_TAIL) to
+                    listOf("case", "cond", "receive", "try"),
+                MacroRole(Modelling.SPECIAL_FORM, Block.IN_PLACE) to listOf("for", "with"),
                 MacroRole(Modelling.SPECIAL_FORM, Block.BOUNDARY) to listOf("quote"),
+                MacroRole(Modelling.SPECIAL_FORM, Block.NOT_A_BLOCK, Value.NEVER_CONFIG) to
+                    listOf("alias", "import", "require"),
                 MacroRole(Modelling.SPECIAL_FORM, Block.NOT_A_BLOCK) to
                     listOf(
                         "%", "%{}", "&", ".", "::", "<<>>", "=", "^", "{}", "__CALLER__", "__DIR__", "__ENV__",
-                        "__MODULE__", "__STACKTRACE__", "__aliases__", "__block__", "__cursor__", "alias", "fn", "import",
-                        "require", "super", "unquote", "unquote_splicing"
+                        "__MODULE__", "__STACKTRACE__", "__aliases__", "__block__", "__cursor__", "fn", "super",
+                        "unquote", "unquote_splicing"
                     ),
                 MacroRole(Modelling.EXPANDED, Block.NOT_A_BLOCK) to
                     listOf(
@@ -63,15 +80,16 @@ data class MacroRole(val modelling: Modelling, val block: Block) {
                 pairs.toMap().also { check(it.size == pairs.size) { "a name is given two roles" } }
             }
 
-        /** Each name [MacroKey] summarises in `Kernel`, once, with the block its keys share. */
+        /** Each name [MacroKey] summarises in `Kernel`, once, with the block and value its keys share. */
         private fun summaries(): List<Pair<String, MacroRole>> =
             MacroKey.entries
                 .filter { it.receiver == "Elixir.Kernel" }
                 .groupBy { it.macroName }
                 .map { (name, keys) ->
                     val block = keys.map { it.block }.distinct().single()
+                    val value = keys.map { it.value }.distinct().single()
 
-                    name to MacroRole(Modelling.SUMMARY, block)
+                    name to MacroRole(Modelling.SUMMARY, block, value)
                 }
 
         /** The role of the `Kernel` or `Kernel.SpecialForms` macro [name], or `null` when the table does not list it. */

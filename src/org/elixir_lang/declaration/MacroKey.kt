@@ -1,15 +1,22 @@
 package org.elixir_lang.declaration
 
 import org.elixir_lang.declaration.MacroRole.Block
+import org.elixir_lang.declaration.MacroRole.Value
 
 /**
  * Each macro whose expansion the plugin summarises, as a call dispatches to it: its receiver as atom text, its
- * [macroName] and its arity, at every arity any supported Elixir release exports it. [block] is [MacroRole.block] for a
- * `Kernel` macro.
+ * [macroName] and its arity, at every arity any supported Elixir release exports it. [block] and [value] are [MacroRole.block]
+ * and [MacroRole.value] for a `Kernel` macro.
  */
-enum class MacroKey(val receiver: String, val macroName: String, val arity: Int, val block: Block) {
-    IF(KERNEL, "if", 2, Block.IN_PLACE),
-    UNLESS(KERNEL, "unless", 2, Block.IN_PLACE),
+enum class MacroKey(
+    val receiver: String,
+    val macroName: String,
+    val arity: Int,
+    val block: Block,
+    val value: Value = Value.ANY,
+) {
+    IF(KERNEL, "if", 2, Block.IN_PLACE, Value.BLOCK_TAIL),
+    UNLESS(KERNEL, "unless", 2, Block.IN_PLACE, Value.BLOCK_TAIL),
     AND_AND(KERNEL, "&&", 2, Block.NOT_A_BLOCK),
     OR_OR(KERNEL, "||", 2, Block.NOT_A_BLOCK),
     NOT(KERNEL, "!", 1, Block.NOT_A_BLOCK),
@@ -39,7 +46,7 @@ enum class MacroKey(val receiver: String, val macroName: String, val arity: Int,
     DEFMACRO_2(KERNEL, "defmacro", 2, Block.BOUNDARY),
     DEFMACROP_1(KERNEL, "defmacrop", 1, Block.BOUNDARY),
     DEFMACROP_2(KERNEL, "defmacrop", 2, Block.BOUNDARY),
-    DEFMODULE(KERNEL, "defmodule", 2, Block.BOUNDARY),
+    DEFMODULE(KERNEL, "defmodule", 2, Block.BOUNDARY, Value.NEVER_CONFIG),
     AT(KERNEL, "@", 1, Block.NOT_A_BLOCK),
     DEFSTRUCT(KERNEL, "defstruct", 1, Block.NOT_A_BLOCK),
     DEFEXCEPTION(KERNEL, "defexception", 1, Block.NOT_A_BLOCK),

@@ -49,7 +49,7 @@ internal class ConfigIndex : FileBasedIndexExtension<ConfigIndexKey, List<Config
 
     companion object {
         /** Bumped when what is indexed, or how it is written, changes. */
-        private const val VERSION = 5
+        private const val VERSION = 8
     }
 }
 
@@ -61,10 +61,24 @@ internal object ConfigIndexing {
         val entries = mutableMapOf<ConfigIndexKey, MutableList<ConfigEntry>>()
 
         inputData.psiFile.viewProvider.getPsi(ElixirLanguage)?.let { root ->
+            // Only a config file's setting that can't be read, its writes and its value can change what a build sees.
+            val config = ConfigFiles.isConfig(inputData.fileName)
+
+            fun add(app: ConfigIndexKey, kind: ConfigEntry.Kind, element: PsiElement) {
+                entries.getOrPut(app) { mutableListOf() }.add(ConfigEntry.KeyEntry(kind, WrittenKey.Unknown, element.textRange))
+            }
+
             PsiTreeUtil.processElements(root, Call::class.java) { call ->
-                for (set in Set.of(call)) {
-                    entries.getOrPut(ConfigIndexKey.App(set.app)) { mutableListOf() }
-                        .add(ConfigEntry.KeyEntry(ConfigEntry.Kind.Set, set.key, set.element.textRange))
+                CallModule.of(call)?.let { module ->
+                    for (set in Set.candidates(call)) {
+                        entries.getOrPut(ConfigIndexKey.App(set.app)) { mutableListOf() }
+                            .add(ConfigEntry.KeyEntry(ConfigEntry.Kind.Set(module), set.key, set.element.textRange))
+                    }
+
+                    if (config) {
+                        for ((app, element) in Set.unread(call)) add(app, ConfigEntry.Kind.Unread(module), element)
+                        Set.imported(call)?.let { add(ConfigIndexKey.AnyApp, ConfigEntry.Kind.Import(module), it) }
+                    }
                 }
 
                 Read.of(call)?.let { read ->
@@ -75,6 +89,8 @@ internal object ConfigIndexing {
                 true
             }
 
+            if (config) Set.returnedCandidate(root)?.let { add(ConfigIndexKey.AnyApp, ConfigEntry.Kind.Returned, it) }
+
             if (inputData.fileName == MIX_EXS && root is ElixirFile) {
                 entries[ConfigIndexKey.Project] =
                     mutableListOf(ConfigEntry.ProjectEntry(ProjectKeywords.app(root), ProjectKeywords.configPath(root)))
@@ -84,9 +100,9 @@ internal object ConfigIndexing {
         entries
     }
 
-    /** Each setting or candidate read filed under [app] in [scope] whose kind is [kind], as written. */
+    /** Each entry filed under [app] in [scope] that [decided] says is [kind]. */
     @RequiresReadLock
-    fun written(project: Project, app: ConfigIndexKey, scope: GlobalSearchScope, kind: (ConfigEntry.Kind) -> Boolean): List<Written> {
+    fun written(project: Project, app: ConfigIndexKey, scope: GlobalSearchScope, kind: Decided): List<Written> {
         val entriesByFile = mutableListOf<Pair<VirtualFile, List<ConfigEntry>>>()
         FileBasedIndex.getInstance().processValues(
             NAME,
@@ -105,10 +121,49 @@ internal object ConfigIndexing {
 
             entries
                 .filterIsInstance<ConfigEntry.KeyEntry>()
-                .filter { kind(it.kind) }
-                .mapNotNull { entry -> element(file, entry.range)?.let { Written(entry.kind, entry.key, it) } }
+                .mapNotNull { entry ->
+                    element(file, entry.range)?.takeIf { decided(entry.kind, it) == kind }?.let { Written(entry.kind, entry.key, it) }
+                }
         }
     }
+
+    /** What a config file's entry is, once the module its call reaches decides it. */
+    enum class Decided {
+        /** A setting of a key. */
+        SET,
+
+        /** What may set any key of its app. */
+        UNREAD,
+
+        /** An `import_config`'s argument. */
+        IMPORT,
+    }
+
+    /**
+     * What an entry of [kind], at [element], is: a setting where its call reaches `Config` or `Mix.Config`, and unread
+     * where no one module can be named; an unread or an import where its call may reach a module that makes it one; and
+     * a value [Set.returned] gives, unread. `null` for a candidate read, which [ConfigReads] decides, and for a call that
+     * reaches another module.
+     */
+    @RequiresReadLock
+    fun decided(kind: ConfigEntry.Kind, element: PsiElement): Decided? =
+        when (kind) {
+            is ConfigEntry.Kind.Set ->
+                when (reaches(kind.module, element)) {
+                    CallModule.Answer.REACHES -> Decided.SET
+                    CallModule.Answer.UNDECIDED -> Decided.UNREAD
+                    CallModule.Answer.ELSEWHERE, null -> null
+                }
+            is ConfigEntry.Kind.Unread -> Decided.UNREAD.takeIf { reaches(kind.module, element).let { it != null && it != CallModule.Answer.ELSEWHERE } }
+            is ConfigEntry.Kind.Import -> Decided.IMPORT.takeIf { reaches(kind.module, element).let { it != null && it != CallModule.Answer.ELSEWHERE } }
+            ConfigEntry.Kind.Returned -> Decided.UNREAD.takeIf { Set.returned(element.containingFile)?.textRange == element.textRange }
+            is ConfigEntry.Kind.Read -> null
+        }
+
+    /** Whether the call [module] names nearest [element] reaches a module whose call of its name and arity it is. */
+    @RequiresReadLock
+    private fun reaches(module: CallModule, element: PsiElement): CallModule.Answer? =
+        module.callAt(element)?.let { module.reaches(it, Set.modules(module.name, module.arity)) }
 
     /** Each candidate read [file] holds, with the app it is filed under, as written. */
     @RequiresReadLock
@@ -151,7 +206,9 @@ internal object ConfigIndexing {
     fun apps(project: Project): List<String> =
         FileBasedIndex.getInstance().getAllKeys(NAME, project).filterIsInstance<ConfigIndexKey.App>().map { it.atom }
 
-    private fun element(file: PsiFile, range: TextRange): PsiElement? =
+    /** The element [file] holds at [range], as an entry's range names it. */
+    @RequiresReadLock
+    fun element(file: PsiFile, range: TextRange): PsiElement? =
         generateSequence(file.findElementAt(range.startOffset)) { it.parent }
             .takeWhile { it.textRange.startOffset == range.startOffset && it.textRange.endOffset <= range.endOffset }
             .lastOrNull()
@@ -164,7 +221,7 @@ sealed interface ConfigIndexKey {
     /** A literal app. */
     data class App(val atom: String) : ReadApp
 
-    /** A read whose app is not written as a literal, so it may be any app's. */
+    /** A read or a setting whose app is not written as a literal, so it may be any app's. */
     data object AnyApp : ReadApp
 
     /** A `mix.exs` file's project. */
@@ -223,11 +280,28 @@ sealed interface ConfigEntry {
 
     data class ProjectEntry(val app: String?, val configPath: ProjectKeywords.ConfigPath) : ConfigEntry
 
+    /** What an entry is as written; [ConfigIndexing.decided] decides each but [Read] from the module its call reaches. */
     sealed interface Kind {
-        data object Set : Kind
+        /** A candidate setting, of [org.elixir_lang.model.psi.config.Set.candidates]. */
+        data class Set(val module: CallModule) : Kind
+
+        /**
+         * A candidate setting whose key, options or app [org.elixir_lang.model.psi.config.Set.candidates] can't read, so
+         * it may set any key of its app, at the argument it can't read; or a candidate write of the env.
+         */
+        data class Unread(val module: CallModule) : Kind
+
+        /**
+         * A candidate `import_config` of the file its argument names, at that argument: a file it may name that doesn't
+         * count may set any key of any app.
+         */
+        data class Import(val module: CallModule) : Kind
+
+        /** A config file's last expression, which may be its value. */
+        data object Returned : Kind
 
         /** A candidate read, a read where [module] says its call is one. */
-        data class Read(val module: ReadModule) : Kind
+        data class Read(val module: CallModule) : Kind
     }
 }
 
@@ -275,6 +349,13 @@ private object ConfigEntriesExternalizer : DataExternalizer<List<ConfigEntry>> {
 
     private const val SET = 0
     private const val READ = 1
+    private const val UNREAD = 2
+    private const val IMPORT = 3
+    private const val RETURNED = 4
+
+    private const val WRITTEN_QUALIFIER = 0
+    private const val OTHER_QUALIFIER = 1
+    private const val UNQUALIFIED = 2
 
     override fun save(out: DataOutput, value: List<ConfigEntry>) {
         out.writeInt(value.size)
@@ -331,27 +412,51 @@ private object ConfigEntriesExternalizer : DataExternalizer<List<ConfigEntry>> {
 
     private fun save(out: DataOutput, kind: ConfigEntry.Kind) {
         when (kind) {
-            ConfigEntry.Kind.Set -> out.writeByte(SET)
-            is ConfigEntry.Kind.Read -> {
-                out.writeByte(READ)
-                out.writeByte(kind.module.qualifier.ordinal)
-                IOUtil.writeUTF(out, kind.module.name)
-                out.writeInt(kind.module.arity)
-            }
+            is ConfigEntry.Kind.Set -> save(out, SET, kind.module)
+            is ConfigEntry.Kind.Unread -> save(out, UNREAD, kind.module)
+            is ConfigEntry.Kind.Import -> save(out, IMPORT, kind.module)
+            ConfigEntry.Kind.Returned -> out.writeByte(RETURNED)
+            is ConfigEntry.Kind.Read -> save(out, READ, kind.module)
         }
+    }
+
+    private fun save(out: DataOutput, tag: Int, module: CallModule) {
+        out.writeByte(tag)
+
+        when (val qualifier = module.qualifier) {
+            is CallModule.Qualifier.Written -> {
+                out.writeByte(WRITTEN_QUALIFIER)
+                IOUtil.writeUTF(out, qualifier.module)
+            }
+            CallModule.Qualifier.Other -> out.writeByte(OTHER_QUALIFIER)
+            CallModule.Qualifier.Unqualified -> out.writeByte(UNQUALIFIED)
+        }
+
+        IOUtil.writeUTF(out, module.name)
+        out.writeInt(module.arity)
     }
 
     private fun readKind(input: DataInput): ConfigEntry.Kind =
         when (val tag = input.readByte().toInt()) {
-            SET -> ConfigEntry.Kind.Set
-            READ -> {
-                val qualifier = ReadModule.Qualifier.entries[input.readByte().toInt()]
-                val name = IOUtil.readUTF(input)
-
-                ConfigEntry.Kind.Read(ReadModule(qualifier, name, input.readInt()))
-            }
+            SET -> ConfigEntry.Kind.Set(readModule(input))
+            UNREAD -> ConfigEntry.Kind.Unread(readModule(input))
+            IMPORT -> ConfigEntry.Kind.Import(readModule(input))
+            RETURNED -> ConfigEntry.Kind.Returned
+            READ -> ConfigEntry.Kind.Read(readModule(input))
             else -> error("unknown config entry kind tag $tag")
         }
+
+    private fun readModule(input: DataInput): CallModule {
+        val qualifier = when (val tag = input.readByte().toInt()) {
+            WRITTEN_QUALIFIER -> CallModule.Qualifier.Written(IOUtil.readUTF(input))
+            OTHER_QUALIFIER -> CallModule.Qualifier.Other
+            UNQUALIFIED -> CallModule.Qualifier.Unqualified
+            else -> error("unknown call qualifier tag $tag")
+        }
+        val name = IOUtil.readUTF(input)
+
+        return CallModule(qualifier, name, input.readInt())
+    }
 
     private fun save(out: DataOutput, key: WrittenKey) {
         when (key) {

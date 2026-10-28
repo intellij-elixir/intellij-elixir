@@ -33,13 +33,18 @@ internal object Keys {
         }
 
     /** The call whose argument [element] is: its nearest enclosing call, or the call a pipe's left side is piped into. */
+    @RequiresReadLock
     fun call(element: PsiElement): Call? {
         val call = generateSequence(element.parent) { it.parent }.filterIsInstance<Call>().firstOrNull()
         val pipe = call as? Infix ?: return call
-        val piped = (pipe.rightOperand() as? Call)?.takeIf { CallImpl.isPipedInto(it) }
+        val piped = pipedInto(pipe)
 
         return piped?.takeIf { pipe.leftOperand()?.let { left -> PsiTreeUtil.isAncestor(left, element, false) } == true } ?: call
     }
+
+    /** The call [element], a pipe, pipes into. */
+    @RequiresReadLock
+    fun pipedInto(element: PsiElement): Call? = ((element as? Infix)?.rightOperand() as? Call)?.takeIf(CallImpl::isPipedInto)
 }
 
 /** What an argument of a `config` call or a read names. */

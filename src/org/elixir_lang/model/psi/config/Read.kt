@@ -6,11 +6,10 @@ import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirList
+import org.elixir_lang.psi.Sigil
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.call.CallImpl
 import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.moduleName
 import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.operation.Infix
 
@@ -18,7 +17,7 @@ import org.elixir_lang.psi.operation.Infix
  * A candidate read of [app]'s first-level [key], written at [element]: the key's argument, or the whole [call] for
  * [WrittenKey.All]. It is a read where [module] says [call] calls a module with that read.
  */
-class Read(val app: ReadApp, val key: WrittenKey, val element: PsiElement, val call: Call, val module: ReadModule) {
+class Read(val app: ReadApp, val key: WrittenKey, val element: PsiElement, val call: Call, val module: CallModule) {
     companion object {
         /**
          * The candidate read [call] makes, whatever module it names, or `null` when it reads no key it can name: no module
@@ -48,7 +47,7 @@ class Read(val app: ReadApp, val key: WrittenKey, val element: PsiElement, val c
                 }
             }
 
-            return Read(app, key, element, call, ReadModule(qualifier(call), name, arity)).takeUnless {
+            return Read(app, key, element, call, CallModule(CallModule.qualifier(call), name, arity)).takeUnless {
                 app == ConfigIndexKey.AnyApp && (key == WrittenKey.Unknown || key == WrittenKey.All)
             }
         }
@@ -63,10 +62,10 @@ class Read(val app: ReadApp, val key: WrittenKey, val element: PsiElement, val c
             val call = Keys.call(element) ?: return null
             val name = call.functionName() ?: return null
             val arity = call.resolvedFinalArity()
-            val qualifier = qualifier(call)
+            val qualifier = CallModule.qualifier(call)
             val (readArity, shape) = (arity..MAX_ARITY).firstNotNullOfOrNull { readArity ->
                 SHAPES[Signature(name, readArity)]
-                    ?.takeIf { ReadModule(qualifier, name, readArity).isRead(call) == ReadModule.Answer.READ }
+                    ?.takeIf { isRead(CallModule(qualifier, name, readArity), call) == CallModule.Answer.REACHES }
                     ?.let { readArity to it.shape }
             } ?: return null
 
@@ -94,26 +93,13 @@ class Read(val app: ReadApp, val key: WrittenKey, val element: PsiElement, val c
             }
         }
 
-        /** The modules with a read of [name] and [arity]. */
-        fun modules(name: String, arity: Int): List<String> = SHAPES[Signature(name, arity)]?.modules.orEmpty()
-
-        /** [call]'s qualifier as written. */
+        /**
+         * Whether [call], written as [module] says, is a read: it reaches a module with a read of [module]'s name and
+         * arity.
+         */
         @RequiresReadLock
-        private fun qualifier(call: Call): ReadModule.Qualifier {
-            if (call !is Qualified) return ReadModule.Qualifier.UNQUALIFIED
-            val qualifier = call.qualifier().stripAccessExpressionAndParentheses()
-
-            return when {
-                qualifier is ElixirAtom ->
-                    when (AtomName.of(qualifier)) {
-                        ERLANG_APPLICATION -> ReadModule.Qualifier.ERLANG_APPLICATION
-                        ELIXIR_APPLICATION -> ReadModule.Qualifier.APPLICATION
-                        else -> ReadModule.Qualifier.OTHER
-                    }
-                moduleName(qualifier)?.name == APPLICATION -> ReadModule.Qualifier.APPLICATION
-                else -> ReadModule.Qualifier.OTHER
-            }
-        }
+        fun isRead(module: CallModule, call: Call, sigil: Sigil? = KeyAtom.injectedSigil(call)): CallModule.Answer =
+            module.reaches(call, SHAPES[Signature(module.name, module.arity)]?.modules.orEmpty(), sigil)
 
         private data class Signature(val name: String, val arity: Int)
 
@@ -123,9 +109,8 @@ class Read(val app: ReadApp, val key: WrittenKey, val element: PsiElement, val c
         /** A signature's [shape], the same in every one of [modules] that has a read of it. */
         private class Reads(val shape: Shape, val modules: List<String>)
 
-        private const val APPLICATION = "Application"
-        internal const val ERLANG_APPLICATION = "application"
-        internal const val ELIXIR_APPLICATION = "Elixir.Application"
+        private const val ERLANG_APPLICATION = "application"
+        private const val ELIXIR_APPLICATION = "Elixir.Application"
 
         private val SHAPES: Map<Signature, Reads> =
             listOf(

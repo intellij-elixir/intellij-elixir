@@ -100,8 +100,8 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
 
     /**
      * A config file whose expansion compiles a module that reads the env, beside an alias key: the read is made while
-     * the config file runs, so it is configured, and the module expanded on its own answers from the dependency's
-     * `.app` file.
+     * the config file runs, so it is configured, and the module expanded on its own expands. The alias key, past an
+     * `import` of a module only `Code.require_file` loads, can't be named, so it may be the key read.
      */
     fun testAConfigFileThatCompilesAModuleReadingTheEnvBesideAnAliasKeyExpands() {
         val root = project(
@@ -113,7 +113,7 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
         library("dep", ebin(app("dep", "{key, value}")))
 
         assertEquals("", render(expansion(holder, psi(root, "config/config.exs"))))
-        assertEquals("Elixir.App.Helpers compiled different/0", ended(psi(root, "lib/helpers.ex")))
+        assertEquals("Elixir.App.Helpers compiled different/0 equal/0", ended(psi(root, "lib/helpers.ex")))
     }
 
     /**
@@ -135,6 +135,169 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
             "Elixir.Conditional compiled different/0 equal/0\nElixir.Prod compiled different/0 equal/0",
             listOf("conditional", "prod").joinToString("\n") { ended(psi(root, "lib/$it.ex")) },
         )
+    }
+
+    /**
+     * A setting whose key or options the config index can't read may set any of its app's keys, and one whose app it
+     * can't read any app's, so those keys aren't known. Another app's keys answer from its `.app`.
+     */
+    fun testASettingTheIndexCantReadLeavesTheKeysItMaySetUnknown() {
+        val root = project(
+            "mix.exs" to MIX_EXS,
+            "config/config.exs" to "import Config\n\nkey = :key\nconfig :dep, key, :value\n",
+            "lib/dep.ex" to module("Dep", "Application.get_env(:dep, :key)", ":value"),
+            "lib/other.ex" to module("Other", "Application.get_env(:other, :key)", ":value"),
+        )
+        library("dep", ebin(app("dep", "{key, value}")))
+        library("other", ebin(app("other", "{key, value}"), "other"))
+        val config = psi(root, "config/config.exs")
+        val files = listOf("dep", "other").map { psi(root, "lib/$it.ex") }
+        val depUnknown = "Elixir.Dep compiled different/0 equal/0\nElixir.Other compiled equal/0"
+
+        assertEquals("a key", depUnknown, files.joinToString("\n") { ended(it) })
+
+        for ((what, setting) in listOf(
+            "options" to "options = [key: :value]\nconfig :dep, options",
+            "a keyword key" to "key = \"key\"\nconfig :dep, \"#{key}\": :value",
+            "a tuple in the options" to "config :dep, [{:key, :value}]",
+        )) {
+            edit(project, config, "import Config\n\n$setting\n")
+
+            assertEquals(what, depUnknown, files.joinToString("\n") { ended(it) })
+        }
+
+        edit(project, config, "import Config\n\napp = :dep\nconfig app, key: :value\n")
+
+        assertEquals(
+            "an app",
+            "Elixir.Dep compiled different/0 equal/0\nElixir.Other compiled different/0 equal/0",
+            files.joinToString("\n") { ended(it) },
+        )
+    }
+
+    /**
+     * Each other way a default build's config may set a key that the config index can't read leaves the keys it may set
+     * unknown: its app's, or any app's where the app isn't known. A config file that returns something not a list, and
+     * an import from the config directory, leave them known.
+     */
+    fun testAConfigInputTheIndexCantReadLeavesTheKeysItMaySetUnknown() {
+        val root = project(
+            "mix.exs" to MIX_EXS,
+            "config/config.exs" to "import Config\n",
+            "config/dev.exs" to "import Config\n",
+            "config/envs/dev.exs" to "import Config\n\nconfig :dep, :key, :other\n",
+            "lib/dep.ex" to module("Dep", "Application.get_env(:dep, :key)", ":value"),
+            "lib/other.ex" to module("Other", "Application.get_env(:other, :key)", ":value"),
+        )
+        library("dep", ebin(app("dep", "{key, value}")))
+        library("other", ebin(app("other", "{key, value}"), "other"))
+        val config = psi(root, "config/config.exs")
+        val files = listOf("dep", "other").map { psi(root, "lib/$it.ex") }
+        val known = "Elixir.Dep compiled equal/0\nElixir.Other compiled equal/0"
+        val depUnknown = "Elixir.Dep compiled different/0 equal/0\nElixir.Other compiled equal/0"
+        val bothUnknown = "Elixir.Dep compiled different/0 equal/0\nElixir.Other compiled different/0 equal/0"
+
+        assertEquals("nothing set", known, files.joinToString("\n") { ended(it) })
+
+        val inputs = listOf(
+            Triple("a returned keyword list", "[dep: [key: :other]]", bothUnknown),
+            Triple("a returned atom", "import Config\n\n:ok", known),
+            Triple("a put_env", "import Config\n\nApplication.put_env(:dep, :key, :other)", depUnknown),
+            Triple("a put_env of an app not written", "import Config\n\napp = :dep\nApplication.put_env(app, :key, :other)", bothUnknown),
+            Triple("a put_all_env", "import Config\n\nApplication.put_all_env(dep: [key: :other])", depUnknown),
+            Triple("a persist", "Mix.Config.persist(dep: [key: :other])", depUnknown),
+            Triple("a config through an alias of Config", "import Config\n\nalias Config, as: C\nC.config(:dep, :other_key, :x)", known),
+            Triple(
+                "a put_env through an alias of Application",
+                "import Config\n\nalias Application, as: A\nA.put_env(:dep, :key, :other)",
+                depUnknown,
+            ),
+            Triple("an imported put_env", "import Config\n\nimport Application\nput_env(:dep, :key, :other)", depUnknown),
+            Triple(
+                "a put_env of a module the expansion can't name",
+                "import Config\n\nmodule = String.to_atom(System.fetch_env!(\"M\"))\nmodule.put_env(:dep, :key, :other)\n:ok",
+                depUnknown,
+            ),
+            // A write through `apply`, a capture or evaluated code isn't seen until the config is evaluated (#4563).
+            Triple("an apply of config", "import Config\n\napply(Config, :config, [:dep, :key, :other])\n:ok", known),
+            Triple(
+                "an Erlang apply of put_env",
+                "import Config\n\n:erlang.apply(Application, :put_env, [:dep, :key, :other])\n:ok",
+                known,
+            ),
+            Triple("a captured config", "import Config\n\nset = &config/3\nset.(:dep, :key, :other)\n:ok", known),
+            Triple(
+                "an evaluated put_env",
+                "import Config\n\nCode.eval_string(\"Application.put_env(:dep, :key, :other)\")\n:ok",
+                known,
+            ),
+            Triple("a config without import Config", "config :dep, :key, :other", bothUnknown),
+            Triple(
+                "an alias key past an import of a module only Code.require_file loads",
+                "import Config\n\nCode.require_file(\"../lib/other.ex\", __DIR__)\nimport Other\nconfig :dep, App.Repo, a: 1",
+                depUnknown,
+            ),
+            Triple("an import from the config directory", "import Config\n\nimport_config \"#{config_env()}.exs\"", known),
+            Triple("an import from elsewhere", "import Config\n\nimport_config \"envs/dev.exs\"", bothUnknown),
+            Triple("an import of Mix's env from the config directory", "import Config\n\nimport_config \"#{Mix.env()}.exs\"", known),
+            Triple("an import of Mix's env with no parentheses", "import Config\n\nimport_config \"#{Mix.env}.exs\"", known),
+            Triple(
+                "an import of Config's env from the config directory",
+                "import Config\n\nimport_config \"#{Config.config_env()}.exs\"",
+                known,
+            ),
+            Triple(
+                "an interpolated import from elsewhere",
+                "import Config\n\nenv = \"envs/dev\"\nimport_config \"#{env}.exs\"",
+                bothUnknown,
+            ),
+            Triple("a returned variable named config", "config = [dep: [key: :other]]\nconfig", bothUnknown),
+        )
+
+        assertEquals(
+            inputs.joinToString("\n\n") { (what, _, expected) -> "$what:\n$expected" },
+            inputs.joinToString("\n\n") { (what, text, _) ->
+                edit(project, config, "$text\n")
+
+                "$what:\n${files.joinToString("\n") { ended(it) }}"
+            },
+        )
+
+        edit(project, config, "import Config\n")
+        edit(project, psi(root, "mix.exs"), MIX_EXS.replace("version: \"0.1.0\"]", "version: \"0.1.0\"] ++ []"))
+
+        assertEquals("a project the index can't read", bothUnknown, files.joinToString("\n") { ended(it) })
+    }
+
+    /**
+     * Whether a config file's call is a setting can rest on a module its expansion reads: an edit to that module moves a
+     * held expansion that read the key.
+     */
+    fun testAnEditToAModuleAConfigFilesExpansionReadsMovesTheHeldExpansion() {
+        val root = project(
+            "mix.exs" to MIX_EXS,
+            "config/config.exs" to "import Config\n\nuse App.Helper\nC.config(:dep, :key, :other)\n:ok\n",
+            "lib/helper.ex" to helper("Other"),
+            "lib/dep.ex" to module("Dep", "Application.get_env(:dep, :key)", ":value"),
+        )
+        library("dep", ebin(app("dep", "{key, value}")))
+        val dep = psi(root, "lib/dep.ex")
+        val helper = psi(root, "lib/helper.ex")
+
+        assertEquals("Elixir.Dep compiled equal/0", ended(dep))
+
+        edit(project, helper, helper("Config"))
+
+        assertEquals("a setting", "Elixir.Dep compiled different/0 equal/0", ended(dep))
+
+        edit(project, helper, helper("Other"))
+        edit(project, psi(root, "config/config.exs"), "import Config\n\nuse App.Helper\napp = :dep\nC.put_env(app, :key, :other)\n:ok\n")
+
+        assertEquals("Elixir.Dep compiled equal/0", ended(dep))
+
+        edit(project, helper, helper("Application"))
+
+        assertEquals("a write of an app not written", "Elixir.Dep compiled different/0 equal/0", ended(dep))
     }
 
     /**
@@ -215,5 +378,9 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
         /** A module defining `equal/0` where [read] gives [value] and `different/0` where it doesn't. */
         fun module(name: String, read: String, value: String) =
             "defmodule $name do\n  if $read == $value, do: def(equal, do: 1)\n  if $read != $value, do: def(different, do: 1)\nend\n"
+
+        /** `App.Helper`, whose `__using__/1` aliases [module] as `C`. */
+        fun helper(module: String) =
+            "defmodule App.Helper do\n  defmacro __using__(_) do\n    quote do\n      alias $module, as: C\n    end\n  end\nend\n"
     }
 }

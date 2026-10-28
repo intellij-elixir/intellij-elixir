@@ -14,6 +14,19 @@ internal object ConfigSettings {
             .filter { it.key.atom(it.element) == key }
             .map { it.element }
 
+    /**
+     * Whether config in [scope] that can't be read may set [app]'s keys: a setting or write of [app], or of an app that
+     * can't be read ([ConfigIndexing.Decided.UNREAD]); a setting of [app] whose key can't be named; or config [scope] may not
+     * hold ([ConfigFiles.unread]).
+     */
+    @RequiresReadLock
+    fun unread(project: Project, app: String, scope: GlobalSearchScope): Boolean =
+        listOf(ConfigIndexKey.App(app), ConfigIndexKey.AnyApp).any { key ->
+            ConfigIndexing.written(project, key, scope, ConfigIndexing.Decided.UNREAD).isNotEmpty()
+        } ||
+            settings(project, app, scope).any { it.key.atom(it.element) == null } ||
+            ConfigFiles.unread(project, scope)
+
     /** The keys written as atoms that [app]'s settings set. */
     @RequiresReadLock
     fun keys(project: Project, app: String): List<String> =
@@ -36,5 +49,5 @@ internal object ConfigSettings {
     }
 
     private fun settings(project: Project, app: String, scope: GlobalSearchScope): List<ConfigIndexing.Written> =
-        ConfigIndexing.written(project, ConfigIndexKey.App(app), scope) { it == ConfigEntry.Kind.Set }
+        ConfigIndexing.written(project, ConfigIndexKey.App(app), scope, ConfigIndexing.Decided.SET)
 }

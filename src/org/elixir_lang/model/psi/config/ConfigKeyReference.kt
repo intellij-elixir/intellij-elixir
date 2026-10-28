@@ -27,7 +27,7 @@ internal class ConfigKeyReference(
     override fun resolveReference(): Collection<Symbol> {
         val project = element.project
         if (DumbService.isDumb(project)) return emptyList()
-        if (read != null && read.module.isRead(read.call) != ReadModule.Answer.READ) return emptyList()
+        if (read != null && Read.isRead(read.module, read.call) != CallModule.Answer.REACHES) return emptyList()
         val atom = key.atom(element) ?: return emptyList()
         val apps = when (app) {
             is ConfigIndexKey.App -> listOf(app.atom).filter { ConfigSettings.of(project, it, atom).isNotEmpty() }

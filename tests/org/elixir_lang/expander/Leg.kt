@@ -44,17 +44,18 @@ internal val legStructs: Structs by lazy {
 internal val NO_APP_ENV = AppEnv { _, _ -> AppEnvValue.Unreadable }
 
 /**
- * The env a default build sees with [apps]' `.app` texts, by name, and the leg's apps' `.app` files, and with
- * [configured] saying whether a config file sets an app's key.
+ * The env a default build sees with [apps]' `.app` texts, by name, and the leg's apps' `.app` files, with [configured]
+ * saying whether a config file sets an app's key, and [unread] whether one has a setting of the app that can't be read.
  */
 internal fun legAppEnv(
     apps: Map<String, String> = emptyMap(),
     configured: (app: String, key: OtpErlangObject) -> Boolean = { _, _ -> false },
+    unread: (app: String) -> Boolean = { false },
 ): AppEnv {
     val level = legLevel()
     val cache = ConcurrentHashMap<String, Optional<AppFile>>()
 
-    return AppEnv.of(configured) { app ->
+    return AppEnv.of(configured, unread) { app ->
         cache.computeIfAbsent(app) {
             val text = apps[app] ?: legEbins.map { File(it, "$app.app") }.firstOrNull(File::isFile)?.readText()
 

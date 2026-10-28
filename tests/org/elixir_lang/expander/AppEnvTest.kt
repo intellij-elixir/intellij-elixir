@@ -11,8 +11,9 @@ import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.psi.ElixirFile
 
 /**
- * A module body's `Application` env reads answer from [AppEnv]: a key a config file sets isn't known, else the term the
- * app's `.app` declares, else the key is unset; where the `.app` can't be read nothing is known. Every answer it knows is
+ * A module body's `Application` env reads answer from [AppEnv]: a key a config file sets, or may set where a setting of
+ * its app can't be read, isn't known, else the term the app's `.app` declares, else the key is unset; where the `.app`
+ * can't be read nothing is known. Every answer it knows is
  * an assumption, so an error after it stops the module.
  */
 class AppEnvTest : PlatformTestCase() {
@@ -34,6 +35,9 @@ class AppEnvTest : PlatformTestCase() {
             "Application.get_env(:dep, :configured)" to null,
             "Application.get_env(:own, :key)" to null,
             "Application.get_env(:ex_unit, :timeout)" to "60000",
+            "Application.get_env(:unread, :key)" to null,
+            "Application.get_env(:unread, :missing, :default)" to null,
+            "match?({:ok, _}, Application.fetch_env(:unread, :configured))" to null,
         )
 
     fun testFetchEnv() =
@@ -224,16 +228,21 @@ class AppEnvTest : PlatformTestCase() {
 
     private companion object {
         /**
-         * The leg's apps, `dep` declaring the keys the rows read, one of which a config file also sets, and `own`, whose
-         * `.app` can't be read.
+         * The leg's apps, `dep` declaring the keys the rows read, one of which a config file also sets, `own`, whose
+         * `.app` can't be read, and `unread`, which a config file sets in a way that can't be read besides setting one
+         * key.
          */
         val APP_ENV = legAppEnv(
             apps = mapOf(
                 "dep" to "{application, dep, [{vsn, \"0.1.0\"}, {env, [{key, value}, {charlist, \"abc\"}, " +
                     "{keyword, [{sub, 1}]}, {map, #{sub => 2}}, {configured, other}]}]}.\n",
                 "own" to "{application, own, [{env, [{key, value}]}]}",
+                "unread" to "{application, unread, [{vsn, \"0.1.0\"}, {env, [{key, value}]}]}.\n",
             ),
-            configured = { app: String, key: OtpErlangObject -> app == "dep" && key == OtpErlangAtom("configured") },
+            configured = { app: String, key: OtpErlangObject ->
+                app in setOf("dep", "unread") && key == OtpErlangAtom("configured")
+            },
+            unread = { app -> app == "unread" },
         )
     }
 }

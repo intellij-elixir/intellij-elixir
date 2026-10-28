@@ -8,6 +8,7 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.expander.EnvAtom
 import org.elixir_lang.expander.ImportMatch
 import org.elixir_lang.expander.ProjectModules
+import org.elixir_lang.expander.ReceiverIndex
 import org.elixir_lang.expander.SdkInputs
 import org.elixir_lang.expander.findImportByNameArity
 import org.elixir_lang.injection.sigilInjection
@@ -15,6 +16,7 @@ import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.Sigil
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 
 /**
  * What an element of a setting or a read names in the env `at` compiles in, which [place] gives. Each answer is `null`
@@ -31,24 +33,31 @@ internal object KeyAtom {
         return expanded.lowering(key)?.let { lowering -> EnvAtom.of(key, env, lowering, expanded.inputs, expanded.holder, expanded.file) }
     }
 
-    /** The module [qualifier], a remote call's, names. */
+    /**
+     * The module [qualifier], a remote call's, names: [Named.Unknown] where the expansion reached it but names no module,
+     * as for a variable whose value isn't known; `null` where it did not reach it.
+     */
     @RequiresReadLock
-    fun ofQualifier(qualifier: PsiElement, at: PsiElement): String? =
-        expanded(at)?.let { expanded ->
-            val indexed = expanded.indexed
+    fun receiver(qualifier: PsiElement, at: PsiElement): Named? {
+        val expanded = expanded(at) ?: return null
+        val indexed = expanded.indexed
+        val receivers = indexed.receivers.takeIf { qualifier.containingFile == expanded.file }
+        val env = indexed.envs.atReached(at.textRange)
+        val recorded = receivers?.at(qualifier.stripAccessExpressionAndParentheses().textRange) ?: ReceiverIndex.Receiver.Unreached
+        if (env == null && recorded == ReceiverIndex.Receiver.Unreached) return null
+        val lowering = expanded.lowering(qualifier) ?: return null
 
-            expanded.lowering(qualifier)?.let { lowering ->
-                EnvAtom.receiver(
-                    qualifier,
-                    indexed.receivers.takeIf { qualifier.containingFile == expanded.file },
-                    indexed.envs.atReached(at.textRange),
-                    lowering,
-                    expanded.inputs,
-                    expanded.holder,
-                    expanded.file,
-                )
-            }
-        }
+        return EnvAtom.receiver(qualifier, receivers, env, lowering, expanded.inputs, expanded.holder, expanded.file)
+            ?.let(Named::Module)
+            ?: Named.Unknown
+    }
+
+    /** What [receiver] names. */
+    sealed interface Named {
+        data class Module(val name: String) : Named
+
+        data object Unknown : Named
+    }
 
     /** What the imports in [call]'s env give for an unqualified call of [name] and [arity]. */
     @RequiresReadLock
