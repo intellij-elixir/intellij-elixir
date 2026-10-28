@@ -1,20 +1,16 @@
 package org.elixir_lang.reference
 
-import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReferenceBase
 import com.intellij.psi.ResolveResult
-import com.intellij.psi.ResolveState
 import com.intellij.psi.impl.source.resolve.ResolveCache
-import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElements
 import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
 import org.elixir_lang.code_insight.completion.unqualifiedLookupElements
 import org.elixir_lang.declaration.Resolved
-import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.operation.Prefix
@@ -41,7 +37,7 @@ class CaptureNameArity(element: NonNumeric, val nameElement: Call, val arity: Ar
     /**
      * The callables that could complete the captured name at [nameElement]. A capture names a
      * *function* of a specific [arity], written bare (the `/arity` follows), so names are offered
-     * without parentheses and only names with a clause of the requested arity are kept:
+     * without parentheses and only names declared at the requested arity are kept:
      * - unqualified `&name/arity` - every function clause in scope (public and private, whole
      *   enclosing module, including forward-declared ones), the same scope a plain unqualified call
      *   sees;
@@ -51,7 +47,7 @@ class CaptureNameArity(element: NonNumeric, val nameElement: Call, val arity: Ar
     override fun getVariants(): Array<Any> =
         when (nameElement) {
             is Unqualified ->
-                unqualifiedLookupElements(nameElement, appendParentheses = false).ofRequestedArity().toTypedArray()
+                unqualifiedLookupElements(nameElement, capturedArity = arity).toTypedArray()
 
             is Qualified ->
                 (nameElement as Qualified).qualifier()
@@ -66,21 +62,6 @@ class CaptureNameArity(element: NonNumeric, val nameElement: Call, val arity: Ar
 
             else -> emptyArray()
         }
-
-    /**
-     * Keeps only the completion candidates that have a clause whose arity interval contains the
-     * requested [arity] (a capture must name an existing `name/arity`); candidates whose arity cannot
-     * be determined are kept, matching the resolver's lenient behaviour.
-     */
-    private fun Iterable<LookupElement>.ofRequestedArity(): List<LookupElement> = filter { lookupElement ->
-        val nameArityInterval = when (val candidate = lookupElement.psiElement) {
-            is Call -> CallDefinitionClause.nameArityInterval(candidate, ResolveState.initial())
-            is BeamCallDefinition -> candidate.nameArityInterval
-            else -> null
-        }
-
-        nameArityInterval == null || arity in nameArityInterval.arityInterval
-    }
 
     override fun multiResolve(incompleteCode: Boolean): Array<ResolveResult> =
        resolveWithCaching(myElement.project, this, incompleteCode)

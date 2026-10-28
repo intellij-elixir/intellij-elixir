@@ -211,7 +211,7 @@ class VisibleTest : PlatformTestCase() {
     /** `Callable.getVariants` offers call definitions only at an unqualified call. */
     private fun offered(call: Call): List<LookupElement> =
         when (call) {
-            is Unqualified -> unqualifiedLookupElements(call, appendParentheses = true)
+            is Unqualified -> unqualifiedLookupElements(call)
             is Qualified -> call.qualifier().qualifierModulars()?.let { callDefinitionClauseLookupElements(it) }.orEmpty()
             else -> emptyList()
         }

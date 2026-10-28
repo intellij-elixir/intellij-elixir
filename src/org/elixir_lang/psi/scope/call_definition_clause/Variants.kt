@@ -124,7 +124,7 @@ class Variants : CallDefinitionClause() {
         @TestOnly
         @RequiresReadLock
         fun lookupElementList(entrance: Call): List<LookupElement> =
-            unqualifiedLookupElements(entrance, appendParentheses = true)
+            unqualifiedLookupElements(entrance)
 
         /** What the walk finds visible at [position]. */
         @RequiresReadLock

@@ -91,7 +91,7 @@ class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
             }
 
             val callDefinitionClauseLookupElementList =
-                unqualifiedLookupElements(myElement, appendParentheses = true)
+                unqualifiedLookupElements(myElement)
 
             (variableLookupElementList + callDefinitionClauseLookupElementList).toTypedArray()
         } else {

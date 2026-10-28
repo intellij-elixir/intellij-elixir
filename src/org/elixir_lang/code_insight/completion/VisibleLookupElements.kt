@@ -21,15 +21,26 @@ import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Visible
+import org.elixir_lang.declaration.admits
 import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.model.psi.ElixirUsageQueries
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 
-/** What unqualified completion offers at [position], from what is visible there. */
+/**
+ * What unqualified completion offers at [position], from what is visible there. [capturedArity] is the `/arity` of a
+ * capture being completed: it keeps the names a capture of that arity may name, inserted without parentheses.
+ */
 @RequiresReadLock
-fun unqualifiedLookupElements(position: Call, appendParentheses: Boolean): List<LookupElement> =
-    unqualifiedLookupElements(sourceFor(Feature.COMPLETION).visible(position), appendParentheses)
+fun unqualifiedLookupElements(position: Call, capturedArity: Int? = null): List<LookupElement> =
+    unqualifiedLookupElements(
+        sourceFor(Feature.COMPLETION).visible(position).filter { capturedArity == null || it.capturable(capturedArity) },
+        appendParentheses = capturedArity == null
+    )
+
+/** Whether `&name/[arity]` may name this: an arity it brings in, else one its declaration admits. */
+private fun Visible.capturable(arity: Int): Boolean =
+    importedArities?.let { arity in it } ?: declaration?.arity?.admits(arity) ?: true
 
 /**
  * What unqualified completion offers from [visible]: one lookup for each name Elixir can write unquoted and the element
