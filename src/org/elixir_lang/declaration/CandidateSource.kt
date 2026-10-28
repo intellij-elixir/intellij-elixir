@@ -8,11 +8,14 @@ import org.elixir_lang.model.psi.atom.mfaReferenceDecision
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
+import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.Unquote
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
+import org.elixir_lang.psi.qualification.Qualified as QualifiedPsi
 import org.elixir_lang.psi.impl.functionNameAtomValue
 import org.elixir_lang.psi.impl.quotedAtomValue
+import org.elixir_lang.psi.qualifier
 import org.elixir_lang.structure_view.element.CallDefinitionSpecification
 
 /** What a use can reach, and what is visible at a position: the one place features ask. */
@@ -27,7 +30,51 @@ interface CandidateSource {
 
     /** What completion offers at [position]. */
     @RequiresReadLock
-    fun visible(position: Call): List<Visible>
+    fun visible(position: CompletionPosition): List<Visible>
+
+    /** What completion offers at the call [position]. */
+    @RequiresReadLock
+    fun visible(position: Call): List<Visible> = visible(CompletionPosition.OfCall(position))
+}
+
+/** Where completion asks what is visible. */
+sealed class CompletionPosition {
+    /** The element completion runs at. */
+    abstract val element: PsiElement
+
+    /** The element that names the module whose functions are offered; `null` where none is named. */
+    abstract val module: PsiElement?
+
+    /** A [call], qualified or not. */
+    data class OfCall(val call: Call) : CompletionPosition() {
+        override val element: PsiElement get() = call
+        override val module: PsiElement? get() = (call as? QualifiedPsi)?.qualifier()
+    }
+
+    /**
+     * What the dot of `Mod.` ends in completion's copy of the file, where the dummy identifier follows it: the qualified
+     * alias a bare dummy makes, or the qualified expression a dummy with a name typed before it makes.
+     */
+    data class AfterDot(val dotted: PsiElement) : CompletionPosition() {
+        override val element: PsiElement get() = dotted
+        override val module: PsiElement?
+            get() = when (dotted) {
+                is QualifiableAlias -> dotted.qualifier()
+                is QualifiedPsi -> dotted.qualifier()
+                else -> null
+            }
+    }
+
+    /** The name of the qualified capture `&Mod.name/arity`, [name], at its [arity]. */
+    data class Capture(val name: Call, val arity: Int) : CompletionPosition() {
+        override val element: PsiElement get() = name
+        override val module: PsiElement? get() = (name as? QualifiedPsi)?.qualifier()
+    }
+
+    /** The function [atom] of an MFA, whose module [module] names. */
+    data class Mfa(val atom: ElixirAtom, override val module: PsiElement) : CompletionPosition() {
+        override val element: PsiElement get() = atom
+    }
 }
 
 /**

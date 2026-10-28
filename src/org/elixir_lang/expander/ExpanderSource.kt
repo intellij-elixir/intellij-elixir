@@ -17,6 +17,7 @@ import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Candidate
 import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.CompiledOrigin
+import org.elixir_lang.declaration.CompletionPosition
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Definer
@@ -89,22 +90,28 @@ internal object ExpanderSource : CandidateSource {
      * after a qualifier, the public definitions of the module it names, as completion offers them ([eachNameOnce]).
      */
     @RequiresReadLock
-    override fun visible(position: Call): List<Visible> {
+    override fun visible(position: CompletionPosition): List<Visible> {
         ThreadingAssertions.assertReadAccess()
 
-        return inputs(position)?.let { visibleWith(position, it) }.orEmpty()
+        return inputs(position.element)?.let { visibleWith(position, it) }.orEmpty()
     }
 
-    /** What is visible at [position], its file expanded with [inputs] in place of its SDK's. */
+    /** What is visible at the call [position], its file expanded with [inputs] in place of its SDK's. */
     @TestOnly
     @RequiresReadLock
     internal fun visible(position: Call, inputs: ProjectModules.Inputs): List<Visible> {
         ThreadingAssertions.assertReadAccess()
 
-        return visibleWith(position, inputs)
+        return visibleWith(CompletionPosition.OfCall(position), inputs)
     }
 
-    private fun visibleWith(position: Call, inputs: ProjectModules.Inputs): List<Visible> {
+    private fun visibleWith(position: CompletionPosition, inputs: ProjectModules.Inputs): List<Visible> =
+        when (position) {
+            is CompletionPosition.OfCall -> visibleAt(position.call, inputs)
+            is CompletionPosition.AfterDot, is CompletionPosition.Capture, is CompletionPosition.Mfa -> emptyList()
+        }
+
+    private fun visibleAt(position: Call, inputs: ProjectModules.Inputs): List<Visible> {
         val at = at(position, inputs) ?: return emptyList()
         if (position is Qualified) {
             val module = receiver(at, position) ?: return emptyList()
@@ -157,8 +164,8 @@ internal object ExpanderSource : CandidateSource {
     )
 
     /** `null` where the file's SDK gives no inputs. */
-    private fun inputs(call: Call): ProjectModules.Inputs? {
-        val file = call.containingFile as? ElixirFile ?: return null
+    private fun inputs(element: PsiElement): ProjectModules.Inputs? {
+        val file = element.containingFile as? ElixirFile ?: return null
 
         return (SdkInputs.getInstance(file.project).inputsFor(file) as? SdkInputs.Answer.Ready)?.inputs
     }
