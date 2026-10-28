@@ -81,11 +81,10 @@ class CandidateSourceTest : PlatformTestCase() {
         assertEquals(Applicability.WRONG_ARITY, Applicability.of(declaration, use.name, false))
     }
 
-    /** `embed_template` defines `page_template/1` only; the walk resolving `page_template()` is kept. */
-    fun testEmbedTemplateWithNoArgumentsIsValid() {
+    fun testEmbedTemplateWithNoArgumentsIsWrongArity() {
         configure("applicability.ex")
 
-        assertCandidates("page_template()", false, "22 page_template=VALID")
+        assertCandidates("page_template()", false, "22 page_template=WRONG_ARITY")
     }
 
     fun testUndecidedEExKindLocalWrongArityNamesItsArity() {

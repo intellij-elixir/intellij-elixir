@@ -186,14 +186,10 @@ private constructor(
             element.finalArguments()?.first()?.stripAccessExpression()?.let { it as? ElixirAtom }?.let { quotedAtomValue(it) }?.let { prefix ->
                 val suffix = element.functionName()!!.removePrefix("embed_")
                 val name = "${prefix}_${suffix}"
-                val arityRange = when (suffix) {
-                    "template" -> 0..1
-                    "text" -> 0..0
-                    else -> TODO("Unknown suffix $suffix")
-                }
+                val arity = Declarations.embedArity(suffix) ?: return@let true
 
                 if (this.name != null && name.startsWith(this.name)) {
-                    val validResult = resolvedPrimaryArity != null && resolvedPrimaryArity in arityRange && name == this.name
+                    val validResult = resolvedPrimaryArity == arity && name == this.name
 
                     addToResolveResults(element, name, validResult, state, Form.GENERATOR_EMBED)
                 } else {

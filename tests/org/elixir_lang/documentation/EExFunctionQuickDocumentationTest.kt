@@ -146,7 +146,6 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
         assertTrue("Expected the name, got: $documentation", "render" in documentation)
     }
 
-    /** `embed_template(:page, ...)` defines `page_template/0` and `page_template/1`. */
     fun testAnEmbeddedTemplateShowsTheDocWrittenAboveIt() {
         myFixture.copyFileToProject("mix_generator.ex")
         myFixture.configureByText(
@@ -166,7 +165,7 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
         val documentation = quickDocumentationAtCaret()
 
         assertTrue("Expected the @doc, got: $documentation", documentation?.contains("Embeds the page.") == true)
-        assertTrue("Expected the head, got: $documentation", documentation?.contains("page_template/0..1") == true)
+        assertTrue("Expected the head, got: $documentation", documentation?.contains("page_template/1") == true)
     }
 
     private fun configureEExBesideADef(caller: String) {

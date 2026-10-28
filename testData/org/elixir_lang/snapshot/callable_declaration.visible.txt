@@ -57,7 +57,7 @@ forms.ex:1:1  `defmodule`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:1:1  `defmodule`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:1:1  `defmodule`  from_string  ->  from_string/1 eex_function_from  forms.ex:15:3
 forms.ex:1:1  `defmodule`  from_file  ->  from_file/0 eex_function_from  forms.ex:16:3
-forms.ex:1:1  `defmodule`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:1:1  `defmodule`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:1:1  `defmodule`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:1:1  `defmodule`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:1:1  `defmodule`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
@@ -75,7 +75,7 @@ forms.ex:5:23  `a`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:5:23  `a`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:5:23  `a`  from_string  ->  from_string/1 eex_function_from  forms.ex:15:3
 forms.ex:5:23  `a`  from_file  ->  from_file/0 eex_function_from  forms.ex:16:3
-forms.ex:5:23  `a`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:5:23  `a`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:5:23  `a`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:5:23  `a`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:5:23  `a`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
@@ -92,7 +92,7 @@ forms.ex:5:31  `a`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:5:31  `a`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:5:31  `a`  from_string  ->  from_string/1 eex_function_from  forms.ex:15:3
 forms.ex:5:31  `a`  from_file  ->  from_file/0 eex_function_from  forms.ex:16:3
-forms.ex:5:31  `a`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:5:31  `a`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:5:31  `a`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:5:31  `a`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:5:31  `a`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
@@ -110,7 +110,7 @@ forms.ex:6:25  `a`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:6:25  `a`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:6:25  `a`  from_string  ->  from_string/1 eex_function_from  forms.ex:15:3
 forms.ex:6:25  `a`  from_file  ->  from_file/0 eex_function_from  forms.ex:16:3
-forms.ex:6:25  `a`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:6:25  `a`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:6:25  `a`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:6:25  `a`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:6:25  `a`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
@@ -128,7 +128,7 @@ forms.ex:6:28  `b`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:6:28  `b`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:6:28  `b`  from_string  ->  from_string/1 eex_function_from  forms.ex:15:3
 forms.ex:6:28  `b`  from_file  ->  from_file/0 eex_function_from  forms.ex:16:3
-forms.ex:6:28  `b`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:6:28  `b`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:6:28  `b`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:6:28  `b`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:6:28  `b`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
@@ -145,7 +145,7 @@ forms.ex:6:42  `a`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:6:42  `a`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:6:42  `a`  from_string  ->  from_string/1 eex_function_from  forms.ex:15:3
 forms.ex:6:42  `a`  from_file  ->  from_file/0 eex_function_from  forms.ex:16:3
-forms.ex:6:42  `a`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:6:42  `a`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:6:42  `a`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:6:42  `a`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:6:42  `a`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
@@ -162,7 +162,7 @@ forms.ex:6:45  `b`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:6:45  `b`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:6:45  `b`  from_string  ->  from_string/1 eex_function_from  forms.ex:15:3
 forms.ex:6:45  `b`  from_file  ->  from_file/0 eex_function_from  forms.ex:16:3
-forms.ex:6:45  `b`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:6:45  `b`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:6:45  `b`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:6:45  `b`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:6:45  `b`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
@@ -180,7 +180,7 @@ forms.ex:7:25  `a`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:7:25  `a`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:7:25  `a`  from_string  ->  from_string/1 eex_function_from  forms.ex:15:3
 forms.ex:7:25  `a`  from_file  ->  from_file/0 eex_function_from  forms.ex:16:3
-forms.ex:7:25  `a`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:7:25  `a`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:7:25  `a`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:7:25  `a`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:7:25  `a`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
@@ -197,7 +197,7 @@ forms.ex:7:33  `a`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:7:33  `a`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:7:33  `a`  from_string  ->  from_string/1 eex_function_from  forms.ex:15:3
 forms.ex:7:33  `a`  from_file  ->  from_file/0 eex_function_from  forms.ex:16:3
-forms.ex:7:33  `a`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:7:33  `a`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:7:33  `a`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:7:33  `a`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:7:33  `a`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
@@ -215,7 +215,7 @@ forms.ex:8:27  `a`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:8:27  `a`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:8:27  `a`  from_string  ->  from_string/1 eex_function_from  forms.ex:15:3
 forms.ex:8:27  `a`  from_file  ->  from_file/0 eex_function_from  forms.ex:16:3
-forms.ex:8:27  `a`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:8:27  `a`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:8:27  `a`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:8:27  `a`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:8:27  `a`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
@@ -232,7 +232,7 @@ forms.ex:8:35  `a`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:8:35  `a`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:8:35  `a`  from_string  ->  from_string/1 eex_function_from  forms.ex:15:3
 forms.ex:8:35  `a`  from_file  ->  from_file/0 eex_function_from  forms.ex:16:3
-forms.ex:8:35  `a`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:8:35  `a`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:8:35  `a`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:8:35  `a`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:8:35  `a`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
@@ -250,7 +250,7 @@ forms.ex:9:21  `a`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:9:21  `a`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:9:21  `a`  from_string  ->  from_string/1 eex_function_from  forms.ex:15:3
 forms.ex:9:21  `a`  from_file  ->  from_file/0 eex_function_from  forms.ex:16:3
-forms.ex:9:21  `a`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:9:21  `a`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:9:21  `a`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:9:21  `a`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:9:21  `a`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
@@ -268,7 +268,7 @@ forms.ex:9:29  `a`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:9:29  `a`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:9:29  `a`  from_string  ->  from_string/1 eex_function_from  forms.ex:15:3
 forms.ex:9:29  `a`  from_file  ->  from_file/0 eex_function_from  forms.ex:16:3
-forms.ex:9:29  `a`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:9:29  `a`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:9:29  `a`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:9:29  `a`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:9:29  `a`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
@@ -286,7 +286,7 @@ forms.ex:10:22  `a`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:10:22  `a`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:10:22  `a`  from_string  ->  from_string/1 eex_function_from  forms.ex:15:3
 forms.ex:10:22  `a`  from_file  ->  from_file/0 eex_function_from  forms.ex:16:3
-forms.ex:10:22  `a`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:10:22  `a`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:10:22  `a`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:10:22  `a`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:10:22  `a`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
@@ -304,7 +304,7 @@ forms.ex:10:30  `a`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:10:30  `a`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:10:30  `a`  from_string  ->  from_string/1 eex_function_from  forms.ex:15:3
 forms.ex:10:30  `a`  from_file  ->  from_file/0 eex_function_from  forms.ex:16:3
-forms.ex:10:30  `a`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:10:30  `a`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:10:30  `a`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:10:30  `a`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:10:30  `a`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
@@ -325,7 +325,7 @@ forms.ex:13:25  `a`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:13:25  `a`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:13:25  `a`  from_string  ->  from_string/1 eex_function_from  forms.ex:15:3
 forms.ex:13:25  `a`  from_file  ->  from_file/0 eex_function_from  forms.ex:16:3
-forms.ex:13:25  `a`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:13:25  `a`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:13:25  `a`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:13:25  `a`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:13:25  `a`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
@@ -343,7 +343,7 @@ forms.ex:13:28  `b`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:13:28  `b`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:13:28  `b`  from_string  ->  from_string/1 eex_function_from  forms.ex:15:3
 forms.ex:13:28  `b`  from_file  ->  from_file/0 eex_function_from  forms.ex:16:3
-forms.ex:13:28  `b`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:13:28  `b`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:13:28  `b`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
 forms.ex:13:28  `b`  quoted_from_string  ->  quoted_from_string/0 eex_function_from  forms.ex:19:3
 forms.ex:13:28  `b`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
@@ -369,7 +369,7 @@ forms.ex:21:17  `embed_text`  embed_template  ->  embed_template/2 clause  mix_g
 forms.ex:21:17  `embed_text`  embed_text  ->  embed_text/2 clause  mix_generator.ex:6:3
 forms.ex:23:3  `import`  quoted_text  ->  quoted_text/0 generator_embed  forms.ex:21:3
 forms.ex:23:3  `import`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
-forms.ex:23:3  `import`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:23:3  `import`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:23:3  `import`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:23:3  `import`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:23:3  `import`  delegated  ->  delegated/2 delegation  forms.ex:13:3
@@ -377,7 +377,7 @@ forms.ex:23:3  `import`  macro_callback  ->  macro_callback/1 callback  forms.ex
 forms.ex:23:3  `import`  function_callback  ->  function_callback/1 callback  forms.ex:11:3
 forms.ex:24:3  `alias`  quoted_text  ->  quoted_text/0 generator_embed  forms.ex:21:3
 forms.ex:24:3  `alias`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
-forms.ex:24:3  `alias`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:24:3  `alias`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:24:3  `alias`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:24:3  `alias`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:24:3  `alias`  delegated  ->  delegated/2 delegation  forms.ex:13:3
@@ -385,7 +385,7 @@ forms.ex:24:3  `alias`  macro_callback  ->  macro_callback/1 callback  forms.ex:
 forms.ex:24:3  `alias`  function_callback  ->  function_callback/1 callback  forms.ex:11:3
 forms.ex:25:3  `use`  quoted_text  ->  quoted_text/0 generator_embed  forms.ex:21:3
 forms.ex:25:3  `use`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
-forms.ex:25:3  `use`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:25:3  `use`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:25:3  `use`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:25:3  `use`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:25:3  `use`  delegated  ->  delegated/2 delegation  forms.ex:13:3
@@ -393,7 +393,7 @@ forms.ex:25:3  `use`  macro_callback  ->  macro_callback/1 callback  forms.ex:12
 forms.ex:25:3  `use`  function_callback  ->  function_callback/1 callback  forms.ex:11:3
 forms.ex:26:3  `for`  quoted_text  ->  quoted_text/0 generator_embed  forms.ex:21:3
 forms.ex:26:3  `for`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
-forms.ex:26:3  `for`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:26:3  `for`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:26:3  `for`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:26:3  `for`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:26:3  `for`  delegated  ->  delegated/2 delegation  forms.ex:13:3
@@ -401,7 +401,7 @@ forms.ex:26:3  `for`  macro_callback  ->  macro_callback/1 callback  forms.ex:12
 forms.ex:26:3  `for`  function_callback  ->  function_callback/1 callback  forms.ex:11:3
 forms.ex:26:7  `x`  quoted_text  ->  quoted_text/0 generator_embed  forms.ex:21:3
 forms.ex:26:7  `x`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
-forms.ex:26:7  `x`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:26:7  `x`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:26:7  `x`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:26:7  `x`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:26:7  `x`  delegated  ->  delegated/2 delegation  forms.ex:13:3
@@ -419,7 +419,7 @@ forms.ex:26:7  `x`  quoted_from_string  ->  quoted_from_string/0 eex_function_fr
 forms.ex:26:7  `x`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
 forms.ex:26:21  `x`  quoted_text  ->  quoted_text/0 generator_embed  forms.ex:21:3
 forms.ex:26:21  `x`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
-forms.ex:26:21  `x`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:26:21  `x`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:26:21  `x`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:26:21  `x`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:26:21  `x`  delegated  ->  delegated/2 delegation  forms.ex:13:3
@@ -437,7 +437,7 @@ forms.ex:26:21  `x`  quoted_from_string  ->  quoted_from_string/0 eex_function_f
 forms.ex:26:21  `x`  "#{:interpolated}_from_string"  ->  (no atom)  forms.ex:20:3
 forms.ex:27:3  `if`  quoted_text  ->  quoted_text/0 generator_embed  forms.ex:21:3
 forms.ex:27:3  `if`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
-forms.ex:27:3  `if`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:27:3  `if`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:27:3  `if`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:27:3  `if`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:27:3  `if`  delegated  ->  delegated/2 delegation  forms.ex:13:3
@@ -445,7 +445,7 @@ forms.ex:27:3  `if`  macro_callback  ->  macro_callback/1 callback  forms.ex:12:
 forms.ex:27:3  `if`  function_callback  ->  function_callback/1 callback  forms.ex:11:3
 forms.ex:28:3  `quote`  quoted_text  ->  quoted_text/0 generator_embed  forms.ex:21:3
 forms.ex:28:3  `quote`  error_text  ->  error_text/0 generator_embed  forms.ex:18:3
-forms.ex:28:3  `quote`  log_template  ->  log_template/0..1 generator_embed  forms.ex:17:3
+forms.ex:28:3  `quote`  log_template  ->  log_template/1 generator_embed  forms.ex:17:3
 forms.ex:28:3  `quote`  exception  ->  exception/1 exception  forms.ex:14:3
 forms.ex:28:3  `quote`  message  ->  message/1 exception  forms.ex:14:3
 forms.ex:28:3  `quote`  delegated  ->  delegated/2 delegation  forms.ex:13:3
@@ -481,7 +481,7 @@ in_def.ex:1:1  `defmodule`  delegated  ->  delegated/2 delegation  in_def.ex:6:3
 in_def.ex:1:1  `defmodule`  exception  ->  exception/1 exception  in_def.ex:7:3
 in_def.ex:1:1  `defmodule`  message  ->  message/1 exception  in_def.ex:7:3
 in_def.ex:1:1  `defmodule`  from_string  ->  from_string/1 eex_function_from  in_def.ex:8:3
-in_def.ex:1:1  `defmodule`  log_template  ->  log_template/0..1 generator_embed  in_def.ex:9:3
+in_def.ex:1:1  `defmodule`  log_template  ->  log_template/1 generator_embed  in_def.ex:9:3
 in_def.ex:1:1  `defmodule`  error_text  ->  error_text/0 generator_embed  in_def.ex:10:3
 in_def.ex:1:1  `defmodule`  usage  ->  usage/0 clause  in_def.ex:12:3
 in_def.ex:5:14  `a`  clause  ->  clause/1 clause  in_def.ex:5:3
@@ -489,14 +489,14 @@ in_def.ex:5:14  `a`  delegated  ->  delegated/2 delegation  in_def.ex:6:3
 in_def.ex:5:14  `a`  exception  ->  exception/1 exception  in_def.ex:7:3
 in_def.ex:5:14  `a`  message  ->  message/1 exception  in_def.ex:7:3
 in_def.ex:5:14  `a`  from_string  ->  from_string/1 eex_function_from  in_def.ex:8:3
-in_def.ex:5:14  `a`  log_template  ->  log_template/0..1 generator_embed  in_def.ex:9:3
+in_def.ex:5:14  `a`  log_template  ->  log_template/1 generator_embed  in_def.ex:9:3
 in_def.ex:5:14  `a`  error_text  ->  error_text/0 generator_embed  in_def.ex:10:3
 in_def.ex:5:14  `a`  usage  ->  usage/0 clause  in_def.ex:12:3
 in_def.ex:5:22  `a`  delegated  ->  delegated/2 delegation  in_def.ex:6:3
 in_def.ex:5:22  `a`  exception  ->  exception/1 exception  in_def.ex:7:3
 in_def.ex:5:22  `a`  message  ->  message/1 exception  in_def.ex:7:3
 in_def.ex:5:22  `a`  from_string  ->  from_string/1 eex_function_from  in_def.ex:8:3
-in_def.ex:5:22  `a`  log_template  ->  log_template/0..1 generator_embed  in_def.ex:9:3
+in_def.ex:5:22  `a`  log_template  ->  log_template/1 generator_embed  in_def.ex:9:3
 in_def.ex:5:22  `a`  error_text  ->  error_text/0 generator_embed  in_def.ex:10:3
 in_def.ex:5:22  `a`  usage  ->  usage/0 clause  in_def.ex:12:3
 in_def.ex:6:3  `defdelegate`  delegated  ->  delegated/2 delegation  in_def.ex:6:3
@@ -505,7 +505,7 @@ in_def.ex:6:25  `a`  clause  ->  clause/1 clause  in_def.ex:5:3
 in_def.ex:6:25  `a`  exception  ->  exception/1 exception  in_def.ex:7:3
 in_def.ex:6:25  `a`  message  ->  message/1 exception  in_def.ex:7:3
 in_def.ex:6:25  `a`  from_string  ->  from_string/1 eex_function_from  in_def.ex:8:3
-in_def.ex:6:25  `a`  log_template  ->  log_template/0..1 generator_embed  in_def.ex:9:3
+in_def.ex:6:25  `a`  log_template  ->  log_template/1 generator_embed  in_def.ex:9:3
 in_def.ex:6:25  `a`  error_text  ->  error_text/0 generator_embed  in_def.ex:10:3
 in_def.ex:6:25  `a`  usage  ->  usage/0 clause  in_def.ex:12:3
 in_def.ex:6:28  `b`  delegated  ->  delegated/2 delegation  in_def.ex:6:3
@@ -513,7 +513,7 @@ in_def.ex:6:28  `b`  clause  ->  clause/1 clause  in_def.ex:5:3
 in_def.ex:6:28  `b`  exception  ->  exception/1 exception  in_def.ex:7:3
 in_def.ex:6:28  `b`  message  ->  message/1 exception  in_def.ex:7:3
 in_def.ex:6:28  `b`  from_string  ->  from_string/1 eex_function_from  in_def.ex:8:3
-in_def.ex:6:28  `b`  log_template  ->  log_template/0..1 generator_embed  in_def.ex:9:3
+in_def.ex:6:28  `b`  log_template  ->  log_template/1 generator_embed  in_def.ex:9:3
 in_def.ex:6:28  `b`  error_text  ->  error_text/0 generator_embed  in_def.ex:10:3
 in_def.ex:6:28  `b`  usage  ->  usage/0 clause  in_def.ex:12:3
 in_def.ex:7:3  `defexception`  exception  ->  exception/1 exception  in_def.ex:7:3
@@ -527,7 +527,7 @@ in_def.ex:10:17  `embed_text`  embed_template  ->  embed_template/2 clause  mix_
 in_def.ex:10:17  `embed_text`  embed_text  ->  embed_text/2 clause  mix_generator.ex:6:3
 in_def.ex:14:7  `clause`  usage  ->  usage/0 clause  in_def.ex:12:3
 in_def.ex:14:7  `clause`  error_text  ->  error_text/0 generator_embed  in_def.ex:10:3
-in_def.ex:14:7  `clause`  log_template  ->  log_template/0..1 generator_embed  in_def.ex:9:3
+in_def.ex:14:7  `clause`  log_template  ->  log_template/1 generator_embed  in_def.ex:9:3
 in_def.ex:14:7  `clause`  exception  ->  exception/1 exception  in_def.ex:7:3
 in_def.ex:14:7  `clause`  message  ->  message/1 exception  in_def.ex:7:3
 in_def.ex:14:7  `clause`  delegated  ->  delegated/2 delegation  in_def.ex:6:3
@@ -535,7 +535,7 @@ in_def.ex:14:7  `clause`  clause  ->  clause/1 clause  in_def.ex:5:3
 in_def.ex:14:7  `clause`  from_string  ->  from_string/1 eex_function_from  in_def.ex:8:3
 in_def.ex:15:7  `delegated`  usage  ->  usage/0 clause  in_def.ex:12:3
 in_def.ex:15:7  `delegated`  error_text  ->  error_text/0 generator_embed  in_def.ex:10:3
-in_def.ex:15:7  `delegated`  log_template  ->  log_template/0..1 generator_embed  in_def.ex:9:3
+in_def.ex:15:7  `delegated`  log_template  ->  log_template/1 generator_embed  in_def.ex:9:3
 in_def.ex:15:7  `delegated`  exception  ->  exception/1 exception  in_def.ex:7:3
 in_def.ex:15:7  `delegated`  message  ->  message/1 exception  in_def.ex:7:3
 in_def.ex:15:7  `delegated`  delegated  ->  delegated/2 delegation  in_def.ex:6:3
@@ -543,7 +543,7 @@ in_def.ex:15:7  `delegated`  clause  ->  clause/1 clause  in_def.ex:5:3
 in_def.ex:15:7  `delegated`  from_string  ->  from_string/1 eex_function_from  in_def.ex:8:3
 in_def.ex:16:7  `exception`  usage  ->  usage/0 clause  in_def.ex:12:3
 in_def.ex:16:7  `exception`  error_text  ->  error_text/0 generator_embed  in_def.ex:10:3
-in_def.ex:16:7  `exception`  log_template  ->  log_template/0..1 generator_embed  in_def.ex:9:3
+in_def.ex:16:7  `exception`  log_template  ->  log_template/1 generator_embed  in_def.ex:9:3
 in_def.ex:16:7  `exception`  exception  ->  exception/1 exception  in_def.ex:7:3
 in_def.ex:16:7  `exception`  message  ->  message/1 exception  in_def.ex:7:3
 in_def.ex:16:7  `exception`  delegated  ->  delegated/2 delegation  in_def.ex:6:3
@@ -551,7 +551,7 @@ in_def.ex:16:7  `exception`  clause  ->  clause/1 clause  in_def.ex:5:3
 in_def.ex:16:7  `exception`  from_string  ->  from_string/1 eex_function_from  in_def.ex:8:3
 in_def.ex:17:7  `message`  usage  ->  usage/0 clause  in_def.ex:12:3
 in_def.ex:17:7  `message`  error_text  ->  error_text/0 generator_embed  in_def.ex:10:3
-in_def.ex:17:7  `message`  log_template  ->  log_template/0..1 generator_embed  in_def.ex:9:3
+in_def.ex:17:7  `message`  log_template  ->  log_template/1 generator_embed  in_def.ex:9:3
 in_def.ex:17:7  `message`  exception  ->  exception/1 exception  in_def.ex:7:3
 in_def.ex:17:7  `message`  message  ->  message/1 exception  in_def.ex:7:3
 in_def.ex:17:7  `message`  delegated  ->  delegated/2 delegation  in_def.ex:6:3
@@ -559,7 +559,7 @@ in_def.ex:17:7  `message`  clause  ->  clause/1 clause  in_def.ex:5:3
 in_def.ex:17:7  `message`  from_string  ->  from_string/1 eex_function_from  in_def.ex:8:3
 in_def.ex:18:7  `from_string`  usage  ->  usage/0 clause  in_def.ex:12:3
 in_def.ex:18:7  `from_string`  error_text  ->  error_text/0 generator_embed  in_def.ex:10:3
-in_def.ex:18:7  `from_string`  log_template  ->  log_template/0..1 generator_embed  in_def.ex:9:3
+in_def.ex:18:7  `from_string`  log_template  ->  log_template/1 generator_embed  in_def.ex:9:3
 in_def.ex:18:7  `from_string`  exception  ->  exception/1 exception  in_def.ex:7:3
 in_def.ex:18:7  `from_string`  message  ->  message/1 exception  in_def.ex:7:3
 in_def.ex:18:7  `from_string`  delegated  ->  delegated/2 delegation  in_def.ex:6:3
@@ -567,7 +567,7 @@ in_def.ex:18:7  `from_string`  clause  ->  clause/1 clause  in_def.ex:5:3
 in_def.ex:18:7  `from_string`  from_string  ->  from_string/1 eex_function_from  in_def.ex:8:3
 in_def.ex:19:7  `log_template`  usage  ->  usage/0 clause  in_def.ex:12:3
 in_def.ex:19:7  `log_template`  error_text  ->  error_text/0 generator_embed  in_def.ex:10:3
-in_def.ex:19:7  `log_template`  log_template  ->  log_template/0..1 generator_embed  in_def.ex:9:3
+in_def.ex:19:7  `log_template`  log_template  ->  log_template/1 generator_embed  in_def.ex:9:3
 in_def.ex:19:7  `log_template`  exception  ->  exception/1 exception  in_def.ex:7:3
 in_def.ex:19:7  `log_template`  message  ->  message/1 exception  in_def.ex:7:3
 in_def.ex:19:7  `log_template`  delegated  ->  delegated/2 delegation  in_def.ex:6:3
@@ -575,7 +575,7 @@ in_def.ex:19:7  `log_template`  clause  ->  clause/1 clause  in_def.ex:5:3
 in_def.ex:19:7  `log_template`  from_string  ->  from_string/1 eex_function_from  in_def.ex:8:3
 in_def.ex:20:7  `error_text`  usage  ->  usage/0 clause  in_def.ex:12:3
 in_def.ex:20:7  `error_text`  error_text  ->  error_text/0 generator_embed  in_def.ex:10:3
-in_def.ex:20:7  `error_text`  log_template  ->  log_template/0..1 generator_embed  in_def.ex:9:3
+in_def.ex:20:7  `error_text`  log_template  ->  log_template/1 generator_embed  in_def.ex:9:3
 in_def.ex:20:7  `error_text`  exception  ->  exception/1 exception  in_def.ex:7:3
 in_def.ex:20:7  `error_text`  message  ->  message/1 exception  in_def.ex:7:3
 in_def.ex:20:7  `error_text`  delegated  ->  delegated/2 delegation  in_def.ex:6:3
@@ -746,7 +746,7 @@ through_use.ex:4:7  `require`  delegated  ->  delegated/2 delegation  through_us
 through_use.ex:4:7  `require`  exception  ->  exception/1 exception  through_use.ex:9:7
 through_use.ex:4:7  `require`  message  ->  message/1 exception  through_use.ex:9:7
 through_use.ex:4:7  `require`  from_string  ->  from_string/1 eex_function_from  through_use.ex:10:7
-through_use.ex:4:7  `require`  log_template  ->  log_template/0..1 generator_embed  through_use.ex:11:7
+through_use.ex:4:7  `require`  log_template  ->  log_template/1 generator_embed  through_use.ex:11:7
 through_use.ex:4:7  `require`  error_text  ->  error_text/0 generator_embed  through_use.ex:12:7
 through_use.ex:4:7  `require`  __using__  ->  __using__/1 clause  through_use.ex:2:3
 through_use.ex:5:7  `require`  clause  ->  clause/1 clause  through_use.ex:7:7
@@ -754,7 +754,7 @@ through_use.ex:5:7  `require`  delegated  ->  delegated/2 delegation  through_us
 through_use.ex:5:7  `require`  exception  ->  exception/1 exception  through_use.ex:9:7
 through_use.ex:5:7  `require`  message  ->  message/1 exception  through_use.ex:9:7
 through_use.ex:5:7  `require`  from_string  ->  from_string/1 eex_function_from  through_use.ex:10:7
-through_use.ex:5:7  `require`  log_template  ->  log_template/0..1 generator_embed  through_use.ex:11:7
+through_use.ex:5:7  `require`  log_template  ->  log_template/1 generator_embed  through_use.ex:11:7
 through_use.ex:5:7  `require`  error_text  ->  error_text/0 generator_embed  through_use.ex:12:7
 through_use.ex:5:7  `require`  __using__  ->  __using__/1 clause  through_use.ex:2:3
 through_use.ex:7:18  `a`  clause  ->  clause/1 clause  through_use.ex:7:7
@@ -762,14 +762,14 @@ through_use.ex:7:18  `a`  delegated  ->  delegated/2 delegation  through_use.ex:
 through_use.ex:7:18  `a`  exception  ->  exception/1 exception  through_use.ex:9:7
 through_use.ex:7:18  `a`  message  ->  message/1 exception  through_use.ex:9:7
 through_use.ex:7:18  `a`  from_string  ->  from_string/1 eex_function_from  through_use.ex:10:7
-through_use.ex:7:18  `a`  log_template  ->  log_template/0..1 generator_embed  through_use.ex:11:7
+through_use.ex:7:18  `a`  log_template  ->  log_template/1 generator_embed  through_use.ex:11:7
 through_use.ex:7:18  `a`  error_text  ->  error_text/0 generator_embed  through_use.ex:12:7
 through_use.ex:7:18  `a`  __using__  ->  __using__/1 clause  through_use.ex:2:3
 through_use.ex:7:26  `a`  delegated  ->  delegated/2 delegation  through_use.ex:8:7
 through_use.ex:7:26  `a`  exception  ->  exception/1 exception  through_use.ex:9:7
 through_use.ex:7:26  `a`  message  ->  message/1 exception  through_use.ex:9:7
 through_use.ex:7:26  `a`  from_string  ->  from_string/1 eex_function_from  through_use.ex:10:7
-through_use.ex:7:26  `a`  log_template  ->  log_template/0..1 generator_embed  through_use.ex:11:7
+through_use.ex:7:26  `a`  log_template  ->  log_template/1 generator_embed  through_use.ex:11:7
 through_use.ex:7:26  `a`  error_text  ->  error_text/0 generator_embed  through_use.ex:12:7
 through_use.ex:7:26  `a`  __using__  ->  __using__/1 clause  through_use.ex:2:3
 through_use.ex:8:7  `defdelegate`  delegated  ->  delegated/2 delegation  through_use.ex:8:7
@@ -777,7 +777,7 @@ through_use.ex:8:7  `defdelegate`  clause  ->  clause/1 clause  through_use.ex:7
 through_use.ex:8:7  `defdelegate`  exception  ->  exception/1 exception  through_use.ex:9:7
 through_use.ex:8:7  `defdelegate`  message  ->  message/1 exception  through_use.ex:9:7
 through_use.ex:8:7  `defdelegate`  from_string  ->  from_string/1 eex_function_from  through_use.ex:10:7
-through_use.ex:8:7  `defdelegate`  log_template  ->  log_template/0..1 generator_embed  through_use.ex:11:7
+through_use.ex:8:7  `defdelegate`  log_template  ->  log_template/1 generator_embed  through_use.ex:11:7
 through_use.ex:8:7  `defdelegate`  error_text  ->  error_text/0 generator_embed  through_use.ex:12:7
 through_use.ex:8:7  `defdelegate`  __using__  ->  __using__/1 clause  through_use.ex:2:3
 through_use.ex:8:29  `a`  delegated  ->  delegated/2 delegation  through_use.ex:8:7
@@ -785,7 +785,7 @@ through_use.ex:8:29  `a`  clause  ->  clause/1 clause  through_use.ex:7:7
 through_use.ex:8:29  `a`  exception  ->  exception/1 exception  through_use.ex:9:7
 through_use.ex:8:29  `a`  message  ->  message/1 exception  through_use.ex:9:7
 through_use.ex:8:29  `a`  from_string  ->  from_string/1 eex_function_from  through_use.ex:10:7
-through_use.ex:8:29  `a`  log_template  ->  log_template/0..1 generator_embed  through_use.ex:11:7
+through_use.ex:8:29  `a`  log_template  ->  log_template/1 generator_embed  through_use.ex:11:7
 through_use.ex:8:29  `a`  error_text  ->  error_text/0 generator_embed  through_use.ex:12:7
 through_use.ex:8:29  `a`  __using__  ->  __using__/1 clause  through_use.ex:2:3
 through_use.ex:8:32  `b`  delegated  ->  delegated/2 delegation  through_use.ex:8:7
@@ -793,7 +793,7 @@ through_use.ex:8:32  `b`  clause  ->  clause/1 clause  through_use.ex:7:7
 through_use.ex:8:32  `b`  exception  ->  exception/1 exception  through_use.ex:9:7
 through_use.ex:8:32  `b`  message  ->  message/1 exception  through_use.ex:9:7
 through_use.ex:8:32  `b`  from_string  ->  from_string/1 eex_function_from  through_use.ex:10:7
-through_use.ex:8:32  `b`  log_template  ->  log_template/0..1 generator_embed  through_use.ex:11:7
+through_use.ex:8:32  `b`  log_template  ->  log_template/1 generator_embed  through_use.ex:11:7
 through_use.ex:8:32  `b`  error_text  ->  error_text/0 generator_embed  through_use.ex:12:7
 through_use.ex:8:32  `b`  __using__  ->  __using__/1 clause  through_use.ex:2:3
 through_use.ex:9:7  `defexception`  exception  ->  exception/1 exception  through_use.ex:9:7
@@ -801,7 +801,7 @@ through_use.ex:9:7  `defexception`  message  ->  message/1 exception  through_us
 through_use.ex:9:7  `defexception`  delegated  ->  delegated/2 delegation  through_use.ex:8:7
 through_use.ex:9:7  `defexception`  clause  ->  clause/1 clause  through_use.ex:7:7
 through_use.ex:9:7  `defexception`  from_string  ->  from_string/1 eex_function_from  through_use.ex:10:7
-through_use.ex:9:7  `defexception`  log_template  ->  log_template/0..1 generator_embed  through_use.ex:11:7
+through_use.ex:9:7  `defexception`  log_template  ->  log_template/1 generator_embed  through_use.ex:11:7
 through_use.ex:9:7  `defexception`  error_text  ->  error_text/0 generator_embed  through_use.ex:12:7
 through_use.ex:9:7  `defexception`  __using__  ->  __using__/1 clause  through_use.ex:2:3
 through_use.ex:10:11  `function_from_string`  function_from_file  ->  function_from_file/3..5 clause  eex.ex:2:3
@@ -815,7 +815,7 @@ through_use.ex:17:1  `defmodule`  delegated  ->  delegated/2 delegation  through
 through_use.ex:17:1  `defmodule`  exception  ->  exception/1 exception  through_use.ex:9:7
 through_use.ex:17:1  `defmodule`  message  ->  message/1 exception  through_use.ex:9:7
 through_use.ex:17:1  `defmodule`  from_string  ->  from_string/1 eex_function_from  through_use.ex:10:7
-through_use.ex:17:1  `defmodule`  log_template  ->  log_template/0..1 generator_embed  through_use.ex:11:7
+through_use.ex:17:1  `defmodule`  log_template  ->  log_template/1 generator_embed  through_use.ex:11:7
 through_use.ex:17:1  `defmodule`  error_text  ->  error_text/0 generator_embed  through_use.ex:12:7
 through_use.ex:17:1  `defmodule`  usage  ->  usage/0 clause  through_use.ex:20:3
 through_use.ex:22:7  `clause`  usage  ->  usage/0 clause  through_use.ex:20:3
@@ -824,7 +824,7 @@ through_use.ex:22:7  `clause`  delegated  ->  delegated/2 delegation  through_us
 through_use.ex:22:7  `clause`  exception  ->  exception/1 exception  through_use.ex:9:7
 through_use.ex:22:7  `clause`  message  ->  message/1 exception  through_use.ex:9:7
 through_use.ex:22:7  `clause`  from_string  ->  from_string/1 eex_function_from  through_use.ex:10:7
-through_use.ex:22:7  `clause`  log_template  ->  log_template/0..1 generator_embed  through_use.ex:11:7
+through_use.ex:22:7  `clause`  log_template  ->  log_template/1 generator_embed  through_use.ex:11:7
 through_use.ex:22:7  `clause`  error_text  ->  error_text/0 generator_embed  through_use.ex:12:7
 through_use.ex:23:7  `delegated`  usage  ->  usage/0 clause  through_use.ex:20:3
 through_use.ex:23:7  `delegated`  clause  ->  clause/1 clause  through_use.ex:7:7
@@ -832,7 +832,7 @@ through_use.ex:23:7  `delegated`  delegated  ->  delegated/2 delegation  through
 through_use.ex:23:7  `delegated`  exception  ->  exception/1 exception  through_use.ex:9:7
 through_use.ex:23:7  `delegated`  message  ->  message/1 exception  through_use.ex:9:7
 through_use.ex:23:7  `delegated`  from_string  ->  from_string/1 eex_function_from  through_use.ex:10:7
-through_use.ex:23:7  `delegated`  log_template  ->  log_template/0..1 generator_embed  through_use.ex:11:7
+through_use.ex:23:7  `delegated`  log_template  ->  log_template/1 generator_embed  through_use.ex:11:7
 through_use.ex:23:7  `delegated`  error_text  ->  error_text/0 generator_embed  through_use.ex:12:7
 through_use.ex:24:7  `exception`  usage  ->  usage/0 clause  through_use.ex:20:3
 through_use.ex:24:7  `exception`  clause  ->  clause/1 clause  through_use.ex:7:7
@@ -840,7 +840,7 @@ through_use.ex:24:7  `exception`  delegated  ->  delegated/2 delegation  through
 through_use.ex:24:7  `exception`  exception  ->  exception/1 exception  through_use.ex:9:7
 through_use.ex:24:7  `exception`  message  ->  message/1 exception  through_use.ex:9:7
 through_use.ex:24:7  `exception`  from_string  ->  from_string/1 eex_function_from  through_use.ex:10:7
-through_use.ex:24:7  `exception`  log_template  ->  log_template/0..1 generator_embed  through_use.ex:11:7
+through_use.ex:24:7  `exception`  log_template  ->  log_template/1 generator_embed  through_use.ex:11:7
 through_use.ex:24:7  `exception`  error_text  ->  error_text/0 generator_embed  through_use.ex:12:7
 through_use.ex:25:7  `message`  usage  ->  usage/0 clause  through_use.ex:20:3
 through_use.ex:25:7  `message`  clause  ->  clause/1 clause  through_use.ex:7:7
@@ -848,7 +848,7 @@ through_use.ex:25:7  `message`  delegated  ->  delegated/2 delegation  through_u
 through_use.ex:25:7  `message`  exception  ->  exception/1 exception  through_use.ex:9:7
 through_use.ex:25:7  `message`  message  ->  message/1 exception  through_use.ex:9:7
 through_use.ex:25:7  `message`  from_string  ->  from_string/1 eex_function_from  through_use.ex:10:7
-through_use.ex:25:7  `message`  log_template  ->  log_template/0..1 generator_embed  through_use.ex:11:7
+through_use.ex:25:7  `message`  log_template  ->  log_template/1 generator_embed  through_use.ex:11:7
 through_use.ex:25:7  `message`  error_text  ->  error_text/0 generator_embed  through_use.ex:12:7
 through_use.ex:26:7  `from_string`  usage  ->  usage/0 clause  through_use.ex:20:3
 through_use.ex:26:7  `from_string`  clause  ->  clause/1 clause  through_use.ex:7:7
@@ -856,7 +856,7 @@ through_use.ex:26:7  `from_string`  delegated  ->  delegated/2 delegation  throu
 through_use.ex:26:7  `from_string`  exception  ->  exception/1 exception  through_use.ex:9:7
 through_use.ex:26:7  `from_string`  message  ->  message/1 exception  through_use.ex:9:7
 through_use.ex:26:7  `from_string`  from_string  ->  from_string/1 eex_function_from  through_use.ex:10:7
-through_use.ex:26:7  `from_string`  log_template  ->  log_template/0..1 generator_embed  through_use.ex:11:7
+through_use.ex:26:7  `from_string`  log_template  ->  log_template/1 generator_embed  through_use.ex:11:7
 through_use.ex:26:7  `from_string`  error_text  ->  error_text/0 generator_embed  through_use.ex:12:7
 through_use.ex:27:7  `log_template`  usage  ->  usage/0 clause  through_use.ex:20:3
 through_use.ex:27:7  `log_template`  clause  ->  clause/1 clause  through_use.ex:7:7
@@ -864,7 +864,7 @@ through_use.ex:27:7  `log_template`  delegated  ->  delegated/2 delegation  thro
 through_use.ex:27:7  `log_template`  exception  ->  exception/1 exception  through_use.ex:9:7
 through_use.ex:27:7  `log_template`  message  ->  message/1 exception  through_use.ex:9:7
 through_use.ex:27:7  `log_template`  from_string  ->  from_string/1 eex_function_from  through_use.ex:10:7
-through_use.ex:27:7  `log_template`  log_template  ->  log_template/0..1 generator_embed  through_use.ex:11:7
+through_use.ex:27:7  `log_template`  log_template  ->  log_template/1 generator_embed  through_use.ex:11:7
 through_use.ex:27:7  `log_template`  error_text  ->  error_text/0 generator_embed  through_use.ex:12:7
 through_use.ex:28:7  `error_text`  usage  ->  usage/0 clause  through_use.ex:20:3
 through_use.ex:28:7  `error_text`  clause  ->  clause/1 clause  through_use.ex:7:7
@@ -872,7 +872,7 @@ through_use.ex:28:7  `error_text`  delegated  ->  delegated/2 delegation  throug
 through_use.ex:28:7  `error_text`  exception  ->  exception/1 exception  through_use.ex:9:7
 through_use.ex:28:7  `error_text`  message  ->  message/1 exception  through_use.ex:9:7
 through_use.ex:28:7  `error_text`  from_string  ->  from_string/1 eex_function_from  through_use.ex:10:7
-through_use.ex:28:7  `error_text`  log_template  ->  log_template/0..1 generator_embed  through_use.ex:11:7
+through_use.ex:28:7  `error_text`  log_template  ->  log_template/1 generator_embed  through_use.ex:11:7
 through_use.ex:28:7  `error_text`  error_text  ->  error_text/0 generator_embed  through_use.ex:12:7
 unknown_arity.ex:1:1  `defmodule`  usage  ->  usage/0 clause  unknown_arity.ex:4:3
 unknown_arity.ex:1:1  `defmodule`  render  ->  render/? eex_function_from  unknown_arity.ex:7:3

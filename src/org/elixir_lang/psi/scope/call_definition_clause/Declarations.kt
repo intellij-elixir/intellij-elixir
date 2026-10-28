@@ -119,16 +119,19 @@ object Declarations {
         )
     }
 
+    /** The arity of the function `Mix.Generator.embed_<suffix>` defines: `name_template(assigns)` or `name_text()`. */
+    fun embedArity(suffix: String): Int? =
+        when (suffix) {
+            "template" -> 1
+            "text" -> 0
+            else -> null
+        }
+
     private fun generatorEmbed(call: Call): List<Spelled> {
         val atom = DeclaringForm.names(call, Form.GENERATOR_EMBED).singleOrNull()?.stripAccessExpression() as? ElixirAtom
             ?: return emptyList()
         val suffix = call.functionName()?.removePrefix("embed_") ?: return emptyList()
-        // `embed_template` defines `name_template/1` only, but the walk has always resolved `name_template()` too.
-        val arity = when (suffix) {
-            "template" -> ArityKnowledge.Range(0, 1)
-            "text" -> ArityKnowledge.Exact(0)
-            else -> return emptyList()
-        }
+        val arity = embedArity(suffix)?.let(ArityKnowledge::Exact) ?: return emptyList()
 
         val name = quotedAtomValue(atom)
 
