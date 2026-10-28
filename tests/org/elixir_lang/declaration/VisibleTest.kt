@@ -1,6 +1,8 @@
 package org.elixir_lang.declaration
 
 import com.intellij.codeInsight.lookup.LookupElement
+import com.intellij.codeInsight.completion.CompletionUtil
+import com.intellij.codeInsight.completion.OffsetsInFile
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar
@@ -9,6 +11,7 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiRecursiveElementWalkingVisitor
 import com.intellij.psi.PsiReferenceService
@@ -19,10 +22,14 @@ import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElements
 import org.elixir_lang.code_insight.completion.callableUnqualified
 import org.elixir_lang.code_insight.completion.unqualifiedLookupElements
+import org.elixir_lang.psi.ElixirAtom
+import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.qualifierModulars
+import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.psi.qualification.Unqualified
+import org.elixir_lang.reference.CaptureNameArity
 import java.io.File
 
 /** What completion offers at the start of each reference: its lookup elements, each with what it declares. */
@@ -43,6 +50,38 @@ class VisibleTest : PlatformTestCase() {
 
         assertEquals(setOf("public", "macro", "delegated"), offered.map { it.first }.toSet())
         assertEquals(offered, visible)
+    }
+
+    fun testAnAliasAfterADotSeesWhatQualifiedCompletionOffers() {
+        myFixture.configureByFile("declaration/visible/other.ex")
+        myFixture.configureByFile("declaration/visible/completion.ex")
+
+        assertSeesWhatIsOffered(setOf("public", "macro", "delegated")) { leaf ->
+            CompletionPosition.AfterDot(leaf.parent.parent as QualifiableAlias)
+        }
+    }
+
+    /** `pick`'s first clause has another arity than the capture's, and `padded` has no clause of its arity. */
+    fun testAQualifiedCaptureSeesWhatCaptureCompletionOffers() {
+        myFixture.configureByFile("declaration/visible/arities.ex")
+        myFixture.configureByFile("declaration/visible/capture.ex")
+
+        assertSeesWhatIsOffered(setOf("pad", "pick")) { leaf ->
+            val reference = PsiTreeUtil.getParentOfType(leaf, NonNumeric::class.java)!!.reference as CaptureNameArity
+
+            CompletionPosition.Capture(reference.nameElement, reference.arity)
+        }
+    }
+
+    fun testAnMfaAtomSeesWhatAtomCompletionOffers() {
+        myFixture.configureByFile("declaration/visible/mfa.ex")
+        myFixture.configureByFile("declaration/visible/mfa_completion.ex")
+
+        assertSeesWhatIsOffered(setOf("pub_one", "pub_two")) { leaf ->
+            val atom = PsiTreeUtil.getParentOfType(leaf, ElixirAtom::class.java)!!
+
+            CompletionPosition.Mfa(atom, Use.mfa(atom)!!.module)
+        }
     }
 
     fun testImplicitImportsAreVisible() {
@@ -179,6 +218,28 @@ class VisibleTest : PlatformTestCase() {
 
         assertEquals("lookups with no visible entry, $at", emptyList<String>(), render(lookups - visible))
         assertEquals("visible entries with no lookup, $at", emptyList<String>(), render(visible - lookups))
+    }
+
+    /**
+     * What `visible` gives at the position [position] finds at the caret in completion's copy of the current file is
+     * what completion offers there, which is [expected].
+     */
+    private fun assertSeesWhatIsOffered(expected: Set<String>, position: (PsiElement) -> CompletionPosition) {
+        val file = myFixture.file
+        val offset = myFixture.caretOffset
+        val copy = file.copy() as PsiFile
+
+        WriteAction.runAndWait<Throwable> {
+            OffsetsInFile(file).replaceInCopy(copy, offset, offset, CompletionUtil.DUMMY_IDENTIFIER).ensureUpdatedAndGetNewOffsets()
+        }
+
+        val visible = sourceFor(Feature.COMPLETION).visible(position(copy.findElementAt(offset)!!))
+            .map { it.lookupName to it.element }
+            .toSet()
+        val offered = myFixture.completeBasic().map { it.lookupString to it.psiElement!! }.toSet()
+
+        assertEquals(expected, offered.map { it.first }.toSet())
+        assertEquals(offered, visible)
     }
 
     private fun render(keys: Set<Pair<String, PsiElement>>): List<String> =
