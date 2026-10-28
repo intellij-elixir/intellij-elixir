@@ -318,6 +318,39 @@ class CallDefinitionClauseTest : PlatformTestCase() {
         )
     }
 
+    fun testLocalEExFunctionFromWithATailKeepsASlotForItsBinding() {
+        myFixture.configureByText(
+            "test.ex",
+            """
+                defmodule EEx do
+                  defmacro function_from_string(kind, name, source, args \\ [], options \\ []) do
+                    quote do
+                      unquote(kind)
+                      unquote(name)
+                    end
+                  end
+                end
+
+                defmodule Test do
+                  require EEx
+
+                  EEx.function_from_string(:def, :tail_sample, "<%= a %>", [:a | []])
+
+                  def run do
+                    tail_sa<caret>
+                  end
+                end
+            """.trimIndent()
+        )
+
+        myFixture.completeSoleCandidateAtCaret()
+
+        assertTrue(
+            "Expected `tail_sample(arg)`; got:\n${myFixture.file.text}",
+            myFixture.file.text.contains("tail_sample(arg)")
+        )
+    }
+
     /* defexception's exception/1 and message/1 hooks, local (Variants.executeOnException). Fixed,
        hardcoded parameter names - the same ones the completion renderer's tail text already shows. */
 

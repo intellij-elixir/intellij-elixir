@@ -53,6 +53,61 @@ class ResolveTest : PlatformTestCase() {
         assertResolves<Callable>(eex, listOf("$eex (true)"))
     }
 
+    /** Bindings with a literal `|` tail are counted through it. */
+    fun testAnEExFunctionWhoseBindingsHaveATailIsTheTarget() {
+        myFixture.addFileToProject(
+            "eex.ex",
+            "defmodule EEx do\n  defmacro function_from_string(kind, name, source, args \\\\ [], options \\\\ []) do\n" +
+                "    {kind, name, source, args, options}\n  end\nend\n"
+        )
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  require EEx\n  EEx.function_from_string(:def, :render, \"<%= a %>\", [:a | [:b]])\n\n" +
+                "  def run, do: <caret>render(1, 2)\nend\n"
+        )
+
+        val eex = "m.ex:3: EEx.function_from_string(:def, :render, \"<%= a %>\", [:a | [:b]])"
+
+        assertResolves<Callable>(eex, listOf("$eex (true)"))
+    }
+
+    fun testAnEExFunctionWhoseBindingsHaveATailIsNoTargetBelowTheirCount() {
+        myFixture.addFileToProject(
+            "eex.ex",
+            "defmodule EEx do\n  defmacro function_from_string(kind, name, source, args \\\\ [], options \\\\ []) do\n" +
+                "    {kind, name, source, args, options}\n  end\nend\n"
+        )
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  require EEx\n  EEx.function_from_string(:def, :render, \"<%= a %>\", [:a | [:b]])\n\n" +
+                "  def run, do: <caret>render(1)\nend\n"
+        )
+
+        val eex = "m.ex:3: EEx.function_from_string(:def, :render, \"<%= a %>\", [:a | [:b]])"
+
+        assertResolves<Callable>(null, listOf("$eex (false)"))
+    }
+
+    /** An EEx function of unknown arity does not end the search, so an imported function of the call's arity is found. */
+    fun testAnEExFunctionOfUnknownArityLeavesAnImportedFunctionTheTarget() {
+        myFixture.addFileToProject(
+            "eex.ex",
+            "defmodule EEx do\n  defmacro function_from_string(kind, name, source, args \\\\ [], options \\\\ []) do\n" +
+                "    {kind, name, source, args, options}\n  end\nend\n"
+        )
+        myFixture.addFileToProject("kernel.ex", "defmodule Kernel do\n  def length(list), do: list\nend\n")
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  require EEx\n  @args [:a, :b]\n" +
+                "  EEx.function_from_string(:def, :length, \"<%= a %>\", @args)\n\n  def run, do: <caret>length([])\nend\n"
+        )
+
+        val eex = "m.ex:4: EEx.function_from_string(:def, :length, \"<%= a %>\", @args)"
+        val imported = "kernel.ex:2: def length(list), do: list"
+
+        assertResolves<Callable>(imported, listOf("$eex (true)", "$imported (true)"))
+    }
+
     /** `embed_template` defines `page_template/1` only. */
     fun testAZeroArityCallOfAnEmbeddedTemplateIsNoTarget() {
         embedTemplate("page_template()")

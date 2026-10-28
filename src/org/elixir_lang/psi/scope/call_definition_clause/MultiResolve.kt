@@ -4,6 +4,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.NameArityInterval
+import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.psi.*
@@ -153,19 +154,10 @@ private constructor(
             element.finalArguments()?.let { arguments ->
                         arguments[1].stripAccessExpression().let { it as? ElixirAtom }?.let { quotedAtomValue(it) }?.let { name ->
                             if (this.name != null && name.startsWith(this.name)) {
-                                val arity = if (arguments.size >= 4) {
-                                    // function_from_file(kind, name, file, args)
-                                    // function_from_file(kind, name, file, args, options)
-                                    // function_from_string(kind, name, template, args)
-                                    // function_from_string(kind, name, template, args, options)
-                                    arguments[3].stripAccessExpression().let { it as? ElixirList }?.children?.size
-                                } else {
-                                    // function_from_file(kind, name, file) where args defaults to `[]`
-                                    // function_from_string(kind, name, template) where args defaults to `[]`
-                                    0
-                                }
-
-                                val validResult = resolvedPrimaryArity != null && resolvedPrimaryArity == arity && name == this.name
+                                // Only a known arity ends the search: an unknown one may hide an import's function.
+                                val validResult = resolvedPrimaryArity != null &&
+                                    Declarations.eexArity(arguments) == ArityKnowledge.Exact(resolvedPrimaryArity) &&
+                                    name == this.name
 
                                 addToResolveResults(element, name, validResult, state, Form.EEX_FUNCTION_FROM)
                             } else {
