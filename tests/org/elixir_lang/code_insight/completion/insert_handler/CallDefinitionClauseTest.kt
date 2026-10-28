@@ -12,10 +12,9 @@ import org.elixir_lang.code_insight.completeSoleCandidateAtCaret
  * form creates a call at an arity nothing defines, and every code-intelligence feature goes dark on
  * it. Zero-parameter targets are unaffected: they still get a bare `()`.
  *
- * Covers every site that attaches [CallDefinitionClause] (this insert handler): the two pre-existing
- * ones (remote/BEAM qualified completion, `defdelegate` from [org.elixir_lang.code_insight.completion.ModuleFunctionLookupElements])
- * and the seven local/unqualified ones in [org.elixir_lang.psi.scope.call_definition_clause.Variants]
- * that used to attach none at all.
+ * Covers every site that attaches [CallDefinitionClause] (this insert handler): remote/BEAM qualified completion and
+ * `defdelegate` from [org.elixir_lang.code_insight.completion.ModuleFunctionLookupElements], and each form unqualified
+ * completion offers through [org.elixir_lang.code_insight.completion.unqualifiedLookupElements].
  */
 class CallDefinitionClauseTest : PlatformTestCase() {
 
@@ -316,6 +315,39 @@ class CallDefinitionClauseTest : PlatformTestCase() {
         assertTrue(
             "Expected `unknown_sample(arg, b)`; got:\n${myFixture.file.text}",
             myFixture.file.text.contains("unknown_sample(arg, b)")
+        )
+    }
+
+    fun testLocalEExFunctionFromWithATailKeepsASlotForItsBinding() {
+        myFixture.configureByText(
+            "test.ex",
+            """
+                defmodule EEx do
+                  defmacro function_from_string(kind, name, source, args \\ [], options \\ []) do
+                    quote do
+                      unquote(kind)
+                      unquote(name)
+                    end
+                  end
+                end
+
+                defmodule Test do
+                  require EEx
+
+                  EEx.function_from_string(:def, :tail_sample, "<%= a %>", [:a | []])
+
+                  def run do
+                    tail_sa<caret>
+                  end
+                end
+            """.trimIndent()
+        )
+
+        myFixture.completeSoleCandidateAtCaret()
+
+        assertTrue(
+            "Expected `tail_sample(arg)`; got:\n${myFixture.file.text}",
+            myFixture.file.text.contains("tail_sample(arg)")
         )
     }
 

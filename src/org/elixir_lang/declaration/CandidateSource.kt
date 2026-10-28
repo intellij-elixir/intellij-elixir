@@ -56,9 +56,17 @@ fun Found.declaringModuleName(): String? = head.module
 
 /**
  * What completion offers as [lookupName] at a position. [name] and [declaration] are `null` exactly when the name has
- * no atom value.
+ * no atom value. [importedArities] are the arities of [declaration]'s closed interval that the `import` it was reached
+ * through brings in, `null` when no `import` reached it, that `import` brings in every arity of the interval, or the
+ * interval is not closed; [declaration]'s arity stays the whole interval.
  */
-data class Visible(val lookupName: String, val name: String?, val declaration: Declaration?, val element: PsiElement)
+data class Visible(
+    val lookupName: String,
+    val name: String?,
+    val declaration: Declaration?,
+    val element: PsiElement,
+    val importedArities: Set<Int>?,
+)
 
 /** A use of a callable. */
 sealed class Use {

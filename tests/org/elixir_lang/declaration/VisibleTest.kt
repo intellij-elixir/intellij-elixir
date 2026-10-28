@@ -4,6 +4,7 @@ import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
@@ -16,11 +17,12 @@ import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElements
+import org.elixir_lang.code_insight.completion.callableUnqualified
+import org.elixir_lang.code_insight.completion.unqualifiedLookupElements
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.qualifierModulars
 import org.elixir_lang.psi.qualification.Unqualified
-import org.elixir_lang.psi.scope.call_definition_clause.Variants
 import java.io.File
 
 /** What completion offers at the start of each reference: its lookup elements, each with what it declares. */
@@ -55,37 +57,145 @@ class VisibleTest : PlatformTestCase() {
         }
     }
 
-    /**
-     * The decompiled heads `def unquote(unquote(:name))(...)`, offered under their whole head, are with the source's
-     * `def unquote(...)` heads the only lookups not visible.
-     */
-    fun testImplicitImportsLookupsAreVisibleButTheirUnquoteHeads() {
+    fun testEveryLookupIsVisible() {
         withKernel {
             for (call in uses("snapshot/inputs").filter { it is Unqualified }) {
-                val (lookups, visible) = keys(call)
-                val notVisible = (lookups - visible).map { it.first }
-
-                assertEquals(emptySet<Pair<String, PsiElement>>(), visible - lookups)
-                assertEquals(emptyList<String>(), notVisible.filterNot { it == "unquote" || it.startsWith(DECOMPILED_UNQUOTE) })
+                assertEveryLookupIsVisible(call)
             }
         }
     }
 
+    fun testAnOnlyImportGivesItsArities() {
+        val visible = imported(
+            """
+            defmodule Pad do
+              def pad(a, b \\ 1), do: {a, b}
+            end
+
+            defmodule PadUser do
+              import Pad, only: [pad: 1]
+              def go, do: pad(1)
+            end
+            """,
+            "pad(1)",
+            "pad",
+        )
+
+        assertEquals(ArityKnowledge.Range(1, 2), visible.declaration!!.arity)
+        assertEquals(setOf(1), visible.importedArities)
+    }
+
+    fun testSeveralOnlyAritiesAreAllGiven() {
+        val visible = imported(
+            """
+            defmodule Several do
+              def f(a, b \\ 1, c \\ 2), do: {a, b, c}
+            end
+
+            defmodule SeveralUser do
+              import Several, only: [f: 1, f: 3]
+              def go, do: f(1)
+            end
+            """,
+            "f(1)",
+            "f",
+        )
+
+        assertEquals(setOf(1, 3), visible.importedArities)
+    }
+
+    fun testAnExceptImportGivesTheRest() {
+        val visible = imported(
+            """
+            defmodule Queue do
+              def snoc(q, x \\ nil), do: [x | q]
+            end
+
+            defmodule QueueUser do
+              import Queue, except: [snoc: 2]
+              def go, do: snoc([])
+            end
+            """,
+            "snoc([])",
+            "snoc",
+        )
+
+        assertEquals(setOf(1), visible.importedArities)
+    }
+
+    fun testAWholeImportGivesNoArities() {
+        val visible = imported(
+            """
+            defmodule Pad do
+              def pad(a, b \\ 1), do: {a, b}
+            end
+
+            defmodule PadUser do
+              import Pad
+              def go, do: pad(1)
+            end
+            """,
+            "pad(1)",
+            "pad",
+        )
+
+        assertNull(visible.importedArities)
+    }
+
+    fun testAnOpenIntervalGivesNoArities() {
+        val visible = imported(
+            """
+            defmodule Spliced do
+              def f(a \\ 1, unquote_splicing(xs)), do: a
+            end
+
+            defmodule SplicedUser do
+              import Spliced, only: [f: 0]
+              def go, do: f()
+            end
+            """,
+            "f()",
+            "f",
+        )
+
+        assertNull(visible.importedArities)
+    }
+
     private fun assertLookupsAreVisible(inputDirectory: String) {
         for (call in uses(inputDirectory)) {
-            val lookups = offered(call).map { it.lookupString to it.psiElement!! }.toSet()
-            val entries = sourceFor(Feature.COMPLETION).visible(call)
-            val visible = entries.map { it.lookupName to it.element }.toSet()
-            // A visible entry with no name is a spelling to show, with nothing to insert.
-            val named = entries.filter { it.name != null }.map { it.lookupName to it.element }.toSet()
-
-            assertEquals("visible without a lookup at ${call.text}", emptySet<Pair<String, PsiElement>>(), named - lookups)
-            assertEquals(
-                "lookups without a visible entry at ${call.text} other than `def unquote(...)` heads",
-                emptyList<String>(),
-                (lookups - visible).map { it.first }.filter { it != "unquote" }
-            )
+            assertEveryLookupIsVisible(call)
         }
+    }
+
+    /** Unqualified completion offers only the names Elixir can write unquoted; qualified completion offers each. */
+    private fun assertEveryLookupIsVisible(call: Call) {
+        val lookups = offered(call).map { it.lookupString to it.psiElement!! }.toSet()
+        val visible = sourceFor(Feature.COMPLETION).visible(call)
+            .filter { call !is Unqualified || callableUnqualified(it.lookupName) }
+            .map { it.lookupName to it.element }
+            .toSet()
+
+        val at = "${call.functionName()} at ${location(call)}"
+
+        assertEquals("lookups with no visible entry, $at", emptyList<String>(), render(lookups - visible))
+        assertEquals("visible entries with no lookup, $at", emptyList<String>(), render(visible - lookups))
+    }
+
+    private fun render(keys: Set<Pair<String, PsiElement>>): List<String> =
+        keys.map { (name, element) -> "$name ${location(element)}" }.sorted()
+
+    private fun location(element: PsiElement): String {
+        val file = element.containingFile
+
+        return "${file.name}:${StringUtil.offsetToLineNumber(file.text, element.textOffset) + 1}"
+    }
+
+    /** The one entry visible as [name] at the call written [call] in [text]. */
+    private fun imported(text: String, call: String, name: String): Visible {
+        myFixture.configureByText("imported.ex", text.trimIndent())
+        val position = PsiTreeUtil.findChildrenOfType(myFixture.file, Call::class.java).single { it.text == call }
+
+        return sourceFor(Feature.COMPLETION).visible(position).single { it.lookupName == name }
     }
 
     private fun assertNoAtomNoDeclaration(inputDirectory: String) {
@@ -98,14 +208,10 @@ class VisibleTest : PlatformTestCase() {
         }
     }
 
-    private fun keys(call: Call): Pair<Set<Pair<String, PsiElement>>, Set<Pair<String, PsiElement>>> =
-        offered(call).map { it.lookupString to it.psiElement!! }.toSet() to
-            sourceFor(Feature.COMPLETION).visible(call).map { it.lookupName to it.element }.toSet()
-
-    /** `Callable.getVariants` offers the walk's call definitions only at an unqualified call. */
+    /** `Callable.getVariants` offers call definitions only at an unqualified call. */
     private fun offered(call: Call): List<LookupElement> =
         when (call) {
-            is Unqualified -> Variants.lookupElementList(call)
+            is Unqualified -> unqualifiedLookupElements(call)
             is Qualified -> call.qualifier().qualifierModulars()?.let { callDefinitionClauseLookupElements(it) }.orEmpty()
             else -> emptyList()
         }
@@ -160,6 +266,5 @@ class VisibleTest : PlatformTestCase() {
         const val LIBRARY = "visible_test_kernel"
         const val KERNEL = 171
         const val SPECIAL_FORMS = 33
-        const val DECOMPILED_UNQUOTE = "unquote(unquote("
     }
 }

@@ -53,6 +53,74 @@ class ResolveTest : PlatformTestCase() {
         assertResolves<Callable>(eex, listOf("$eex (true)"))
     }
 
+    /** Bindings with a literal `|` tail are counted through it. */
+    fun testAnEExFunctionWhoseBindingsHaveATailIsTheTarget() {
+        myFixture.addFileToProject(
+            "eex.ex",
+            "defmodule EEx do\n  defmacro function_from_string(kind, name, source, args \\\\ [], options \\\\ []) do\n" +
+                "    {kind, name, source, args, options}\n  end\nend\n"
+        )
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  require EEx\n  EEx.function_from_string(:def, :render, \"<%= a %>\", [:a | [:b]])\n\n" +
+                "  def run, do: <caret>render(1, 2)\nend\n"
+        )
+
+        val eex = "m.ex:3: EEx.function_from_string(:def, :render, \"<%= a %>\", [:a | [:b]])"
+
+        assertResolves<Callable>(eex, listOf("$eex (true)"))
+    }
+
+    fun testAnEExFunctionWhoseBindingsHaveATailIsNoTargetBelowTheirCount() {
+        myFixture.addFileToProject(
+            "eex.ex",
+            "defmodule EEx do\n  defmacro function_from_string(kind, name, source, args \\\\ [], options \\\\ []) do\n" +
+                "    {kind, name, source, args, options}\n  end\nend\n"
+        )
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  require EEx\n  EEx.function_from_string(:def, :render, \"<%= a %>\", [:a | [:b]])\n\n" +
+                "  def run, do: <caret>render(1)\nend\n"
+        )
+
+        val eex = "m.ex:3: EEx.function_from_string(:def, :render, \"<%= a %>\", [:a | [:b]])"
+
+        assertResolves<Callable>(null, listOf("$eex (false)"))
+    }
+
+    /** An EEx function of unknown arity does not end the search, so an imported function of the call's arity is found. */
+    fun testAnEExFunctionOfUnknownArityLeavesAnImportedFunctionTheTarget() {
+        myFixture.addFileToProject(
+            "eex.ex",
+            "defmodule EEx do\n  defmacro function_from_string(kind, name, source, args \\\\ [], options \\\\ []) do\n" +
+                "    {kind, name, source, args, options}\n  end\nend\n"
+        )
+        myFixture.addFileToProject("kernel.ex", "defmodule Kernel do\n  def length(list), do: list\nend\n")
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  require EEx\n  @args [:a, :b]\n" +
+                "  EEx.function_from_string(:def, :length, \"<%= a %>\", @args)\n\n  def run, do: <caret>length([])\nend\n"
+        )
+
+        val eex = "m.ex:4: EEx.function_from_string(:def, :length, \"<%= a %>\", @args)"
+        val imported = "kernel.ex:2: def length(list), do: list"
+
+        assertResolves<Callable>(imported, listOf("$eex (true)", "$imported (true)"))
+    }
+
+    /** `embed_template` defines `page_template/1` only. */
+    fun testAZeroArityCallOfAnEmbeddedTemplateIsNoTarget() {
+        embedTemplate("page_template()")
+
+        assertResolves<Callable>(null, listOf("$EMBED_TEMPLATE (false)"))
+    }
+
+    fun testAOneArityCallOfAnEmbeddedTemplateIsTheTarget() {
+        embedTemplate("page_template(a: 1)")
+
+        assertResolves<Callable>(EMBED_TEMPLATE, listOf("$EMBED_TEMPLATE (true)"))
+    }
+
     /** A name `unquote` gives is unknown, so every function of the module is an `OPAQUE` candidate, and none the target. */
     fun testAQualifiedUnquoteOfSeveralFunctionsIsNoTarget() {
         myFixture.addFileToProject("m.ex", "defmodule M do\n  def f(a), do: a\n  def g(a), do: a\nend\n")
@@ -194,6 +262,18 @@ class ResolveTest : PlatformTestCase() {
         myFixture.addFileToProject("m.ex", "defmodule M do\n  defdelegate x(a), to: T\nend\n")
     }
 
+    private fun embedTemplate(call: String) {
+        myFixture.addFileToProject(
+            "mix_generator.ex",
+            "defmodule Mix.Generator do\n  defmacro embed_template(name, contents), do: {name, contents}\nend\n"
+        )
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  require Mix.Generator\n\n  Mix.Generator.embed_template(:page, \"Hi\")\n\n" +
+                "  def run, do: <caret>$call\nend\n"
+        )
+    }
+
     private inline fun <reified T : PsiPolyVariantReference> assertResolves(resolved: String?, results: List<String>) {
         readAction {
             val reference = references().filterIsInstance<T>().single()
@@ -238,6 +318,7 @@ class ResolveTest : PlatformTestCase() {
 
     private companion object {
         const val DELEGATION = "m.ex:2: defdelegate x(a), to: T"
+        const val EMBED_TEMPLATE = "m.ex:4: Mix.Generator.embed_template(:page, \"Hi\")"
         const val TARGET = "t.ex:2: def x(a), do: a"
     }
 }

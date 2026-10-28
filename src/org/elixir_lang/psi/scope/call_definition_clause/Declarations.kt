@@ -1,5 +1,6 @@
 package org.elixir_lang.psi.scope.call_definition_clause
 
+import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
@@ -21,6 +22,7 @@ import org.elixir_lang.psi.impl.headAtomValue
 import org.elixir_lang.psi.impl.quotedAtomValue
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.writtenAtomText
+import org.elixir_lang.psi.operation.Pipe
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Callback
 import org.elixir_lang.structure_view.element.Delegation
@@ -94,17 +96,37 @@ object Declarations {
             spelled(call, name, true, ArityKnowledge.Exact(arity), PUBLIC_RUNTIME, Form.EXCEPTION)
         }
 
+    /**
+     * The arity of the function an `EEx.function_from_*` call with [arguments] defines: one per binding of a literal
+     * list, none when there is no binding list, unknown for bindings that are not a list.
+     */
+    fun eexArity(arguments: Array<PsiElement>): ArityKnowledge =
+        if (arguments.size >= 4) {
+            (arguments[3].stripAccessExpression() as? ElixirList)?.let { bindingsArity(it, 0) } ?: ArityKnowledge.Unknown
+        } else {
+            ArityKnowledge.Exact(0)
+        }
+
+    /**
+     * [before] plus one per binding of [list], counted through a literal `|` tail, as `[:a | [:b]]` is `[:a, :b]`; any
+     * other tail leaves the arity open from the bindings before it.
+     */
+    private tailrec fun bindingsArity(list: ElixirList, before: Int): ArityKnowledge {
+        val bindings = list.children
+        val count = before + bindings.size
+        val tail = bindings.lastOrNull() as? Pipe ?: return ArityKnowledge.Exact(count)
+
+        return when (val rest = tail.rightOperand()?.stripAccessExpression()) {
+            is ElixirList -> bindingsArity(rest, count)
+            else -> ArityKnowledge.Open(count)
+        }
+    }
+
     private fun eexFunctionFrom(call: Call): List<Spelled> {
         val arguments = call.finalArguments() ?: return emptyList()
         val atom = DeclaringForm.names(call, Form.EEX_FUNCTION_FROM).singleOrNull()?.stripAccessExpression() as? ElixirAtom
             ?: return emptyList()
-        val arity = if (arguments.size >= 4) {
-            (arguments[3].stripAccessExpression() as? ElixirList)?.children?.size
-                ?.let { ArityKnowledge.Exact(it) }
-                ?: ArityKnowledge.Unknown
-        } else {
-            ArityKnowledge.Exact(0)
-        }
+        val arity = eexArity(arguments)
         // The kind is `bind_quoted`, so any other expression is known only once evaluated.
         val capabilities = when ((arguments[0].stripAccessExpression() as? ElixirAtom)?.let(::quotedAtomValue)) {
             "def" -> PUBLIC_RUNTIME
@@ -119,16 +141,19 @@ object Declarations {
         )
     }
 
+    /** The arity of the function `Mix.Generator.embed_<suffix>` defines: `name_template(assigns)` or `name_text()`. */
+    fun embedArity(suffix: String): Int? =
+        when (suffix) {
+            "template" -> 1
+            "text" -> 0
+            else -> null
+        }
+
     private fun generatorEmbed(call: Call): List<Spelled> {
         val atom = DeclaringForm.names(call, Form.GENERATOR_EMBED).singleOrNull()?.stripAccessExpression() as? ElixirAtom
             ?: return emptyList()
         val suffix = call.functionName()?.removePrefix("embed_") ?: return emptyList()
-        // `embed_template` defines `name_template/1` only, but the walk has always resolved `name_template()` too.
-        val arity = when (suffix) {
-            "template" -> ArityKnowledge.Range(0, 1)
-            "text" -> ArityKnowledge.Exact(0)
-            else -> return emptyList()
-        }
+        val arity = embedArity(suffix)?.let(ArityKnowledge::Exact) ?: return emptyList()
 
         val name = quotedAtomValue(atom)
 

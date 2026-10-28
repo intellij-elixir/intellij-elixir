@@ -77,7 +77,7 @@ object LegacyWalkSource : CandidateSource {
 
         // Completion offers the walk's lookups only at an unqualified call; after a qualifier it offers that module's.
         return when (position) {
-            is Unqualified -> Variants.lookupElementsAndVisible(position).second
+            is Unqualified -> Variants.visible(position)
             is Qualified -> position.qualifier().qualifierModulars()?.let(::callDefinitionClauseVisible).orEmpty()
             else -> emptyList()
         }

@@ -165,6 +165,8 @@
 
 ### Bug Fixes
 
+- [#4557](https://github.com/intellij-elixir/intellij-elixir/pull/4557) [@sh41](https://github.com/sh41)
+  - **Completing a function capture (`&name/arity`) offers each function only at an arity it is defined or imported at, and a call of an `embed_template` function without its assigns no longer resolves.** Refs [#4554](https://github.com/intellij-elixir/intellij-elixir/issues/4554).
 - [#4514](https://github.com/intellij-elixir/intellij-elixir/pull/4514) [@sh41](https://github.com/sh41)
   - **Go To Symbol and completion show a `defguard` as compile time, a component tag resolves to what a call of its function resolves to, and the structure view no longer fails on an `EEx.function_from_string` whose kind is not a literal.** Fixes [#4511](https://github.com/intellij-elixir/intellij-elixir/issues/4511).
 - [#4488](https://github.com/intellij-elixir/intellij-elixir/pull/4488) [@sh41](https://github.com/sh41)

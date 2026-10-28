@@ -8,6 +8,7 @@ import org.elixir_lang.code_insight.completeCandidateAtCaret
 import org.elixir_lang.code_insight.completeSoleCandidateAtCaret
 import org.elixir_lang.code_insight.completionAttemptAtCaret
 import org.elixir_lang.code_insight.completionStringsAtCaret
+import java.io.File
 
 /**
  * Completion for function-capture names: `&<prefix>/arity` should offer the callables that could
@@ -173,6 +174,90 @@ class CaptureNameArityCompletionTest : PlatformTestCase() {
         assertEquals(CompletionAttempt(null, remoteCapture(definitions, "snoc", 2)), myFixture.completionAttemptAtCaret())
     }
 
+    /* Arity of every declaring form: a capture is offered a name only at an arity Elixir defines it with. */
+
+    fun testAnOnlyImportOffersOnlyTheArityItBringsIn() {
+        val pad = { arity: Int ->
+            "defmodule Pad do\n  def pad(a, b \\\\ 1), do: {a, b}\nend\n\n" +
+                "defmodule Test do\n  import Pad, only: [pad: 1]\n\n  def run do\n    &pa<caret>/$arity\n  end\nend"
+        }
+
+        assertEquals(listOf("pad"), capturesOffered(pad(1)))
+        assertEquals(emptyList<String>(), capturesOffered(pad(2)))
+    }
+
+    fun testAnExceptionsFunctionsAreOfferedAtTheirArity() {
+        assertEquals(listOf("exception"), capturesOffered(capture("defexception [:message]", "excep", 1)))
+        assertEquals(emptyList<String>(), capturesOffered(capture("defexception [:message]", "excep", 2)))
+    }
+
+    fun testAnEmbeddedTemplateIsOfferedAtItsArity() {
+        val definitions = "Mix.Generator.embed_template(:greet, \"Hello\")"
+
+        assertEquals(listOf("greet_template"), capturesOffered(capture(definitions, "greet", 1), MIX_GENERATOR))
+        assertEquals(emptyList<String>(), capturesOffered(capture(definitions, "greet", 0), MIX_GENERATOR))
+        assertEquals(emptyList<String>(), capturesOffered(capture(definitions, "greet", 2), MIX_GENERATOR))
+    }
+
+    fun testAnEmbeddedTextIsOfferedAtItsArity() {
+        val definitions = "Mix.Generator.embed_text(:notice, \"Hi\")"
+
+        assertEquals(listOf("notice_text"), capturesOffered(capture(definitions, "notice", 0), MIX_GENERATOR))
+        assertEquals(emptyList<String>(), capturesOffered(capture(definitions, "notice", 1), MIX_GENERATOR))
+    }
+
+    fun testAnEExFunctionIsOfferedAtItsArity() {
+        val definitions = "require EEx\n  EEx.function_from_string(:def, :sample, \"<%= a %>\", [:a])"
+
+        assertEquals(listOf("sample"), capturesOffered(capture(definitions, "samp", 1), EEX))
+        assertEquals(emptyList<String>(), capturesOffered(capture(definitions, "samp", 0), EEX))
+    }
+
+    fun testAnEExFunctionWhoseBindingsHaveATailIsOfferedAtItsArity() {
+        val definitions = "require EEx\n  EEx.function_from_string(:def, :sample, \"<%= a %>\", [:a | [:b]])"
+
+        assertEquals(emptyList<String>(), capturesOffered(capture(definitions, "samp", 1), EEX))
+        assertEquals(listOf("sample"), capturesOffered(capture(definitions, "samp", 2), EEX))
+    }
+
+    /** A tail that is not a literal list leaves the arity open from the bindings before it. */
+    fun testAnEExFunctionWhoseBindingsHaveAnUnknownTailIsOfferedFromItsBindings() {
+        val definitions = "require EEx\n  EEx.function_from_string(:def, :sample, \"<%= a %>\", [:a | rest()])"
+
+        assertEquals(emptyList<String>(), capturesOffered(capture(definitions, "samp", 0), EEX))
+        assertEquals(listOf("sample"), capturesOffered(capture(definitions, "samp", 1), EEX))
+        assertEquals(listOf("sample"), capturesOffered(capture(definitions, "samp", 3), EEX))
+    }
+
+    /** Bindings that are not a literal list leave the arity unknown, so any arity is kept. */
+    fun testAnEExFunctionOfUnknownArityIsOfferedAtAnyArity() {
+        val definitions = "require EEx\n  EEx.function_from_string(:def, :sample, \"<%= a %>\", bindings())"
+
+        assertEquals(listOf("sample"), capturesOffered(capture(definitions, "samp", 1), EEX))
+        assertEquals(listOf("sample"), capturesOffered(capture(definitions, "samp", 3), EEX))
+    }
+
+    fun testAnOpenHeadIsOfferedFromItsMinimumArity() {
+        val definitions = "def splat(a, b, unquote_splicing(rest)), do: {a, b}"
+
+        assertEquals(emptyList<String>(), capturesOffered(capture(definitions, "spla", 1)))
+        assertEquals(listOf("splat"), capturesOffered(capture(definitions, "spla", 2)))
+    }
+
+    /** A head whose name `unquote` gives has no declaration, so it is kept at any arity. */
+    fun testAnUnquotedNameHeadIsOffered() {
+        val unquoted =
+            "defmodule Test do\n  for name <- [:alpha] do\n    def unquote(name)(a), do: a\n  end\n\n" +
+                "  def run do\n    &unquot<caret>/1\n  end\nend"
+
+        assertEquals(listOf("unquote"), capturesOffered(unquoted))
+    }
+
+    fun testACallbackIsOfferedAtItsArity() {
+        assertEquals(listOf("handle"), capturesOffered(capture("@callback handle(term) :: term", "hand", 1)))
+        assertEquals(emptyList<String>(), capturesOffered(capture("@callback handle(term) :: term", "hand", 2)))
+    }
+
     /* Negatives: a fix must not offer things that are not valid capture names. */
 
     fun testDoesNotOfferLocalVariables() {
@@ -216,6 +301,26 @@ class CaptureNameArityCompletionTest : PlatformTestCase() {
         )
     }
 
+    /**
+     * The names completion offers for the capture at the caret in [text], a sole one it inserted included, with the
+     * module [declaring] names, which declares the form [text] uses, in the project.
+     */
+    private fun capturesOffered(text: String, declaring: String? = null): List<String> {
+        declaring?.takeIf { myFixture.findFileInTempDir(it) == null }
+            ?.let { myFixture.addFileToProject(it, File(DECLARING_MODULES, it).readText()) }
+        myFixture.configureByText("test.ex", text)
+        val attempt = myFixture.completionAttemptAtCaret()
+        val ampersand = text.lastIndexOf('&', text.indexOf("<caret>"))
+
+        return attempt.candidates?.sorted()
+            ?: listOf(attempt.text.substring(ampersand + 1).substringBefore('/'))
+                .takeUnless { attempt.text == text.replace("<caret>", "") }
+                .orEmpty()
+    }
+
+    private fun capture(definitions: String, prefix: String, arity: Int): String =
+        "defmodule Test do\n  $definitions\n\n  def run do\n    &$prefix<caret>/$arity\n  end\nend"
+
     private fun remoteCapture(definition: String, name: String, arity: Int = 1): String =
         "defmodule Remote do\n  $definition\nend\n\ndefmodule Test do\n  def run do\n    &Remote.$name/$arity\n  end\nend"
 
@@ -232,6 +337,13 @@ class CaptureNameArityCompletionTest : PlatformTestCase() {
               end
             end
         """.trimIndent()
+
+    private companion object {
+        const val DECLARING_MODULES =
+            "testData/org/elixir_lang/code_insight/completion/contributor/call_definition_clause"
+        const val EEX = "eex.ex"
+        const val MIX_GENERATOR = "mix_generator.ex"
+    }
 }
 
 /**

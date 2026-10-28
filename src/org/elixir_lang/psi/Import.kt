@@ -32,6 +32,7 @@ import org.elixir_lang.beam.psi.isCompilerAdded
 import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.declaration.Capabilities
 import org.elixir_lang.declaration.Declaration
+import org.elixir_lang.declaration.importedArities
 import org.elixir_lang.declaration.Reach
 import org.elixir_lang.language_level.ElixirLanguageFeature.DIGITS_IN_SIGIL_NAMES
 import org.elixir_lang.language_level.ElixirLanguageFeature.IMPORT_ONLY_SIGILS
@@ -635,16 +636,16 @@ object Import {
     fun reachedThroughImport(state: ResolveState): Boolean = state.get(FILTER) != null
 
     /**
-     * The highest arity of [definition] that the `import` the walk reached it through brings in, or `null` when no
-     * `import` reached it or its arities are open.
+     * The arities of [definition] that the `import` the walk reached it through brings in, as
+     * [org.elixir_lang.declaration.Visible.importedArities] gives them.
      */
     @RequiresReadLock
-    fun highestImportedArity(definition: Call, state: ResolveState): Arity? {
+    fun importedArities(definition: Call, state: ResolveState): Set<Arity>? {
         ThreadingAssertions.assertReadAccess()
 
         val filter = state.get(FILTER) ?: return null
 
-        return export(definition, state)?.highestAdmittedArity(filter)
+        return export(definition, state)?.importedArities(filter)
     }
 
     /** A definition an `import` of its module can bring in: a public one, with a delegation as a function. */
@@ -652,12 +653,10 @@ object Import {
         fun isAdmittedBy(filter: Filter): Boolean =
             filter.admits(nameArityInterval.name, nameArityInterval.arityInterval, macro)
 
-        fun highestAdmittedArity(filter: Filter): Arity? {
-            val (name, arityInterval) = nameArityInterval
-            val maximum = arityInterval.maximum ?: return null
-
-            return (maximum downTo arityInterval.minimum).firstOrNull { filter.admits(name, it, macro) }
-        }
+        fun importedArities(filter: Filter): Set<Arity>? =
+            importedArities(nameArityInterval.arityInterval.arityKnowledge()) {
+                filter.admits(nameArityInterval.name, it, macro)
+            }
     }
 
     private fun export(child: Call, resolveState: ResolveState): Export? =

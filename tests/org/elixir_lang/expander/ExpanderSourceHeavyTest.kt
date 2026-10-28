@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.text.StringUtil
@@ -9,6 +10,8 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.PsiManager
+import com.intellij.psi.PsiReferenceService
+import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
 import com.intellij.psi.impl.source.PsiFileImpl
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
@@ -16,8 +19,10 @@ import org.elixir_lang.code_insight.Signature
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.Declared
+import org.elixir_lang.declaration.EXPANDER
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Preferred
+import org.elixir_lang.declaration.SOURCE_PROPERTY
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.declaringModuleName
@@ -26,7 +31,9 @@ import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.scope.WalkTestSupport
 import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
+import org.elixir_lang.reference.CaptureNameArity
 import java.io.File
 import java.util.concurrent.Callable
 
@@ -1155,6 +1162,49 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
     }
 
+    fun testVisibleGivesAnOnlyImportsArities() {
+        val file = file(
+            """
+            defmodule Pad do
+              def pad(a, b \\ 1), do: {a, b}
+            end
+
+            defmodule PadUser do
+              import Pad, only: [pad: 1]
+              def one, do: pad(1)
+            end
+            """
+        )
+
+        val visible = visible(file, "do: pad(1)", "pad(1)").single { it.lookupName == "pad" }
+
+        assertEquals("pad/1..2 line 2", renderVisible(listOf(visible)))
+        assertEquals(setOf(1), visible.importedArities)
+    }
+
+    /** A capture is offered a name a `.beam`'s macro injects at its own arity, not at the macro clause's. */
+    fun testACaptureIsOfferedWhatACompiledUseInjects() {
+        val ebin = FileUtil.createTempDirectory("injecting_use_ebin", null, true)
+        File("testData/org/elixir_lang/expander/injecting_use", "Elixir.InjectingUse.beam")
+            .copyTo(File(ebin, "Elixir.InjectingUse.beam"))
+        val file = file("defmodule A do\n  use InjectingUse\n  def g, do: &fo/0\nend")
+
+        val offered = WalkTestSupport.withLibrary(project, module, testRootDisposable, "injecting_use", ebin) {
+            withExpanderSwitch {
+                read {
+                    val name = generateSequence(file.findElementAt(file.text.indexOf("fo/0"))) { it.parent }
+                        .flatMap { PsiReferenceService.getService().getReferences(it, NO_HINTS).asSequence() }
+                        .filterIsInstance<CaptureNameArity>()
+                        .first()
+
+                    name.variants.map { (it as LookupElement).lookupString }
+                }
+            }
+        }
+
+        assertTrue("`foo/0` offered at `&fo/0`, got: $offered", "foo" in offered)
+    }
+
     fun testADefmoduleCallsCandidates() {
         val file = file(
             """
@@ -1656,4 +1706,15 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         }
 
     private fun <T> read(block: () -> T): T = ReadAction.nonBlocking(Callable { block() }).executeSynchronously()
+
+    /** [block] with the features answered by [ExpanderSource]. */
+    private fun <T> withExpanderSwitch(block: () -> T): T {
+        val switch = System.setProperty(SOURCE_PROPERTY, EXPANDER)
+
+        return try {
+            block()
+        } finally {
+            if (switch == null) System.clearProperty(SOURCE_PROPERTY) else System.setProperty(SOURCE_PROPERTY, switch)
+        }
+    }
 }

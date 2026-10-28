@@ -146,7 +146,7 @@ class DefinitionDeclarationTest : PlatformTestCase() {
             .put(Import.FILTER, filter)
             .put(CallDefinitionClauseScope.MODULAR_CANONICAL_NAME, WINDOW_API)
 
-        assertEquals(2, Import.highestImportedArity(delegation, state))
+        assertEquals(setOf(2), Import.importedArities(delegation, state))
     }
 
     private fun importedFunctionNames(options: String): List<String> {

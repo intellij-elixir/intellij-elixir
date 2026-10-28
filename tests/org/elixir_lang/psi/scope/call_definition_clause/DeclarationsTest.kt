@@ -99,11 +99,10 @@ class DeclarationsTest : PlatformTestCase() {
     fun testEExKindNotALiteralIsUndecided() =
         assertDeclares("EEx.function_from_string(@kind", "eex_kind/1 undecided function eex_function_from")
 
-    /** `embed_template` defines `name_template/1` alone; the walk resolves `name_template()` too, so 0..1 is kept. */
-    fun testEmbedTemplateKeepsTheWalksArities() =
+    fun testEmbedTemplateDeclaresArityOne() =
         assertDeclares(
             "Mix.Generator.embed_template(:embed_plain",
-            "embed_plain_template/0..1 private function generator_embed"
+            "embed_plain_template/1 private function generator_embed"
         )
 
     fun testEmbedText() =

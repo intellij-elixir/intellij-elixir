@@ -182,7 +182,7 @@ class VariantsTest : PlatformTestCase() {
         assertEquals("Expected no interpolated name, got $strings", emptyList<String>(), strings.filter { "#{" in it })
     }
 
-    /** Every lookup the walk builds at the caret's call, without the popup's prefix matching. */
+    /** Every lookup completion offers at the caret's call, without the popup's prefix matching. */
     private fun lookupStringsAtCaret(): List<String> {
         val element = myFixture.file.findElementAt(myFixture.caretOffset - 1)
         val call = PsiTreeUtil.getParentOfType(element, Call::class.java)!!
