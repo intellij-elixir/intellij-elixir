@@ -5,6 +5,9 @@ import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.codeInsight.completion.OffsetsInFile
+import com.intellij.ide.scratch.ScratchFileService
+import com.intellij.ide.scratch.ScratchRootType
+import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
@@ -17,13 +20,17 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.PsiManager
 import com.intellij.psi.impl.PsiFileEx
 import com.intellij.psi.impl.PsiManagerEx
 import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.testFramework.IndexingTestUtil
+import com.intellij.testFramework.LightVirtualFile
 import com.intellij.util.FileContentUtilCore
 import com.intellij.util.system.OS
+import org.elixir_lang.ElixirFileType
+import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.NameArity
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
@@ -2009,6 +2016,177 @@ class ProjectModulesTest : PlatformTestCase() {
 
         assertEquals("top expanded\nElixir.A stopped `$call` unported case errors[] loads Unreadable", render(a, expansion(holder, a)))
     }
+
+    /** `__ENV__.file` is the file's own path, so its basename names a function. */
+    fun testTheEnvFileIsTheFilesOwnPath() {
+        addLegElixir()
+        add("mix.exs", MIX_EXS)
+        val a = add("env_file.ex", named("EnvFile", "Path.basename(__ENV__.file, \".ex\")"))
+
+        assertEquals("compiled [env_file/0]", defines(a))
+    }
+
+    /** `__DIR__` is the directory of `__ENV__.file`, as `Path.dirname/1` gives it. */
+    fun testTheDirIsTheDirectoryOfTheFile() {
+        addLegElixir()
+        add("mix.exs", MIX_EXS)
+        val a = add(
+            "lib/a.ex",
+            "defmodule A do\n" +
+                "  dir = String.to_atom(__DIR__)\n" +
+                "  dirname = String.to_atom(Path.dirname(__ENV__.file))\n" +
+                "  base = String.to_atom(Path.basename(__DIR__))\n" +
+                "  def unquote(dir)(), do: 1\n" +
+                "  def unquote(dirname)(), do: 2\n" +
+                "  def unquote(base)(), do: 3\n" +
+                "end\n",
+        )
+
+        assertEquals("compiled [/src/lib/0, lib/0]", defines(a))
+    }
+
+    /** `Path.expand/2` of a name from `__DIR__` is the name joined to the directory. */
+    fun testAPathExpandedFromTheDir() {
+        addLegElixir()
+        add("mix.exs", MIX_EXS)
+        val a = add("lib/a.ex", named("A", "Path.expand(\"t.eex\", __DIR__)"))
+
+        assertEquals("compiled [/src/lib/t.eex/0]", defines(a))
+    }
+
+    /** `__CALLER__.file` is the caller's file, so a macro can name what it defines by it. */
+    fun testTheCallersFileIsItsOwnPath() {
+        addLegElixir()
+        add("mix.exs", MIX_EXS)
+        add(
+            "m.ex",
+            "defmodule M do\n" +
+                "  defmacro m do\n" +
+                "    name = String.to_atom(Path.basename(__CALLER__.file, \".ex\"))\n" +
+                "    quote do\n      def unquote(name)(), do: 1\n    end\n" +
+                "  end\n" +
+                "end\n",
+        )
+        val b = add("b_caller.ex", "defmodule BCaller do\n  require M\n  M.m()\nend\n")
+
+        assertEquals("compiled [b_caller/0]", defines(b))
+    }
+
+    /** A list holding the file is a known value, so a fragment can splice it. */
+    fun testAListHoldingTheFileIsAKnownFragment() {
+        addLegElixir()
+        add("mix.exs", MIX_EXS)
+        val a = add("a.ex", "defmodule A do\n  def f, do: unquote([__ENV__.file])\nend\n")
+
+        assertEquals("compiled [f/0]", defines(a))
+    }
+
+    /** A template named from `__DIR__` is read from the file's own folder, so the function it defines is exported. */
+    fun testAnEexFileNamedFromTheDirDefinesItsFunction() {
+        addCompiledEex()
+        add("mix.exs", MIX_EXS)
+        add("t.eex", "<%= @a %>")
+        val a = add(
+            "a.ex",
+            "defmodule A do\n  require EEx\n  EEx.function_from_file(:def, :t, Path.expand(\"t.eex\", __DIR__), [:assigns])\nend\n",
+        )
+
+        assertEquals("compiled [t/1]", defines(a))
+    }
+
+    /**
+     * With no `mix.exs` the compile directory is unknown. From 1.16.0-rc.1 `Path.expand/2` reads the working directory
+     * only for a relative directory, so a unix host defines the function; before it, and on a Windows host, where a path
+     * with no drive letter is relative to the volume, it reads it and the module stops at the call, the function it
+     * defines still known.
+     */
+    fun testAnEexFileNamedFromTheDirWithNoMixProject() {
+        addCompiledEex()
+        add("t.eex", "<%= @a %>")
+        val a = add(
+            "a.ex",
+            "defmodule A do\n  require EEx\n  EEx.function_from_file(:def, :t, Path.expand(\"t.eex\", __DIR__), [:assigns])\nend\n",
+        )
+
+        assertEquals(if (legExpandsPathsLazily() && OS.CURRENT != OS.Windows) "compiled [t/1]" else "stopped [t/1]", defines(a))
+    }
+
+    /** A scratch file is a local file, so its path is known. */
+    fun testAScratchFilesPath() {
+        addLegElixir()
+        val scratch = ScratchRootType.getInstance().createScratchFile(
+            project,
+            "scratch_path.ex",
+            ElixirLanguage,
+            named("ScratchPath", "Path.basename(__ENV__.file, \".ex\")"),
+            ScratchFileService.Option.create_if_missing,
+        )!!
+
+        try {
+            assertEquals("compiled [scratch_path/0]", defines(psi(scratch)))
+        } finally {
+            WriteAction.runAndWait<Throwable> { scratch.delete(this) }
+        }
+    }
+
+    /**
+     * A light virtual file is not on disk, so it has no path: the function it would name stops at its head, and a value
+     * wholly unknown leaves a body unknown where a list holding it stops.
+     */
+    fun testALightVirtualFileHasNoPath() {
+        addLegElixir()
+        val named = LightVirtualFile("light_file.ex", ElixirFileType.INSTANCE, named("LightFile", "Path.basename(__ENV__.file, \".ex\")"))
+        val body = LightVirtualFile("body_file.ex", ElixirFileType.INSTANCE, "defmodule BodyFile do\n  def f, do: unquote(__ENV__.file)\nend\n")
+        val list = LightVirtualFile("list_file.ex", ElixirFileType.INSTANCE, "defmodule ListFile do\n  def f, do: unquote([__ENV__.file])\nend\n")
+
+        assertEquals("stopped []", defines(psi(named)))
+        assertEquals("compiled [f/0]", defines(psi(body)))
+        assertEquals("stopped [f/0]", defines(psi(list)))
+    }
+
+    /** An Elixir code block injected into another file has no path of its own. */
+    fun testAnInjectedFragmentHasNoPath() {
+        addLegElixir()
+        val code = named("I", "Path.basename(__ENV__.file, \".ex\")").lines().filter(String::isNotEmpty)
+        val host = add(
+            "host.ex",
+            "defmodule Host do\n  @moduledoc \"\"\"\n  Text.\n\n" + code.joinToString("\n") { "      $it" } + "\n  \"\"\"\nend\n",
+        )
+        val injected = InjectedLanguageManager.getInstance(project)
+            .findInjectedElementAt(host, host.text.indexOf("defmodule I") + 1)!!.containingFile
+
+        assertEquals("stopped []", defines(injected))
+    }
+
+    /** A completion copy has no virtual file, so no path. */
+    fun testACompletionCopyHasNoPath() {
+        addLegElixir()
+        val a = add("copy_file.ex", named("CopyFile", "Path.basename(__ENV__.file, \".ex\")"))
+
+        assertEquals("stopped []", defines(completionCopy(a)))
+    }
+
+    /** A file made as the decompiled mirror is has no virtual file, so no path. */
+    fun testADecompiledMirrorHasNoPath() {
+        addLegElixir()
+        val mirror = PsiFileFactory.getInstance(project).createFileFromText(
+            "mirror_file.ex",
+            ElixirLanguage,
+            named("MirrorFile", "Path.basename(__ENV__.file, \".ex\")"),
+            false,
+            false,
+            true,
+        )
+
+        assertNull(mirror.virtualFile)
+        assertEquals("stopped []", defines(mirror))
+    }
+
+    /** `module`, defining the one function [name] gives. */
+    private fun named(module: String, name: String) =
+        "defmodule $module do\n  name = String.to_atom($name)\n  def unquote(name)(), do: 1\nend\n"
+
+    private fun defines(file: PsiFile): String = defines(holder, file)
 
     /** The leg's compiled `Elixir` and `EEx`, `EEx` with its sources. */
     private fun addCompiledEex() {
