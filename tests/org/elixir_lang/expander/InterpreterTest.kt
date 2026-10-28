@@ -20,6 +20,7 @@ import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFIMPL_IMPL4
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINER_REFUSED_IN_MATCH_OR_GUARD
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
@@ -88,15 +89,58 @@ class InterpreterTest : PlatformTestCase() {
     private val probes = ExpansionProbes(harness, definitions = true, parse = parse)
     private lateinit var sdk: ModuleClauses.Lookup
 
+    /** [legExports], and where it has none, the module's [appBeams] `.beam`'s, as for `EEx`. */
+    private val sdkExports: Exports = HashMap<String, ModuleExports>().let { read ->
+        Exports { module ->
+            legExports.of(module).takeUnless { it == ModuleExports.Absent }
+                ?: read.getOrPut(module) {
+                    appBeams[module]?.let { LoadedModules.exports(it.readBytes(), it.path) } ?: ModuleExports.Absent
+                }
+        }
+    }
+
     override fun setUp() {
         super.setUp()
 
         sdk = sdkClauses(project, testRootDisposable)
     }
 
-    fun testFromSource() = assertRows(Source.SOURCE)
+    fun testFromSource() = withEex { assertRows(Source.SOURCE) }
 
-    fun testFromDebugInfo() = assertRows(Source.DBGI)
+    fun testFromDebugInfo() = withEex { assertRows(Source.DBGI) }
+
+    /**
+     * [block], with the leg's `EEx`, which the quoter's release doesn't hold, loaded from its [appBeams] `.beam`s for
+     * Elixir's compiles, as [probeLoaded] loads a module, then unloaded, so no other test's compile sees it.
+     */
+    private fun withEex(block: () -> Unit) {
+        val ebin = appBeams.getValue("Elixir.EEx").parentFile
+        val beams = appBeams.filterValues { it.parentFile == ebin }
+            .entries
+            .joinToString(", ") { (module, beam) -> "{\"$module\", ${elixirString(beam.path)}}" }
+
+        val loaded = harness.compileSource(
+            """
+            for {name, path} <- [$beams] do
+              {:module, _} = :code.load_binary(String.to_atom(name), String.to_charlist(path), File.read!(path))
+            end
+            """.trimIndent(),
+        )
+
+        assertEquals("EEx's load", OtpErlangAtom("ok"), loaded.status)
+        try {
+            block()
+        } finally {
+            harness.compileSource(
+                """
+                for {name, _} <- [$beams] do
+                  :code.delete(String.to_atom(name))
+                  :code.purge(String.to_atom(name))
+                end
+                """.trimIndent(),
+            )
+        }
+    }
 
     // A raise is the module's, or the file's, only where everything Elixir ran before it had an outcome the evaluator
     // produced. Each file's ending is Elixir's on 1.11.4 and 1.20.4, run.
@@ -949,10 +993,97 @@ class InterpreterTest : PlatformTestCase() {
             "top expanded\nmodule Elixir.A raised Elixir.MatchError `:ok = :bad`",
         )
 
-    /** [code], a file expanded at the leg's level with the leg's clauses, as [expected] shows its top and each module's end. */
-    private fun assertFile(code: String, expected: String) {
+    /**
+     * An `EEx` function as an implementation's last expression stops it at `EEx`'s `defp` branch from v1.14, a known
+     * divergence: `Protocol.__impl__` puts the implementation's body on the right of `res = unquote(block)`, and a
+     * declined call in a module-body `=`'s block runs the units after it unselected, so both branches define
+     * `to_string/1`, where Elixir defines it once. Before v1.14 the body is a statement of its own, and is defined.
+     */
+    fun testAnEexFunctionEndingAnImplementationStopsAtItsDefpBranch() {
+        val code = "$STRUCT_S\n\ndefimpl String.Chars, for: S do\n  require EEx\n  $TO_STRING\nend"
         val level = legLevel()
-        val file = Expander.expandFile(lowered(code, level), Env.empty(level, legKernel), level, legExports, legStructs, clauses = sdk)
+        val result = DEFIMPL_IMPL4.isSufficient(level)
+
+        assertFile(
+            code,
+            "top expanded\nmodule Elixir.S compiled [__struct__/0 def, __struct__/1 def]\n" +
+                "module Elixir.String.Chars.S ${if (result) "stopped `${code.substringAfter("\n\n")}`" else "compiled"} " +
+                "[__impl__/1 def, to_string/1 def]",
+            tables = true,
+        )
+
+        if (!result) return
+
+        val implementation = Expander
+            .expandFile(lowered(code, level), Env.empty(level, legKernel), level, sdkExports, legStructs, clauses = sdk)
+            .modules
+            .single { it.module == "Elixir.String.Chars.S" }
+
+        assertEquals(
+            ExpansionResult.Owner.Definition(DefinitionTable.Kind.DEFP, "to_string", 1),
+            implementation.units.single { it.expansion is Expansion.Unported }.owner,
+        )
+    }
+
+    /** An `EEx` function followed by another expression in an implementation is defined there, as Elixir defines it. */
+    fun testAnEexFunctionBeforeAnImplementationsLastExpressionIsDefined() =
+        assertFile(
+            "$STRUCT_S\n\ndefimpl String.Chars, for: S do\n  require EEx\n  $TO_STRING\n  :ok\nend",
+            "top expanded\nmodule Elixir.S compiled [__struct__/0 def, __struct__/1 def]\n" +
+                "module Elixir.String.Chars.S compiled [__impl__/1 def, to_string/1 def]",
+            tables = true,
+        )
+
+    /** An unknown body drops every error Elixir raises from it: here `File.Error`, as the template is missing. */
+    fun testAnUnknownBodyDropsAMissingFile() =
+        assertFile(
+            "defmodule A do\n  require EEx\n  EEx.function_from_file(:def, :t, \"/nonexistent/t.eex\", [:assigns])\nend",
+            "top expanded\nmodule Elixir.A compiled [t/1 def]",
+            tables = true,
+        )
+
+    /** An unknown body drops every error Elixir raises from it: here `TokenMissingError`. */
+    fun testAnUnknownBodyDropsABadTemplate() =
+        assertFile(
+            "defmodule A do\n  require EEx\n  EEx.function_from_string(:def, :w, \"<%= ( %>\")\n  def after_it, do: 1\nend",
+            "top expanded\nmodule Elixir.A compiled [after_it/0 def, w/0 def]",
+            tables = true,
+        )
+
+    /** An unknown body drops every error Elixir raises from it: here `CompileError`, for an undefined function. */
+    fun testAnUnknownBodyDropsAnUndefinedLocal() =
+        assertFile(
+            "defmodule A do\n  require EEx\n  EEx.function_from_string(:def, :w, \"<%= helper() %>\")\nend",
+            "top expanded\nmodule Elixir.A compiled [w/0 def]",
+            tables = true,
+        )
+
+    /** An unknown body drops every error Elixir raises from it: here `CompileError`, for an undefined variable. */
+    fun testAnUnknownBodyDropsAnUndefinedVariable() =
+        assertFile(
+            "defmodule A do\n  require EEx\n  EEx.function_from_string(:def, :v, \"<%= @name %>\", [])\nend",
+            "top expanded\nmodule Elixir.A compiled [v/0 def]",
+            tables = true,
+        )
+
+    /**
+     * An unknown body drops every error Elixir raises from it: here `CompileError`, for an undefined function beside the
+     * unknown fragment.
+     */
+    fun testAnUnknownBodyDropsAnUndefinedLocalBesideItsFragment() =
+        assertFile(
+            "defmodule A do\n  x = Application.get_env(:m2, :x, :ok)\n  def f, do: (nope(); unquote(x))\nend",
+            "top expanded\nmodule Elixir.A compiled [f/0 def]",
+            tables = true,
+        )
+
+    /**
+     * [code], a file expanded at the leg's level with the leg's clauses, as [expected] shows its top and each module's end,
+     * and with [tables] each module's definition table after it.
+     */
+    private fun assertFile(code: String, expected: String, tables: Boolean = false) {
+        val level = legLevel()
+        val file = Expander.expandFile(lowered(code, level), Env.empty(level, legKernel), level, sdkExports, legStructs, clauses = sdk)
 
         fun source(node: ElixirAst) = node.meta.origin.substring(code)
 
@@ -965,7 +1096,9 @@ class InterpreterTest : PlatformTestCase() {
                 is Ended.Stopped -> "stopped `${source(ended.at)}`"
             }
 
-            return listOf("${indent}module ${result.module} $ended") + result.nested.flatMap { ended(it, "$indent  ") }
+            val table = if (tables) " ${table(result)}" else ""
+
+            return listOf("${indent}module ${result.module} $ended$table") + result.nested.flatMap { ended(it, "$indent  ") }
         }
 
         val top = when (val top = file.top) {
@@ -989,7 +1122,7 @@ class InterpreterTest : PlatformTestCase() {
         val oracle = oracle(rows, token)
         val copies = if (source == Source.DBGI) copies(oracle.binaries) else emptyMap()
         val outputs = outputs(rows, token, source, copies)
-        val exports = Exports { module -> copies[module]?.exports ?: legExports.of(module) }
+        val exports = Exports { module -> copies[module]?.exports ?: sdkExports.of(module) }
         val hook = ProbeHarness.Hook()
         val clauses = ModuleClauses.Lookup { module -> copies[module]?.clauses ?: sdk.of(module) }
         val tokens = mutableListOf(token)
@@ -1163,7 +1296,7 @@ class InterpreterTest : PlatformTestCase() {
                     lowered(file, level),
                     Env.empty(level, legKernel),
                     level,
-                    legExports,
+                    sdkExports,
                     legStructs,
                     observer,
                     file = FILE,
@@ -1173,7 +1306,7 @@ class InterpreterTest : PlatformTestCase() {
             }
         }
 
-        val exports = Exports { module -> loaded[module] ?: copies[module]?.exports ?: legExports.of(module) }
+        val exports = Exports { module -> loaded[module] ?: copies[module]?.exports ?: sdkExports.of(module) }
         val clauses = ModuleClauses.Lookup { module ->
             sourceClauses[module] ?: copies[module]?.clauses ?: sdk.of(module)
         }
@@ -1450,6 +1583,11 @@ class InterpreterTest : PlatformTestCase() {
         const val OPAQUE = "opaque"
         const val UNPORTED = "unported"
         const val FILE = "probe.ex"
+        const val STRUCT_S = "defmodule S do\n  defstruct []\nend"
+        const val TO_STRING = "EEx.function_from_string(:def, :to_string, \"<%= t %>\", [:t])"
+
+        /** A template's absolute path: the quoter's node has no working directory a relative one is read from. */
+        val TEMPLATE: String = FileUtil.toSystemIndependentName(File("testData/org/elixir_lang/expander/eex/t.eex").absolutePath)
         val DIRECTORIES = CompileDirectories { "/" }
         val COMPILE_TIMEOUT = 60.seconds
 
@@ -1587,6 +1725,17 @@ class InterpreterTest : PlatformTestCase() {
 
             return Row(id, defs.trimIndent(), call, use, use, listOf(ROW), source, legs, UNPINNED, stopsAfter, ends = ends)
         }
+
+        /** A row whose `use` runs [statements] in the case module once it requires `EEx`. */
+        fun eex(id: String, statements: String, ends: (ElixirLanguageLevel) -> String? = { null }): Row =
+            use(id, using("quote do", "require EEx\n${statements.trimIndent()}"), ends = ends)
+
+        /** A row whose `use` runs [statements] in the case module, their `unquote`s the module body's. */
+        fun fragments(id: String, statements: String, ends: (ElixirLanguageLevel) -> String? = { null }): Row =
+            use(id, using("quote unquote: false do", statements), ends = ends)
+
+        private fun using(quote: String, statements: String): String =
+            "defmacro __using__(_) do\n  $quote\n${statements.trimIndent().prependIndent("    ")}\n  end\nend"
 
         /** A row whose case body `use`s the leg's [module], then holds [after]. */
         fun leg(module: String, options: String = "", after: String = "", stopsAfter: String? = null): Row {
@@ -6123,7 +6272,7 @@ class InterpreterTest : PlatformTestCase() {
                   def r, do: unquote(v)
                 end
                 """,
-                pins = CALLS_A_STOPPED_MODULE,
+                pins = DECLINED_FROM_SOURCE,
             ),
             macro(
                 "body:has-attribute-given-module",
@@ -8098,6 +8247,120 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
             ),
+            // `EEx.compile_string/2` and `EEx.compile_file/2` aren't evaluated, so the body each defines is unknown.
+            eex("eex:string", "EEx.function_from_string(:def, :f, \"<%= a %>\", [:a])"),
+            eex("eex:defp", "EEx.function_from_string(:defp, :f, \"<%= a %>\", [:a])\ndef call(a), do: f(a)"),
+            eex("eex:args-attribute", "@args [:a, :b]\nEEx.function_from_string(:def, :g, \"x\", @args)"),
+            eex("eex:name-variable", "name = :h\nEEx.function_from_string(:def, name, \"x\")"),
+            eex("eex:kind-variable", "kind = :def\nEEx.function_from_string(kind, :k, \"x\")"),
+            eex(
+                "eex:three-arity",
+                "EEx.function_from_string(:def, :a1, \"x\")\nEEx.function_from_file(:def, :a2, \"$TEMPLATE\")",
+            ),
+            eex(
+                "eex:options",
+                """
+                EEx.function_from_string(:def, :a1, "x", [:a], trim: true)
+                EEx.function_from_string(:def, :a2, "x", [:a], engine: EEx.SmartEngine)
+                EEx.function_from_file(:def, :a3, "$TEMPLATE", [:a], trim: true)
+                """,
+            ),
+            eex("eex:for", "for n <- [:p, :q], do: EEx.function_from_string(:def, n, \"x\")"),
+            eex("eex:enum-each", "Enum.each([:p, :q], fn n -> EEx.function_from_string(:def, n, \"x\") end)"),
+            eex("eex:import", "import EEx\nfunction_from_string(:def, :u, \"x\")"),
+            eex("eex:file", "EEx.function_from_file(:def, :t, \"$TEMPLATE\", [:assigns])"),
+            // Elixir raises `CaseClauseError`, but the declined `EEx.compile_string/2` before it leaves whether it is
+            // reached unknown.
+            eex("eex:defmacro", "EEx.function_from_string(:defmacro, :m, \"x\")", ends = { "stopped at `use {row}`" }),
+            // Elixir defines `call/0` and `k/0`: the kind isn't known, so neither branch's definition is certain.
+            eex(
+                "eex:kind-unknown",
+                "kind = Application.get_env(:m2, :kind, :defp)\nEEx.function_from_string(kind, :k, \"x\")\ndef call, do: k()",
+                ends = { "stopped at `use {row}`" },
+            ),
+            // A declined call before a module-body `case` leaves the branch to the subject.
+            eex(
+                "eex:declined-before-case",
+                "kind = :def\n_ = EEx.compile_string(\"x\")\ncase kind do\n  :def -> def f, do: 1\n  :defp -> defp f, do: 2\nend",
+            ),
+            // A body fragment that can't be produced leaves the body unknown, and the module runs on.
+            fragments("body:unknown-fragment", "x = Application.get_env(:m2, :x, :ok)\ndef f, do: unquote(x)"),
+            fragments("body:unknown-splice", "l = Application.get_env(:m2, :l, [2])\ndef f, do: [1, unquote_splicing(l)]"),
+            fragments("body:unknown-call-name", "g = Application.get_env(:m2, :g, :abs)\ndef f, do: unquote(g)(-1)"),
+            fragments(
+                "body:unknown-rescue",
+                "x = Application.get_env(:m2, :x, :ok)\ndef f do\n  raise \"x\"\nrescue\n  _ -> unquote(x)\nend",
+            ),
+            fragments("body:unknown-bytes", "def f, do: unquote(__ENV__.file)"),
+            fragments("body:unknown-uncalled-name", "n = Application.get_env(:m2, :n, :node)\ndef f, do: Kernel.unquote(n)"),
+            // A helper whose input an unknown fragment gives is unknown too.
+            fragments(
+                "body:unknown-splice-then-splice",
+                "l = Application.get_env(:m2, :l, [2])\nm = [3]\ndef f, do: [unquote_splicing(l), unquote_splicing(m)]",
+            ),
+            fragments(
+                "body:declined-splice-then-splice",
+                "m = [3]\ndef f, do: [unquote_splicing(receive(do: (x -> x), after: (0 -> [2]))), unquote_splicing(m)]",
+            ),
+            fragments(
+                "body:splice-then-unknown-splice",
+                "m = [1]\nl = Application.get_env(:m2, :l, [2])\ndef f, do: [unquote_splicing(m), unquote_splicing(l)]",
+            ),
+            // A splice's own value is checked before a later splice's unknown result: Elixir raises there whatever it holds.
+            fragments(
+                "body:invalid-splice-then-unknown-splice",
+                "m = 1\nl = Application.get_env(:m2, :l, [2])\ndef f, do: [unquote_splicing(m), unquote_splicing(l)]",
+                ends = { "raised Elixir.ArgumentError" },
+            ),
+            fragments(
+                "body:splice-then-declined-splice",
+                "m = [1]\ndef f, do: [unquote_splicing(m), unquote_splicing(receive(do: (x -> x), after: (0 -> [2])))]",
+            ),
+            fragments(
+                "body:unknown-left-call-name",
+                "m = Application.get_env(:m2, :m, Kernel)\ndef f, do: unquote(m).unquote(:abs)(-1)",
+            ),
+            fragments(
+                "body:unknown-then-invalid-fragment",
+                "l = Application.get_env(:m2, :l, [2])\ndef f, do: [unquote_splicing(l), unquote({:a, :b, :c})]",
+                ends = { "stopped at `use {row}`" },
+            ),
+            // The port doesn't have the body Elixir gives an `@on_definition` callback.
+            use(
+                "body:unknown-on-definition",
+                """
+                def on_def(env, _kind, _name, _args, _guards, body), do: Module.put_attribute(env.module, :n, length(body))
+
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    @on_definition {{row}, :on_def}
+                    l = Application.get_env(:m2, :l, [2, 3])
+                    def f, do: [1, unquote_splicing(l)]
+                    if @n == 2, do: def(two, do: 2)
+                  end
+                end
+                """,
+                // A callback that declines stops the module whole.
+                stopsAfter = "{:defmodule, [], [{:__aliases__, [], [:{token}, :Case0]}",
+            ),
+            // A head fragment that can't be produced still stops the definition, where Elixir defines it.
+            fragments(
+                "body:unknown-head",
+                "name = Application.get_env(:m2, :n, :g)\ndef unquote(name)(), do: 1",
+                ends = { "stopped at `use {row}`" },
+            ),
+            fragments(
+                "body:unknown-guard",
+                "v = Application.get_env(:m2, :v, 1)\ndef f(x) when x == unquote(v), do: x",
+                ends = { "stopped at `use {row}`" },
+            ),
+            fragments(
+                "body:unknown-guard-call-name",
+                "g = Application.get_env(:m2, :g, :is_integer)\ndef f(x) when unquote(g)(x), do: x",
+                ends = { "stopped at `use {row}`" },
+            ),
+            // A value the evaluator produces that isn't code still stops, where Elixir raises `ArgumentError`.
+            fragments("body:invalid-fragment", "def f, do: unquote({:a, :b, :c})", ends = { "stopped at `use {row}`" }),
             // An implementation's body is the user's code where a macro's output carries it: where the evaluator can't
             // run it, Elixir may have raised, so a later raise stops.
             use(

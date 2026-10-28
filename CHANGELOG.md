@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4556](https://github.com/intellij-elixir/intellij-elixir/pull/4556) [@sh41](https://github.com/sh41)
+  - **The expander sees the functions that `EEx.function_from_string` and `EEx.function_from_file` define, and any `def` whose body holds an `unquote` it cannot follow, by name, arity and kind, and goes on to the rest of the module.** Refs [#4553](https://github.com/intellij-elixir/intellij-elixir/issues/4553).
+
 - [#4555](https://github.com/intellij-elixir/intellij-elixir/pull/4555) [@sh41](https://github.com/sh41)
   - **Completing a config key again in a large file you haven't edited since no longer works the whole file out again.** Refs [#4554](https://github.com/intellij-elixir/intellij-elixir/issues/4554).
 

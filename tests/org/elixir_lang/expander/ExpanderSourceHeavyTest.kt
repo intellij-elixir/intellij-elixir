@@ -803,6 +803,29 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals("Kernel.<>/2 IMPLICIT_IMPORT VALID via []", candidates(file, "\"a\" <> \"b\"", "\"a\" <> \"b\""))
     }
 
+    /** A module defining a function with the SDK's `EEx` is read, so each of its functions is imported. */
+    fun testAnEexFunctionIsImported() {
+        val file = file(
+            """
+            defmodule Views do
+              require EEx
+              def plain(x), do: x
+              EEx.function_from_string(:def, :greet, "<%= name %>", [:name])
+            end
+
+            defmodule User do
+              import Views
+              def usage, do: {plain(1), greet("x")}
+            end
+            """
+        )
+
+        assertEquals("Views.plain/1 IMPORT VALID via [import Views] line 3", candidates(file, "def usage", "plain(1)"))
+        val greet = read { ExpanderSource.candidates(use(file, "def usage", "greet(\"x\")"), false) }
+
+        assertEquals("Views.greet/1 IMPORT VALID via [import Views]", render(greet).substringBefore(" line "))
+    }
+
     fun testAnOuterImportIsSeenFromANestedModule() {
         val file = file(
             """
