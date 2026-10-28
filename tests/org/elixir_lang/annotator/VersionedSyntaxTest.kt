@@ -380,7 +380,6 @@ class VersionedSyntaxTest private constructor(
                 "x.** 'a': 1" to "[<<\"a\">>]",
                 "fn a -> x.** end" to "'end'",
                 "cond do a -> x.** end" to "'end'",
-                "if a do x.** else 1 end" to "else",
                 "try do x.** after 1 end" to "'after'",
                 "try do x.** rescue _ -> 1 end" to "rescue",
                 "try do x.** catch _ -> 1 end" to "'catch'",
@@ -393,7 +392,6 @@ class VersionedSyntaxTest private constructor(
                 "x.** A: 1" to "'A'",
                 "x.** a?: 1" to "'a?'",
                 "x.** nil: 1" to "nil",
-                "x.** else: 1" to "else",
                 "x.** \"a b\": 1" to "[<<\"a b\">>]",
                 "x.** \"\": 1" to "[<<>>]",
                 "x.** \"end\": 1" to "[<<\"end\">>]",
@@ -456,6 +454,12 @@ class VersionedSyntaxTest private constructor(
             ).map { operator -> "x.** $operator: 1" to ("**" to before("'${operator.replace("\\", "\\\\")}'")) }) { source, expected ->
                 assertErrors(elixir("1.11.0"), source, expected)
                 assertErrors(elixir("1.12.0"), source, expected)
+                assertNoErrors(elixir("1.13.0"), source)
+            }
+            // `else` is reserved from OTP 27, which no release before 1.13 runs on.
+            pairs("testPowerOperatorBefore1_13", listOf("if a do x.** else 1 end" to "else", "x.** else: 1" to "else")) { source, token ->
+                assertErrors(elixir("1.11.0", "24.3.4.6"), source, "**" to before(token))
+                assertErrors(elixir("1.12.0", "24.3.4.6"), source, "**" to before(token))
                 assertNoErrors(elixir("1.13.0"), source)
             }
             pairs("testPowerOperatorBefore1_13", listOf("x.** true: 1" to "true", "x.** false: 1" to "false", "x.** Foo: 1" to "'Foo'")) { source, token ->

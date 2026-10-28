@@ -535,9 +535,9 @@ enum class ElixirLanguageFeature(
     HEXADECIMAL_ESCAPE_NEEDS_TWO_DIGITS(sinceElixir = "1.20.0-rc.0"),
 
     /**
-     * `maybe` is a reserved word Erlang prints quoted, once OTP enables the `maybe_expr` feature by default from OTP
-     * 27.0-rc1 (`erlang/otp@5d45a0d9c`). The OTP running Elixir decides, not the Elixir release or the OTP its build
-     * targeted.
+     * `maybe` and `else` are reserved words, which Erlang prints quoted, once OTP enables the `maybe_expr` feature by
+     * default from OTP 27.0-rc1 (`erlang/otp@5d45a0d9c`). The OTP running Elixir decides, not the Elixir release or the
+     * OTP its build targeted.
      */
     MAYBE_RESERVED(sinceOtp = "27.0-rc1"),
 
