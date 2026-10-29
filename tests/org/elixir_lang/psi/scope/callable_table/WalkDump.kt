@@ -12,17 +12,15 @@ import com.intellij.psi.PsiReferenceService
 import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
 import com.intellij.testFramework.fixtures.CodeInsightTestFixture
 import org.elixir_lang.code_insight.completion.unqualifiedLookupElements
+import org.elixir_lang.declaration.CompletionPosition
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.psi.scope.CallableTable
-import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
-import org.elixir_lang.psi.scope.call_definition_clause.Variants
 import org.elixir_lang.reference.Callable
-import org.elixir_lang.reference.resolver.Callable as CallableResolver
 
 /**
- * Every answer the call walk gives for each `Callable` use under a root, in visitor order and never sorted: the walk
- * itself and `multiResolve` in both `incompleteCode` modes, the candidates, and completion's lookups and what it sees.
+ * Every answer the call walk gives for each `Callable` use under a root, in visitor order and never sorted:
+ * `multiResolve` and the candidates in both `incompleteCode` modes, and completion's lookups and what it sees.
  */
 class WalkDump(private val project: Project, private val root: VirtualFile) {
     /** [files], and what each injects when [injected], with the table on or off. */
@@ -72,8 +70,6 @@ class WalkDump(private val project: Project, private val root: VirtualFile) {
 
         for (incompleteCode in listOf(false, true)) {
             guarded(lines, "$use  incompleteCode=$incompleteCode") {
-                lines += "$use  incompleteCode=$incompleteCode  walk  " +
-                    CallableResolver.walk(call, incompleteCode).joinToString(" | ", transform = ::describe)
                 lines += "$use  incompleteCode=$incompleteCode  multiResolve  " + reference.multiResolve(incompleteCode)
                     .joinToString(" | ") { "${location(it.element)}${if (it.isValidResult) "" else " (invalid)"}" }
                 lines += "$use  incompleteCode=$incompleteCode  found  " +
@@ -87,7 +83,7 @@ class WalkDump(private val project: Project, private val root: VirtualFile) {
         }
 
         guarded(lines, "$use  variants") {
-            val visible = Variants.visible(call)
+            val visible = LegacyWalkSource.visible(CompletionPosition.OfCall(call))
             val lookups = unqualifiedLookupElements(visible, appendParentheses = true)
             lines += "$use  variants  " + lookups.joinToString(" ") { "${it.lookupString}@${location(it.psiElement)}" }
             lines += "$use  visible  " + visible.joinToString(" ") { v ->
@@ -108,10 +104,6 @@ class WalkDump(private val project: Project, private val root: VirtualFile) {
             lines += "$use  EXCEPTION ${exception.javaClass.simpleName}"
         }
     }
-
-    private fun describe(result: VisitedElementSetResolveResult): String =
-        "${location(result.element)}${if (result.isValidResult) "" else " (invalid)"} reach=${result.reach} " +
-            "via=[${result.visitedElementSet.joinToString(",", transform = ::location)}]"
 
     fun location(element: PsiElement?): String {
         val file = element?.containingFile ?: return element.toString()

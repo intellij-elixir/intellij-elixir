@@ -95,3 +95,11 @@ defmodule OpenUser do
 
   def uses, do: open(1)
 end
+
+defmodule PrefixUses do
+  def uses do
+    Uses.fo_local(1)
+    Uses.foo(1)
+    Uses.renamed(1)
+  end
+end

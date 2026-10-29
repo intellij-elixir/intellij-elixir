@@ -24,9 +24,9 @@ class ReachTest : PlatformTestCase() {
         }
 
         assertEquals(live.joinToString("\n"), tabled.joinToString("\n"))
-        val walks = tabled.filter { "  walk  " in it }
-        assertEquals("the walk in both modes", 2, walks.size)
-        for (walk in walks) assertTrue(walk, "using.ex:4:7 reach=OUTER " in walk)
+        val found = tabled.filter { "  found  " in it }
+        assertEquals("the candidates in both modes", 2, found.size)
+        for (line in found) assertTrue(line, "using.ex:4:7 " in line && " OUTER " in line)
     }
 
     override fun getTestDataPath(): String = "testData/org/elixir_lang"

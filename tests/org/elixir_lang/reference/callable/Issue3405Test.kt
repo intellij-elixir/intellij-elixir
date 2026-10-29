@@ -28,13 +28,13 @@ class Issue3405Test : PlatformTestCase() {
      *
      * Neither hinge's `hasBeenVisited` guard closes this. Both read a `ResolveState`, and the
      * reference boundary between them - `PsiPolyVariantReference.multiResolve` - carries none, so
-     * the far side re-enters at `call_definition_clause.MultiResolve.resolveResults` and starts from
+     * the far side re-enters at `LegacyWalkSource.resolveResults` and starts from
      * `ResolveState.initial()`. Seeding that fresh state with the entrance is enough while the `for`
      * body holds one generated `test`; with two, the walk reaches the sibling, which is on no
      * visited set, and the cycle closes. The reporter's file had two.
      *
      * What contains it is the element-keyed `RecursionManager` guard on
-     * `reference.resolver.Callable.resolveInScope`, which is scoped to the thread's stack rather
+     * `LegacyWalkSource.resolveInScope`, which is scoped to the thread's stack rather
      * than to a `ResolveState` and so survives that boundary. Removing it puts this fixture back on
      * the reported errors.
      *

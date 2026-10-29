@@ -80,15 +80,16 @@ object Resolved {
         projection
             .groupBy { it.element }
             .map { (element, found) ->
-                val admitted = found.filter { it.candidate.applicability.admitted && !isContract(it) }
-
-                when {
-                    admitted.any { it.candidate.applicability == Applicability.VALID } ->
-                        PsiElementResolveResult(element, true)
-                    admitted.isNotEmpty() -> Opaque(element)
-                    else -> PsiElementResolveResult(element, false)
-                }
+                result(element, found.filter { it.candidate.applicability.admitted && !isContract(it) })
             }
+
+    /** [element]'s result from its [admitted] candidates: valid when one is `VALID`, [Opaque] when each is `OPAQUE`. */
+    internal fun result(element: PsiElement, admitted: List<Found>): ResolveResult =
+        when {
+            admitted.any { it.candidate.applicability == Applicability.VALID } -> PsiElementResolveResult(element, true)
+            admitted.isNotEmpty() -> Opaque(element)
+            else -> PsiElementResolveResult(element, false)
+        }
 
     /**
      * [reference]'s target: the first valid of its results that is not [Opaque], a delegation the use names before what
