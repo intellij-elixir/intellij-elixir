@@ -39,8 +39,11 @@ import kotlin.time.Duration.Companion.seconds
  * never names the hook.
  *
  * @param parse parses source text into a file, whose top-level expressions are the statements
+ * @param holdValues whether a nested body's last statement is held in a variable across its probe, so the body keeps
+ *   its value. The variable takes a version in Elixir's compile that the expander, which reads the unprobed text, never
+ *   takes, so a suite that compares versions turns it off.
  */
-class ProbeHarness(private val parse: (String) -> ElixirFile) {
+class ProbeHarness(private val parse: (String) -> ElixirFile, private val holdValues: Boolean = true) {
     /**
      * `{case, block, statement}`: statement 0 is the start of the block, statement `n` follows its `n`th statement.
      * Block 0 is the case body, and block `n` the `n`th of [Case.bodies]. An identity probe has [identity], its
@@ -56,12 +59,15 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
      *
      * @property value the 1-based top-level statement after which the run-time value of the case's variable `q` is
      *   sent, as a module-body statement of its own with no probe after it
+     * @property clauses the statements of [bodies] that are `->` clauses, as a `for` without `:reduce` has in its block,
+     *   which are no expression to hold in a variable
      */
     class Case(
         val body: String,
         val identities: List<TextRange> = emptyList(),
         val bodies: List<List<TextRange>> = emptyList(),
         val value: Int? = null,
+        val clauses: Set<TextRange> = emptySet(),
     )
 
     /**
@@ -343,18 +349,26 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
 
             statements.forEachIndexed { statement, range ->
                 val tag = Tag(index, block + 1, statement + 1)
-                val close = if (keywordValue && statement == statements.lastIndex) ")" else ""
+                val last = statement == statements.lastIndex
+                val held = holdValues && last && range !in case.clauses
+                val close = if (keywordValue && last) ")" else ""
                 // A statement that holds a module's wrapped value is probed after the wrapper closes.
                 val encloses = hooks.wrapped.any { range.startOffset < it.startOffset && range.endOffset == it.endOffset }
                 tags.add(tag)
-                insertions.add(Insertion(range.endOffset, if (encloses) 3 else 1, "; " + probe(probeModule, tag) + close))
+
+                // A body's value is its last statement's, so that one is held in a variable across its probe.
+                if (held) insertions.add(Insertion(range.startOffset, 6, "${VariableClasses.PROBE_VALUE} = ("))
+
+                val probed = if (held) "); ${probe(probeModule, tag)}; ${VariableClasses.PROBE_VALUE}" else "; ${probe(probeModule, tag)}"
+
+                insertions.add(Insertion(range.endOffset, if (encloses) 3 else 1, probed + close))
             }
         }
         case.identities.forEachIndexed { identity, range ->
             val statement = ends.indexOfFirst { range.endOffset <= it } + 1
             val tag = Tag(index, 0, statement, identity + 1)
             tags.add(tag)
-            insertions.add(Insertion(range.startOffset, 6, "$probeModule.i(${tagList(tag)}, "))
+            insertions.add(Insertion(range.startOffset, 7, "$probeModule.i(${tagList(tag)}, "))
             insertions.add(Insertion(range.endOffset, 0, ")"))
         }
 
@@ -363,8 +377,8 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
         // Each insertion at an offset lands left of those already there, so at one offset the result reads: a module's
         // hook call, the end of a wrapped range, then the probe of a nested statement, then the close of a module's
         // keyword value, then the probe of a statement that holds the nested ones or a wrapped range (a top-level
-        // statement always does), then a value send, then a keyword value's opening parenthesis, then the start of
-        // the next range.
+        // statement always does), then a value send, then a keyword value's opening parenthesis, then the variable a
+        // body's last statement is held in, then the start of the next range.
         insertions.sortedWith(compareByDescending<Insertion> { it.offset }.thenByDescending { it.order }).forEach {
             probedBody.insert(it.offset, it.text)
         }
@@ -457,7 +471,6 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
         val PROBE_BODY = """
             |  defmacro p(tag) do
             |    IntellijElixir.Quoter.Probe.send(__CALLER__, observation(tag, __CALLER__))
-            |    # A body's last statement is a probe, so an `@on_load` function returns this.
             |    :ok
             |  end
             |

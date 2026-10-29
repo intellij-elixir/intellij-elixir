@@ -5,6 +5,7 @@ import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.intellij.openapi.util.TextRange
+import org.elixir_lang.lowering.inspect
 
 /**
  * The harness sees, after each statement of a case module body, the change Elixir makes to its env, and nothing else.
@@ -331,6 +332,63 @@ class ProbeHarnessSelfTest : ProbeTestCase() {
 
         assertTrue("the nested module's events: $without", without.any { it.contains("Kernel.def/2") })
         assertEquals(without, events(ProbeHarness.Hook()))
+    }
+
+    /**
+     * A probe is never the value of a body: a probed `defmacro` returns its output and a probed `def` its value, as
+     * unprobed ones do.
+     */
+    fun testAProbedBodyReturnsWhatItReturnsUnprobed() {
+        val token = harness.token()
+        val definers = "defmacro m, do: quote(do: :macro_value)\ndef f, do: :def_value"
+        val users = "require $token.Case0\nq = {$token.Case0.m(), $token.Case0.f()}"
+
+        fun range(text: String) = definers.indexOf(text).let { TextRange(it, it + text.length) }
+
+        val attempt = harness.attempt(
+            ProbeHarness.Layout(
+                token,
+                listOf(
+                    ProbeHarness.Case(definers, bodies = listOf(listOf(range("quote(do: :macro_value)")), listOf(range(":def_value")))),
+                    ProbeHarness.Case(users, value = 2),
+                ),
+            )
+        )
+        val unprobed = harness.compileSource(
+            "defmodule $token.Case0 do\n$definers\nend\n" +
+                "defmodule $token.Case1 do\n$users\nIntellijElixir.Quoter.Probe.send(__ENV__, q)\nend\n"
+        )
+
+        assertEquals(OtpErlangAtom("ok"), attempt.compiled.status)
+        assertEquals(OtpErlangAtom("ok"), unprobed.status)
+        assertEquals(inspect(unprobed.messages.single()), inspect(attempt.batch.values.getValue(1)))
+    }
+
+    /** A case's own variable named `probe_value` is observed: the one a body's last statement is held in is not named so. */
+    fun testACasesOwnVariableNamedAsTheHeldValueIsObserved() {
+        val token = harness.token()
+        val definer = "def f do\n  probe_value = 1\n  probe_value\nend"
+        val first = definer.indexOf("probe_value = 1")
+        val last = definer.lastIndexOf("probe_value")
+        val attempt = harness.attempt(
+            ProbeHarness.Layout(
+                token,
+                listOf(
+                    ProbeHarness.Case(
+                        definer,
+                        bodies = listOf(listOf(TextRange(first, first + "probe_value = 1".length), TextRange(last, last + "probe_value".length))),
+                    ),
+                    ProbeHarness.Case("$token.Case0.f()"),
+                ),
+            )
+        )
+        val inBody = attempt.batch.observations.filter { it.tag.case == 0 && it.tag.block == 1 }
+
+        assertEquals(OtpErlangAtom("ok"), attempt.compiled.status)
+        assertEquals(
+            listOf("probe_value/nil=0", "probe_value/nil=0"),
+            VariableClasses.canonical(inBody.map { VariableClasses.observed(it.env) })
+        )
     }
 
     private fun assertSteps(actual: List<Map<String, OtpErlangObject>>, vararg expected: Map<String, OtpErlangObject>) =

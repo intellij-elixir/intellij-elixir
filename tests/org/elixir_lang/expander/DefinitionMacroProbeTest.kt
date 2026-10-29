@@ -74,6 +74,22 @@ class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
         printed { probes.assertTracesMatchElixir(probes.expandAll(bodies, clauses = sdk)) }
     }
 
+    /**
+     * A guard that holds an argument twice, and a macro whose output does, each called in a `def` guard: a probe wrapped
+     * round the argument delivers once per copy, and a macro's output is its own, not a probe's.
+     */
+    fun testACallThatHoldsAnArgumentTwiceMatchesElixir() {
+        val expansions = GUARD_CALLS.associateWith { expand(it, "") }
+
+        assertCompiled(expansions)
+        printed { probes.assertMatchesElixir(expansions) }
+    }
+
+    /** The dispatches of those cases are the compiler's. */
+    fun testACallThatHoldsAnArgumentTwiceTracesAsTheCompilerDoes() {
+        printed { probes.assertTracesMatchElixir(probes.expandAll(GUARD_CALLS, clauses = sdk)) }
+    }
+
     /** An attribute on the right of `in` in a function's guard is read and escaped as Elixir's `@` does. */
     fun testAnAttributeOnTheRightOfInInAGuardMatchesElixir() {
         val expansions = IN_ATTRIBUTE.associateWith { expand(it, "") }
@@ -162,8 +178,17 @@ class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
     private fun guards(): List<String> =
         GUARDS + if (DEFGUARD_UNQUOTE_NAMES.isSufficient(legLevel())) listOf(UNQUOTED_GUARD) else emptyList()
 
-    private companion object {
-        const val UNQUOTED_GUARD = "defguard unquote(:is_one)(x) when x == 1"
+    companion object {
+        /** Each calls, in a `def` guard, a guard or a macro that holds its argument twice, or once for each. */
+        internal val GUARD_CALLS = listOf(
+            "defguard is_two(x) when x == 1 or x == 2\ndef f(y) when is_two(y), do: y",
+            "defguard is_same(x) when x === x\ndef f(y) when is_same(y), do: y",
+            "defguard is_both(x, z) when is_integer(x) and is_integer(z)\ndef f(y, w) when is_both(y, w), do: y",
+            "defmacro twice(x), do: quote(do: unquote(x) === unquote(x))\ndef f(y) when twice(y), do: y",
+            "defmacro both(x), do: quote(do: is_integer(unquote(x)) and true)\ndef f(y) when both(y), do: y",
+        )
+
+        private const val UNQUOTED_GUARD = "defguard unquote(:is_one)(x) when x == 1"
 
         val COMPILING = listOf(
             // defstruct

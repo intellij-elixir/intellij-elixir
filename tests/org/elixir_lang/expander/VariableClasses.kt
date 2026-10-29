@@ -12,8 +12,15 @@ import com.ericsson.otp.erlang.OtpErlangTuple
  */
 object VariableClasses {
     /**
-     * The variables a probe's `__CALLER__` holds: `versioned_vars` from 1.13, and before it the read half of
-     * `current_vars`.
+     * The variable a probed body's last statement is held in across its probe, which no observation reports. It is
+     * named for the plugin so that a case's own variable is not taken for it, and written as a plain variable, since a
+     * macro call such as `var!` would take a hygiene counter the case never does.
+     */
+    const val PROBE_VALUE = "intellij_elixir_probe_value"
+
+    /**
+     * The variables a probe's `__CALLER__` holds, but for [PROBE_VALUE]: `versioned_vars` from 1.13, and before it the
+     * read half of `current_vars`.
      */
     fun observed(env: OtpErlangMap): Map<Variable, Int> {
         val vars = env.get(OtpErlangAtom("versioned_vars"))
@@ -23,7 +30,7 @@ object VariableClasses {
             val (name, context) = (key as OtpErlangTuple).elements()
 
             Variable((name as OtpErlangAtom).atomValue(), context(context)) to (version as OtpErlangLong).intValue()
-        }
+        }.filterKeys { it.name != PROBE_VALUE }
     }
 
     /** A variable's context as `var_context` leaves it: an atom, `{Module, n}`, or the integer taken outside a module. */

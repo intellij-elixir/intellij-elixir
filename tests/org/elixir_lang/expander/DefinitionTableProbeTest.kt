@@ -97,6 +97,13 @@ class DefinitionTableProbeTest : SdkProbeTestCase() {
         }
     }
 
+    /** Each module whose guard or macro holds its argument twice, called in a `def` guard, stores what the hook reads. */
+    fun testEachGuardCallCasesTableMatchesTheHook() {
+        assertTablesMatch(DefinitionMacroProbeTest.GUARD_CALLS, clauses = sdk) { case, attempt, module ->
+            assertTrue("the hook ran in $module: $case", module in attempt.batch.hooks)
+        }
+    }
+
     /** The hook runs after an error the module's checks report, and from 1.15 after one in a function body. */
     fun testDefinitionsUnderAnError() {
         val level = legLevel()
