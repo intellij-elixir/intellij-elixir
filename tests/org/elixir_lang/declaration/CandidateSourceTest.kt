@@ -9,28 +9,27 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.scope.call_definition_clause.Declarations
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
-import org.elixir_lang.reference.resolver.Callable
 
 /** Each candidate written `line name=applicability`, `line` being where its element starts. */
 class CandidateSourceTest : PlatformTestCase() {
     fun testPrefixMatchIsNoCandidate() {
         configure("applicability.ex")
 
-        assertReaches("fo(1)", false, 20)
+        assertNamedInFullIsCandidate("Uses.fo_local(1)", false, 20)
         assertCandidates("fo(1)", false)
     }
 
     fun testDelegationTargetThroughPrefixMatchedHeadIsNoCandidate() {
         configure("applicability.ex")
 
-        assertReaches("fo(1)", true, 2)
+        assertNamedInFullIsCandidate("Uses.foo(1)", true, 2)
         assertCandidates("fo(1)", true)
     }
 
     fun testAsTargetThroughPrefixMatchedHeadIsNoCandidate() {
         configure("applicability.ex")
 
-        assertReaches("ren(1)", true, 4)
+        assertNamedInFullIsCandidate("Uses.renamed(1)", true, 4)
         assertCandidates("ren(1)", true)
     }
 
@@ -275,11 +274,11 @@ class CandidateSourceTest : PlatformTestCase() {
         }
     }
 
-    /** That the walk reaches an element at [line], so that it being no candidate is not vacuous. */
-    private fun assertReaches(text: String, incompleteCode: Boolean, line: Int) {
-        val reached = Callable.walk(call(text), incompleteCode).map { lineOf(it.element) }
+    /** That a use naming the element at [line] in full has it as a candidate, so that a prefix use not having it is not vacuous. */
+    private fun assertNamedInFullIsCandidate(text: String, incompleteCode: Boolean, line: Int) {
+        val lines = candidates(text, incompleteCode).map { lineOf(it.element) }
 
-        assertTrue("nothing at line $line in $reached", line in reached)
+        assertTrue("nothing at line $line in $lines", line in lines)
     }
 
     private fun assertRejectedNaming(text: String, vararg expected: String) {

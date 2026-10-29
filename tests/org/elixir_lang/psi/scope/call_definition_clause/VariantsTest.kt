@@ -5,6 +5,7 @@ import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInsight.lookup.LookupElementPresentation
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.code_insight.completion.unqualifiedLookupElements
 import org.elixir_lang.psi.call.Call
 import java.io.File
 
@@ -187,7 +188,7 @@ class VariantsTest : PlatformTestCase() {
         val element = myFixture.file.findElementAt(myFixture.caretOffset - 1)
         val call = PsiTreeUtil.getParentOfType(element, Call::class.java)!!
 
-        return Variants.lookupElementList(call).map { it.lookupString }
+        return unqualifiedLookupElements(call).map { it.lookupString }
     }
 
     /** Adds the decompiled module that declares the macro, so the call is recognised as defining a function. */

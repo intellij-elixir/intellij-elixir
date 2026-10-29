@@ -9,7 +9,7 @@ import org.elixir_lang.psi.scope.WalkProbe.Counter
 import org.elixir_lang.psi.scope.WalkTestSupport
 
 /**
- * The table answers every use exactly as walking the module does: the walk, `multiResolve` in both modes, the
+ * The table answers every use exactly as walking the module does: `multiResolve` in both modes, the
  * candidates, and completion, unsorted. The only uses that differ are [AnswerChangeTest]'s.
  */
 class ParityTest : PlatformTestCase() {
@@ -82,7 +82,7 @@ class ParityTest : PlatformTestCase() {
     }
 
     private fun isChanged(line: String, changed: Set<String>): Boolean =
-        changed.any { line.startsWith("$it ") } && ("  walk  " in line || "  multiResolve  " in line)
+        changed.any { line.startsWith("$it ") } && "  multiResolve  " in line
 
     override fun getTestDataPath(): String = "testData/org/elixir_lang"
 

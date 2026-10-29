@@ -5,10 +5,9 @@ import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.declaration.Reach
+import org.elixir_lang.declaration.Use
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.call.qualification.Qualified
-import org.elixir_lang.psi.impl.call.qualification.qualifiedToModulars
-import org.elixir_lang.psi.scope.call_definition_clause.MultiResolve
+import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 import java.io.File
 
 /** How the callable walk records it reached each result, one path per test. */
@@ -548,13 +547,9 @@ class RecordedReachTest : PlatformTestCase() {
         myFixture.configureByText("caller.ex", caller.trimIndent())
         val call = PsiTreeUtil.getParentOfType(myFixture.file.findElementAt(myFixture.caretOffset), Call::class.java)!!
 
-        val name = call.functionName()
-        val arity = call.resolvedPrimaryArity() ?: 0
-        // As the resolver does, a qualified call walks from the modules its qualifier names.
-        val entrances = if (call is Qualified) call.qualifiedToModulars().toList() else listOf(call)
-        val results = entrances.flatMap { MultiResolve.resolveResults(name, arity, false, it) }
+        val found = LegacyWalkSource.candidates(Use.of(call)!!, false)
 
-        assertEquals(expected.toList(), results.map { describe(it.element) to it.reach })
+        assertEquals(expected.toList(), found.map { describe(it.element) to it.candidate.reach })
     }
 
     private fun describe(element: PsiElement?): String =

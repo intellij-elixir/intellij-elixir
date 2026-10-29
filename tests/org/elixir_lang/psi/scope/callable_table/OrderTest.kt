@@ -23,7 +23,17 @@ class OrderTest : PlatformTestCase() {
         assertOrder("order", "order.ex:2:23", "multiResolve", listOf("imported.ex:2:3", "order.ex:4:3"))
 
     fun testDelegationStopStaysInsideTheDelegation() =
-        assertOrder("forms", "forms.ex:55:16", "walk", listOf("forms.ex:9:3", "forms.ex:4:3", "forms.ex:5:3 (invalid)"))
+        assertOrder(
+            "delegation_stop",
+            "delegation_stop.ex:13:16",
+            "found",
+            listOf(
+                "delegation_stop.ex:9:3 size/Exact(arity=1) OWN VALID via=[]",
+                "delegation_stop.ex:2:3 bar/Exact(arity=1) DELEGATION_TARGET VALID via=[delegation_stop.ex:9:3]",
+                "delegation_stop.ex:4:3 bar/Exact(arity=2) DELEGATION_TARGET WRONG_ARITY via=[delegation_stop.ex:9:3]",
+                "delegation_stop.ex:5:3 bar/Exact(arity=1) DELEGATION_TARGET VALID via=[delegation_stop.ex:9:3]"
+            )
+        )
 
     /** [use]'s answers equal walking the module's, unsorted, and its [kind] answer is [expected] in that order. */
     private fun assertOrder(directory: String, use: String, kind: String, expected: List<String>) {
@@ -38,11 +48,7 @@ class OrderTest : PlatformTestCase() {
         assertEquals(use, live.joinToString("\n"), tabled.joinToString("\n"))
 
         val answer = live.single { "incompleteCode=false  $kind  " in it }.substringAfter("  $kind  ")
-        assertEquals(
-            "$use's $kind answer, unsorted",
-            expected,
-            answer.split(" | ").map { it.substringBefore(" reach=") }
-        )
+        assertEquals("$use's $kind answer, unsorted", expected, answer.split(" | "))
     }
 
     override fun getTestDataPath(): String = "testData/org/elixir_lang"

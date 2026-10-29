@@ -4,7 +4,8 @@ import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.declaration.Reach
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.scope.call_definition_clause.MultiResolve
+import org.elixir_lang.declaration.Use
+import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 
 /** A call in a `~H` sigil is walked from the module holding the sigil, so reach is judged from that module. */
 class HeexRecordedReachTest : HeexHostTestCase() {
@@ -31,14 +32,14 @@ class HeexRecordedReachTest : HeexHostTestCase() {
         val elixir = myFixture.file.viewProvider.getPsi(ElixirLanguage)!!
         val call = PsiTreeUtil.getParentOfType(elixir.findElementAt(myFixture.caretOffset), Call::class.java)!!
 
-        val results = MultiResolve.resolveResults(call.functionName(), call.resolvedPrimaryArity() ?: 0, false, call)
+        val found = LegacyWalkSource.candidates(Use.of(call)!!, false)
 
         assertEquals(
             listOf(
                 "defdelegate f(x), to: Target" to Reach.OUTER,
                 "def f(x), do: x" to Reach.UNHELD_DELEGATION_TARGET
             ),
-            results.map { it.element!!.text.lines().first() to it.reach }
+            found.map { it.element.text.lines().first() to it.candidate.reach }
         )
     }
 }
