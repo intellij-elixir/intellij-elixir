@@ -189,7 +189,8 @@ internal class ExpansionProbes(
      * standing for the compile's token, [exports] and [structs] for the modules Elixir loads, [appEnv] for the
      * application environment and [standIns] for the preamble's macros. [hook] adds that hook to each case module,
      * [top] the top-level probe to the end of the file, and [values] sends each case's `q` after its last statement.
-     * [clauses], [file], [directories] and [os] are the expander's inputs of those names.
+     * [clauses], [file], [directories] and [os] are the expander's inputs of those names. [tap] sees the nodes entered
+     * and the calls dispatched, as the expander reports them.
      */
     fun expandAll(
         bodies: List<String>,
@@ -205,6 +206,7 @@ internal class ExpansionProbes(
         file: String? = null,
         directories: CompileDirectories = CompileDirectories.UNKNOWN,
         os: OS? = null,
+        tap: ExpansionObserver? = null,
     ): Expansions {
         val level = legLevel()
         val token = harness.token()
@@ -230,7 +232,7 @@ internal class ExpansionProbes(
             Recorder(shapes[it], layout.bodyStarts[it], layout.bodyLines[it], counters)
         }
         val standing = IdentityHashMap<ElixirAst, Dispatch>()
-        val observer = Observer(recorders, counters, level, standing)
+        val observer = Observer(recorders, counters, level, standing, tap)
         val parsed = parse(layout.plain)
         val lowered = ReadAction.computeBlocking<ElixirAst, Throwable> { Lowering.lower(parsed, level) }
         val forms = if (standIns.isEmpty()) lowered else stoodIn(lowered, layout.plain, token, standIns, standing)
@@ -1297,6 +1299,7 @@ internal class ExpansionProbes(
         private val counters: Counters,
         private val level: ElixirLanguageLevel,
         private val standing: IdentityHashMap<ElixirAst, Dispatch>,
+        private val tap: ExpansionObserver?,
     ) : ExpansionObserver {
         /** When each node was left, counted as [Recorder.serials] counts. */
         val leftAt = IdentityHashMap<ElixirAst, Int>()
@@ -1319,6 +1322,7 @@ internal class ExpansionProbes(
             recorders.firstOrNull { it.range.contains(node.meta.origin.startOffset) }
 
         override fun entering(node: ElixirAst, state: ExState, env: Env) {
+            tap?.entering(node, state, env)
             open.addLast(node)
             this.env = env
 
@@ -1371,6 +1375,8 @@ internal class ExpansionProbes(
         }
 
         override fun dispatched(node: ElixirAst, dispatch: Dispatch) {
+            tap?.dispatched(node, dispatch)
+
             val recorder = recorder(node)
             val nodes = listOfNotNull(node, retraced(capturing, node, dispatch, level))
 
