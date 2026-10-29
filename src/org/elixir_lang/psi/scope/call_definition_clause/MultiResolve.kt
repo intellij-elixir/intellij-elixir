@@ -23,14 +23,17 @@ import org.elixir_lang.psi.scope.ReachedDeclaration
 import org.elixir_lang.psi.scope.ResolveResultOrderedSet
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.psi.scope.WhileIn.whileIn
-import org.elixir_lang.psi.scope.maxScope
 import org.elixir_lang.psi.scope.reached
 import org.elixir_lang.psi.scope.reachedThroughDelegation
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Callback
 
+/**
+ * Collects what the walk finds at each declaring call it passes. A delegation target is found by [walk], which
+ * [LegacyWalkSource] passes to start the walk again at the target's module.
+ */
 class MultiResolve
-private constructor(
+internal constructor(
         /**
          * Can be `null` when `Qualifier.unquote(variable)(...)` is used because although scope can be limited to
          * `Qualifier`, no `name` can be inferred, so all public call definition clauses in `Qualifier` should resolve,
@@ -47,7 +50,9 @@ private constructor(
          * Whether [name] is an atom value, recorded as what each declaration found here was searched under, and the key
          * it is looked up by. Otherwise every declaration is read, and the name's text decides.
          */
-        private val atom: Boolean) : org.elixir_lang.psi.scope.CallDefinitionClause() {
+        private val atom: Boolean,
+        private val walk: (String?, Int?, Boolean, PsiElement, Boolean) -> List<VisitedElementSetResolveResult>
+) : org.elixir_lang.psi.scope.CallDefinitionClause() {
     override fun executeOnCallDefinitionClause(element: Call, state: ResolveState): Boolean =
             nameArityInterval(element, state)
                     ?.let { nameArityInterval ->
@@ -107,12 +112,11 @@ private constructor(
 
                             for (modular in modulars) {
                                 // Call recursively to get all the proper `for` and `use` handling.
-                                val modularResolveResults = resolveResults(
+                                val modularResolveResults = walk(
                                     nameInDefiningModule,
                                     targetArity,
                                     incompleteCode,
                                     modular,
-                                    ResolveState.initial(),
                                     targetAtom != null
                                 )
 
@@ -347,32 +351,4 @@ private constructor(
                 visitedElementSet = state.visitedElementSet() + it.visitedElementSet
             )
         }
-
-    companion object {
-        @JvmOverloads
-        @JvmStatic
-        fun resolveResults(name: String?,
-                           resolvedFinalArity: Int?,
-                           incompleteCode: Boolean,
-                           entrance: PsiElement,
-                           resolveState: ResolveState = ResolveState.initial(),
-                           atom: Boolean = false): List<VisitedElementSetResolveResult> {
-            val multiResolve = MultiResolve(name, resolvedFinalArity, incompleteCode, atom && name != null)
-            val maxScope = maxScope(entrance)
-
-            val entranceResolveState = resolveState
-                    .put(ENTRANCE, entrance)
-                    .putInitialVisitedElement(entrance)
-                    .putAncestorUnquote(entrance)
-
-            PsiTreeUtil.treeWalkUp(
-                    multiResolve,
-                    entrance,
-                    maxScope,
-                    entranceResolveState
-            )
-
-            return multiResolve.resolveResults()
-        }
-    }
 }

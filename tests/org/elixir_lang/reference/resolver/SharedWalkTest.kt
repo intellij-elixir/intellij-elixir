@@ -12,6 +12,7 @@ import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 
 /** `multiResolve` and the candidate list read one walk per `incompleteCode`, which an edit to the file refreshes. */
 class SharedWalkTest : PlatformTestCase() {
@@ -23,16 +24,16 @@ class SharedWalkTest : PlatformTestCase() {
     fun testCandidatesAndMultiResolveShareOneWalkPerIncompleteCode() {
         myFixture.configureByText("shared.ex", SOURCE)
         val use = use(myFixture.file)
-        val before = Callable.walkCount()
+        val before = LegacyWalkSource.walkCount()
 
         candidates(use, false)
         multiResolve(use, false)
         candidates(use, false)
-        assertEquals("one walk for incompleteCode = false", 1, Callable.walkCount() - before)
+        assertEquals("one walk for incompleteCode = false", 1, LegacyWalkSource.walkCount() - before)
 
         multiResolve(use, true)
         candidates(use, true)
-        assertEquals("one more walk for incompleteCode = true", 2, Callable.walkCount() - before)
+        assertEquals("one more walk for incompleteCode = true", 2, LegacyWalkSource.walkCount() - before)
     }
 
     fun testEditingANonPhysicalCopyWalksAgain() {
@@ -41,7 +42,7 @@ class SharedWalkTest : PlatformTestCase() {
         assertFalse(copy.isPhysical)
         val use = use(copy)
         assertEquals(listOf(true), validity(use))
-        val before = Callable.walkCount()
+        val before = LegacyWalkSource.walkCount()
 
         WriteCommandAction.runWriteCommandAction(project) {
             val replacement = PsiFileFactory.getInstance(project)
@@ -51,7 +52,7 @@ class SharedWalkTest : PlatformTestCase() {
         }
 
         assertEquals("foo/1 became foo/2", listOf(false), validity(use))
-        assertEquals(1, Callable.walkCount() - before)
+        assertEquals(1, LegacyWalkSource.walkCount() - before)
     }
 
     private fun candidates(use: Call, incompleteCode: Boolean) =
