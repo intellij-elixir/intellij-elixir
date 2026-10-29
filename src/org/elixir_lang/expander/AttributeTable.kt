@@ -51,7 +51,7 @@ internal fun Term.isTruthy(): Boolean? =
 private fun Term.isExact(): Boolean = isShaped(contentKnown = true)
 
 /** Whether Elixir's checks of [this] can be made: no node or non-tuple anywhere in it, though a binary may be unread. */
-private fun Term.isShaped(contentKnown: Boolean = false): Boolean {
+internal fun Term.isShaped(contentKnown: Boolean = false): Boolean {
     ProgressManager.checkCanceled()
 
     return when (this) {
