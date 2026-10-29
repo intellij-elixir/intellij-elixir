@@ -115,12 +115,13 @@ class InterpreterTest : PlatformTestCase() {
     fun testFromDebugInfo() = withEex { assertRows(Source.DBGI) }
 
     /**
-     * [block], with the leg's `EEx`, which the quoter's release doesn't hold, loaded from its [appBeams] `.beam`s for
-     * Elixir's compiles, as [probeLoaded] loads a module, then unloaded, so no other test's compile sees it.
+     * [block], with the leg's `EEx` and `Mix.Generator`, which the quoter's release doesn't hold, loaded from their
+     * [appBeams] `.beam`s for Elixir's compiles, as [probeLoaded] loads a module, then unloaded, so no other test's
+     * compile sees them.
      */
     private fun withEex(block: () -> Unit) {
         val ebin = appBeams.getValue("Elixir.EEx").parentFile
-        val beams = appBeams.filterValues { it.parentFile == ebin }
+        val beams = (appBeams.filterValues { it.parentFile == ebin } + ("Elixir.Mix.Generator" to appBeams.getValue("Elixir.Mix.Generator")))
             .entries
             .joinToString(", ") { (module, beam) -> "{\"$module\", ${elixirString(beam.path)}}" }
 
@@ -1426,6 +1427,103 @@ class InterpreterTest : PlatformTestCase() {
             tables = true,
         )
 
+    // `Mix.Generator`'s embeds write `@file {__ENV__.file, __ENV__.line + 1}`. A run with no path reads `__ENV__.file` as
+    // an unread binary, and Elixir accepts that write, so the module is defined.
+
+    fun testAnEmbeddedTemplateIsDefinedWithNoPath() =
+        assertFile(
+            "defmodule A do\n  require Mix.Generator\n  Mix.Generator.embed_template(:log, \"Log: <%= @log %>\")\n  def call, do: log_template(log: 1)\nend",
+            "top expanded\nmodule Elixir.A compiled [call/0 def, log_template/1 defp]",
+            tables = true,
+        )
+
+    fun testAnImportedEmbeddedTemplateIsDefinedWithNoPath() =
+        assertFile(
+            "defmodule A do\n  import Mix.Generator\n  embed_template(:u, \"x\")\nend",
+            "top expanded\nmodule Elixir.A compiled [u_template/1 defp]",
+            tables = true,
+        )
+
+    /** `ecto_sql`'s `mix ecto.gen.migration` embeds its template this way. */
+    fun testAnEmbeddedHeredocTemplateIsDefinedWithNoPath() =
+        assertFile(
+            """
+            defmodule A do
+              import Mix.Generator
+
+              embed_template(:migration, $QUOTES
+              defmodule <%= inspect @mod %> do
+                use Ecto.Migration
+              end
+              $QUOTES)
+
+              def run(mod), do: migration_template(mod: mod)
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.A compiled [migration_template/1 defp, run/1 def]",
+            tables = true,
+        )
+
+    fun testEmbeddedTemplatesInAForAreDefinedWithNoPath() =
+        assertFile(
+            "defmodule A do\n  require Mix.Generator\n  for n <- [:p, :q], do: Mix.Generator.embed_template(n, \"x\")\nend",
+            "top expanded\nmodule Elixir.A compiled [p_template/1 defp, q_template/1 defp]",
+            tables = true,
+        )
+
+    /** An unread binary is no atom, so `defoverridable` raises where it can check the element. */
+    fun testAnOverridableNameFromTheUnreadFileRaisesWithNoPath() =
+        assertFile(
+            "defmodule A do\n  def f, do: 1\n  n = __ENV__.file\n  defoverridable [{n, 0}]\nend",
+            "top expanded\nmodule Elixir.A raised overridable_bad_element `defoverridable [{n, 0}]`",
+        )
+
+    /**
+     * Elixir defines `__struct__/0`, `__struct__/1` and `call/0` with field `:a`. A default the evaluator can't read
+     * leaves the fields dynamic, so the module stops, whether or not the file's binary is unread.
+     */
+    fun testAStructDefaultFromTheUnreadFileStopsWithNoPath() =
+        assertFile(
+            "defmodule A do\n  f = __ENV__.file\n  defstruct a: f\n  def call, do: %A{}.a\nend",
+            "top expanded\nmodule Elixir.A stopped `defstruct a: f`",
+        )
+
+    /** An unknown body drops every error Elixir raises from it: here `File.Error`, as the file is missing. */
+    fun testAnEmbeddedTextFromAMissingFileIsDefined() =
+        assertFile(
+            "defmodule A do\n  require Mix.Generator\n  Mix.Generator.embed_text(:t, from_file: \"/nonexistent/t.txt\")\nend",
+            "top expanded\nmodule Elixir.A compiled [t_text/0 defp]",
+            tables = true,
+            run = RunInputs(path = "/p/a.ex"),
+        )
+
+    /** An unknown body drops every error Elixir raises from it: here `File.Error`, as the template is missing. */
+    fun testAnEmbeddedTemplateFromAMissingFileIsDefined() =
+        assertFile(
+            "defmodule A do\n  require Mix.Generator\n  Mix.Generator.embed_template(:t, from_file: \"/nonexistent/t.eex\")\nend",
+            "top expanded\nmodule Elixir.A compiled [t_template/1 defp]",
+            tables = true,
+            run = RunInputs(path = "/p/a.ex"),
+        )
+
+    /** An unknown body drops every error Elixir raises from it: here `TokenMissingError`. */
+    fun testAnEmbeddedBadTemplateIsDefined() =
+        assertFile(
+            "defmodule A do\n  require Mix.Generator\n  Mix.Generator.embed_template(:w, \"<%= ( %>\")\nend",
+            "top expanded\nmodule Elixir.A compiled [w_template/1 defp]",
+            tables = true,
+            run = RunInputs(path = "/p/a.ex"),
+        )
+
+    /** An unknown body drops every error Elixir raises from it: here `CompileError`, for an undefined function. */
+    fun testAnEmbeddedTemplateOfAnUndefinedLocalIsDefined() =
+        assertFile(
+            "defmodule A do\n  require Mix.Generator\n  Mix.Generator.embed_template(:w, \"<%= helper() %>\")\nend",
+            "top expanded\nmodule Elixir.A compiled [w_template/1 defp]",
+            tables = true,
+            run = RunInputs(path = "/p/a.ex"),
+        )
+
     /**
      * [code], a file expanded at the leg's level with the leg's clauses, as [expected] shows its top and each module's end,
      * and with [tables] each module's definition table after it.
@@ -1953,6 +2051,9 @@ class InterpreterTest : PlatformTestCase() {
 
         const val TOKEN = "{token}"
 
+        /** An Elixir heredoc's quotes, which a Kotlin raw string can't hold. */
+        const val QUOTES = "\"\"\""
+
         /** Broken code on every release, which the lowering leaves as a placeholder the port can't read. */
         const val UNREAD = "\"\\u{110000}\""
 
@@ -2109,6 +2210,23 @@ class InterpreterTest : PlatformTestCase() {
         /** A row whose `use` runs [statements] in the case module once it requires `EEx`. */
         fun eex(id: String, statements: String, ends: (ElixirLanguageLevel) -> String? = { null }): Row =
             use(id, using("quote do", "require EEx\n${statements.trimIndent()}"), ends = ends)
+
+        /**
+         * A row whose case body is [body], with [call], a macro call whose expansion is compared with Elixir's in place
+         * of the body's own calls. It names no variable: Elixir's `quote` gives one the case module's context.
+         */
+        fun moduleBody(
+            id: String,
+            body: String,
+            call: String,
+            requires: List<String> = emptyList(),
+            ends: (ElixirLanguageLevel) -> String? = { null },
+        ): Row =
+            Row(id, "", call, body.trimIndent(), call, requires, SourceRun.NONE, EVERY_LEG, UNPINNED, null, ends = ends)
+
+        /** A row whose case body [body] holds a call of `Mix.Generator`'s macro, [call] one like it. */
+        fun generator(id: String, body: String, call: String, ends: (ElixirLanguageLevel) -> String? = { null }): Row =
+            moduleBody(id, body, call, listOf("Mix.Generator"), ends)
 
         /** A row whose `use` runs [statements] in the case module, their `unquote`s the module body's. */
         fun fragments(id: String, statements: String, ends: (ElixirLanguageLevel) -> String? = { null }): Row =
@@ -9794,6 +9912,106 @@ class InterpreterTest : PlatformTestCase() {
                   end
                 end
                 """,
+            ),
+            // `Mix.Generator`'s embeds run from the leg's `Dbgi`, and are defined as Elixir defines them.
+            generator(
+                "text:string",
+                "require Mix.Generator\nMix.Generator.embed_text(:error, \"There was an error!\")\ndef call, do: error_text()",
+                "Mix.Generator.embed_text(:error, \"There was an error!\")",
+            ),
+            generator("text:binary-name", "require Mix.Generator\nMix.Generator.embed_text(\"err\", \"x\")", "Mix.Generator.embed_text(\"err\", \"x\")"),
+            generator("text:integer-name", "require Mix.Generator\nMix.Generator.embed_text(1, \"x\")", "Mix.Generator.embed_text(1, \"x\")"),
+            generator("text:variable-name", "require Mix.Generator\nname = :h\nMix.Generator.embed_text(name, \"x\")", "Mix.Generator.embed_text(:h, \"x\")"),
+            generator("text:attribute", "require Mix.Generator\n@n :a\n@c \"x\"\nMix.Generator.embed_text(@n, @c)", "Mix.Generator.embed_text(:a, \"x\")"),
+            generator("text:alias", "require Mix.Generator, as: G\nG.embed_text(:a, \"x\")", "Mix.Generator.embed_text(:a, \"x\")"),
+            generator("text:import", "import Mix.Generator\nembed_text(:u, \"x\")", "Mix.Generator.embed_text(:u, \"x\")"),
+            generator(
+                "text:for",
+                "require Mix.Generator\nfor n <- [:p, :q], do: Mix.Generator.embed_text(n, \"x\")",
+                "Mix.Generator.embed_text(:p, \"x\")",
+            ),
+            generator("text:from-file", "require Mix.Generator\nMix.Generator.embed_text(:t, from_file: \"$TEMPLATE\")", "Mix.Generator.embed_text(:t, from_file: \"$TEMPLATE\")"),
+            generator(
+                "text:unknown-contents",
+                "require Mix.Generator\nMix.Generator.embed_text(:a, Application.get_env(:app, :c, \"x\"))\ndef call, do: a_text()",
+                "Mix.Generator.embed_text(:a, Application.get_env(:app, :c, \"x\"))",
+            ),
+            // Elixir defines `a_text/0`; the name is a head fragment the evaluator can't produce.
+            generator(
+                "text:unknown-name",
+                "require Mix.Generator\nMix.Generator.embed_text(Application.get_env(:app, :n, :a), \"x\")",
+                "Mix.Generator.embed_text(Application.get_env(:app, :n, :a), \"x\")",
+                ends = { "stopped at `Mix.Generator.embed_text(Application.get_env(:app, :n, :a), \"x\")`" },
+            ),
+            generator(
+                "text:bad-contents",
+                "require Mix.Generator\nMix.Generator.embed_text(:x, 1)",
+                "Mix.Generator.embed_text(:x, 1)",
+                ends = { "raised Elixir.ArgumentError" },
+            ),
+            generator(
+                "text:kind-conflict",
+                "require Mix.Generator\ndef a_text, do: 1\nMix.Generator.embed_text(:a, \"x\")",
+                "Mix.Generator.embed_text(:a, \"x\")",
+                ends = { "raised changed_kind" },
+            ),
+            generator(
+                "template:string",
+                "require Mix.Generator\nMix.Generator.embed_template(:log, \"Log: <%= @log %>\")\ndef call, do: log_template(log: 1)",
+                "Mix.Generator.embed_template(:log, \"Log: <%= @log %>\")",
+            ),
+            generator("template:import", "import Mix.Generator\nembed_template(:u, \"x\")", "Mix.Generator.embed_template(:u, \"x\")"),
+            // `ecto_sql`'s `mix ecto.gen.migration`.
+            generator(
+                "template:heredoc-import",
+                """
+                import Mix.Generator
+
+                embed_template(:migration, $QUOTES
+                defmodule <%= inspect @mod %> do
+                  use Ecto.Migration
+                end
+                $QUOTES)
+
+                def run(mod), do: migration_template(mod: mod)
+                """,
+                "Mix.Generator.embed_template(:migration, \"\"\"\ndefmodule <%= inspect @mod %> do\n  use Ecto.Migration\nend\n\"\"\")",
+            ),
+            generator(
+                "template:for",
+                "require Mix.Generator\nfor n <- [:p, :q], do: Mix.Generator.embed_template(n, \"x\")",
+                "Mix.Generator.embed_template(:p, \"x\")",
+            ),
+            generator(
+                "template:from-file",
+                "require Mix.Generator\nMix.Generator.embed_template(:t, from_file: \"$TEMPLATE\")",
+                "Mix.Generator.embed_template(:t, from_file: \"$TEMPLATE\")",
+            ),
+            generator(
+                "template:bad-contents",
+                "require Mix.Generator\nMix.Generator.embed_template(:x, 1)",
+                "Mix.Generator.embed_template(:x, 1)",
+                ends = { "raised Elixir.ArgumentError" },
+            ),
+            // Elixir defines `a_template/1`; which branch of the `case` runs isn't known, so `@file file` stops the module.
+            generator(
+                "template:unknown-contents",
+                "require Mix.Generator\nMix.Generator.embed_template(:a, Application.get_env(:app, :c, \"x\"))\ndef call, do: a_template([])",
+                "Mix.Generator.embed_template(:a, Application.get_env(:app, :c, \"x\"))",
+                ends = { "stopped at `Mix.Generator.embed_template(:a, Application.get_env(:app, :c, \"x\"))`" },
+            ),
+            // The file's path is a binary the module reads: it is no atom, so `defoverridable` raises.
+            moduleBody(
+                "overridable:unread-name",
+                "def f, do: 1\nn = __ENV__.file\ndefoverridable [{n, 0}]",
+                "defoverridable([{:f, 0}])",
+                ends = { "raised overridable_bad_element" },
+            ),
+            // The evaluator produces no expansion of `defstruct` or `def`, so the row's call is one it does.
+            moduleBody(
+                "struct:unread-default",
+                "f = __ENV__.file\ndefstruct a: f\ndef call, do: %__MODULE__{}.a",
+                "defoverridable(call: 0)",
             ),
         )
     }
