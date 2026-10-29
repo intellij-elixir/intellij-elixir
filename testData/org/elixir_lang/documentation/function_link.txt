@@ -22,33 +22,33 @@
 `Target.delegated/1`  in Basics  ->  basics.ex:2:3  exists=true  target=basics.ex:2:3
 `:atom_module.plain/1`  in Basics  ->  basics.ex:16:3  exists=true  target=basics.ex:16:3
 `:"Elixir.Basics".plain/1`  in Basics  ->  basics.ex:10:3  exists=true  target=basics.ex:10:3
-`Prefixed.foo/1`  in Prefixed  ->  prefixes.ex:2:3 | prefixes.ex:3:3 (invalid)  exists=true  target=prefixes.ex:2:3
-`Prefixed.foo/2`  in Prefixed  ->  prefixes.ex:2:3 (invalid) | prefixes.ex:3:3 (invalid)  exists=false  target=prefixes.ex:2:3
-`PrefixOnly.foo/1`  in Prefixed  ->  prefixes.ex:7:3 (invalid)  exists=false  target=prefixes.ex:7:3
+`Prefixed.foo/1`  in Prefixed  ->  prefixes.ex:2:3  exists=true  target=prefixes.ex:2:3
+`Prefixed.foo/2`  in Prefixed  ->  prefixes.ex:2:3 (invalid)  exists=false  target=prefixes.ex:2:3
+`PrefixOnly.foo/1`  in Prefixed  ->  nothing  exists=false  target=none
 `PrefixOnly.foo_bar/1`  in Prefixed  ->  prefixes.ex:7:3  exists=true  target=prefixes.ex:7:3
-`LongerFirst.foo/1`  in Prefixed  ->  prefixes.ex:11:3 (invalid) | prefixes.ex:12:3 (invalid)  exists=false  target=prefixes.ex:11:3
-`LongerFirst.foo/2`  in Prefixed  ->  prefixes.ex:11:3 (invalid) | prefixes.ex:12:3  exists=true  target=prefixes.ex:12:3
-`ShorterFirst.foo/1`  in Prefixed  ->  prefixes.ex:16:3 (invalid) | prefixes.ex:17:3 (invalid)  exists=false  target=prefixes.ex:16:3
-`ShorterFirst.foo/2`  in Prefixed  ->  prefixes.ex:16:3 | prefixes.ex:17:3 (invalid)  exists=true  target=prefixes.ex:16:3
-`c:LongerCallback.foo/1`  in Prefixed  ->  prefixes.ex:21:3 (invalid)  exists=false  target=prefixes.ex:21:3
+`LongerFirst.foo/1`  in Prefixed  ->  prefixes.ex:12:3 (invalid)  exists=false  target=prefixes.ex:12:3
+`LongerFirst.foo/2`  in Prefixed  ->  prefixes.ex:12:3  exists=true  target=prefixes.ex:12:3
+`ShorterFirst.foo/1`  in Prefixed  ->  prefixes.ex:16:3 (invalid)  exists=false  target=prefixes.ex:16:3
+`ShorterFirst.foo/2`  in Prefixed  ->  prefixes.ex:16:3  exists=true  target=prefixes.ex:16:3
+`c:LongerCallback.foo/1`  in Prefixed  ->  nothing  exists=false  target=none
 `c:LongerCallback.foo_bar/1`  in Prefixed  ->  prefixes.ex:21:3  exists=true  target=prefixes.ex:21:3
-`c:LongerCallbackFirst.foo/1`  in Prefixed  ->  prefixes.ex:25:3 (invalid) | prefixes.ex:26:3 (invalid)  exists=false  target=prefixes.ex:25:3
-`c:LongerCallbackFirst.foo/2`  in Prefixed  ->  prefixes.ex:25:3 (invalid) | prefixes.ex:26:3  exists=true  target=prefixes.ex:26:3
+`c:LongerCallbackFirst.foo/1`  in Prefixed  ->  prefixes.ex:26:3 (invalid)  exists=false  target=prefixes.ex:26:3
+`c:LongerCallbackFirst.foo/2`  in Prefixed  ->  prefixes.ex:26:3  exists=true  target=prefixes.ex:26:3
 `OpenTarget.open/2`  in OpenDelegator  ->  open.ex:2:3 | open.ex:3:3 (invalid)  exists=true  target=open.ex:2:3
 `OpenTarget.open/3`  in OpenDelegator  ->  open.ex:2:3 (invalid) | open.ex:3:3  exists=true  target=open.ex:3:3
-`OpenDelegator.open/2`  in OpenDelegator  ->  open.ex:7:3 | open.ex:2:3 | open.ex:3:3 (invalid)  exists=true  target=open.ex:7:3
-`OpenDelegator.open/3`  in OpenDelegator  ->  open.ex:7:3 | open.ex:2:3 (invalid) | open.ex:3:3  exists=true  target=open.ex:7:3
-`OpenDelegator.open/4`  in OpenDelegator  ->  open.ex:7:3 | open.ex:2:3 (invalid) | open.ex:3:3 (invalid)  exists=true  target=open.ex:7:3
-`open/2`  in OpenDelegator  ->  open.ex:7:3 | open.ex:2:3 | open.ex:3:3 (invalid)  exists=true  target=open.ex:7:3
-`open/4`  in OpenDelegator  ->  open.ex:7:3 | open.ex:2:3 (invalid) | open.ex:3:3 (invalid)  exists=true  target=open.ex:7:3
+`OpenDelegator.open/2`  in OpenDelegator  ->  open.ex:7:3 | open.ex:2:3 | open.ex:3:3  exists=true  target=open.ex:7:3
+`OpenDelegator.open/3`  in OpenDelegator  ->  open.ex:7:3 | open.ex:2:3 | open.ex:3:3  exists=true  target=open.ex:7:3
+`OpenDelegator.open/4`  in OpenDelegator  ->  open.ex:7:3 | open.ex:2:3 | open.ex:3:3  exists=true  target=open.ex:7:3
+`open/2`  in OpenDelegator  ->  open.ex:7:3 | open.ex:2:3 | open.ex:3:3  exists=true  target=open.ex:7:3
+`open/4`  in OpenDelegator  ->  open.ex:7:3 | open.ex:2:3 | open.ex:3:3  exists=true  target=open.ex:7:3
 `Views.listed/1`  in Views  ->  views.ex:4:3  exists=true  target=views.ex:4:3
 `Views.listed/2`  in Views  ->  views.ex:4:3 (invalid)  exists=false  target=views.ex:4:3
-`Views.opaque/0`  in Views  ->  views.ex:5:3 (invalid)  exists=false  target=views.ex:5:3
-`Views.opaque/1`  in Views  ->  views.ex:5:3 (invalid)  exists=false  target=views.ex:5:3
+`Views.opaque/0`  in Views  ->  views.ex:5:3  exists=true  target=views.ex:5:3
+`Views.opaque/1`  in Views  ->  views.ex:5:3  exists=true  target=views.ex:5:3
 `Views.open_tail/0`  in Views  ->  views.ex:6:3 (invalid)  exists=false  target=views.ex:6:3
-`Views.open_tail/1`  in Views  ->  views.ex:6:3 (invalid)  exists=false  target=views.ex:6:3
-`Views.open_tail/2`  in Views  ->  views.ex:6:3 (invalid)  exists=false  target=views.ex:6:3
-`Views.open_tail/3`  in Views  ->  views.ex:6:3 (invalid)  exists=false  target=views.ex:6:3
+`Views.open_tail/1`  in Views  ->  views.ex:6:3  exists=true  target=views.ex:6:3
+`Views.open_tail/2`  in Views  ->  views.ex:6:3  exists=true  target=views.ex:6:3
+`Views.open_tail/3`  in Views  ->  views.ex:6:3  exists=true  target=views.ex:6:3
 `Views."quoted_eex"/1`  in Views  ->  views.ex:7:3  exists=true  target=views.ex:7:3
 `Views.quoted_eex/1`  in Views  ->  views.ex:7:3  exists=true  target=views.ex:7:3
-`open_tail/1`  in Views  ->  views.ex:6:3 (invalid)  exists=false  target=views.ex:6:3
+`open_tail/1`  in Views  ->  views.ex:6:3  exists=true  target=views.ex:6:3

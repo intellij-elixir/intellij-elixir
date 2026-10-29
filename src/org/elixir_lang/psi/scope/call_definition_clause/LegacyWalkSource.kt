@@ -42,6 +42,8 @@ object LegacyWalkSource : CandidateSource {
                     .filter { it.candidate.reach == Reach.OWN }
             // A tag names what is reached from its entrance, imported or not.
             is Use.Tag -> walk(use.entrance, use.name, use.arity, incompleteCode).flatMap { found(it, use) }
+            // A link names what is reached from its entrance, as a tag does.
+            is Use.Link -> walk(use.entrance, use.name, use.arity, incompleteCode).flatMap { found(it, use) }
             is Use.Remote ->
                 use.module
                     .maybeModularNameToModulars(use.atom.containingFile, useCall = null, incompleteCode = false)
@@ -145,6 +147,7 @@ object LegacyWalkSource : CandidateSource {
             is Use.Named -> named(reached, use.arity)
             is Use.Specified -> named(reached, use.arity)
             is Use.Tag -> named(reached, use.arity)
+            is Use.Link -> named(reached, use.arity)
             is Use.Remote -> named(reached, use.arity)
         }
 

@@ -156,10 +156,27 @@ sealed class Use {
         val arity: Int get() = 1
     }
 
+    /**
+     * A documentation link in [context] to [name], an atom value, used as a call of [arity] arguments from [entrance]:
+     * the module the link names, or the one it is written in.
+     */
+    @ConsistentCopyVisibility
+    data class Link internal constructor(
+        val context: PsiElement,
+        val entrance: PsiElement,
+        val name: String,
+        val arity: Int
+    ) : Use()
+
     companion object {
         /** The use of the component a HEEx [tag] named [name] names, from [entrance]. */
         @RequiresReadLock
         fun tag(tag: XmlTag, entrance: PsiElement, name: String): Tag = Tag(tag, entrance, name)
+
+        /** The use of the function a documentation link in [context] names, from [entrance]. */
+        @RequiresReadLock
+        fun link(context: PsiElement, entrance: PsiElement, name: String, arity: Int): Link =
+            Link(context, entrance, name, arity)
 
         /** `null` when [call] names nothing, as when its name has no atom value. */
         @RequiresReadLock

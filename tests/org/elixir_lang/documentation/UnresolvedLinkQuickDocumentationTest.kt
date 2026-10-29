@@ -18,6 +18,22 @@ class UnresolvedLinkQuickDocumentationTest : QuickDocumentationTestCase() {
         assertNull(myFixture.followedLinkAtCaret(project, "psi_element://Docs.missing/9"))
     }
 
+    fun testALinkToAMissingNameOpensNoLongerName() {
+        myFixture.configureByText(
+            "docs_longer.ex",
+            """
+            defmodule Do<caret>cs do
+              @moduledoc "Documented."
+
+              @doc "Longer."
+              def missing_thing(a), do: a
+            end
+            """.trimIndent()
+        )
+
+        assertNull(myFixture.followedLinkAtCaret(project, "psi_element://Docs.missing/1"))
+    }
+
     fun testAnArityTooBigForAnInteger() {
         assertNull(myFixture.followedLinkAtCaret(project, "psi_element://Docs.missing/99999999999"))
     }
