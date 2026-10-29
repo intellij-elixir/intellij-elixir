@@ -103,6 +103,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             WITH_OPTIONS_BEFORE_LAST_ARGUMENT to ("1.14.5" to "1.15.0-rc.0"),
             REMOTE_CAPTURE_REPORTED_AT_CALL to ("1.14.0-rc.0" to "1.14.0-rc.1"),
             CAPTURE_REPORTED_AT_CALL to ("1.15.8" to "1.16.0-rc.0"),
+            CAPTURE_ARGUMENT_IN_NIL_CONTEXT to ("1.15.8" to "1.16.0-rc.0"),
             CAPTURE_ARGUMENT_BELOW_ONE_IS_INVALID_ARITY to ("1.13.4" to "1.14.0-rc.0"),
             CAPTURE_ARGUMENT_COUNTER to ("1.17.0-rc.0" to "1.17.0-rc.1"),
             CAPTURE_ARGUMENT_POSITION_META to ("1.19.0-rc.0" to "1.19.0-rc.1"),

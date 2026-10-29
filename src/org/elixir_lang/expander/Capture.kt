@@ -5,6 +5,7 @@ import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_ARGUMENT_BELOW_ONE_IS_INVALID_ARITY
 import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_ARGUMENT_COUNTER
 import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_ARGUMENT_IN_ELIXIR_FN_CONTEXT
+import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_ARGUMENT_IN_NIL_CONTEXT
 import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_ARGUMENT_POSITION_META
 import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_REPORTED_AT_CALL
 import org.elixir_lang.language_level.ElixirLanguageFeature.REMOTE_CAPTURE_REPORTED_AT_CALL
@@ -382,8 +383,8 @@ private class Escape(private val run: Run, private val module: String?) {
     }
 
     /**
-     * The variable for `N`: `&N` in the `nil` context, which no source variable can be named, until each takes the next
-     * hygiene counter of [module] instead.
+     * The variable for `N`: `xN` in `elixir_fn`'s context until 1.16, then `&N` in the `nil` context, which no source
+     * variable can be named, until each takes the next hygiene counter of [module] instead.
      */
     private fun variable(node: ElixirAst.Call, position: BigInteger): ElixirAst =
         if (CAPTURE_ARGUMENT_COUNTER.isSufficient(run.level)) {
@@ -400,8 +401,15 @@ private class Escape(private val run: Run, private val module: String?) {
             } else {
                 ElixirAst.Call(meta, ElixirAst.Literal.Atom(node.meta, "capture"), null)
             }
-        } else {
+        } else if (CAPTURE_ARGUMENT_IN_NIL_CONTEXT.isSufficient(run.level)) {
             ElixirAst.Call(node.meta, ElixirAst.Literal.Atom(node.meta, "&$position"), null)
+        } else {
+            ElixirAst.Call(
+                node.meta,
+                ElixirAst.Literal.Atom(node.meta, "x$position"),
+                null,
+                ElixirAst.VariableContext.Atom("elixir_fn"),
+            )
         }
 }
 

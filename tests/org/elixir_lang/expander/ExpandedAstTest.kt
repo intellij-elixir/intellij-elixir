@@ -528,25 +528,15 @@ class ExpandedAstTest : SdkProbeTestCase() {
             return node(tuple.elementAt(0), tuple.elementAt(1), list(pairs))
         }
 
-        /** A capture's `fn` without 1.20's `capture: true`, and each `xN` of `:elixir_fn` before 1.20 as `&N`. */
+        /** A capture's `fn` without 1.20's `capture: true`. */
         private fun withoutCapture(tuple: OtpErlangTuple): OtpErlangObject {
-            if (tuple.arity() != 3) return tuple
+            if (tuple.arity() != 3 || atom(tuple.elementAt(0)) != "fn") return tuple
 
-            val name = atom(tuple.elementAt(0))
-            val argument = name?.let { Regex("""x(\d+)""").matchEntire(it) }
-
-            return when {
-                name == "fn" -> {
-                    val meta = (tuple.elementAt(1) as OtpErlangList).elements().filterNot {
-                        atom((it as OtpErlangTuple).elementAt(0)) == "capture"
-                    }
-
-                    node(tuple.elementAt(0), list(meta), tuple.elementAt(2))
-                }
-                argument != null && atom(tuple.elementAt(2)) == "elixir_fn" ->
-                    node(OtpErlangAtom("&${argument.groupValues[1]}"), tuple.elementAt(1), OtpErlangAtom("nil"))
-                else -> tuple
+            val meta = (tuple.elementAt(1) as OtpErlangList).elements().filterNot {
+                atom((it as OtpErlangTuple).elementAt(0)) == "capture"
             }
+
+            return node(tuple.elementAt(0), list(meta), tuple.elementAt(2))
         }
     }
 }
