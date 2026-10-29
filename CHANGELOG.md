@@ -165,6 +165,8 @@
 
 ### Bug Fixes
 
+- [#4564](https://github.com/intellij-elixir/intellij-elixir/pull/4564) [@sh41](https://github.com/sh41)
+  - **A documentation link to a function name that is missing, or defined only at another arity, no longer opens a longer-named function, and a link to an `EEx.function_from_string` function whose arity can't be known is now linked.** Refs [#4562](https://github.com/intellij-elixir/intellij-elixir/issues/4562).
 - [#4557](https://github.com/intellij-elixir/intellij-elixir/pull/4557) [@sh41](https://github.com/sh41)
   - **Completing a function capture (`&name/arity`) offers each function only at an arity it is defined or imported at, and a call of an `embed_template` function without its assigns no longer resolves.** Refs [#4554](https://github.com/intellij-elixir/intellij-elixir/issues/4554).
 - [#4514](https://github.com/intellij-elixir/intellij-elixir/pull/4514) [@sh41](https://github.com/sh41)
