@@ -648,7 +648,7 @@ internal class Evaluation(
 
         stack.addFirst(frame(module.module, function, integer(arity.toLong())))
         try {
-            val arms = Arms()
+            val arms = Arms { soleArm(clauses.filter { it.args.size == args.size }.map { it.body }, Frame(module)) }
 
             for (clause in clauses) {
                 if (clause.args.size != args.size) continue
@@ -1313,7 +1313,7 @@ internal class Evaluation(
     }
 
     private fun cond(arrows: List<ElixirAst>, frame: Frame): OtpErlangObject {
-        val arms = Arms()
+        val arms = Arms { soleArm(arrows.map { arrowParts(it).second }, frame) }
 
         for ((index, arrow) in arrows.withIndex()) {
             val (head, body) = arrowParts(arrow)
@@ -1373,6 +1373,7 @@ internal class Evaluation(
      * What an `fn` of [arrows] closing over [closed] holds ([Closure.marks]): each atom its code names, and the values of
      * the variables it captures and of the `__MODULE__`, `__ENV__` and `__CALLER__` it reads. A call whose effect the walk
      * applies ([Run.effects]) gives its module only through its other arguments: the effect says what it writes there.
+     * Code that only raises holds nothing: a project that compiles doesn't run it.
      */
     private fun marks(arrows: List<ElixirAst>, closed: Frame): List<OtpErlangObject> {
         val marks = ArrayList<OtpErlangObject>()
@@ -1385,6 +1386,7 @@ internal class Evaluation(
             if (!walked.add(node)) continue
 
             when {
+                onlyRaises(node, closed) -> {}
                 node is ElixirAst.Call && node in run.effects -> pending.addAll(children(node).filterNot { isModule(it, closed) })
                 node is ElixirAst.Literal.Atom -> marks += OtpErlangAtom(node.name)
                 node is ElixirAst.Value -> marks += node.term
@@ -2137,7 +2139,7 @@ internal class Evaluation(
         fresh: Boolean = false,
         subject: Declined? = null,
     ): OtpErlangObject? {
-        val arms = Arms(subject)
+        val arms = Arms(subject) { soleArm(arrows.map { arrowParts(it).second }, frame) }
 
         for ((index, arrow) in arrows.withIndex()) {
             val (head, body) = arrowParts(arrow)
@@ -2161,11 +2163,15 @@ internal class Evaluation(
 
     /**
      * The arms of a loop that takes the first whose test holds. An arm whose test declines is passed over where its
-     * value only raises ([passesOver]): a project that compiles doesn't take it, so the next arm is tried, and one taken
-     * after it assumes the raise away. Where [subject], the decline that gave the values the arms test, is set, only an
-     * arm after one passed over is taken; otherwise the loop declines as [subject] did.
+     * value only raises ([onlyRaises]) and the decline is [passable]: a project that compiles doesn't take it, so the
+     * next arm is tried, and one taken after it assumes the raise away. Where every other arm only raises, whichever
+     * order they come in, [sole] is the one left: it is taken, on the same assumption, where its test or a [passable]
+     * [subject] declines. Where [subject], the decline that gave the values the arms test, is set, only an arm after one
+     * passed over, or [sole], is taken; otherwise the loop declines as [subject] did.
      */
-    private inner class Arms(private val subject: Declined? = null) {
+    private inner class Arms(private val subject: Declined? = null, sole: () -> ElixirAst? = { null }) {
+        private val sole by lazy(LazyThreadSafetyMode.NONE, sole)
+
         /** The decline of the first arm passed over. */
         private var passed: Declined? = null
 
@@ -2174,15 +2180,23 @@ internal class Evaluation(
             try {
                 test()
             } catch (declined: Declined) {
-                if (subject?.let(::passable) == false || !passesOver(declined, body, frame)) throw subject ?: declined
+                val left = body != null && body === sole
+
+                if (subject?.let(::passable) == false || !passable(declined) || !left && !onlyRaises(body, frame)) {
+                    throw subject ?: declined
+                }
 
                 run.unfollowedCodeRan()
                 passed = passed ?: declined
-                false
+                left
             }
 
         /** [body], of the arm taken, evaluated in [frame]. */
         fun taken(body: ElixirAst, frame: Frame): OtpErlangObject {
+            if (passed == null && subject != null && passable(subject) && body === sole) {
+                run.unfollowedCodeRan()
+                passed = subject
+            }
             if (passed == null) subject?.let { throw it } else assumeNoRaise()
 
             return eval(body, frame)
@@ -2194,18 +2208,17 @@ internal class Evaluation(
         }
     }
 
-    /**
-     * Whether an arm whose test [declined] is passed over: its value, [body], is a call of a native that never returns
-     * ([Natives.neverReturns]) and the decline is [passable].
-     */
-    private fun passesOver(declined: Declined, body: ElixirAst?, frame: Frame): Boolean {
-        if (!passable(declined)) return false
-
+    /** Whether [body] only raises: it is a call of a native that never returns ([Natives.neverReturns]). */
+    private fun onlyRaises(body: ElixirAst?, frame: Frame): Boolean {
         val call = body?.let(frame::expanded) as? ElixirAst.Call ?: return false
         val (module, function) = remoteOf(call, frame) ?: return false
 
         return natives.neverReturns(module, function, call.arguments?.size ?: return false)
     }
+
+    /** The one of [bodies], each an arm's value, that doesn't only raise, where there are others and each of them does. */
+    private fun soleArm(bodies: List<ElixirAst?>, frame: Frame): ElixirAst? =
+        bodies.filterNot { onlyRaises(it, frame) }.singleOrNull()?.takeIf { bodies.size > 1 }
 
     /** Whether [declined] leaves nothing a pass-over would drop: it neither stops nor ended, and was given no module. */
     private fun passable(declined: Declined) = !declined.stops && !declined.ended && declined.given.none
