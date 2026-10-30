@@ -110,8 +110,13 @@ object Expander {
         clauses: ModuleClauses.Lookup = ModuleClauses.Lookup.NONE,
         virtualFile: VirtualFile? = null,
         os: OS? = null,
+        buildTarget: BuildTarget? = null,
     ): FileExpansion =
-        expandFile(forms, env, Run(level, observer, exports, structs, appEnv, counters, file, directories, clauses, virtualFile, os))
+        expandFile(
+            forms,
+            env,
+            Run(level, observer, exports, structs, appEnv, counters, file, directories, clauses, virtualFile, os, buildTarget),
+        )
 
     /** A file's top-level [forms] expanded from [env] in [run], as the other `expandFile` expands them. */
     internal fun expandFile(forms: ElixirAst, env: Env, run: Run): FileExpansion {
@@ -272,6 +277,8 @@ internal class Run(
     val virtualFile: VirtualFile? = null,
     /** The OS the file's SDK runs as, where it is known. */
     val os: OS? = null,
+    /** The build the file is compiled in, `null` where the run has none. */
+    val buildTarget: BuildTarget? = null,
 ) {
     /** The modules whose exports the run read, in the order it read them. */
     val consulted = mutableListOf<String>()

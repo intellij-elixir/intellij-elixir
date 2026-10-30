@@ -217,6 +217,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "file" -> if (key == "get_cwd/0") workingDirectory() else null
             "filename" -> filename(key, args)
             "elixir_config" -> config(key, args)
+            "Elixir.Mix" -> mix(key)
             "elixir_import" -> if (key == "special_form/2") isSpecialForm(args[0], args[1]) else null
             else -> null
         } ?: if (module in WRITES_BY_ROW) write(module, key, args) else null
@@ -2299,6 +2300,22 @@ internal class Natives(private val evaluation: Evaluation) {
         val (family, name) = evaluation.run.os?.let(Filename::osType) ?: decline("os:type/0 of a run whose OS isn't known")
 
         return tuple(atom(family), atom(name))
+    }
+
+    /**
+     * `Mix.env/0` and `Mix.target/0`: the build the run's file is compiled in. Each answer is an assumption, as an app env
+     * read's is: it is the default build's.
+     */
+    private fun mix(key: String): OtpErlangObject? {
+        val build = evaluation.run.buildTarget ?: return null
+        val answer = when (key) {
+            "env/0" -> build.mixEnv ?: return null
+            "target/0" -> build.target
+            else -> return null
+        }
+        evaluation.assume()
+
+        return atom(answer)
     }
 
     /** `file:get_cwd/0`: `{ok, Directory}`, the directory Elixir compiles the run's file in now (`Run.workingDirectory`). */

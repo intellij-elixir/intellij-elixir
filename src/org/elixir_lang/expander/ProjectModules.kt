@@ -34,6 +34,8 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.mix.Project.MIX_EXS
+import org.elixir_lang.mix.buildEnv
+import org.elixir_lang.mix.defaultBuildEnv
 import org.elixir_lang.model.psi.config.ConfigFiles
 import org.elixir_lang.model.psi.config.ConfigSettings
 import org.elixir_lang.navigation.isDecompiled
@@ -550,6 +552,7 @@ internal class ProjectModules(private val project: Project) {
             },
             virtualFile = virtualFile,
             os = inputs.os,
+            buildTarget = buildTarget(compiling, stamps),
             directories = { path ->
                 // A `mix.exs` created or deleted above the file moves its answer.
                 stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
@@ -633,6 +636,31 @@ internal class ProjectModules(private val project: Project) {
                 }
             }
         }
+    }
+
+    /**
+     * The build [file] is compiled in, `null` where it isn't known: a project file in [defaultBuildEnv]; a
+     * dependency's reads the config of the one `_build` env holding it.
+     */
+    private fun buildTarget(file: VirtualFile?, stamps: Stamps): BuildTarget? {
+        file ?: return null
+        // A `deps`, `_build` or `mix.exs` created or deleted moves the build.
+        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+        buildEnv(file)?.let { return BuildTarget(it, null) }
+        val deps = generateSequence(file.parent) { it.parent }.firstOrNull { it.name == "deps" && it.parent?.findChild(MIX_EXS) != null }
+
+        if (deps != null) {
+            val dependency = generateSequence(file) { it.parent }.first { it.parent == deps }.name
+            val envs = deps.parent.findChild("_build")?.children.orEmpty().filter { it.findFileByRelativePath("lib/$dependency") != null }
+
+            return BuildTarget(envs.singleOrNull()?.name, null)
+        }
+        if (!ProjectFileIndex.getInstance(project).isInContent(file)) return BuildTarget(null, null)
+        // Marking a folder as test sources moves the build.
+        stamps.track(ProjectRootManager.getInstance(project))
+        val env = defaultBuildEnv(project, file)
+
+        return BuildTarget(env, env)
     }
 
     /**

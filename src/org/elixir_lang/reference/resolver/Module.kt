@@ -15,6 +15,7 @@ import com.intellij.psi.stubs.StubIndex
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.mix.buildEnv
+import org.elixir_lang.mix.defaultBuildEnv
 import org.elixir_lang.mix.sync.isConsolidatedLibraryName
 import org.elixir_lang.navigation.isDecompiled
 import org.elixir_lang.psi.Alias
@@ -109,7 +110,7 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
      * Those of [candidates] Elixir would load for [asker]:
      * - when a library or the SDK holds a `.beam`, no source outside the project's content;
      * - a module's own `.beam` over its consolidated copy, whose exports are the same;
-     * - the `.beam`s built for [asker]'s Mix env, `test` in test sources and `dev` elsewhere, over other envs' builds.
+     * - the `.beam`s built for [asker]'s Mix env ([defaultBuildEnv]), over other envs' builds.
      */
     private fun loadedCopies(
         asker: PsiElement,
@@ -132,7 +133,7 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
         } else {
             loadable
         }
-        val env = if (effectiveVirtualFile(asker)?.let(index::isInTestSourceContent) == true) "test" else "dev"
+        val env = defaultBuildEnv(asker.project, effectiveVirtualFile(asker))
 
         return if (unconsolidated.any { buildEnv(file(it)) == env }) {
             unconsolidated.filter { buildEnv(file(it)).let { built -> built == null || built == env } }
