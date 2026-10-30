@@ -7,14 +7,17 @@ import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.io.FileUtil
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.junit.HeavyTestCase
+import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.inspect
 import java.io.File
+import java.util.concurrent.Callable
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -63,11 +66,67 @@ class ExUnitFormsHeavyTest : HeavyTestCase() {
 
         val pins = pins(version)
         val pinned = { line: String -> pins.keys.any { line.startsWith("$it ") } }
+        // What the expander doesn't read: the docs a `doctest` turns into tests.
+        val fromDocs = { line: String -> "doctest ExUnitForms.Doc" in line }
+        val testAfterDoctest = { line: String -> AFTER_DOCTEST.keys.any { line.startsWith("$it ") } && " def test " in line && !fromDocs(line) }
+        // A module stopped at its `doctest` still defines the tests after it, as Elixir does, where its table goes on.
+        val keptTest = { line: String -> testAfterDoctest(line) && !isBefore(version, "1.14.0") && AFTER_DOCTEST.any { (file, kept) -> kept && line.startsWith("$file ") } }
 
         assertEquals(
-            (elixir.filterNot(pinned) + files.flatMap { file -> pins[file].orEmpty().map { "$file $it" } }).joinToString("\n"),
-            (expander.filterNot(pinned) + expander.filter { pinned(it) && ENDED.containsMatchIn(it) }).joinToString("\n"),
+            (elixir.filterNot { pinned(it) || fromDocs(it) } + files.flatMap { file -> pins[file].orEmpty().map { "$file $it" } } + elixir.filter(keptTest)).joinToString("\n"),
+            (expander.filterNot(pinned) + expander.filter { pinned(it) && ENDED.containsMatchIn(it) } + expander.filter(testAfterDoctest)).joinToString("\n"),
         )
+    }
+
+    /** Each variable after a `doctest` reads the binding it reads in the same module without the `doctest`. */
+    fun testTheVariablesAfterADoctestKeepTheirOrigins() {
+        val version = LegManifest.environment("ELIXIR_VERSION")
+        if (isBefore(version, "1.14.0")) return
+
+        val dir = createTempDir("ex_unit_forms")
+        FileUtil.copyDir(CORPUS, dir)
+        val with = File(dir, "test/doctest_then_tests_test.exs")
+        val source = with.readText()
+        val doctest = "doctest ExUnitForms.Doc"
+        val after = source.indexOf(doctest) + doctest.length
+        val without = File(dir, "without_doctest.exs").apply { writeText(source.replace(doctest, " ".repeat(doctest.length))) }
+        val corpus = PhoenixCorpus(project, testRootDisposable, dir)
+        corpus.setUp(module)
+
+        fun origins(file: File): String {
+            val read = mutableListOf<String>()
+            val bound = mutableMapOf<Pair<String, Int?>, Int>()
+            val observer = object : ExpansionObserver {
+                override fun entering(node: ElixirAst, state: ExState, env: Env) {}
+
+                override fun left(node: ElixirAst, expansion: Expansion) {
+                    val start = node.meta.origin.startOffset
+
+                    if (isVariable(node) && start > after && !node.meta.built) {
+                        val name = node.meta.origin.substring(source)
+                        val version = (expansion as? Expansion.Expanded)?.state?.read?.filterKeys { it.name == name }?.values?.maxOrNull()
+
+                        if (version != null) read += "$name $start binds ${bound.getOrPut(name to version) { start }}"
+                    }
+                }
+            }
+
+            ReadAction.nonBlocking(Callable {
+                ProjectModules.getInstance(project).observe(corpus.psi(file)!!, legInputs, observer)
+            }).executeSynchronously()
+
+            return read.joinToString("\n")
+        }
+
+        val expected = origins(without)
+
+        // Until 1.17 `test` gives `def` its body as a value, which keeps no origins.
+        if (!isBefore(version, "1.17.0")) {
+            val user = "user ${source.indexOf("assert user") + "assert ".length} binds ${source.indexOf("test: user") + "test: ".length}"
+
+            assertTrue("$user in:\n$expected", user in expected)
+        }
+        assertEquals(expected, origins(with))
     }
 
     /**
@@ -217,18 +276,21 @@ class ExUnitFormsHeavyTest : HeavyTestCase() {
          *   the `test`.
          * - From 1.14 to 1.16 the body's `x` is a call to an undefined `x/0`, which Elixir raises as a `CompileError`
          *   once the module's callbacks have run. The expander raises it too, but its lines don't say the callbacks ran.
-         * - A `doctest` reads the documented module's docs, which the expander doesn't, and its decline may have
-         *   written any of the module's attributes, so the tests after it aren't known.
+         * - A module with a `doctest` is reported at it, whose tests aren't known. From 1.14 the tests after it are still
+         *   defined ([AFTER_DOCTEST]), and the raise for a test defined twice, whether that name is defined not being known
+         *   there, is passed over. Before 1.14 a `doctest`'s `for` writes `@tag` where the expander doesn't run it, so the
+         *   first test's `Module.delete_attribute/2` isn't known, and the table ends there. So does it on every leg after a
+         *   `@tag` set before the `doctest`, which the first test after it reads.
          */
         fun pins(version: String): Map<String, List<String>> {
             val assumed = isBefore(version, "1.14.0") || !isBefore(version, "1.17.0")
             val longName = "Elixir.ExUnitForms.LongNameTest stopped on line 4 `${File(CORPUS, "test/long_name_test.exs").readLines()[3].trim()}`"
 
             return buildMap {
-                put(
-                    "test/doc_test.exs",
-                    listOf("Elixir.ExUnitForms.DocTest stopped on line 4 `doctest ExUnitForms.Doc`", "Elixir.ExUnitForms.DocTest tests Unknown"),
-                )
+                put("test/doc_test.exs", stoppedAtDoctest("DocTest", 4))
+                put("test/doctest_then_tests_test.exs", stoppedAtDoctest("DoctestThenTestsTest", 4))
+                put("test/doctest_duplicate_test.exs", stoppedAtDoctest("DoctestDuplicateTest", 4))
+                put("test/doctest_tagged_test.exs", stoppedAtDoctest("DoctestTaggedTest", 5))
                 if (assumed && isBefore(version, "1.20.0")) put("test/long_name_test.exs", listOf(longName))
                 if (!assumed) {
                     put(
@@ -250,6 +312,12 @@ class ExUnitFormsHeavyTest : HeavyTestCase() {
                 }
             }
         }
+
+        fun stoppedAtDoctest(module: String, line: Int) =
+            listOf("Elixir.ExUnitForms.$module stopped on line $line `doctest ExUnitForms.Doc`", "Elixir.ExUnitForms.$module tests Unknown")
+
+        /** The modules a `doctest` stops that Elixir compiles, to whether their tests after it are defined from 1.14. */
+        val AFTER_DOCTEST = mapOf("test/doc_test.exs" to true, "test/doctest_then_tests_test.exs" to true, "test/doctest_tagged_test.exs" to false)
 
         /** A line saying how a module ended, or that its tests aren't known. */
         val ENDED = Regex(" (compiled|stopped on line \\d+ `.*`|raised \\S+|ended \\S+|tests \\S+)$")

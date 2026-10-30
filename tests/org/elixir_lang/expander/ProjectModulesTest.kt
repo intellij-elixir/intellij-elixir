@@ -36,7 +36,6 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
-import org.elixir_lang.language_level.ElixirLanguageFeature.DEFDELEGATE_ALL_EACH
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPE_HEADS_NEED_LIST_META
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAILED_COMPILE_PURGES_MODULE
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED_AS_MACRO
@@ -1136,11 +1135,21 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testAssumingItCompilesAnErrorFromATableTheModuleMayHaveWrittenLeavesTheNextModuleLoaded() {
         addLegElixir()
-        add("h.ex", "defmodule H do\n  def noop(_), do: receive(do: (x -> x), after: (0 -> :ok))\nend\n")
+        add("h.ex", "defmodule H do\n  def noop(m), do: Other.call(m)\nend\n")
         add("a.ex", "defmodule A do\n  H.noop(__MODULE__)\n  defoverridable nope: 0\nend\ndefmodule C do\n  def g, do: 1\nend\n")
         val b = add("b.ex", "defmodule B do\n  import C\n  def h, do: g()\nend\n")
 
         assertEquals("Elixir.B compiled", render(b, expansion(holder, b)).lines().first { it.startsWith("Elixir.B ") }.substringBefore(" errors"))
+    }
+
+    /** A declined call whose callee writes nothing leaves the table known, so an error computed from it raises. */
+    fun testAnErrorFromATableADeclinedCallDoesNotWriteLeavesTheNextModuleAbsent() {
+        addLegElixir()
+        add("h.ex", "defmodule H do\n  def noop(_), do: receive(do: (x -> x), after: (0 -> :ok))\nend\n")
+        add("a.ex", "defmodule A do\n  H.noop(__MODULE__)\n  defoverridable nope: 0\nend\ndefmodule C do\n  def g, do: 1\nend\n")
+        val b = add("b.ex", "defmodule B do\n  import C\n  def h, do: g()\nend\n")
+
+        assertEquals("Elixir.B raised unloaded_module `import C`", render(b, expansion(holder, b)).lines().first { it.startsWith("Elixir.B ") }.substringBefore(" errors"))
     }
 
     /**
@@ -2588,8 +2597,7 @@ class ProjectModulesTest : PlatformTestCase() {
             Triple("if-unnamed-expander-unreadable", "x = true\n  if x do\n    def unquote((receive do after 0 -> :f end))(), do: 1\n  end", "Unreadable Stopped"),
             Triple("for-unnamed-expander-unreadable", "for n <- [:f] do\n    def unquote((receive do after 0 -> n end))(), do: 1\n  end", "Unreadable Stopped"),
             Triple("each-unnamed-expander-unreadable", "Enum.each([:f], fn n ->\n    def unquote((receive do after 0 -> n end))(), do: 1\n  end)", "Unreadable Stopped"),
-            // From 1.14 `defdelegate`'s output reads `env.module` from `__ENV__`, which the evaluator doesn't give, so only on the statement path is it followed (#4508).
-            Triple("if-defdelegate-expander-unreadable", "x = true\n  if x do\n    defdelegate f(l), to: :erlang, as: :length\n  end", if (DEFDELEGATE_ALL_EACH.isSufficient(legLevel())) "Unreadable Stopped" else "Present [f/1] Compiled"),
+            Triple("if-defdelegate-loaded", "x = true\n  if x do\n    defdelegate f(l), to: :erlang, as: :length\n  end", "Present [f/1] Compiled"),
             // Controls the walk doesn't follow: Elixir loads `f/0` from the `cond` and the `case` (#4508), none from the `fn`.
             Triple("cond-expander-unreadable", "cond do\n    true -> def f, do: 1\n  end", "Unreadable Compiled"),
             Triple("case-declined-expander-unreadable", "case (receive do after 0 -> :a end) do\n    :a -> def f, do: 1\n    _ -> :ok\n  end", "Unreadable Compiled"),
