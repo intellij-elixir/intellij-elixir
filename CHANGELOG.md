@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4568](https://github.com/intellij-elixir/intellij-elixir/pull/4568) [@sh41](https://github.com/sh41)
+  - **On Elixir 1.14 and later, the expander carries on past `doctest` in an ExUnit test module, so the tests and `describe` blocks after it have the names, definitions and variables Elixir gives them.** Refs [#4546](https://github.com/intellij-elixir/intellij-elixir/issues/4546).
+
 - [#4566](https://github.com/intellij-elixir/intellij-elixir/pull/4566) [@sh41](https://github.com/sh41)
   - **With an Elixir SDK in WSL used from Windows, or in a file not on the local disk, a module that calls `Mix.Generator.embed_template` no longer hides what follows it, so Go To on an alias key of a config read after it reaches its setting. With the WSL SDK, Find Usages of a setting also finds such a read, whether its key is an alias or `__MODULE__`.** Refs [#4525](https://github.com/intellij-elixir/intellij-elixir/issues/4525).
 
