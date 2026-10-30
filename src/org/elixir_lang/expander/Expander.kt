@@ -111,11 +111,12 @@ object Expander {
         virtualFile: VirtualFile? = null,
         os: OS? = null,
         buildTarget: BuildTarget? = null,
+        config: ConfigRead? = null,
     ): FileExpansion =
         expandFile(
             forms,
             env,
-            Run(level, observer, exports, structs, appEnv, counters, file, directories, clauses, virtualFile, os, buildTarget),
+            Run(level, observer, exports, structs, appEnv, counters, file, directories, clauses, virtualFile, os, buildTarget, config),
         )
 
     /** A file's top-level [forms] expanded from [env] in [run], as the other `expandFile` expands them. */
@@ -279,6 +280,8 @@ internal class Run(
     val os: OS? = null,
     /** The build the file is compiled in, `null` where the run has none. */
     val buildTarget: BuildTarget? = null,
+    /** The config read this run's file is evaluated in, `null` where it is evaluated on its own. */
+    val config: ConfigRead? = null,
 ) {
     /** The modules whose exports the run read, in the order it read them. */
     val consulted = mutableListOf<String>()

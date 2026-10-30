@@ -23,6 +23,7 @@ import org.elixir_lang.expander.AppEnvValue
 import org.elixir_lang.expander.AttributeTable
 import org.elixir_lang.expander.AttributeValue
 import org.elixir_lang.expander.Compiling
+import org.elixir_lang.expander.ConfigRead
 import org.elixir_lang.expander.DEFINITION_ARITIES
 import org.elixir_lang.expander.DefinitionTable
 import org.elixir_lang.expander.EffectOutcome
@@ -45,6 +46,7 @@ import org.elixir_lang.expander.write
 import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTES_EXPANDED_LAZILY
 import org.elixir_lang.language_level.ElixirLanguageFeature.BINARY_PART_REJECTS_BITSTRINGS
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
+import org.elixir_lang.language_level.ElixirLanguageFeature.CONFIG_READ_CONFIG
 import org.elixir_lang.language_level.ElixirLanguageFeature.ERLANG_ERROR_3
 import org.elixir_lang.language_level.ElixirLanguageFeature.GET_ATTRIBUTE_DEFAULT_FOR_REGISTERED
 import org.elixir_lang.language_level.ElixirLanguageFeature.GET_ATTRIBUTE_DEFAULT_ONLY_UNSET
@@ -71,6 +73,7 @@ import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.nio.charset.CharacterCodingException
 import java.security.MessageDigest
+import java.util.IdentityHashMap
 import kotlin.math.abs
 
 /** The frames a stacktrace `erlang:raise/3` stores holds at most: the default `backtrace_depth`, which Elixir keeps. */
@@ -218,6 +221,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "filename" -> filename(key, args)
             "elixir_config" -> config(key, args)
             "Elixir.Mix" -> mix(key)
+            "Elixir.Config" -> configure(key, args)
             "elixir_import" -> if (key == "special_form/2") isSpecialForm(args[0], args[1]) else null
             else -> null
         } ?: if (module in WRITES_BY_ROW) write(module, key, args) else null
@@ -2316,6 +2320,119 @@ internal class Natives(private val evaluation: Evaluation) {
         evaluation.assume()
 
         return atom(answer)
+    }
+
+    /**
+     * `Config`'s functions over the run's config read ([ConfigRead]), which holds what `Config.__eval__!/3` keeps in the
+     * process dictionary. Outside a read, where Elixir raises, they decline: a config file's own expansion isn't Mix's.
+     */
+    private fun configure(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        when (key) {
+            "__merge__/2" -> return configMerge(args[0], args[1])
+            "config/2", "config/3", "__env__!/0", "__target__!/0" -> {}
+            "read_config/1" -> if (!CONFIG_READ_CONFIG.isSufficient(level)) return null
+            else -> return null
+        }
+
+        val read = evaluation.run.config ?: decline("Config.$key outside a config read")
+
+        return when (key) {
+            "__env__!/0" -> atom(read.env)
+            "__target__!/0" -> atom(read.target)
+            "config/2" -> {
+                val (root, opts) = args
+
+                if (!isAtom(root) || !isList(opts)) functionClause("Elixir.Config", "config", args)
+                if (!isKeyword(opts)) argumentError()
+
+                configured(read, list(listOf(tuple(root, opts))))
+            }
+            "config/3" -> {
+                val (root, configKey, opts) = args
+
+                if (!isAtom(root) || !isAtom(configKey)) functionClause("Elixir.Config", "config", args)
+
+                configured(read, list(listOf(tuple(root, list(listOf(tuple(configKey, opts)))))))
+            }
+            else -> {
+                if (!isAtom(args[0])) functionClause("Elixir.Config", "read_config", args)
+
+                keyword("get/2", listOf(read.config, args[0]))
+            }
+        }
+    }
+
+    /** [config] merged into [read]'s, returning the config before, as `Process.put/2` does. */
+    private fun configured(read: ConfigRead, config: OtpErlangObject): OtpErlangObject {
+        val before = read.config
+
+        read.config = configMerge(before, config)
+
+        return before
+    }
+
+    /** `Config.__merge__/2`: [config2]'s apps merged into [config1]'s, each app's keys merged by `deep_merge/3`. */
+    private fun configMerge(config1: OtpErlangObject, config2: OtpErlangObject): OtpErlangObject {
+        if (!isList(config1) || !isList(config2)) functionClause("Elixir.Config", "__merge__", listOf(config1, config2))
+
+        val merged = IdentityHashMap<OtpErlangObject, IdentityHashMap<OtpErlangObject, OtpErlangObject>>()
+
+        return keywordMerge(config1, config2) { app1, app2 ->
+            keywordMerge(app1, app2) { value1, value2 -> deepMerge(value1, value2, merged) }
+        }
+    }
+
+    /** `Config.deep_merge/3`: two keyword lists merged, keys by key, else the later value; each pair of parts merged once, in [merged]. */
+    private fun deepMerge(
+        value1: OtpErlangObject,
+        value2: OtpErlangObject,
+        merged: IdentityHashMap<OtpErlangObject, IdentityHashMap<OtpErlangObject, OtpErlangObject>>,
+    ): OtpErlangObject =
+        when {
+            isUnknown(value2) -> Unknown
+            isUnknown(value1) -> if (isKeyword(value2)) Unknown else value2
+            isKeyword(value1) && isKeyword(value2) ->
+                merged.getOrPut(value1) { IdentityHashMap() }.getOrPut(value2) {
+                    keywordMerge(value1, value2) { part1, part2 -> deepMerge(part1, part2, merged) }
+                }
+            else -> value2
+        }
+
+    /**
+     * `Keyword.merge/3`: [keywords1] without the keys of [keywords2], then [keywords2]'s pairs in turn, each merged by
+     * [merge] with the first pair under its key in [keywords1], which that takes.
+     */
+    private fun keywordMerge(
+        keywords1: OtpErlangObject,
+        keywords2: OtpErlangObject,
+        merge: (OtpErlangObject, OtpErlangObject) -> OtpErlangObject,
+    ): OtpErlangObject {
+        if (isUnknown(keywords1) || isUnknown(keywords2)) return Unknown
+        if (!isList(keywords1) || !isList(keywords2)) functionClause("Elixir.Keyword", "merge", listOf(keywords1, keywords2))
+        if (!isKeyword(keywords1)) argumentError()
+
+        val pair = { term: OtpErlangObject -> seen(term) as OtpErlangTuple }
+        val original = properElements(seen(keywords1))!!.map(pair).toMutableList()
+        val rest = original.toMutableList()
+        val merged = ArrayList<OtpErlangObject>()
+
+        for (element in properElements(seen(keywords2)) ?: argumentError()) {
+            ProgressManager.checkCanceled()
+
+            val (key, value2) = (seen(element) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elements() ?: argumentError()
+            val name = seen(key) as? OtpErlangAtom ?: argumentError()
+            val index = original.indexOfFirst { seen(it.elementAt(0)) == name }
+
+            if (index >= 0) {
+                merged += tuple(name, merge(original[index].elementAt(1), value2))
+                original.removeAt(index)
+            } else {
+                merged += tuple(name, value2)
+            }
+            rest.removeAll { seen(it.elementAt(0)) == name }
+        }
+
+        return list(rest + merged)
     }
 
     /** `file:get_cwd/0`: `{ok, Directory}`, the directory Elixir compiles the run's file in now (`Run.workingDirectory`). */

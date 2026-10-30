@@ -749,6 +749,13 @@ enum class ElixirLanguageFeature(
     COMPILE_ENV_TAKES_ENV_FIRST(sinceElixir = "1.14.0-rc.0"),
 
     /**
+     * `Config.read_config/1` reads a root key the config read has set so far.
+     *
+     * `elixir-lang/elixir@14595bb63` ("Add Config.read_config/1 (#13754)"), first released in v1.18.0-rc.0.
+     */
+    CONFIG_READ_CONFIG(sinceElixir = "1.18.0-rc.0"),
+
+    /**
      * `Module.delete_definition/2` takes a definition out of the module being compiled. Before it, a module body that
      * calls it raises `UndefinedFunctionError`.
      *
