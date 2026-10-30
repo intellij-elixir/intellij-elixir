@@ -5,6 +5,7 @@ import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.testFramework.LightProjectDescriptor
+import com.intellij.util.system.OS
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.Signature
 import org.elixir_lang.declaration.ArityKnowledge
@@ -244,7 +245,7 @@ class ExpanderSourceUseTest : PlatformTestCase() {
             .first { it.textRange.startOffset == offset && it.text == call }
     }
 
-    private val inputs get() = ProjectModules.Inputs(legLevel(), legKernel)
+    private val inputs get() = ProjectModules.Inputs(legLevel(), legKernel, OS.CURRENT)
 
     /**
      * [found] as `<declaring module>.<name>/<arity> <reach> <applicability> via [<calls>] <file> line <n> `<first

@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import com.intellij.psi.PsiElement
 import com.intellij.testFramework.LightProjectDescriptor
+import com.intellij.util.system.OS
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.call.Call
@@ -125,7 +126,7 @@ class ReachRecordTest : PlatformTestCase() {
                 entry.heads.joinToString(", ") { head -> head.delegation?.let { "${it.module}.${it.function}" } ?: "-" }
         }
 
-    private fun onTheLeg(assertion: (ProjectModules.Inputs) -> Unit) = assertion(ProjectModules.Inputs(legLevel(), legKernel))
+    private fun onTheLeg(assertion: (ProjectModules.Inputs) -> Unit) = assertion(ProjectModules.Inputs(legLevel(), legKernel, OS.CURRENT))
 
     private fun file(name: String, text: String): ElixirFile = myFixture.addFileToProject(name, text) as ElixirFile
 

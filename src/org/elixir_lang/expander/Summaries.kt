@@ -67,8 +67,7 @@ internal inline fun <T> unlessTooDeep(tooDeep: () -> T, block: () -> T): T =
 
 /**
  * [node] through the macro's own `Macro.expand/2`, or [stopped] of the [Summary.Output] the macro gives where that
- * expansion can't be followed. `__DIR__`'s binary, which [Env] doesn't hold, is `__DIR__` itself, which expands to it
- * where the output puts it ([isDirBinary]).
+ * expansion can't be followed.
  */
 internal inline fun expandArgument(
     node: ElixirAst,
@@ -83,7 +82,6 @@ internal inline fun expandArgument(
         is MacroExpanded.Stopped -> stopped(Summary.Output.Stopped(expanded.expansion))
     }
 
-/** Whether [node], an [expandArgument] result, is `__DIR__`'s binary: `Macro.expand/2` never leaves `__DIR__` as it is. */
 internal fun isDirBinary(node: ElixirAst): Boolean = isVariableNamed(node, "__DIR__")
 
 /** `is_binary/1` of [node], an [expandArgument] result. */

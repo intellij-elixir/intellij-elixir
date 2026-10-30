@@ -4,6 +4,7 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.IdempotenceChecker
+import com.intellij.util.system.OS
 import org.elixir_lang.NameArity
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.assertSizeIndependent
@@ -142,6 +143,7 @@ class ExpanderSourceSizeTest : PlatformTestCase() {
         val inputs = ProjectModules.Inputs(
             legLevel(),
             KernelImports(legKernel.functions + names.map { NameArity(it, 1) }, legKernel.macros),
+            OS.CURRENT,
         )
 
         return try {
@@ -227,7 +229,7 @@ class ExpanderSourceSizeTest : PlatformTestCase() {
         }
     }
 
-    private fun inputs() = ProjectModules.Inputs(legLevel(), legKernel)
+    private fun inputs() = ProjectModules.Inputs(legLevel(), legKernel, OS.CURRENT)
 
     private companion object {
         val SIZES = listOf(10, 100, 1000)

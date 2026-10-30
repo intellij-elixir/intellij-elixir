@@ -5,7 +5,9 @@ import com.ericsson.otp.erlang.OtpErlangPid
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.util.system.OS
 import org.elixir_lang.expander.interpreter.Binding
+import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.Given
 import org.elixir_lang.expander.interpreter.ValueUse
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
@@ -103,12 +105,13 @@ object Expander {
         appEnv: AppEnv,
         observer: ExpansionObserver = ExpansionObserver.NONE,
         counters: Counters = Counters(),
-        file: String? = null,
+        file: () -> String? = { null },
         directories: CompileDirectories = CompileDirectories.UNKNOWN,
         clauses: ModuleClauses.Lookup = ModuleClauses.Lookup.NONE,
         virtualFile: VirtualFile? = null,
+        os: OS? = null,
     ): FileExpansion =
-        expandFile(forms, env, Run(level, observer, exports, structs, appEnv, counters, file, directories, clauses, virtualFile))
+        expandFile(forms, env, Run(level, observer, exports, structs, appEnv, counters, file, directories, clauses, virtualFile, os))
 
     /** A file's top-level [forms] expanded from [env] in [run], as the other `expandFile` expands them. */
     internal fun expandFile(forms: ElixirAst, env: Env, run: Run): FileExpansion {
@@ -261,12 +264,14 @@ internal class Run(
     val structs: Structs,
     val appEnv: AppEnv,
     val counters: Counters = Counters(),
-    /** The path of the file the run expands, where it is known. */
-    val file: String? = null,
+    /** The path of the file the run expands, `null` where it isn't known; read through here, never held. */
+    val file: () -> String? = { null },
     val directories: CompileDirectories = CompileDirectories.UNKNOWN,
     private val clauses: ModuleClauses.Lookup = ModuleClauses.Lookup.NONE,
     /** The file the run expands, where [ProjectModules] holds it. */
     val virtualFile: VirtualFile? = null,
+    /** The OS the file's SDK runs as, where it is known. */
+    val os: OS? = null,
 ) {
     /** The modules whose exports the run read, in the order it read them. */
     val consulted = mutableListOf<String>()
@@ -307,6 +312,34 @@ internal class Run(
 
     /** Whether the value of the unit the evaluator runs where it reaches it ([reached]) is read, `null` outside one. */
     var reachedUse: ValueUse? = null
+
+    /**
+     * Whether code the expander doesn't follow ran, which may have changed the directory the compile runs in
+     * ([workingDirectory]); once set it stays.
+     */
+    var directoryMayHaveChanged = false
+        private set
+
+    /** Code the expander doesn't follow ran, or may have: a decline the walk went on past, a stop, a macro or callback it lost. */
+    fun unfollowedCodeRan() {
+        directoryMayHaveChanged = true
+    }
+
+    /**
+     * The directory Elixir compiles [file] in now, which `file:get_cwd/0`, `Path.relative_to_cwd/1` and `filename:absname/1`
+     * read, `null` where it isn't known: where [directories] doesn't have it, or code the expander doesn't follow may
+     * have changed it ([directoryMayHaveChanged]). On Windows its drive letter is lowercase, as OTP gives it.
+     */
+    fun workingDirectory(file: String): String? {
+        if (directoryMayHaveChanged) return null
+
+        val directory = directories.of(file) ?: return null
+
+        return if (os == OS.Windows) String(Filename.lowercaseDrive(directory.toByteArray())) else directory
+    }
+
+    /** `Path.relative_to_cwd/1` of [file], its SDK running as [os], where Elixir compiled it ([workingDirectory]); `null` where that isn't known. */
+    fun relativeToCwd(file: String, os: OS): String? = workingDirectory(file)?.let { relativeTo(file, it, os) }
 
     /** The number of a reference no evaluation in the run has made before. */
     fun nextRef(): Int = ++refs

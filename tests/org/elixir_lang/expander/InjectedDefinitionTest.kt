@@ -4,6 +4,7 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
 import com.intellij.testFramework.LightProjectDescriptor
+import com.intellij.util.system.OS
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.ElixirFile
@@ -369,7 +370,7 @@ class InjectedDefinitionTest : PlatformTestCase() {
         return ProjectModules.results(holder.expansion(file, inputs)).single { it.module == name }
     }
 
-    private val inputs get() = ProjectModules.Inputs(legLevel(), legKernel)
+    private val inputs get() = ProjectModules.Inputs(legLevel(), legKernel, OS.CURRENT)
 
     private fun injectedBy(code: String): String = injectedBy(moduleOf(code).table, code)
 

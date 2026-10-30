@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangObject
 import org.elixir_lang.expander.interpreter.EMPTY
+import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.FALSE
 import org.elixir_lang.expander.interpreter.ModuleUnknown
 import org.elixir_lang.expander.interpreter.NIL
@@ -75,6 +76,24 @@ internal fun envFields(level: ElixirLanguageLevel): List<String> =
     COMMON_FIELDS + if (MACRO_ENV_VERSIONED_VARS.isSufficient(level)) listOf("versioned_vars") else BEFORE_VERSIONED_VARS
 
 /**
+ * The file [env] is compiled in: the run's, `null` where that isn't known and inside a definition that took an `@file`
+ * or a `keep:` location, which `retrieve_location/2` compiles as in the file it names.
+ */
+internal fun fileOf(run: Run, env: Env): String? =
+    run.file()?.takeUnless { env.function != null && run.compiling[env.module]?.definitionMoved == true }
+
+/**
+ * `__DIR__`: `filename:dirname/1` of [env]'s file, by the OS its SDK runs as; `null` where either is unknown, as
+ * `filename:dirname/1` declines without the OS.
+ */
+internal fun dirOf(run: Run, env: Env): ByteArray? {
+    val file = fileOf(run, env) ?: return null
+    val os = run.os ?: return null
+
+    return Filename.dirname(file.toByteArray(), os)
+}
+
+/**
  * The [field] of the env at [line] where [env] and [state] hold, on [run]'s leg; `null` where its `Macro.Env` has no
  * such field. [escaped] is `__ENV__`, which `elixir_expand:escape_env_entries` builds; otherwise it is `__CALLER__`, the
  * env itself before [MACRO_ENV_VERSIONED_VARS] and `elixir_env:to_caller/1`'s from it. What the plugin doesn't hold is
@@ -87,7 +106,7 @@ internal fun envField(field: String, env: Env, state: ExState, line: Int, escape
     return when (field) {
         "__struct__" -> atom("Elixir.Macro.Env")
         "module" -> atom(env.module ?: "nil")
-        "file" -> run.file?.let(::binary) ?: UnknownBinary
+        "file" -> fileOf(run, env)?.let(::binary) ?: UnknownBinary
         "line" -> integer(line.toLong())
         "function" -> env.function?.let { tuple(atom(it.name), integer(it.arity.toLong())) } ?: NIL
         "context" -> when (env.context) {

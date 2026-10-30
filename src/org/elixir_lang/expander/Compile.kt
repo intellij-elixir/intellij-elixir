@@ -1944,9 +1944,13 @@ internal fun Run.compilingNamed(module: String?): List<Compiling?> =
 /**
  * Code the expander doesn't follow, a macro's expansion, a callback, or code whose expansion nests too deeply to follow,
  * may have written every module being compiled: each encloses it, since a run compiles one file and a module that
- * finished compiling can't be written, and a module it was given is one of them.
+ * finished compiling can't be written, and a module it was given is one of them. It may also have changed the directory
+ * the compile runs in ([Run.unfollowedCodeRan]).
  */
-internal fun Run.unfollowed() = mayHaveWritten(open())
+internal fun Run.unfollowed() {
+    unfollowedCodeRan()
+    mayHaveWritten(open())
+}
 
 /** The modules being compiled, each enclosing the code running now, with [except] left out. */
 private fun Run.open(except: Compiling? = null): List<Compiling> = compiling.values.filter { it !== except }
@@ -1954,9 +1958,11 @@ private fun Run.open(except: Compiling? = null): List<Compiling> = compiling.val
 /**
  * Code a stop left unfollowed may have run while the modules being compiled, [except] one, were open: their tables are
  * read as unknown and what they define isn't known ([Compiling.stoppedWithin]), while a raise one computes from its
- * tables still counts.
+ * tables still counts. The directory the compile runs in isn't known after it either ([Run.unfollowedCodeRan]).
  */
 private fun Run.stoppedWithin(except: Compiling? = null) {
+    unfollowedCodeRan()
+
     for (module in open(except = except)) {
         module.attributes.stopped()
         module.stoppedWithin = true

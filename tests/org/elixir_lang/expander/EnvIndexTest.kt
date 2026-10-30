@@ -8,6 +8,7 @@ import com.intellij.psi.PsiRecursiveElementWalkingVisitor
 import com.intellij.psi.PsiReferenceService
 import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
 import com.intellij.testFramework.LightProjectDescriptor
+import com.intellij.util.system.OS
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
@@ -198,5 +199,5 @@ class EnvIndexTest : PlatformTestCase() {
         return element as Call
     }
 
-    private fun inputs(version: String) = ProjectModules.Inputs(ElixirLanguageLevel.of(version), legKernel)
+    private fun inputs(version: String) = ProjectModules.Inputs(ElixirLanguageLevel.of(version), legKernel, OS.CURRENT)
 }

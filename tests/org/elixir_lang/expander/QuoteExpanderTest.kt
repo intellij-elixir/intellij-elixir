@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.util.system.OS
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
@@ -416,11 +417,28 @@ class QuoteExpanderTest : ExpanderTestCase() {
             if (isBefore(version, "1.14.4")) "no escaped expression" else "{:v, [keep: {\"$FILE\", 1}], T}"
         }
 
+    /** Code that declined may have changed the directory, so a kept file before 1.14.4 isn't relative to a known one. */
+    fun testLocationKeepAfterADeclinedCallIsUnknownBefore1_14_4() =
+        assertLevelValues("quote(location: :keep, do: v)", KEPT, { inFile(it, { DIRECTORY }).apply { unfollowedCodeRan() } }) { version ->
+            if (isBefore(version, "1.14.4")) "no escaped expression" else "{:v, [keep: {\"$FILE\", 1}], T}"
+        }
+
     /** The directory is asked for the file being expanded. */
     fun testLocationKeepAsksForItsOwnFile() =
         assertKeptValues("quote(location: :keep, do: v)", { file -> DIRECTORY.takeIf { file == FILE } }) { version ->
             "{:v, [keep: {\"${if (isBefore(version, "1.14.4")) "lib/a.ex" else FILE}\", 1}], T}"
         }
+
+    /** On Windows a path's drive letter is lowercased wherever Elixir splits it, so the file below a directory is found by it. */
+    fun testLocationKeepOfAWindowsFileIsFoundBelowItsDirectoryWhateverTheDriveCase() {
+        val file = "c:/proj/lib/a.ex"
+
+        for (directory in listOf("C:/proj", "c:/proj")) {
+            assertLevelValues("quote(location: :keep, do: v)", KEPT, { inFile(it, { directory }, OS.Windows, file) }) { version ->
+                "{:v, [keep: {\"${if (isBefore(version, "1.14.4")) "lib/a.ex" else file}\", 1}], T}"
+            }
+        }
+    }
 
     fun testTheLineOffsetShiftsSourceLinesOnly() {
         val level = ElixirLanguageLevel.of("1.20.4")
@@ -463,8 +481,8 @@ class QuoteExpanderTest : ExpanderTestCase() {
         )
     }
 
-    private fun inFile(level: ElixirLanguageLevel, directories: CompileDirectories) =
-        Run(level, ExpansionObserver.NONE, exports, structs, NO_APP_ENV, file = FILE, directories = directories)
+    private fun inFile(level: ElixirLanguageLevel, directories: CompileDirectories, os: OS = OS.Linux, file: String = FILE) =
+        Run(level, ExpansionObserver.NONE, exports, structs, NO_APP_ENV, file = { file }, directories = directories, os = os)
 
     /** The escaped expression [code], a `quote`, builds in module `T`, written with `~w` and without columns. */
     private fun tree(code: String, level: ElixirLanguageLevel): String {

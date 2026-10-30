@@ -250,14 +250,20 @@ internal enum class Clause(vararg val heads: Head) {
             })
     },
 
-    /** `__DIR__`, whose binary isn't known: `Env` holds no file. */
     DIR(expandHead("{'__DIR__',_,V1} when is_atom(V1)")) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
             isVariableNamed(node, "__DIR__")
 
-        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            // Can't build: Elixir gives the file's directory as a binary, which `Env` doesn't hold.
-            recordingValue(node, env, run, Expansion.Expanded(state, env, Term.Binary(null), run.ast { node }))
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
+            val dir = dirOf(run, env)
+
+            return recordingValue(
+                node,
+                env,
+                run,
+                Expansion.Expanded(state, env, Term.Binary(dir), run.ast { dir?.let { ElixirAst.Literal.Binary(node.meta, it) } ?: node }),
+            )
+        }
     },
 
     CALLER(expandHead("{'__CALLER__',_,V1} when is_atom(V1)")) {

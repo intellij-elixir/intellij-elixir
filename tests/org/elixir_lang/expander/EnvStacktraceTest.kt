@@ -8,9 +8,11 @@ import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.util.TextRange
+import com.intellij.util.system.OS
 import org.elixir_lang.expander.interpreter.Declined
 import org.elixir_lang.expander.interpreter.Evaluation
 import org.elixir_lang.expander.interpreter.Thrown
+import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.expander.interpreter.UnknownBinary
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
@@ -40,8 +42,21 @@ class EnvStacktraceTest {
     }
 
     @Test
-    fun `a file whose root isn't known declines`() {
-        assertThrows(Declined::class.java) { call(env(file = "$ROOT/lib/foo.ex"), CompileDirectories.UNKNOWN) }
+    fun `a file whose root isn't known has an unknown file in its frame`() {
+        assertEquals(
+            stacktrace(atom(MODULE), atom("bar"), 2, Unknown),
+            call(env(file = "$ROOT/lib/foo.ex"), CompileDirectories.UNKNOWN),
+        )
+    }
+
+    @Test
+    fun `an unknown file is no binary and no list, as Elixir's is a charlist`() {
+        val frame = (call(env(file = "$ROOT/lib/foo.ex"), CompileDirectories.UNKNOWN) as OtpErlangList).elementAt(0) as OtpErlangTuple
+        val file = ((frame.elementAt(3) as OtpErlangList).elementAt(0) as OtpErlangTuple).elementAt(1)
+
+        for (test in listOf("is_binary", "is_list")) {
+            assertThrows(test, Declined::class.java) { type(test, file) }
+        }
     }
 
     @Test
@@ -72,11 +87,45 @@ class EnvStacktraceTest {
         assertEquals(atom("function_clause"), thrown.reason)
     }
 
-    private fun call(env: OtpErlangObject, directories: CompileDirectories = CompileDirectories { ROOT }): OtpErlangObject? {
-        val run = Run(level, ExpansionObserver.NONE, { ModuleExports.Absent }, { ModuleStruct.Absent }, NO_APP_ENV, directories = directories)
+    @Test
+    fun `a file whose SDK's OS isn't known declines`() {
+        assertThrows(Declined::class.java) { call(env(file = "$ROOT/lib/foo.ex"), os = null) }
+    }
+
+    @Test
+    fun `a directory that code the expander didn't follow may have changed has an unknown file in its frame`() {
+        assertEquals(
+            stacktrace(atom(MODULE), atom("bar"), 2, Unknown),
+            call(env(file = "$ROOT/lib/foo.ex"), unfollowedCodeRan = true),
+        )
+    }
+
+    @Test
+    fun `a Windows file is found below its root whatever the drive's case`() {
+        assertEquals(
+            stacktrace(atom(MODULE), atom("bar"), 2, "lib/foo.ex"),
+            call(env(file = "c:/project/lib/foo.ex"), CompileDirectories { "C:/project" }, OS.Windows),
+        )
+    }
+
+    private fun call(
+        env: OtpErlangObject,
+        directories: CompileDirectories = CompileDirectories { ROOT },
+        os: OS? = OS.Linux,
+        unfollowedCodeRan: Boolean = false,
+    ): OtpErlangObject? {
+        val run = Run(level, ExpansionObserver.NONE, { ModuleExports.Absent }, { ModuleStruct.Absent }, NO_APP_ENV, directories = directories, os = os)
+        if (unfollowedCodeRan) run.unfollowedCodeRan()
         val evaluation = Evaluation(NODE, ExState.empty(level), Env.empty(level, KernelImports(emptyList(), emptyList())), run)
 
         return evaluation.natives.call("Elixir.Macro.Env", "stacktrace", listOf(env))
+    }
+
+    private fun type(test: String, term: OtpErlangObject): OtpErlangObject? {
+        val run = Run(level, ExpansionObserver.NONE, { ModuleExports.Absent }, { ModuleStruct.Absent }, NO_APP_ENV, os = OS.Linux)
+        val evaluation = Evaluation(NODE, ExState.empty(level), Env.empty(level, KernelImports(emptyList(), emptyList())), run)
+
+        return evaluation.natives.call("erlang", test, listOf(term))
     }
 
     private fun env(
@@ -90,10 +139,13 @@ class EnvStacktraceTest {
             arrayOf(atom("Elixir.Macro.Env"), module, function, OtpErlangLong(LINE), fileTerm),
         )
 
-    private fun stacktrace(module: OtpErlangAtom, function: OtpErlangAtom, arity: Long, file: String): OtpErlangList {
+    private fun stacktrace(module: OtpErlangAtom, function: OtpErlangAtom, arity: Long, file: String): OtpErlangList =
+        stacktrace(module, function, arity, OtpErlangList(file.codePoints().toArray().map { OtpErlangLong(it.toLong()) }.toTypedArray()))
+
+    private fun stacktrace(module: OtpErlangAtom, function: OtpErlangAtom, arity: Long, file: OtpErlangObject): OtpErlangList {
         val location = OtpErlangList(
             arrayOf(
-                OtpErlangTuple(arrayOf(atom("file"), OtpErlangList(file.codePoints().toArray().map { OtpErlangLong(it.toLong()) }.toTypedArray()))),
+                OtpErlangTuple(arrayOf(atom("file"), file)),
                 OtpErlangTuple(arrayOf(atom("line"), OtpErlangLong(LINE))),
             ),
         )

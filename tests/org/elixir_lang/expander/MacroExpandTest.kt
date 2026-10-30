@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.util.system.OS
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
@@ -33,6 +34,10 @@ class MacroExpandTest : ExpanderTestCase() {
 
     /** Expand the snippet as `Macro.expand_literals/2` does, not `Macro.expand/2`. */
     private var literals = false
+
+    /** The path and OS of the run's file, `null` where it has none. */
+    private var file: String? = null
+    private var os: OS? = null
 
     private var inModule: String? = MODULE
     override val module: String? get() = inModule
@@ -68,7 +73,28 @@ class MacroExpandTest : ExpanderTestCase() {
         assertEvery("__MODULE__", "atom nil |")
     }
 
-    fun testDirIsTheFilesDirectory() = assertEvery("__DIR__", "dir |")
+    fun testDirIsUnknownWithNoFile() = assertEvery("__DIR__", "dir |")
+
+    fun testDirIsTheDirectoryOfTheFile() {
+        file = "/src/lib/a.ex"
+        os = OS.Linux
+
+        assertEvery("__DIR__", "binary /src/lib |")
+    }
+
+    /** `filename:dirname/1` reads the OS for its separators, which a run with none doesn't give. */
+    fun testDirIsUnknownWithNoOs() {
+        file = "/src/lib/a.ex"
+
+        assertEvery("__DIR__", "dir |")
+    }
+
+    fun testDirFollowsTheWindowsSeparators() {
+        file = "c:/src/lib/a.ex"
+        os = OS.Windows
+
+        assertEvery("__DIR__", "binary c:/src/lib |")
+    }
 
     fun testEnvIsUnported() = assertEvery("__ENV__", "unported `__ENV__` |")
 
@@ -268,7 +294,7 @@ class MacroExpandTest : ExpanderTestCase() {
             macros = empty.macros + macros,
             module = module,
         )
-        val run = Run(level, observer, exports, structs, NO_APP_ENV)
+        val run = Run(level, observer, exports, structs, NO_APP_ENV, file = { file }, os = os)
         val node = lower(code, level)
         val expanded = if (literals) {
             macroExpandLiterals(node, ExState.empty(level), env, run)
@@ -297,6 +323,7 @@ class MacroExpandTest : ExpanderTestCase() {
                     !expanded.expanded -> "unchanged"
                     node is ElixirAst.Literal.Atom -> "atom ${node.name}"
                     node is ElixirAst.Literal.Integer -> "integer ${node.value}"
+                    node is ElixirAst.Literal.Binary -> "binary ${String(node.bytes)}"
                     node is ElixirAst.ListNode || node is ElixirAst.Tuple -> "node ${shape(node)}"
                     else -> "node `${node.meta.origin.substring(code)}`"
                 }

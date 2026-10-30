@@ -920,10 +920,10 @@ private fun moved(file: AttributeValue?, head: ElixirAst, run: Run): Boolean {
     }
     val joined = when {
         OSAgnosticPathUtil.isAbsolute(path) -> path
-        else -> run.file?.let(run.directories::of)?.let { "$it/$path" } ?: return true
+        else -> run.file()?.let(run::workingDirectory)?.let { "$it/$path" } ?: return true
     }
 
-    return absname(joined) != run.file?.let(::absname)
+    return absname(joined) != run.file()?.let(::absname)
 }
 
 /**

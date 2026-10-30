@@ -451,12 +451,12 @@ internal object Quote {
      * crash.
      */
     private fun keptFile(call: ElixirAst.Call, location: Term?, env: Env, run: Run): Term.Binary {
-        val file = run.file
-        val moved = env.function != null && run.compiling[env.module]?.definitionMoved == true
-        if ((location as? Term.Atom)?.name != "keep" || file == null || moved) throw Stop(Expansion.Unported(call))
+        val file = fileOf(run, env)
+        if ((location as? Term.Atom)?.name != "keep" || file == null) throw Stop(Expansion.Unported(call))
         if (QUOTE_KEEP_STORES_FULL_PATH.isSufficient(run.level)) return Term.Binary(file.toByteArray())
 
-        val relative = run.directories.relativeToCwd(file) ?: throw Stop(Expansion.Unported(call))
+        val os = run.os ?: throw Stop(Expansion.Unported(call))
+        val relative = run.relativeToCwd(file, os) ?: throw Stop(Expansion.Unported(call))
 
         return Term.Binary(relative.toByteArray())
     }

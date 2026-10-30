@@ -5,12 +5,13 @@ import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
+import com.intellij.util.system.OS
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.ElixirFile
 import java.util.concurrent.Callable
 
 /** The leg's inputs, which an ask of [ProjectModules] in the tests passes unless it names others. */
-internal val legInputs: ProjectModules.Inputs by lazy { ProjectModules.Inputs(legLevel(), legKernel) }
+internal val legInputs: ProjectModules.Inputs by lazy { ProjectModules.Inputs(legLevel(), legKernel, OS.CURRENT) }
 
 internal fun expansion(holder: ProjectModules, file: PsiFile, inputs: ProjectModules.Inputs = legInputs): FileExpansion =
     ReadAction.nonBlocking(Callable { holder.expansion(file as ElixirFile, inputs) }).executeSynchronously()
@@ -25,6 +26,14 @@ internal fun exports(
 /** [file]'s expansion from a holder that has cached nothing. */
 internal fun freshExpansion(project: Project, file: PsiFile, inputs: ProjectModules.Inputs = legInputs): FileExpansion =
     expansion(ProjectModules(project), file, inputs)
+
+/** How the one module [file] defines ended, and the functions its table holds, as `compiled [f/0]`. */
+internal fun defines(holder: ProjectModules, file: PsiFile): String {
+    val result = expansion(holder, file).modules.single()
+    val ended = result.ended::class.simpleName!!.lowercase()
+
+    return "$ended ${result.table.entries.keys.map { "${it.name}/${it.arity}" }.sorted()}"
+}
 
 /** Each module [expansion] of [file] compiled, one per line: how it ended, the errors it reported, and its exports. */
 internal fun render(file: PsiFile, expansion: FileExpansion): String {

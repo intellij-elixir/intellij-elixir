@@ -17,6 +17,9 @@ import kotlin.time.Duration.Companion.seconds
 internal fun legLevel(): ElixirLanguageLevel =
     ElixirLanguageLevel.of(LegManifest.environment("ELIXIR_VERSION"), System.getenv("ERLANG_VERSION"))
 
+/** Whether the leg's `Path.expand/2` reads the working directory only for a relative directory, as from 1.16.0-rc.1. */
+internal fun legExpandsPathsLazily(): Boolean = legLevel().elixir >= ElixirLanguageLevel.of("1.16.0-rc.1").elixir
+
 internal val legKernel: KernelImports by lazy {
     val beam = File(LegManifest.ebin(), "Elixir.Kernel.beam")
     val read = KernelImports.read(beam.readBytes(), beam.path)

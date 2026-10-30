@@ -10,6 +10,7 @@ import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.io.FileUtil
+import com.intellij.util.system.OS
 import org.elixir_lang.NameArity
 import org.elixir_lang.beam.binaryToTerm
 import org.elixir_lang.coverage.ExpanderProgress
@@ -81,10 +82,11 @@ class EctoFixtureTest : HeavyTestCase() {
                 { holder.exports(queries, it, legInputs) },
                 { holder.struct(queries, it, legInputs) },
                 legAppEnv(),
-                file = queries.virtualFile.path,
+                file = { queries.virtualFile.path },
                 // The project's root as the file system gives it, as it gives `file`.
                 directories = { queries.virtualFile.parent.parent.path },
                 clauses = { holder.clauses(queries, it, legInputs) },
+                os = OS.CURRENT,
             )
 
             for ((form, chain) in steps) {

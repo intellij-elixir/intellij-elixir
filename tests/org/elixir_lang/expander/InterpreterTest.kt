@@ -14,6 +14,7 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiFileFactory
+import com.intellij.util.system.OS
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.expander.ExpansionResult.Ended
@@ -472,6 +473,192 @@ class InterpreterTest : PlatformTestCase() {
             "top expanded\nmodule Elixir.H compiled\nmodule Elixir.A compiled\nmodule Elixir.B compiled",
         )
 
+    /** `:os.type/0` is the OS the file's SDK runs as. */
+    fun testAnOsTypeIsTheOsTheSdkRunsAs() {
+        val cases = mapOf(
+            OS.Windows to "nt/0 def, win32/0 def",
+            OS.macOS to "darwin/0 def, unix/0 def",
+            OS.Linux to "linux/0 def, unix/0 def",
+            OS.FreeBSD to "freebsd/0 def, unix/0 def",
+        )
+
+        for ((os, names) in cases) {
+            assertEquals("$os", "top expanded\nmodule Elixir.A compiled [$names]", file(OS_TYPE, tables = true, run = RunInputs(os = os)))
+        }
+    }
+
+    /** An OS no `os:type/0` clause names, and a run that has none, are not known, so the type is not either. */
+    fun testAnOsTypeNobodyKnowsIsNotKnown() {
+        for (os in listOf(OS.Other, null)) {
+            assertEquals("$os", "top expanded\nmodule Elixir.A stopped `unquote(family)` []", file(OS_TYPE, tables = true, run = RunInputs(os = os)))
+        }
+    }
+
+    /** `:file.get_cwd/0` is the directory the file is compiled in, which is not known without a file and its directory. */
+    fun testTheWorkingDirectoryIsTheFilesCompileDirectory() {
+        val code = "defmodule A do\n" +
+            "  {:ok, cwd} = :file.get_cwd()\n" +
+            "  def unquote(:erlang.binary_to_atom(:unicode.characters_to_binary(cwd), :utf8))(), do: 1\n" +
+            "end"
+        val stopped = "top expanded\nmodule Elixir.A stopped `unquote(:erlang.binary_to_atom(:unicode.characters_to_binary(cwd), :utf8))` []"
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [/proj/0 def]",
+            file(code, tables = true, run = RunInputs(OS.Linux, FILE, CompileDirectories { "/proj" })),
+        )
+        assertEquals(stopped, file(code, tables = true, run = RunInputs(OS.Linux, FILE)))
+        assertEquals(stopped, file(code, tables = true, run = RunInputs(OS.Linux, null, CompileDirectories { "/proj" })))
+    }
+
+    /** A call that declined may have changed the directory, so the directory after it is not known. */
+    fun testTheWorkingDirectoryAfterADeclinedCallIsUnknown() {
+        val code = "defmodule A do\n" +
+            "  :file.set_cwd(\"/other\")\n" +
+            "  {:ok, cwd} = :file.get_cwd()\n" +
+            "  def unquote(:erlang.binary_to_atom(:unicode.characters_to_binary(cwd), :utf8))(), do: 1\n" +
+            "end"
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A stopped `unquote(:erlang.binary_to_atom(:unicode.characters_to_binary(cwd), :utf8))` []",
+            file(code, tables = true, run = RunInputs(OS.Linux, FILE, CompileDirectories { "/proj" })),
+        )
+    }
+
+    /** A macro whose code declined may have changed the directory a later module reads. */
+    fun testTheWorkingDirectoryAfterAMacroThatDeclinedIsUnknown() {
+        val code = "defmodule M do\n  defmacro cd, do: (:file.set_cwd(\"/other\"); quote(do: :ok))\nend\n" +
+            "defmodule A do\n  require M\n  M.cd()\nend\n" + CWD_MODULE
+
+        assertEquals(
+            "top expanded\nmodule Elixir.M compiled [cd/0 defmacro]\nmodule Elixir.A stopped `M.cd()` []\nmodule Elixir.B stopped `$CWD_NAME` []",
+            file(code, tables = true, run = RunInputs(OS.Linux, FILE, CompileDirectories { "/proj" })),
+        )
+    }
+
+    /** A module that stopped may have run code after the stop that changed the directory a later module reads. */
+    fun testTheWorkingDirectoryAfterAStoppedModuleIsUnknown() {
+        val code = "defmodule A do\n  quote(location: :other, do: 1)\nend\n" + CWD_MODULE
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A stopped `quote(location: :other, do: 1)` []\nmodule Elixir.B stopped `$CWD_NAME` []",
+            file(code, tables = true, run = RunInputs(OS.Linux, FILE, CompileDirectories { "/proj" })),
+        )
+    }
+
+    /** An arm whose test declined and is passed over may have run code that changed the directory. */
+    fun testTheWorkingDirectoryAfterAPassedOverArmIsUnknown() {
+        val code = "defmodule A do\n  cond do\n    :file.set_cwd(\"/other\") == :ok -> :erlang.error(:x)\n    true -> :ok\n  end\n" +
+            "  {:ok, cwd} = :file.get_cwd()\n  def $CWD_NAME(), do: 1\nend"
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A stopped `$CWD_NAME` []",
+            file(code, tables = true, run = RunInputs(OS.Linux, FILE, CompileDirectories { "/proj" })),
+        )
+    }
+
+    /** A loop that goes on past an iteration that declined leaves the directory unknown too. */
+    fun testTheWorkingDirectoryAfterALoopWhoseIterationDeclinedIsUnknown() {
+        val code = "defmodule A do\n  x = for i <- [1, 2], do: (:file.set_cwd(\"/other\"); i)\n  y = Enum.map([1], fn i -> :file.set_cwd(\"/other\"); i end)\n  def f, do: unquote(x ++ y)\nend\n" + CWD_MODULE
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [f/0 def]\nmodule Elixir.B stopped `$CWD_NAME` []",
+            file(code, tables = true, run = RunInputs(OS.Linux, FILE, CompileDirectories { "/proj" })),
+        )
+    }
+
+    /** `:file.get_cwd/0` answers a Windows drive lowercased, as OTP gives it, whatever the case the directory has. */
+    fun testTheWorkingDirectoryOnWindowsHasALowercaseDrive() {
+        val code = "defmodule A do\n  {:ok, cwd} = :file.get_cwd()\n  def $CWD_NAME(), do: 1\nend"
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [c:/proj/0 def]",
+            file(code, tables = true, run = RunInputs(OS.Windows, "c:/proj/lib/a.ex", CompileDirectories { "C:/proj" })),
+        )
+    }
+
+    /**
+     * A relative `@file` is made absolute against the directory the compile runs in now, so a definition that took one
+     * is in the run's file where that directory is known, and moved after code that may have changed it.
+     */
+    fun testARelativeFileOfADefinitionIsMovedAfterTheDirectoryMayHaveChanged() {
+        val run = RunInputs(OS.Linux, "/proj/lib/a.ex", CompileDirectories { "/proj" })
+        val code = { cd: String ->
+            "defmodule A do\n  $cd\n  @file \"lib/a.ex\"\n  defmacro n, do: __ENV__.file\nend\n" +
+                "defmodule B do\n  require A\n  def unquote(:erlang.binary_to_atom(A.n(), :utf8))(), do: 1\nend"
+        }
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B compiled [/proj/lib/a.ex/0 def]",
+            file(code(""), tables = true, run = run),
+        )
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B stopped `A.n()` []",
+            file(code(":file.set_cwd(\"/other\")"), tables = true, run = run),
+        )
+    }
+
+    /**
+     * An absolute path expanded against an absolute directory reads the working directory only where Elixir does: from
+     * 1.16.0-rc.1 not at all on a unix host, and on a Windows host always, as a path with no drive letter is relative to
+     * the volume.
+     */
+    fun testAnAbsolutePathExpandedReadsTheWorkingDirectoryWhereElixirDoes() {
+        val code = "defmodule A do\n  name = String.to_atom(Path.expand(\"/a/b.ex\", \"/c\"))\n  def unquote(name)(), do: 1\nend"
+        val stopped = "top expanded\nmodule Elixir.A stopped `unquote(name)` []"
+        val unknown = RunInputs(OS.Linux, FILE)
+
+        assertEquals(
+            if (legExpandsPathsLazily())"top expanded\nmodule Elixir.A compiled [/a/b.ex/0 def]" else stopped,
+            file(code, tables = true, run = unknown),
+        )
+        assertEquals(stopped, file(code, tables = true, run = RunInputs(OS.Windows, FILE)))
+    }
+
+    /** The OS a file's SDK runs as decides where `:filename.split/1` reads a drive letter. */
+    fun testASplitFollowsTheOsTheSdkRunsAs() {
+        val code = "defmodule A do\n  [first | _] = :filename.split(\"C:/a\")\n  def unquote(:erlang.binary_to_atom(first, :utf8))(), do: 1\nend"
+
+        assertEquals("top expanded\nmodule Elixir.A compiled [C:/0 def]", file(code, tables = true, run = RunInputs(OS.Linux)))
+        assertEquals("top expanded\nmodule Elixir.A compiled [c://0 def]", file(code, tables = true, run = RunInputs(OS.Windows)))
+    }
+
+    /** `__DIR__` is `:filename.dirname/1` of the file's path, by the OS its SDK runs as, and unknown without either. */
+    fun testTheDirIsTheDirectoryOfTheFilesPathByTheOsTheSdkRunsAs() {
+        val code = "defmodule A do\n  def unquote(:erlang.binary_to_atom(__DIR__, :utf8))(), do: 1\nend"
+        val stopped = "top expanded\nmodule Elixir.A stopped `unquote(:erlang.binary_to_atom(__DIR__, :utf8))` []"
+
+        assertEquals("top expanded\nmodule Elixir.A compiled [/proj/lib/0 def]", file(code, tables = true, run = RunInputs(OS.Linux, "/proj/lib/a.ex")))
+        assertEquals("top expanded\nmodule Elixir.A compiled [c:/proj/lib/0 def]", file(code, tables = true, run = RunInputs(OS.Windows, "c:/proj/lib\\a.ex")))
+        assertEquals(stopped, file(code, tables = true, run = RunInputs(OS.Linux)))
+        assertEquals(stopped, file(code, tables = true, run = RunInputs(null, "/proj/lib/a.ex")))
+    }
+
+    /** A definition that took an `@file` is compiled as in that file, so its `__ENV__.file` isn't the run's. */
+    fun testTheEnvFileOfAMovedDefinitionIsUnknown() {
+        val run = RunInputs(OS.Linux, "/proj/lib/a.ex")
+        val code = { macros: String ->
+            """
+                defmodule A do
+                  @file "/templates/view.ex"
+                  $macros
+                end
+                defmodule B do
+                  require A
+                  def unquote(:erlang.binary_to_atom(A.n(), :utf8))(), do: 1
+                end
+            """.trimIndent()
+        }
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled\nmodule Elixir.B stopped `A.n()`",
+            file(code("defmacro n, do: __ENV__.file"), run = run),
+        )
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled\nmodule Elixir.B compiled",
+            file(code("defmacro m, do: 1\n  defmacro n, do: __ENV__.file"), run = run),
+        )
+    }
+
     /**
      * A statement's code runs in order, so a match, a definition or an attribute write in a later argument or element
      * reads what an earlier one wrote, as in Elixir.
@@ -553,6 +740,61 @@ class InterpreterTest : PlatformTestCase() {
                 )
             },
         )
+    }
+
+    /**
+     * A definition that took an `@file` is compiled as in that file, so its `__DIR__` is that file's directory, which
+     * isn't known; the module body and a definition after it are in the run's file.
+     */
+    fun testTheDirOfAMovedDefinitionIsUnknown() {
+        val run = RunInputs(OS.Linux, "/proj/lib/a.ex")
+        val moved = """
+            defmodule A do
+              @file "/templates/view.ex"
+              defmacro m, do: __DIR__
+            end
+            defmodule B do
+              require A
+              def unquote(:erlang.binary_to_atom(A.m(), :utf8))(), do: 1
+            end
+        """.trimIndent()
+        val own = """
+            defmodule A do
+              @file "/templates/view.ex"
+              defmacro m, do: 1
+              defmacro n, do: __DIR__
+            end
+            defmodule B do
+              require A
+              def unquote(:erlang.binary_to_atom(A.n(), :utf8))(), do: 1
+            end
+        """.trimIndent()
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled\nmodule Elixir.B stopped `A.m()`",
+            file(moved, run = run),
+        )
+        assertEquals("top expanded\nmodule Elixir.A compiled\nmodule Elixir.B compiled", file(own, run = run))
+    }
+
+    /** `Macro.expand/2` of `__DIR__` is a binary whose bytes are unknown where the file's path or OS is, as `__CALLER__.file` is. */
+    fun testMacroExpandOfTheDirIsABinaryWhereItIsUnknown() {
+        val code = """
+            defmodule A do
+              defmacro m do
+                if is_binary(Macro.expand(quote(do: __DIR__), __CALLER__)), do: quote(do: def(a, do: 1)), else: quote(do: def(b, do: 1))
+              end
+            end
+            defmodule B do
+              require A
+              A.m()
+            end
+        """.trimIndent()
+        val known = "top expanded\nmodule Elixir.A compiled\nmodule Elixir.B compiled"
+
+        assertEquals(known, file(code, run = RunInputs(OS.Linux, "/proj/lib/a.ex")))
+        assertEquals(known, file(code, run = RunInputs(OS.Linux)))
+        assertEquals(known, file(code, run = RunInputs(null, "/proj/lib/a.ex")))
     }
 
     /**
@@ -1188,13 +1430,27 @@ class InterpreterTest : PlatformTestCase() {
      * [code], a file expanded at the leg's level with the leg's clauses, as [expected] shows its top and each module's end,
      * and with [tables] each module's definition table after it.
      */
-    private fun assertFile(code: String, expected: String, tables: Boolean = false) =
-        assertEquals(expected, file(code, tables))
+    private fun assertFile(code: String, expected: String, tables: Boolean = false, run: RunInputs = RunInputs()) =
+        assertEquals(expected, file(code, tables, run))
+
+    /** The file, its compile directories and the OS its SDK runs as, where a test names them. */
+    private class RunInputs(val os: OS? = null, val path: String? = null, val directories: CompileDirectories = CompileDirectories.UNKNOWN)
 
     /** How [code]'s file expanded and each module it compiled ended, one per line, with [tables] each one's table. */
-    private fun file(code: String, tables: Boolean = false): String {
+    private fun file(code: String, tables: Boolean = false, run: RunInputs = RunInputs()): String {
         val level = legLevel()
-        val file = Expander.expandFile(lowered(code, level), Env.empty(level, legKernel), level, sdkExports, legStructs, legAppEnv(), clauses = sdk)
+        val file = Expander.expandFile(
+            lowered(code, level),
+            Env.empty(level, legKernel),
+            level,
+            sdkExports,
+            legStructs,
+            legAppEnv(),
+            clauses = sdk,
+            file = { run.path },
+            directories = run.directories,
+            os = run.os,
+        )
 
         fun source(node: ElixirAst) = node.meta.origin.substring(code)
 
@@ -1249,6 +1505,7 @@ class InterpreterTest : PlatformTestCase() {
                 clauses = clauses,
                 file = FILE,
                 directories = DIRECTORIES,
+                os = OS.CURRENT,
             )
 
             tokens += expansion.layout.token
@@ -1320,6 +1577,7 @@ class InterpreterTest : PlatformTestCase() {
                 clauses = origin.clauses,
                 file = origin.file,
                 directories = origin.directories,
+                os = origin.os,
             )
             val attempt = harness.attempt(together.layout)
 
@@ -1411,9 +1669,10 @@ class InterpreterTest : PlatformTestCase() {
                     legStructs,
                     legAppEnv(),
                     observer,
-                    file = FILE,
+                    file = { FILE },
                     directories = DIRECTORIES,
                     clauses = sdk,
+                    os = OS.CURRENT,
                 )
             }
         }
@@ -1437,9 +1696,10 @@ class InterpreterTest : PlatformTestCase() {
                 exports,
                 legStructs,
                 legAppEnv(),
-                file = FILE,
+                file = { FILE },
                 directories = DIRECTORIES,
                 clauses = clauses,
+                os = OS.CURRENT,
             )
             val call = lowered(row.call(index, token), level)
 
@@ -1683,6 +1943,12 @@ class InterpreterTest : PlatformTestCase() {
     private companion object {
         /** A subject the evaluator can't produce, so the branch it selects isn't known. */
         const val RECV_FALSE = "(receive do after 0 -> false end)"
+
+        /** The name of a function made from the directory its compile runs in. */
+        const val CWD_NAME = "unquote(:erlang.binary_to_atom(:unicode.characters_to_binary(cwd), :utf8))"
+
+        /** A module that names a function by the directory its compile runs in. */
+        const val CWD_MODULE = "defmodule B do\n  {:ok, cwd} = :file.get_cwd()\n  def $CWD_NAME(), do: 1\nend"
         const val RECV_B = "(receive do after 0 -> :b end)"
 
         const val TOKEN = "{token}"
@@ -1696,6 +1962,7 @@ class InterpreterTest : PlatformTestCase() {
         const val OPAQUE = "opaque"
         const val UNPORTED = "unported"
         const val FILE = "probe.ex"
+        const val OS_TYPE = "defmodule A do\n  {family, name} = :os.type()\n  def unquote(family)(), do: 1\n  def unquote(name)(), do: 1\nend"
         const val STRUCT_S = "defmodule S do\n  defstruct []\nend"
         const val TO_STRING = "EEx.function_from_string(:def, :to_string, \"<%= t %>\", [:t])"
 
@@ -4805,6 +5072,83 @@ class InterpreterTest : PlatformTestCase() {
                 """,
             ),
 
+            // The natives: paths, as the host's OS gives them, which is how the Elixir these rows are compared with answers;
+            // the other OSes are pinned by `testAnOsType*` and `FilenameTest`.
+            macro(
+                "native:binary-split",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :binary.split("/a//b/c", "/", [:global]),
+                    :binary.split("a/b/c", "/", []),
+                    :binary.split("a/b\\c", ["/", "\\"], [:global]),
+                    :binary.split("abc", "x", [:global]),
+                    :binary.split("", "/", [:global]),
+                    :binary.split("aaa", "aa", [:global]),
+                    :binary.split("abcd", ["ab", "abc"], [])
+                  ])
+                end
+                """,
+            ),
+            macro("native:binary-split-trim", "defmacro m, do: Macro.escape(:binary.split(\"a/b/\", \"/\", [:trim]))", pins = DECLINED),
+            macro("native:binary-split-list-subject", "defmacro m, do: Macro.escape(:binary.split(~c\"a/b\", \"/\", []))", pins = DECLINED),
+            macro(
+                "native:filename-dirname",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :filename.dirname("/a/b/c.ex"),
+                    :filename.dirname("c.ex"),
+                    :filename.dirname("/c.ex"),
+                    :filename.dirname("/a/b/"),
+                    :filename.dirname("/a//b/c.ex"),
+                    :filename.dirname("c:/a/c.ex"),
+                    :filename.dirname(""),
+                    :filename.dirname("/")
+                  ])
+                end
+                """,
+            ),
+            macro("native:filename-dirname-list", "defmacro m, do: Macro.escape(:filename.dirname(~c\"/a/b\"))", pins = DECLINED),
+            macro(
+                "native:filename-basename",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :filename.basename("/a/b/c.ex"),
+                    :filename.basename("/a/b/"),
+                    :filename.basename("c"),
+                    :filename.basename(""),
+                    :filename.basename("/"),
+                    :filename.basename("/a/b/c.ex", ".ex"),
+                    :filename.basename("/a/b/c.exs", ".ex"),
+                    :filename.basename("/a/x", ".long"),
+                    :filename.basename("/a/b/c.ex", ~c".ex"),
+                    :filename.basename("/a/b/", ""),
+                    :filename.basename(".ex", ".ex")
+                  ])
+                end
+                """,
+            ),
+            macro("native:filename-basename-list", "defmacro m, do: Macro.escape(:filename.basename(~c\"/a/b\"))", pins = DECLINED),
+            macro("native:filename-basename-list-name", "defmacro m, do: Macro.escape(:filename.basename(~c\"/a/b.ex\", \".ex\"))", pins = DECLINED),
+            macro(
+                "native:filename-split",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :filename.split("/src/lib/t.eex"),
+                    :filename.split("a//b/"),
+                    :filename.split(""),
+                    :filename.split("/"),
+                    :filename.split("rel/x"),
+                    :filename.split("c:/a\\b"),
+                    :filename.split("//server/share/a.ex")
+                  ])
+                end
+                """,
+            ),
+            macro("native:filename-split-list", "defmacro m, do: Macro.escape(:filename.split(~c\"/a/b\"))", pins = DECLINED),
             // The natives: Elixir's functions
             macro(
                 "pure:keyword",
@@ -8851,7 +9195,6 @@ class InterpreterTest : PlatformTestCase() {
                 "body:unknown-rescue",
                 "x = Application.get_env(:m2, :x, :ok)\ndef f do\n  raise \"x\"\nrescue\n  _ -> unquote(x)\nend",
             ),
-            fragments("body:unknown-bytes", "def f, do: unquote(__ENV__.file)"),
             fragments("body:unknown-uncalled-name", "n = Application.get_env(:m2, :n, :node)\ndef f, do: Kernel.unquote(n)"),
             // A helper whose input an unknown fragment gives is unknown too.
             fragments(

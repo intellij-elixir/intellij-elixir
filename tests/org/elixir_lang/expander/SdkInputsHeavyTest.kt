@@ -18,6 +18,7 @@ import com.intellij.psi.PsiManager
 import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
+import com.intellij.util.system.OS
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.beam.ReadResult
 import org.elixir_lang.elixir_surface.LegManifest
@@ -89,7 +90,7 @@ class SdkInputsHeavyTest : HeavyTestCase() {
         File(home, "lib/elixir/ebin/Elixir.Kernel.beam").writeBytes(KERNEL)
         VfsUtil.markDirtyAndRefresh(false, true, true, ebin(home))
 
-        assertEquals(SdkInputs.Answer.Ready(sdk, ProjectModules.Inputs(level(sdk), kernel(KERNEL))), read { inputs.inputsFor(file) })
+        assertEquals(SdkInputs.Answer.Ready(sdk, ProjectModules.Inputs(level(sdk), kernel(KERNEL), OS.CURRENT)), read { inputs.inputsFor(file) })
     }
 
     fun testOneSdk() {
@@ -100,7 +101,7 @@ class SdkInputsHeavyTest : HeavyTestCase() {
         val a = read { inputs.inputsFor(psi(root, "lib/a.ex")) }
         val b = read { inputs.inputsFor(psi(root, "lib/b.ex")) }
 
-        assertEquals(SdkInputs.Answer.Ready(sdk, ProjectModules.Inputs(level(sdk), kernel(KERNEL))), a)
+        assertEquals(SdkInputs.Answer.Ready(sdk, ProjectModules.Inputs(level(sdk), kernel(KERNEL), OS.CURRENT)), a)
         assertEquals("1.18.4", (a as SdkInputs.Answer.Ready).inputs.level.elixirVersion)
         assertSame("a second file on the same SDK gets the SDK's held answer", a, b)
     }
@@ -123,8 +124,8 @@ class SdkInputsHeavyTest : HeavyTestCase() {
         val ofFirst = ready(file(module, "first"))
         val ofSecond = ready(file(other, "second"))
 
-        assertEquals(ProjectModules.Inputs(level(first), kernel(KERNEL)), ofFirst)
-        assertEquals(ProjectModules.Inputs(level(second), kernel(OTHER_KERNEL)), ofSecond)
+        assertEquals(ProjectModules.Inputs(level(first), kernel(KERNEL), OS.CURRENT), ofFirst)
+        assertEquals(ProjectModules.Inputs(level(second), kernel(OTHER_KERNEL), OS.CURRENT), ofSecond)
         assertEquals("1.15.7", ofSecond.level.elixirVersion)
     }
 
@@ -143,7 +144,7 @@ class SdkInputsHeavyTest : HeavyTestCase() {
             }
         }
 
-        assertEquals(ProjectModules.Inputs(before.level, kernel(OTHER_KERNEL)), ready(file))
+        assertEquals(ProjectModules.Inputs(before.level, kernel(OTHER_KERNEL), OS.CURRENT), ready(file))
     }
 
     fun testAKernelRewrittenInPlace() {
@@ -155,7 +156,7 @@ class SdkInputsHeavyTest : HeavyTestCase() {
 
         WriteAction.runAndWait<Throwable> { ebin(home).findChild("Elixir.Kernel.beam")!!.setBinaryContent(OTHER_KERNEL) }
 
-        assertEquals(ProjectModules.Inputs(before.level, kernel(OTHER_KERNEL)), ready(file))
+        assertEquals(ProjectModules.Inputs(before.level, kernel(OTHER_KERNEL), OS.CURRENT), ready(file))
     }
 
     fun testAHomeChange() {
@@ -175,7 +176,7 @@ class SdkInputsHeavyTest : HeavyTestCase() {
                 commitChanges()
             }
         }
-        assertEquals(ProjectModules.Inputs(ElixirLanguageLevel.of("1.15.7"), before.kernel), ready(file))
+        assertEquals(ProjectModules.Inputs(ElixirLanguageLevel.of("1.15.7"), before.kernel, OS.CURRENT), ready(file))
 
         val otherHome = home("1.16.3", OTHER_KERNEL)
         WriteAction.runAndWait<Throwable> {
@@ -187,7 +188,7 @@ class SdkInputsHeavyTest : HeavyTestCase() {
         }
         waitForVersions(otherHome)
 
-        assertEquals(ProjectModules.Inputs(ElixirLanguageLevel.of("1.16.3"), kernel(OTHER_KERNEL)), ready(file))
+        assertEquals(ProjectModules.Inputs(ElixirLanguageLevel.of("1.16.3"), kernel(OTHER_KERNEL), OS.CURRENT), ready(file))
     }
 
     fun testAModuleSdkSwitch() {
@@ -198,7 +199,7 @@ class SdkInputsHeavyTest : HeavyTestCase() {
         val ofFirst = read { inputs.inputsFor(file) }
 
         ModuleRootModificationUtil.setModuleSdk(module, second)
-        assertEquals(ProjectModules.Inputs(level(second), kernel(OTHER_KERNEL)), ready(file))
+        assertEquals(ProjectModules.Inputs(level(second), kernel(OTHER_KERNEL), OS.CURRENT), ready(file))
 
         ModuleRootModificationUtil.setModuleSdk(module, first)
         assertSame("switching back gets the first SDK's held answer", ofFirst, read { inputs.inputsFor(file) })
@@ -247,7 +248,7 @@ class SdkInputsHeavyTest : HeavyTestCase() {
         var answer: SdkInputs.Answer? = null
         DumbModeTestUtils.runInDumbModeSynchronously(project) { answer = read { inputs.inputsFor(file) } }
 
-        assertEquals(SdkInputs.Answer.Ready(sdk, ProjectModules.Inputs(level(sdk), kernel(KERNEL))), answer)
+        assertEquals(SdkInputs.Answer.Ready(sdk, ProjectModules.Inputs(level(sdk), kernel(KERNEL), OS.CURRENT)), answer)
     }
 
     fun testACancelledReadHoldsNothing() {
@@ -268,7 +269,7 @@ class SdkInputsHeavyTest : HeavyTestCase() {
         }
 
         assertNull("a cancelled read answers nothing", cancelled)
-        assertEquals(SdkInputs.Answer.Ready(sdk, ProjectModules.Inputs(level(sdk), kernel(KERNEL))), read { inputs.inputsFor(file) })
+        assertEquals(SdkInputs.Answer.Ready(sdk, ProjectModules.Inputs(level(sdk), kernel(KERNEL), OS.CURRENT)), read { inputs.inputsFor(file) })
     }
 
     private fun ready(file: PsiFile): ProjectModules.Inputs =
