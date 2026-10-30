@@ -5,6 +5,7 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.TextRange
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.system.OS
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.ExpansionResult.Ended
@@ -20,6 +21,13 @@ import org.elixir_lang.lowering.Meta
 import org.elixir_lang.lowering.expressionNodes
 import org.elixir_lang.lowering.inspect
 import org.elixir_lang.psi.ElixirFile
+import org.elixir_lang.psi.ElixirHeredocLineBody
+import org.elixir_lang.psi.ElixirInterpolatedHeredocLineBody
+import org.elixir_lang.psi.ElixirInterpolatedSigilLineBody
+import org.elixir_lang.psi.ElixirInterpolation
+import org.elixir_lang.psi.ElixirLineBody
+import org.elixir_lang.psi.ElixirLiteralHeredocLineBody
+import org.elixir_lang.psi.ElixirLiteralSigilLineBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import java.util.IdentityHashMap
@@ -181,7 +189,8 @@ internal class ExpansionProbes(
      * standing for the compile's token, [exports] and [structs] for the modules Elixir loads, [appEnv] for the
      * application environment and [standIns] for the preamble's macros. [hook] adds that hook to each case module,
      * [top] the top-level probe to the end of the file, and [values] sends each case's `q` after its last statement.
-     * [clauses], [file], [directories] and [os] are the expander's inputs of those names.
+     * [clauses], [file], [directories] and [os] are the expander's inputs of those names. [tap] sees the nodes entered
+     * and the calls dispatched, as the expander reports them.
      */
     fun expandAll(
         bodies: List<String>,
@@ -197,6 +206,7 @@ internal class ExpansionProbes(
         file: String? = null,
         directories: CompileDirectories = CompileDirectories.UNKNOWN,
         os: OS? = null,
+        tap: ExpansionObserver? = null,
     ): Expansions {
         val level = legLevel()
         val token = harness.token()
@@ -209,6 +219,7 @@ internal class ExpansionProbes(
                     shape.sites.map { it.meta.origin },
                     shape.bodies.map { body -> body.map { it.meta.origin } },
                     if (values) shape.statements.size else null,
+                    shape.bodies.flatten().filter(::isClauses).map { it.meta.origin }.toSet(),
                 )
             },
             preamble.replace(TOKEN, token),
@@ -221,7 +232,7 @@ internal class ExpansionProbes(
             Recorder(shapes[it], layout.bodyStarts[it], layout.bodyLines[it], counters)
         }
         val standing = IdentityHashMap<ElixirAst, Dispatch>()
-        val observer = Observer(recorders, counters, level, standing)
+        val observer = Observer(recorders, counters, level, standing, tap)
         val parsed = parse(layout.plain)
         val lowered = ReadAction.computeBlocking<ElixirAst, Throwable> { Lowering.lower(parsed, level) }
         val forms = if (standIns.isEmpty()) lowered else stoodIn(lowered, layout.plain, token, standIns, standing)
@@ -1051,6 +1062,7 @@ internal class ExpansionProbes(
 
             nodes.map { lowering.lower(it.psi) } to nodes.map { it.textRange.endOffset }
         }
+        val regions = ReadAction.computeBlocking<List<Pair<TextRange, Boolean>>, Throwable> { textRegions(file) }
 
         check(statements.none(::hasPlaceholder)) { "a case body must lower without placeholders: $body" }
         // The module body runs when it compiles, and a `receive` waits for its timeout, or for ever without one.
@@ -1060,10 +1072,37 @@ internal class ExpansionProbes(
             body,
             statements,
             ends,
-            statements.flatMap { identitySites(it, false) }.sortedBy { it.meta.origin.startOffset },
+            statements.flatMap { identitySites(it, false) }
+                .filter { isCode(regions, it.meta.origin.startOffset) && isCode(regions, it.meta.origin.endOffset) }
+                .sortedBy { it.meta.origin.startOffset },
             statements.flatMap(::nestedBodies).sortedBy { it.first().meta.origin.startOffset },
         )
     }
+
+    /**
+     * Each range of [file] that is the text of a string, charlist, sigil or heredoc, and each that is an interpolation's
+     * code, which opens after its `#{` and ends before its `}`; true for code.
+     */
+    private fun textRegions(file: ElixirFile): List<Pair<TextRange, Boolean>> =
+        PsiTreeUtil.findChildrenOfAnyType(
+            file,
+            ElixirLineBody::class.java,
+            ElixirHeredocLineBody::class.java,
+            ElixirInterpolatedHeredocLineBody::class.java,
+            ElixirInterpolatedSigilLineBody::class.java,
+            ElixirLiteralHeredocLineBody::class.java,
+            ElixirLiteralSigilLineBody::class.java,
+        ).map { it.textRange to false } +
+            PsiTreeUtil.findChildrenOfType(file, ElixirInterpolation::class.java)
+                .map { TextRange(it.textRange.startOffset + 2, it.textRange.endOffset - 1) to true }
+
+    /**
+     * Whether a probe may open or close at [offset]: not in the text of a literal, where Elixir never runs it, but in
+     * code, which in a literal is an interpolation's. The innermost region holding the offset decides it.
+     */
+    private fun isCode(regions: List<Pair<TextRange, Boolean>>, offset: Int): Boolean =
+        regions.filter { (range, _) -> range.startOffset <= offset && offset <= range.endOffset }
+            .minByOrNull { (range, _) -> range.length }?.second ?: true
 
     /**
      * A case body as it lowers alone, each range in it: the tag of the probe after each of its [statements], which end
@@ -1113,7 +1152,7 @@ internal class ExpansionProbes(
         val outermost = mutableMapOf<Pair<TextRange, String?>, ElixirAst>()
 
         /** The identity probes taken, by the module they were taken in: a block `defimpl` unrolls runs in each of its modules. */
-        val entered = mutableSetOf<Pair<TextRange, String?>>()
+        val entered = mutableSetOf<Pair<ElixirAst, String?>>()
         var stop: Expansion? = null
         var stopSteps = 0
         var stopTraces = 0
@@ -1260,6 +1299,7 @@ internal class ExpansionProbes(
         private val counters: Counters,
         private val level: ElixirLanguageLevel,
         private val standing: IdentityHashMap<ElixirAst, Dispatch>,
+        private val tap: ExpansionObserver?,
     ) : ExpansionObserver {
         /** When each node was left, counted as [Recorder.serials] counts. */
         val leftAt = IdentityHashMap<ElixirAst, Int>()
@@ -1282,6 +1322,7 @@ internal class ExpansionProbes(
             recorders.firstOrNull { it.range.contains(node.meta.origin.startOffset) }
 
         override fun entering(node: ElixirAst, state: ExState, env: Env) {
+            tap?.entering(node, state, env)
             open.addLast(node)
             this.env = env
 
@@ -1319,7 +1360,7 @@ internal class ExpansionProbes(
             }
 
             shape.identityTags[at]?.let { tag ->
-                if (recorder.entered.add(at to env.module)) {
+                if (recorder.entered.add(node to env.module)) {
                     recorder.add(step(tag, state, env, at.startOffset), serial++)
                 }
             }
@@ -1334,6 +1375,8 @@ internal class ExpansionProbes(
         }
 
         override fun dispatched(node: ElixirAst, dispatch: Dispatch) {
+            tap?.dispatched(node, dispatch)
+
             val recorder = recorder(node)
             val nodes = listOfNotNull(node, retraced(capturing, node, dispatch, level))
 

@@ -389,6 +389,7 @@ class HygieneExpanderTest : ExpanderTestCase() {
     fun testEachDistinctCaptureArgumentTakesACounterFrom1_17_0_rc_1() =
         assertInside("&(&1 + &2 + &1)", CAPTURE_LEVELS) {
             when {
+                isBefore(it, "1.16.0-rc.0") -> "inside {x1/elixir_fn:0 x2/elixir_fn:1}; counted 0"
                 isBefore(it, "1.17.0-rc.1") -> "inside {&1/nil:0 &2/nil:1}; counted 0"
                 isBefore(it, "1.20.0-rc.5") ->
                     "inside {capture/{Elixir.Case,1}:0 capture/{Elixir.Case,2}:1}; counted 2"
@@ -399,6 +400,7 @@ class HygieneExpanderTest : ExpanderTestCase() {
     fun testACaptureArgumentIsNotTheVariableOfItsName() =
         assertInside("capture = 5\n&(&1 + capture)", CAPTURE_LEVELS) {
             when {
+                isBefore(it, "1.16.0-rc.0") -> "inside {capture/nil:0 x1/elixir_fn:1}; counted 0"
                 isBefore(it, "1.17.0-rc.1") -> "inside {&1/nil:1 capture/nil:0}; counted 0"
                 isBefore(it, "1.20.0-rc.5") -> "inside {capture/nil:0 capture/{Elixir.Case,1}:1}; counted 1"
                 else -> "inside {_&/{Elixir.Case,1}:1 capture/nil:0}; counted 1"
@@ -413,6 +415,7 @@ class HygieneExpanderTest : ExpanderTestCase() {
     fun testTheModulePartOfARemoteCaptureTakesItsCounterOnce() =
         assertInside("&(&1).to_string(&2)", CAPTURE_LEVELS) {
             when {
+                isBefore(it, "1.16.0-rc.0") -> "inside {x1/elixir_fn:0 x2/elixir_fn:1}; counted 0"
                 isBefore(it, "1.17.0-rc.1") -> "inside {&1/nil:0 &2/nil:1}; counted 0"
                 isBefore(it, "1.20.0-rc.5") ->
                     "inside {capture/{Elixir.Case,1}:0 capture/{Elixir.Case,2}:1}; counted 2"

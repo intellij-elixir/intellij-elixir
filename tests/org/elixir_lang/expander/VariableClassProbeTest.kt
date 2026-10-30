@@ -8,9 +8,10 @@ import java.io.File
  * fall into the same classes as Elixir's, and its env's other fields equal Elixir's, on the leg's Elixir. A case the
  * expander reports an error for is compared as an error. One that reaches an unported clause at any statement is
  * recorded as unported, and one that stops at a macro whose expansion isn't modelled is compared up to that macro.
- * Each context's outcomes are committed per leg, and the cases that match may only grow.
+ * Each context's outcomes are committed per leg, and the cases that match may only grow. The harness holds no body's
+ * value: the variable it would be held in takes a version the expander never takes.
  */
-class VariableClassProbeTest : SdkProbeTestCase(definitions = true) {
+class VariableClassProbeTest : SdkProbeTestCase(definitions = true, holdValues = false) {
     private val outcomes = ProbeOutcomes(probes)
 
     fun testTheVariableOraclesTopLevelCases() = assertContext("top", ".exs", TOP_FLOOR)
@@ -118,6 +119,8 @@ class VariableClassProbeTest : SdkProbeTestCase(definitions = true) {
             "t = [{x, x} = {1, 1}, receive do after 0 -> 1 end]",
             "t = [{x, x} = {1, 1}, try do 1 after 2 end]",
             "t = [{x, x} = {1, 1}, fn -> 1 end]",
+            "t = [{x, x} = {1, 1}, fn -> v = 1; v end]",
+            "t = [{x, x} = {1, 1}, case 1 do 1 -> v = 1; v end]",
             "t = [{x, x} = {1, 1}, with(1 <- 1, do: 1)]",
             "t = [{x, x} = {1, 1}, for(1 <- [1], do: 1)]",
             "t = [{x, x} = {1, 1}, (_ = for(a <- [1], do: a); 1)]",

@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4565](https://github.com/intellij-elixir/intellij-elixir/pull/4565) [@sh41](https://github.com/sh41)
+  - **On Elixir 1.15 and earlier, the expander names a capture's arguments as that Elixir does, so a macro or guard whose body holds a capture expands as Elixir expands it.** Refs [#4465](https://github.com/intellij-elixir/intellij-elixir/issues/4465).
+
 - [#4559](https://github.com/intellij-elixir/intellij-elixir/pull/4559) [@sh41](https://github.com/sh41)
   - **The expander gives `__ENV__.file` and `__DIR__` the file's own path and directory, so it sees the function `EEx.function_from_file` defines from a template named relative to the file.** Refs [#4553](https://github.com/intellij-elixir/intellij-elixir/issues/4553).
 

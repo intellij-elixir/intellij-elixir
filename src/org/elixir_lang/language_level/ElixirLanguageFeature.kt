@@ -1079,6 +1079,14 @@ enum class ElixirLanguageFeature(
     CAPTURE_REPORTED_AT_CALL(sinceElixir = "1.16.0-rc.0"),
 
     /**
+     * The variable for an `&N` is named `&N`, in the `nil` context, not `xN` in `elixir_fn`'s.
+     *
+     * `elixir-lang/elixir@4411dbe3f` ("Expand captured args with regular context", #12763), first released in
+     * v1.16.0-rc.0.
+     */
+    CAPTURE_ARGUMENT_IN_NIL_CONTEXT(sinceElixir = "1.16.0-rc.0"),
+
+    /**
      * Each distinct `&N` in a capture takes a hygiene counter, which its variable, named `capture`, carries, so the
      * variable is apart from every other.
      *

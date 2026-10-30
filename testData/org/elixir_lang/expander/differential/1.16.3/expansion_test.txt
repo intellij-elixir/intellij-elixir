@@ -135,12 +135,12 @@ guard_expressions_on_size__30e2d827.ex	match
 guard_expressions_on_size__48167af4.ex	match
 handles_invalid_expressions__1cb19f92.ex	diff
 handles_invalid_expressions__1cb19f92.ex	@@ -35,1 +35,1 @@
-handles_invalid_expressions__1cb19f92.ex	-error unhandled_arrow_op at line 96
-handles_invalid_expressions__1cb19f92.ex	+error at line 95: the function "wrong_fun" cannot handle clauses with the -> operator because it is not a macro. Please make sure you are invoking the proper name and that it is a macro
+handles_invalid_expressions__1cb19f92.ex	-error unhandled_arrow_op at line 95
+handles_invalid_expressions__1cb19f92.ex	+error at line 94: the function "wrong_fun" cannot handle clauses with the -> operator because it is not a macro. Please make sure you are invoking the proper name and that it is a macro
 handles_invalid_expressions__3e197b87.ex	diff
 handles_invalid_expressions__3e197b87.ex	@@ -35,1 +35,1 @@
-handles_invalid_expressions__3e197b87.ex	-error unhandled_arrow_op at line 96
-handles_invalid_expressions__3e197b87.ex	+error at line 95: the function "wrong_fun" cannot handle clauses with the -> operator because it is not a macro. Please make sure you are invoking the proper name and that it is a macro
+handles_invalid_expressions__3e197b87.ex	-error unhandled_arrow_op at line 95
+handles_invalid_expressions__3e197b87.ex	+error at line 94: the function "wrong_fun" cannot handle clauses with the -> operator because it is not a macro. Please make sure you are invoking the proper name and that it is a macro
 handles_invalid_expressions__6b483b5e.ex	match
 handles_invalid_expressions__7eb51008.ex	match
 handles_invalid_expressions__8db79dab.ex	match
@@ -152,27 +152,8 @@ in_guards__3fa640f6.ex	match
 in_guards__47b06d57.ex	match
 in_guards__481be60a.ex	match
 in_guards__5301ad66.ex	match
-in_guards_with_bitstrings__13f61c19.ex	diff
-in_guards_with_bitstrings__13f61c19.ex	@@ -7,1 +7,1 @@
-in_guards_with_bitstrings__13f61c19.ex	-5 0.0.1.2: arg/nil=0
-in_guards_with_bitstrings__13f61c19.ex	+5 0.0.1.3: arg/nil=0
-in_guards_with_bitstrings__13f61c19.ex	@@ -58,1 +58,1 @@
-in_guards_with_bitstrings__13f61c19.ex	-0.0.1.2
-in_guards_with_bitstrings__13f61c19.ex	+0.0.1.3
-in_guards_with_bitstrings__5a522003.ex	diff
-in_guards_with_bitstrings__5a522003.ex	@@ -6,0 +7,1 @@
-in_guards_with_bitstrings__5a522003.ex	+5 0.0.1.2: arg/nil=0
-in_guards_with_bitstrings__5a522003.ex	@@ -39,0 +41,10 @@
-in_guards_with_bitstrings__5a522003.ex	+  context_modules: [{token}.Case.Fixture, {token}.Case, {token}.Hook, {token}.Probe]
-in_guards_with_bitstrings__5a522003.ex	+  function: {:run, 0}
-in_guards_with_bitstrings__5a522003.ex	+  functions: ["Elixir.Kernel": ["!=": 2, "!==": 2, "*": 2, "**": 2, "+": 1, "+": 2, "++": 2, "-": 1, "-": 2, "--": 2, "/": 2, "<": 2, "<=": 2, "==": 2, "===": 2, "=~": 2, ">": 2, ">=": 2, abs: 1, apply: 2, apply: 3, binary_part: 3, binary_slice: 2, binary_slice: 3, bit_size: 1, byte_size: 1, ceil: 1, div: 2, elem: 2, exit: 1, floor: 1, function_exported?: 3, get_and_update_in: 3, get_in: 2, hd: 1, inspect: 1, inspect: 2, is_atom: 1, is_binary: 1, is_bitstring: 1, is_boolean: 1, is_float: 1, is_function: 1, is_function: 2, is_integer: 1, is_list: 1, is_map: 1, is_map_key: 2, is_number: 1, is_pid: 1, is_port: 1, is_reference: 1, is_tuple: 1, length: 1, macro_exported?: 3, make_ref: 0, map_size: 1, max: 2, min: 2, node: 0, node: 1, not: 1, pop_in: 2, put_elem: 3, put_in: 3, rem: 2, round: 1, self: 0, send: 2, spawn: 1, spawn: 3, spawn_link: 1, spawn_link: 3, spawn_monitor: 1, spawn_monitor: 3, struct: 1, struct: 2, struct!: 1, struct!: 2, throw: 1, tl: 1, trunc: 1, tuple_size: 1, update_in: 3]]
-in_guards_with_bitstrings__5a522003.ex	+  macro_aliases: ["Elixir.Fixture": {:c0, {token}.Case.Fixture}]
-in_guards_with_bitstrings__5a522003.ex	+  macros: ["Elixir.Kernel": ["!": 1, "&&": 2, "..": 0, "..": 2, "..//": 3, "<>": 2, "@": 1, alias!: 1, and: 2, binding: 0, binding: 1, dbg: 0, dbg: 1, dbg: 2, def: 1, def: 2, defdelegate: 2, defexception: 1, defguard: 1, defguardp: 1, defimpl: 2, defimpl: 3, defmacro: 1, defmacro: 2, defmacrop: 1, defmacrop: 2, defmodule: 2, defoverridable: 1, defp: 1, defp: 2, defprotocol: 2, defstruct: 1, destructure: 2, get_and_update_in: 2, if: 2, in: 2, is_exception: 1, is_exception: 2, is_nil: 1, is_struct: 1, is_struct: 2, match?: 2, or: 2, pop_in: 1, put_in: 2, raise: 1, raise: 2, reraise: 2, reraise: 3, sigil_C: 2, sigil_D: 2, sigil_N: 2, sigil_R: 2, sigil_S: 2, sigil_T: 2, sigil_U: 2, sigil_W: 2, sigil_c: 2, sigil_r: 2, sigil_s: 2, sigil_w: 2, tap: 2, then: 2, to_char_list: 1, to_charlist: 1, to_string: 1, unless: 2, update_in: 2, use: 1, use: 2, var!: 1, var!: 2, "|>": 2, "||": 2]]
-in_guards_with_bitstrings__5a522003.ex	+  module: {token}.Case.Fixture
-in_guards_with_bitstrings__5a522003.ex	+  requires: [Application, Kernel, Kernel.Typespec]
-in_guards_with_bitstrings__5a522003.ex	+0.0.1.2
-in_guards_with_bitstrings__5a522003.ex	+  aliases: ["Elixir.Fixture": {token}.Case.Fixture]
-in_guards_with_bitstrings__5a522003.ex	+  context: :guard
+in_guards_with_bitstrings__13f61c19.ex	match
+in_guards_with_bitstrings__5a522003.ex	match
 in_matches__0003c181.ex	match
 in_matches__1342eefb.ex	match
 in_matches__3e17f40e.ex	match
@@ -224,8 +205,8 @@ parallel_match__2695043b.ex	-  macro_aliases: ["Elixir.Fixture": {:c0, {token}.C
 parallel_match__2695043b.ex	-  macros: ["Elixir.Kernel": ["!": 1, "&&": 2, "..": 0, "..": 2, "..//": 3, "<>": 2, "@": 1, alias!: 1, and: 2, binding: 0, binding: 1, dbg: 0, dbg: 1, dbg: 2, def: 1, def: 2, defdelegate: 2, defexception: 1, defguard: 1, defguardp: 1, defimpl: 2, defimpl: 3, defmacro: 1, defmacro: 2, defmacrop: 1, defmacrop: 2, defmodule: 2, defoverridable: 1, defp: 1, defp: 2, defprotocol: 2, defstruct: 1, destructure: 2, get_and_update_in: 2, if: 2, in: 2, is_exception: 1, is_exception: 2, is_nil: 1, is_struct: 1, is_struct: 2, match?: 2, or: 2, pop_in: 1, put_in: 2, raise: 1, raise: 2, reraise: 2, reraise: 3, sigil_C: 2, sigil_D: 2, sigil_N: 2, sigil_R: 2, sigil_S: 2, sigil_T: 2, sigil_U: 2, sigil_W: 2, sigil_c: 2, sigil_r: 2, sigil_s: 2, sigil_w: 2, tap: 2, then: 2, to_char_list: 1, to_charlist: 1, to_string: 1, unless: 2, update_in: 2, use: 1, use: 2, var!: 1, var!: 2, "|>": 2, "||": 2]]
 parallel_match__2695043b.ex	-  module: {token}.Case.Fixture
 parallel_match__2695043b.ex	-  requires: [Application, Kernel, Kernel.Typespec]
-parallel_match__2695043b.ex	-error undefined_function at line 95
-parallel_match__2695043b.ex	+error at line 95: binary patterns cannot be matched in parallel using "=", excess pattern: <<baz>>
+parallel_match__2695043b.ex	-error undefined_function at line 94
+parallel_match__2695043b.ex	+error at line 94: binary patterns cannot be matched in parallel using "=", excess pattern: <<baz>>
 parallel_match__48521b22.ex	match
 parallel_match__533e9420.ex	match
 parallel_match__55ea9b77.ex	match
@@ -249,8 +230,8 @@ parallel_match__a83cb8a3.ex	-  context: nil
 parallel_match__a83cb8a3.ex	-  context_modules: [{token}.Case.Fixture, {token}.Case, {token}.Hook, {token}.Probe]
 parallel_match__a83cb8a3.ex	-  function: {:run, 0}
 parallel_match__a83cb8a3.ex	@@ -46,1 +35,1 @@
-parallel_match__a83cb8a3.ex	-error undefined_function at line 95
-parallel_match__a83cb8a3.ex	+error at line 95: binary patterns cannot be matched in parallel using "=", excess pattern: <<baz>>
+parallel_match__a83cb8a3.ex	-error undefined_function at line 94
+parallel_match__a83cb8a3.ex	+error at line 94: binary patterns cannot be matched in parallel using "=", excess pattern: <<baz>>
 parallel_match__bc0dfab8.ex	match
 parallel_match__c4b851ec.ex	match
 parallel_match__c7c73cf3.ex	match

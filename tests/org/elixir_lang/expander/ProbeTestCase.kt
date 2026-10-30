@@ -27,14 +27,18 @@ internal fun printed(comparison: () -> Unit) {
  * A test that compiles case bodies in a project, whose expander reads the leg's modules' clauses from their `.beam`s,
  * as a project's SDK gives them. [accounting] and [definitions] are its [ExpansionProbes]' options of those names.
  */
-abstract class SdkProbeTestCase(accounting: Boolean = false, definitions: Boolean = false) : PlatformTestCase() {
+abstract class SdkProbeTestCase(
+    accounting: Boolean = false,
+    definitions: Boolean = false,
+    holdValues: Boolean = true,
+) : PlatformTestCase() {
     // A project, so the leg's `.beam`s are read through their decompiled files.
     private val parse: (String) -> ElixirFile = { text ->
         ReadAction.computeBlocking<ElixirFile, Throwable> {
             PsiFileFactory.getInstance(project).createFileFromText("probe.ex", ElixirLanguage, text) as ElixirFile
         }
     }
-    internal val harness = ProbeHarness(parse)
+    internal val harness = ProbeHarness(parse, holdValues)
     internal val probes = ExpansionProbes(harness, accounting, definitions, parse)
     internal lateinit var sdk: ModuleClauses.Lookup
 
@@ -89,7 +93,7 @@ private val FALSE = OtpErlangAtom("false")
 
 /** A test that compiles case bodies through a [ProbeHarness] parsing them with this fixture. */
 abstract class ProbeTestCase : ParsingTestCase() {
-    protected val harness = ProbeHarness { createPsiFile(getTestName(false), it) as ElixirFile }
+    protected val harness = ProbeHarness(parse = { createPsiFile(getTestName(false), it) as ElixirFile })
 
     /** `Code.compiler_options/0` as a compile sees it. */
     protected fun compilerOptions(): OtpErlangObject = harness.compilerOptions()
