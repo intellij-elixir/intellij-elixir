@@ -32,6 +32,7 @@ internal object EnvAtom {
             inputs.level,
             { holder.exports(file, it, inputs) },
             { holder.struct(file, it, inputs) },
+            holder.appEnv(inputs),
         )
 
         return ((expansion as? Expansion.Expanded)?.value as? Term.Atom)?.name

@@ -1,10 +1,29 @@
 package org.elixir_lang.model.psi.config
 
+import com.intellij.psi.PsiFile
 import com.intellij.util.indexing.FileBasedIndex
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.expander.LegSdk
 import org.elixir_lang.mix.ProjectKeywords
 
+/**
+ * Each file's config index entries: a setting, an unread or an import as [ConfigIndexing.decided] decides it from the
+ * module its call reaches, in the file's expansion on the leg's SDK; a read as its candidate.
+ */
 class ConfigIndexTest : PlatformTestCase() {
+    override fun setUp() {
+        super.setUp()
+        LegSdk.setUp(module, testRootDisposable)
+    }
+
+    override fun tearDown() {
+        try {
+            LegSdk.tearDown(module)
+        } finally {
+            super.tearDown()
+        }
+    }
+
     // Settings
 
     fun testConfig2KeywordKeysAreSet() =
@@ -47,10 +66,188 @@ class ConfigIndexTest : PlatformTestCase() {
     fun testImportMixConfigFileSets() =
         assertEntries("import Mix.Config\n\nconfig :my_app, retries: 3\n", "App(my_app) Set Atom(retries) `retries`")
 
-    fun testFileWithoutConfigImportSetsNothing() = assertEntries("config :my_app, retries: 3\n")
+    fun testConfigWithoutConfigImportSetsNoKeyAndIsUnread() =
+        assertEntries("config :my_app, retries: 3\nconfig app, :retries, 3\n", "AnyApp Unread Unknown `config app, :retries, 3`")
 
-    fun testNonLiteralOptionsSetNothing() =
-        assertConfig("config :my_app, options\nconfig :my_app, Keyword.merge([retries: 1], greeting: \"hi\")")
+    fun testConfigWithoutConfigImportEndingInAnAtomSetsNoKey() = assertEntries("config :my_app, retries: 3\n:ok\n")
+
+    fun testAReturnedKeywordListIsUnreadForAnyApp() =
+        assertEntries("x = 1\n[my_app: [retries: x]]\n", "AnyApp Unread Unknown `[my_app: [retries: x]]`")
+
+    fun testAReturnedValueThatMayBeAListIsUnreadForAnyApp() =
+        assertEntries("Keyword.new(my_app: [retries: 3])\n", "AnyApp Unread Unknown `Keyword.new(my_app: [retries: 3])`")
+
+    fun testAReturnedCallGivenADoKeywordIsUnreadForAnyApp() =
+        assertEntries(
+            "Keyword.get([settings: [dep: [key: :other]]], :settings, do: :ignored)\n",
+            "AnyApp Unread Unknown `Keyword.get([settings: [dep: [key: :other]]], :settings, do: :ignored)`"
+        )
+
+    fun testAReturnedForIsUnreadForAnyApp() =
+        assertEntries(
+            "for {app, env} <- [dep: [key: :other]], do: {app, env}\n",
+            "AnyApp Unread Unknown `for {app, env} <- [dep: [key: :other]], do: {app, env}`"
+        )
+
+    fun testAReturnedWithWhoseClauseMayNotMatchIsUnreadForAnyApp() =
+        assertEntries(
+            "with :ok <- [dep: [key: :other]], do: :ok\n",
+            "AnyApp Unread Unknown `with :ok <- [dep: [key: :other]], do: :ok`"
+        )
+
+    /** A `use` gives what its module's `__using__/1` expands to, which may be a keyword list. */
+    fun testAReturnedUseIsUnreadForAnyApp() =
+        assertEntries("import Config\nuse MyApp.Settings\n", "AnyApp Unread Unknown `use MyApp.Settings`")
+
+    fun testAReturnedValueNotAListIsRead() {
+        assertEntries("import Config\n")
+        assertEntries("import Config\n\n:ok\n")
+        assertEntries("defmodule M do\nend\n")
+        assertEntries("")
+    }
+
+    fun testAReturnedListBesideAConfigCallIsUnreadForAnyApp() =
+        assertConfig(
+            "if false, do: config(:my_app, retries: 3)\n[other: [a: 1]]",
+            "App(my_app) Set Atom(retries) `retries`",
+            "AnyApp Unread Unknown `[other: [a: 1]]`"
+        )
+
+    fun testAReturnedValueBesideAConfigCallThatMayNotRunIsUnreadForAnyApp() =
+        assertConfig(
+            "if false, do: config(:dep, :unused, true)\nKeyword.new(dep: [key: :other])",
+            "App(dep) Set Atom(unused) `:unused`",
+            "AnyApp Unread Unknown `Keyword.new(dep: [key: :other])`"
+        )
+
+    fun testAReturnedValueAfterATopLevelConfigCallIsRead() =
+        assertConfig("config :my_app, retries: 3\nKeyword.new(other: [a: 1])", "App(my_app) Set Atom(retries) `retries`")
+
+    fun testAReturnedListAfterATopLevelConfigCallIsRead() =
+        assertConfig("config :my_app, retries: 3\n[other: [a: 1]]", "App(my_app) Set Atom(retries) `retries`")
+
+    fun testAReturnedListAfterAPipedConfigCallIsRead() =
+        assertConfig(":my_app |> config(retries: 3)\n[other: [a: 1]]", "App(my_app) Set Atom(retries) `retries`")
+
+    fun testAReturnedConditionalWithAConfigCallInOneBranchAndAListInTheOtherIsUnreadForAnyApp() {
+        assertConfig(
+            "c = System.get_env(\"C\") == \"1\"\nif c, do: config(:my_app, retries: 3), else: [other: [a: 1]]",
+            "App(my_app) Set Atom(retries) `retries`",
+            "AnyApp Unread Unknown `if c, do: config(:my_app, retries: 3), else: [other: [a: 1]]`"
+        )
+        assertConfig(
+            "c = System.get_env(\"C\") == \"1\"\nif c do\n  config :my_app, retries: 3\nelse\n  [other: [a: 1]]\nend",
+            "App(my_app) Set Atom(retries) `retries`",
+            "AnyApp Unread Unknown `if c do\n  config :my_app, retries: 3\nelse\n  [other: [a: 1]]\nend`"
+        )
+        assertConfig(
+            "case System.get_env(\"C\") do\n  nil -> config :my_app, retries: 3\n  _ -> Keyword.new(other: [a: 1])\nend",
+            "App(my_app) Set Atom(retries) `retries`",
+            "AnyApp Unread Unknown `case System.get_env(\"C\") do\n  nil -> config :my_app, retries: 3\n  _ -> Keyword.new(other: [a: 1])\nend`"
+        )
+    }
+
+    fun testAReturnedConditionalWhoseBranchesEachRunAConfigCallIsRead() =
+        assertConfig(
+            "if config_env() == :prod do\n  config :my_app, retries: 9\n  [other: [a: 1]]\nelse\n  config :my_app, retries: 1\nend",
+            "App(my_app) Set Atom(retries) `retries`",
+            "App(my_app) Set Atom(retries) `retries`"
+        )
+
+    fun testAReturnedVariableNamedConfigIsUnreadForAnyApp() =
+        assertEntries("config = [my_app: [retries: 3]]\nconfig\n", "AnyApp Unread Unknown `config`")
+
+    fun testConfigUnderANestedConfigImportIsSet() =
+        assertEntries("if true do\n  import Config\n  config :my_app, retries: 3\nend\n", "App(my_app) Set Atom(retries) `retries`")
+
+    fun testAReturnedConditionalBesideAConfigCallIsRead() =
+        assertConfig("if config_env() == :prod do\n  config :my_app, retries: 9\nend", "App(my_app) Set Atom(retries) `retries`")
+
+    fun testAnEnvWriteIsUnreadForItsApp() =
+        assertConfig(
+            "Application.put_env(:my_app, :greeting, \"hi\")\n" +
+                "Application.put_env(app, :greeting, \"hi\", persistent: true)\n" +
+                "Application.delete_env(:my_app, :greeting)\n" +
+                "Application.put_all_env(my_app: [a: 1], other: [b: 2])\n" +
+                "Application.put_all_env(config)\n" +
+                "Mix.Config.persist(my_app: [a: 1])\n" +
+                ":application.set_env(:my_app, :k, 1)\n" +
+                ":application.unset_env(:my_app, :k)\n" +
+                ":application.set_env([{:my_app, [k: 1]}])",
+            "App(my_app) Unread Unknown `Application.put_env(:my_app, :greeting, \"hi\")`",
+            "AnyApp Unread Unknown `Application.put_env(app, :greeting, \"hi\", persistent: true)`",
+            "App(my_app) Unread Unknown `Application.delete_env(:my_app, :greeting)`",
+            "App(my_app) Unread Unknown `my_app`",
+            "App(other) Unread Unknown `other`",
+            "AnyApp Unread Unknown `config`",
+            "App(my_app) Unread Unknown `my_app`",
+            "App(my_app) Unread Unknown `:application.set_env(:my_app, :k, 1)`",
+            "App(my_app) Unread Unknown `:application.unset_env(:my_app, :k)`",
+            "AnyApp Unread Unknown `[{:my_app, [k: 1]}]`"
+        )
+
+    fun testAnEnvWriteThroughAnAliasOrAnImportIsUnreadForItsApp() =
+        assertConfig(
+            "alias Application, as: A\nA.put_env(:my_app, :flag, true, persistent: true)\n" +
+                "alias :application, as: E\nE.unset_env(:my_app, :k)\nSystem.put_env(\"A\", \"b\")\n" +
+                "import Application\nput_env(:my_app, :k, 1)",
+            "App(my_app) Unread Unknown `A.put_env(:my_app, :flag, true, persistent: true)`",
+            "App(my_app) Unread Unknown `E.unset_env(:my_app, :k)`",
+            "App(my_app) Unread Unknown `put_env(:my_app, :k, 1)`"
+        )
+
+    fun testAConfigThroughAnAliasOfConfigIsSet() =
+        assertEntries("alias Config, as: C\nC.config(:my_app, retries: 3)\n", "App(my_app) Set Atom(retries) `retries`")
+
+    fun testACallOfAModuleTheExpansionCantNameIsUnreadForItsApp() =
+        assertConfig(
+            "module = String.to_atom(System.fetch_env!(\"M\"))\nmodule.put_env(:my_app, :k, 1)\nmodule.config(:other, k: 1)\n:ok",
+            "App(my_app) Unread Unknown `module.put_env(:my_app, :k, 1)`",
+            "App(other) Unread Atom(k) `k`"
+        )
+
+    fun testImportConfigIsAnImport() =
+        assertConfig(
+            "import_config \"#{config_env()}.exs\"\nimport_config \"envs/dev.exs\"\nimport_config path",
+            "AnyApp Import Unknown `\"#{config_env()}.exs\"`",
+            "AnyApp Import Unknown `\"envs/dev.exs\"`",
+            "AnyApp Import Unknown `path`"
+        )
+
+    fun testNonLiteralOptionsSetNoKeyAndAreUnread() =
+        assertConfig(
+            "config :my_app, options\nconfig :my_app, Keyword.merge([retries: 1], greeting: \"hi\")",
+            "App(my_app) Unread Unknown `options`",
+            "App(my_app) Unread Unknown `Keyword.merge([retries: 1], greeting: \"hi\")`"
+        )
+
+    fun testConfig3KeyNotWrittenAsAnAtomOrAliasIsUnread() =
+        assertConfig(
+            "key = :retries\nconfig :my_app, key, 5\nconfig :my_app, __MODULE__, 1",
+            "App(my_app) Unread Unknown `key`",
+            "App(my_app) Unread Unknown `__MODULE__`"
+        )
+
+    fun testConfig2OptionsWithAnEntryNotAnAtomKeyAreUnreadBesideTheKeysTheySet() =
+        assertConfig(
+            "key = \"greeting\"\nconfig :my_app, [{:retries, 1}, timeout: 2]\nconfig :my_app, [1, size: 5]\n" +
+                "config :my_app, \"#{key}\": 3, other: 4",
+            "App(my_app) Set Atom(timeout) `timeout`",
+            "App(my_app) Unread Unknown `[{:retries, 1}, timeout: 2]`",
+            "App(my_app) Set Atom(size) `size`",
+            "App(my_app) Unread Unknown `[1, size: 5]`",
+            "App(my_app) Set Atom(other) `other`",
+            "App(my_app) Unread Unknown `\"#{key}\": 3, other: 4`"
+        )
+
+    fun testAppNotWrittenAsALiteralIsUnreadForAnyApp() =
+        assertConfig(
+            "app = :my_app\nconfig app, retries: 1\nconfig app, :greeting, \"hi\"",
+            "AnyApp Unread Unknown `app`",
+            "AnyApp Unread Unknown `app`"
+        )
+
+    fun testEmptyOptionsAreRead() = assertConfig("config :my_app, []")
 
     fun testQualifiedConfigConfigIsSet() =
         assertConfig(
@@ -237,15 +434,29 @@ class ConfigIndexTest : PlatformTestCase() {
     private fun assertEntries(text: String, vararg expected: String, fileName: String = "config.exs") {
         val file = myFixture.configureByText(fileName, text)
         val data = FileBasedIndex.getInstance().getFileData(ConfigIndexing.NAME, file.virtualFile, project)
-        val actual = data.flatMap { (key, entries) -> entries.map { render(key, it, text) } }.sorted()
+        val actual = data.flatMap { (key, entries) -> entries.mapNotNull { render(file, key, it, text) } }.sorted()
 
         assertEquals(expected.sorted(), actual)
     }
 
-    private fun render(key: ConfigIndexKey, entry: ConfigEntry, text: String): String =
+    private fun render(file: PsiFile, key: ConfigIndexKey, entry: ConfigEntry, text: String): String? =
         when (entry) {
-            is ConfigEntry.KeyEntry -> "${render(key)} ${render(entry.kind)} ${render(entry.key)} `${entry.range.substring(text)}`"
+            is ConfigEntry.KeyEntry ->
+                render(file, entry)?.let { kind -> "${render(key)} $kind ${render(entry.key)} `${entry.range.substring(text)}`" }
             is ConfigEntry.ProjectEntry -> "${render(key)} app=${entry.app} configPath=${render(entry.configPath)}"
+        }
+
+    /** [entry]'s kind: a read's as indexed, any other's as decided; `null` where it is none. */
+    private fun render(file: PsiFile, entry: ConfigEntry.KeyEntry): String? =
+        when (val kind = entry.kind) {
+            is ConfigEntry.Kind.Read -> "Read(${render(kind.module.qualifier)} ${kind.module.name}/${kind.module.arity})"
+            else ->
+                when (ConfigIndexing.element(file, entry.range)?.let { ConfigIndexing.decided(kind, it) }) {
+                    ConfigIndexing.Decided.SET -> "Set"
+                    ConfigIndexing.Decided.UNREAD -> "Unread"
+                    ConfigIndexing.Decided.IMPORT -> "Import"
+                    null -> null
+                }
         }
 
     private fun render(key: ConfigIndexKey): String =
@@ -270,17 +481,16 @@ class ConfigIndexTest : PlatformTestCase() {
             ProjectKeywords.ConfigPath.Unknown -> "Unknown"
         }
 
-    private fun render(kind: ConfigEntry.Kind): String =
-        when (kind) {
-            ConfigEntry.Kind.Set -> "Set"
-            is ConfigEntry.Kind.Read -> "Read(${render(kind.module.qualifier)} ${kind.module.name}/${kind.module.arity})"
+    private fun render(qualifier: CallModule.Qualifier): String =
+        when (qualifier) {
+            CallModule.Qualifier.Written(ELIXIR_APPLICATION) -> "Application"
+            CallModule.Qualifier.Written(ERLANG_APPLICATION) -> ":application"
+            is CallModule.Qualifier.Written, CallModule.Qualifier.Other -> "Other"
+            CallModule.Qualifier.Unqualified -> "Unqualified"
         }
 
-    private fun render(qualifier: ReadModule.Qualifier): String =
-        when (qualifier) {
-            ReadModule.Qualifier.APPLICATION -> "Application"
-            ReadModule.Qualifier.ERLANG_APPLICATION -> ":application"
-            ReadModule.Qualifier.OTHER -> "Other"
-            ReadModule.Qualifier.UNQUALIFIED -> "Unqualified"
-        }
+    private companion object {
+        const val ELIXIR_APPLICATION = "Elixir.Application"
+        const val ERLANG_APPLICATION = "application"
+    }
 }

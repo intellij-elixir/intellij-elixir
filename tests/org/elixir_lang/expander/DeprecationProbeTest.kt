@@ -181,7 +181,7 @@ class DeprecationProbeTest : ExpanderTestCase() {
     private fun expanderWarnings(source: String): List<String> {
         val level = legLevel()
 
-        return DeprecationWarnings.of(Expander.expandFile(lower(source, level), Env.empty(level, kernel), level, exports, structs))
+        return DeprecationWarnings.of(Expander.expandFile(lower(source, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV))
     }
 
     /** The deprecation warnings [source] gives when Elixir compiles it, with the line each is for. */

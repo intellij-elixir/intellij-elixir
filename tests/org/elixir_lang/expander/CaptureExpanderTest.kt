@@ -157,7 +157,7 @@ class CaptureExpanderTest : ExpanderTestCase() {
                 val list = capture.arguments!!.single()
                 val ast = ElixirAst.Call(capture.meta, capture.callee, listOf(ElixirAst.Block(list.meta, listOf(list))))
 
-                "$version: " + render(code, Expander.expand(ast, ExState.empty(level), Env.empty(level, NO_KERNEL), level, NO_EXPORTS, NO_STRUCTS))
+                "$version: " + render(code, Expander.expand(ast, ExState.empty(level), Env.empty(level, NO_KERNEL), level, NO_EXPORTS, NO_STRUCTS, NO_APP_ENV))
             }
         )
     }
@@ -183,7 +183,7 @@ class CaptureExpanderTest : ExpanderTestCase() {
                     .copy(read = mapOf(Variable("x", Variable.Context.Atom("Kernel")) to 0), version = 1)
                 val env = Env.empty(level, NO_KERNEL)
 
-                "$version: " + render(code, Expander.expand(ast, state, env, level, NO_EXPORTS, NO_STRUCTS))
+                "$version: " + render(code, Expander.expand(ast, state, env, level, NO_EXPORTS, NO_STRUCTS, NO_APP_ENV))
             }
         )
     }

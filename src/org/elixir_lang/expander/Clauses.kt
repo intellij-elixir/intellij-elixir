@@ -384,8 +384,8 @@ private fun underscore(at: ElixirAst): ElixirAst =
 
 /** `elixir_clauses:expand_clauses_with_stacktrace/5`: `__STACKTRACE__` is readable in the clauses [expand] expands. */
 private inline fun withStacktrace(state: ExState, expand: (ExState) -> Expansion): Expansion =
-    expand(state.copy(stacktrace = true)).thenAst { s, e, v, ast ->
-        Expansion.Expanded(s.copy(stacktrace = state.stacktrace), e, v, ast)
+    expand(state.copy(stacktraces = state.stacktraces + 1)).thenAst { s, e, v, ast ->
+        Expansion.Expanded(s.copy(stacktraces = state.stacktraces), e, v, ast)
     }
 
 /**

@@ -197,7 +197,7 @@ internal object ConfigReads {
     @RequiresReadLock
     private fun classified(candidate: Pair<ReadApp, ConfigIndexing.Written>): FileRead? {
         val (readApp, written) = candidate
-        if (isRead(written) != ReadModule.Answer.READ) return null
+        if (isRead(written) != CallModule.Answer.REACHES) return null
 
         return reading(readApp, written.key) { written.key.atom(written.element)?.let(Name::Atom) ?: Name.None }
             ?.let { FileRead(it.app, it.key, site(written.element)) }
@@ -266,11 +266,11 @@ internal object ConfigReads {
     }
 
     @RequiresReadLock
-    private fun isRead(written: ConfigIndexing.Written): ReadModule.Answer {
-        val module = (written.kind as? ConfigEntry.Kind.Read)?.module ?: return ReadModule.Answer.NOT_READ
+    private fun isRead(written: ConfigIndexing.Written): CallModule.Answer {
+        val module = (written.kind as? ConfigEntry.Kind.Read)?.module ?: return CallModule.Answer.ELSEWHERE
         val call = if (written.key == WrittenKey.All) written.element as? Call else Keys.call(written.element)
 
-        return call?.let { module.isRead(it) } ?: ReadModule.Answer.NOT_READ
+        return call?.let { Read.isRead(module, it) } ?: CallModule.Answer.ELSEWHERE
     }
 
     /**
@@ -279,10 +279,10 @@ internal object ConfigReads {
      */
     @RequiresReadLock
     private fun site(templateRead: TemplateReads.TemplateRead, keyDecided: Boolean): Site? =
-        when (templateRead.read.module.isRead(templateRead.read.call, templateRead.host)) {
-            ReadModule.Answer.NOT_READ -> null
-            ReadModule.Answer.READ -> Site(templateRead.host, templateRead.range, keyDecided)
-            ReadModule.Answer.UNDECIDED -> Site(templateRead.host, templateRead.range, decided = false)
+        when (Read.isRead(templateRead.read.module, templateRead.read.call, templateRead.host)) {
+            CallModule.Answer.ELSEWHERE -> null
+            CallModule.Answer.REACHES -> Site(templateRead.host, templateRead.range, keyDecided)
+            CallModule.Answer.UNDECIDED -> Site(templateRead.host, templateRead.range, decided = false)
         }
 
     private fun site(element: PsiElement): Site = Site(element, Keys.range(element))

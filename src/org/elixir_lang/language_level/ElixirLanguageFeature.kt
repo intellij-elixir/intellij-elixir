@@ -535,9 +535,9 @@ enum class ElixirLanguageFeature(
     HEXADECIMAL_ESCAPE_NEEDS_TWO_DIGITS(sinceElixir = "1.20.0-rc.0"),
 
     /**
-     * `maybe` is a reserved word Erlang prints quoted, once OTP enables the `maybe_expr` feature by default from OTP
-     * 27.0-rc1 (`erlang/otp@5d45a0d9c`). The OTP running Elixir decides, not the Elixir release or the OTP its build
-     * targeted.
+     * `maybe` and `else` are reserved words, which Erlang prints quoted, once OTP enables the `maybe_expr` feature by
+     * default from OTP 27.0-rc1 (`erlang/otp@5d45a0d9c`). The OTP running Elixir decides, not the Elixir release or the
+     * OTP its build targeted.
      */
     MAYBE_RESERVED(sinceOtp = "27.0-rc1"),
 
@@ -1607,11 +1607,69 @@ enum class ElixirLanguageFeature(
     MACRO_ENV_VERSIONED_VARS(sinceElixir = "1.13.0-rc.0"),
 
     /**
+     * A remote macro is called, and its output expanded, from the state before its receiver. Before it, from the state
+     * after, whose write `elixir_env:prepare_write/1` opened, so `__CALLER__.current_vars` writes the caller's variables.
+     *
+     * `elixir-lang/elixir@739ad53fe` ("Break Macro.Env apart", #11164), first released in v1.13.0-rc.0.
+     */
+    REMOTE_MACRO_FROM_STATE_BEFORE_RECEIVER(sinceElixir = "1.13.0-rc.0"),
+
+    /**
+     * Elixir's static options, `bootstrap` and `identifier_tokenizer`, are in `persistent_term`, read by
+     * `elixir_config:is_bootstrap/0` and `identifier_tokenizer/0`. Before it they are in the config table, read by
+     * `elixir_config:get/1,2`.
+     *
+     * `elixir-lang/elixir@f97137894` ("Assume Elixir is not started when accessing configs"), first released in
+     * v1.13.0-rc.0.
+     */
+    STATIC_OPTIONS_IN_PERSISTENT_TERM(sinceElixir = "1.13.0-rc.0"),
+
+    /**
      * `erlang:max/2` and `erlang:min/2` are guard functions.
      *
      * `erlang/otp@5da4b90d86` ("Allow max/2 and min/2 to be used in guards"), first released in OTP 26.0-rc1.
      */
     MAX_AND_MIN_GUARDS(sinceOtp = "26.0-rc1"),
+
+    /**
+     * `application:load/1` refuses an application whose env has an entry other than `{Key, Value}` with an atom key no
+     * other entry has. Before it, any key is taken, and a later entry for a key replaces an earlier one.
+     *
+     * `erlang/otp@753c719a43` ("kernel: Reject .app files with invalid parameters"), first released in OTP 26.0-rc1.
+     */
+    APP_ENV_PARAMETERS_CHECKED(sinceOtp = "26.0-rc1"),
+
+    /**
+     * `erl_scan` takes a caret escape only of `?`, which is DEL, `@` to `_` and `a` to `z`. Before it, `\^C` is any
+     * character's code with all but its five low bits cleared, so `\^?` is 31.
+     *
+     * `erlang/otp@b0b36babf2` ("Reject invalid use of caret notation"), first released in OTP 26.0-rc1.
+     */
+    CARET_NOTATION_CHECKED(sinceOtp = "26.0-rc1"),
+
+    /**
+     * `erlang:make_fun/3` takes an arity only up to 255. Before it, any small arity is taken whole.
+     *
+     * `erlang/otp@04b85c6580` ("erts: Shrink ErlFunThing structure"), first released in OTP 25.0-rc3.
+     */
+    MAKE_FUN_ARITY_CHECKED(sinceOtp = "25.0-rc3"),
+
+    /**
+     * `erl_scan` reads `"""` as the start of a triple-quoted string. Before it, `"""` is an empty string and the start of
+     * another, which `erl_parse` joins.
+     *
+     * `erlang/otp@ff367d9f56` ("Implement triple-quoted strings"), first released in OTP 27.0-rc1.
+     */
+    TRIPLE_QUOTED_STRINGS(sinceOtp = "27.0-rc1"),
+
+    /**
+     * `erl_scan` refuses two adjacent string literals with no white space between them. Before it, `erl_parse` joins
+     * them.
+     *
+     * `erlang/otp@e82b029542` ("Make an error of adjacent string literals without intervening white space"), first
+     * released in OTP 27.0-rc1.
+     */
+    ADJACENT_STRINGS_NEED_WHITE_SPACE(sinceOtp = "27.0-rc1"),
 
     /**
      * `erlang:is_integer/3` is a guard function.
@@ -2620,6 +2678,16 @@ enum class ElixirLanguageFeature(
      * `erlang/otp@0eb56f4fe8` ("binary module: Always reject bitstrings"), first released in OTP 27.0-rc1.
      */
     BINARY_PART_REJECTS_BITSTRINGS(sinceOtp = "27.0-rc1"),
+
+    /**
+     * A map update that lacks a key it updates raises `badkey` even where nothing reads its value. Before it, the
+     * compiler dropped such an update, keeping only its check that the map is one, so it raised `badmap` but never
+     * `badkey`.
+     *
+     * `erlang/otp@a5cb4f6fbc` ("Fix lost exception from map update", erlang/otp#6960), first released in OTP 25.3.1 and
+     * 26.0-rc2. 26.0-rc1, which lacks it, reads as having it.
+     */
+    MAP_UPDATE_RAISES_WHERE_DISCARDED(sinceOtp = "25.3.1"),
 
     /**
      * An integer holds at most 65,535 words, about 4 Mbit, where it held 524,287, and arithmetic past it raises

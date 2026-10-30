@@ -117,7 +117,7 @@ class DefstructMacroTest : ExpanderTestCase() {
             }
         }
 
-        Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, observer)
+        Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV, observer)
 
         val clause = loaded.single().definitions.getValue(NameArity("__struct__", 0)).clauses?.single()
 
@@ -233,7 +233,7 @@ class DefstructMacroTest : ExpanderTestCase() {
 
     override fun expandAndRender(code: String, version: String): String {
         val level = ElixirLanguageLevel.of(version)
-        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
+        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
 
         return file.modules.joinToString("\n") { ModuleRendering.render(code, it) }
     }

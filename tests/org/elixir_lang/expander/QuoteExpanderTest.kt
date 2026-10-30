@@ -97,7 +97,7 @@ class QuoteExpanderTest : ExpanderTestCase() {
                 val level = ElixirLanguageLevel.of(version)
                 val ast = placeholding(lower(code, level), "y")
 
-                "$version: " + render(code, Expander.expand(ast, ExState.empty(level), Env.empty(level, kernel), level, exports, structs))
+                "$version: " + render(code, Expander.expand(ast, ExState.empty(level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV))
             }
         )
     }
@@ -448,7 +448,7 @@ class QuoteExpanderTest : ExpanderTestCase() {
     private fun assertLevelValues(
         code: String,
         versions: List<String>,
-        run: (ElixirLanguageLevel) -> Run = { Run(it, ExpansionObserver.NONE, exports, structs) },
+        run: (ElixirLanguageLevel) -> Run = { Run(it, ExpansionObserver.NONE, exports, structs, NO_APP_ENV) },
         expected: (String) -> String,
     ) {
         val sorted = versions.distinct().sortedBy { ElixirLanguageLevel.of(it).elixir }
@@ -464,11 +464,11 @@ class QuoteExpanderTest : ExpanderTestCase() {
     }
 
     private fun inFile(level: ElixirLanguageLevel, directories: CompileDirectories) =
-        Run(level, ExpansionObserver.NONE, exports, structs, file = FILE, directories = directories)
+        Run(level, ExpansionObserver.NONE, exports, structs, NO_APP_ENV, file = FILE, directories = directories)
 
     /** The escaped expression [code], a `quote`, builds in module `T`, written with `~w` and without columns. */
     private fun tree(code: String, level: ElixirLanguageLevel): String {
-        val run = Run(level, ExpansionObserver.NONE, exports, structs)
+        val run = Run(level, ExpansionObserver.NONE, exports, structs, NO_APP_ENV)
         val env = Env.empty(level, kernel).copy(module = "Elixir.T")
         val escaped = Quote.escaped(lower(code, level) as ElixirAst.Call, ExState.empty(level), env, run) ?: return "no escaped expression"
 
@@ -483,7 +483,7 @@ class QuoteExpanderTest : ExpanderTestCase() {
         code: String,
         level: ElixirLanguageLevel,
         lineOffset: Int = 0,
-        run: Run = Run(level, ExpansionObserver.NONE, exports, structs),
+        run: Run = Run(level, ExpansionObserver.NONE, exports, structs, NO_APP_ENV),
     ): String {
         val ast = lower(code, level)
         val statements = if (ast is ElixirAst.Block) ast.expressions else listOf(ast)

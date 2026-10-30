@@ -249,5 +249,6 @@ class StructExpanderTest : ExpanderTestCase() {
             level,
             exports,
             structs,
+        NO_APP_ENV,
         )
 }

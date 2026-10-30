@@ -377,7 +377,7 @@ class PostModuleExpanderTest : ExpanderTestCase() {
     /** Each module's ending and its reported errors, each node as the first line of its source. */
     override fun expandAndRender(code: String, version: String): String {
         val level = ElixirLanguageLevel.of(version)
-        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
+        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
 
         return file.modules.flatMap { result ->
             val ended = when (val ended = result.ended) {

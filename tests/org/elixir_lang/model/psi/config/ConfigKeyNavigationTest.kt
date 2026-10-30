@@ -112,6 +112,13 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
         )
     }
 
+    fun testReadKeyGoesToASettingThroughAnAliasOfConfig() {
+        aliasedConfig()
+        myFixture.caret(ALIASED_CONFIG_READER, ":alia<caret>sed")
+
+        assertEquals(listOf("config/runtime.exs:4"), destinations())
+    }
+
     fun testPipedReadKeyGoesToSetting() {
         myFixture.caret(WORKER, "Application.get_env(:gree<caret>ting)")
 
@@ -177,6 +184,22 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
     }
 
     // setting to reads
+
+    fun testConfig3KeyThroughAnAliasOfConfigShowsReads() {
+        aliasedConfig()
+        myFixture.caret(RUNTIME, ":alia<caret>sed")
+
+        assertShowsReadsOf(ConfigKeySymbol("my_app", "aliased"))
+    }
+
+    /** A setting through an alias of `Config`, in `config/runtime.exs`, and a read of it. */
+    private fun aliasedConfig() {
+        myFixture.addFileToProject(RUNTIME, "import Config\n\nalias Config, as: C\nC.config(:my_app, :aliased, 1)\n")
+        myFixture.addFileToProject(
+            ALIASED_CONFIG_READER,
+            "defmodule MyApp.AliasedConfigReader do\n  def read, do: Application.get_env(:my_app, :aliased)\nend\n",
+        )
+    }
 
     fun testConfig2KeyShowsReads() {
         myFixture.caret(CONFIG, "gree<caret>ting: \"hello\"")
@@ -274,9 +297,11 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
 
     private companion object {
         const val ALIASED = "lib/my_app/aliased.ex"
+        const val ALIASED_CONFIG_READER = "lib/my_app/aliased_config_reader.ex"
         const val CONFIG = "config/config.exs"
         const val DEV = "config/dev.exs"
         const val REPO = "lib/my_app/repo.ex"
+        const val RUNTIME = "config/runtime.exs"
         const val TEMPLATES = "lib/my_app_web/templates.ex"
         const val WORKER = "lib/my_app/worker.ex"
     }

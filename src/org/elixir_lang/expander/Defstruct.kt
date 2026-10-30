@@ -55,7 +55,7 @@ private fun defstruct(
     val expansion = expandQuoted(node, KERNEL, output.output(), state, env, run, watched, ports = true)
     val queued = run.pending.subList(from, run.pending.size).toList()
     // The definitions, and the statement whose branches hold definitions: what runs after the effect.
-    val kept = queued.filter { it is Pending.Definition || it.inner.isNotEmpty() }
+    val kept = queued.filter { it is Pending.Definition || it.inner.any { unit -> unit is Pending.Definition } }
     val definitions = queued.unnested().filterIsInstance<Pending.Definition>()
     val results = queued.firstNotNullOfOrNull { (it as? Pending.Match)?.node?.let(output::results) }
     val effect = DefstructEffect(
@@ -71,18 +71,14 @@ private fun defstruct(
     ).takeIf { expansion is Expansion.Expanded && definitions.size == output.definitionCount }
 
     // A struct the output stops short of is unreadable, as one the effect can't follow is.
-    run.replacePending(
+    run.queueOutput(
         from,
-        listOf(
-            Pending.Effect(
-                node,
-                compiling.isStatement(node),
-                queued = { effect?.queued() ?: kept },
-                apply = { compiling, statement, bindings ->
-                    if (effect == null) unreadable(compiling) else effect.apply(compiling, statement, bindings)
-                },
-            ),
-        ),
+        node,
+        compiling.isStatement(node),
+        queued = { effect?.queued() ?: kept },
+        apply = { compiling, statement, bindings ->
+            if (effect == null) unreadable(compiling) else effect.apply(compiling, statement, bindings)
+        },
     )
 
     return expansion

@@ -187,7 +187,7 @@ class ImplMacroTest : ExpanderTestCase() {
     /** The modules `defimpl` of `Proto` defined in [code], outermost first. */
     private fun implementations(code: String, version: String): List<String> {
         val level = ElixirLanguageLevel.of(version)
-        val result = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
+        val result = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
 
         fun modules(module: ExpansionResult): List<ExpansionResult> = listOf(module) + module.nested.flatMap(::modules)
 
@@ -196,7 +196,7 @@ class ImplMacroTest : ExpanderTestCase() {
 
     override fun expandAndRender(code: String, version: String): String {
         val level = ElixirLanguageLevel.of(version)
-        val result = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
+        val result = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
         val modules = result.modules.map { ModuleRendering.render(code, it) }
 
         return when {

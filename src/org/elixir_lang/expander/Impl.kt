@@ -142,8 +142,9 @@ private fun defimpl(
     if (expansion is Expansion.Expanded && protocolName != null) {
         val queued = run.pending.subList(from, run.pending.size).toList()
         val ordered = run.statementsAt(env)?.contains(node) == true
+        val entries = queued.flatMap { entry -> if (entry is Pending.Module) checked(entry, node, protocolName, ordered, run) else listOf(entry) }
 
-        run.replacePending(from, queued.flatMap { entry -> if (entry is Pending.Module) checked(entry, node, protocolName, ordered, run) else listOf(entry) })
+        run.queueOutput(from, node, ordered, queued = { entries })
     }
 
     return expansion

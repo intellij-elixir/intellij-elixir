@@ -221,7 +221,7 @@ class BitstringExpanderTest : ExpanderTestCase() {
 
                     val env = Env.empty(level, NO_KERNEL)
 
-                    "$version: " + render(code, Expander.expand(ast, ExState.empty(level), env, level, NO_EXPORTS, NO_STRUCTS))
+                    "$version: " + render(code, Expander.expand(ast, ExState.empty(level), env, level, NO_EXPORTS, NO_STRUCTS, NO_APP_ENV))
                 }
             )
         }
@@ -272,7 +272,7 @@ class BitstringExpanderTest : ExpanderTestCase() {
 
                 val env = Env.empty(level, NO_KERNEL)
 
-                "$otp: " + render(code, Expander.expand(lower(code, level), ExState.empty(level), env, level, NO_EXPORTS, NO_STRUCTS))
+                "$otp: " + render(code, Expander.expand(lower(code, level), ExState.empty(level), env, level, NO_EXPORTS, NO_STRUCTS, NO_APP_ENV))
             }
         )
     }

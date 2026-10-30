@@ -41,9 +41,11 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.IN_REFUSES_UNESCAPED
 import org.elixir_lang.language_level.ElixirLanguageFeature.KEY_ERROR_MESSAGE_INSPECTED_WITH_OPTIONS
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_SORT_KEEPS_EQUAL_ORDER
+import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ENV_VERSIONED_VARS
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ARGUMENTS_STOP_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ESCAPE_MARKS_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
+import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_UPDATE_RAISES_WHERE_DISCARDED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_ATTRIBUTES_IN
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_DELETE_DEFINITION
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_GET_LAST_ATTRIBUTE
@@ -61,6 +63,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUED_ERROR_MESSAGE_FROM_ERROR_INFO
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_EXCEPTION_KEY_PRESENT
 import org.elixir_lang.language_level.ElixirLanguageFeature.SPLICE_EMPTY_BEFORE_TAIL_RAISES
+import org.elixir_lang.language_level.ElixirLanguageFeature.STATIC_OPTIONS_IN_PERSISTENT_TERM
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNREQUIRED_MACRO_CALLED_AS_FUNCTION
 import org.elixir_lang.language_level.ElixirLanguageFeature.WITH_OPTIONS_BEFORE_LAST_ARGUMENT
@@ -103,6 +106,7 @@ class InterpreterTest : PlatformTestCase() {
         super.setUp()
 
         sdk = sdkClauses(project, testRootDisposable)
+        exUnitOnQuoter()
     }
 
     fun testFromSource() = withEex { assertRows(Source.SOURCE) }
@@ -171,6 +175,30 @@ class InterpreterTest : PlatformTestCase() {
         assertFile(
             "defmodule A do\n  case (receive do after 0 -> %{} end) do\n    m -> Map.fetch!(m, :k)\n  end\n  @a raise(ArgumentError)\nend",
             "top unported `@a raise(ArgumentError)`\nmodule Elixir.A stopped `@a raise(ArgumentError)`",
+        )
+
+    /**
+     * A module body's last expression is its value, which `defmodule` returns, so a map update there raises on every
+     * OTP.
+     */
+    fun testAMapUpdateAsTheBodysLastExpressionIsTheModules() =
+        assertFile(
+            "defmodule A do\n  m = %{}\n  %{m | a: 1}\nend",
+            "top expanded\nmodule Elixir.A raised Elixir.KeyError `%{m | a: 1}`",
+        )
+
+    /**
+     * A map update at a file's top level whose value is discarded raises where its map lacks a key from OTP 25.3.1, so
+     * the module after it isn't compiled; before it the compiler drops the update.
+     */
+    fun testADiscardedTopLevelMapUpdateRaisesFromOtp25_3_1() =
+        assertFile(
+            "m = %{}\n%{m | a: 1}\ndefmodule A do\nend",
+            if (MAP_UPDATE_RAISES_WHERE_DISCARDED.isSufficient(legLevel())) {
+                "top error Elixir.KeyError `%{m | a: 1}`"
+            } else {
+                "top expanded\nmodule Elixir.A compiled"
+            },
         )
 
     /** A `case` the evaluator runs raises where Elixir does. */
@@ -443,6 +471,89 @@ class InterpreterTest : PlatformTestCase() {
                 "defmodule B do\n  def g, do: %A{}\nend",
             "top expanded\nmodule Elixir.H compiled\nmodule Elixir.A compiled\nmodule Elixir.B compiled",
         )
+
+    /**
+     * A statement's code runs in order, so a match, a definition or an attribute write in a later argument or element
+     * reads what an earlier one wrote, as in Elixir.
+     */
+    fun testAUnitInALaterArgumentReadsAnEarlierArgumentsWrite() {
+        val write = "Module.put_attribute(__MODULE__, :flag, :new)"
+        val read = "Module.get_attribute(__MODULE__, :flag)"
+        val units = listOf(
+            "x = $read" to ":new = x",
+            "def(unquote($read)(), do: 1)" to "true = Module.defines?(__MODULE__, {:new, 0})",
+            "@copy $read" to ":new = @copy",
+        )
+        val statements = units.flatMap { (unit, check) ->
+            val calls = listOf(":erlang.min($write, $unit)", "{$write, $unit}", "[$write, $unit]")
+                .flatMap { listOf(it, "_ = $it") }
+            // A whole statement that is a write of its own. A `def` in an `@`'s value declines, as the `@` copies it.
+            val writes = listOfNotNull("@a {$write, $unit}".takeUnless { unit.startsWith("def") }, "Module.put_attribute(__MODULE__, :a, {$write, $unit})")
+
+            (calls + writes).map { it to check }
+        }
+
+        assertEquals(
+            statements.joinToString("\n") { (statement, _) -> "$statement: top expanded\nmodule Elixir.A compiled" },
+            statements.joinToString("\n") { (statement, check) ->
+                "$statement: " + file("defmodule A do\n  @flag :old\n  $statement\n  $check\nend")
+            },
+        )
+    }
+
+    /**
+     * A `defimpl` or `defdelegate` whose value the code around it takes defines what it defines where that code runs it,
+     * as where it is a statement of its own: on the statement path, and for `defimpl` in a body the walk follows.
+     */
+    fun testAMacroTheCodeAroundItTakesTheValueOfDefinesWhereThatCodeRunsIt() {
+        val impl = "defimpl P, for: Integer do\n    def f(x), do: x\n  end"
+        val delegate = "defdelegate(g(x), to: P, as: :f)"
+        val taken = { form: String -> listOf(form, "_ = $form", "{$form, :ok}", "[$form]", ":erlang.min($form, :ok)") }
+        val followed = listOf("if true do\n  $impl\nend", "_ = if true do\n  $impl\nend", "if Code.ensure_loaded?(String) do\n  $impl\nend")
+        val shapes = (taken(impl) + followed).map { it to "module Elixir.A compiled\n  module Elixir.P.Integer compiled" } +
+            taken(delegate).map { "$it\n  true = Module.defines?(__MODULE__, {:g, 1})" to "module Elixir.A compiled" }
+
+        assertEquals(
+            shapes.joinToString("\n") { (shape, ended) -> "$shape: top expanded\nmodule Elixir.P compiled\n$ended" },
+            shapes.joinToString("\n") { (shape, _) ->
+                "$shape: " + file("defprotocol P do\n  def f(x)\nend\ndefmodule A do\n  $shape\nend")
+            },
+        )
+    }
+
+    /** A module write whose argument holds a write in a body the walk doesn't follow writes both, as in Elixir. */
+    fun testAModuleWriteWhoseArgumentHoldsAWriteTheWalkDoesntFollowWritesBoth() {
+        val inner = "Module.put_attribute(__MODULE__, :b, 1)"
+        val shapes = listOf(
+            "cond do\n    true -> $inner\n  end" to ":ok = @a",
+            "try do\n    $inner\n  after\n    nil\n  end" to ":ok = @a",
+            "(try do\n    $inner\n  after\n    nil\n  end; 2)" to "2 = @a",
+        )
+
+        assertEquals(
+            shapes.joinToString("\n") { (value, _) -> "$value: top expanded\nmodule Elixir.A compiled" },
+            shapes.joinToString("\n") { (value, check) ->
+                "$value: " + file("defmodule A do\n  Module.put_attribute(__MODULE__, :a, $value)\n  $check\n  1 = @b\nend")
+            },
+        )
+    }
+
+    /** A match in a `defdelegate`'s options binds as the options are bound, and the delegation reads them. */
+    fun testAMatchInADefdelegatesOptionsBindsAsTheOptionsAreBound() {
+        val shapes = listOf(
+            "defdelegate(g(x), to: (m = P), as: :f)" to "P = m",
+            "defdelegate(g(x), to: P, as: (n = :f))" to ":f = n",
+        )
+
+        assertEquals(
+            shapes.joinToString("\n") { (shape, _) -> "$shape: top expanded\nmodule Elixir.P compiled\nmodule Elixir.A compiled" },
+            shapes.joinToString("\n") { (shape, check) ->
+                "$shape: " + file(
+                    "defprotocol P do\n  def f(x)\nend\ndefmodule A do\n  $shape\n  true = Module.defines?(__MODULE__, {:g, 1})\n  $check\nend",
+                )
+            },
+        )
+    }
 
     /**
      * A file of only modules stops at a name the fast path can't give, once the modules before it have compiled, and
@@ -979,11 +1090,7 @@ class InterpreterTest : PlatformTestCase() {
         assertFile("defmodule A do\n  read = fn k -> Application.fetch_env!(:nope, k) end\n  _ = read.(:k)\n  :ok = :bad\nend", stopped)
         assertFile("defmodule A do\n  read = &Application.fetch_env!(:nope, &1)\n  @a read.(:k)\n  :ok = :bad\nend", stopped)
         assertFile("_ = Application.fetch_env!(:nope, :k)\n:ok = :bad", "top unported `:ok = :bad`")
-        assertFile(
-            "defmodule A do\n  _ = {Application.fetch_env!(:nope, :k), :ok = :bad}\nend",
-            "top unported `_ = {Application.fetch_env!(:nope, :k), :ok = :bad}`\n" +
-                "module Elixir.A stopped `_ = {Application.fetch_env!(:nope, :k), :ok = :bad}`",
-        )
+        assertFile("defmodule A do\n  _ = {Application.fetch_env!(:nope, :k), :ok = :bad}\nend", stopped)
     }
 
     /** The reads that raise only on a guard raise nothing here, so the error after them is the module's. */
@@ -1015,7 +1122,7 @@ class InterpreterTest : PlatformTestCase() {
         if (!result) return
 
         val implementation = Expander
-            .expandFile(lowered(code, level), Env.empty(level, legKernel), level, sdkExports, legStructs, clauses = sdk)
+            .expandFile(lowered(code, level), Env.empty(level, legKernel), level, sdkExports, legStructs, legAppEnv(), clauses = sdk)
             .modules
             .single { it.module == "Elixir.String.Chars.S" }
 
@@ -1081,9 +1188,13 @@ class InterpreterTest : PlatformTestCase() {
      * [code], a file expanded at the leg's level with the leg's clauses, as [expected] shows its top and each module's end,
      * and with [tables] each module's definition table after it.
      */
-    private fun assertFile(code: String, expected: String, tables: Boolean = false) {
+    private fun assertFile(code: String, expected: String, tables: Boolean = false) =
+        assertEquals(expected, file(code, tables))
+
+    /** How [code]'s file expanded and each module it compiled ended, one per line, with [tables] each one's table. */
+    private fun file(code: String, tables: Boolean = false): String {
         val level = legLevel()
-        val file = Expander.expandFile(lowered(code, level), Env.empty(level, legKernel), level, sdkExports, legStructs, clauses = sdk)
+        val file = Expander.expandFile(lowered(code, level), Env.empty(level, legKernel), level, sdkExports, legStructs, legAppEnv(), clauses = sdk)
 
         fun source(node: ElixirAst) = node.meta.origin.substring(code)
 
@@ -1108,7 +1219,7 @@ class InterpreterTest : PlatformTestCase() {
             is Expansion.Opaque -> "opaque `${source(top.at)}`"
         }
 
-        assertEquals(expected, (listOf("top $top") + file.modules.flatMap { ended(it, "") }).joinToString("\n"))
+        return (listOf("top $top") + file.modules.flatMap { ended(it, "") }).joinToString("\n")
     }
 
     /**
@@ -1298,6 +1409,7 @@ class InterpreterTest : PlatformTestCase() {
                     level,
                     sdkExports,
                     legStructs,
+                    legAppEnv(),
                     observer,
                     file = FILE,
                     directories = DIRECTORIES,
@@ -1324,6 +1436,7 @@ class InterpreterTest : PlatformTestCase() {
                 ExpansionObserver.NONE,
                 exports,
                 legStructs,
+                legAppEnv(),
                 file = FILE,
                 directories = DIRECTORIES,
                 clauses = clauses,
@@ -1737,6 +1850,35 @@ class InterpreterTest : PlatformTestCase() {
         private fun using(quote: String, statements: String): String =
             "defmacro __using__(_) do\n  $quote\n${statements.trimIndent().prependIndent("    ")}\n  end\nend"
 
+        /** A row whose case body runs [before], requires the row's module, then holds [statement], a call of its `m/0`. */
+        fun caller(
+            id: String,
+            defs: String,
+            before: String,
+            statement: String = "$ROW.m()",
+            legs: (ElixirLanguageLevel) -> Boolean = EVERY_LEG,
+            ends: (ElixirLanguageLevel) -> String? = { null },
+        ) = Row(
+            id,
+            defs.trimIndent(),
+            "$ROW.m()",
+            "$before\nrequire $ROW\n$statement",
+            "$ROW.m()",
+            listOf(ROW),
+            SourceRun.ANSWERS,
+            legs,
+            UNPINNED,
+            null,
+            ends = ends,
+        )
+
+        /** Two variables a caller binds, the second reading the first. */
+        const val VARIABLES = "x = 1\ny = x"
+
+        /** The legs whose `Macro.Env` has `versioned_vars`, and those whose has the five fields it replaced. */
+        val VERSIONED_VARS_LEGS: (ElixirLanguageLevel) -> Boolean = { MACRO_ENV_VERSIONED_VARS.isSufficient(it) }
+        val UNVERSIONED_VARS_LEGS: (ElixirLanguageLevel) -> Boolean = { !MACRO_ENV_VERSIONED_VARS.isSufficient(it) }
+
         /** A row whose case body `use`s the leg's [module], then holds [after]. */
         fun leg(module: String, options: String = "", after: String = "", stopsAfter: String? = null): Row {
             val use = "use $module" + if (options.isEmpty()) "" else ", $options"
@@ -1878,6 +2020,30 @@ class InterpreterTest : PlatformTestCase() {
                   Macro.escape(%{x | b: 2})
                 end
                 """,
+            ),
+            // Before OTP 25.3.1 the compiler drops an update whose value the macro's body discards, so it raises nowhere.
+            macro(
+                "form:map-update-discarded-badkey",
+                """
+                defmacro m do
+                  x = %{a: 1}
+                  %{x | b: 2}
+                  :ok
+                end
+                """,
+            ),
+            // Whether anything reads a variable isn't known where it is bound, so before OTP 25.3.1 an update it binds
+            // declines.
+            macro(
+                "form:map-update-bound-badkey",
+                """
+                defmacro m do
+                  x = %{a: 1}
+                  y = %{x | b: 2}
+                  Macro.escape(y)
+                end
+                """,
+                pins = { _, level -> OPAQUE.takeUnless { MAP_UPDATE_RAISES_WHERE_DISCARDED.isSufficient(level) } },
             ),
             macro(
                 "form:struct",
@@ -2189,8 +2355,7 @@ class InterpreterTest : PlatformTestCase() {
                 """,
                 pins = DECLINED_FROM_SOURCE,
             ),
-            // Which variables the caller has bound is the expansion's to say.
-            macro("form:caller-vars", "defmacro m, do: Macro.Env.has_var?(__CALLER__, {:x, nil})", pins = DECLINED),
+            macro("form:caller-vars", "defmacro m, do: Macro.Env.has_var?(__CALLER__, {:x, nil})"),
             macro(
                 "form:stacktrace",
                 """
@@ -4391,6 +4556,7 @@ class InterpreterTest : PlatformTestCase() {
                 pins = { _, _ -> "{:error, :nofile}" },
             ),
             macro("native:ensure-loaded-function-clause", "defmacro m, do: :code.ensure_loaded(1)"),
+            macro("native:whereis-of-non-atom", "defmacro m, do: (_ = :erlang.whereis(123); :ok)"),
             // From source, a module whose definitions aren't known can't be read.
             macro(
                 "native:ensure-loaded-unreadable",
@@ -4699,7 +4865,7 @@ class InterpreterTest : PlatformTestCase() {
                 "pure:enum-range-lazy",
                 "defmacro m, do: [Enum.member?(1..1_000_000_000, 1), Enum.any?(1..1_000_000_000), Enum.all?(1..3)]",
             ),
-            macro("pure:enum-map", "defmacro m, do: Enum.map(%{a: 1}, fn {k, _} -> k end)", pins = DECLINED),
+            macro("pure:enum-map", "defmacro m, do: Enum.map(%{a: 1}, fn {k, _} -> k end)"),
             macro(
                 "pure:function-clause-arity",
                 """
@@ -5423,10 +5589,10 @@ class InterpreterTest : PlatformTestCase() {
                 },
             ),
             // An unknown that decides whether a 3-tuple is a form declines, since Elixir decides on the real value.
-            macro("head:unknown-meta", "defmacro m, do: {1, __CALLER__.aliases, []}", pins = DECLINED),
+            macro("head:unknown-meta", "defmacro m, do: {1, __CALLER__.lexical_tracker, []}", pins = DECLINED),
             macro("head:unknown-head-and-meta", "defmacro m, do: {__CALLER__.lexical_tracker, __CALLER__.tracers, []}", pins = DECLINED),
             // `Macro.expand/2` reads each as the expander does, before any result is linified.
-            macro("head:unknown-meta-expanded", "defmacro m, do: (_ = Macro.expand({1, __CALLER__.aliases, []}, __CALLER__); :ok)", pins = DECLINED),
+            macro("head:unknown-meta-expanded", "defmacro m, do: (_ = Macro.expand({1, __CALLER__.lexical_tracker, []}, __CALLER__); :ok)", pins = DECLINED),
             macro(
                 "head:unknown-head-and-meta-expanded",
                 "defmacro m, do: (_ = Macro.expand({__CALLER__.lexical_tracker, __CALLER__.tracers, []}, __CALLER__); :ok)",
@@ -5453,7 +5619,7 @@ class InterpreterTest : PlatformTestCase() {
             // Linifying reads an unknown metadata as Elixir reads the list it may be.
             macro(
                 "head:linify-unknown-meta",
-                "defmacro m, do: [{:a, __CALLER__.aliases, [1 | 2]}, {:b, [{:line, 1} | 3], []}]",
+                "defmacro m, do: [{:a, __CALLER__.lexical_tracker, [1 | 2]}, {:b, [{:line, 1} | 3], []}]",
                 pins = DECLINED,
             ),
             // `rescue x in Alias` before Elixir reads only the key's presence.
@@ -7570,6 +7736,7 @@ class InterpreterTest : PlatformTestCase() {
                 pins = { source, level ->
                     DECLINED_FROM_SOURCE(source, level)?.takeUnless { DEFSTRUCT_ESCAPES_STRUCT.isSufficient(level) }
                 },
+                unordered = true,
                 helper = """
                 defmodule {row}.S do
                   fields = [a: 1, b: 2]
@@ -7889,6 +8056,397 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
             ),
+            // A definition the module body evaluates is stored wherever it is: as an element, a value, an argument or a
+            // match's right side. A quoted one held in a tuple is data.
+            *listOf(
+                "tuple" to "{:a, def(f, do: 1)}",
+                "list" to "[def(f, do: 1)]",
+                "map-value" to "%{a: def(f, do: 1)}",
+                "map-update-value" to "m = %{a: 0}\n%{m | a: def(f, do: 1)}",
+                "call-argument" to "List.wrap(def(f, do: 1))",
+                "match" to "x = def(f, do: 1)",
+                "quoted-in-tuple" to "code = quote(do: def(f, do: 1))\n{true, code}",
+            )
+                .map { (position, statement) -> caller("body:def-in-$position", "defmacro m, do: :ok", statement) }
+                .toTypedArray(),
+            // A map update raises where its map lacks a key it updates. Before OTP 25.3.1 the compiler drops one whose
+            // value nothing reads, as a statement, an element of one, a statement of a `case` clause or bound to a
+            // variable nothing reads, so it raises only where its value is read.
+            *listOf(
+                "statement" to "%{m | a: 1}",
+                "in-tuple" to "{%{m | a: 1}, :ok}",
+                "in-case-clause" to "case :a do\n  :a ->\n    %{m | a: 1}\n    :ok\nend",
+                "bound" to "_x = %{m | a: 1}",
+            )
+                .map { (position, statement) ->
+                    caller(
+                        "body:map-update-$position-raises",
+                        "defmacro m, do: :ok",
+                        "m = %{}\n$statement\ndef f, do: 1",
+                        ends = { level -> "raised Elixir.KeyError".takeIf { MAP_UPDATE_RAISES_WHERE_DISCARDED.isSufficient(level) } },
+                    )
+                }
+                .toTypedArray(),
+            caller(
+                "body:map-update-argument-raises",
+                "defmacro m, do: :ok",
+                "m = %{}\nList.wrap(%{m | a: 1})\ndef f, do: 1",
+                ends = { "raised Elixir.KeyError" },
+            ),
+            caller("body:map-update-of-non-map-raises", "defmacro m, do: :ok", "m = 1\n%{m | a: 1}\ndef f, do: 1", ends = { "raised Elixir.BadMapError" }),
+            // Nothing reads a `try`'s `after`, so before OTP 25.3.1 the compiler drops an update there, wherever the
+            // `try` is.
+            caller(
+                "body:map-update-in-after-raises",
+                "defmacro m, do: :ok",
+                "m = %{}\nList.wrap(try do :ok after %{m | a: 1} end)\ndef f, do: 1",
+                ends = { level -> "raised Elixir.KeyError".takeIf { MAP_UPDATE_RAISES_WHERE_DISCARDED.isSufficient(level) } },
+            ),
+            // A raise after a statement whose elements or arguments are literals or a variable is the body's: neither
+            // raises.
+            *listOf(
+                "literal-tuple" to "{:ok, :ok}",
+                "literal-three-tuple" to "{:ok, :ok, :ok}",
+                "literal-map" to "%{a: :ok}",
+                "literal-list" to "[:ok, :ok]",
+                "tuple-with-variable" to "m = 1\n{m, :ok}",
+                "tuple-with-negative" to "{-1, :ok}",
+                "negative" to "-1",
+                "call-of-literal" to "List.wrap(:ok)",
+            )
+                .map { (shape, statement) ->
+                    caller(
+                        "body:raise-after-$shape",
+                        "defmacro m, do: :ok",
+                        "$statement\n:erlang.error(:x)\ndef f, do: 1",
+                        ends = { "raised Elixir.ErlangError" },
+                    )
+                }
+                .toTypedArray(),
+            // A definition held as a tuple's element in a callback's output is defined, and the struct is the next
+            // module's. Before `__struct__/1` returns the escaped struct, it reads it from an attribute, a map the expander
+            // holds no term for, so from source `%A{}` declines.
+            macro(
+                "body:def-in-callback-output",
+                "defmacro m, do: {{row}.A.f(), {row}.B.s().__struct__}",
+                pins = { source, level ->
+                    DECLINED_FROM_SOURCE(source, level)?.takeUnless { DEFSTRUCT_ESCAPES_STRUCT.isSufficient(level) }
+                },
+                helper = """
+                defmodule {row}.T do
+                  defmacro __before_compile__(_), do: {true, quote(do: def(f, do: 1))}
+                end
+                defmodule {row}.A do
+                  @before_compile {row}.T
+                  defstruct [:x]
+                end
+                defmodule {row}.B do
+                  def s, do: %{row}.A{}
+                end
+                """,
+            ),
+            // The right side of `and` and `or` runs only where the left doesn't decide, so a match there that would
+            // raise never runs.
+            *listOf(
+                "and" to "false and (:ok = :bad)",
+                "or" to "true or (:ok = :bad)",
+                "andalso" to ":erlang.andalso(false, :ok = :bad)",
+            )
+                .map { (operator, statement) ->
+                    macro(
+                        "body:unrun-right-of-$operator",
+                        "defmacro m, do: {row}.Short.r()",
+                        helper = """
+                        defmodule {row}.Short do
+                          $statement
+                          def r, do: :defined
+                        end
+                        """,
+                    )
+                }
+                .toTypedArray(),
+            // A match the walk ran inside an element, a value, an argument or a `case` subject runs once, not again with
+            // what holds it.
+            *listOf(
+                "tuple" to "y = {x = Module.put_attribute(__MODULE__, :a, 1), 2}",
+                "map-value" to "y = %{k: x = Module.put_attribute(__MODULE__, :a, 1)}",
+                "call-argument" to "y = List.wrap(x = Module.put_attribute(__MODULE__, :a, 1))",
+                "andalso-left" to "y = :erlang.andalso(x = Module.put_attribute(__MODULE__, :a, 1) == :ok, true)",
+                "orelse-left" to "y = :erlang.orelse(x = Module.put_attribute(__MODULE__, :a, 1) == :error, false)",
+                "and-left" to "y = (x = Module.put_attribute(__MODULE__, :a, 1) == :ok) and true",
+                "case-subject" to "y = case x = Module.put_attribute(__MODULE__, :a, 1), do: (:ok -> 1)",
+                "match-right" to "y = x = Module.put_attribute(__MODULE__, :a, 1)",
+                "attribute-value" to "@b x = Module.put_attribute(__MODULE__, :a, 1)\ny = @b",
+                "writer-argument" to "Module.put_attribute(__MODULE__, :b, x = Module.put_attribute(__MODULE__, :a, 1))\ny = @b",
+                "struct-default" to "defstruct b: (x = Module.put_attribute(__MODULE__, :a, 1))\ny = 1",
+            )
+                .map { (position, statement) ->
+                    macro(
+                        "body:match-in-$position-runs-once",
+                        "defmacro m, do: {row}.Once.r()",
+                        helper = """
+                        defmodule {row}.Once do
+                          Module.register_attribute(__MODULE__, :a, accumulate: true)
+                          $statement
+                          _ = {x, y}
+                          def r, do: @a
+                        end
+                        """,
+                    )
+                }
+                .toTypedArray(),
+            // A macro's output the walk ran inside a tuple runs once, not again with the tuple.
+            macro(
+                "body:match-in-macro-output-runs-once",
+                "defmacro m, do: {row}.Once.r()",
+                helper = """
+                defmodule {row}.Quoted do
+                  defmacro w do
+                    quote do
+                      z = Module.put_attribute(__MODULE__, :a, 1)
+                    end
+                  end
+                end
+                defmodule {row}.Once do
+                  require {row}.Quoted
+                  Module.register_attribute(__MODULE__, :a, accumulate: true)
+                  y = {{row}.Quoted.w(), 2}
+                  _ = y
+                  def r, do: @a
+                end
+                """,
+            ),
+            macro(
+                "body:match-in-imported-macro-output-runs-once",
+                "defmacro m, do: {row}.Once.r()",
+                helper = """
+                defmodule {row}.Quoted do
+                  defmacro w do
+                    quote do
+                      z = Module.put_attribute(__MODULE__, :a, 1)
+                    end
+                  end
+                end
+                defmodule {row}.Once do
+                  import {row}.Quoted
+                  Module.register_attribute(__MODULE__, :a, accumulate: true)
+                  y = {w(), 2}
+                  _ = y
+                  def r, do: @a
+                end
+                """,
+            ),
+            // A raise taken not to happen in an `fn`'s code, under a `try` that may catch it around the call running the
+            // `fn` or in the function it is passed to, declines.
+            macro(
+                "body:assumed-raise-in-fn-rescued",
+                "defmacro m, do: {row}.Caught.r()",
+                helper = """
+                defmodule {row}.Caught do
+                  @a :before
+                  try do
+                    :lists.foreach(fn _ ->
+                      _ = Application.fetch_env!(:elixir, :unset_key)
+                      Module.put_attribute(__MODULE__, :a, :after)
+                    end, [1])
+                  rescue
+                    _ -> :ok
+                  end
+                  def r, do: @a
+                end
+                """,
+                pins = CALLS_A_STOPPED_MODULE,
+            ),
+            macro(
+                "body:assumed-raise-in-fn-rescued-by-callee",
+                "defmacro m, do: {row}.Caught.r()",
+                helper = """
+                defmodule {row}.Safely do
+                  def run(f) do
+                    try do
+                      f.()
+                    rescue
+                      _ -> :ok
+                    end
+                  end
+                end
+                defmodule {row}.Caught do
+                  @a :before
+                  {row}.Safely.run(fn ->
+                    _ = Application.fetch_env!(:elixir, :unset_key)
+                    Module.put_attribute(__MODULE__, :a, :after)
+                  end)
+                  def r, do: @a
+                end
+                """,
+                pins = CALLS_A_STOPPED_MODULE,
+            ),
+            // So does one in a module the `fn` defines.
+            macro(
+                "body:assumed-raise-in-fn-module-rescued-by-callee",
+                "defmacro m, do: {row}.Caught.r()",
+                helper = """
+                defmodule {row}.Safely do
+                  def run(f) do
+                    try do
+                      f.()
+                    rescue
+                      _ -> :ok
+                    end
+                  end
+                end
+                defmodule {row}.Caught do
+                  @a :before
+                  {row}.Safely.run(fn ->
+                    defmodule Inner do
+                      _ = Application.fetch_env!(:elixir, :unset_key)
+                    end
+                    Module.put_attribute(__MODULE__, :a, :after)
+                  end)
+                  def r, do: @a
+                end
+                """,
+                pins = CALLS_A_STOPPED_MODULE,
+            ),
+            // At the file's top level too: whether the first module raised isn't known, so neither is whether the module
+            // after it in the `fn` is defined.
+            macro(
+                "top:assumed-raise-in-fn-module-rescued-by-callee",
+                "defmacro m, do: {row}.Later.r()",
+                helper = """
+                defmodule {row}.Safely do
+                  def run(f) do
+                    try do
+                      f.()
+                    rescue
+                      _ -> :ok
+                    end
+                  end
+                end
+                {row}.Safely.run(fn ->
+                  defmodule {row}.Inner do
+                    _ = Application.fetch_env!(:elixir, :unset_key)
+                  end
+                  defmodule {row}.Later do
+                    def r, do: :defined
+                  end
+                end)
+                """,
+                pins = { source, level -> CALLS_A_STOPPED_MODULE(source, level) ?: OPAQUE },
+            ),
+            // An `fn` a native calls reads the arguments of each call, not what the walk gave its body.
+            *listOf(
+                "write" to "Module.put_attribute(__MODULE__, :a, :lists.foldl(fn x, acc -> {x, acc} end, nil, [1, 2]))",
+                "match" to "y = :lists.foldl(fn x, acc -> {x, acc} end, nil, [1, 2])\nModule.put_attribute(__MODULE__, :a, y)",
+                "block" to "@a nil\n:lists.foreach(fn x -> Module.put_attribute(__MODULE__, :a, {x, @a}); :ok end, [1, 2])",
+                "attribute-block" to "@a nil\n:lists.foreach(fn x -> @a {x, @a}; :ok end, [1, 2])",
+            )
+                .map { (position, statement) ->
+                    macro(
+                        "body:fn-called-by-native-in-$position",
+                        "defmacro m, do: {row}.Called.r()",
+                        helper = """
+                        defmodule {row}.Called do
+                          $statement
+                          def r, do: @a
+                        end
+                        """,
+                    )
+                }
+                .toTypedArray(),
+            // A write in a `for`'s element, block or match runs once each iteration, not again with what holds it.
+            *listOf(
+                "tuple" to "_ = for x <- [1, 2], do: {Module.put_attribute(__MODULE__, :a, x), 2}",
+                "block" to "_ = for x <- [1, 2], do: (Module.put_attribute(__MODULE__, :a, x); 2)",
+                "match" to "_ = for x <- [1, 2], do: (y = {Module.put_attribute(__MODULE__, :a, x), x}; y)",
+            )
+                .map { (position, statement) ->
+                    macro(
+                        "body:write-in-for-$position-runs-once",
+                        "defmacro m, do: {row}.Each.r()",
+                        helper = """
+                        defmodule {row}.Each do
+                          Module.register_attribute(__MODULE__, :a, accumulate: true)
+                          $statement
+                          def r, do: @a
+                        end
+                        """,
+                    )
+                }
+                .toTypedArray(),
+            // A write in a unit the walk steps out of order, as the body of an `fn` a call is given and never calls,
+            // may run any number of times.
+            macro(
+                "body:write-in-unordered-unit",
+                "defmacro m, do: {row}.Unordered.r()",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule {row}.Unordered do
+                  Module.register_attribute(__MODULE__, :a, accumulate: true)
+                  Enum.each([], fn _ -> Module.put_attribute(__MODULE__, :a, 1) end)
+                  def r, do: @a
+                end
+                """,
+            ),
+            // A write whose value a match takes, in a unit stepped out of order because the statement holding it
+            // declined, may run any number of times.
+            macro(
+                "body:taken-write-in-unordered-for",
+                "defmacro m, do: {row}.UnorderedFor.r()",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule {row}.UnorderedFor do
+                  Module.register_attribute(__MODULE__, :a, accumulate: true)
+
+                  for _ <- String.to_charlist(inspect(self())) do
+                    for y <- [1] do
+                      _ = Module.put_attribute(__MODULE__, :a, y)
+                    end
+                  end
+
+                  def r, do: @a
+                end
+                """,
+            ),
+            // A write whose value a match takes, in an `fn` a call is given and never calls: Elixir never runs it.
+            macro(
+                "body:taken-write-in-uncalled-fn",
+                "defmacro m, do: {row}.Uncalled.r()",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule {row}.Uncalled do
+                  Module.register_attribute(__MODULE__, :a, accumulate: true)
+
+                  List.wrap(fn ->
+                    y = {x = Module.put_attribute(__MODULE__, :a, 1), 2}
+                    {x, y}
+                  end)
+
+                  def r, do: @a
+                end
+                """,
+            ),
+            // So does one in such an `fn` in a `case` clause the module body runs.
+            macro(
+                "body:taken-write-in-uncalled-fn-in-case",
+                "defmacro m, do: {row}.UncalledInCase.r()",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule {row}.UncalledInCase do
+                  Module.register_attribute(__MODULE__, :a, accumulate: true)
+
+                  case :ok do
+                    :ok ->
+                      List.wrap(fn ->
+                        y = {x = Module.put_attribute(__MODULE__, :a, 1), 2}
+                        {x, y}
+                      end)
+                  end
+
+                  def r, do: @a
+                end
+                """,
+            ),
             // A module-body `case`, `if` or `unless` whose subject is produced runs only its selected branch, with the
             // bindings its clause's pattern makes. The helper's function is called first, so it is loaded when its exports
             // are read.
@@ -8022,6 +8580,7 @@ class InterpreterTest : PlatformTestCase() {
                 pins = { source, level ->
                     DECLINED_FROM_SOURCE(source, level)?.takeUnless { DEFSTRUCT_ESCAPES_STRUCT.isSufficient(level) }
                 },
+                unordered = true,
                 helper = """
                 defmodule {row}.NS do
                   x = true
@@ -8039,6 +8598,7 @@ class InterpreterTest : PlatformTestCase() {
                 pins = { source, level ->
                     DECLINED_FROM_SOURCE(source, level)?.takeUnless { DEFSTRUCT_ESCAPES_STRUCT.isSufficient(level) }
                 },
+                unordered = true,
                 helper = """
                 defmodule {row}.SB do
                   x = true
@@ -8394,6 +8954,503 @@ class InterpreterTest : PlatformTestCase() {
                 """,
                 legs = { !PROTOCOL_BEFORE_COMPILE.isSufficient(it) },
                 ends = { "stopped at `$ROW.m()`" },
+            ),
+            // A raising arm whose test the evaluator can't decide is passed over, as Elixir is taken to compile, and the
+            // next arm is tried. `Process.whereis/1` declines in `nillify/1`, so its arm's test does; `:erlang.whereis/1`
+            // is an unknown value, so a clause given it is tried.
+            macro(
+                "branch:raising-arm-unless",
+                """
+                defmacro m do
+                  unless Process.whereis(:init), do: raise("no init")
+                  :ok
+                end
+                """,
+            ),
+            macro("branch:raising-arm-if", "defmacro m, do: if(Process.whereis(:init), do: :ok, else: raise(ArgumentError, \"no init\"))"),
+            macro(
+                "branch:raising-arm-case",
+                """
+                defmacro m do
+                  case Process.whereis(:init) do
+                    nil -> exit(:no_init)
+                    _ -> :ok
+                  end
+                end
+                """,
+            ),
+            macro(
+                "branch:raising-arm-cond",
+                """
+                defmacro m do
+                  cond do
+                    Process.whereis(:init) == nil -> throw(:no_init)
+                    true -> :ok
+                  end
+                end
+                """,
+            ),
+            macro(
+                "branch:raising-arm-def",
+                """
+                defp check(nil), do: :erlang.error(:no_init, [nil])
+                defp check(_), do: :ok
+                defmacro m, do: check(:erlang.whereis(:init))
+                """,
+            ),
+            macro("branch:raising-arm-fn", "defmacro m, do: (fn nil -> raise \"no init\"; _ -> :ok end).(:erlang.whereis(:init))"),
+            macro(
+                "branch:raising-arm-with",
+                """
+                defmacro m do
+                  with {:ok, _} <- {:error, :erlang.whereis(:init)} do
+                    :bad
+                  else
+                    {:error, :undefined} -> raise ArgumentError, "no init"
+                    {:error, _} -> :ok
+                  end
+                end
+                """,
+            ),
+            // While a `try` that can catch the raise runs, a raising arm may be taken, so the loop declines. A
+            // `try` with only `after`, or one that has ended, catches nothing.
+            macro(
+                "branch:raising-arm-caught",
+                """
+                defmacro m do
+                  try do
+                    case :erlang.whereis(:init) do
+                      :undefined -> throw(:no_init)
+                      _ -> :ok
+                    end
+                  catch
+                    :no_init -> :caught
+                  end
+                end
+                """,
+                pins = DECLINED,
+            ),
+            // A raise taken not to happen, under a `try` that may catch it, declines: the build goes on either way.
+            macro(
+                "branch:assumed-raise-rescued",
+                """
+                defmacro m do
+                  try do
+                    Application.fetch_env!(:elixir, :unset_key)
+                    :body
+                  rescue
+                    ArgumentError -> :rescued
+                  end
+                end
+                """,
+                pins = DECLINED,
+            ),
+            // A read that can't raise is answered there.
+            macro(
+                "branch:declared-read-in-try",
+                """
+                defmacro m do
+                  try do
+                    {Application.fetch_env!(:elixir, :check_endianness), Application.get_env(:elixir, :check_endianness)}
+                  rescue
+                    ArgumentError -> :rescued
+                  end
+                end
+                """,
+            ),
+            macro(
+                "branch:raising-arm-rescued-in-call",
+                """
+                defp check(:undefined), do: raise("no init")
+                defp check(_), do: :ok
+                defmacro m do
+                  try do
+                    check(:erlang.whereis(:init))
+                  rescue
+                    _ -> :rescued
+                  end
+                end
+                """,
+                pins = DECLINED,
+            ),
+            macro(
+                "branch:raising-arm-in-try-after",
+                """
+                defmacro m do
+                  try do
+                    case :erlang.whereis(:init) do
+                      :undefined -> exit(:no_init)
+                      _ -> :ok
+                    end
+                  after
+                    :done
+                  end
+                end
+                """,
+            ),
+            macro(
+                "branch:raising-arm-after-try",
+                """
+                defmacro m do
+                  _ = try(do: :ok, catch: (_ -> :caught))
+                  case :erlang.whereis(:init) do
+                    :undefined -> exit(:no_init)
+                    _ -> :ok
+                  end
+                end
+                """,
+            ),
+            // A later arm whose test is unknown, no raising arm, an operand chosen by no arm, and a declined argument
+            // still decline.
+            macro(
+                "branch:two-arms-left",
+                """
+                defmacro m do
+                  case Process.whereis(:init) do
+                    nil -> raise "no init"
+                    :a -> :a
+                    _ -> :ok
+                  end
+                end
+                """,
+                pins = DECLINED,
+            ),
+            macro("branch:no-raising-arm-single-clause", "defmacro m, do: if(Process.whereis(:init), do: :ok)", pins = DECLINED),
+            macro("branch:andalso-unknown-left", "defmacro m, do: Process.whereis(:init) == nil and raise(\"no init\")", pins = DECLINED),
+            macro(
+                "branch:raising-arm-call-argument",
+                """
+                defp check(nil), do: raise("no init")
+                defp check(_), do: :ok
+                defmacro m, do: check(Process.whereis(:init))
+                """,
+                pins = DECLINED,
+            ),
+            // A subject or head whose decline ended in a raise, or was given a module being compiled, isn't passed
+            // over.
+            macro(
+                "branch:raising-arm-subject-ended",
+                """
+                defp f, do: Process.whereis(:init)
+
+                defmacro m do
+                  case {f(), Map.fetch!(%{}, :k)} do
+                    {nil, _} -> raise "no init"
+                    _ -> :ok
+                  end
+                end
+                """,
+                pins = DECLINED,
+            ),
+            // A later read sees what a passed-over subject or head wrote: here, nothing the evaluator knows.
+            *listOf(
+                "subject-given" to "case g(__CALLER__.module) do\n    nil -> raise \"no init\"\n    _ -> :ok\n  end",
+                "cond-given" to "cond do\n    g(__CALLER__.module) == nil -> raise \"no init\"\n    true -> :ok\n  end",
+            )
+                .map { (id, choice) ->
+                    Row(
+                        "branch:raising-arm-$id",
+                        "defp g(module) do\n  text = inspect(Process.whereis(:init))\n  Module.put_attribute(module, :a, 2)\n  text\nend\n\ndefmacro w do\n  $choice\nend\n\ndefmacro m, do: Module.get_attribute(__CALLER__.module, :a)",
+                        "$ROW.m()",
+                        "require $ROW\n$ROW.w()\n_ = $ROW.m()",
+                        "$ROW.w()",
+                        listOf(ROW),
+                        SourceRun.ANSWERS,
+                        EVERY_LEG,
+                        DECLINED,
+                        null,
+                    )
+                }
+                .toTypedArray(),
+            // `:erlang.raise/3` returns `badarg` where its arguments aren't valid, so it isn't declared never to
+            // return.
+            macro(
+                "branch:raising-arm-reraise",
+                """
+                defmacro m do
+                  case Process.whereis(:init) do
+                    nil -> :erlang.raise(:error, :no_init, [])
+                    _ -> :ok
+                  end
+                end
+                """,
+                pins = DECLINED,
+            ),
+            // `ExUnit.Case.__using__/1`'s check before its `quote`, up to v1.13.4.
+            use(
+                "branch:whereis-unless",
+                """
+                defmacro __using__(_) do
+                  unless Process.whereis(:init) do
+                    raise "no init"
+                  end
+
+                  quote(do: def(f, do: 1))
+                end
+                """,
+            ),
+            // `assert pat = expr` reads `Macro.Env.to_match/1` of the caller, and binds the pattern's variables.
+            Row(
+                "branch:assert-match",
+                "defmacro m, do: quote(do: ExUnit.Assertions.assert({:ok, var!(x)} = {:ok, 1}))",
+                "$ROW.m()",
+                "require ExUnit.Assertions\nrequire $ROW\n$ROW.m()\ndef unquote(:\"f#{x}\")(), do: 1",
+                "$ROW.m()",
+                listOf(ROW, "ExUnit.Assertions"),
+                SourceRun.ANSWERS,
+                EVERY_LEG,
+                UNPINNED,
+                null,
+            ),
+            // Each field of `__CALLER__`, the env at the call. The file and line are the oracle's own, and its requires
+            // hold every row's module, so only the defaults and this row's are compared.
+            *listOf("aliases", "context", "context_modules", "function", "functions", "macro_aliases", "macros", "module")
+                .map { field -> macro("env:caller-$field", "defmacro m, do: Macro.escape(__CALLER__.$field)") }
+                .toTypedArray(),
+            // A macro's quoted `alias` adds the alias to the env's `macro_aliases`, with the quote's counter.
+            macro(
+                "env:env-macro_aliases-held",
+                """
+                require {row}.Aliasing
+                {row}.Aliasing.a()
+                @held Macro.escape(__ENV__.macro_aliases)
+                defmacro m, do: @held
+                """,
+                helper = """
+                defmodule {row}.Aliasing do
+                  defmacro a, do: quote(do: alias(List.Chars, as: C))
+                end
+                """,
+            ),
+            macro("env:caller-requires", "defmacro m, do: Enum.filter(__CALLER__.requires, &(&1 in [Application, Kernel, __MODULE__]))"),
+            macro("env:caller-file", "defmacro m, do: is_binary(__CALLER__.file)"),
+            macro("env:caller-line", "defmacro m, do: is_integer(__CALLER__.line)"),
+            // A module body's are the compiler's process state.
+            macro("env:caller-lexical_tracker", "defmacro m, do: Macro.escape(__CALLER__.lexical_tracker)", pins = DECLINED),
+            macro("env:caller-tracers", "defmacro m, do: Macro.escape(__CALLER__.tracers)", pins = DECLINED),
+            // The caller's variables, each a definition named from it, so the table shows them.
+            caller(
+                "env:caller-versioned_vars",
+                "defmacro m, do: for({{n, _}, v} <- __CALLER__.versioned_vars, do: quote(do: def(unquote(:\"#{n}_#{v}\")(), do: 1)))",
+                VARIABLES,
+                legs = VERSIONED_VARS_LEGS,
+            ),
+            caller(
+                "env:caller-current_vars",
+                "defmacro m, do: for({{n, _}, v} <- elem(__CALLER__.current_vars, 0), do: quote(do: def(unquote(:\"#{n}_#{v}\")(), do: 1)))",
+                VARIABLES,
+                legs = UNVERSIONED_VARS_LEGS,
+            ),
+            // The oracle's `Macro.expand_once/2` runs in its own batch's state, so only the caller, which binds `y`, defines.
+            caller(
+                "env:caller-current_vars-write",
+                """
+                defmacro m do
+                  case __CALLER__.current_vars do
+                    {%{{:y, nil} => _}, false} -> quote(do: def(w_false, do: 1))
+                    {%{{:y, nil} => _}, write} -> for({{n, _}, v} <- write, do: quote(do: def(unquote(:"w_#{n}_#{v}")(), do: 1)))
+                    _ -> :ok
+                  end
+                end
+                """,
+                VARIABLES,
+                legs = UNVERSIONED_VARS_LEGS,
+            ),
+            caller(
+                "env:caller-unused_vars",
+                """
+                defmacro m do
+                  case __CALLER__.current_vars do
+                    {%{{:y, nil} => _}, _} -> quote(do: def(unquote(:"v#{elem(__CALLER__.unused_vars, 1)}")(), do: 1))
+                    _ -> :ok
+                  end
+                end
+                """,
+                VARIABLES,
+                legs = UNVERSIONED_VARS_LEGS,
+            ),
+            // `ExState` holds no unused variables, nor the variables Elixir adds to `vars` outside a match.
+            macro(
+                "env:caller-unused_vars-map",
+                "defmacro m, do: Macro.escape(elem(__CALLER__.unused_vars, 0))",
+                legs = UNVERSIONED_VARS_LEGS,
+                pins = DECLINED,
+            ),
+            macro("env:caller-vars", "defmacro m, do: Macro.escape(__CALLER__.vars)", legs = UNVERSIONED_VARS_LEGS, pins = DECLINED),
+            macro("env:caller-prematch_vars", "defmacro m, do: Macro.escape(__CALLER__.prematch_vars)", legs = UNVERSIONED_VARS_LEGS),
+            macro("env:caller-contextual_vars", "defmacro m, do: Macro.escape(__CALLER__.contextual_vars)", legs = UNVERSIONED_VARS_LEGS),
+            // In a match, the variables read before it.
+            caller(
+                "env:caller-prematch_vars-match",
+                """
+                defmacro m do
+                  case __CALLER__.prematch_vars do
+                    {read, _} -> Module.put_attribute(__CALLER__.module, :prematch, :"p#{Enum.reduce(read, "", fn {{n, _}, v}, acc -> acc <> "_#{n}_#{v}" end)}")
+                    _ -> :ok
+                  end
+
+                  quote(do: _)
+                end
+                """,
+                VARIABLES,
+                statement = "$ROW.m() = 2\ndef unquote(@prematch || :none)(), do: 1",
+                legs = UNVERSIONED_VARS_LEGS,
+            ),
+            caller(
+                "env:caller-Macro.Env.vars",
+                "defmacro m, do: for({n, _} <- Macro.Env.vars(__CALLER__), do: quote(do: def(unquote(n)(), do: 1)))",
+                VARIABLES,
+            ),
+            caller(
+                "env:caller-to_match",
+                """
+                defmacro m do
+                  e = Macro.Env.to_match(__CALLER__)
+
+                  names =
+                    case Map.get(e, :prematch_vars) do
+                      {read, _} -> for {{n, _}, v} <- read, do: :"#{n}_#{v}"
+                      _ -> []
+                    end
+
+                  defs = for n <- names, do: quote(do: def(unquote(n)(), do: 1))
+                  {:__block__, [], [quote(do: def(context, do: unquote(e.context))) | defs]}
+                end
+                """,
+                VARIABLES,
+            ),
+            // Each field of `__ENV__` in the macro's body, which has a variable bound. The file and line are the oracle's,
+            // and before 1.13 its context modules hold every row module before this one.
+            *listOf(
+                "aliases", "context", "function", "functions", "lexical_tracker", "macro_aliases", "macros", "module",
+                "requires", "tracers",
+            )
+                .map { field -> macro("env:env-$field", "defmacro m do\n  x = 1\n  _ = x\n  Macro.escape(__ENV__.$field)\nend") }
+                .toTypedArray(),
+            macro("env:env-context_modules", "defmacro m, do: Enum.take(__ENV__.context_modules, 1)"),
+            macro("env:env-file", "defmacro m, do: is_binary(__ENV__.file)"),
+            macro("env:env-line", "defmacro m, do: is_integer(__ENV__.line)"),
+            macro("env:env-versioned_vars", "defmacro m do\n  x = 1\n  _ = x\n  Macro.escape(__ENV__.versioned_vars)\nend", legs = VERSIONED_VARS_LEGS),
+            *listOf("contextual_vars", "current_vars", "prematch_vars")
+                .map { field ->
+                    macro("env:env-$field", "defmacro m do\n  x = 1\n  _ = x\n  Macro.escape(__ENV__.$field)\nend", legs = UNVERSIONED_VARS_LEGS)
+                }
+                .toTypedArray(),
+            // Each `rescue` around the code adds its own `:__STACKTRACE__`.
+            macro(
+                "env:env-contextual_vars-nested-rescue",
+                """
+                defmacro m do
+                  try do
+                    raise "a"
+                  rescue
+                    _ ->
+                      try do
+                        raise "b"
+                      rescue
+                        _ -> __ENV__.contextual_vars
+                      end
+                  end
+                end
+                """,
+                legs = UNVERSIONED_VARS_LEGS,
+            ),
+            macro(
+                "env:env-unused_vars",
+                "defmacro m do\n  x = 1\n  _ = x\n  elem(__ENV__.unused_vars, 1)\nend",
+                legs = UNVERSIONED_VARS_LEGS,
+            ),
+            macro(
+                "env:env-unused_vars-map",
+                "defmacro m do\n  x = 1\n  _ = x\n  Macro.escape(elem(__ENV__.unused_vars, 0))\nend",
+                legs = UNVERSIONED_VARS_LEGS,
+                pins = DECLINED_FROM_SOURCE,
+            ),
+            macro(
+                "env:env-vars",
+                "defmacro m do\n  x = 1\n  _ = x\n  Macro.escape(__ENV__.vars)\nend",
+                legs = UNVERSIONED_VARS_LEGS,
+                pins = DECLINED_FROM_SOURCE,
+            ),
+            macro(
+                "native:ordsets-is_element",
+                "defmacro m, do: [:ordsets.is_element(2, [1, 3]), :ordsets.is_element(0, [1]), :ordsets.is_element(1, [1]), :ordsets.is_element(1, [])]",
+            ),
+            macro("native:md5", "defmacro m, do: :erlang.md5(\"abc\")"),
+            macro("native:md5-iolist", "defmacro m, do: :erlang.md5([\"a\", [98, \"c\"], 255 | \"d\"])"),
+            macro("native:md5-badarg", "defmacro m, do: :erlang.md5([256])"),
+            // A list of 2^21 empty lists, whose parts share one another, as `iolist_to_binary/1` reads it.
+            macro(
+                "native:md5-past-the-node-limit",
+                """
+                defmacro m, do: :erlang.md5(nest([], 21))
+
+                defp nest(x, 0), do: x
+                defp nest(x, n), do: nest([x, x], n - 1)
+                """,
+                pins = DECLINED,
+            ),
+            macro("native:maps-keys", "defmacro m, do: :maps.keys(%{\"b\" => 1, \"a\" => 2})"),
+            // A struct is a map to `maps:keys/1`, whose atom keys' order from OTP 26 the VM keeps.
+            macro("native:maps-keys-struct", "defmacro m, do: :maps.keys(1..2)", legs = { !MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER.isSufficient(it) }),
+            // Elixir's order is the atoms' index in the VM, so only the set is compared.
+            macro("native:maps-keys-struct-sorted", "defmacro m, do: :lists.sort(:maps.keys(1..2))", legs = { MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER.isSufficient(it) }),
+            macro("native:atom_to_list", "defmacro m, do: :erlang.atom_to_list(:abc)"),
+            macro("native:binary-at", """defmacro m, do: [:binary.at("abc", 0), :binary.at("abc", 2)]"""),
+            macro("native:binary-at-badarg", """defmacro m, do: :binary.at("abc", 3)"""),
+            macro("native:binary-at-bitstring", "defmacro m, do: :binary.at(<<1, 2::4>>, 0)"),
+            // Terms that compare equal give the first.
+            macro("native:min", "defmacro m, do: [:erlang.min(1, 2), :erlang.min(2, 1), :erlang.min(1, 1.0), :erlang.min(1.0, 1), :erlang.min(:a, 1)]"),
+            // Elixir's static options, which its boot sets.
+            macro("native:identifier_tokenizer", "defmacro m, do: :elixir_config.identifier_tokenizer()", legs = STATIC_OPTIONS_IN_PERSISTENT_TERM::isSufficient),
+            macro("native:is_bootstrap", "defmacro m, do: :elixir_config.is_bootstrap()", legs = STATIC_OPTIONS_IN_PERSISTENT_TERM::isSufficient),
+            macro(
+                "native:elixir_config-get",
+                "defmacro m, do: [:elixir_config.get(:identifier_tokenizer, :x), :elixir_config.get(:bootstrap)]",
+                legs = { !STATIC_OPTIONS_IN_PERSISTENT_TERM.isSufficient(it) },
+            ),
+            // Every other key varies with how Mix runs Elixir; from v1.13 the static options aren't in the table.
+            macro("native:elixir_config-get-other-key", "defmacro m, do: :elixir_config.get(:docs, :x)", pins = DECLINED),
+            macro(
+                "native:elixir_config-get-static-key",
+                "defmacro m, do: :elixir_config.get(:bootstrap, :x)",
+                legs = STATIC_OPTIONS_IN_PERSISTENT_TERM::isSufficient,
+                pins = DECLINED,
+            ),
+            macro("native:special_form", "defmacro m, do: [:elixir_import.special_form(:case, 2), :elixir_import.special_form(:case, 1), :elixir_import.special_form(:fn, :x), :elixir_import.special_form(:foo, 1)]"),
+            // `Enumerable.Map` reduces `:maps.to_list/1` of the map; a struct reduces through its own implementation.
+            macro("enumerate:map-binary-keys", "defmacro m, do: for({k, v} <- %{\"b\" => 1, \"a\" => 2}, do: {k, v})"),
+            macro("enumerate:map-one-atom-key", "defmacro m, do: for({k, v} <- %{a: 1}, do: {k, v})"),
+            macro("enumerate:map-two-atom-keys", "defmacro m, do: for({k, v} <- %{a: 1, b: 2}, do: {k, v})", legs = { !MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER.isSufficient(it) }),
+            macro("enumerate:map-two-atom-keys-sorted", "defmacro m, do: :lists.sort(for({k, v} <- %{a: 1, b: 2}, do: {k, v}))", legs = { MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER.isSufficient(it) }),
+            macro(
+                "enumerate:map-33-keys",
+                "defmacro m, do: for({k, _} <- %{${(1..33).joinToString(", ") { "$it => $it" }}}, do: k)",
+                pins = DECLINED,
+            ),
+            macro("enumerate:struct", "defmacro m, do: for(x <- MapSet.new([1]), do: x)", pins = DECLINED),
+            // A module-body `fn` is expanded once, with its parameter a variable of its body, however often it is called.
+            use(
+                "body:fn-params-bound",
+                """
+                defmacro names do
+                  module = __CALLER__.module
+                  Module.put_attribute(module, :expanded, (Module.get_attribute(module, :expanded) || 0) + 1)
+                  Module.put_attribute(module, :names, for({n, _} <- Macro.Env.vars(__CALLER__), do: n))
+                  :ok
+                end
+
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    require {row}
+                    f = fn param -> {row}.names() end
+                    f.(1)
+                    f.(2)
+                    def unquote(:"expanded_#{@expanded}")(), do: 1
+                    for n <- @names, do: def(unquote(n)(), do: 1)
+                  end
+                end
+                """,
             ),
         )
     }

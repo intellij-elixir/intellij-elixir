@@ -106,7 +106,7 @@ class DefguardMacroTest : ExpanderTestCase() {
         val level = ElixirLanguageLevel.of("1.20.4")
 
         for (code in listOf("defguard foo(x) when is_integer(x)", "case 1 do\n  _ when defguard(foo(x)) -> 1\nend")) {
-            val top = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs).top
+            val top = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV).top
 
             assertEquals(code, "definer_outside_module", (top as Expansion.Error).kind)
         }
@@ -157,7 +157,7 @@ class DefguardMacroTest : ExpanderTestCase() {
 
     override fun expandAndRender(code: String, version: String): String {
         val level = ElixirLanguageLevel.of(version)
-        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
+        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
 
         return file.modules.joinToString("\n") { ModuleRendering.render(code, it) }
     }

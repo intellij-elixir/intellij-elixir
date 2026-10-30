@@ -163,8 +163,9 @@ class LoadedModulesTest : ProbeTestCase() {
     }
 
     /**
-     * A callback the expander doesn't follow may write the module: one `@after_compile` or `@on_definition` names
-     * leaves it unreadable, while the module after it is loaded.
+     * A callback the expander doesn't follow may write the module: one `@after_compile` names, or an `@on_definition`
+     * callback that gives the env to a call the expander doesn't run, leaves it unreadable, while the module after it
+     * is loaded.
      */
     fun testAModuleWithAnUnfollowedCallbackIsUnreadable() {
         assertEquals(
@@ -179,6 +180,20 @@ class LoadedModulesTest : ProbeTestCase() {
         )
         assertEquals(
             listOf("Present", "Unreadable", "Present"),
+            loadings(
+                "defmodule OD do\n  def __on_definition__(env, _kind, _name, _args, _guards, _body), do: :erlang.put(:env, env)\nend\n" +
+                    "defmodule A do\n  @on_definition OD\n  def f, do: 1\nend\ndefmodule B do\n  def g, do: 1\nend",
+                "OD",
+                "A",
+                "B",
+            ),
+        )
+    }
+
+    /** An `@on_definition` callback the expander follows, which writes nothing, leaves the module loaded. */
+    fun testAModuleWithAFollowedOnDefinitionCallbackIsLoaded() {
+        assertEquals(
+            listOf("Present", "Present", "Present"),
             loadings(
                 "defmodule OD do\n  def __on_definition__(_env, _kind, _name, _args, _guards, _body), do: :ok\nend\n" +
                     "defmodule A do\n  @on_definition OD\n  def f, do: 1\nend\ndefmodule B do\n  def g, do: 1\nend",
@@ -429,14 +444,14 @@ class LoadedModulesTest : ProbeTestCase() {
 
     /**
      * Elixir expands a `@before_compile` callback's whole output before it runs any of it, so where the callback's
-     * expansion stops, what its output would have defined is unknown: unreadable, not absent. With no clauses for
-     * `Macro.Env` here, the callback stops at its call, where the `__ENV__` it is given can't be built.
+     * expansion stops, what its output would have defined is unknown: unreadable, not absent. The callback stops at a
+     * call the expander doesn't run.
      */
     fun testAModuleABeforeCompileCallbackWouldDefineIsUnreadableWhereTheCallbacksExpansionStops() {
         assertEquals(
             listOf("Present", "Unreadable", "Unreadable"),
             loadings(
-                "defmodule CB do\n  defmacro __before_compile__(_) do\n    quote do\n      defmodule Elixir.Foo do\n        def f, do: 1\n      end\n    end\n  end\nend\n" +
+                "defmodule CB do\n  defmacro __before_compile__(_) do\n    :erlang.put(:k, 1)\n\n    quote do\n      defmodule Elixir.Foo do\n        def f, do: 1\n      end\n    end\n  end\nend\n" +
                     "defmodule O do\n  @before_compile CB\nend",
                 "CB",
                 "O",
@@ -477,7 +492,7 @@ class LoadedModulesTest : ProbeTestCase() {
         val forms = ReadAction.computeBlocking<_, Throwable> {
             Lowering.lower(createPsiFile(getTestName(false), code) as ElixirFile, level)
         }
-        val file = Expander.expandFile(forms, Env.empty(level, legKernel), level, legExports, legStructs)
+        val file = Expander.expandFile(forms, Env.empty(level, legKernel), level, legExports, legStructs, NO_APP_ENV)
         val results = generateSequence(file.modules) { layer -> layer.flatMap { it.nested }.takeIf { it.isNotEmpty() } }
             .flatten()
             .associateBy { it.module.removePrefix("Elixir.") }
@@ -502,7 +517,7 @@ class LoadedModulesTest : ProbeTestCase() {
         val forms = ReadAction.computeBlocking<_, Throwable> {
             Lowering.lower(createPsiFile(getTestName(false), code) as ElixirFile, level)
         }
-        val file = Expander.expandFile(forms, Env.empty(level, legKernel), level, legExports, legStructs)
+        val file = Expander.expandFile(forms, Env.empty(level, legKernel), level, legExports, legStructs, NO_APP_ENV)
 
         return LoadedModules.exports(file.modules.single())
     }

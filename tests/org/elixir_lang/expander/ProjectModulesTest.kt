@@ -424,8 +424,10 @@ class ProjectModulesTest : PlatformTestCase() {
             "\"#{H.int(1)}\" <> <<1::size(H.set8(__MODULE__))>>",
         ).takeIf { BITSTRING_SIZE_EXPANDED_AS_GUARD.isSufficient(legLevel()) }.orEmpty()
 
-        val wrong = (
-            given + sizes + listOf(
+        val wrong = buildList {
+            addAll(given)
+            addAll(sizes)
+            addAll(listOf(
                 "H.set(__MODULE__, H.noop(1))",
                 "H.set(Keyword.get(Application.get_env(:nope, :o, []), :m, __MODULE__))",
                 "H.set(:maps.get(:module, __ENV__))",
@@ -529,8 +531,8 @@ class ProjectModulesTest : PlatformTestCase() {
                     "      H.set(A)\n    end\n  end",
                 "defmodule I do\n    {H.set(__MODULE__), (:ok = Module.get_attribute(__MODULE__, :x)), H.set(A)}\n  end",
                 "apply(H, :set, Application.get_env(:nope, :a, [__MODULE__]))",
-            )
-            ).mapNotNull { statement ->
+            ))
+        }.mapNotNull { statement ->
             edit(project, a, "defmodule A do\n  @x :bad\n  $statement\n  def unquote(@x)(), do: 1\n  def g, do: 1\nend\n")
             val module = expansion(holder, a).modules.single { it.module == "Elixir.A" }
             val renderedB = render(b, expansion(holder, b)).lines().first { it.startsWith("Elixir.B ") }
@@ -1430,8 +1432,13 @@ class ProjectModulesTest : PlatformTestCase() {
 
         assertEquals(
             listOf(
-                listOf(raised, raised, raised, raised, "Elixir.B compiled", raised, "Elixir.B compiled") +
-                    List(5) { raised } + List(4) { "Elixir.B compiled" } + List(3) { "Elixir.B compiled" } + raised,
+                buildList {
+                    addAll(listOf(raised, raised, raised, raised, "Elixir.B compiled", raised, "Elixir.B compiled"))
+                    addAll(List(5) { raised })
+                    addAll(List(4) { "Elixir.B compiled" })
+                    addAll(List(3) { "Elixir.B compiled" })
+                    add(raised)
+                },
                 List(20) { "Elixir.B compiled" },
             ),
             nestedAround(
@@ -1638,15 +1645,22 @@ class ProjectModulesTest : PlatformTestCase() {
                 if (importer in compiled) "Elixir.$importer compiled" else "Elixir.$importer raised unloaded_module `import $name`"
             }
         }
-        val inA = { stop: String, kind: String -> listOf("Elixir.A stopped `$stop` unported $kind", "Elixir.A.I compiled") }
+        val inA = { top: List<String>, stop: String, kind: String ->
+            buildList {
+                addAll(top)
+                add("Elixir.A stopped `$stop` unported $kind")
+                add("Elixir.A.I compiled")
+                addAll(loading(setOf("BAI")))
+            }
+        }
 
         assertEquals(
             listOf(
                 listOf("top unported `Mac.r()`") + loading(emptySet()),
                 listOf("top unported `:ok = :bad`", "Elixir.B compiled") + loading(setOf("BB")),
-                listOf("top unported `def f, do: Mac.r()`") + inA("def f, do: Mac.r()", "def") + loading(setOf("BAI")),
-                listOf("top unported `:ok = :bad`") + inA(":ok = :bad", "=") + loading(setOf("BAI")),
-                listOf("top unported `defmodule A do`", "Elixir.CB compiled") + inA("defmodule A do", "=") + loading(setOf("BAI")),
+                inA(listOf("top unported `def f, do: Mac.r()`"), "def f, do: Mac.r()", "def"),
+                inA(listOf("top unported `:ok = :bad`"), ":ok = :bad", "="),
+                inA(listOf("top unported `defmodule A do`", "Elixir.CB compiled"), "defmodule A do", "="),
             ),
             answers,
         )
@@ -2416,6 +2430,9 @@ class ProjectModulesTest : PlatformTestCase() {
             Triple("reduce-fn-called-later-loaded", "Enum.reduce([:a, :b], nil, fn\n    x, nil -> Enum.reduce([x], fn y -> def unquote(y)(), do: 1 end, fn y, g -> g.(y); g end)\n    x, g -> g.(x); g\n  end)", "Present [a/0, b/0] Compiled"),
             // A value the evaluator couldn't produce before the statement keeps no `fn` of it.
             Triple("unknown-kept-loaded", "x = receive do after 0 -> :x end\n  r = Enum.map([:a], fn n -> def unquote(n)(), do: 1; {n, x} end)", "Present [a/0] Compiled"),
+            // Nor does one in a list, or one that is the `fn`'s value.
+            Triple("unknown-element-kept-loaded", "x = receive do after 0 -> :x end\n  r = Enum.map([:a], fn n -> def unquote(n)(), do: 1; [n, x] end)", "Present [a/0] Compiled"),
+            Triple("unknown-variable-kept-loaded", "x = receive do after 0 -> :x end\n  r = Enum.map([:a], fn n -> def unquote(n)(), do: 1; x end)", "Present [a/0] Compiled"),
             // A match whose value the match around it discards keeps nothing.
             Triple("discarded-nested-match-loaded", "_ = (_ = Enum.reduce([:a], fn x -> def unquote(x)(), do: 1 end, fn x, g -> g.(x); g end))", "Present [a/0] Compiled"),
             // A closure of an earlier run of the statement, still running when a later run of it starts, is called later.

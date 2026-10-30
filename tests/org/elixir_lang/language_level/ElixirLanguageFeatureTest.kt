@@ -160,6 +160,8 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             PUT_ELEM_IN_GUARD to ("1.20.0-rc.5" to "1.20.0-rc.6"),
             ESCAPED_BINARY_SPEC_IS_A_NAME to ("1.14.5" to "1.15.0-rc.0"),
             MACRO_ENV_VERSIONED_VARS to ("1.12.3" to "1.13.0-rc.0"),
+            REMOTE_MACRO_FROM_STATE_BEFORE_RECEIVER to ("1.12.3" to "1.13.0-rc.0"),
+            STATIC_OPTIONS_IN_PERSISTENT_TERM to ("1.12.3" to "1.13.0-rc.0"),
             RESCUE_CALL_EXPANDED_AS_MACRO to ("1.14.5" to "1.15.0-rc.0"),
             POST_MODULE_LOCAL_CHECKS_TYPED to ("1.17.3" to "1.18.0-rc.0"),
             LOCAL_CALL_CHECKED_BEFORE_ARGUMENTS to ("1.18.4" to "1.19.0-rc.0"),
@@ -344,6 +346,11 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             WIDER_INDIC_CONJUNCT_GRAPHEME_CLUSTERS to ("28.5.0.7" to "29.0-rc1"),
             GRAPHEME_CLUSTER_KEEPS_EMPTY_TAIL to ("25.0-rc2" to "25.0-rc3"),
             MAX_AND_MIN_GUARDS to ("25.3.2.21" to "26.0-rc1"),
+            APP_ENV_PARAMETERS_CHECKED to ("25.3.2.21" to "26.0-rc1"),
+            CARET_NOTATION_CHECKED to ("25.3.2.21" to "26.0-rc1"),
+            MAKE_FUN_ARITY_CHECKED to ("25.0-rc2" to "25.0-rc3"),
+            TRIPLE_QUOTED_STRINGS to ("26.2.5.21" to "27.0-rc1"),
+            ADJACENT_STRINGS_NEED_WHITE_SPACE to ("26.2.5.21" to "27.0-rc1"),
             IS_INTEGER_RANGE_GUARD to ("28.5.0.7" to "29.0-rc1"),
             IS_RECORD_GUARD to ("28.5.0.7" to "29.0-rc1"),
             REGEX_COMPILED_AT_RUN_TIME_ON_OTP_28 to ("27.3.4.9" to "28.0-rc1"),
@@ -358,6 +365,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER to ("25.3.2.21" to "26.0-rc1"),
             NEGATIVE_ZERO_IS_DISTINCT to ("26.2.5.21" to "27.0-rc1"),
             BINARY_PART_REJECTS_BITSTRINGS to ("26.2.5.21" to "27.0-rc1"),
+            MAP_UPDATE_RAISES_WHERE_DISCARDED to ("25.3" to "25.3.1"),
             INTEGERS_UP_TO_4_MBIT to ("26.0.1" to "26.0.2"),
         )
 

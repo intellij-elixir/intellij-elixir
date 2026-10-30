@@ -102,6 +102,9 @@ internal class Given {
         modules += other.modules
     }
 
+    /** Whether there are none. */
+    val none get() = !every && modules.isEmpty()
+
     /** Whether [module] is one of these. */
     operator fun contains(module: String) = every || module in modules
 
@@ -374,10 +377,10 @@ internal fun mapOf(entries: List<Pair<OtpErlangObject, OtpErlangObject>>, level:
         // Two captures of one function are one key in Elixir, but a closure is equal only to itself.
         if (holdsClosure(key)) decline("a function in a map key")
 
-        val at = indexIn(keys, key, level, byHash[key.hashCode()].orEmpty())
+        val at = indexIn(keys, key, level, byHash[hash(key)].orEmpty())
 
         if (at == null) {
-            byHash.getOrPut(key.hashCode(), ::mutableListOf) += keys.size
+            byHash.getOrPut(hash(key), ::mutableListOf) += keys.size
             keys += key
             values += value
         } else {
@@ -410,11 +413,63 @@ private fun indexIn(
     sameHash: Iterable<Int>,
 ): Int? =
     if (holdsFloat(key)) keys.indices.firstOrNull { holdsFloat(keys[it]) && equal(keys[it], key, true, level) }
-    else sameHash.firstOrNull { keys[it].hashCode() == key.hashCode() && sameTerm(keys[it], key) }
+    else sameHash.firstOrNull { hash(keys[it]) == hash(key) && sameTerm(keys[it], key) }
+
+/** [term]'s `hashCode` with each string in it as the list of integers it is, as [sameTerm] compares them. */
+private fun hash(term: OtpErlangObject): Int = listed(term).hashCode()
 
 /**
- * Whether [left] and [right] are the one term `equals` says they are, checking for cancellation at each node: `equals`
- * walks both whole, and a term can hold one part in many places.
+ * [term] with each string in it as the list of integers it is, [term] itself where it holds none. Each part [term] holds
+ * in many places is listed once, by [seen], so the copy shares it as [term] does.
+ */
+private fun listed(
+    term: OtpErlangObject,
+    seen: MutableMap<OtpErlangObject, OtpErlangObject> = IdentityHashMap(),
+): OtpErlangObject {
+    seen[term]?.let { return it }
+    ProgressManager.checkCanceled()
+
+    val listed = when (term) {
+        is OtpErlangString -> OtpErlangList(term.stringValue())
+        is OtpErlangTuple -> {
+            val elements = term.elements().map { listed(it, seen) }
+
+            if (elements.indices.none { elements[it] !== term.elementAt(it) }) term else OtpErlangTuple(elements.toTypedArray())
+        }
+        is OtpErlangList -> {
+            val elements = term.elements().map { listed(it, seen) }
+            val tail = term.lastTail?.let { listed(it, seen) }
+
+            when {
+                elements.indices.none { elements[it] !== term.elementAt(it) } && tail === term.lastTail -> term
+                tail == null -> OtpErlangList(elements.toTypedArray())
+                else -> OtpErlangList(elements.toTypedArray(), tail)
+            }
+        }
+        is OtpErlangMap -> {
+            val keys = term.keys()
+            val values = term.values()
+            val listedKeys = keys.map { listed(it, seen) }
+            val listedValues = values.map { listed(it, seen) }
+
+            if (keys.indices.none { listedKeys[it] !== keys[it] || listedValues[it] !== values[it] }) {
+                term
+            } else {
+                OtpErlangMap(listedKeys.toTypedArray(), listedValues.toTypedArray())
+            }
+        }
+        else -> term
+    }
+
+    seen[term] = listed
+
+    return listed
+}
+
+/**
+ * Whether [left] and [right] are one term: as `equals` says, but with a string the list of integers it is, which
+ * `equals` keeps apart. It checks for cancellation at each node: `equals` walks both whole, and a term can hold one part
+ * in many places.
  */
 private fun sameTerm(left: OtpErlangObject?, right: OtpErlangObject?): Boolean {
     ProgressManager.checkCanceled()
@@ -422,6 +477,8 @@ private fun sameTerm(left: OtpErlangObject?, right: OtpErlangObject?): Boolean {
     return when {
         left === right -> true
         left == null || right == null -> false
+        left is OtpErlangString && right is OtpErlangString -> left == right
+        left is OtpErlangString || right is OtpErlangString -> sameTerm(listed(left), listed(right))
         left is OtpErlangTuple ->
             right is OtpErlangTuple && left.arity() == right.arity() &&
                 (0 until left.arity()).all { sameTerm(left.elementAt(it), right.elementAt(it)) }
@@ -437,10 +494,10 @@ private fun sameTerm(left: OtpErlangObject?, right: OtpErlangObject?): Boolean {
 private fun sameEntries(left: OtpErlangMap, right: OtpErlangMap): Boolean {
     val keys = right.keys().asList()
     val values = right.values()
-    val byHash = keys.indices.groupBy { keys[it].hashCode() }
+    val byHash = keys.indices.groupBy { hash(keys[it]) }
 
     return entries(left).all { (key, value) ->
-        byHash[key.hashCode()].orEmpty().firstOrNull { sameTerm(keys[it], key) }?.let { sameTerm(values[it], value) } == true
+        byHash[hash(key)].orEmpty().firstOrNull { sameTerm(keys[it], key) }?.let { sameTerm(values[it], value) } == true
     }
 }
 

@@ -2132,7 +2132,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
 
         for (version in LEVELS) {
             val level = ElixirLanguageLevel.of(version)
-            val log = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
+            val log = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
                 .modules.single().attributes
             val impls = log.impls.map { (nameArity, impls) ->
                 "impls ${nameArity.name}/${nameArity.arity}: " +
@@ -2162,7 +2162,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
 
         for (version in LEVELS) {
             val level = ElixirLanguageLevel.of(version)
-            val ended = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
+            val ended = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
                 .modules.single().ended
             val at = (ended as? ExpansionResult.Ended.Stopped)?.at as? ElixirAst.Call
 
@@ -2182,7 +2182,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
      */
     override fun expandAndRender(code: String, version: String): String {
         val level = ElixirLanguageLevel.of(version)
-        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
+        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
 
         return (listOf("top " + render(code, file.top)) + file.modules.flatMap { renderModule(code, it, "") })
             .joinToString("\n")
@@ -2300,7 +2300,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             LEVELS.joinToString("\n") { "$it: ${expected(it)}" },
             LEVELS.joinToString("\n") { version ->
                 val level = ElixirLanguageLevel.of(version)
-                val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
+                val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
                 val body = file.modules.single().units.first { it.owner == ExpansionResult.Owner.ModuleBody }
 
                 "$version: ${render(code, body.expansion)}"
@@ -2322,7 +2322,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
                     }
                 }
 
-                Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, observer)
+                Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV, observer)
 
                 "$version: ${events.joinToString("; ")}"
             },
@@ -2337,7 +2337,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
                 val counters = Counters()
 
                 Expander.expandFile(
-                    lower(code, level), Env.empty(level, kernel), level, exports, structs, counters = counters
+                    lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV, counters = counters
                 )
 
                 "$version: ${counters.count("Elixir.A")}"
@@ -2355,7 +2355,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
                     state.read.keys.mapTo(variables) { "${it.name}/${render(it.context)}" }
                 }
 
-                Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, observer)
+                Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV, observer)
 
                 "$version: ${variables.joinToString(" ")}"
             },

@@ -307,7 +307,7 @@ class CompiledModuleTest private constructor(
 
             Lowering.lower(file as ElixirFile, level)
         }
-        val module = Expander.expandFile(forms, Env.empty(level, legKernel), level, legExports, legStructs).modules.single()
+        val module = Expander.expandFile(forms, Env.empty(level, legKernel), level, legExports, legStructs, NO_APP_ENV).modules.single()
 
         val stopped = (module.ended as? ExpansionResult.Ended.Stopped)?.at?.meta?.origin?.substring(FIXTURE)
 

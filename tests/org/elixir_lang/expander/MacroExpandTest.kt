@@ -268,7 +268,7 @@ class MacroExpandTest : ExpanderTestCase() {
             macros = empty.macros + macros,
             module = module,
         )
-        val run = Run(level, observer, exports, structs)
+        val run = Run(level, observer, exports, structs, NO_APP_ENV)
         val node = lower(code, level)
         val expanded = if (literals) {
             macroExpandLiterals(node, ExState.empty(level), env, run)

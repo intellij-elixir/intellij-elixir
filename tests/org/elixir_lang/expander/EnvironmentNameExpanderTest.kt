@@ -53,18 +53,13 @@ class EnvironmentNameExpanderTest : ExpanderTestCase() {
     fun testAFieldTheEnvLacksIsARunTimeCall() = assertEvery("__ENV__.nope", "expanded {} next 0")
 
     fun testAFieldThatIsNodeState() {
-        assertEvery("__ENV__.lexical_tracker", "unported `__ENV__.lexical_tracker`")
-        assertEvery("__ENV__.tracers", "unported `__ENV__.tracers`")
+        assertEvery("__ENV__.lexical_tracker", "expanded {} next 0")
+        assertEvery("__ENV__.tracers", "expanded {} next 0")
     }
 
     fun testTheVariableFieldsOfTheEnv() {
         assertEvery("__ENV__.versioned_vars", "expanded {} next 0")
-        assertSplit(
-            "__ENV__.current_vars",
-            "1.13.0-rc.0",
-            "unported `__ENV__.current_vars`",
-            "expanded {} next 0",
-        )
+        assertEvery("__ENV__.current_vars", "expanded {} next 0")
     }
 
     fun testAFieldWithArgumentsIsARunTimeCallOnTheEnv() = assertEvery("__ENV__.line(1)", "expanded {} next 0")

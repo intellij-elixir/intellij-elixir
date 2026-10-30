@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4558](https://github.com/intellij-elixir/intellij-elixir/pull/4558) [@sh41](https://github.com/sh41)
+  - **The expander compiles ExUnit test modules to the tests and functions Elixir defines for them, and answers `Application` env reads in a module body from the project's config and its dependencies' `.app` files, as a default build sees them.** Refs [#4546](https://github.com/intellij-elixir/intellij-elixir/issues/4546).
+
 - [#4556](https://github.com/intellij-elixir/intellij-elixir/pull/4556) [@sh41](https://github.com/sh41)
   - **The expander sees the functions that `EEx.function_from_string` and `EEx.function_from_file` define, and any `def` whose body holds an `unquote` it cannot follow, by name, arity and kind, and goes on to the rest of the module.** Refs [#4553](https://github.com/intellij-elixir/intellij-elixir/issues/4553).
 

@@ -14,7 +14,7 @@ import org.junit.Test
 /** `elixir_module:next_counter/1`, which `Macro.unique_var/2` calls, drawn from the counters the run's expansions take. */
 class ModuleCounterTest {
     private val level = ElixirLanguageLevel.of("1.20.4")
-    private val run = Run(level, ExpansionObserver.NONE, { ModuleExports.Absent }, { ModuleStruct.Absent })
+    private val run = Run(level, ExpansionObserver.NONE, { ModuleExports.Absent }, { ModuleStruct.Absent }, NO_APP_ENV)
     private val evaluation = Evaluation(NODE, ExState.empty(level), Env.empty(level, KernelImports(emptyList(), emptyList())), run)
 
     @Test

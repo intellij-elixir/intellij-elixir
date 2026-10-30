@@ -574,6 +574,23 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
     fun testAMapBuiltWithEqualKeysIsCancelledAsItComparesThem() =
         assertCancelledIn(VALUES, "sameTerm", "defmacro m, do: (${tree("a")} ${tree("b")} Macro.escape(%{[a] => 1, [b] => 2}))", LISTS / 2)
 
+    /** A map keyed by a list holding itself twice at every depth over a string hashes the key a part at a time. */
+    fun testAMapKeyHoldingASharedStringIsHashedInBoundedWork() {
+        val expanding = expanding(
+            "defmacro m, do: (t = \"k\"; ${"t = [t, t]; ".repeat(DOUBLINGS)} map_size(%{t => 1}))",
+            "A.m()",
+            "1.20.4",
+        )
+        val indicator = ChecksBy()
+
+        whileCheckingIndicators { ProgressManager.getInstance().runProcess({ expanding() }, indicator) }
+
+        val checks = indicator.count(VALUES, "listed")
+
+        // Listing each part where it appears would check each of the key's leaves, and copy the string at each.
+        assertTrue("$checks checks", checks in 1 until (1 shl DOUBLINGS) / 2)
+    }
+
     /**
      * The expansion of `B`, which calls `A`'s [macros] by [call], is cancelled at the [n]th check [walk], a method of
      * [owner], makes.
@@ -630,7 +647,7 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
         val forms = lower(code, level)
 
         return {
-            Expander.expandFile(forms, Env.empty(level, kernel), level, exports, structs, clauses = clauses)
+            Expander.expandFile(forms, Env.empty(level, kernel), level, exports, structs, NO_APP_ENV, clauses = clauses)
                 .modules.joinToString { "${it.module} ${it.ended::class.simpleName}" }
         }
     }

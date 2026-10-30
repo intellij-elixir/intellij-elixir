@@ -147,8 +147,8 @@ internal class ModuleClauses(
         data object Apply : Dispatched
 
         /**
-         * A call whose [output] was expanded in its place: a macro's, its output linified, `System.stacktrace()`, or a
-         * signed float's literal.
+         * A call whose [output] was expanded in its place: a macro's, its output linified, `System.stacktrace()`, a
+         * signed float's literal, or `__ENV__.key`'s value where a [Term] can't hold it.
          */
         class Macro(val output: ElixirAst) : Dispatched
 

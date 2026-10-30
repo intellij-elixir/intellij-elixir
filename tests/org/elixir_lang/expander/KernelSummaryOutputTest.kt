@@ -100,7 +100,7 @@ class KernelSummaryOutputTest : ExpanderTestCase() {
         val env = Env.empty(level, KERNEL_IMPORTS).copy(context = case.context)
         val state = ExState.empty(level).copy(read = mapOf(Variable("x", Variable.NIL) to 0, Variable("y", Variable.NIL) to 1), version = 2)
 
-        val run = Run(level, ExpansionObserver.NONE, NO_EXPORTS, NO_STRUCTS)
+        val run = Run(level, ExpansionObserver.NONE, NO_EXPORTS, NO_STRUCTS, NO_APP_ENV)
 
         // Parsed as [level]'s Elixir parses it, whichever leg runs the test.
         ElixirLanguageLevelResolver.overrideLanguageLevel(project, level)

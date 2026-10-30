@@ -73,6 +73,6 @@ class UnheldValueTest : ExpanderTestCase() {
     private fun expand(code: String): FileExpansion {
         val level = ElixirLanguageLevel.of("1.20.4")
 
-        return Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
+        return Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
     }
 }

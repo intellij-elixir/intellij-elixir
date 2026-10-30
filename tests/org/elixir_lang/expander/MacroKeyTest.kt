@@ -57,7 +57,11 @@ class MacroKeyTest {
     @Test
     fun `MacroRole's summaries are the names of Kernel's keys, with their blocks`() {
         for (key in MacroKey.entries.filter { it.receiver == KERNEL }) {
-            assertEquals(key.toString(), MacroRole(MacroRole.Modelling.SUMMARY, key.block), MacroRole.listed(key.macroName))
+            assertEquals(
+                key.toString(),
+                MacroRole(MacroRole.Modelling.SUMMARY, key.block, key.value),
+                MacroRole.listed(key.macroName),
+            )
         }
 
         for (name in listOf("!", "..", "..//", "<>", "and", "or", "raise", "to_string")) {

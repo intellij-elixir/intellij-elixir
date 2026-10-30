@@ -294,6 +294,7 @@ class ClauseCacheTest : PlatformTestCase() {
             level,
             legExports,
             legStructs,
+            NO_APP_ENV,
             clauses = ModuleClauses.Lookup { module -> null.also { asked += module } },
         )
 

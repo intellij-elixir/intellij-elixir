@@ -7,6 +7,7 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
 import org.elixir_lang.expander.interpreter.Binding
 import org.elixir_lang.expander.interpreter.Given
+import org.elixir_lang.expander.interpreter.ValueUse
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAILED_COMPILE_PURGES_MODULE
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAST_PATH_ADDS_CONTEXT_MODULE
@@ -23,10 +24,10 @@ import java.util.IdentityHashMap
 object Expander {
     /**
      * [ast] expanded from [state] and [env] as Elixir at [level] expands it, with [exports] standing for the modules
-     * Elixir would load and [structs] for their structs, up to the first error Elixir raises or the first node that
-     * isn't ported. [observer] is told of each node reached, and [counters] gives each macro expansion its hygiene
-     * counter. An error Elixir reports and carries on after isn't returned, and a definition or module [ast] defines is
-     * never compiled; [expandFile] does both.
+     * Elixir would load, [structs] for their structs and [appEnv] for the application environment, up to the first
+     * error Elixir raises or the first node that isn't ported. [observer] is told of each node reached, and
+     * [counters] gives each macro expansion its hygiene counter. An error Elixir reports and carries on after isn't
+     * returned, and a definition or module [ast] defines is never compiled; [expandFile] does both.
      */
     internal fun expand(
         ast: ElixirAst,
@@ -35,9 +36,10 @@ object Expander {
         level: ElixirLanguageLevel,
         exports: Exports,
         structs: Structs,
+        appEnv: AppEnv,
         observer: ExpansionObserver = ExpansionObserver.NONE,
         counters: Counters = Counters(),
-    ): Expansion = expand(ast, state, env, Run(level, observer, exports, structs, counters))
+    ): Expansion = expand(ast, state, env, Run(level, observer, exports, structs, appEnv, counters))
 
     internal fun expand(ast: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
         val from = run.pending.size
@@ -55,24 +57,27 @@ object Expander {
      * where it is a statement its body runs where it is: a `=`, which the walk runs, or one whose value nothing takes,
      * which no unit queued and no macro's output replaced. One whose value is known, as it expanded or as the evaluator
      * takes it, or that a port built, raises nowhere, so it is inert instead, unless a body it runs holds units, which
-     * run only where it reaches them.
+     * run only where it reaches them. So does a variable, but in a body the walk follows it is a unit, so a value the
+     * evaluator doesn't have declines only the variable's, as a unit's decline does, not the code around it.
      */
     private fun queueStatement(node: ElixirAst, expansion: Expansion.Expanded, from: Int, state: ExState, env: Env, run: Run) {
         val statements = run.statementsAt(env)
-            ?.takeIf { env.function == null && env.context == Env.Context.NONE && (it.contains(node) || it.follows(node)) }
+            ?.takeIf { env.function == null && env.context == Env.Context.NONE && it.runs(node) }
             ?: return
-        // A unit of a body the walk follows runs where the evaluator reaches it as the statement runs; one of a body it
-        // doesn't runs before the statement, from the body's own bindings.
+        // A unit of the statement's code, on the statement path or in a body the walk follows, runs where the evaluator
+        // reaches it as the statement runs, after the code Elixir runs before it there; any other runs before the
+        // statement.
         val queued = run.pending.subList(from, run.pending.size).toList()
-        val (inner, before) = queued.partition { statements.follows(it.site) }
+        val (inner, before) = queued.partition { statements.runs(it.site) }
         val statement = statements.contains(node)
 
         when {
             isCall(node, "=", 2) -> run.replacePending(from, before + Pending.Match(node, state, env, statement, inner))
             !statements.isWhole(node) || statements.isRewritten(node) -> Unit
+            // A statement that is a unit's own node runs as that unit.
             queued.any { it.site === node } -> Unit
             inner.isNotEmpty() -> run.replacePending(from, before + Pending.Statement(node, state, env, statement, inner))
-            expansion.value == VARIABLE_NODE || isKnown(expansion.value) -> statements.inert(node)
+            expansion.value == VARIABLE_NODE && statement || isKnown(expansion.value) -> statements.inert(node)
             (run.dispatchesAt(env)?.of(node) as? ModuleClauses.Dispatched.Value)?.value?.let(::isKnown) == true ->
                 statements.inert(node)
             run.isPorted(node) -> statements.inert(node)
@@ -95,6 +100,7 @@ object Expander {
         level: ElixirLanguageLevel,
         exports: Exports,
         structs: Structs,
+        appEnv: AppEnv,
         observer: ExpansionObserver = ExpansionObserver.NONE,
         counters: Counters = Counters(),
         file: String? = null,
@@ -102,7 +108,7 @@ object Expander {
         clauses: ModuleClauses.Lookup = ModuleClauses.Lookup.NONE,
         virtualFile: VirtualFile? = null,
     ): FileExpansion =
-        expandFile(forms, env, Run(level, observer, exports, structs, counters, file, directories, clauses, virtualFile))
+        expandFile(forms, env, Run(level, observer, exports, structs, appEnv, counters, file, directories, clauses, virtualFile))
 
     /** A file's top-level [forms] expanded from [env] in [run], as the other `expandFile` expands them. */
     internal fun expandFile(forms: ElixirAst, env: Env, run: Run): FileExpansion {
@@ -127,7 +133,7 @@ object Expander {
         val (expanded, assumed) = run.assuming { unlessTooDeep({ Expansion.Unported(forms) }) { expand(forms, state, env, run) } }
         run.fileValues.expanded(expanded, assumed)
 
-        val top = expanded.certain(run.fileValues.known)
+        val top = expanded.certain(run.fileValues.expansionCertain)
 
         if (expanded is Expansion.Error) return FileExpansion(top, emptyList(), endsRun = true)
 
@@ -236,7 +242,7 @@ internal class Place(val file: VirtualFile?, val origin: TextRange)
  */
 internal fun builtBy(node: ElixirAst, call: ElixirAst): Boolean = node.meta.origin == call.meta.origin
 
-/** [block]'s result, and whether code it expanded or ran took a raise not to happen ([Run.assumptions]). */
+/** [block]'s result, and whether code it expanded or ran made an assumption ([Run.assumptions]). */
 internal inline fun <T> Run.assuming(block: () -> T): Pair<T, Boolean> {
     val from = assumptions
     val result = block()
@@ -244,12 +250,16 @@ internal inline fun <T> Run.assuming(block: () -> T): Pair<T, Boolean> {
     return result to (assumptions > from)
 }
 
+/** What a unit the evaluator reached gives the code around it: its code's [value], and whether that code [declined]. */
+internal class UnitRun(val value: OtpErlangObject, val declined: Boolean)
+
 /** What every recursive expansion of one [Expander.expand] call shares. */
 internal class Run(
     val level: ElixirLanguageLevel,
     val observer: ExpansionObserver,
     exports: Exports,
     val structs: Structs,
+    val appEnv: AppEnv,
     val counters: Counters = Counters(),
     /** The path of the file the run expands, where it is known. */
     val file: String? = null,
@@ -265,10 +275,22 @@ internal class Run(
     private var refs = 0
 
     /**
-     * How many raises whose inputs aren't known the run's evaluations took not to happen, in a native or a macro's
-     * output: Elixir may have raised at each.
+     * How many answers the run's evaluations assumed, in a native or a macro's output, each of which Elixir may not have
+     * given: a raise whose inputs aren't known taken not to happen, or an answer that holds only where what it reads
+     * stays as read.
      */
     var assumptions = 0
+
+    /** The apps whose env the run's evaluations wrote, `null` once one wrote an app that isn't known. */
+    private var written: MutableSet<String>? = HashSet()
+
+    /** Records that an evaluation wrote [app]'s env, or, `null`, an app that isn't known. */
+    fun wroteEnv(app: String?) {
+        if (app == null) written = null else written?.add(app)
+    }
+
+    /** Whether an evaluation in the run wrote [app]'s env, so its value isn't [appEnv]'s. */
+    fun wroteEnvOf(app: String): Boolean = written?.contains(app) != false
 
     /**
      * The modules being compiled that calls declined in the module-body code or macro being run were given, any of
@@ -276,6 +298,15 @@ internal class Run(
      * function that earlier code made reads them too, wherever it was made.
      */
     var declinedGiven: Given? = null
+
+    /**
+     * How many bodies of a `try` with `catch` or `rescue` are being evaluated around the unit the evaluator runs where it
+     * reaches it ([reached]), any of which may catch a raise in the unit's code.
+     */
+    var catching = 0
+
+    /** Whether the value of the unit the evaluator runs where it reaches it ([reached]) is read, `null` outside one. */
+    var reachedUse: ValueUse? = null
 
     /** The number of a reference no evaluation in the run has made before. */
     fun nextRef(): Int = ++refs
@@ -525,9 +556,9 @@ internal class Run(
 
     /**
      * Each unit of a statement being run, by its node, to what runs it where the evaluator reaches the node, from the
-     * bindings the evaluator has there, giving the value the unit's code gives the code around it.
+     * bindings the evaluator has there.
      */
-    val reached = IdentityHashMap<ElixirAst, (HashMap<Binding, OtpErlangObject>) -> OtpErlangObject>()
+    val reached = IdentityHashMap<ElixirAst, (HashMap<Binding, OtpErlangObject>) -> UnitRun>()
 
     /**
      * Each `fn` of a module body or the file's top level whose closure the evaluator has called in the run of the
@@ -559,7 +590,7 @@ internal class Run(
     val bodyQuotes = ModuleClauses.Quotes()
 
     /** The file's top-level statements. */
-    val fileStatements = Statements(level)
+    val fileStatements = Statements()
 
     /** What the file's top-level statements bound so far, and how far what ran is Elixir's. */
     val fileValues = BodyValues(fileStatements)
@@ -648,9 +679,15 @@ internal fun ExpandedAst.or(source: ElixirAst): ElixirAst = (this as? ExpandedAs
 internal val ExpandedAst.elements: List<ElixirAst> get() = (node as ElixirAst.ListNode).elements
 
 /** `Macro.escape/1` of [term] at [at]'s position, or `null` where the port can't build it. */
-internal fun escaped(term: Term, at: ElixirAst, run: Run): ElixirAst? =
-    QuoteEscape(ImportTermEscapeView, AstEscapeBuilder(Synthetic(at.meta)), { literalOf(at, it) }, run.level, run.exports)
-        .escape(term)
+internal fun escaped(term: Term, at: ElixirAst, run: Run): ElixirAst? = escaped(ImportTermEscapeView, term, at, run) { literalOf(at, it) }
+
+/**
+ * `Macro.escape/1` of [input], which [view] reads, at [at]'s position, [insert] putting in a node it holds; `null`
+ * where the port can't build it.
+ */
+internal fun <I> escaped(view: EscapeView<I>, input: I, at: ElixirAst, run: Run, insert: (I) -> ElixirAst?): ElixirAst? =
+    QuoteEscape(view, AstEscapeBuilder(Synthetic(at.meta)), insert, run.level, run.exports)
+        .escape(input)
         .let { (it as? EscapeResult.Built)?.value }
 
 /** This expansion with [value] in place of its own, if it expanded. */
@@ -808,7 +845,7 @@ internal fun expandArg(arg: ElixirAst, acc: ExState, start: ExState, env: Env, r
     expandArg(arg, acc, start, env, run) { a, s, e -> Expander.expand(a, s, e, run) }
         .also { if (arg is ElixirAst.Literal) run.watched(arg, it) }
 
-/** `elixir_expand:expand_arg/3`, with [expand] for its `expand/3`; a pid in a macro's result isn't expanded either. */
+/** `elixir_expand:expand_arg/3`, with [expand] for its `expand/3`, which it skips for what it takes as it is. */
 internal inline fun expandArg(
     arg: ElixirAst,
     acc: ExState,
@@ -817,11 +854,14 @@ internal inline fun expandArg(
     run: Run,
     expand: (ElixirAst, ExState, Env) -> Expansion,
 ): Expansion =
-    when (arg) {
-        is ElixirAst.Literal -> Expansion.Expanded(acc, env, literalValue(arg), run.ast { arg })
-        is ElixirAst.Value if arg.term is OtpErlangPid -> Expansion.Expanded(acc, env, NODE, run.ast { arg })
-        else -> expand(arg, acc.resetRead(start), env)
+    when {
+        !isTakenAsIs(arg) -> expand(arg, acc.resetRead(start), env)
+        arg is ElixirAst.Literal -> Expansion.Expanded(acc, env, literalValue(arg), run.ast { arg })
+        else -> Expansion.Expanded(acc, env, NODE, run.ast { arg })
     }
+
+/** Whether `elixir_expand:expand_arg/3` takes [arg] as it is, unexpanded: a literal, or a pid in a macro's result. */
+internal fun isTakenAsIs(arg: ElixirAst): Boolean = arg is ElixirAst.Literal || arg is ElixirAst.Value && arg.term is OtpErlangPid
 
 internal fun literalValue(literal: ElixirAst.Literal): Term =
     when (literal) {

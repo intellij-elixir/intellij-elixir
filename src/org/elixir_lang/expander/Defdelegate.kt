@@ -62,16 +62,15 @@ private fun defdelegate(
         val delegates = Delegates(node, env, run.level)
         var entries = iteration
 
-        run.replacePending(
-            from,
-            binds + Pending.Effect(node, ordered = true, queued = { entries }) { body, _, _ ->
-                entries = bound?.let { optionsOf(it, body, run) }?.let { delegates.each(funs, it, iteration) } ?: iteration
+        val delegation = Pending.Effect(node, ordered = true, queued = { entries }) { body, _, _ ->
+            entries = bound?.let { optionsOf(it, body, run) }?.let { delegates.each(funs, it, iteration) } ?: iteration
 
-                // A definition the loop makes for a head it can name is a statement of the body, as its `def` is once it runs.
-                entries.filterIsInstance<Pending.Definition>().firstOrNull { it !in iteration }?.let { body.rewrote(node, it.node) }
-                null
-            },
-        )
+            // A definition the loop makes for a head it can name is a statement of the body, as its `def` is once it runs.
+            entries.filterIsInstance<Pending.Definition>().firstOrNull { it !in iteration }?.let { body.rewrote(node, it.node) }
+            null
+        }
+
+        run.queueOutput(from, node, ordered = true, queued = { binds + delegation })
     }
 
     return expansion

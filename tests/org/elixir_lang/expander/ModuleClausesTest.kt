@@ -414,7 +414,7 @@ class ModuleClausesTest : ExpanderTestCase() {
         }
 
         Expander.expandFile(
-            lower(source, level), Env.empty(level, kernel), level, exports, structs, observer, file = file,
+            lower(source, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV, observer, file = file,
             directories = directories, virtualFile = LightVirtualFile("a.ex"),
         )
 
