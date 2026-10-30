@@ -645,7 +645,8 @@ internal sealed interface ArgumentValues {
 
 /**
  * [terms], the values [nodes] expanded to, each one that isn't known evaluated from the values [compiling]'s body has
- * bound, or kept where the evaluator can't produce it or a [Term] can't hold what it produces.
+ * bound. The evaluated value replaces its term where it is exact, or shaped while the term is not; else the term is kept,
+ * as it is where the evaluator can't produce a value or a [Term] can't hold it.
  */
 internal fun evaluatedArguments(
     terms: List<Term>,
@@ -671,7 +672,9 @@ internal fun evaluatedArguments(
         value.error(node)?.let { return ArgumentValues.Raised(it) }
 
         if (value is Evaluated.Value) {
-            val known = termOf(value.value).takeIf { AttributeValue.of(it) is AttributeValue.Known }
+            val known = termOf(value.value).takeIf {
+                AttributeValue.of(it) is AttributeValue.Known || it.isShaped() && !term.isShaped()
+            }
 
             evaluated += known ?: term
             values += value.value.takeIf { known == null }
