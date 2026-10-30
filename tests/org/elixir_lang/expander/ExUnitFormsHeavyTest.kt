@@ -280,7 +280,8 @@ class ExUnitFormsHeavyTest : HeavyTestCase() {
          *   defined ([AFTER_DOCTEST]), and the raise for a test defined twice, whether that name is defined not being known
          *   there, is passed over. Before 1.14 a `doctest`'s `for` writes `@tag` where the expander doesn't run it, so the
          *   first test's `Module.delete_attribute/2` isn't known, and the table ends there. So does it on every leg after a
-         *   `@tag` set before the `doctest`, which the first test after it reads.
+         *   `@tag` set before the `doctest`, which the first test after it reads, and after an attribute registered without
+         *   `accumulate`, which the test deletes.
          */
         fun pins(version: String): Map<String, List<String>> {
             val assumed = isBefore(version, "1.14.0") || !isBefore(version, "1.17.0")
@@ -291,6 +292,7 @@ class ExUnitFormsHeavyTest : HeavyTestCase() {
                 put("test/doctest_then_tests_test.exs", stoppedAtDoctest("DoctestThenTestsTest", 4))
                 put("test/doctest_duplicate_test.exs", stoppedAtDoctest("DoctestDuplicateTest", 4))
                 put("test/doctest_tagged_test.exs", stoppedAtDoctest("DoctestTaggedTest", 5))
+                put("test/doctest_registered_test.exs", stoppedAtDoctest("DoctestRegisteredTest", 5))
                 if (assumed && isBefore(version, "1.20.0")) put("test/long_name_test.exs", listOf(longName))
                 if (!assumed) {
                     put(
@@ -317,7 +319,12 @@ class ExUnitFormsHeavyTest : HeavyTestCase() {
             listOf("Elixir.ExUnitForms.$module stopped on line $line `doctest ExUnitForms.Doc`", "Elixir.ExUnitForms.$module tests Unknown")
 
         /** The modules a `doctest` stops that Elixir compiles, to whether their tests after it are defined from 1.14. */
-        val AFTER_DOCTEST = mapOf("test/doc_test.exs" to true, "test/doctest_then_tests_test.exs" to true, "test/doctest_tagged_test.exs" to false)
+        val AFTER_DOCTEST = mapOf(
+            "test/doc_test.exs" to true,
+            "test/doctest_then_tests_test.exs" to true,
+            "test/doctest_tagged_test.exs" to false,
+            "test/doctest_registered_test.exs" to false,
+        )
 
         /** A line saying how a module ended, or that its tests aren't known. */
         val ENDED = Regex(" (compiled|stopped on line \\d+ `.*`|raised \\S+|ended \\S+|tests \\S+)$")

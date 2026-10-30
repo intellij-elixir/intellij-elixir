@@ -238,6 +238,18 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
      */
     fun has(name: String): Boolean? = if (isUnknown(name)) null else name in entries
 
+    /** Whether a delete of [name] ([delete]) changes anything at this point, or `null` where [name] isn't known. */
+    fun deleteChanges(name: String): Boolean? =
+        if (isUnknown(name)) {
+            null
+        } else {
+            when (val entry = entries[name]) {
+                null -> false
+                is Entry.Accumulate -> entry.values.isNotEmpty()
+                else -> true
+            }
+        }
+
     /**
      * Each attribute with a row at this point, as `Module.attributes_in/1` lists them, or `null` where any attribute's
      * row may differ.

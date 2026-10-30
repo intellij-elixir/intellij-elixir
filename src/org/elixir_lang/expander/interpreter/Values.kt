@@ -85,6 +85,15 @@ internal class Declined(val reason: String, stops: Boolean = false) : RuntimeExc
 internal class Given {
     val modules = HashSet<String>()
 
+    /** Modules being compiled, by name, of which the calls were given only some attributes to write ([AttributesWritten]). */
+    val attributes = HashMap<String, MutableSet<String>>()
+
+    // The attributes of those modules that reading rested on: where the calls write one, it may have read wrongly.
+    private val read = HashMap<String, MutableSet<String>>()
+
+    // What the calls whose effects the walk applies write: those effects mark it, and this only meets what was read.
+    private val applied = HashMap<String, MutableSet<String>>()
+
     var every = false
         private set
 
@@ -100,10 +109,27 @@ internal class Given {
     fun add(other: Given) {
         every = every || other.every
         modules += other.modules
+        other.attributes.forEach { (module, names) -> attributes.getOrPut(module, ::HashSet) += names }
+        other.read.forEach { (module, names) -> read.getOrPut(module, ::HashSet) += names }
+        other.applied.forEach { (module, names) -> applied.getOrPut(module, ::HashSet) += names }
+        givenWhereReadWritten()
+    }
+
+    /** Adds that the calls write [written] of its module. */
+    fun written(written: AttributesWritten) {
+        attributes.getOrPut(written.module, ::HashSet) += written.names
+        read.getOrPut(written.module, ::HashSet) += written.read
+        givenWhereReadWritten()
+    }
+
+    private fun givenWhereReadWritten() {
+        read.forEach { (module, names) ->
+            if (names.any { it in attributes[module].orEmpty() || it in applied[module].orEmpty() }) modules += module
+        }
     }
 
     /** Whether there are none. */
-    val none get() = !every && modules.isEmpty()
+    val none get() = !every && modules.isEmpty() && attributes.isEmpty()
 
     /** Whether [module] is one of these. */
     operator fun contains(module: String) = every || module in modules
@@ -118,6 +144,11 @@ internal class Given {
         anyHeld(args, walked) { term ->
             when (term) {
                 ModuleUnknown -> every = true
+                is AttributesWritten -> written(term)
+                is EffectWritten -> {
+                    applied.getOrPut(term.module, ::HashSet) += term.names
+                    givenWhereReadWritten()
+                }
                 is OtpErlangAtom -> term.atomValue().takeIf { it in compiling }?.let(modules::add)
                 is OtpErlangExternalFun -> term.module.takeIf { it in compiling }?.let(modules::add)
                 else -> {}
@@ -268,6 +299,15 @@ internal object ModuleUnknown : UnknownValue() {
     @Suppress("unused")
     private fun readResolve(): Any = ModuleUnknown
 }
+
+/**
+ * What code holds of a module being compiled that it was read as writing [names] of ([Given]), that reading resting on
+ * the values of [read] there: never a value of the code.
+ */
+internal class AttributesWritten(val module: String, val names: Set<String>, val read: Set<String>) : UnknownValue()
+
+/** What code holds of a call whose effect the walk applies: that it writes [names] of [module] ([Given]), never a value of the code. */
+internal class EffectWritten(val module: String, val names: Set<String>) : UnknownValue()
 
 /** A value the evaluator doesn't know, built from [parts] it does, any of which may be or hold a module being compiled. */
 internal class Holding(val parts: List<OtpErlangObject>) : UnknownValue()
