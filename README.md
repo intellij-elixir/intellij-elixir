@@ -260,6 +260,7 @@ Table of Contents[![Backers on Open Collective](https://opencollective.com/intel
             * [How to Enable ~H Sigil HEEx Language Injection](#how-to-enable-h-sigil-heex-language-injection)
             * [Providing feedback and reporting issues for the ~H Sigil HEEx Language Injection Experimental Feature](#providing-feedback-and-reporting-issues-for-the-h-sigil-heex-language-injection-experimental-feature)
             * [Removing the Green Background for Injected Language Fragments](#removing-the-green-background-for-injected-language-fragments)
+         * [Run the expander](#run-the-expander)
       * [Installation](#installation)
          * [Stable releases](#stable-releases)
             * [Inside IDE using JetBrains repository](#inside-ide-using-jetbrains-repository)
@@ -6002,6 +6003,14 @@ If you're okay with disabling the background for all injections:
 4. Uncheck **Background** or change the colour to your preference.
 
 ![How to remove the green background for Injected languge support](/screenshots/experimental/disable-injection-green-background.png?raw=true "Color Settings")
+
+### Run the expander
+
+The expander is the plugin's own implementation of how Elixir expands code: imports, aliases, `use` and macros, answered the way the compiler does. It is off by default, and the **Run the expander** box under [Settings | Languages & Frameworks | Elixir | Experimental Settings](jetbrains://Idea/settings?name=Languages+%26+Frameworks--Elixir--Experimental+Settings) turns it on, for every open project, without a restart.
+
+Today the expander answers the keys of `config` files: usages, navigation, completion and the unread config key inspection.
+
+With the box off, a config key written as a module (`config :my_app, MyApp.Repo, ...`), and a read through an alias or a nested import, are not answered. The unread config key inspection can warn on a key that is read that way; turning the box on removes the warning.
 
 ## Installation
 

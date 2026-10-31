@@ -12,6 +12,7 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
+import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.model.psi.config.disableMixDepsCheck
 import org.elixir_lang.psi.ElixirFile
@@ -28,6 +29,7 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
         super.setUp()
         disableMixDepsCheck(testRootDisposable)
         LegSdk.setUp(module, testRootDisposable)
+        enableExpander(testRootDisposable)
     }
 
     override fun tearDown() {

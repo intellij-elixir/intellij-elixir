@@ -1,8 +1,11 @@
 package org.elixir_lang.declaration
 
+import com.intellij.openapi.application.ApplicationManager
 import org.elixir_lang.expander.ExpanderSource
 import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 class SourceForTest {
@@ -19,6 +22,13 @@ class SourceForTest {
         } finally {
             if (saved == null) System.clearProperty(SOURCE_PROPERTY) else System.setProperty(SOURCE_PROPERTY, saved)
         }
+    }
+
+    @Test
+    fun testTheFlagIsOffWithNoApplication() {
+        assumeTrue("an application is running", ApplicationManager.getApplication() == null)
+
+        assertFalse(expanderFlagOn())
     }
 
     private fun everyFeature(source: CandidateSource): Map<Feature, CandidateSource> =

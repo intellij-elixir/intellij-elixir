@@ -59,6 +59,16 @@ internal class ElixirExperimentalSettingsConfigurable : Configurable, Configurab
                         )
                 }
             }
+            group("Expander") {
+                row {
+                    checkBox("Run the expander")
+                        .comment("Lets the plugin expand Elixir code as Elixir does. It answers config keys today. With the box off, keys written as modules and reads through an alias or a nested import are not answered, and the unread config key inspection can warn on a key read that way.")
+                        .bindSelected(
+                            getter = { settings.state.enableExpander },
+                            setter = { settings.state.enableExpander = it }
+                        )
+                }
+            }
         }
         return settingsPanel!!
     }

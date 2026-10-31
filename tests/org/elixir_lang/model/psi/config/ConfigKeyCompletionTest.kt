@@ -3,6 +3,7 @@ package org.elixir_lang.model.psi.config
 import com.intellij.codeInsight.lookup.Lookup
 import com.intellij.codeInsight.lookup.LookupElement
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.LegSdk
 import java.io.File
 
@@ -14,6 +15,7 @@ class ConfigKeyCompletionTest : PlatformTestCase() {
         super.setUp()
         disableMixDepsCheck(testRootDisposable)
         LegSdk.setUp(module, testRootDisposable)
+        enableExpander(testRootDisposable)
         myFixture.copyDirectoryToProject("completion", "")
     }
 
