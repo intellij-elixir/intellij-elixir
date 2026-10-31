@@ -607,12 +607,15 @@ internal class ProjectModules(private val project: Project) {
         transient: (Transient) -> Unit,
     ): AppEnv {
         val configFiles = ArrayList<VirtualFile>()
-        val config by lazy {
-            // A `mix.exs` names its config directory, where a file created or deleted moves the settings.
+        // Which files are config files: a `mix.exs` names its config directory, where a file created or deleted moves it.
+        val scope by lazy {
             stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
             FilenameIndex.getVirtualFilesByName(MIX_EXS, GlobalSearchScope.projectScope(project)).forEach(stamps::source)
 
-            ConfigFiles.scope(project).also { scope ->
+            ConfigFiles.scope(project)
+        }
+        val config by lazy {
+            scope.also { scope ->
                 configFiles += FilenameIndex.getAllFilesByExt(project, "exs", scope)
                 configFiles.forEach(stamps::source)
             }
@@ -621,7 +624,7 @@ internal class ProjectModules(private val project: Project) {
 
         // Whether this file is expanded within a config file's expansion.
         fun configRunning(): Boolean {
-            val running = inProgress.keys.filter(config::contains)
+            val running = inProgress.keys.filter(scope::contains)
             if (running.isNotEmpty()) transient(Transient(running.associateWith { emptyMap() }, false))
 
             return running.isNotEmpty()
@@ -667,18 +670,48 @@ internal class ProjectModules(private val project: Project) {
             ?: return null
         stamps.source(mixExs)
         val written = configPath as? ProjectKeywords.ConfigPath.Written ?: return null
-
-        return evaluateConfig(mixExs, written, env, inputs, stamps, transient)
-    }
-
-    /**
-     * The config file at [written], against [mixExs]'s folder, read as `Config.Reader.read_imports!/2` reads it: where
-     * it is missing, empty for the default path, as `Mix.Tasks.Loadconfig` then reads none, and else unknown, as it raises.
-     */
-    private fun evaluateConfig(mixExs: VirtualFile, written: ProjectKeywords.ConfigPath.Written, env: String, inputs: Inputs, stamps: Stamps, transient: (Transient) -> Unit): ConfigTable {
         val path = ConfigFiles.configFilePath(mixExs, written)
+        // The file created or deleted moves the answer.
+        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+        // Where it is missing, empty for the default path, as `Mix.Tasks.Loadconfig` then reads none, and else unknown, as it
+        // raises. That reads how `mix.exs` wrote the path, so it isn't held by the path.
         val configFile = mixExs.fileSystem.findFileByPath(path)?.takeUnless { it.isDirectory }
             ?: return if (written.isDefault) ConfigTable.EMPTY else ConfigTable.UNKNOWN
+        val key = TableKey(path, mixExs.parent.path, env, HOST, inputs)
+
+        tables[key]?.takeIf { it.stamps.isCurrent() }?.let { held ->
+            stamps.addAll(held.stamps)
+
+            return held.table
+        }
+
+        val held = Stamps()
+        val transients = ArrayList<Transient>()
+        val table = evaluateConfig(mixExs, configFile, env, inputs, held) { transients += it }
+        val merged = Transient.merged(transients)
+
+        stamps.addAll(held)
+        if (merged.isNone) {
+            tables.values.removeIf { !it.stamps.isCurrent() }
+            tables[key] = HeldTable(table, held)
+        } else {
+            transient(merged)
+        }
+
+        return table
+    }
+
+    /** [configFile] read as `Config.Reader.read_imports!/2` reads it. */
+    private fun evaluateConfig(
+        mixExs: VirtualFile,
+        configFile: VirtualFile,
+        env: String,
+        inputs: Inputs,
+        stamps: Stamps,
+        transient: (Transient) -> Unit,
+    ): ConfigTable {
+        // The file created or deleted moves the table.
+        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
         val psi = read(configFile) ?: return ConfigTable.UNKNOWN
         val read = ConfigRead(env, HOST, mixExs.parent.path).apply { imports.add(runPath(configFile, inputs.os, OS.CURRENT) ?: configFile.path) }
         val computed = compute(psi, inputs, emptyMap(), Memo(), config = read)
@@ -687,6 +720,13 @@ internal class ProjectModules(private val project: Project) {
 
         return if (computed.expansion.top is Expansion.Error) ConfigTable.UNKNOWN else read.table(inputs.level)
     }
+
+    private val tables = ConcurrentHashMap<TableKey, HeldTable>()
+
+    private data class TableKey(val configPath: String, val directory: String, val env: String, val target: String, val inputs: Inputs)
+
+    /** A config table with the stamps of every file, existence check and import its read made. */
+    private class HeldTable(val table: ConfigTable, val stamps: Stamps)
 
     /** The project's files [from]'s run reaches by path, through [from]'s file system, with [stamps] gaining each read. */
     private fun runFiles(

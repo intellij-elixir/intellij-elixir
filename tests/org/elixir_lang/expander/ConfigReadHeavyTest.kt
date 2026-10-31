@@ -74,6 +74,19 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
         )
     }
 
+    /** The same file read by two projects reads each one's directory, each with its own table. */
+    fun testAConfigFileTwoProjectsReadIsReadFromEachProject() {
+        val root = project(
+            CONFIG to "import Config\nconfig :app, here: File.exists?(\"marker\")\n",
+            "apps/a/mix.exs" to mixExs("config_path: \"../../config/config.exs\""),
+            "apps/a/lib/reader.ex" to READER,
+            "apps/a/marker" to "",
+        )
+
+        assertEquals("[{app,[{here,false}]}] [config/config.exs]", read(root))
+        assertEquals("[{app,[{here,true}]}] [config/config.exs]", read(root, reader = "apps/a/lib/reader.ex"))
+    }
+
     /** The file's statements run once, so a `config` that reads what it writes sees only what came before. */
     fun testAConfigReadingItsOwnKeyRunsOnce() {
         val root = project(CONFIG to "import Config\nconfig :app, k: [2 | (Config.read_config(:app)[:k] || [])]\n")
