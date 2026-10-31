@@ -181,6 +181,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             ATTRIBUTES_EXPANDED_LAZILY to ("1.13.4" to "1.14.0-rc.0"),
             COMPILE_ENV_TAKES_ENV_FIRST to ("1.13.4" to "1.14.0-rc.0"),
             CONFIG_READ_CONFIG to ("1.17.3" to "1.18.0-rc.0"),
+            CONFIG_VALIDATES_EVERY_ENTRY to ("1.20.0-rc.4" to "1.20.0-rc.5"),
             MODULE_DELETE_DEFINITION to ("1.11.4" to "1.12.0-rc.0"),
             MODULE_ATTRIBUTES_IN to ("1.12.3" to "1.13.0-rc.0"),
             MODULE_OVERRIDABLES_IN to ("1.12.3" to "1.13.0-rc.0"),

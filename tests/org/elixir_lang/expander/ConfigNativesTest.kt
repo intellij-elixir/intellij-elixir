@@ -5,6 +5,7 @@ import com.intellij.psi.PsiFileFactory
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature.CONFIG_READ_CONFIG
+import org.elixir_lang.language_level.ElixirLanguageFeature.CONFIG_VALIDATES_EVERY_ENTRY
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.psi.ElixirFile
@@ -55,7 +56,7 @@ class ConfigNativesTest : PlatformTestCase() {
     }
 
     fun testTheEnvAndTargetAreTheReads() {
-        assertEquals("[{app,[{e,test},{t,host}]}]", config("import Config\n\nconfig :app, e: config_env(), t: config_target()\n", ConfigRead("test", "host")))
+        assertEquals("[{app,[{e,test},{t,host}]}]", config("import Config\n\nconfig :app, e: config_env(), t: config_target()\n", ConfigRead("test", "host", "/p")))
     }
 
     fun testReadConfigByLeg() {
@@ -123,6 +124,27 @@ class ConfigNativesTest : PlatformTestCase() {
         assertEquals(if (CONFIG_READ_CONFIG.isSufficient(legLevel())) "both" else "compiled [other/0]", declines(call))
     }
 
+    /** A config file's result, where no `config` ran, is validated by entry from 1.20. */
+    fun testAResultIsValidatedByLeg() {
+        val everyEntry = CONFIG_VALIDATES_EVERY_ENTRY.isSufficient(legLevel())
+
+        assertEquals("a bad app's value", "unknown", result("[app: 1]"))
+        assertEquals("a bad app's value before another entry", "unknown", result("[{:app, 2}, 1]"))
+        assertEquals("another entry", if (everyEntry) "unknown" else "[1,{app,[{k,1}]}]", result("[1, {:app, [k: 1]}]"))
+        assertEquals("a bad app's value past another entry", if (everyEntry) "unknown" else "[1,{app,2}]", result("[1, {:app, 2}]"))
+        assertEquals("a binary app", if (everyEntry) "unknown" else "[{#Bin<3>,[{k,1}]}]", result("[{\"app\", [k: 1]}]"))
+    }
+
+    fun testAResultNotAListIsNoConfig() {
+        assertEquals("[]", result(":ok"))
+        assertEquals("[]", result("import Config\n\n:ok"))
+    }
+
+    /** With no files to read through, as a run without a project has none, `File.exists?` can't answer. */
+    fun testFileExistsWithoutTheRunsFilesDeclines() {
+        assertEquals("both", declines("File.exists?(\"/nope.exs\")"))
+    }
+
     private fun run(code: String, read: ConfigRead?, level: ElixirLanguageLevel = legLevel()): FileExpansion {
         val file = ReadAction.computeBlocking<ElixirFile, Throwable> {
             PsiFileFactory.getInstance(project).createFileFromText("config.exs", ElixirLanguage, code) as ElixirFile
@@ -142,7 +164,7 @@ class ConfigNativesTest : PlatformTestCase() {
     }
 
     /** How [code]'s file ended in [read]. */
-    private fun top(code: String, read: ConfigRead? = ConfigRead("dev", "host")): String =
+    private fun top(code: String, read: ConfigRead? = ConfigRead("dev", "host", "/p")): String =
         when (val top = run(code, read).top) {
             is Expansion.Expanded -> "expanded"
             is Expansion.Error -> "error ${top.kind}"
@@ -151,10 +173,19 @@ class ConfigNativesTest : PlatformTestCase() {
         }
 
     /** The config [code] leaves in [read]. */
-    private fun config(code: String, read: ConfigRead = ConfigRead("dev", "host")): String {
+    private fun config(code: String, read: ConfigRead = ConfigRead("dev", "host", "/p")): String {
         assertEquals("expanded", top(code, read))
 
         return read.config.toString()
+    }
+
+    /** The table of a read whose last value is [code]'s. */
+    private fun result(code: String): String {
+        val read = ConfigRead("dev", "host", "/p")
+        run(code, read)
+        val table = read.table(legLevel())
+
+        return if (table.unknown) "unknown" else table.config.toString()
     }
 
     /** How a module with [statements] as its body ended outside a read, with what it defined. */

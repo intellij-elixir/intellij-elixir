@@ -712,10 +712,10 @@ internal class Evaluation(
     }
 
     /**
-     * Code that may raise ran, and the evaluation goes on past it. Under a `try` that may catch the raise ([catching]),
-     * the build goes on either way, so it declines.
+     * Code that may raise ran. Under a `try` that may catch the raise ([catching]), the build goes on either way, so it
+     * declines.
      */
-    private fun mayRaise() {
+    fun mayRaise() {
         if (catching > 0) decline("a raise a `try` may catch")
     }
 

@@ -7,8 +7,10 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.util.system.OS
 import org.elixir_lang.expander.interpreter.Binding
+import org.elixir_lang.expander.interpreter.Evaluated
 import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.Given
+import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.expander.interpreter.ValueUse
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAILED_COMPILE_PURGES_MODULE
@@ -112,11 +114,12 @@ object Expander {
         os: OS? = null,
         buildTarget: BuildTarget? = null,
         config: ConfigRead? = null,
+        files: RunFiles = RunFiles.NONE,
     ): FileExpansion =
         expandFile(
             forms,
             env,
-            Run(level, observer, exports, structs, appEnv, counters, file, directories, clauses, virtualFile, os, buildTarget, config),
+            Run(level, observer, exports, structs, appEnv, counters, file, directories, clauses, virtualFile, os, buildTarget, config, files),
         )
 
     /** A file's top-level [forms] expanded from [env] in [run], as the other `expandFile` expands them. */
@@ -147,6 +150,21 @@ object Expander {
         if (expanded is Expansion.Error) return FileExpansion(top, emptyList(), endsRun = true)
 
         val walked = compilePending(run)
+
+        run.config?.let { read ->
+            // A last expression the walk didn't run as a unit, as a literal, is run here for its value.
+            val last = lastStatement(forms)
+            val value = run.fileValues.ranGave(last, run)
+                ?: (expanded as? Expansion.Expanded)?.let {
+                    read.muted = true
+                    try {
+                        run.fileValues.statement(last, it.state, it.env, run)
+                    } finally {
+                        read.muted = false
+                    }
+                }
+            read.result = (value as? Evaluated.Value)?.value ?: Unknown
+        }
 
         return FileExpansion(if (top is Expansion.Expanded) walked.ended ?: top else top, walked.modules, walked.endsRun)
     }
@@ -282,6 +300,8 @@ internal class Run(
     val buildTarget: BuildTarget? = null,
     /** The config read this run's file is evaluated in, `null` where it is evaluated on its own. */
     val config: ConfigRead? = null,
+    /** The project's files the run reaches by path. */
+    val files: RunFiles = RunFiles.NONE,
 ) {
     /** The modules whose exports the run read, in the order it read them. */
     val consulted = mutableListOf<String>()
@@ -336,14 +356,15 @@ internal class Run(
     }
 
     /**
-     * The directory Elixir compiles [file] in now, which `file:get_cwd/0`, `Path.relative_to_cwd/1` and `filename:absname/1`
-     * read, `null` where it isn't known: where [directories] doesn't have it, or code the expander doesn't follow may
-     * have changed it ([directoryMayHaveChanged]). On Windows its drive letter is lowercase, as OTP gives it.
+     * The directory Elixir compiles [file] in now, a config read's project's in a read, which `file:get_cwd/0`,
+     * `Path.relative_to_cwd/1` and `filename:absname/1` read, `null` where it isn't known: where [directories] doesn't
+     * have it, or code the expander doesn't follow may have changed it ([directoryMayHaveChanged]). On Windows its drive
+     * letter is lowercase, as OTP gives it.
      */
     fun workingDirectory(file: String): String? {
         if (directoryMayHaveChanged) return null
 
-        val directory = directories.of(file) ?: return null
+        val directory = config?.directory ?: directories.of(file) ?: return null
 
         return if (os == OS.Windows) String(Filename.lowercaseDrive(directory.toByteArray())) else directory
     }
@@ -919,6 +940,13 @@ internal fun isCall(node: ElixirAst, name: String, arity: Int): Boolean =
     node is ElixirAst.Call &&
         (node.callee as? ElixirAst.Literal.Atom)?.name == name &&
         node.arguments?.size == arity
+
+/** The last expression of a file's top-level [forms], whose value the file gives. */
+private fun lastStatement(forms: ElixirAst): ElixirAst =
+    when (forms) {
+        is ElixirAst.Block -> forms.expressions.lastOrNull() ?: forms
+        else -> (forms as? ElixirAst.Call)?.takeIf { isNamedCall(it, "__block__") }?.arguments?.lastOrNull() ?: forms
+    }
 
 /** `{'<<>>', meta, args}`. */
 internal fun isBitstring(node: ElixirAst): Boolean = isNamedCall(node, "<<>>")

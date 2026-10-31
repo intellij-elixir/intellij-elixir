@@ -51,9 +51,12 @@ object ProjectKeywords {
             ?: ConfigPath.Unknown
     }
 
-    /** Where a `mix.exs` file's `config_path:` points: a [Written] path relative to its directory, or [Unknown]. */
+    /** Where a `mix.exs` file's `config_path:` points: a [Written] path, as it wrote it, or [Unknown]. */
     sealed interface ConfigPath {
-        data class Written(val path: String) : ConfigPath
+        data class Written(val path: String) : ConfigPath {
+            /** Whether this is Mix's default, the only path that may be missing. */
+            val isDefault: Boolean get() = path == DEFAULT_CONFIG_PATH
+        }
 
         data object Unknown : ConfigPath
     }

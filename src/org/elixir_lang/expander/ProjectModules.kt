@@ -34,6 +34,7 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.mix.Project.MIX_EXS
+import org.elixir_lang.mix.ProjectKeywords
 import org.elixir_lang.mix.buildEnv
 import org.elixir_lang.mix.defaultBuildEnv
 import org.elixir_lang.model.psi.config.ConfigFiles
@@ -45,8 +46,11 @@ import org.elixir_lang.reference.Resolver
 import org.elixir_lang.reference.resolver.Module
 import org.jetbrains.annotations.TestOnly
 import java.io.IOException
+import java.nio.file.FileSystems
+import java.nio.file.Path
 import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
+import java.util.regex.PatternSyntaxException
 
 /**
  * What each module exports and its struct, read from the copy Elixir loads for the file that asks: a `.beam`, or a
@@ -101,6 +105,7 @@ internal class ProjectModules(private val project: Project) {
         atom: String,
         inputs: Inputs,
         inProgress: Map<VirtualFile, Map<String, Answer>>,
+        reading: Boolean = false,
     ): ReadClauses {
         val (choice, stamps) = chosen(asker, atom)
         var transient = Transient.NONE
@@ -121,6 +126,7 @@ internal class ProjectModules(private val project: Project) {
 
                             if (running == null) read(choice.fallingThrough()) else null
                         }
+                        is Copy.Source if reading -> null
                         is Copy.Source -> {
                             val (loaded, modules, below) = sourceClauses(copy, inputs, inProgress)
                             transient = below
@@ -223,6 +229,7 @@ internal class ProjectModules(private val project: Project) {
         inputs: Inputs,
         inProgress: Map<VirtualFile, Map<String, Answer>>,
         memo: Memo,
+        reading: Boolean = false,
     ): Looked {
         val (choice, stamps) = chosen(asker, atom)
         var transient = Transient.NONE
@@ -245,6 +252,8 @@ internal class ProjectModules(private val project: Project) {
 
                             running ?: answer(choice.fallingThrough())
                         }
+                        // Expanding the file here wouldn't be under the read, whose env and directory it may read.
+                        is Copy.Source if reading -> UNREADABLE
                         is Copy.Source -> {
                             val (loaded, below) = loaded(copy, inputs, inProgress, memo)
                             transient = below
@@ -479,6 +488,7 @@ internal class ProjectModules(private val project: Project) {
         memo: Memo,
         records: Boolean = false,
         observer: ExpansionObserver = ExpansionObserver.NONE,
+        config: ConfigRead? = null,
     ): Held {
         val virtualFile = file.virtualFile
         val stamps = Stamps()
@@ -495,7 +505,7 @@ internal class ProjectModules(private val project: Project) {
             looked[atom]
                 ?.takeIf { it.transient.holdsWhile(within) }
                 ?.answer
-                ?: lookup(file, atom, inputs, within, memo).also {
+                ?: lookup(file, atom, inputs, within, memo, config != null).also {
                     looked[atom] = it
                     used += it
                 }.answer
@@ -552,14 +562,16 @@ internal class ProjectModules(private val project: Project) {
             },
             virtualFile = virtualFile,
             os = inputs.os,
-            buildTarget = buildTarget(compiling, stamps),
+            buildTarget = buildTarget(compiling, config, stamps),
+            config = config,
+            files = runFiles(virtualFile, inputs, within, memo, stamps) { transients += it },
             directories = { path ->
                 // A `mix.exs` created or deleted above the file moves its answer.
                 stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
                 virtualFile?.fileSystem?.findFileByPath(path)?.let(::compileDirectory)
             },
             clauses = { atom ->
-                clauses(file, atom, inputs, within).also { read ->
+                clauses(file, atom, inputs, within, config != null).also { read ->
                     stamps.addAll(read.stamps)
                     transients += read.transient
                 }.clauses
@@ -639,10 +651,102 @@ internal class ProjectModules(private val project: Project) {
     }
 
     /**
-     * The build [file] is compiled in, `null` where it isn't known: a project file in [defaultBuildEnv]; a
-     * dependency's reads the config of the one `_build` env holding it.
+     * The config table [file]'s build reads under [env], from the config path of the innermost content `mix.exs` above
+     * it, `null` where that path isn't known.
      */
-    private fun buildTarget(file: VirtualFile?, stamps: Stamps): BuildTarget? {
+    @TestOnly
+    @RequiresReadLock
+    fun configTable(file: VirtualFile, inputs: Inputs, env: String): ConfigTable? = configTable(file, env, inputs, Stamps()) {}
+
+    private fun configTable(file: VirtualFile, env: String, inputs: Inputs, stamps: Stamps, transient: (Transient) -> Unit): ConfigTable? {
+        // A `mix.exs` created or deleted above the file moves which project's config it reads.
+        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+        val (mixExs, configPath) = generateSequence(file.parent) { it.parent }
+            .mapNotNull { it.findChild(MIX_EXS) }
+            .firstNotNullOfOrNull { mixExs -> ConfigFiles.configPath(project, mixExs)?.let { mixExs to it } }
+            ?: return null
+        stamps.source(mixExs)
+        val written = configPath as? ProjectKeywords.ConfigPath.Written ?: return null
+
+        return evaluateConfig(mixExs, written, env, inputs, stamps, transient)
+    }
+
+    /**
+     * The config file at [written], against [mixExs]'s folder, read as `Config.Reader.read_imports!/2` reads it: where
+     * it is missing, empty for the default path, as `Mix.Tasks.Loadconfig` then reads none, and else unknown, as it raises.
+     */
+    private fun evaluateConfig(mixExs: VirtualFile, written: ProjectKeywords.ConfigPath.Written, env: String, inputs: Inputs, stamps: Stamps, transient: (Transient) -> Unit): ConfigTable {
+        val path = ConfigFiles.configFilePath(mixExs, written)
+        val configFile = mixExs.fileSystem.findFileByPath(path)?.takeUnless { it.isDirectory }
+            ?: return if (written.isDefault) ConfigTable.EMPTY else ConfigTable.UNKNOWN
+        val psi = read(configFile) ?: return ConfigTable.UNKNOWN
+        val read = ConfigRead(env, HOST, mixExs.parent.path).apply { imports.add(runPath(configFile, inputs.os, OS.CURRENT) ?: configFile.path) }
+        val computed = compute(psi, inputs, emptyMap(), Memo(), config = read)
+        stamps.addAll(computed.loaded.stamps)
+        transient(computed.transient)
+
+        return if (computed.expansion.top is Expansion.Error) ConfigTable.UNKNOWN else read.table(inputs.level)
+    }
+
+    /** The project's files [from]'s run reaches by path, through [from]'s file system, with [stamps] gaining each read. */
+    private fun runFiles(
+        from: VirtualFile?,
+        inputs: Inputs,
+        within: Map<VirtualFile, Map<String, Answer>>,
+        memo: Memo,
+        stamps: Stamps,
+        transient: (Transient) -> Unit,
+    ): RunFiles {
+        // A path means what it does on the SDK's machine, which this file system is only where `runPath` says.
+        val pathFileSystem = from?.takeIf { runPath(it, inputs.os, OS.CURRENT) != null }?.fileSystem
+
+        return object : RunFiles {
+            override fun exists(path: String): Boolean? {
+                val fileSystem = pathFileSystem ?: return null
+                // A file created or deleted at the path moves the answer.
+                stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+
+                return fileSystem.findFileByPath(path) != null
+            }
+
+            override fun imported(path: String, read: ConfigRead): FileExpansion? {
+                stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+                val target = pathFileSystem?.findFileByPath(path)?.takeUnless { it in within } ?: return null
+                val psi = read(target) ?: return null
+                val child = compute(psi, inputs, within, memo, config = read)
+                stamps.addAll(child.loaded.stamps)
+                transient(child.transient)
+
+                return child.expansion
+            }
+
+            override fun wildcard(pattern: String): List<String>? {
+                val fileSystem = pathFileSystem ?: return null
+                val slash = pattern.lastIndexOf('/')
+                val prefix = pattern.substring(0, slash.coerceAtLeast(0))
+                if (prefix.any { it in ConfigFiles.WILDCARD }) return null
+                stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+                val glob = pattern.substring(slash + 1)
+                val matcher = try {
+                    FileSystems.getDefault().getPathMatcher("glob:$glob")
+                } catch (_: PatternSyntaxException) {
+                    return null
+                }
+
+                return fileSystem.findFileByPath(prefix)?.children.orEmpty()
+                    .filter { !it.name.startsWith(".") && matcher.matches(Path.of(it.name)) }
+                    .map { "$prefix/${it.name}" }
+                    .sorted()
+            }
+        }
+    }
+
+    /**
+     * The build [file] is compiled in, `null` where it isn't known: a file a config [read] evaluates is built as the read
+     * is; a project file in [defaultBuildEnv]; a dependency's reads the config of the one `_build` env holding it.
+     */
+    private fun buildTarget(file: VirtualFile?, read: ConfigRead?, stamps: Stamps): BuildTarget? {
+        read?.let { return BuildTarget(it.env, it.env, it.target) }
         file ?: return null
         // A `deps`, `_build` or `mix.exs` created or deleted moves the build.
         stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
@@ -949,6 +1053,9 @@ internal class ProjectModules(private val project: Project) {
 
         /** The bytes the clause cache may retain, apart from the answers' own bound. */
         private const val CLAUSE_BOUND = 64L shl 20
+
+        /** Every read's target: the plugin takes no outside `MIX_TARGET`. */
+        private const val HOST = "host"
 
         private val ABSENT = Answer(ModuleExports.Absent, ModuleStruct.Absent)
         private val UNREADABLE = Answer(ModuleExports.Unreadable, ModuleStruct.Unreadable)

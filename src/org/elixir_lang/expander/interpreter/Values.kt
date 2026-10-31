@@ -620,6 +620,31 @@ internal fun cells(term: OtpErlangObject): Pair<List<OtpErlangObject>, OtpErlang
 internal fun properElements(term: OtpErlangObject): List<OtpErlangObject>? =
     cells(term)?.takeIf { it.second == null }?.first
 
+/** `Keyword.keyword?/1`, declining on an unknown value before its type is tested. */
+internal fun isKeyword(term: OtpErlangObject): Boolean {
+    val (elements, tail) = cells(term) ?: return false
+
+    return tail == null && elements.all { element ->
+        (seen(element) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elementAt(0)?.let(::seen) is OtpErlangAtom
+    }
+}
+
+/** `lists:keyfind/3`'s walk: the first tuple of [elements], each read by [read], whose element [n] [matches]. */
+internal inline fun keyFound(
+    elements: List<OtpErlangObject>,
+    n: Long,
+    read: (OtpErlangObject) -> OtpErlangObject,
+    matches: (OtpErlangObject) -> Boolean,
+): OtpErlangTuple? {
+    for (element in elements) {
+        val tuple = read(element) as? OtpErlangTuple ?: continue
+
+        if (tuple.arity() >= n && matches(tuple.elementAt(n.toInt() - 1))) return tuple
+    }
+
+    return null
+}
+
 internal fun isNumber(term: OtpErlangObject) = term is OtpErlangLong || term is OtpErlangDouble
 
 /** Erlang's `==` where [exact] is false, else `=:=` ([termsEqual]); declines on terms whose order only the VM knows. */

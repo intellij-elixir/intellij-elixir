@@ -15,6 +15,7 @@ import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.util.io.FileUtil
 import org.elixir_lang.NameArity
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.admits
@@ -64,6 +65,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.STATIC_OPTIONS_IN_PE
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRING_TO_ATOM_REQUIRES_BINARY
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
 import org.elixir_lang.lowering.fitsAnAtom
+import org.elixir_lang.model.psi.config.ConfigFiles
 import org.elixir_lang.psi.Import.Term
 import org.elixir_lang.unicode_util.Graphemes
 import org.elixir_lang.unicode_util.isScalarValue
@@ -222,6 +224,8 @@ internal class Natives(private val evaluation: Evaluation) {
             "elixir_config" -> config(key, args)
             "Elixir.Mix" -> mix(key)
             "Elixir.Config" -> configure(key, args)
+            "Elixir.Mix.Config" -> if (key == "__import__!/2") mixConfigImport(args[0], args[1]) else null
+            "Elixir.File" -> if (key == "exists?/1" || key == "exists?/2") fileExists(args[0]) else null
             "elixir_import" -> if (key == "special_form/2") isSpecialForm(args[0], args[1]) else null
             else -> null
         } ?: if (module in WRITES_BY_ROW) write(module, key, args) else null
@@ -940,11 +944,7 @@ internal class Natives(private val evaluation: Evaluation) {
         val n = small(args[1])?.takeIf { it > 0 } ?: badarg()
         val (elements, tail) = cells(args[2]) ?: badarg()
 
-        elements.forEach { element ->
-            val tuple = seen(element) as? OtpErlangTuple
-
-            if (tuple != null && tuple.arity() >= n && equal(tuple.elementAt(n.toInt() - 1), args[0], false, level)) return tuple
-        }
+        keyFound(elements, n, ::seen) { equal(it, args[0], false, level) }?.let { return it }
 
         if (tail != null) badarg()
 
@@ -1312,14 +1312,6 @@ internal class Natives(private val evaluation: Evaluation) {
                 if (value != null) tuple(value, delete(args[0], args[1])) else tuple(args[2], args[0])
             }
             else -> null
-        }
-    }
-
-    private fun isKeyword(term: OtpErlangObject): Boolean {
-        val (elements, tail) = cells(term) ?: return false
-
-        return tail == null && elements.all { element ->
-            (seen(element) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elementAt(0)?.let(::seen) is OtpErlangAtom
         }
     }
 
@@ -2308,7 +2300,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /**
      * `Mix.env/0` and `Mix.target/0`: the build the run's file is compiled in. Each answer is an assumption, as an app env
-     * read's is: it is the default build's.
+     * read's is: it is the default build's. In a config read it is no assumption: the read is of that env.
      */
     private fun mix(key: String): OtpErlangObject? {
         val build = evaluation.run.buildTarget ?: return null
@@ -2317,7 +2309,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "target/0" -> build.target
             else -> return null
         }
-        evaluation.assume()
+        if (evaluation.run.config == null) evaluation.assume()
 
         return atom(answer)
     }
@@ -2329,7 +2321,7 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun configure(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
         when (key) {
             "__merge__/2" -> return configMerge(args[0], args[1])
-            "config/2", "config/3", "__env__!/0", "__target__!/0" -> {}
+            "config/2", "config/3", "__env__!/0", "__target__!/0", "__import__!/1" -> {}
             "read_config/1" -> if (!CONFIG_READ_CONFIG.isSufficient(level)) return null
             else -> return null
         }
@@ -2354,11 +2346,12 @@ internal class Natives(private val evaluation: Evaluation) {
 
                 configured(read, list(listOf(tuple(root, list(listOf(tuple(configKey, opts)))))))
             }
-            else -> {
+            "read_config/1" -> {
                 if (!isAtom(args[0])) functionClause("Elixir.Config", "read_config", args)
 
                 keyword("get/2", listOf(read.config, args[0]))
             }
+            else -> configImport(read, args[0])
         }
     }
 
@@ -2369,6 +2362,89 @@ internal class Natives(private val evaluation: Evaluation) {
         read.config = configMerge(before, config)
 
         return before
+    }
+
+    /**
+     * `Config.__import__!/1`: the file at [path] read and evaluated in the same read, with its own `__DIR__`, an empty
+     * binding and a fresh env, after `import_config!/3`'s check that the read hasn't imported it already. A raise in the
+     * file raises here; where the file's run stopped, Elixir may have raised there, which is assumed not to happen.
+     */
+    private fun configImport(read: ConfigRead, path: OtpErlangObject): OtpErlangObject {
+        if (!isBinary(path)) functionClause("Elixir.Config", "__import__!", listOf(path))
+
+        val text = String(nameBytes("Config.__import__!/1", path), Charsets.UTF_8)
+
+        when (evaluation.run.files.exists(text)) {
+            null -> decline("Config.__import__!/1 of %s, whose file isn't known", path)
+            false -> evaluation.raise(
+                "Elixir.File.Error",
+                "reason" to atom("enoent"),
+                "path" to path,
+                "action" to OtpErlangBinary("read file".toByteArray()),
+            )
+            true -> {}
+        }
+        if (text in read.imports) argumentError()
+
+        read.imports.add(0, text)
+
+        val expansion = evaluation.run.files.imported(text, read) ?: decline("Config.__import__!/1 of %s, which can't be read", path)
+
+        when (val top = expansion.top) {
+            is Expansion.Error -> when (val kind = top.kind) {
+                null -> decline("Config.__import__!/1 of %s, whose raise isn't known", path)
+                else -> {
+                    // Only its type is known, so a `rescue` can't read the rest.
+                    evaluation.mayRaise()
+                    // An expansion error, which `Code.eval_string/3` raises as a `CompileError`.
+                    evaluation.raise(if (kind.startsWith("Elixir.")) kind else "Elixir.CompileError")
+                }
+            }
+            is Expansion.Expanded -> {}
+            else -> evaluation.assumeNoRaise()
+        }
+
+        return Unknown
+    }
+
+    /**
+     * `Mix.Config.__import__!/2`: [path] expanded against [dir], and where it holds a wildcard, each file it matches,
+     * each imported as `Config.__import__!/1` imports it.
+     */
+    private fun mixConfigImport(path: OtpErlangObject, dir: OtpErlangObject): OtpErlangObject {
+        val read = evaluation.run.config ?: decline("Mix.Config.__import__!/2 outside a config read")
+        val expanded = evaluation.remote(atom("Elixir.Path"), "expand", listOf(path, dir))
+        val text = String(nameBytes("Mix.Config.__import__!/2", expanded), Charsets.UTF_8)
+        val paths =
+            if (text.any { it in ConfigFiles.WILDCARD }) {
+                evaluation.run.files.wildcard(text)?.map { OtpErlangBinary(it.toByteArray()) }
+                    ?: decline("Mix.Config.__import__!/2 of the wildcard %s", expanded)
+            } else {
+                listOf(expanded)
+            }
+
+        paths.forEach { configImport(read, it) }
+
+        return atom("ok")
+    }
+
+    /**
+     * `File.exists?/1,2`: whether a file or directory is at [path], relative to `Run.workingDirectory` where it is relative,
+     * read through the run's files.
+     */
+    private fun fileExists(path: OtpErlangObject): OtpErlangObject {
+        val text = String(nameBytes("File.exists?/1", path), Charsets.UTF_8)
+        val absolute =
+            if (FileUtil.isAbsolutePlatformIndependent(text)) {
+                text
+            } else {
+                val file = evaluation.run.file() ?: decline("File.exists?/1 of %s, relative to a file with no path", path)
+                val directory = evaluation.run.workingDirectory(file) ?: decline("File.exists?/1 of %s, relative to an unknown directory", path)
+
+                "$directory/$text"
+            }
+
+        return bool(evaluation.run.files.exists(absolute) ?: decline("File.exists?/1 of %s isn't known", path))
     }
 
     /** `Config.__merge__/2`: [config2]'s apps merged into [config1]'s, each app's keys merged by `deep_merge/3`. */
@@ -2435,7 +2511,7 @@ internal class Natives(private val evaluation: Evaluation) {
         return list(rest + merged)
     }
 
-    /** `file:get_cwd/0`: `{ok, Directory}`, the directory Elixir compiles the run's file in now (`Run.workingDirectory`). */
+    /** `file:get_cwd/0`: `{ok, Directory}`, the run's working directory (`Run.workingDirectory`). */
     private fun workingDirectory(): OtpErlangObject {
         val file = evaluation.run.file() ?: decline("file:get_cwd/0 of a file with no path")
         val directory = evaluation.run.workingDirectory(file) ?: decline("file:get_cwd/0 where the compile directory isn't known")
