@@ -13,6 +13,7 @@ import com.intellij.psi.PsiManager
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.junit.HeavyTestCase
+import org.elixir_lang.model.psi.config.disableMixDepsCheck
 import org.elixir_lang.psi.ElixirFile
 import java.io.File
 
@@ -25,6 +26,7 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
 
     override fun setUp() {
         super.setUp()
+        disableMixDepsCheck(testRootDisposable)
         LegSdk.setUp(module, testRootDisposable)
     }
 

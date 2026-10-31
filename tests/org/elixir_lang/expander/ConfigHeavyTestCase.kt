@@ -12,6 +12,7 @@ import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.junit.HeavyTestCase
 import java.io.File
 import java.util.concurrent.Callable
+import org.elixir_lang.model.psi.config.disableMixDepsCheck
 
 /** A Mix project on disk and the config tables its files read. */
 abstract class ConfigHeavyTestCase : HeavyTestCase() {
@@ -19,6 +20,7 @@ abstract class ConfigHeavyTestCase : HeavyTestCase() {
 
     override fun setUp() {
         super.setUp()
+        disableMixDepsCheck(testRootDisposable)
         LegSdk.setUp(module, testRootDisposable)
     }
 

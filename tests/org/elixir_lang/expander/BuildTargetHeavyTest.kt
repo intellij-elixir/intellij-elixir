@@ -13,6 +13,7 @@ import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.mix.buildEnv
 import java.io.File
 import java.util.concurrent.Callable
+import org.elixir_lang.model.psi.config.disableMixDepsCheck
 
 /**
  * A module body's `Mix.env/0` and `Mix.target/0` answer the build the file is compiled in: `:test` for a project file in
@@ -25,6 +26,7 @@ class BuildTargetHeavyTest : HeavyTestCase() {
 
     override fun setUp() {
         super.setUp()
+        disableMixDepsCheck(testRootDisposable)
         LegSdk.setUp(module, testRootDisposable)
     }
 
