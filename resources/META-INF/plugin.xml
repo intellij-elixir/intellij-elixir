@@ -558,6 +558,8 @@
         <listener class="org.elixir_lang.sdk.ElixirLanguageLevelStoreListener" topic="org.elixir_lang.sdk.SdkVersionsListener"/>
         <listener class="org.elixir_lang.sdk.SdkVersionModuleRootListener"
                   topic="com.intellij.openapi.roots.ModuleRootListener"/>
+        <listener class="org.elixir_lang.declaration.ExpanderPathListener"
+                  topic="org.elixir_lang.settings.ElixirExperimentalSettingsListener"/>
     </projectListeners>
 
     <actions>
