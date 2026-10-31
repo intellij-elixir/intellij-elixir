@@ -227,7 +227,7 @@ internal class Natives(private val evaluation: Evaluation) {
      * its result isn't known or it declines ([RETURNABLE]). An argument it only reads, such as `compile_env/4`'s env, is
      * none of them.
      */
-    fun returnable(module: String, function: String, args: List<OtpErlangObject>): List<OtpErlangObject> =
+    fun <T> returnable(module: String, function: String, args: List<T>): List<T> =
         RETURNABLE[Triple(module, function, args.size)]?.map(args::get) ?: args
 
     /**
@@ -237,9 +237,12 @@ internal class Natives(private val evaluation: Evaluation) {
      */
     fun runs(module: String, function: String, args: List<OtpErlangObject>): List<OtpErlangObject> =
         args.takeIf {
-            Triple(module, function, args.size) in RUNS ||
+            runsAFunction(module, function, args.size) ||
                 anyHeld(it) { term -> term is Closure || term is OtpErlangExternalFun }
         }.orEmpty()
+
+    /** Whether [module]'s [function] of [arity] runs a function it is given ([RUNS]). */
+    fun runsAFunction(module: String, function: String, arity: Int): Boolean = Triple(module, function, arity) in RUNS
 
     /**
      * The argument of [module]'s [function], given [args], that names the module it writes: the one its [ModuleEffects]
@@ -247,6 +250,26 @@ internal class Natives(private val evaluation: Evaluation) {
      */
     fun writes(module: String, function: String, args: List<OtpErlangObject>): List<OtpErlangObject> =
         listOfNotNull(ModuleEffects.target(module, function, args.size, level)?.let(args::get))
+
+    /** Whether [module]'s [function] of [arity] is a `Module` native that only reads its tables. */
+    fun onlyReads(module: String, function: String, arity: Int): Boolean =
+        module == "Elixir.Module" && Triple(module, function, arity) in RETURNABLE && ModuleEffects.target(module, function, arity, level) == null
+
+    /** The value of [module]'s attribute [name] here, `null` where it isn't known. */
+    fun attributeAt(module: String, name: String): OtpErlangObject? =
+        try {
+            getAttribute(listOf(atom(module), atom(name)), NIL)
+        } catch (_: Declined) {
+            null
+        }
+
+    /** Whether a delete of [module]'s attribute [name] is known to change nothing here. */
+    fun deleteChangesNothing(module: String, name: String): Boolean =
+        try {
+            attributesOf(atom(module), atom(module)).deleteChanges(name) == false
+        } catch (_: Declined) {
+            false
+        }
 
     /** Whether [module]'s [function] of [arity] never returns ([NEVER_RETURNS]). */
     fun neverReturns(module: String, function: String, arity: Int): Boolean =

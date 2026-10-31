@@ -857,20 +857,22 @@ class InterpreterTest : PlatformTestCase() {
     }
 
     /**
-     * A declined call given the module may write its attributes and remove its definitions, so a read of either after
-     * it is unknown, and the definition whose name reads one stops.
+     * A declined call given the module may write what its callee writes, so a read of that after it is unknown, and the
+     * definition whose name reads it stops. A read of the rest stays known.
      */
     fun testAStateReadAfterADeclinedCallGivenTheModuleIsUnknown() {
         val h = "defmodule H do\n  def set(m) do\n    receive(do: (x -> x), after: (0 -> :ok))\n    Module.put_attribute(m, :x, 2)\n  end\nend"
         val attribute = "unquote(:\"g#{Module.get_attribute(__MODULE__, :x)}\")"
         val defines = "unquote(if Module.defines?(__MODULE__, {:f, 0}), do: :y, else: :n)"
 
-        for (read in listOf(attribute, defines)) {
-            assertFile(
-                "$h\ndefmodule M do\n  @x 1\n  def f, do: 1\n  H.set(__MODULE__)\n  def $read(), do: 1\nend",
-                "top expanded\nmodule Elixir.H compiled\nmodule Elixir.M stopped `$read`",
-            )
-        }
+        assertFile(
+            "$h\ndefmodule M do\n  @x 1\n  def f, do: 1\n  H.set(__MODULE__)\n  def $attribute(), do: 1\nend",
+            "top expanded\nmodule Elixir.H compiled\nmodule Elixir.M stopped `$attribute`",
+        )
+        assertFile(
+            "$h\ndefmodule M do\n  @x 1\n  def f, do: 1\n  H.set(__MODULE__)\n  def $defines(), do: 1\nend",
+            "top expanded\nmodule Elixir.H compiled\nmodule Elixir.M compiled",
+        )
     }
 
     /** A user `@on_definition` callback may write the module around its own, and that write is read after it too. */
@@ -1384,6 +1386,426 @@ class InterpreterTest : PlatformTestCase() {
             tables = true,
         )
 
+    /**
+     * A `def` in a `for` the evaluator declines, which it steps unordered, doesn't end the module's run: Elixir may run it
+     * any number of times, and a project that compiles doesn't raise there. The module is still reported at that stop.
+     */
+    fun testAnUnnamedDefinitionInAnUnorderedUnitLeavesTheModulesRunGoing() =
+        assertFile(
+            "defmodule M do\n  $UNNAMED_IN_DECLINED_FOR\n  def later, do: 1\nend",
+            "top expanded\nmodule Elixir.M stopped `$UNNAMED_IN_DECLINED_FOR` [later/0 def]",
+            tables = true,
+        )
+
+    /** An attribute write stepped unordered, whose value isn't known, doesn't end the module's run either. */
+    fun testAnUncheckedWriteInAnUnorderedUnitLeavesTheModulesRunGoing() =
+        assertFile(
+            "defmodule M do\n  for x <- String.to_charlist(inspect(self())) do\n    @file x\n  end\n  def later, do: 1\nend",
+            "top expanded\nmodule Elixir.M stopped `for x <- String.to_charlist(inspect(self())) do\n    @file x\n  end` [later/0 def]",
+            tables = true,
+        )
+
+    /** Nor does a nested module stepped unordered, whose body raises where the run may not go. */
+    fun testANestedModuleThatRaisesInAnUnorderedUnitLeavesTheModulesRunGoing() =
+        assertFile(
+            "defmodule M do\n  for _ <- String.to_charlist(inspect(self())) do\n    defmodule N do\n      raise ArgumentError\n    end\n  end\n  def later, do: 1\nend",
+            "top expanded\nmodule Elixir.M stopped `for _ <- String.to_charlist(inspect(self())) do\n    defmodule N do\n      raise ArgumentError\n    end\n  end` [later/0 def]\n  module Elixir.M.N stopped `raise ArgumentError` []",
+            tables = true,
+        )
+
+    /**
+     * A definition after a part that raised is never reached by the evaluator, so the walk steps it unordered: the
+     * conflict it raises isn't the module's run ending, so the definition after it is stored with its body expanded, while
+     * the report keeps that the module may raise.
+     */
+    fun testAConflictInAUnitPastARaisingPartLeavesTheModulesRunGoing() {
+        val code = "defmodule M do\n  def f, do: 1\n  IO.inspect(Foo.bar(), raise(ArgumentError), defp(f, do: 2))\n  def later, do: 1\nend"
+
+        assertFile(
+            code,
+            "top unported `IO.inspect(Foo.bar(), raise(ArgumentError), defp(f, do: 2))`\nmodule Elixir.M stopped `IO.inspect(Foo.bar(), raise(ArgumentError), defp(f, do: 2))` [f/0 def, later/0 def]",
+            tables = true,
+        )
+
+        val module = expandedModule(code)
+
+        assertEquals(true, (module.ended as ExpansionResult.Ended.Stopped).mayRaise)
+        assertTrue(module.units.single { it.owner == later() }.expansion is Expansion.Expanded)
+    }
+
+    /** Past a part that only declined the evaluator does reach the definition, at its place: its conflict ends the run. */
+    fun testAConflictInAUnitReachedPastADeclinedPartEndsTheModulesRun() =
+        assertFile(
+            "defmodule M do\n  def f, do: 1\n  IO.inspect(Foo.bar(), defp(f, do: 2))\n  def later, do: 1\nend",
+            "top expanded\nmodule Elixir.M raised changed_kind `defp(f, do: 2)` [f/0 def]",
+            tables = true,
+        )
+
+    /** `Module.defines?/2` of a name the table lacks isn't known beside an unnamed entry: that entry may be the name. */
+    fun testDefinesOfAnAbsentNameBesideAnUnnamedEntryDeclines() =
+        assertFile(
+            "defmodule M do\n  $UNNAMED_IN_DECLINED_FOR\n  def unquote(if Module.defines?(__MODULE__, {:g, 0}), do: :y, else: :n)(), do: 1\nend",
+            "top expanded\nmodule Elixir.M stopped `$UNNAMED_IN_DECLINED_FOR` []",
+            tables = true,
+        )
+
+    /** A name the table holds stays known beside an unnamed entry, and after a stop stepped unordered. */
+    fun testDefinesOfAPresentNameBesideAnUnnamedEntryAnswers() =
+        assertFile(
+            "defmodule M do\n  def g, do: 1\n  $UNNAMED_IN_DECLINED_FOR\n  $NAMED_BY_DEFINES_OF_G\nend",
+            "top expanded\nmodule Elixir.M stopped `$UNNAMED_IN_DECLINED_FOR` [g/0 def, y/0 def]",
+            tables = true,
+        )
+
+    /** `Module.delete_definition/2` of a name the table lacks can't be applied beside an unnamed entry: the walk stops in order. */
+    fun testDeleteDefinitionOfAnAbsentNameBesideAnUnnamedEntryStops() {
+        if (!DELETES_DEFINITIONS(legLevel())) return
+
+        assertFile(
+            "defmodule M do\n  def g, do: 1\n  $UNNAMED_IN_DECLINED_FOR\n  Module.delete_definition(__MODULE__, {:h, 0})\n  $NAMED_BY_DEFINES_OF_G\nend",
+            "top expanded\nmodule Elixir.M stopped `$UNNAMED_IN_DECLINED_FOR` [g/0 def]",
+            tables = true,
+        )
+    }
+
+    /** An unordered `def` leaves `@file` unknown, so a later definition is moved, and its `location: :keep` still stops. */
+    fun testAQuoteKeepingItsLocationAfterAnUnorderedDefinitionStops() {
+        val module = expandedModule("defmodule M do\n  $UNNAMED_IN_DECLINED_FOR\n  def later, do: quote(location: :keep, do: 1)\nend")
+
+        assertTrue(module.units.single { it.owner == later() }.expansion is Expansion.Unported)
+    }
+
+    /** An `if` that only raises, of a test that declines, is passed over whichever arm comes first: the walk goes on in order. */
+    fun testAnIfThatOnlyRaisesOfADecliningTestLeavesTheTablesKnown() =
+        assertFile(
+            "defmodule M do\n  def g, do: 1\n  $UNNAMED_IN_DECLINED_FOR\n  if Module.defines?(__MODULE__, {:h, 0}) do\n    raise ArgumentError, inspect(__MODULE__)\n  end\n  $NAMED_BY_DEFINES_OF_G\nend",
+            "top expanded\nmodule Elixir.M stopped `$UNNAMED_IN_DECLINED_FOR` [g/0 def, y/0 def]",
+            tables = true,
+        )
+
+    /** The mirror order of [testAnIfThatOnlyRaisesOfADecliningTestLeavesTheTablesKnown]: the raise arm first. */
+    fun testAnIfThatOnlyRaisesFirstOfADecliningTestLeavesTheTablesKnown() =
+        assertFile(
+            "defmodule M do\n  def g, do: 1\n  $UNNAMED_IN_DECLINED_FOR\n  if Module.defines?(__MODULE__, {:h, 0}) do\n    :ok\n  else\n    raise ArgumentError, inspect(__MODULE__)\n  end\n  $NAMED_BY_DEFINES_OF_G\nend",
+            "top expanded\nmodule Elixir.M stopped `$UNNAMED_IN_DECLINED_FOR` [g/0 def, y/0 def]",
+            tables = true,
+        )
+
+    /** The arm a raise leaves is taken where its test declines. */
+    fun testACaseArmLeftByARaiseIsTaken() =
+        assertFile(
+            "defmodule M do\n  z = case Foo.bar() do\n    x when is_atom(x) -> :a\n    _ -> raise ArgumentError\n  end\n  def unquote(z)(), do: 1\nend",
+            "top expanded\nmodule Elixir.M compiled [a/0 def]",
+            tables = true,
+        )
+
+    /** A write the walk applies gives the arm left no module, so it is still taken. */
+    fun testACaseArmLeftByARaiseIsTakenBesideAWriteTheWalkApplies() =
+        assertFile(
+            "defmodule M do\n  z = case Foo.bar() do\n    x when is_atom(x) ->\n      @k 1\n      :a\n    _ -> raise ArgumentError\n  end\n  def unquote(z)(), do: 1\nend",
+            "top expanded\nmodule Elixir.M compiled [a/0 def]",
+            tables = true,
+        )
+
+    /** The same, written as a call of the writer. */
+    fun testACaseArmLeftByARaiseIsTakenBesideACallOfAWriter() =
+        assertFile(
+            "defmodule M do\n  z = case Foo.bar() do\n    x when is_atom(x) ->\n      Module.put_attribute(__MODULE__, :k, 1)\n      :a\n    _ -> raise ArgumentError\n  end\n  def unquote(z)(), do: 1\nend",
+            "top expanded\nmodule Elixir.M compiled [a/0 def]",
+            tables = true,
+        )
+
+    /** The arm left stays unbound: a body that reads its pattern's variable declines. */
+    fun testACaseArmLeftByARaiseDeclinesReadingItsVariable() =
+        assertFile(
+            "defmodule M do\n  z = case Foo.bar() do\n    x when is_atom(x) -> x\n    _ -> raise ArgumentError\n  end\n  def unquote(z)(), do: 1\nend",
+            "top expanded\nmodule Elixir.M stopped `unquote(z)` []",
+            tables = true,
+        )
+
+    /** A declined call of a function that writes one attribute by name leaves the module's other attributes known. */
+    fun testADeclinedCallWritingANamedAttributeLeavesTheOthersKnown() =
+        assertFile(
+            "$CALLEE\ndefmodule M do\n  @other :o\n  @written :w\n  Callee.named(__MODULE__)\n  def unquote(@other)(), do: 1\n  def unquote(@written)(), do: 1\nend",
+            "$CALLEE_REPORT\nmodule Elixir.M stopped `unquote(@written)` [o/0 def]",
+            tables = true,
+        )
+
+    /** A declined call of a function that writes through a name it computes may have written any attribute of the module. */
+    fun testADeclinedCallWritingThroughAComputedNameMarksTheWholeModule() =
+        assertFile(
+            "$CALLEE\ndefmodule M do\n  @other :o\n  Callee.computed(__MODULE__)\n  def unquote(@other)(), do: 1\nend",
+            "$CALLEE_REPORT\nmodule Elixir.M stopped `unquote(@other)` []",
+            tables = true,
+        )
+
+    /** So may code that holds such a call, where only what its callee can write says what it marks. */
+    fun testADeclinedForWritingThroughAComputedNameMarksTheWholeModule() =
+        assertFile(
+            "$CALLEE\ndefmodule M do\n  @other :o\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.computed(__MODULE__)\n  end\n  def unquote(@other)(), do: 1\nend",
+            "$CALLEE_REPORT\nmodule Elixir.M stopped `unquote(@other)` []",
+            tables = true,
+        )
+
+    /** Code that may call a function that removes a definition may have removed any: `Module.defines?/2` isn't known. */
+    fun testADeclinedForRemovingADefinitionLeavesDefinesUnknown() {
+        if (!DELETES_DEFINITIONS(legLevel())) return
+
+        assertFile(
+            "$CALLEE\ndefmodule M do\n  def g, do: 1\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.removes(__MODULE__)\n  end\n  $NAMED_BY_DEFINES_OF_G\nend",
+            "$CALLEE_REPORT\nmodule Elixir.M stopped `unquote(if Module.defines?(__MODULE__, {:g, 0}), do: :y, else: :n)` [g/0 def]",
+            tables = true,
+        )
+    }
+
+    /** In code that may call it, a delete of an attribute known to hold nothing writes nothing. */
+    fun testADeclinedForDeletingAnEmptyAttributeLeavesItKnown() =
+        assertFile(
+            "$CALLEE\ndefmodule M do\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.deletes(__MODULE__)\n  end\n  def unquote(@absent || :o)(), do: 1\nend",
+            "$CALLEE_REPORT\nmodule Elixir.M compiled [o/0 def]",
+            tables = true,
+        )
+
+    /** A delete of an attribute that holds a value is a write of it. */
+    fun testADeclinedForDeletingAHeldAttributeLeavesItUnknown() =
+        assertFile(
+            "$CALLEE\ndefmodule M do\n  @absent :a\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.deletes(__MODULE__)\n  end\n  def unquote(@absent || :o)(), do: 1\nend",
+            "$CALLEE_REPORT\nmodule Elixir.M stopped `unquote(@absent || :o)` []",
+            tables = true,
+        )
+
+    /** Each attribute a callee deletes through a list of names read from the module is named by that list. */
+    fun testADeclinedForDeletingThroughAListedNameWritesEachElement() =
+        assertFile(
+            "$CALLEE\ndefmodule M do\n  @names [:one]\n  @one :a\n  @other :o\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.listed(__MODULE__)\n  end\n  def unquote(@other)(), do: 1\n  def unquote(@one)(), do: 1\nend",
+            "$CALLEE_REPORT\nmodule Elixir.M stopped `unquote(@one)` [o/0 def]",
+            tables = true,
+        )
+
+    /** A delete of an empty attribute that doesn't accumulate removes it, so it is a write. */
+    fun testADeclinedForDeletingAnEmptyListAttributeLeavesItUnknown() =
+        assertFile(
+            "$CALLEE\ndefmodule M do\n  @foo []\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.drops(__MODULE__)\n  end\n  def unquote(if @foo == [], do: :a, else: :b)(), do: 1\nend",
+            "$CALLEE_REPORT\nmodule Elixir.M stopped `unquote(if @foo == [], do: :a, else: :b)` []",
+            tables = true,
+        )
+
+    /** A delete of an accumulating attribute that holds nothing leaves it as it was. */
+    fun testADeclinedForDeletingAnEmptyAccumulatingAttributeLeavesItKnown() =
+        assertFile(
+            "$CALLEE\ndefmodule M do\n  Module.register_attribute(__MODULE__, :foo, accumulate: true)\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.drops(__MODULE__)\n  end\n  def unquote(if @foo == [], do: :a, else: :b)(), do: 1\nend",
+            "$CALLEE_REPORT\nmodule Elixir.M compiled [a/0 def]",
+            tables = true,
+        )
+
+    /** A declined call's other arguments may give the module too: what they hold marks it whole, as in code that holds the call. */
+    fun testADeclinedCallGivenTheModuleInAFunctionMarksTheWholeModule() =
+        assertDeclinedCallMarksTheWholeModule("fn -> Callee.computed(__MODULE__) end")
+
+    fun testADeclinedCallGivenTheModuleInAListMarksTheWholeModule() = assertDeclinedCallMarksTheWholeModule("[__MODULE__]")
+
+    fun testADeclinedCallGivenTheModuleInAMapMarksTheWholeModule() = assertDeclinedCallMarksTheWholeModule("%{module: __MODULE__}")
+
+    private fun assertDeclinedCallMarksTheWholeModule(other: String) =
+        assertFile(
+            "$CALLEE\ndefmodule M do\n  @other :o\n  Callee.runs(__MODULE__, :erlang.whereis(:foo), $other)\n  def unquote(@other)(), do: 1\nend",
+            "$CALLEE_REPORT\nmodule Elixir.M stopped `unquote(@other)` []",
+            tables = true,
+        )
+
+    /** A delete of an attribute set to `nil` removes its row, which `Module.has_attribute?/2` reads. */
+    fun testADeclinedForDeletingAStoredNilLeavesWhetherItIsThereUnknown() =
+        assertFile(
+            "defmodule Callee do\n  def f(m), do: Module.delete_attribute(m, :stored)\nend\ndefmodule M do\n  @other :o\n  @stored nil\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.f(__MODULE__)\n  end\n  def unquote(@other)(), do: 1\n  def unquote(Module.has_attribute?(__MODULE__, :stored))(), do: 1\nend",
+            "top expanded\nmodule Elixir.Callee compiled [f/1 def]\nmodule Elixir.M stopped `unquote(Module.has_attribute?(__MODULE__, :stored))` [o/0 def]",
+            tables = true,
+        )
+
+    /** A read of an attribute holding the module gives the module, and what's written through it is written to it. */
+    fun testADeclinedForWritingThroughAnAttributeHoldingTheModuleMarksWhatItWrites() =
+        assertFile(
+            "defmodule Callee do\n  def w(n), do: Module.put_attribute(n, :written, :p)\n  def f(m) do\n    n = Module.get_attribute(m, :target)\n    w(n)\n  end\nend\ndefmodule M do\n  @target __MODULE__\n  @other :o\n  @written :w\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.f(__MODULE__)\n  end\n  def unquote(@other)(), do: 1\n  def unquote(@written)(), do: 1\nend",
+            "top expanded\nmodule Elixir.Callee compiled [f/1 def, w/1 def]\nmodule Elixir.M stopped `unquote(@written)` [o/0 def]",
+            tables = true,
+        )
+
+    /** Another call the decline holds may have put the module in the attribute before this one reads it. */
+    fun testADeclinedForReadingAnAttributeAnotherCallWritesMarksTheWholeModule() =
+        assertFile(
+            "defmodule Callee do\n  def w(n), do: Module.put_attribute(n, :written, :p)\n  def a(m), do: Module.put_attribute(m, :target, m)\n  def b(m) do\n    n = Module.get_attribute(m, :target)\n    w(n)\n  end\nend\ndefmodule M do\n  @target nil\n  @other :o\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.a(__MODULE__)\n    Callee.b(__MODULE__)\n  end\n  def unquote(@other)(), do: 1\nend",
+            "top expanded\nmodule Elixir.Callee compiled [a/1 def, b/1 def, w/1 def]\nmodule Elixir.M stopped `unquote(@other)` []",
+            tables = true,
+        )
+
+    /** A list of names the callee itself changes isn't the list the module holds at the call. */
+    fun testADeclinedForWritingThroughAListItChangesMarksTheWholeModule() =
+        assertFile(
+            "defmodule Callee do\n  def f(m) do\n    Module.put_attribute(m, :names, [:written])\n    for n <- Module.get_attribute(m, :names), do: Module.put_attribute(m, n, :p)\n  end\nend\ndefmodule M do\n  @names []\n  @other :o\n  @written :w\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.f(__MODULE__)\n  end\n  def unquote(@other)(), do: 1\n  def unquote(@written)(), do: 1\nend",
+            "top expanded\nmodule Elixir.Callee compiled [f/1 def]\nmodule Elixir.M stopped `unquote(@other)` []",
+            tables = true,
+        )
+
+    /** So is a list another call the decline holds changes. */
+    fun testADeclinedForWritingThroughAListAnotherCallChangesMarksTheWholeModule() =
+        assertFile(
+            "defmodule Callee do\n  def a(m), do: Module.put_attribute(m, :names, [:written])\n  def b(m) do\n    for n <- Module.get_attribute(m, :names), do: Module.put_attribute(m, n, :p)\n  end\nend\ndefmodule M do\n  @names []\n  @other :o\n  @written :w\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.a(__MODULE__)\n    Callee.b(__MODULE__)\n  end\n  def unquote(@other)(), do: 1\n  def unquote(@written)(), do: 1\nend",
+            "top expanded\nmodule Elixir.Callee compiled [a/1 def, b/1 def]\nmodule Elixir.M stopped `unquote(@other)` []",
+            tables = true,
+        )
+
+    /** So is a list the code the decline holds changes itself. */
+    fun testADeclinedForWritingThroughAListItsBodyChangesMarksTheWholeModule() =
+        assertFile(
+            "defmodule Callee do\n  def b(m) do\n    for n <- Module.get_attribute(m, :names), do: Module.put_attribute(m, n, :p)\n  end\nend\ndefmodule M do\n  @names []\n  @other :o\n  @written :w\n  for _ <- String.to_charlist(inspect(self())) do\n    Module.put_attribute(__MODULE__, :names, [:written])\n    Callee.b(__MODULE__)\n  end\n  def unquote(@other)(), do: 1\n  def unquote(@written)(), do: 1\nend",
+            "top expanded\nmodule Elixir.Callee compiled [b/1 def]\nmodule Elixir.M stopped `unquote(@other)` []",
+            tables = true,
+        )
+
+    /** A raise's argument runs before it, and a `try` can catch the raise. */
+    fun testADeclinedForWritingInTheArgumentOfACaughtRaiseMarksWhatItWrites() =
+        assertFile(
+            "defmodule Callee do\n  def f(m) do\n    try do\n      :erlang.error(Module.put_attribute(m, :written, :p))\n    rescue\n      _ -> :ok\n    end\n  end\nend\ndefmodule M do\n  @other :o\n  @written :w\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.f(__MODULE__)\n  end\n  def unquote(@other)(), do: 1\n  def unquote(@written)(), do: 1\nend",
+            "top expanded\nmodule Elixir.Callee compiled [f/1 def]\nmodule Elixir.M stopped `unquote(@written)` [o/0 def]",
+            tables = true,
+        )
+
+    /** The same, written in the module's own declined code. */
+    fun testADeclinedForWritingInTheArgumentOfACaughtRaiseItHoldsMarksWhatItWrites() =
+        assertFile(
+            "defmodule M do\n  @other :o\n  @written :w\n  for _ <- String.to_charlist(inspect(self())) do\n    try do\n      :erlang.error(Module.put_attribute(__MODULE__, :written, :p))\n    rescue\n      _ -> :ok\n    end\n  end\n  def unquote(@other)(), do: 1\n  def unquote(@written)(), do: 1\nend",
+            "top expanded\nmodule Elixir.M stopped `unquote(@written)` [o/0 def]",
+            tables = true,
+        )
+
+    /** The same, through a callee called in the raise's argument. */
+    fun testADeclinedForCallingAWriterInTheArgumentOfACaughtRaiseMarksWhatItWrites() =
+        assertFile(
+            "defmodule Callee do\n  def b(m), do: Module.put_attribute(m, :written, :p)\nend\ndefmodule M do\n  @other :o\n  @written :w\n  for _ <- String.to_charlist(inspect(self())) do\n    try do\n      :erlang.error(Callee.b(__MODULE__))\n    rescue\n      _ -> :ok\n    end\n  end\n  def unquote(@other)(), do: 1\n  def unquote(@written)(), do: 1\nend",
+            "top expanded\nmodule Elixir.Callee compiled [b/1 def]\nmodule Elixir.M stopped `unquote(@written)` [o/0 def]",
+            tables = true,
+        )
+
+    /** The same, given the module through a variable bound outside the declined code. */
+    fun testADeclinedForCallingAWriterGivenABoundVariableInTheArgumentOfACaughtRaiseMarksWhatItWrites() =
+        assertFile(
+            "defmodule Callee do\n  def b(m), do: Module.put_attribute(m, :written, :p)\nend\ndefmodule M do\n  @other :o\n  @written :w\n  m = __MODULE__\n  for _ <- String.to_charlist(inspect(self())) do\n    try do\n      :erlang.error(Callee.b(m))\n    rescue\n      _ -> :ok\n    end\n  end\n  def unquote(@other)(), do: 1\n  def unquote(@written)(), do: 1\nend",
+            "top expanded\nmodule Elixir.Callee compiled [b/1 def]\nmodule Elixir.M stopped `unquote(@written)` [o/0 def]",
+            tables = true,
+        )
+
+    /** The same, the variable's value holding the module. */
+    fun testADeclinedForCallingAWriterGivenAVariableHoldingTheModuleInTheArgumentOfACaughtRaiseMarksWhatItWrites() =
+        assertFile(
+            "defmodule Callee do\n  def b([m]), do: Module.put_attribute(m, :written, :p)\nend\ndefmodule M do\n  @other :o\n  @written :w\n  opts = [__MODULE__]\n  for _ <- String.to_charlist(inspect(self())) do\n    try do\n      :erlang.error(Callee.b(opts))\n    rescue\n      _ -> :ok\n    end\n  end\n  def unquote(@other)(), do: 1\n  def unquote(@written)(), do: 1\nend",
+            "top expanded\nmodule Elixir.Callee compiled [b/1 def]\nmodule Elixir.M stopped `unquote(@written)` [o/0 def]",
+            tables = true,
+        )
+
+    /** A raise's argument writing through a name it computes marks the whole module. */
+    fun testADeclinedForWritingAComputedNameInTheArgumentOfACaughtRaiseMarksTheWholeModule() =
+        assertFile(
+            "defmodule Callee do\n  def f(m) do\n    try do\n      :erlang.error(Module.put_attribute(m, String.to_atom(\"written\"), :p))\n    rescue\n      _ -> :ok\n    end\n  end\nend\ndefmodule M do\n  @other :o\n  @written :w\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.f(__MODULE__)\n  end\n  def unquote(@other)(), do: 1\n  def unquote(@written)(), do: 1\nend",
+            "top expanded\nmodule Elixir.Callee compiled [f/1 def]\nmodule Elixir.M stopped `unquote(@other)` []",
+            tables = true,
+        )
+
+    /** The same, through a callee called in the raise's argument, which writes through a name it computes. */
+    fun testADeclinedForCallingAComputedWriterInTheArgumentOfACaughtRaiseMarksTheWholeModule() =
+        assertFile(
+            "defmodule Callee do\n  def b(m), do: Module.put_attribute(m, String.to_atom(\"written\"), :p)\nend\ndefmodule M do\n  @other :o\n  @written :w\n  for _ <- String.to_charlist(inspect(self())) do\n    try do\n      :erlang.error(Callee.b(__MODULE__))\n    rescue\n      _ -> :ok\n    end\n  end\n  def unquote(@other)(), do: 1\n  def unquote(@written)(), do: 1\nend",
+            "top expanded\nmodule Elixir.Callee compiled [b/1 def]\nmodule Elixir.M stopped `unquote(@other)` []",
+            tables = true,
+        )
+
+    /** A read's default runs. */
+    fun testADeclinedForWritingInTheDefaultOfAReadMarksWhatItWrites() =
+        assertFile(
+            "defmodule Callee do\n  def f(m), do: Module.get_attribute(m, :other, Module.put_attribute(m, :written, :p))\nend\ndefmodule M do\n  @other :o\n  @written :w\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.f(__MODULE__)\n  end\n  def unquote(@other)(), do: 1\n  def unquote(@written)(), do: 1\nend",
+            "top expanded\nmodule Elixir.Callee compiled [f/1 def]\nmodule Elixir.M stopped `unquote(@written)` [o/0 def]",
+            tables = true,
+        )
+
+    /** A `super` given the module writes what the definition it calls writes. */
+    fun testADeclinedForReachingASuperGivenTheModuleMarksWhatItCallsWrites() =
+        assertFile(
+            "defmodule Callee do\n  def f(module), do: Module.put_attribute(module, :written, :p)\n  defoverridable f: 1\n  def f(module), do: super(module)\nend\ndefmodule M do\n  @other :o\n  @written :w\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.f(__MODULE__)\n  end\n  def unquote(@other)(), do: 1\n  def unquote(@written)(), do: 1\nend",
+            "top expanded\nmodule Elixir.Callee compiled [f (overridable 1)/1 defp, f/1 def]\nmodule Elixir.M stopped `unquote(@written)` [o/0 def]",
+            tables = true,
+        )
+
+    /** A known divergence: a followed call's arguments aren't read, so Elixir's `:p` is read as `:w`. */
+    fun testADeclinedForMissesAWriteInAnArgumentOfAFollowedCall() =
+        assertFile(
+            "defmodule Callee do\n  def id(x, _m), do: x\n  def f(m), do: id(Module.put_attribute(m, :written, :p), m)\nend\ndefmodule M do\n  @other :o\n  @written :w\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.f(__MODULE__)\n  end\n  def unquote(@other)(), do: 1\n  def unquote(@written)(), do: 1\nend",
+            "top expanded\nmodule Elixir.Callee compiled [f/1 def, id/2 def]\nmodule Elixir.M compiled [o/0 def, w/0 def]",
+            tables = true,
+        )
+
+    /** A known divergence: from debug info a default-argument clause calls through `super`, which isn't followed. */
+    fun testADeclinedForMissesAWriteThroughADefaultArgumentClauseFromDebugInfo() {
+        val compiled = Quoter.compile(
+            "for {module, binary} <- Code.compile_string(${elixirString("defmodule Callee do\n  def f(m, x \\\\ :p), do: Module.put_attribute(m, :written, x)\nend")}) do\n" +
+                "  IntellijElixir.Quoter.Probe.send(__ENV__, {:module, module, binary})\n" +
+                "end\n",
+            COMPILE_TIMEOUT,
+        )
+
+        assertEquals(OtpErlangAtom("ok"), compiled.status)
+
+        val copies = copies(
+            compiled.messages.associate { message ->
+                val elements = (message as OtpErlangTuple).elements()
+
+                (elements[1] as OtpErlangAtom).atomValue() to (elements[2] as OtpErlangBinary).binaryValue()
+            },
+        )
+
+        assertFile(
+            "defmodule M do\n  @other :o\n  @written :w\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.f(__MODULE__)\n  end\n  def unquote(@other)(), do: 1\n  def unquote(@written)(), do: 1\nend",
+            "top expanded\nmodule Elixir.M compiled [o/0 def, w/0 def]",
+            tables = true,
+            run = RunInputs(
+                exports = Exports { module -> copies[module]?.exports ?: sdkExports.of(module) },
+                clauses = ModuleClauses.Lookup { module -> copies[module]?.clauses ?: sdk.of(module) },
+            ),
+        )
+    }
+
+    /** A subject given the module isn't passed over where the arm left's test holds on it, and its mark stands. */
+    fun testASoleArmTakingASubjectGivenTheModuleDeclines() =
+        assertFile(
+            "$CALLEE\ndefmodule M do\n  @other :o\n  case Callee.given(__MODULE__) do\n    x -> x\n    _ -> raise ArgumentError\n  end\n  def unquote(@other)(), do: 1\nend",
+            "$CALLEE_REPORT\nmodule Elixir.M stopped `unquote(@other)` []",
+            tables = true,
+        )
+
+    /** A subject whose call the summary says writes a named attribute was given the module, so an arm left isn't taken. */
+    fun testAnArmLeftByARaiseIsNotTakenOfASubjectThatWritesANamedAttribute() =
+        assertFile(
+            "$CALLEE\ndefmodule M do\n  z = if Callee.named(__MODULE__) do\n    raise ArgumentError\n  else\n    :a\n  end\n  def unquote(z)(), do: 1\nend",
+            "$CALLEE_REPORT\nmodule Elixir.M stopped `unquote(z)` []",
+            tables = true,
+        )
+
+    /** A `for` the evaluator declines holds what a callee writes through the module it names, no more. */
+    fun testADeclinedForCallingANamedWriterLeavesTheOthersKnown() =
+        assertFile(
+            "$CALLEE\ndefmodule M do\n  @other :o\n  for _ <- String.to_charlist(inspect(self())) do\n    Callee.writes(__MODULE__)\n  end\n  def unquote(@other)(), do: 1\n  def unquote(@written)(), do: 1\nend",
+            "$CALLEE_REPORT\nmodule Elixir.M stopped `unquote(@written)` [o/0 def]",
+            tables = true,
+        )
+
+    private fun expandedModule(code: String): ExpansionResult {
+        val level = legLevel()
+
+        return Expander
+            .expandFile(lowered(code, level), Env.empty(level, legKernel), level, sdkExports, legStructs, legAppEnv(), clauses = sdk)
+            .modules
+            .single()
+    }
+
+    private fun later() = ExpansionResult.Owner.Definition(DefinitionTable.Kind.DEF, "later", 0)
+
     /** An unknown body drops every error Elixir raises from it: here `File.Error`, as the template is missing. */
     fun testAnUnknownBodyDropsAMissingFile() =
         assertFile(
@@ -1531,8 +1953,14 @@ class InterpreterTest : PlatformTestCase() {
     private fun assertFile(code: String, expected: String, tables: Boolean = false, run: RunInputs = RunInputs()) =
         assertEquals(expected, file(code, tables, run))
 
-    /** The file, its compile directories and the OS its SDK runs as, where a test names them. */
-    private class RunInputs(val os: OS? = null, val path: String? = null, val directories: CompileDirectories = CompileDirectories.UNKNOWN)
+    /** The file, its compile directories, the OS its SDK runs as and the modules it sees, where a test names them. */
+    private class RunInputs(
+        val os: OS? = null,
+        val path: String? = null,
+        val directories: CompileDirectories = CompileDirectories.UNKNOWN,
+        val exports: Exports? = null,
+        val clauses: ModuleClauses.Lookup? = null,
+    )
 
     /** How [code]'s file expanded and each module it compiled ended, one per line, with [tables] each one's table. */
     private fun file(code: String, tables: Boolean = false, run: RunInputs = RunInputs()): String {
@@ -1541,10 +1969,10 @@ class InterpreterTest : PlatformTestCase() {
             lowered(code, level),
             Env.empty(level, legKernel),
             level,
-            sdkExports,
+            run.exports ?: sdkExports,
             legStructs,
             legAppEnv(),
-            clauses = sdk,
+            clauses = run.clauses ?: sdk,
             file = { run.path },
             directories = run.directories,
             os = run.os,
@@ -2282,6 +2710,49 @@ class InterpreterTest : PlatformTestCase() {
                 stopsAfter,
             )
         }
+
+        /** A `for` the evaluator declines, which holds a `def` whose name isn't known. */
+        val UNNAMED_IN_DECLINED_FOR = "for x <- String.to_charlist(inspect(self())) do\n    def unquote(x)(), do: 1\n  end"
+
+        /** A `def` named by whether the table holds `g/0`: unnamed where that isn't known. */
+        const val NAMED_BY_DEFINES_OF_G = "def unquote(if Module.defines?(__MODULE__, {:g, 0}), do: :y, else: :n)(), do: 1"
+
+        /** Functions that decline after writing what their names say of the module they are given. */
+        val CALLEE = """
+            defmodule Callee do
+              def named(module) do
+                Module.put_attribute(module, :written, 1)
+                Foo.bar()
+              end
+
+              def computed(module) do
+                Module.put_attribute(module, String.to_atom(inspect(self())), 1)
+                Foo.bar()
+              end
+
+              def deletes(module), do: Module.delete_attribute(module, :absent)
+
+              def drops(module), do: Module.delete_attribute(module, :foo)
+
+              def given(module), do: Other.call(module)
+
+              def listed(module) do
+                for name <- Module.get_attribute(module, :names), do: Module.delete_attribute(module, name)
+              end
+
+              def removes(module), do: Module.delete_definition(module, {:g, 0})
+
+              def runs(_module, :a, function) when is_function(function), do: function.()
+              def runs(_module, :a, [module]), do: computed(module)
+              def runs(_module, :a, %{module: module}), do: computed(module)
+              def runs(_module, _, _), do: :ok
+
+              def writes(module), do: Module.put_attribute(module, :written, 1)
+            end
+        """.trimIndent()
+
+        /** What [CALLEE] reports, ahead of the module the row is about. */
+        const val CALLEE_REPORT = "top expanded\nmodule Elixir.Callee compiled [computed/1 def, deletes/1 def, drops/1 def, given/1 def, listed/1 def, named/1 def, removes/1 def, runs/3 def, writes/1 def]"
 
         /** The legs where `Module.delete_definition/2` and `Module.get_definition/2,3` exist. */
         val DELETES_DEFINITIONS: (ElixirLanguageLevel) -> Boolean = { MODULE_DELETE_DEFINITION.isSufficient(it) }
@@ -9577,7 +10048,7 @@ class InterpreterTest : PlatformTestCase() {
                 pins = DECLINED,
             ),
             macro("branch:no-raising-arm-single-clause", "defmacro m, do: if(Process.whereis(:init), do: :ok)", pins = DECLINED),
-            macro("branch:andalso-unknown-left", "defmacro m, do: Process.whereis(:init) == nil and raise(\"no init\")", pins = DECLINED),
+            macro("branch:andalso-unknown-left", "defmacro m, do: Process.whereis(:init) == nil and raise(\"no init\")"),
             macro(
                 "branch:raising-arm-call-argument",
                 """

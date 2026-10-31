@@ -16,6 +16,7 @@ import org.elixir_lang.NameArity
 import org.elixir_lang.expander.Compiling
 import org.elixir_lang.expander.DefinitionTable
 import org.elixir_lang.expander.Dispatch
+import org.elixir_lang.expander.Effect
 import org.elixir_lang.expander.Env
 import org.elixir_lang.expander.ExState
 import org.elixir_lang.expander.Linify
@@ -24,6 +25,7 @@ import org.elixir_lang.expander.LinifyRight
 import org.elixir_lang.expander.MacroExpanded
 import org.elixir_lang.expander.ModuleClauses
 import org.elixir_lang.expander.ModuleClauses.Dispatched
+import org.elixir_lang.expander.ModuleEffects
 import org.elixir_lang.expander.ModuleExports
 import org.elixir_lang.expander.Place
 import org.elixir_lang.expander.RescueHead
@@ -422,6 +424,7 @@ internal class Evaluation(
     /** [declined], whose call [gives] the modules being compiled it may have written, which reads then don't know. */
     private inline fun gave(declined: Declined, gives: Given.() -> Unit): Declined {
         declined.given.gives()
+        declined.given.attributes.forEach { (module, names) -> run.compiling[module]?.attributes?.markUnknown(*names.toTypedArray()) }
         run.declinedGiven?.add(declined.given)
 
         return declined
@@ -648,7 +651,7 @@ internal class Evaluation(
 
         stack.addFirst(frame(module.module, function, integer(arity.toLong())))
         try {
-            val arms = Arms()
+            val arms = Arms { soleArm(clauses.filter { it.args.size == args.size }.map { it.body }, Frame(module)) }
 
             for (clause in clauses) {
                 if (clause.args.size != args.size) continue
@@ -1313,7 +1316,7 @@ internal class Evaluation(
     }
 
     private fun cond(arrows: List<ElixirAst>, frame: Frame): OtpErlangObject {
-        val arms = Arms()
+        val arms = Arms { soleArm(arrows.map { arrowParts(it).second }, frame) }
 
         for ((index, arrow) in arrows.withIndex()) {
             val (head, body) = arrowParts(arrow)
@@ -1372,7 +1375,9 @@ internal class Evaluation(
     /**
      * What an `fn` of [arrows] closing over [closed] holds ([Closure.marks]): each atom its code names, and the values of
      * the variables it captures and of the `__MODULE__`, `__ENV__` and `__CALLER__` it reads. A call whose effect the walk
-     * applies ([Run.effects]) gives its module only through its other arguments: the effect says what it writes there.
+     * applies ([Run.effects]) gives its module only through its other arguments: the effect says what it writes there,
+     * which a read beside it needs too ([effectWritten]). A call whose writes are read from its callee's clauses
+     * ([attributesWritten]) does too. Code that only raises holds only what its arguments write ([raiseWritten]).
      */
     private fun marks(arrows: List<ElixirAst>, closed: Frame): List<OtpErlangObject> {
         val marks = ArrayList<OtpErlangObject>()
@@ -1385,7 +1390,13 @@ internal class Evaluation(
             if (!walked.add(node)) continue
 
             when {
-                node is ElixirAst.Call && node in run.effects -> pending.addAll(children(node).filterNot { isModule(it, closed) })
+                onlyRaises(node, closed) -> raiseWritten(node as ElixirAst.Call, closed)?.let { marks += it }
+                node is ElixirAst.Call && node in run.effects -> {
+                    effectWritten(node, closed)?.let { marks += it }
+                    pending.addAll(children(node).filterNot { isModule(it, closed) })
+                }
+                node is ElixirAst.Call && attributesWritten(node, closed)?.also { marks += it } != null ->
+                    pending.addAll(children(node).filterNot { isModule(it, closed) })
                 node is ElixirAst.Literal.Atom -> marks += OtpErlangAtom(node.name)
                 node is ElixirAst.Value -> marks += node.term
                 isVariable(node) -> {
@@ -1404,6 +1415,266 @@ internal class Evaluation(
         }
 
         return marks
+    }
+
+    /**
+     * What [call], in code of [frame], writes of the module [frame] runs in where it is given that module and that can be
+     * read from its callee's clauses ([attributesWritten]), `null` otherwise.
+     */
+    private fun attributesWritten(call: ElixirAst.Call, frame: Frame): AttributesWritten? {
+        val args = call.arguments ?: return null
+        val (module, function) = remoteOf(call, frame) ?: return null
+
+        return attributesWritten(frame.module.module, module, function, args.size, args.indices.filter { isModule(args[it], frame) })
+    }
+
+    /** What [call], whose effect the walk applies ([Run.effects]), writes of the module [frame] runs in, for a read of it beside it. */
+    private fun effectWritten(call: ElixirAst.Call, frame: Frame): EffectWritten? {
+        val given = frame.module.module
+        val writes = CalleeWrites(given)
+
+        return if (given in run.compiling && writes.effect(call, frame)) EffectWritten(given, writes.names) else null
+    }
+
+    /**
+     * What the arguments of [call], which only raises, write of the module [frame] runs in: the module itself where a
+     * writer can't be read, `null` where they write nothing.
+     */
+    private fun raiseWritten(call: ElixirAst.Call, frame: Frame): OtpErlangObject? {
+        val given = frame.module.module
+
+        if (given !in run.compiling) return null
+
+        val writes = CalleeWrites(given)
+
+        return when {
+            !writes.effect(call, frame) -> OtpErlangAtom(given)
+            writes.names.isEmpty() -> null
+            else -> AttributesWritten(given, writes.names, writes.read)
+        }
+    }
+
+    /**
+     * What a call of [module]'s [function] of [arity], given [given], a module being compiled, at [positions], writes of
+     * it: the attributes [CalleeWrites] reads from its clauses, or `null` where it isn't given it or that read fails.
+     */
+    private fun attributesWritten(given: String, module: String, function: String, arity: Int, positions: List<Int>): AttributesWritten? {
+        if (positions.isEmpty() || given !in run.compiling) return null
+        if (ModuleEffects.target(module, function, arity, run.level) != null) return null
+
+        val writes = CalleeWrites(given)
+
+        return if (writes.of(module, function, arity, positions.toSet())) AttributesWritten(given, writes.names, writes.read) else null
+    }
+
+    /**
+     * What a call writes of [given], a module being compiled, read from the clauses of the function it calls, as the
+     * module stands at the call: [names], the attributes its writers name, and [read], those whose value there the reading
+     * rests on. Where a callee's clauses aren't held, or a writer's target or attribute isn't known, [of] is `false`.
+     */
+    private inner class CalleeWrites(private val given: String) {
+        val names = HashSet<String>()
+        val read = HashSet<String>()
+
+        private val visited = HashSet<Pair<Triple<String, String, Int>, Set<Int>>>()
+        private var writerUnread = false
+
+        /** Adds what [module]'s [function] of [arity], given the module at [positions], writes to [names]; `false` where it can't. */
+        fun of(module: String, function: String, arity: Int, positions: Set<Int>): Boolean {
+            if (!visited.add(Triple(module, function, arity) to positions)) return true
+            if (module in Natives.CLAUSES_UNREAD) return false
+
+            val clauses = run.clausesOf(module) ?: return false
+            val definition = clauses.definitions[NameArity(function, arity)]?.clauses ?: return false
+            val frame = Frame(clauses)
+
+            return definition.all { clause ->
+                val held = HashSet<String>()
+
+                for (position in positions) clause.args.getOrNull(position)?.let { variables(it, held) }
+                clause.body?.let { walk(it, frame, held, HashMap()) } == true
+            }
+        }
+
+        /** Adds what [call], in code of the module itself, writes to [names]; `false` where it can't. */
+        fun effect(call: ElixirAst.Call, frame: Frame): Boolean = walk(call, frame, HashSet(), HashMap())
+
+        /** Adds what [node] writes to [names], [held] the variables that hold the module; `false` where it can't. */
+        private fun walk(node: ElixirAst, frame: Frame, held: MutableSet<String>, listed: MutableMap<String, List<String>>): Boolean {
+            ProgressManager.checkCanceled()
+
+            val expanded = frame.expanded(node)
+            val walkAll = { nodes: List<ElixirAst> -> nodes.all { walk(it, frame, held, listed) } }
+
+            if (expanded !is ElixirAst.Call || expanded.arguments == null) return walkAll(children(expanded))
+
+            val args = expanded.arguments
+
+            remoteOf(expanded, frame)?.let { (module, function) -> return remote(module, function, args, frame, held, listed) }
+
+            val name = (expanded.callee as? ElixirAst.Literal.Atom)?.name
+                ?: return !holds(expanded, frame, held) && walkAll(children(expanded))
+
+            when {
+                isCall(expanded, "=", 2) -> {
+                    val right = walk(args[1], frame, held, listed)
+
+                    if (holds(args[1], frame, held)) variables(args[0], held)
+                    return right
+                }
+                isCall(expanded, "case", 2) && holds(args[0], frame, held) -> variables(args[1], held)
+                isCall(expanded, "<-", 2) -> generator(args[0], args[1], frame, held, listed)
+            }
+
+            val local = !frame.source || frame.module.dispatches.of(expanded) is Dispatched.Local
+
+            // From debug info `super` is also a default-argument clause's call of its full arity, and isn't followed.
+            if (name == "super" && frame.source || local && frame.module.definitions[NameArity(name, args.size)] != null) {
+                val positions = args.indices.filter { holds(args[it], frame, held) }.toSet()
+                val definition = if (name == "super") superOf(expanded, frame)?.name else name
+
+                return if (positions.isEmpty()) walkAll(args) else definition != null && of(frame.module.module, definition, args.size, positions)
+            }
+
+            return walkAll(args)
+        }
+
+        /** The generator [pattern] `<-` [enumerable]: its elements hold the module where it does, or are named by it. */
+        private fun generator(pattern: ElixirAst, enumerable: ElixirAst, frame: Frame, held: MutableSet<String>, listed: MutableMap<String, List<String>>) {
+            if (holds(enumerable, frame, held)) variables(pattern, held)
+
+            val attribute = attributeRead(enumerable, frame, held) ?: return
+
+            read += attribute
+
+            val value = natives.attributeAt(given, attribute) as? OtpErlangList ?: return
+            val elements = value.elements().map { (it as? OtpErlangAtom)?.atomValue() ?: return }
+
+            if (isVariable(pattern)) listed[variableName(pattern)] = elements
+        }
+
+        /** The attribute of the module that [node] reads by a literal name, where it is such a read. */
+        private fun attributeRead(node: ElixirAst, frame: Frame, held: Set<String>): String? {
+            val call = frame.expanded(node) as? ElixirAst.Call ?: return null
+            val args = call.arguments ?: return null
+            val (module, function) = remoteOf(call, frame) ?: return null
+
+            if (!natives.onlyReads(module, function, args.size) || args.size < 2) return null
+            if (!heldModule(args[0], frame, held)) return null
+
+            return (frame.expanded(args[1]) as? ElixirAst.Literal.Atom)?.name
+        }
+
+        private fun remote(module: String, function: String, args: List<ElixirAst>, frame: Frame, held: MutableSet<String>, listed: MutableMap<String, List<String>>): Boolean {
+            // A raise's arguments run before it and a `try` can catch it, so what they write is written. A message that
+            // can't be read, as one interpolating the module, doesn't end the reading.
+            if (natives.neverReturns(module, function, args.size)) {
+                args.forEach { walk(it, frame, held, listed) }
+                return !writerUnread
+            }
+
+            val target = ModuleEffects.target(module, function, args.size, run.level)
+
+            if (target != null) {
+                val written = frame.expanded(args[target])
+
+                if (written is ElixirAst.Literal.Atom && written.name != given) return args.all { walk(it, frame, held, listed) }
+
+                if (!heldModule(written, frame, held) || !wrote(module, function, args, frame, listed)) {
+                    writerUnread = true
+                    return false
+                }
+
+                return args.all { walk(it, frame, held, listed) }
+            }
+
+            if (natives.onlyReads(module, function, args.size)) return args.all { walk(it, frame, held, listed) }
+            // A native writes nothing of what it is given, unless it runs a function it is given.
+            if (module in Natives.CLAUSES_UNREAD && !natives.runsAFunction(module, function, args.size)) return args.all { walk(it, frame, held, listed) }
+
+            val positions = args.indices.filter { holds(args[it], frame, held) }.toSet()
+
+            return if (positions.isEmpty()) args.all { walk(it, frame, held, listed) } else of(module, function, args.size, positions)
+        }
+
+        /**
+         * Adds what `Module`'s writer [function] writes, its attribute named by a literal or by a variable [listed], as
+         * its row in [ModuleEffects] has it. A delete known to change nothing writes nothing.
+         */
+        private fun wrote(module: String, function: String, args: List<ElixirAst>, frame: Frame, listed: Map<String, List<String>>): Boolean {
+            val attribute = args.getOrNull(1)?.let(frame::expanded) ?: return false
+            val attributes = when {
+                attribute is ElixirAst.Literal.Atom -> listOf(attribute.name)
+                isVariable(attribute) -> listed[variableName(attribute)] ?: return false
+                else -> return false
+            }
+
+            return attributes.all { name ->
+                val terms = args.indices.map { if (it == 0) Term.Atom(given) else if (it == 1) Term.Atom(name) else Term.Unexpanded }
+                val change = ModuleEffects.of(Term.Atom(module), function, terms, args, given, run.level)
+
+                when ((change as? ModuleEffects.Change.Attributes)?.effect) {
+                    is Effect.Write, is Effect.Register -> names.add(name).let { true }
+                    is Effect.Delete -> {
+                        if (!natives.deleteChangesNothing(given, name)) names += name
+                        true
+                    }
+                    else -> false
+                }
+            }
+        }
+
+        /** Whether [node] is the module, by its atom or a variable that holds it. */
+        private fun heldModule(node: ElixirAst, frame: Frame, held: Set<String>): Boolean =
+            when (val expanded = frame.expanded(node)) {
+                is ElixirAst.Literal.Atom -> expanded.name == given
+                else -> isVariable(expanded) &&
+                    (variableName(expanded) in held ||
+                        frame.source && variableName(expanded) == "__MODULE__" && frame.module.module == given ||
+                        frame.binding(expanded)?.let(frame.vars::get) == OtpErlangAtom(given))
+            }
+
+        /** Whether [node]'s value may hold the module: code that only raises doesn't. */
+        private fun holds(node: ElixirAst, frame: Frame, held: Set<String>): Boolean {
+            val expanded = frame.expanded(node)
+
+            if (heldModule(expanded, frame, held)) return true
+            if (isVariable(expanded) && frame.source && variableName(expanded) == "__ENV__") return true
+            if (isVariable(expanded) && frame.binding(expanded)?.let(frame.vars::get)?.let(::valueHolds) == true) return true
+            if (onlyRaises(expanded, frame)) return false
+            if (expanded is ElixirAst.Call) {
+                val args = expanded.arguments.orEmpty()
+
+                remoteOf(expanded, frame)?.let { (module, function) ->
+                    if (natives.onlyReads(module, function, args.size)) {
+                        val returned = natives.returnable(module, function, args)
+
+                        return returned.isNotEmpty() && readHolds(expanded, returned, frame, held)
+                    }
+                }
+            }
+
+            return children(expanded).any { holds(it, frame, held) }
+        }
+
+        /** Whether what [call], a read of an attribute, gives may hold the module: its value there, or the rest of [returned]. */
+        private fun readHolds(call: ElixirAst.Call, returned: List<ElixirAst>, frame: Frame, held: Set<String>): Boolean {
+            val attribute = attributeRead(call, frame, held) ?: return true
+            val value = natives.attributeAt(given, attribute) ?: return true
+
+            read += attribute
+
+            return valueHolds(value) || returned.drop(1).any { holds(it, frame, held) }
+        }
+
+        private fun valueHolds(value: OtpErlangObject): Boolean = !Given().apply { add(listOf(value), setOf(given)) }.none
+
+        private fun variables(pattern: ElixirAst, into: MutableSet<String>) {
+            if (isVariable(pattern)) into += variableName(pattern) else children(pattern).forEach { variables(it, into) }
+        }
+
+        private fun variableName(variable: ElixirAst): String =
+            ((variable as ElixirAst.Call).callee as ElixirAst.Literal.Atom).name
     }
 
     /** Whether [node] is the module [frame] runs in: `__MODULE__`, or its atom. */
@@ -1518,7 +1789,7 @@ internal class Evaluation(
             return if (result === Unknown) unknownOf(returnable) else result
         }
 
-        return if (marks) calling(args) { defined(module, function, args) } else defined(module, function, args)
+        return if (marks) callingDefined(module, function, args) else defined(module, function, args)
     }
 
     /**
@@ -1578,6 +1849,25 @@ internal class Evaluation(
             read()
         } catch (declined: Declined) {
             throw gave(declined) { all() }
+        }
+
+    /**
+     * [module]'s [function] run from its clauses, given [args]: a decline in it may have written each module being
+     * compiled that [args] give it ([calling]), but an argument that is one whose writes its clauses say
+     * ([attributesWritten]) gives only those.
+     */
+    private fun callingDefined(module: String, function: String, args: List<OtpErlangObject>): OtpErlangObject =
+        try {
+            defined(module, function, args)
+        } catch (declined: Declined) {
+            val written = run.compiling.keys.mapNotNull { given ->
+                attributesWritten(given, module, function, args.size, args.indices.filter { args[it] == atom(given) })
+            }
+
+            throw gave(declined) {
+                written.forEach(::written)
+                add(args.filterNot { arg -> written.any { arg == atom(it.module) } }, run.compiling.keys)
+            }
         }
 
     /** [call], given [args]: a decline in it may have written each module being compiled that [args] give it ([Given]). */
@@ -2137,7 +2427,7 @@ internal class Evaluation(
         fresh: Boolean = false,
         subject: Declined? = null,
     ): OtpErlangObject? {
-        val arms = Arms(subject)
+        val arms = Arms(subject) { soleArm(arrows.map { arrowParts(it).second }, frame) }
 
         for ((index, arrow) in arrows.withIndex()) {
             val (head, body) = arrowParts(arrow)
@@ -2161,11 +2451,15 @@ internal class Evaluation(
 
     /**
      * The arms of a loop that takes the first whose test holds. An arm whose test declines is passed over where its
-     * value only raises ([passesOver]): a project that compiles doesn't take it, so the next arm is tried, and one taken
-     * after it assumes the raise away. Where [subject], the decline that gave the values the arms test, is set, only an
-     * arm after one passed over is taken; otherwise the loop declines as [subject] did.
+     * value only raises ([onlyRaises]) and the decline is [passable]: a project that compiles doesn't take it, so the
+     * next arm is tried, and one taken after it assumes the raise away. Where every other arm only raises, whichever
+     * order they come in, [sole] is the one left: it is taken, on the same assumption, where its test or a [passable]
+     * [subject] declines. Where [subject], the decline that gave the values the arms test, is set, only an arm after one
+     * passed over, or [sole], is taken; otherwise the loop declines as [subject] did.
      */
-    private inner class Arms(private val subject: Declined? = null) {
+    private inner class Arms(private val subject: Declined? = null, sole: () -> ElixirAst? = { null }) {
+        private val sole by lazy(LazyThreadSafetyMode.NONE, sole)
+
         /** The decline of the first arm passed over. */
         private var passed: Declined? = null
 
@@ -2174,15 +2468,23 @@ internal class Evaluation(
             try {
                 test()
             } catch (declined: Declined) {
-                if (subject?.let(::passable) == false || !passesOver(declined, body, frame)) throw subject ?: declined
+                val left = body != null && body === sole
+
+                if (subject?.let(::passable) == false || !passable(declined) || !left && !onlyRaises(body, frame)) {
+                    throw subject ?: declined
+                }
 
                 run.unfollowedCodeRan()
                 passed = passed ?: declined
-                false
+                left
             }
 
         /** [body], of the arm taken, evaluated in [frame]. */
         fun taken(body: ElixirAst, frame: Frame): OtpErlangObject {
+            if (passed == null && subject != null && passable(subject) && body === sole) {
+                run.unfollowedCodeRan()
+                passed = subject
+            }
             if (passed == null) subject?.let { throw it } else assumeNoRaise()
 
             return eval(body, frame)
@@ -2194,18 +2496,17 @@ internal class Evaluation(
         }
     }
 
-    /**
-     * Whether an arm whose test [declined] is passed over: its value, [body], is a call of a native that never returns
-     * ([Natives.neverReturns]) and the decline is [passable].
-     */
-    private fun passesOver(declined: Declined, body: ElixirAst?, frame: Frame): Boolean {
-        if (!passable(declined)) return false
-
+    /** Whether [body] only raises: it is a call of a native that never returns ([Natives.neverReturns]). */
+    private fun onlyRaises(body: ElixirAst?, frame: Frame): Boolean {
         val call = body?.let(frame::expanded) as? ElixirAst.Call ?: return false
         val (module, function) = remoteOf(call, frame) ?: return false
 
         return natives.neverReturns(module, function, call.arguments?.size ?: return false)
     }
+
+    /** The one of [bodies], each an arm's value, that doesn't only raise, where there are others and each of them does. */
+    private fun soleArm(bodies: List<ElixirAst?>, frame: Frame): ElixirAst? =
+        bodies.filterNot { onlyRaises(it, frame) }.singleOrNull()?.takeIf { bodies.size > 1 }
 
     /** Whether [declined] leaves nothing a pass-over would drop: it neither stops nor ended, and was given no module. */
     private fun passable(declined: Declined) = !declined.stops && !declined.ended && declined.given.none

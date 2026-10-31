@@ -104,6 +104,12 @@ internal class Compiling(
     /** How the module ends, once something has ended it: the first stop or raise, as the walk goes on after a stop. */
     var ended: Ended? = null
 
+    /**
+     * [ended] where a unit stepped in order made it: one Elixir may have run where the walk didn't follow it is only
+     * reported, so the walk goes on and the tables stay what it has ([Run.compilingKnown]).
+     */
+    var endedInOrder: Ended? = null
+
     val definitions = LinkedHashMap<NameArity, AttributeLog.DefinitionAttributes>()
 
     val unnamed = mutableListOf<AttributeLog.DefinitionAttributes>()
@@ -1488,17 +1494,20 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
     val body = expanded.certain(values.expansionCertain)
 
     compiling.ended = ended(expanded, values.expansionCertain, compiling, run).skipping()
+    compiling.endedInOrder = compiling.ended
     units += ExpansionResult.Unit(Owner.ModuleBody, module.body, true, body)
 
     // A body or callback that raised, or reached a raise that may be Elixir's, keeps the definitions it queued before
     // that, and the attributes they read, as one that stopped does. Elixir evaluates none of it, so no clause is
     // expanded and nothing else it queued runs.
-    fun runEnded() = compiling.ended?.endsRun == true
+    fun runEnded() = compiling.endedInOrder?.endsRun == true
 
     /**
      * [pending] run from [bindings], the body's or those the evaluator has where it reaches the unit inside a statement,
      * queueing what it queues onto [queue]: whether the module's run ends there, and the value the unit's code gives the
-     * code around it. A stop in a unit Elixir may have run where the walk didn't follow it is the module's at [stopsAt].
+     * code around it. A unit Elixir may have run where the walk didn't follow it, which [stopsAt] is given for, may run
+     * any number of times, so nothing it does ends the module's run or hides its tables: the module is only reported
+     * stopped there.
      */
     fun step(pending: Pending, queue: ArrayDeque<Pending>, bindings: HashMap<Binding, OtpErlangObject>, stopsAt: ElixirAst?): Stepped {
         ProgressManager.checkCanceled()
@@ -1647,13 +1656,18 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
 
         unit?.let { units += it(expansion!!) }
         compiling.ended = compiling.ended ?: unitEnded
+        if (stopsAt == null) compiling.endedInOrder = compiling.endedInOrder ?: unitEnded
 
         // A raise at a statement from certain inputs ends the module body's run, even after an earlier unit stopped:
         // Elixir raised there or before it, so a module that stopped may raise.
         if (statement && raised || stepping.ends) {
             compiling.ended = (compiling.ended as? Ended.Stopped)?.copy(mayRaise = true) ?: compiling.ended
 
-            return stepping.stepped(ends = true, endedDecline = null)
+            if (stopsAt == null) {
+                compiling.endedInOrder = (compiling.endedInOrder as? Ended.Stopped)?.copy(mayRaise = true) ?: compiling.endedInOrder
+
+                return stepping.stepped(ends = true, endedDecline = null)
+            }
         }
 
         return stepping.stepped(ends = false)
@@ -1915,6 +1929,7 @@ private fun beforeCompile(
 
         compiling.values.expanded(expansion, assumed)
         compiling.ended = ended(expansion, compiling.values.certainAt(call), compiling, run).skipping()
+        compiling.endedInOrder = compiling.ended
         walk(run.pending)
         // A stop in what the output queued leaves the callbacks after it unrun.
         compiling.ended?.let { return if (index < entries.lastIndex) it.skipping() else it }
@@ -1928,11 +1943,11 @@ private fun beforeCompile(
  * [module], being compiled, where its table and attributes are Elixir's at this point in its body, or `null` where they
  * may differ. They may for a module not being compiled, for which Elixir raises; after code the expander doesn't follow
  * may have written it ([Compiling.written]); after a module nested in it stopped ([Compiling.stoppedWithin]); and after
- * a stop of the module itself, which may hide a change to them. A sibling's or an earlier module's stop leaves them
- * known: its body ran before this one's.
+ * a stop of the module itself in a unit the walk followed, which may hide a change to them. A sibling's or an earlier
+ * module's stop leaves them known: its body ran before this one's.
  */
 internal fun Run.compilingKnown(module: String): Compiling? =
-    compiling[module]?.takeUnless { it.written || it.stoppedWithin || it.ended != null }
+    compiling[module]?.takeUnless { it.written || it.stoppedWithin || it.endedInOrder != null }
 
 /**
  * The modules being compiled that a call's module argument reaches: the one named [module], `null` for it where it isn't
@@ -2014,14 +2029,14 @@ internal fun mayHaveWritten(modules: Collection<Compiling>) {
 /**
  * `Module.defines?/2,3` of this module, being compiled, its table Elixir's at this point ([compilingKnown]): whether
  * its table holds [nameArity], of [kind] where one is given, or `null` where Elixir's table may differ. It may for an
- * entry that may be absent in Elixir, and where none is because a `Module.make_overridable/2` Elixir may not run took
- * it out.
+ * entry that may be absent in Elixir, where none is because a `Module.make_overridable/2` Elixir may not run took it
+ * out, and where none is beside a definition whose name isn't known.
  */
 internal fun Compiling.defines(nameArity: NameArity, kind: DefinitionTable.Kind?): Boolean? {
     val entry = table[nameArity]
 
     return when {
-        entry == null -> false.takeIf { overridable[nameArity]?.ordered != false }
+        entry == null -> false.takeIf { table.everyNameKnown && overridable[nameArity]?.ordered != false }
         !entry.ordered -> null
         else -> kind == null || entry.kind == kind
     }
