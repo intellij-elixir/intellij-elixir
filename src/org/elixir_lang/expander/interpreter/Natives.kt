@@ -2314,7 +2314,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** `os:type/0`: the OS family and name the run's SDK runs as. */
     private fun osType(): OtpErlangObject {
-        val (family, name) = evaluation.run.os?.let(Filename::osType) ?: decline("os:type/0 of a run whose OS isn't known")
+        val (family, name) = evaluation.run.os?.let(Filename::osType) ?: decline("os:type/0 with no answer for the run's OS")
 
         return tuple(atom(family), atom(name))
     }
