@@ -21,16 +21,9 @@ Internal method com.intellij.psi.PsiCompiledElement.getCachedMirror() : com.inte
 # --- Code-insight context propagation onto that mirror --------------------------------------------
 # Only the setter needs the impl; everything else goes through the public CodeInsightContextManager,
 # which is what holds this to two entries. See the KDoc on propagateCodeInsightContextTo.
-Internal class com.intellij.codeInsight.multiverse.CodeInsightContextManagerImpl is referenced in org.elixir_lang.beam.psi.BeamFileImpl.propagateCodeInsightContextTo(PsiFile) : void
-Internal method com.intellij.codeInsight.multiverse.CodeInsightContextManagerImpl.setCodeInsightContext(com.intellij.psi.FileViewProvider, com.intellij.codeInsight.multiverse.CodeInsightContext) : void is invoked in org.elixir_lang.beam.psi.BeamFileImpl.propagateCodeInsightContextTo(PsiFile) : void
 
 # --- Awaiting the JPS project model before changing module or SDK configuration --------------------
 # The replacement is itself internal, so migrating would relocate the finding, not remove it. Five
 # entries for one call site: a Kotlin Companion access compiles to a field read, an
 # interface reference and the call. Watch IJPL-249625 and IJPL-241069; see the KDoc on
 # awaitJpsProjectLoaded, the single place to change.
-Internal interface com.intellij.workspaceModel.ide.JpsProjectLoadingManager is referenced in org.elixir_lang.util.JpsProjectModelKt.awaitJpsProjectLoaded(Project, Continuation) : Object
-Internal class com.intellij.workspaceModel.ide.JpsProjectLoadingManager.Companion is referenced in org.elixir_lang.util.JpsProjectModelKt.awaitJpsProjectLoaded(Project, Continuation) : Object
-Internal field com.intellij.workspaceModel.ide.JpsProjectLoadingManager.Companion : com.intellij.workspaceModel.ide.JpsProjectLoadingManager.Companion is accessed in org.elixir_lang.util.JpsProjectModelKt.awaitJpsProjectLoaded(Project, Continuation) : Object
-Internal method com.intellij.workspaceModel.ide.JpsProjectLoadingManager.Companion.getInstance(com.intellij.openapi.project.Project) : com.intellij.workspaceModel.ide.JpsProjectLoadingManager is invoked in org.elixir_lang.util.JpsProjectModelKt.awaitJpsProjectLoaded(Project, Continuation) : Object
-Internal method com.intellij.workspaceModel.ide.JpsProjectLoadingManager.jpsProjectLoaded(java.lang.Runnable) : void is invoked in org.elixir_lang.util.JpsProjectModelKt.awaitJpsProjectLoaded(Project, Continuation) : Object
