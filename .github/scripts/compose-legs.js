@@ -55,7 +55,7 @@ function includeWindows(event) {
 // A leg's `job` field is its job name: the workflows name the job from it, and the pull request's run
 // lists it, so it is what reuse matches on. A reusable workflow's check is `<caller job id> / <job>`, and
 // the caller job is `verify` in shared-test.yml. An informational leg is never reused: its job passes
-// even when its tests failed.
+// even when the leg failed.
 const testJob = (leg) => leg.job;
 const verifyJob = (leg) => `verify / ${leg.job}`;
 
@@ -187,12 +187,20 @@ async function main() {
             fail(error.message, 'Unknown verification product');
           }
           const build = await buildFor(code, idea.version);
-          return build && { product, version: idea.version, build, job: `${product} ${idea.version}${buildSuffix(idea.version, build)}` };
+          return (
+            build && {
+              product,
+              version: idea.version,
+              build,
+              job: `${product} ${idea.version}${buildSuffix(idea.version, build)}`,
+              ...(idea['continue-on-error'] && { 'continue-on-error': true }),
+            }
+          );
         }),
       ),
     )
   ).filter(Boolean);
-  const verifyLegs = dropReused(allVerifyLegs, () => false, verifyJob);
+  const verifyLegs = dropReused(allVerifyLegs, (entry) => entry['continue-on-error'], verifyJob);
 
   requireUniqueNames(
     legs.map((entry) => entry.label),

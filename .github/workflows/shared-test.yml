@@ -618,8 +618,7 @@ jobs:
     uses: ./.github/workflows/shared-verify.yml
     with:
       matrix: ${{ needs.test-matrix.outputs.verify }}
-      # Empty for pull_request, so false there. Failing legs still upload: shared-verify.yml ORs in
-      # `failure()`.
+      # Empty for pull_request, so false there.
       upload-verifier-reports: ${{ inputs.upload-verifier-reports || false }}
 
   # The one required status check on main, since the leg names above change with ci-versions.json.
