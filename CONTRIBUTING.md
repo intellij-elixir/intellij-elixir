@@ -547,6 +547,13 @@ not just the test step, because an unsupported Elixir can fail at any of those a
 same thing. `setup-beam` may not publish the pair. The annotation on a failed informational leg names
 the phase it died in, so you can tell those apart.
 
+On an `idea` entry the flag does the same for the version's verification legs: each step from the IDE
+resolve to the report upload tolerates its own failure, so a failed verify job on a build such as
+`LATEST-EAP-SNAPSHOT` is green, and its annotation (`Informational leg failed`) names the stage it
+failed at. The reports of a failed leg still upload. A verify job on a supported version fails the
+pipeline as before. A failed checkout, a hang outside the verifier step and a job that loses its
+runner still fail the job.
+
 ##### Reading a leg in the checks list
 
 Each leg is named after the axis its group varies, so the part that distinguishes it survives the
@@ -641,7 +648,8 @@ a notice.
 
 Other IDEs appear only in plugin *verification*. Each IDEA version lists the products to verify it
 against in a `verify` array, and CI runs one job per product/version pair (`.github/workflows/shared-verify.yml`),
-each verifying the plugin zip that was built once. Adding a product is one entry in that array; the
+each verifying the plugin zip that was built once; a version's `continue-on-error` makes its verify jobs
+informational too (see above). Adding a product is one entry in that array; the
 values are `intellij-repository` artifact ids (`ideaIU`, `rubymine`, `pycharmPC`, `webstorm`, ...),
 not marketing names.
 

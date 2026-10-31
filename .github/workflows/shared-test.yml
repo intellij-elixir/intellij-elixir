@@ -394,11 +394,12 @@ jobs:
       #
       # Gated on the leg actually being informational. A baseline leg reaches these steps too -
       # `always()` runs them after its first hard failure - and announcing "does not block the merge"
-      # about a leg that does block it is worse than saying nothing during triage.
+      # about a leg that does block it is worse than saying nothing during triage. A cancelled job is not
+      # flagged: its leg did not fail.
       - name: Flag informational leg failure
         id: flag-informational-failure
         if: >-
-          ${{ always() && (matrix.continue-on-error || false)
+          ${{ always() && (matrix.continue-on-error || false) && job.status != 'cancelled'
               && steps.leg-status.outputs.failed-at != '' }}
         env:
           PHASE: ${{ steps.leg-status.outputs.failed-at }}
@@ -618,8 +619,7 @@ jobs:
     uses: ./.github/workflows/shared-verify.yml
     with:
       matrix: ${{ needs.test-matrix.outputs.verify }}
-      # Empty for pull_request, so false there. Failing legs still upload: shared-verify.yml ORs in
-      # `failure()`.
+      # Empty for pull_request, so false there.
       upload-verifier-reports: ${{ inputs.upload-verifier-reports || false }}
 
   # The one required status check on main, since the leg names above change with ci-versions.json.

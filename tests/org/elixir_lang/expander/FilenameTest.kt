@@ -9,12 +9,20 @@ import org.elixir_lang.expander.interpreter.Filename
  * one `filename.erl` gives with `os:type/0` fixed to `{win32, nt}` or `{unix, linux}`, on OTP 24.3.4.6 and 29.0.6.
  */
 class FilenameTest : TestCase() {
-    fun testAnOsType() {
-        assertEquals("win32 nt", type(OS.Windows))
-        assertEquals("unix darwin", type(OS.macOS))
-        assertEquals("unix linux", type(OS.Linux))
-        assertEquals("unix freebsd", type(OS.FreeBSD))
-        assertNull(Filename.osType(OS.Other))
+    fun testEveryOsAnswersAsDecided() {
+        val decided = mapOf(
+            "Windows" to "win32 nt",
+            "macOS" to "unix darwin",
+            "Linux" to "unix linux",
+            "FreeBSD" to "unix freebsd",
+            "OHOS" to null,
+            "Other" to null,
+        )
+
+        for (os in OS.entries) {
+            assertTrue("no answer decided for ${os.name}", decided.containsKey(os.name))
+            assertEquals(os.name, decided[os.name], answer(os))
+        }
     }
 
     fun testASplitOnUnix() {
@@ -136,7 +144,7 @@ class FilenameTest : TestCase() {
         assertEquals(listOf("a", "b"), split("a/b", listOf("/"), global = true))
     }
 
-    private fun type(os: OS) = Filename.osType(os)!!.let { (family, name) -> "$family $name" }
+    private fun answer(os: OS) = Filename.osType(os)?.let { (family, name) -> "$family $name" }
 
     private fun assertSplit(os: OS, name: String, vararg parts: String) =
         assertEquals("$os $name", parts.toList(), Filename.split(bytes(name), os).map(::text))

@@ -817,6 +817,8 @@
 
 ### Build / CI
 
+- [#4573](https://github.com/intellij-elixir/intellij-elixir/pull/4573) [@sh41](https://github.com/sh41)
+  - **The plugin compiles on the 263 EAP builds, and a failed verify job on an EAP build no longer fails `All tests passed`: it is flagged and its reports still upload.** Refs [#4571](https://github.com/intellij-elixir/intellij-elixir/issues/4571).
 - [#4536](https://github.com/intellij-elixir/intellij-elixir/pull/4536) [@sh41](https://github.com/sh41)
   - **Each CI test leg now runs its slowest classes in a job of their own, and classes that cannot differ by Elixir/OTP run only on the baseline pair's legs.**
 - [#4530](https://github.com/intellij-elixir/intellij-elixir/pull/4530) [@sh41](https://github.com/sh41)

@@ -209,11 +209,17 @@ jobs:
             gradlew
           sparse-checkout-cone-mode: false
 
+      # Every step from here to the upload tolerates its own failure on an informational leg, as the test
+      # legs' steps do, and `Find the failed step` names the first to fail. A supported leg's matrix entry
+      # has no `continue-on-error` key, so there it changes nothing. `Checkout` is not tolerant: a leg that
+      # cannot check out has nothing to report.
+      #
       # A called leg arrives with its build resolved by compose-legs.js, so only a dispatch of
       # LATEST-EAP-SNAPSHOT reaches the network here. With no active pre-release `build` is empty and
       # every later step skips: the leg passes with a notice.
       - name: Resolve IDE build
         id: resolve
+        continue-on-error: ${{ matrix.continue-on-error || false }}
         env:
           PRODUCT: ${{ matrix.product }}
           VERSION: ${{ matrix.build || matrix.version }}
@@ -222,6 +228,7 @@ jobs:
       # Every source lands a zip in build/distributions, so nothing downstream varies.
       - name: Download plugin distribution (this run)
         id: download-plugin-same-run
+        continue-on-error: ${{ matrix.continue-on-error || false }}
         if: ${{ inputs.matrix != '' && steps.resolve.outputs.build != '' }}
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -230,6 +237,7 @@ jobs:
 
       - name: Fetch plugin (manual dispatch)
         id: fetch-plugin
+        continue-on-error: ${{ matrix.continue-on-error || false }}
         if: ${{ inputs.matrix == '' && steps.resolve.outputs.build != '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -283,6 +291,7 @@ jobs:
       # obvious message.
       - name: Check exactly one plugin zip is staged
         id: check-plugin
+        continue-on-error: ${{ matrix.continue-on-error || false }}
         if: ${{ steps.resolve.outputs.build != '' }}
         run: |
           shopt -s nullglob
@@ -299,6 +308,7 @@ jobs:
       # verifier CLI; each IDE is verified against its own bundled JBR.
       - name: Setup Build Environment
         id: setup-env
+        continue-on-error: ${{ matrix.continue-on-error || false }}
         if: ${{ steps.resolve.outputs.build != '' }}
         uses: ./.github/actions/setup-env
         with:
@@ -308,8 +318,12 @@ jobs:
           cache-key-prefix: verify-${{ matrix.product }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # The step's own limit sits under the job's, so a hung verifier ends this step and the job still
+      # reports; a job timeout would cancel the job instead.
       - name: Verify Plugin
         id: verify
+        timeout-minutes: 20
+        continue-on-error: ${{ matrix.continue-on-error || false }}
         if: ${{ steps.resolve.outputs.build != '' }}
         env:
           ARCHIVE: ${{ steps.check-plugin.outputs.zip }}
@@ -335,6 +349,7 @@ jobs:
 
       - name: Add verification reports to the job summary
         id: summary
+        continue-on-error: ${{ matrix.continue-on-error || false }}
         if: ${{ !cancelled() && steps.resolve.outputs.build != '' }}
         env:
           REPORTS_DIR: .github/verify/build/reports/pluginVerifier
@@ -343,11 +358,10 @@ jobs:
         run: node .github/scripts/verify-summary.js
 
       # Runs on every path, dispatch included: a one-off run is asking whether that zip passes TODAY's
-      # approved list. Placed BEFORE Upload Verify Reports so that step's `failure()` still uploads the
-      # report naming the usage - on `pull_request` its `inputs` are empty, so `failure()` is the only
-      # thing that uploads.
+      # approved list. Placed BEFORE Upload Verify Reports so the report naming the usage is uploaded.
       - name: Check internal API usages against the allowlist
         id: internal-api-usages
+        continue-on-error: ${{ matrix.continue-on-error || false }}
         if: ${{ !cancelled() && steps.resolve.outputs.build != '' }}
         env:
           REPORTS_DIR: .github/verify/build/reports/pluginVerifier
@@ -357,17 +371,52 @@ jobs:
           LEG: ${{ matrix.product }} ${{ steps.resolve.outputs.build }}
         run: node .github/scripts/check-internal-api-usages.js
 
+      # Names the first stage of an informational leg that failed, for the upload below and the flag after
+      # it. `skipped` is no failure: it is the normal state of the fetch step, and of a leg with no build.
+      # Gated on `job.status`, so a cancelled job, or one whose `Checkout` failed, does not reach it.
+      - name: Find the failed step
+        id: failed-step
+        if: ${{ always() && (matrix.continue-on-error || false) && job.status == 'success' }}
+        continue-on-error: ${{ matrix.continue-on-error || false }}
+        env:
+          RESOLVE: ${{ steps.resolve.outcome }}
+          DOWNLOAD: ${{ steps.download-plugin-same-run.outcome }}
+          FETCH: ${{ steps.fetch-plugin.outcome }}
+          CHECK: ${{ steps.check-plugin.outcome }}
+          SETUP: ${{ steps.setup-env.outcome }}
+          VERIFY: ${{ steps.verify.outcome }}
+          SUMMARY: ${{ steps.summary.outcome }}
+          USAGES: ${{ steps.internal-api-usages.outcome }}
+        run: |
+          stages=(
+            "IDE resolve|$RESOLVE"
+            "plugin download|$DOWNLOAD"
+            "plugin fetch|$FETCH"
+            "plugin check|$CHECK"
+            "toolchain setup|$SETUP"
+            "verification|$VERIFY"
+            "verification summary|$SUMMARY"
+            "internal API usages|$USAGES"
+          )
+          for stage in "${stages[@]}"; do
+            if [ "${stage#*|}" = failure ] || [ "${stage#*|}" = cancelled ]; then
+              echo "failed-at=${stage%%|*}" >> "$GITHUB_OUTPUT"
+              break
+            fi
+          done
+
       # One verification per job, so the log needs no per-product name - the artifact name carries the
       # product and version instead.
       #
       # `inputs.upload-verifier-reports` is always false on `pull_request`: the `inputs` context is
       # empty for that trigger, and a `workflow_call` default applies only when the workflow is called.
-      # `failure()` is what uploads there, and it works only while `Verify Plugin` has no
-      # `continue-on-error`.
+      # A leg uploads when a step failed: `failure()` on a supported leg, `failed-at` on an informational
+      # one, whose tolerated failures leave `failure()` false.
       - name: Upload Verify Reports
         id: upload-verify-reports
+        continue-on-error: ${{ matrix.continue-on-error || false }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: ${{ (failure() || inputs.upload-verifier-reports) && steps.resolve.outputs.build != '' }}
+        if: ${{ (failure() || inputs.upload-verifier-reports || steps.failed-step.outputs.failed-at != '') && steps.resolve.outputs.build != '' }}
         with:
           name: verify-plugin-reports-${{ matrix.product }}-${{ matrix.version }}
           path: |
@@ -375,3 +424,25 @@ jobs:
             .github/verify/build/reports/pluginVerifier
           retention-days: 30
           if-no-files-found: warn
+
+      # Without this an informational leg's failure would show only in the job summary: the job is green,
+      # so nothing in the PR's checks list would hint at it. A tool that reads the EAP legs depends on this
+      # step's name, on `failed at <stage>.` in the annotation, and on the step being skipped when nothing
+      # failed: keep all three.
+      - name: Flag informational leg failure
+        id: flag-informational-failure
+        if: ${{ always() && steps.failed-step.outputs.failed-at != '' }}
+        env:
+          LEG: ${{ matrix.job }}
+          STAGE: ${{ steps.failed-step.outputs.failed-at }}
+        run: |
+          echo "::error title=Informational leg failed::$LEG failed at $STAGE. This leg is informational and does not block the merge; see the job summary and the verify-plugin-reports artifact for details."
+          {
+            echo "### :warning: Informational leg failed"
+            echo
+            echo "\`$LEG\` failed at **$STAGE** but does not block the merge."
+            echo
+            echo "It stays informational until it goes green; at that point remove"
+            echo '`continue-on-error` from its entry in `.github/ci-versions.json`'
+            echo "so the version becomes supported and any later regression fails the pipeline."
+          } >> "$GITHUB_STEP_SUMMARY"

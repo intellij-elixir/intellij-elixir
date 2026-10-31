@@ -24,7 +24,7 @@ internal object Filename {
             OS.macOS -> "unix" to "darwin"
             OS.Linux -> "unix" to "linux"
             OS.FreeBSD -> "unix" to "freebsd"
-            OS.Other -> null
+            else -> null
         }
 
     /** `filename:split/1` of a binary: `unix_splitb/1`, or `win32_splitb/1` with its lowercased drive letter. */
