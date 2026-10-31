@@ -5,6 +5,7 @@ import com.intellij.openapi.project.DumbService
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.declaration.expanderPathOn
 import org.elixir_lang.expander.EnvAtom
 import org.elixir_lang.expander.ImportMatch
 import org.elixir_lang.expander.ProjectModules
@@ -20,7 +21,8 @@ import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 
 /**
  * What an element of a setting or a read names in the env `at` compiles in, which [place] gives. Each answer is `null`
- * in dumb mode, where the file's SDK gives no inputs, and where the file's expansion did not reach `at`.
+ * while the expander's path is closed, in dumb mode, where the file's SDK gives no inputs, and where the file's expansion
+ * did not reach `at`.
  */
 internal object KeyAtom {
     /** The atom [key], an alias or `__MODULE__` key, names; `null` also where [at] is. */
@@ -80,8 +82,8 @@ internal object KeyAtom {
 
     /**
      * What this object's answers for [file]'s elements depend on beyond [file]'s own text: its expansion's env index,
-     * the same object while what the expansion read is unchanged, or [Unexpanded] for a file nothing expands; `null` in
-     * dumb mode and where its SDK gives no inputs, which may yet change.
+     * the same object while what the expansion read is unchanged, [Unexpanded] for a file nothing expands, or [Closed]
+     * while the expander's path is closed; `null` in dumb mode and where its SDK gives no inputs, which may yet change.
      */
     @RequiresReadLock
     fun basis(file: PsiFile): Any? =
@@ -95,10 +97,15 @@ internal object KeyAtom {
     fun injectedSigil(element: PsiElement): Sigil? =
         (InjectedLanguageManager.getInstance(element.project).getInjectionHost(element) as? Sigil)?.takeIf { sigilInjection(it) != null }
 
-    /** How a file's elements are named: through its [Expanded] expansion, or, for a file nothing expands, from its text alone. */
+    /**
+     * How a file's elements are named: through its [Expanded] expansion, or, for a file nothing expands ([Unexpanded]) and
+     * while the expander's path is closed ([Closed]), from its text alone.
+     */
     private sealed interface Expansion
 
     private data object Unexpanded : Expansion
+
+    private data object Closed : Expansion
 
     private class Expanded(
         val file: ElixirFile,
@@ -122,6 +129,8 @@ internal object KeyAtom {
     /** [file]'s expansion; `null` in dumb mode and where its SDK gives no inputs. */
     @RequiresReadLock
     private fun expansion(file: PsiFile): Expansion? {
+        if (!expanderPathOn()) return Closed
+
         val project = file.project
         if (DumbService.isDumb(project)) return null
 
