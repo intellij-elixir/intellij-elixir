@@ -22,6 +22,30 @@ import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
 
+/** What [Aligner.look] finds for a term. */
+sealed class Aligned {
+    /** The term is [node]'s. */
+    class Source(val node: ElixirAst) : Aligned()
+
+    /** The term has [meta]'s origin, and its children align by position with [source]'s. */
+    class Spine(val meta: Meta, val source: OtpErlangObject) : Aligned()
+
+    /** The term is what a fragment of the source holds: it, and all below it, has no node to find. */
+    data object Stays : Aligned()
+}
+
+/** Finds the node of the source a term of [ElixirAst.fromOtp]'s came from. */
+interface Aligner {
+    /** What [term] is, [aligned] being the source's term at its position under an aligned parent. */
+    fun look(term: OtpErlangObject, aligned: OtpErlangObject?): Aligned?
+
+    /** How many of the elements of the list [source] say what is at their position in a list aligned with it. */
+    fun alignedElements(source: OtpErlangList): Int
+
+    /** How to read an element at a position past those, and all below it. */
+    val equalOnly: Aligner
+}
+
 /**
  * Elixir's AST, as `Code.string_to_quoted` returns it, where every node keeps the source range it was lowered from
  * and holds no PSI.
@@ -162,7 +186,8 @@ sealed class ElixirAst {
          * [ParserOptions.DEFAULT]. Null for a term no quoted expression is, such as a map or a bitstring, unless
          * [values], or where the node would hold more than [nodes] nodes, its metadata's parts and a string's code
          * points each counted. A term [known] gives a node for is that node, origin and all, and counts for none.
-         * [onNode] is told each other term and the node it became.
+         * [onNode] is told each other term and the node it became. A term [aligner] finds is its node, or has the meta
+         * it finds; what it doesn't find has [origin], and [built] says whether that is marked [Meta.built].
          *
          * @param values whether a term Elixir's expansion takes for no AST is a [Value], as in a macro's result
          */
@@ -172,8 +197,10 @@ sealed class ElixirAst {
             values: Boolean = false,
             known: (OtpErlangObject) -> ElixirAst? = { null },
             nodes: Int = Int.MAX_VALUE,
+            aligner: Aligner? = null,
+            built: Boolean = false,
             onNode: ((OtpErlangObject, ElixirAst) -> Unit)? = null,
-        ): ElixirAst? = converted(term, origin, values, known, onNode, Budget(nodes))
+        ): ElixirAst? = Conversion(origin, values, known, onNode, Budget(nodes), built).converted(term, aligner, null)
 
         /** The nodes a [fromOtp] conversion has [left] to build. */
         private class Budget(private var left: Int) {
@@ -185,98 +212,107 @@ sealed class ElixirAst {
             }
         }
 
-        private fun converted(
-            term: OtpErlangObject,
-            origin: TextRange,
-            values: Boolean,
-            known: (OtpErlangObject) -> ElixirAst?,
-            onNode: ((OtpErlangObject, ElixirAst) -> Unit)?,
-            budget: Budget,
-        ): ElixirAst? {
-            ProgressManager.checkCanceled()
-            known(term)?.let { return it }
-            if (TermKind.of(term) == null || !budget.spend()) return null
+        private class Conversion(
+            val origin: TextRange,
+            val values: Boolean,
+            val known: (OtpErlangObject) -> ElixirAst?,
+            val onNode: ((OtpErlangObject, ElixirAst) -> Unit)?,
+            val budget: Budget,
+            val built: Boolean,
+        ) {
+            fun bare(): Meta = Meta(origin, NO_POSITION, NO_POSITION, built = built)
 
-            val bare = { Meta(origin, NO_POSITION, NO_POSITION) }
-            val node = when (term) {
-                is OtpErlangAtom -> Literal.Atom(bare(), term.atomValue())
-                is OtpErlangLong -> Literal.Integer(bare(), term.bigIntegerValue())
-                is OtpErlangDouble -> Literal.Float(bare(), term.doubleValue())
-                is OtpErlangBinary -> Literal.Binary(bare(), term.binaryValue())
-                is OtpErlangString, is OtpErlangList ->
-                    elements(term, origin, values, known, onNode, budget)?.let { ListNode(bare(), it) }
-                is OtpErlangTuple -> fromTuple(term, origin, values, known, onNode, budget)
-                else -> if (values) Value(bare(), term) else null
+            fun converted(term: OtpErlangObject, aligner: Aligner?, aligned: OtpErlangObject?): ElixirAst? {
+                ProgressManager.checkCanceled()
+                known(term)?.let { return it }
+
+                val found = aligner?.look(term, aligned)
+
+                if (found is Aligned.Source) return found.node
+
+                val spine = found as? Aligned.Spine
+                val below = if (found === Aligned.Stays) null else aligner
+
+                if (TermKind.of(term) == null || !budget.spend()) return null
+
+                val node = when (term) {
+                    is OtpErlangAtom -> Literal.Atom(bare(), term.atomValue())
+                    is OtpErlangLong -> Literal.Integer(bare(), term.bigIntegerValue())
+                    is OtpErlangDouble -> Literal.Float(bare(), term.doubleValue())
+                    is OtpErlangBinary -> Literal.Binary(bare(), term.binaryValue())
+                    is OtpErlangString, is OtpErlangList ->
+                        elements(term, below, spine?.source)?.let { ListNode(spine?.meta ?: bare(), it) }
+                    is OtpErlangTuple -> fromTuple(term, below, spine)
+                    else -> if (values) Value(bare(), term) else null
+                }
+
+                return node?.also { onNode?.invoke(term, it) }
             }
 
-            return node?.also { onNode?.invoke(term, it) }
-        }
+            /** The elements of the proper list [term], which a list of bytes decodes to an [OtpErlangString] as. */
+            fun elements(term: OtpErlangObject, aligner: Aligner?, source: OtpErlangObject?): List<ElixirAst>? =
+                when (term) {
+                    is OtpErlangString ->
+                        term.stringValue().codePoints().toArray().takeIf { budget.spend(it.size) }?.map {
+                            Literal.Integer(bare(), it.toBigInteger())
+                        }
+                    is OtpErlangList -> {
+                        val positions = source as? OtpErlangList
+                        val aligned = positions?.let { aligner?.alignedElements(it) } ?: 0
 
-        /** The elements of the proper list [term], which a list of bytes decodes to an [OtpErlangString] as. */
-        private fun elements(
-            term: OtpErlangObject,
-            origin: TextRange,
-            values: Boolean,
-            known: (OtpErlangObject) -> ElixirAst?,
-            onNode: ((OtpErlangObject, ElixirAst) -> Unit)?,
-            budget: Budget,
-        ): List<ElixirAst>? =
-            when (term) {
-                is OtpErlangString ->
-                    term.stringValue().codePoints().toArray().takeIf { budget.spend(it.size) }?.map {
-                        Literal.Integer(Meta(origin, NO_POSITION, NO_POSITION), it.toBigInteger())
+                        term.takeIf { it.lastTail == null }?.elements()?.mapIndexed { index, element ->
+                            when {
+                                positions == null -> converted(element, aligner, null)
+                                index < aligned -> converted(element, aligner, positions.elementAt(index))
+                                else -> converted(element, aligner?.equalOnly, null)
+                            } ?: return null
+                        }
                     }
-                is OtpErlangList ->
-                    term.takeIf { it.lastTail == null }?.elements()?.map {
-                        converted(it, origin, values, known, onNode, budget) ?: return null
-                    }
-                else -> null
-            }
+                    else -> null
+                }
 
-        private fun fromTuple(
-            tuple: OtpErlangTuple,
-            origin: TextRange,
-            values: Boolean,
-            known: (OtpErlangObject) -> ElixirAst?,
-            onNode: ((OtpErlangObject, ElixirAst) -> Unit)?,
-            budget: Budget,
-        ): ElixirAst? {
-            val bare = Meta(origin, NO_POSITION, NO_POSITION)
+            fun fromTuple(tuple: OtpErlangTuple, aligner: Aligner?, spine: Aligned.Spine?): ElixirAst? {
+                val bare = spine?.meta ?: bare()
+                val source = spine?.source as? OtpErlangTuple
 
-            if (tuple.arity() == 2) {
-                return Tuple(bare, tuple.elements().map { converted(it, origin, values, known, onNode, budget) ?: return null })
-            }
-            if (tuple.arity() != 3) return if (values) Value(bare, tuple) else null
+                if (tuple.arity() == 2) {
+                    return Tuple(bare, tuple.elements().mapIndexed { index, element ->
+                        converted(element, aligner, source?.elementAt(index)) ?: return null
+                    })
+                }
+                if (tuple.arity() != 3) return if (values) Value(bare, tuple) else null
 
-            val (head, metaTerm, last) = tuple.elements()
-            // The head and metadata decide the shape, so a term none of the kinds below is, as no Elixir term is, isn't
-            // read as any.
-            if (TermKind.of(head) == null || TermKind.of(metaTerm) == null) return null
-            // Elixir may expand a 3-tuple as a form or a call where its metadata is a list or its head an atom or a
-            // 3-tuple, whatever the metadata holds.
-            val isForm = metaTerm is OtpErlangList || metaTerm is OtpErlangString || head is OtpErlangAtom ||
-                (head as? OtpErlangTuple)?.arity() == 3
-            val meta = meta(metaTerm, origin, budget) ?: return if (values && !isForm) Value(bare, tuple) else null
+                val (head, metaTerm, last) = tuple.elements()
+                // The head and metadata decide the shape, so a term none of the kinds below is, as no Elixir term is, isn't
+                // read as any.
+                if (TermKind.of(head) == null || TermKind.of(metaTerm) == null) return null
+                // Elixir may expand a 3-tuple as a form or a call where its metadata is a list or its head an atom or a
+                // 3-tuple, whatever the metadata holds.
+                val isForm = metaTerm is OtpErlangList || metaTerm is OtpErlangString || head is OtpErlangAtom ||
+                    (head as? OtpErlangTuple)?.arity() == 3
+                val meta = spine?.meta ?: meta(metaTerm, origin, budget, built) ?: return if (values && !isForm) Value(bare, tuple) else null
+                val sourceHead = source?.elementAt(0)
 
-            if (last is OtpErlangAtom) {
-                val context = last.atomValue()
+                if (last is OtpErlangAtom) {
+                    val context = last.atomValue()
 
-                return Call(
-                    meta,
-                    converted(head, origin, values, known, onNode, budget) ?: return null,
-                    null,
-                    if (context == "nil") VariableContext.Nil else VariableContext.Atom(context),
-                )
-            }
+                    return Call(
+                        meta,
+                        converted(head, aligner, sourceHead) ?: return null,
+                        null,
+                        if (context == "nil") VariableContext.Nil else VariableContext.Atom(context),
+                    )
+                }
 
-            val arguments = elements(last, origin, values, known, onNode, budget) ?: return null
+                val arguments = elements(last, aligner, source?.elementAt(2)) ?: return null
 
-            return when (head) {
-                TUPLE -> tupleCall(meta, arguments) { converted(head, origin, values, known, onNode, budget) ?: return null }
-                // An alias of no segments has no clause in `elixir_aliases:expand`.
-                ALIASES -> if (arguments.isEmpty()) null else Alias(meta, arguments)
-                BLOCK -> Block(meta, arguments)
-                else -> Call(meta, converted(head, origin, values, known, onNode, budget) ?: return null, arguments)
+                return when (head) {
+                    TUPLE -> tupleCall(meta, arguments) { converted(head, aligner, sourceHead) ?: return null }
+                    // An alias of no segments has no clause in `elixir_aliases:expand`.
+                    ALIASES -> if (arguments.isEmpty()) null else Alias(meta, arguments)
+                    BLOCK -> Block(meta, arguments)
+                    else -> Call(meta, converted(head, aligner, sourceHead) ?: return null, arguments)
+                }
             }
         }
 
@@ -284,7 +320,7 @@ sealed class ElixirAst {
          * [term]'s keys, with its `line` as a [Meta.Key.Location] where the line is, as a lowered node's, so its
          * location reads the same. `column` stays an entry: [ParserOptions.DEFAULT] writes a location's line only.
          */
-        private fun meta(term: OtpErlangObject, origin: TextRange, budget: Budget): Meta? {
+        private fun meta(term: OtpErlangObject, origin: TextRange, budget: Budget, built: Boolean): Meta? {
             val keys = keywords(term, budget)
                 ?.takeIf { keys -> keys.none { it.name == "counter" && counter(it.value) == null } }
                 ?: return null
@@ -305,6 +341,7 @@ sealed class ElixirAst {
                 position,
                 position,
                 keys.mapIndexed { index, key -> if (line != null && index == first) Meta.Key.Location(position) else key },
+                built,
             )
         }
 
