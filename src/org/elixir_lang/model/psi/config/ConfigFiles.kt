@@ -2,6 +2,7 @@ package org.elixir_lang.model.psi.config
 
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.DelegatingGlobalSearchScope
@@ -108,10 +109,17 @@ object ConfigFiles {
     /** The directory of each content `mix.exs` file's `config_path:`. */
     private fun directories(project: Project): kotlin.collections.Set<VirtualFile> =
         projects(project).mapNotNullTo(mutableSetOf()) { (mixExs, entry) ->
-            (entry.configPath as? ProjectKeywords.ConfigPath.Written)?.path?.let { path ->
-                mixExs.parent?.findFileByRelativePath(PathUtil.getParentPath(path))?.takeIf { it.isDirectory }
+            (entry.configPath as? ProjectKeywords.ConfigPath.Written)?.let { written ->
+                mixExs.fileSystem.findFileByPath(PathUtil.getParentPath(configFilePath(mixExs, written)))?.takeIf { it.isDirectory }
             }
         }
+
+    /** Where [written], [mixExs]'s `config_path:`, points: `Path.expand/2` of it against [mixExs]'s directory. */
+    fun configFilePath(mixExs: VirtualFile, written: ProjectKeywords.ConfigPath.Written): String {
+        val path = FileUtil.toSystemIndependentName(written.path)
+
+        return FileUtil.toCanonicalPath(if (FileUtil.isAbsolutePlatformIndependent(path)) path else "${mixExs.parent.path}/$path")
+    }
 
     /** The apps the content `mix.exs` files name. */
     @RequiresReadLock
@@ -124,8 +132,13 @@ object ConfigFiles {
             .mapNotNull { (mixExs, entry) -> entry.app?.let { app -> mixExs.parent?.let { app to it } } }
             .groupBy({ it.first }, { it.second })
 
+    /** The config path [mixExs] names, `null` where [mixExs] is no content project's `mix.exs`. */
+    @RequiresReadLock
+    fun configPath(project: Project, mixExs: VirtualFile): ProjectKeywords.ConfigPath? =
+        projects(project).firstOrNull { it.first == mixExs }?.second?.configPath
+
     /** Each content `mix.exs` file and its project entry. */
-    private fun projects(project: Project): List<Pair<VirtualFile, ConfigEntry.ProjectEntry>> {
+    fun projects(project: Project): List<Pair<VirtualFile, ConfigEntry.ProjectEntry>> {
         val projects = mutableListOf<Pair<VirtualFile, ConfigEntry.ProjectEntry>>()
 
         FileBasedIndex.getInstance().processValues(
@@ -146,7 +159,7 @@ object ConfigFiles {
 
     /** Stands for an interpolation's text in a path. */
     private const val INTERPOLATED = '\u0000'
-    private const val WILDCARD = "*?[{"
+    const val WILDCARD = "*?[{"
     private const val MIX = "Elixir.Mix"
     private val BUILD_NAMES = listOf("env", "target")
     private val CONFIG_BUILD_NAMES = setOf("config_env", "config_target")

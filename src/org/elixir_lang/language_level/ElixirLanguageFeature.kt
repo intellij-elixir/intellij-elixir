@@ -749,6 +749,22 @@ enum class ElixirLanguageFeature(
     COMPILE_ENV_TAKES_ENV_FIRST(sinceElixir = "1.14.0-rc.0"),
 
     /**
+     * `Config.read_config/1` reads a root key the config read has set so far.
+     *
+     * `elixir-lang/elixir@14595bb63` ("Add Config.read_config/1 (#13754)"), first released in v1.18.0-rc.0.
+     */
+    CONFIG_READ_CONFIG(sinceElixir = "1.18.0-rc.0"),
+
+    /**
+     * A config file's keyword list result raises on any entry that isn't an `{atom, keyword}` pair. Before it, the check
+     * ends at the first entry that isn't an `{atom, _}` pair, and that entry and any after it stand.
+     *
+     * `elixir-lang/elixir@a5435a6ea` ("Reject invalid config shapes in Config.validate!/2 (#15349)"), first released in
+     * v1.20.0-rc.5.
+     */
+    CONFIG_VALIDATES_EVERY_ENTRY(sinceElixir = "1.20.0-rc.5"),
+
+    /**
      * `Module.delete_definition/2` takes a definition out of the module being compiled. Before it, a module body that
      * calls it raises `UndefinedFunctionError`.
      *

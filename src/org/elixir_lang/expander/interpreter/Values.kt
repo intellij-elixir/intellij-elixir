@@ -559,20 +559,27 @@ internal fun entries(map: OtpErlangMap): List<Pair<OtpErlangObject, OtpErlangObj
 internal fun known(term: OtpErlangObject): OtpErlangObject =
     if (holdsUnknown(term)) decline("an unknown value") else term
 
-/** Whether [term] is or holds anything unknown ([isUnknown]), each of its shared parts read once. */
-internal fun holdsUnknown(term: OtpErlangObject): Boolean {
+/** Whether [term] is or holds anything unknown ([isUnknown]). */
+internal fun holdsUnknown(term: OtpErlangObject): Boolean = holds(term, ::isUnknown)
+
+/** Whether [term] is or holds a [Closure]. */
+internal fun holdsClosure(term: OtpErlangObject): Boolean = holds(term) { it is Closure }
+
+/** Whether [term] or a part of it [matches], each of its shared parts read once. */
+private fun holds(term: OtpErlangObject, matches: (OtpErlangObject) -> Boolean): Boolean {
     val read = Collections.newSetFromMap(IdentityHashMap<OtpErlangObject, Boolean>())
 
     fun holds(term: OtpErlangObject): Boolean {
         ProgressManager.checkCanceled()
 
-        return read.add(term) && when (term) {
-            is UnknownValue, UnknownBinary -> true
-            is OtpErlangTuple -> term.elements().any(::holds)
-            is OtpErlangList -> term.elements().any(::holds) || term.lastTail?.let(::holds) == true
-            is OtpErlangMap -> term.keys().any(::holds) || term.values().any(::holds)
-            else -> false
-        }
+        return read.add(term) && (
+            matches(term) || when (term) {
+                is OtpErlangTuple -> term.elements().any(::holds)
+                is OtpErlangList -> term.elements().any(::holds) || term.lastTail?.let(::holds) == true
+                is OtpErlangMap -> term.keys().any(::holds) || term.values().any(::holds)
+                else -> false
+            }
+        )
     }
 
     return holds(term)
@@ -595,18 +602,6 @@ internal fun otpOf(value: Term, seen: (String) -> Unit = {}): OtpErlangObject {
     }
 }
 
-private fun holdsClosure(term: OtpErlangObject): Boolean {
-    ProgressManager.checkCanceled()
-
-    return when (term) {
-        is Closure -> true
-        is OtpErlangTuple -> term.elements().any(::holdsClosure)
-        is OtpErlangList -> term.elements().any(::holdsClosure) || term.lastTail?.let(::holdsClosure) == true
-        is OtpErlangMap -> term.keys().any(::holdsClosure) || term.values().any(::holdsClosure)
-        else -> false
-    }
-}
-
 /** A list's elements and its tail, `null` for `[]`; `null` itself for a term that isn't a list. */
 internal fun cells(term: OtpErlangObject): Pair<List<OtpErlangObject>, OtpErlangObject?>? =
     when (term) {
@@ -619,6 +614,31 @@ internal fun cells(term: OtpErlangObject): Pair<List<OtpErlangObject>, OtpErlang
 /** The elements of the proper list [term], or `null` for any other term. */
 internal fun properElements(term: OtpErlangObject): List<OtpErlangObject>? =
     cells(term)?.takeIf { it.second == null }?.first
+
+/** `Keyword.keyword?/1`, declining on an unknown value before its type is tested. */
+internal fun isKeyword(term: OtpErlangObject): Boolean {
+    val (elements, tail) = cells(term) ?: return false
+
+    return tail == null && elements.all { element ->
+        (seen(element) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elementAt(0)?.let(::seen) is OtpErlangAtom
+    }
+}
+
+/** `lists:keyfind/3`'s walk: the first tuple of [elements], each read by [read], whose element [n] [matches]. */
+internal inline fun keyFound(
+    elements: List<OtpErlangObject>,
+    n: Long,
+    read: (OtpErlangObject) -> OtpErlangObject,
+    matches: (OtpErlangObject) -> Boolean,
+): OtpErlangTuple? {
+    for (element in elements) {
+        val tuple = read(element) as? OtpErlangTuple ?: continue
+
+        if (tuple.arity() >= n && matches(tuple.elementAt(n.toInt() - 1))) return tuple
+    }
+
+    return null
+}
 
 internal fun isNumber(term: OtpErlangObject) = term is OtpErlangLong || term is OtpErlangDouble
 

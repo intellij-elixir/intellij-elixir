@@ -22,28 +22,32 @@ internal fun interface AppEnv {
                 when {
                     configured(app, key) -> AppEnvValue.Configured
                     unread(app) -> AppEnvValue.Unreadable
-                    else ->
-                        appFile(app)
-                            ?.let { file -> file.env[key]?.let(AppEnvValue::Declared) ?: AppEnvValue.Unset }
-                            ?: AppEnvValue.Unreadable
+                    else -> declared(appFile(app), key)
                 }
             }
+
+        /** What [appFile], an app's `.app` as read, `null` where it can't be read, answers for [key]. */
+        fun declared(appFile: AppFile?, key: OtpErlangObject): AppEnvValue =
+            appFile?.let { file -> file.env[key]?.let(AppEnvValue::Declared) ?: AppEnvValue.Unset } ?: AppEnvValue.Unreadable
     }
 }
 
 internal sealed class AppEnvValue {
     /**
-     * A config file the build counts has a setting of the key, which a default build may not run: neither the value nor
-     * whether the key is set is known here.
+     * The key may be set to a value not known here: the config table sets it to one, a config file sets it and no table
+     * answers, or the read is made while config runs, or in a build that fails.
      */
     data object Configured : AppEnvValue()
 
-    /** The app's `.app` declares the key, as [term]. */
+    /** The key's value is [term], from the config table or the app's `.app`. */
     data class Declared(val term: OtpErlangObject) : AppEnvValue()
 
     /** Nothing sets the key. */
     data object Unset : AppEnvValue()
 
-    /** A config setting of the app, or the app's `.app`, can't be read, so whether the key is set isn't known. */
+    /**
+     * Whether the key is set isn't known: a config setting of the app, or the app's `.app`, can't be read, or a config read
+     * wrote the app, whose env is what loading it makes of the write.
+     */
     data object Unreadable : AppEnvValue()
 }

@@ -15,6 +15,7 @@ import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.util.io.FileUtil
 import org.elixir_lang.NameArity
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.admits
@@ -23,6 +24,7 @@ import org.elixir_lang.expander.AppEnvValue
 import org.elixir_lang.expander.AttributeTable
 import org.elixir_lang.expander.AttributeValue
 import org.elixir_lang.expander.Compiling
+import org.elixir_lang.expander.ConfigRead
 import org.elixir_lang.expander.DEFINITION_ARITIES
 import org.elixir_lang.expander.DefinitionTable
 import org.elixir_lang.expander.EffectOutcome
@@ -45,6 +47,7 @@ import org.elixir_lang.expander.write
 import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTES_EXPANDED_LAZILY
 import org.elixir_lang.language_level.ElixirLanguageFeature.BINARY_PART_REJECTS_BITSTRINGS
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
+import org.elixir_lang.language_level.ElixirLanguageFeature.CONFIG_READ_CONFIG
 import org.elixir_lang.language_level.ElixirLanguageFeature.ERLANG_ERROR_3
 import org.elixir_lang.language_level.ElixirLanguageFeature.GET_ATTRIBUTE_DEFAULT_FOR_REGISTERED
 import org.elixir_lang.language_level.ElixirLanguageFeature.GET_ATTRIBUTE_DEFAULT_ONLY_UNSET
@@ -62,6 +65,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.STATIC_OPTIONS_IN_PE
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRING_TO_ATOM_REQUIRES_BINARY
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
 import org.elixir_lang.lowering.fitsAnAtom
+import org.elixir_lang.model.psi.config.ConfigFiles
 import org.elixir_lang.psi.Import.Term
 import org.elixir_lang.unicode_util.Graphemes
 import org.elixir_lang.unicode_util.isScalarValue
@@ -71,6 +75,7 @@ import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.nio.charset.CharacterCodingException
 import java.security.MessageDigest
+import java.util.IdentityHashMap
 import kotlin.math.abs
 
 /** The frames a stacktrace `erlang:raise/3` stores holds at most: the default `backtrace_depth`, which Elixir keeps. */
@@ -217,6 +222,10 @@ internal class Natives(private val evaluation: Evaluation) {
             "file" -> if (key == "get_cwd/0") workingDirectory() else null
             "filename" -> filename(key, args)
             "elixir_config" -> config(key, args)
+            "Elixir.Mix" -> mix(key)
+            "Elixir.Config" -> configure(key, args)
+            "Elixir.Mix.Config" -> if (key == "__import__!/2") mixConfigImport(args[0], args[1]) else null
+            "Elixir.File" -> if (key == "exists?/1" || key == "exists?/2") fileExists(args[0]) else null
             "elixir_import" -> if (key == "special_form/2") isSpecialForm(args[0], args[1]) else null
             else -> null
         } ?: if (module in WRITES_BY_ROW) write(module, key, args) else null
@@ -935,11 +944,7 @@ internal class Natives(private val evaluation: Evaluation) {
         val n = small(args[1])?.takeIf { it > 0 } ?: badarg()
         val (elements, tail) = cells(args[2]) ?: badarg()
 
-        elements.forEach { element ->
-            val tuple = seen(element) as? OtpErlangTuple
-
-            if (tuple != null && tuple.arity() >= n && equal(tuple.elementAt(n.toInt() - 1), args[0], false, level)) return tuple
-        }
+        keyFound(elements, n, ::seen) { equal(it, args[0], false, level) }?.let { return it }
 
         if (tail != null) badarg()
 
@@ -1310,14 +1315,6 @@ internal class Natives(private val evaluation: Evaluation) {
         }
     }
 
-    private fun isKeyword(term: OtpErlangObject): Boolean {
-        val (elements, tail) = cells(term) ?: return false
-
-        return tail == null && elements.all { element ->
-            (seen(element) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elementAt(0)?.let(::seen) is OtpErlangAtom
-        }
-    }
-
     /** `Keyword.delete/2`'s body, past its guard. */
     private fun delete(keywords: OtpErlangObject, key: OtpErlangObject): OtpErlangObject {
         if (lists("keymember/3", listOf(key, integer(1), keywords)) != TRUE) return keywords
@@ -1354,6 +1351,9 @@ internal class Natives(private val evaluation: Evaluation) {
 
     private fun enum(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
         val enumerable = args.getOrNull(0) ?: return null
+
+        if (hasOwnImplementation(enumerable)) return null
+
         val elements = { enumerate(enumerable) }
         val ran by lazy { running("Elixir.Enum", key, args).single() }
 
@@ -1364,7 +1364,20 @@ internal class Natives(private val evaluation: Evaluation) {
                 } else {
                     list(elements().map { evaluation.apply(ran, listOf(it)) }.toList())
                 }
-            "flat_map/2" -> list(elements().flatMap { enumerate(evaluation.apply(ran, listOf(it))) }.toList())
+            "flat_map/2" ->
+                list(
+                    elements().flatMap { element ->
+                        val returned = evaluation.apply(ran, listOf(element))
+
+                        enumerate(
+                            if (hasOwnImplementation(returned)) {
+                                evaluation.remote(atom("Elixir.Enum"), "to_list", listOf(returned))
+                            } else {
+                                returned
+                            },
+                        )
+                    }.toList(),
+                )
             "filter/2", "reject/2" -> {
                 val keep = key == "filter/2"
 
@@ -1396,7 +1409,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 }
             }
             "concat/2" ->
-                if (isList(args[0]) && isList(args[1])) erlang("++/2", args) else decline("concatenates enumerables")
+                if (isList(args[0]) && isList(args[1])) erlang("++/2", args) else null
             "reverse/1" ->
                 if (isList(enumerable)) {
                     val (heads, tail) = cells(enumerable)!!
@@ -1412,6 +1425,11 @@ internal class Natives(private val evaluation: Evaluation) {
             else -> null
         }
     }
+
+    /** Whether [term] is a struct or a function, which enumerates through its own implementation, called by `Enum`'s clauses. */
+    private fun hasOwnImplementation(term: OtpErlangObject): Boolean =
+        term is Closure || term is OtpErlangExternalFun ||
+            term is OtpErlangMap && term.get(atom("__struct__")) != null && range(term) == null
 
     /** [term] where it is a `Range`. */
     private fun range(term: OtpErlangObject): Range? {
@@ -2301,7 +2319,223 @@ internal class Natives(private val evaluation: Evaluation) {
         return tuple(atom(family), atom(name))
     }
 
-    /** `file:get_cwd/0`: `{ok, Directory}`, the directory Elixir compiles the run's file in now (`Run.workingDirectory`). */
+    /**
+     * `Mix.env/0` and `Mix.target/0`: the build the run's file is compiled in. Each answer is an assumption, as an app env
+     * read's is: it is the default build's. In a config read it is no assumption: the read is of that env.
+     */
+    private fun mix(key: String): OtpErlangObject? {
+        val build = evaluation.run.buildTarget ?: return null
+        val answer = when (key) {
+            "env/0" -> build.mixEnv ?: return null
+            "target/0" -> build.target
+            else -> return null
+        }
+        if (evaluation.run.config == null) evaluation.assume()
+
+        return atom(answer)
+    }
+
+    /**
+     * `Config`'s functions over the run's config read ([ConfigRead]), which holds what `Config.__eval__!/3` keeps in the
+     * process dictionary. Outside a read, where Elixir raises, they decline: a config file's own expansion isn't Mix's.
+     */
+    private fun configure(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        when (key) {
+            "__merge__/2" -> return configMerge(args[0], args[1])
+            "config/2", "config/3", "__env__!/0", "__target__!/0", "__import__!/1" -> {}
+            "read_config/1" -> if (!CONFIG_READ_CONFIG.isSufficient(level)) return null
+            else -> return null
+        }
+
+        val read = evaluation.run.config ?: decline("Config.$key outside a config read")
+
+        return when (key) {
+            "__env__!/0" -> atom(read.env)
+            "__target__!/0" -> atom(read.target)
+            "config/2" -> {
+                val (root, opts) = args
+
+                if (!isAtom(root) || !isList(opts)) functionClause("Elixir.Config", "config", args)
+                if (!isKeyword(opts)) argumentError()
+
+                configured(read, list(listOf(tuple(root, opts))))
+            }
+            "config/3" -> {
+                val (root, configKey, opts) = args
+
+                if (!isAtom(root) || !isAtom(configKey)) functionClause("Elixir.Config", "config", args)
+
+                configured(read, list(listOf(tuple(root, list(listOf(tuple(configKey, opts)))))))
+            }
+            "read_config/1" -> {
+                if (!isAtom(args[0])) functionClause("Elixir.Config", "read_config", args)
+
+                keyword("get/2", listOf(read.config, args[0]))
+            }
+            else -> configImport(read, args[0])
+        }
+    }
+
+    /** [config] merged into [read]'s, returning the config before, as `Process.put/2` does. */
+    private fun configured(read: ConfigRead, config: OtpErlangObject): OtpErlangObject {
+        val before = read.config
+
+        read.config = configMerge(before, config)
+
+        return before
+    }
+
+    /**
+     * `Config.__import__!/1`: the file at [path] read and evaluated in the same read, with its own `__DIR__`, an empty
+     * binding and a fresh env, after `import_config!/3`'s check that the read hasn't imported it already. A raise in the
+     * file raises here; where the file's run stopped, Elixir may have raised there, which is assumed not to happen.
+     */
+    private fun configImport(read: ConfigRead, path: OtpErlangObject): OtpErlangObject {
+        if (!isBinary(path)) functionClause("Elixir.Config", "__import__!", listOf(path))
+
+        val text = String(nameBytes("Config.__import__!/1", path), Charsets.UTF_8)
+
+        when (evaluation.run.files.exists(text)) {
+            null -> decline("Config.__import__!/1 of %s, whose file isn't known", path)
+            false -> evaluation.raise(
+                "Elixir.File.Error",
+                "reason" to atom("enoent"),
+                "path" to path,
+                "action" to OtpErlangBinary("read file".toByteArray()),
+            )
+            true -> {}
+        }
+        if (text in read.imports) argumentError()
+
+        read.imports.add(0, text)
+
+        val expansion = evaluation.run.files.imported(text, read) ?: decline("Config.__import__!/1 of %s, which can't be read", path)
+
+        when (val top = expansion.top) {
+            is Expansion.Error -> when (val kind = top.kind) {
+                null -> decline("Config.__import__!/1 of %s, whose raise isn't known", path)
+                else -> {
+                    // Only its type is known, so a `rescue` can't read the rest.
+                    evaluation.mayRaise()
+                    // An expansion error, which `Code.eval_string/3` raises as a `CompileError`.
+                    evaluation.raise(if (kind.startsWith("Elixir.")) kind else "Elixir.CompileError")
+                }
+            }
+            is Expansion.Expanded -> {}
+            else -> {
+                read.unitDeclined()
+                evaluation.assumeNoRaise()
+            }
+        }
+
+        return Unknown
+    }
+
+    /**
+     * `Mix.Config.__import__!/2`: [path] expanded against [dir], and where it holds a wildcard, each file it matches,
+     * each imported as `Config.__import__!/1` imports it.
+     */
+    private fun mixConfigImport(path: OtpErlangObject, dir: OtpErlangObject): OtpErlangObject {
+        val read = evaluation.run.config ?: decline("Mix.Config.__import__!/2 outside a config read")
+        val expanded = evaluation.remote(atom("Elixir.Path"), "expand", listOf(path, dir))
+        val text = String(nameBytes("Mix.Config.__import__!/2", expanded), Charsets.UTF_8)
+        val paths =
+            if (text.any { it in ConfigFiles.WILDCARD }) {
+                evaluation.run.files.wildcard(text)?.map { OtpErlangBinary(it.toByteArray()) }
+                    ?: decline("Mix.Config.__import__!/2 of the wildcard %s", expanded)
+            } else {
+                listOf(expanded)
+            }
+
+        paths.forEach { configImport(read, it) }
+
+        return atom("ok")
+    }
+
+    /**
+     * `File.exists?/1,2`: whether a file or directory is at [path], relative to `Run.workingDirectory` where it is relative,
+     * read through the run's files.
+     */
+    private fun fileExists(path: OtpErlangObject): OtpErlangObject {
+        val text = String(nameBytes("File.exists?/1", path), Charsets.UTF_8)
+        val absolute =
+            if (FileUtil.isAbsolutePlatformIndependent(text)) {
+                text
+            } else {
+                val file = evaluation.run.file() ?: decline("File.exists?/1 of %s, relative to a file with no path", path)
+                val directory = evaluation.run.workingDirectory(file) ?: decline("File.exists?/1 of %s, relative to an unknown directory", path)
+
+                "$directory/$text"
+            }
+
+        return bool(evaluation.run.files.exists(absolute) ?: decline("File.exists?/1 of %s isn't known", path))
+    }
+
+    /** `Config.__merge__/2`: [config2]'s apps merged into [config1]'s, each app's keys merged by `deep_merge/3`. */
+    private fun configMerge(config1: OtpErlangObject, config2: OtpErlangObject): OtpErlangObject {
+        if (!isList(config1) || !isList(config2)) functionClause("Elixir.Config", "__merge__", listOf(config1, config2))
+
+        val merged = IdentityHashMap<OtpErlangObject, IdentityHashMap<OtpErlangObject, OtpErlangObject>>()
+
+        return keywordMerge(config1, config2) { app1, app2 ->
+            keywordMerge(app1, app2) { value1, value2 -> deepMerge(value1, value2, merged) }
+        }
+    }
+
+    /** `Config.deep_merge/3`: two keyword lists merged, keys by key, else the later value; each pair of parts merged once, in [merged]. */
+    private fun deepMerge(
+        value1: OtpErlangObject,
+        value2: OtpErlangObject,
+        merged: IdentityHashMap<OtpErlangObject, IdentityHashMap<OtpErlangObject, OtpErlangObject>>,
+    ): OtpErlangObject =
+        when {
+            isUnknown(value2) -> Unknown
+            isUnknown(value1) -> if (isKeyword(value2)) Unknown else value2
+            isKeyword(value1) && isKeyword(value2) ->
+                merged.getOrPut(value1) { IdentityHashMap() }.getOrPut(value2) {
+                    keywordMerge(value1, value2) { part1, part2 -> deepMerge(part1, part2, merged) }
+                }
+            else -> value2
+        }
+
+    /**
+     * `Keyword.merge/3`: [keywords1] without the keys of [keywords2], then [keywords2]'s pairs in turn, each merged by
+     * [merge] with the first pair under its key in [keywords1], which that takes.
+     */
+    private fun keywordMerge(
+        keywords1: OtpErlangObject,
+        keywords2: OtpErlangObject,
+        merge: (OtpErlangObject, OtpErlangObject) -> OtpErlangObject,
+    ): OtpErlangObject {
+        if (isUnknown(keywords1) || isUnknown(keywords2)) return Unknown
+        if (!isList(keywords1) || !isList(keywords2)) functionClause("Elixir.Keyword", "merge", listOf(keywords1, keywords2))
+        if (!isKeyword(keywords1)) argumentError()
+
+        val pair = { term: OtpErlangObject -> seen(term) as OtpErlangTuple }
+        val original = properElements(seen(keywords1))!!.map(pair).toMutableList()
+        val rest = original.toMutableList()
+        val merged = ArrayList<OtpErlangObject>()
+
+        for (element in properElements(seen(keywords2)) ?: argumentError()) {
+            ProgressManager.checkCanceled()
+
+            val (key, value2) = (seen(element) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elements() ?: argumentError()
+            val name = seen(key) as? OtpErlangAtom ?: argumentError()
+            val index = original.indexOfFirst { seen(it.elementAt(0)) == name }
+
+            if (index >= 0) {
+                merged += tuple(name, merge(original[index].elementAt(1), value2))
+                original.removeAt(index)
+            } else {
+                merged += tuple(name, value2)
+            }
+            rest.removeAll { seen(it.elementAt(0)) == name }
+        }
+
+        return list(rest + merged)
+    }
+
+    /** `file:get_cwd/0`: `{ok, Directory}`, the run's working directory (`Run.workingDirectory`). */
     private fun workingDirectory(): OtpErlangObject {
         val file = evaluation.run.file() ?: decline("file:get_cwd/0 of a file with no path")
         val directory = evaluation.run.workingDirectory(file) ?: decline("file:get_cwd/0 where the compile directory isn't known")
