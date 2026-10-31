@@ -1345,6 +1345,52 @@ class InterpreterTest : PlatformTestCase() {
             "top expanded\nmodule Elixir.A raised Elixir.MatchError `:ok = :bad`",
         )
 
+    /** `Macro.expand_literals/2` calls `expand/2` from inside `Macro`, which is as much the native as a call from outside. */
+    fun testAnAliasKeyOfACompileEnvExpands() =
+        assertFile(
+            "defmodule A do\n  @x Application.compile_env(:nope, A.K)\n  :ok = :bad\nend",
+            "top expanded\nmodule Elixir.A raised Elixir.MatchError `:ok = :bad`",
+        )
+
+    /**
+     * A struct or a function enumerates through its own `Enumerable` implementation, which `Enum`'s clauses call, from
+     * outside `Enum` or inside it.
+     */
+    fun testAStructOrFunctionThroughEnumRunsItsImplementation() {
+        for (stream in listOf("Stream.map([1], & &1)", "Stream.unfold(1, fn 1 -> {1, 2}; 2 -> nil end)")) {
+            for (call in listOf("Enum.each(s, fn _ -> :ok = :bad end)", "Enum.reduce(s, nil, fn _, _ -> :ok = :bad end)", "Enum.map(s, fn _ -> :ok = :bad end)")) {
+                assertFile(
+                    "defmodule A do\n  s = $stream\n  $call\nend",
+                    "top expanded\nmodule Elixir.A raised Elixir.MatchError `:ok = :bad`",
+                )
+            }
+        }
+    }
+
+    /** What `Enum.flat_map/2`'s function returns reads as `Enum.to_list/1` reads it, whatever enumerates it. */
+    fun testWhatAFlatMapFunctionReturnsIsReadAsToList() {
+        for ((returned, expected) in listOf(
+            "Stream.map([2], & &1)" to "[2]",
+            "Stream.unfold(2, fn 2 -> {2, 3}; 3 -> nil end)" to "[2]",
+            "2..3" to "[2, 3]",
+            "%{a: 1}" to "[a: 1]",
+            "[2, 3]" to "[2, 3]",
+        )) {
+            assertFile(
+                "defmodule A do\n  $expected = Enum.flat_map([1], fn _ -> $returned end)\n  :ok = :bad\nend",
+                "top expanded\nmodule Elixir.A raised Elixir.MatchError `:ok = :bad`",
+            )
+        }
+    }
+
+    /** `Enum.concat/2` of anything but two lists reads each through its clauses. */
+    fun testConcatOfARangeRunsItsClauses() {
+        assertFile(
+            "defmodule A do\n  [1, 2, 3] = Enum.concat(1..2, [3])\n  :ok = :bad\nend",
+            "top expanded\nmodule Elixir.A raised Elixir.MatchError `:ok = :bad`",
+        )
+    }
+
     /**
      * An `EEx` function as an implementation's last expression stops it at `EEx`'s `defp` branch from v1.14, a known
      * divergence: `Protocol.__impl__` puts the implementation's body on the right of `res = unquote(block)`, and a

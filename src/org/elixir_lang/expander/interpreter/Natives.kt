@@ -1351,6 +1351,9 @@ internal class Natives(private val evaluation: Evaluation) {
 
     private fun enum(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
         val enumerable = args.getOrNull(0) ?: return null
+
+        if (hasOwnImplementation(enumerable)) return null
+
         val elements = { enumerate(enumerable) }
         val ran by lazy { running("Elixir.Enum", key, args).single() }
 
@@ -1361,7 +1364,20 @@ internal class Natives(private val evaluation: Evaluation) {
                 } else {
                     list(elements().map { evaluation.apply(ran, listOf(it)) }.toList())
                 }
-            "flat_map/2" -> list(elements().flatMap { enumerate(evaluation.apply(ran, listOf(it))) }.toList())
+            "flat_map/2" ->
+                list(
+                    elements().flatMap { element ->
+                        val returned = evaluation.apply(ran, listOf(element))
+
+                        enumerate(
+                            if (hasOwnImplementation(returned)) {
+                                evaluation.remote(atom("Elixir.Enum"), "to_list", listOf(returned))
+                            } else {
+                                returned
+                            },
+                        )
+                    }.toList(),
+                )
             "filter/2", "reject/2" -> {
                 val keep = key == "filter/2"
 
@@ -1393,7 +1409,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 }
             }
             "concat/2" ->
-                if (isList(args[0]) && isList(args[1])) erlang("++/2", args) else decline("concatenates enumerables")
+                if (isList(args[0]) && isList(args[1])) erlang("++/2", args) else null
             "reverse/1" ->
                 if (isList(enumerable)) {
                     val (heads, tail) = cells(enumerable)!!
@@ -1409,6 +1425,11 @@ internal class Natives(private val evaluation: Evaluation) {
             else -> null
         }
     }
+
+    /** Whether [term] is a struct or a function, which enumerates through its own implementation, called by `Enum`'s clauses. */
+    private fun hasOwnImplementation(term: OtpErlangObject): Boolean =
+        term is Closure || term is OtpErlangExternalFun ||
+            term is OtpErlangMap && term.get(atom("__struct__")) != null && range(term) == null
 
     /** [term] where it is a `Range`. */
     private fun range(term: OtpErlangObject): Range? {

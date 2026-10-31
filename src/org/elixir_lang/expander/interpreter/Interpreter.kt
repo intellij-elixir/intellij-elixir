@@ -1224,7 +1224,8 @@ internal class Evaluation(
 
         val values = operands(args, frame)
 
-        return calling(values) { invoke(frame.module, definition, name, values) }
+        return nativeResult(frame.module.module, name, values, marks = true)
+            ?: calling(values) { invoke(frame.module, definition, name, values) }
     }
 
     private fun map(args: List<ElixirAst>, frame: Frame): OtpErlangObject {
@@ -1783,14 +1784,19 @@ internal class Evaluation(
         val module = (receiver as? OtpErlangAtom)?.atomValue()
             ?: error(atom("badarg"), frame("erlang", "apply", list(listOf(receiver, atom(function), list(args)))))
 
-        native(module, function, args, marks)?.let { result ->
-            val returnable = natives.returnable(module, function, args)
-
-            return if (result === Unknown) unknownOf(returnable) else result
-        }
+        nativeResult(module, function, args, marks)?.let { return it }
 
         return if (marks) callingDefined(module, function, args) else defined(module, function, args)
     }
+
+    /**
+     * [module]`.`[function]`(`[args]`)` where it is a native, else `null`, called by its module or from outside it alike. Its
+     * unknown result came from a module being compiled where an argument it may return ([Natives.returnable]) gives one.
+     */
+    private fun nativeResult(module: String, function: String, args: List<OtpErlangObject>, marks: Boolean): OtpErlangObject? =
+        native(module, function, args, marks)?.let { result ->
+            if (result === Unknown) unknownOf(natives.returnable(module, function, args)) else result
+        }
 
     /**
      * [receiver], a remote call's given [args]: one that isn't known may be any module's code, and where the call [marks]
