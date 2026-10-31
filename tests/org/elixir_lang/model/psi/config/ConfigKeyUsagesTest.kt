@@ -11,6 +11,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.chosenTargetPsiUsagesAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaretInScope
+import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.LegSdk
 import org.elixir_lang.injection.PsiLanguageInjectionHost
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -27,6 +28,7 @@ class ConfigKeyUsagesTest : PlatformTestCase() {
         super.setUp()
         disableMixDepsCheck(testRootDisposable)
         LegSdk.setUp(module, testRootDisposable)
+        enableExpander(testRootDisposable)
         myFixture.copyDirectoryToProject("usages", "")
     }
 

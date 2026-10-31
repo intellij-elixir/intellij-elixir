@@ -5,6 +5,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.DumbModeTestUtils
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.LegSdk
 import org.elixir_lang.psi.call.Call
 
@@ -13,6 +14,7 @@ class EnvAtomTest : PlatformTestCase() {
     override fun setUp() {
         super.setUp()
         LegSdk.setUp(module, testRootDisposable)
+        enableExpander(testRootDisposable)
     }
 
     override fun tearDown() {
