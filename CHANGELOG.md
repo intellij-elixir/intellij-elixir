@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4569](https://github.com/intellij-elixir/intellij-elixir/pull/4569) [@sh41](https://github.com/sh41)
+  - **The expander reads a project's config files as Mix does, under `:test` for a file in a test source folder and `:dev` for any other, so a function defined under `Application.compile_env` is seen with the value the config gives it.** Fixes [#4563](https://github.com/intellij-elixir/intellij-elixir/issues/4563).
+
 - [#4568](https://github.com/intellij-elixir/intellij-elixir/pull/4568) [@sh41](https://github.com/sh41)
   - **On Elixir 1.14 and later, the expander carries on past `doctest` in an ExUnit test module, so the tests and `describe` blocks after it have the names, definitions and variables Elixir gives them.** Refs [#4546](https://github.com/intellij-elixir/intellij-elixir/issues/4546).
 
