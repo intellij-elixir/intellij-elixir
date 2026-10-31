@@ -3,6 +3,7 @@ package org.elixir_lang.model.psi.config
 import com.intellij.psi.PsiFile
 import com.intellij.util.indexing.FileBasedIndex
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.LegSdk
 import org.elixir_lang.mix.ProjectKeywords
 
@@ -14,6 +15,7 @@ class ConfigIndexTest : PlatformTestCase() {
     override fun setUp() {
         super.setUp()
         LegSdk.setUp(module, testRootDisposable)
+        enableExpander(testRootDisposable)
     }
 
     override fun tearDown() {

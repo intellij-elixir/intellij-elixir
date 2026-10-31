@@ -8,6 +8,7 @@ import com.intellij.openapi.roots.libraries.Library
 import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar
 import com.intellij.openapi.vfs.LocalFileSystem
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.LegSdk
 import org.elixir_lang.expander.edit
 import org.elixir_lang.injection.PsiLanguageInjectionHost
@@ -21,6 +22,7 @@ class UnreadConfigKeyTest : PlatformTestCase() {
         super.setUp()
         disableMixDepsCheck(testRootDisposable)
         LegSdk.setUp(module, testRootDisposable)
+        enableExpander(testRootDisposable)
         myFixture.enableInspections(UnreadConfigKey::class.java)
         myFixture.addFileToProject("mix.exs", MIX_EXS)
     }

@@ -8,6 +8,7 @@ import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.gtduNavigationAtCaret
 import org.elixir_lang.code_insight.gtduNavigationInInjectionAtCaret
 import org.elixir_lang.code_insight.searchTargetsAtCaret
+import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.LegSdk
 
 /** Ctrl-Click between an application env key's reads and the config lines that set it. */
@@ -18,6 +19,7 @@ class ConfigKeyNavigationTest : PlatformTestCase() {
         super.setUp()
         disableMixDepsCheck(testRootDisposable)
         LegSdk.setUp(module, testRootDisposable)
+        enableExpander(testRootDisposable)
         myFixture.copyDirectoryToProject("navigation", "")
     }
 
