@@ -24,7 +24,8 @@ class ElixirExperimentalSettings : PersistentStateComponent<ElixirExperimentalSe
 //        var enableDeleteSdkSmallIDE: Boolean = false,
         var enableStatusBarWidget : Boolean = false,
         var enableLiteralSigilInjection: Boolean = false,
-        var enableMixDepsCheck: Boolean = true
+        var enableMixDepsCheck: Boolean = true,
+        var enableExpander: Boolean = false
     )
 
     private var elixirSettingsState = State()
