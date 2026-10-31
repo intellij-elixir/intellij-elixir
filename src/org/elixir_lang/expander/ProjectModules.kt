@@ -674,6 +674,18 @@ internal class ProjectModules(private val project: Project) {
     fun configTable(file: VirtualFile, inputs: Inputs, env: String): ConfigTable? =
         configTable(file, env, BuildTarget.HOST, inputs, Stamps()) {}
 
+    /**
+     * The config files the `:dev`, `:test` and `:prod` reads of each content `mix.exs` import, its config file included.
+     * Only this asks for `:prod`. A file only a unit a read declined may have imported isn't among them.
+     */
+    @RequiresReadLock
+    fun reachedConfigFiles(inputs: Inputs): Set<VirtualFile> =
+        ConfigFiles.projects(project).flatMapTo(HashSet()) { (mixExs, entry) ->
+            REACHED_ENVS
+                .flatMap { env -> configTable(mixExs, entry.configPath, env, BuildTarget.HOST, inputs, Stamps()) {}?.files.orEmpty() }
+                .mapNotNull(mixExs.fileSystem::findFileByPath)
+        }
+
     private fun configTable(
         file: VirtualFile,
         env: String,
@@ -688,6 +700,19 @@ internal class ProjectModules(private val project: Project) {
             .mapNotNull { it.findChild(MIX_EXS) }
             .firstNotNullOfOrNull { mixExs -> ConfigFiles.configPath(project, mixExs)?.let { mixExs to it } }
             ?: return null
+
+        return configTable(mixExs, configPath, env, target, inputs, stamps, transient)
+    }
+
+    private fun configTable(
+        mixExs: VirtualFile,
+        configPath: ProjectKeywords.ConfigPath,
+        env: String,
+        target: String,
+        inputs: Inputs,
+        stamps: Stamps,
+        transient: (Transient) -> Unit,
+    ): ConfigTable? {
         stamps.source(mixExs)
         val written = configPath as? ProjectKeywords.ConfigPath.Written ?: return null
         val path = ConfigFiles.configFilePath(mixExs, written)
@@ -1120,6 +1145,8 @@ internal class ProjectModules(private val project: Project) {
 
         /** The bytes the clause cache may retain, apart from the answers' own bound. */
         private const val CLAUSE_BOUND = 64L shl 20
+
+        private val REACHED_ENVS = listOf("dev", "test", "prod")
 
         private val ABSENT = Answer(ModuleExports.Absent, ModuleStruct.Absent)
         private val UNREADABLE = Answer(ModuleExports.Unreadable, ModuleStruct.Unreadable)

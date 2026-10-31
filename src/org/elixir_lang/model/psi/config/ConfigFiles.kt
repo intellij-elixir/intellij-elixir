@@ -138,7 +138,7 @@ object ConfigFiles {
         projects(project).firstOrNull { it.first == mixExs }?.second?.configPath
 
     /** Each content `mix.exs` file and its project entry. */
-    private fun projects(project: Project): List<Pair<VirtualFile, ConfigEntry.ProjectEntry>> {
+    fun projects(project: Project): List<Pair<VirtualFile, ConfigEntry.ProjectEntry>> {
         val projects = mutableListOf<Pair<VirtualFile, ConfigEntry.ProjectEntry>>()
 
         FileBasedIndex.getInstance().processValues(
