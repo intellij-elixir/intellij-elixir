@@ -5,6 +5,7 @@ import com.intellij.openapi.project.DumbService
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.declaration.expanderPathOn
 import org.elixir_lang.expander.EnvAtom
 import org.elixir_lang.expander.ImportMatch
 import org.elixir_lang.expander.ProjectModules
@@ -20,7 +21,8 @@ import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 
 /**
  * What an element of a setting or a read names in the env `at` compiles in, which [place] gives. Each answer is `null`
- * in dumb mode, where the file's SDK gives no inputs, and where the file's expansion did not reach `at`.
+ * where the expander's path is closed, in dumb mode, where the file's SDK gives no inputs, and where the file's expansion
+ * did not reach `at`.
  */
 internal object KeyAtom {
     /** The atom [key], an alias or `__MODULE__` key, names; `null` also where [at] is. */
@@ -80,8 +82,8 @@ internal object KeyAtom {
 
     /**
      * What this object's answers for [file]'s elements depend on beyond [file]'s own text: its expansion's env index,
-     * the same object while what the expansion read is unchanged, or [Unexpanded] for a file nothing expands; `null` in
-     * dumb mode and where its SDK gives no inputs, which may yet change.
+     * the same object while what the expansion read is unchanged, or [Unexpanded] for a file nothing expands; `null` where
+     * the expander's path is closed, in dumb mode and where its SDK gives no inputs, which may yet change.
      */
     @RequiresReadLock
     fun basis(file: PsiFile): Any? =
@@ -119,9 +121,11 @@ internal object KeyAtom {
     @RequiresReadLock
     private fun expanded(at: PsiElement): Expanded? = at.containingFile?.let(::expansion) as? Expanded
 
-    /** [file]'s expansion; `null` in dumb mode and where its SDK gives no inputs. */
+    /** [file]'s expansion; `null` where the expander's path is closed, in dumb mode and where its SDK gives no inputs. */
     @RequiresReadLock
     private fun expansion(file: PsiFile): Expansion? {
+        if (!expanderPathOn()) return null
+
         val project = file.project
         if (DumbService.isDumb(project)) return null
 
