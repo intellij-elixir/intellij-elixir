@@ -1,5 +1,6 @@
 package org.elixir_lang.settings
 
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
@@ -32,9 +33,22 @@ class ElixirExperimentalSettings : PersistentStateComponent<ElixirExperimentalSe
 
     override fun getState(): State = elixirSettingsState
 
+    private var initialized = false
+
     override fun loadState(state: State) {
         LOG.debug("Loading ElixirExperimentalSettings state: $state")
+        val old = elixirSettingsState
         elixirSettingsState = state
+
+        // The platform loads the stored state before `initializeComponent`, when nothing listens yet. A later load is a
+        // settings import or a file reload, which the Settings page's `apply` does not publish.
+        if (initialized && old != state) {
+            ApplicationManager.getApplication().messageBus.syncPublisher(SETTINGS_CHANGED_TOPIC).settingsChanged(old, state.copy())
+        }
+    }
+
+    override fun initializeComponent() {
+        initialized = true
     }
 
     companion object {
@@ -45,7 +59,7 @@ class ElixirExperimentalSettings : PersistentStateComponent<ElixirExperimentalSe
         )
         
         val instance: ElixirExperimentalSettings
-            get() = com.intellij.openapi.application.ApplicationManager
+            get() = ApplicationManager
                 .getApplication()
                 .getService(ElixirExperimentalSettings::class.java)
     }
