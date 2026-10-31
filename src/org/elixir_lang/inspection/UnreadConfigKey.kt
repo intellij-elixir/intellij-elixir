@@ -31,7 +31,7 @@ internal class UnreadConfigKey : LocalInspectionTool() {
         val project = holder.project
         val file = holder.file.virtualFile
 
-        if (file == null || !ConfigFiles.scope(project).contains(file)) return PsiElementVisitor.EMPTY_VISITOR
+        if (file == null || !ConfigFiles.counted(project).contains(file)) return PsiElementVisitor.EMPTY_VISITOR
 
         val judgedApps = judgedApps(project)
         val scope = GlobalSearchScope.allScope(project)

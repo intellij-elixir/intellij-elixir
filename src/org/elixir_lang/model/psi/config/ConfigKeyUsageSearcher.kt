@@ -35,7 +35,7 @@ internal class ConfigKeyUsageSearcher : UsageSearcher {
                 val scope = GlobalSearchScopeUtil.toGlobalSearchScope(searchScope, project)
                 val reads = ConfigReads.of(project, symbol.app, symbol.key, scope).filter { it.decided }.map { it.element to it.range }
                 val settings =
-                    ConfigSettings.of(project, symbol.app, symbol.key, ConfigFiles.scope(project).intersectWith(scope)).map { it to Keys.range(it) }
+                    ConfigSettings.of(project, symbol.app, symbol.key, ConfigFiles.counted(project).intersectWith(scope)).map { it to Keys.range(it) }
 
                 // The global scope bounds whole files; a local scope bounds elements within them too.
                 (reads + settings)

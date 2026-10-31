@@ -2,8 +2,11 @@ package org.elixir_lang.model.psi.config
 
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.project.DumbService
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiManager
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.declaration.expanderPathOn
 import org.elixir_lang.expander.EnvAtom
@@ -128,20 +131,65 @@ internal object KeyAtom {
 
     /** [file]'s expansion; `null` in dumb mode and where its SDK gives no inputs. */
     @RequiresReadLock
-    private fun expansion(file: PsiFile): Expansion? {
-        if (!expanderPathOn()) return Closed
+    private fun expansion(file: PsiFile): Expansion? =
+        when (val asked = asked(file.project) { file }) {
+            Asked.Closed -> Closed
+            Asked.Dumb, Asked.NoFile -> null
+            is Asked.Answered -> when (val answer = asked.answer) {
+                is SdkInputs.Answer.Ready -> (file as? ElixirFile)?.let {
+                    val holder = ProjectModules.getInstance(file.project)
 
-        val project = file.project
-        if (DumbService.isDumb(project)) return null
-
-        return when (val answer = SdkInputs.getInstance(project).inputsFor(file)) {
-            is SdkInputs.Answer.Ready -> (file as? ElixirFile)?.let {
-                val holder = ProjectModules.getInstance(project)
-
-                Expanded(it, holder.indexed(it, answer.inputs), answer.inputs, holder)
+                    Expanded(it, holder.indexed(it, answer.inputs), answer.inputs, holder)
+                }
+                SdkInputs.Answer.Template -> Unexpanded
+                else -> null
             }
-            SdkInputs.Answer.Template -> Unexpanded
-            else -> null
         }
+
+    /** What asking for a file's inputs gave: [Closed], [Dumb] and [NoFile] before the SDK is asked. */
+    private sealed interface Asked {
+        data object Closed : Asked
+
+        data object Dumb : Asked
+
+        data object NoFile : Asked
+
+        data class Answered(val answer: SdkInputs.Answer) : Asked
+    }
+
+    /**
+     * The one place the expander's path, dumb mode and the SDK's inputs are asked for the file [file] gives. The file is
+     * made only once the path is open and the index is ready, so a closed path creates no PSI.
+     */
+    @RequiresReadLock
+    private fun asked(project: Project, file: () -> PsiFile?): Asked {
+        if (!expanderPathOn()) return Asked.Closed
+        if (DumbService.isDumb(project)) return Asked.Dumb
+
+        val psi = file() ?: return Asked.NoFile
+
+        return Asked.Answered(SdkInputs.getInstance(project).inputsFor(psi))
+    }
+
+    /**
+     * The config files the `:dev`, `:test` and `:prod` reads of the content [mixExs] files import, each distinct set of
+     * inputs asked once; none while the expander's path is closed, in dumb mode and where no file's SDK gives inputs, and
+     * none, with nothing evaluated, unless [needed]: a build may read a file the config folder doesn't hold. [needed] is
+     * asked only once the path is open, so a closed one reads nothing.
+     */
+    @RequiresReadLock
+    fun reachedConfigFiles(
+        project: Project,
+        mixExs: Collection<VirtualFile>,
+        needed: () -> Boolean,
+    ): kotlin.collections.Set<VirtualFile> {
+        val manager = PsiManager.getInstance(project)
+        val inputs = mixExs.mapNotNullTo(LinkedHashSet()) {
+            ((asked(project) { manager.findFile(it) } as? Asked.Answered)?.answer as? SdkInputs.Answer.Ready)?.inputs
+        }
+        if (inputs.isEmpty() || !needed()) return emptySet()
+        val holder = ProjectModules.getInstance(project)
+
+        return inputs.flatMapTo(HashSet(), holder::reachedConfigFiles)
     }
 }
