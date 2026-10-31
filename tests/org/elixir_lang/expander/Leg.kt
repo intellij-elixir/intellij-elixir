@@ -1,7 +1,9 @@
 package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangBinary
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpErlangTuple
 import junit.framework.TestCase.assertEquals
 import org.elixir_lang.beam.ReadResult
 import org.elixir_lang.elixir_surface.LegManifest
@@ -86,7 +88,8 @@ internal fun legModules(): List<String> =
 
 /**
  * The leg's `ex_unit` loaded on the quoter node, as `mix test` has it: the quoter's release holds no `ex_unit`, and in
- * its embedded mode nothing on the code path loads until asked.
+ * its embedded mode nothing on the code path loads until asked. Under a lock, as another test may be loading it too: a
+ * third load of a module is `:not_purged`.
  */
 internal fun exUnitOnQuoter() {
     val ebin = File(LegManifest.environment("ELIXIR_LANG_ELIXIR_PATH"), "lib/ex_unit/ebin")
@@ -95,15 +98,25 @@ internal fun exUnitOnQuoter() {
         ebin = ${elixirString(ebin.invariantSeparatorsPath)}
         true = Code.prepend_path(ebin)
 
-        for beam <- Path.wildcard(Path.join(ebin, "*.beam")),
-            :code.is_loaded(String.to_atom(Path.basename(beam, ".beam"))) == false do
-          {:module, _} = :code.load_abs(String.to_charlist(Path.rootname(beam)))
-        end
+        :global.trans({:ex_unit_on_quoter, self()}, fn ->
+          for beam <- Path.wildcard(Path.join(ebin, "*.beam")),
+              :code.is_loaded(String.to_atom(Path.basename(beam, ".beam"))) == false do
+            {:module, _} = :code.load_abs(String.to_charlist(Path.rootname(beam)))
+          end
+        end, [node()])
 
         {:module, _} = Code.ensure_loaded(ExUnit.Case)
         """.trimIndent(),
         60.seconds,
     )
 
-    assertEquals("ex_unit on the code path: ${compiled.diagnostics}", OtpErlangAtom("ok"), compiled.status)
+    assertEquals("ex_unit on the code path: ${compiled.failure}", OtpErlangAtom("ok"), compiled.status)
 }
+
+/** What a compile reported, with what it raised as text: the reply holds a raise's message as a binary. */
+internal val Quoter.Compiled.failure: String
+    get() {
+        val raised = (status as? OtpErlangTuple)?.elements()?.map { (it as? OtpErlangBinary)?.binaryValue()?.let(::String) ?: it }
+
+        return "$diagnostics $raised"
+    }
