@@ -95,6 +95,23 @@ class BuildTargetHeavyTest : HeavyTestCase() {
         assertEquals("compiled [dev_only/0, not_dev/0]", defines(root, "deps/dep/lib/in_dep.ex"))
     }
 
+    /** The dependency's table asked first, then a `lib/` file's, as each build's env is its own. */
+    fun testADependencyBuiltInOneEnvReadsThatEnvsTable() {
+        val reads = "  @k Application.get_env(:dep, :k)\n  if @k == 2, do: def(two, do: 1)\n  if @k == 3, do: def(three, do: 1)\n"
+        val root = project(
+            "config/config.exs" to "import Config\n\nconfig :dep, k: 1\nimport_config \"#{Mix.env()}.exs\"\n",
+            "config/dev.exs" to "import Config\n\nconfig :dep, k: 2\n",
+            "config/test.exs" to "import Config\n\nconfig :dep, k: 3\n",
+            "lib/in_lib.ex" to "defmodule InLib do\n${reads}end\n",
+            "deps/dep/mix.exs" to "defmodule Dep.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :dep, version: \"0.1.0\"]\nend\n",
+            "deps/dep/lib/in_dep.ex" to "defmodule InDep do\n${reads}end\n",
+            "_build/test/lib/dep/ebin/dep.app" to "{application, dep, [{vsn, \"0.1.0\"}, {modules, []}]}.\n",
+        )
+
+        assertEquals("compiled [three/0]", defines(root, "deps/dep/lib/in_dep.ex"))
+        assertEquals("compiled [two/0]", defines(root, "lib/in_lib.ex"))
+    }
+
     fun testMixTargetIsHost() {
         val root = project("lib/in_lib.ex" to "defmodule InLib do\n  @target Mix.target()\n  if @target == :host, do: def(host, do: 1)\n  if @target != :host, do: def(other, do: 1)\nend\n")
 

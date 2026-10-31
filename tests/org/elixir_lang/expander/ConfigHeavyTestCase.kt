@@ -59,6 +59,7 @@ abstract class ConfigHeavyTestCase : HeavyTestCase() {
 
         return when {
             table.unknown -> "unknown"
+            table.declined -> "declined"
             else -> "${table.config} ${table.files.map { FileUtil.getRelativePath(root.path, it, '/') }}"
         }
     }

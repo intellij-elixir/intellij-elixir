@@ -322,6 +322,7 @@ internal class Run(
     /** Records that an evaluation wrote [app]'s env, or, `null`, an app that isn't known. */
     fun wroteEnv(app: String?) {
         if (app == null) written = null else written?.add(app)
+        config?.wroteEnv(app)
     }
 
     /** Whether an evaluation in the run wrote [app]'s env, so its value isn't [appEnv]'s. */
@@ -352,6 +353,15 @@ internal class Run(
 
     /** Code the expander doesn't follow ran, or may have: a decline the walk went on past, a stop, a macro or callback it lost. */
     fun unfollowedCodeRan() {
+        directoryNoLongerKnown()
+        config?.unitDeclined()
+    }
+
+    /**
+     * A unit declined, so what it ran isn't known. What that means for a read's table is for the unit's recording to say,
+     * as only that knows whether the unit is ported.
+     */
+    fun directoryNoLongerKnown() {
         directoryMayHaveChanged = true
     }
 

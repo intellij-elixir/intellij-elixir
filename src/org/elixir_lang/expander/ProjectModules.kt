@@ -496,6 +496,7 @@ internal class ProjectModules(private val project: Project) {
         val modules = HashMap<String, Answer>()
         val results = HashMap<String, ExpansionResult>()
         val compiling = fileOf(file)
+        val buildTarget = buildTarget(compiling, config, stamps)
         val within = compiling?.let { inProgress + (it to modules) } ?: inProgress
         val looked = HashMap<String, Looked>()
         // A re-read answer joins the one it supersedes, as the expansion used both.
@@ -520,7 +521,7 @@ internal class ProjectModules(private val project: Project) {
             inputs.level,
             { ask(it).exports },
             { ask(it).struct },
-            appEnv(inputs.level, stamps, virtualFile, inProgress) { transients += it },
+            appEnv(inputs, stamps, virtualFile, buildTarget, config, inProgress) { transients += it },
             object : ExpansionObserver by observer {
                 override fun entering(node: ElixirAst, state: ExState, env: Env) {
                     envs?.entering(node, env)
@@ -562,7 +563,7 @@ internal class ProjectModules(private val project: Project) {
             },
             virtualFile = virtualFile,
             os = inputs.os,
-            buildTarget = buildTarget(compiling, config, stamps),
+            buildTarget = buildTarget,
             config = config,
             files = runFiles(virtualFile, inputs, within, memo, stamps) { transients += it },
             directories = { path ->
@@ -587,25 +588,29 @@ internal class ProjectModules(private val project: Project) {
 
     /** The app env a default build of the project sees, for an expansion that keeps no stamps. */
     @RequiresReadLock
-    fun appEnv(inputs: Inputs): AppEnv = appEnv(inputs.level, Stamps(), null, emptyMap()) {}
+    fun appEnv(inputs: Inputs): AppEnv = appEnv(inputs, Stamps(), null, null, null, emptyMap()) {}
 
     /**
-     * The app env a default build of the project sees, as [AppEnv.of] orders it: a key a config file that counts sets,
-     * or may set where one of its settings can't be read, else what the app's `.app` file declares, read from a class
-     * root of the libraries and the SDK outside the project's content, as the `.beam` fallback is. The project's own
-     * apps are built from the sources being expanded, so their `.app` files aren't read. A read made expanding [file],
-     * a config file that counts, is configured: Mix loads the config before the dependencies' `.app` files. So is one
-     * made while a config file's expansion runs above [file]'s ([inProgress]), which holds only while it runs. [stamps]
-     * gain what each answer read, and [transient] what holds only for this run: in dumb mode nothing can be read, and
-     * each answer is unreadable.
+     * The app env a default build of the project sees: the config table [file]'s build reads where its read declined
+     * nothing ([ConfigTable.of]), else, where there is no table or it did, as [AppEnv.of] orders it: a key a config file
+     * that counts sets, or may set where one of its settings can't be read. Past either, what the app's `.app` file
+     * declares, read from a class root of the libraries and the SDK outside the project's content, as the `.beam`
+     * fallback is. The project's own apps are built from the sources being expanded, so their `.app` files aren't read. A
+     * read made expanding [file], a config file that counts or one a config [read] evaluates, is configured: Mix loads the
+     * config before the dependencies' `.app` files. So is one made while a config file's expansion runs above [file]'s
+     * ([inProgress]), which holds only while it runs. [stamps] gain what each answer read, and [transient] what holds
+     * only for this run: in dumb mode nothing can be read, and each answer is unreadable.
      */
     private fun appEnv(
-        level: ElixirLanguageLevel,
+        inputs: Inputs,
         stamps: Stamps,
         file: VirtualFile?,
+        buildTarget: BuildTarget?,
+        read: ConfigRead?,
         inProgress: Map<VirtualFile, Map<String, Answer>>,
         transient: (Transient) -> Unit,
     ): AppEnv {
+        val level = inputs.level
         val configFiles = ArrayList<VirtualFile>()
         // Which files are config files: a `mix.exs` names its config directory, where a file created or deleted moves it.
         val scope by lazy {
@@ -630,21 +635,28 @@ internal class ProjectModules(private val project: Project) {
             return running.isNotEmpty()
         }
 
+        val appFileOf = { app: String -> appFiles.getOrPut(app) { Optional.ofNullable(appFile(app, level, stamps)) }.orElse(null) }
         val env = AppEnv.of(
-            { app, key ->
-                file != null && config.contains(file) || configRunning() ||
-                    (key as? OtpErlangAtom)?.let { ConfigSettings.of(project, app, it.atomValue(), config).isNotEmpty() } == true
-            },
+            { app, key -> (key as? OtpErlangAtom)?.let { ConfigSettings.of(project, app, it.atomValue(), config).isNotEmpty() } == true },
             { app -> ConfigSettings.unread(project, app, config) },
-            { app -> appFiles.getOrPut(app) { Optional.ofNullable(appFile(app, level, stamps)) }.orElse(null) },
+            appFileOf,
         )
+        val table by lazy {
+            val configEnv = buildTarget?.configEnv
+
+            if (file != null && configEnv != null) configTable(file, configEnv, buildTarget.target, inputs, stamps, transient) else null
+        }
 
         return AppEnv { app, key ->
-            if (DumbService.isDumb(project)) {
-                transient(Transient.DUMB)
-                AppEnvValue.Unreadable
-            } else {
-                env.of(app, key).also {
+            when {
+                DumbService.isDumb(project) -> {
+                    transient(Transient.DUMB)
+                    AppEnvValue.Unreadable
+                }
+                read != null || file != null && scope.contains(file) || configRunning() -> AppEnvValue.Configured
+                else -> table?.takeUnless { it.declined }?.let { table ->
+                    table.of(app, key) ?: AppEnv.declared(appFileOf(app), key)
+                } ?: env.of(app, key).also {
                     // Whether a config file's call sets or writes a key rests on the module its expansion names, so on
                     // what that expansion read.
                     configFiles.forEach { file -> files[file]?.stamps?.takeIf { it.isCurrent() }?.let(stamps::addAll) }
@@ -659,9 +671,17 @@ internal class ProjectModules(private val project: Project) {
      */
     @TestOnly
     @RequiresReadLock
-    fun configTable(file: VirtualFile, inputs: Inputs, env: String): ConfigTable? = configTable(file, env, inputs, Stamps()) {}
+    fun configTable(file: VirtualFile, inputs: Inputs, env: String): ConfigTable? =
+        configTable(file, env, BuildTarget.HOST, inputs, Stamps()) {}
 
-    private fun configTable(file: VirtualFile, env: String, inputs: Inputs, stamps: Stamps, transient: (Transient) -> Unit): ConfigTable? {
+    private fun configTable(
+        file: VirtualFile,
+        env: String,
+        target: String,
+        inputs: Inputs,
+        stamps: Stamps,
+        transient: (Transient) -> Unit,
+    ): ConfigTable? {
         // A `mix.exs` created or deleted above the file moves which project's config it reads.
         stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
         val (mixExs, configPath) = generateSequence(file.parent) { it.parent }
@@ -677,7 +697,8 @@ internal class ProjectModules(private val project: Project) {
         // raises. That reads how `mix.exs` wrote the path, so it isn't held by the path.
         val configFile = mixExs.fileSystem.findFileByPath(path)?.takeUnless { it.isDirectory }
             ?: return if (written.isDefault) ConfigTable.EMPTY else ConfigTable.UNKNOWN
-        val key = TableKey(path, mixExs.parent.path, env, HOST, inputs)
+        val directory = mixExs.parent.path
+        val key = TableKey(path, directory, env, target, inputs)
 
         tables[key]?.takeIf { it.stamps.isCurrent() }?.let { held ->
             stamps.addAll(held.stamps)
@@ -687,7 +708,7 @@ internal class ProjectModules(private val project: Project) {
 
         val held = Stamps()
         val transients = ArrayList<Transient>()
-        val table = evaluateConfig(mixExs, configFile, env, inputs, held) { transients += it }
+        val table = evaluateConfig(configFile, ConfigRead(env, target, directory), inputs, held) { transients += it }
         val merged = Transient.merged(transients)
 
         stamps.addAll(held)
@@ -703,9 +724,8 @@ internal class ProjectModules(private val project: Project) {
 
     /** [configFile] read as `Config.Reader.read_imports!/2` reads it. */
     private fun evaluateConfig(
-        mixExs: VirtualFile,
         configFile: VirtualFile,
-        env: String,
+        read: ConfigRead,
         inputs: Inputs,
         stamps: Stamps,
         transient: (Transient) -> Unit,
@@ -713,12 +733,19 @@ internal class ProjectModules(private val project: Project) {
         // The file created or deleted moves the table.
         stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
         val psi = read(configFile) ?: return ConfigTable.UNKNOWN
-        val read = ConfigRead(env, HOST, mixExs.parent.path).apply { imports.add(runPath(configFile, inputs.os, OS.CURRENT) ?: configFile.path) }
+        read.imports.add(runPath(configFile, inputs.os, OS.CURRENT) ?: configFile.path)
         val computed = compute(psi, inputs, emptyMap(), Memo(), config = read)
         stamps.addAll(computed.loaded.stamps)
         transient(computed.transient)
 
-        return if (computed.expansion.top is Expansion.Error) ConfigTable.UNKNOWN else read.table(inputs.level)
+        return when (computed.expansion.top) {
+            is Expansion.Error -> read.raised()
+            is Expansion.Expanded -> read.table(inputs.level)
+            else -> {
+                read.unitDeclined()
+                read.table(inputs.level)
+            }
+        }
     }
 
     private val tables = ConcurrentHashMap<TableKey, HeldTable>()
@@ -1093,9 +1120,6 @@ internal class ProjectModules(private val project: Project) {
 
         /** The bytes the clause cache may retain, apart from the answers' own bound. */
         private const val CLAUSE_BOUND = 64L shl 20
-
-        /** Every read's target: the plugin takes no outside `MIX_TARGET`. */
-        private const val HOST = "host"
 
         private val ABSENT = Answer(ModuleExports.Absent, ModuleStruct.Absent)
         private val UNREADABLE = Answer(ModuleExports.Unreadable, ModuleStruct.Unreadable)

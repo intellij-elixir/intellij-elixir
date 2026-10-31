@@ -207,7 +207,7 @@ internal object Interpreter {
             if (declinesTooDeep) {
                 // Where the stack overflows, which calls were given what isn't known.
                 unlessTooDeep({
-                    evaluation.run.unfollowedCodeRan()
+                    evaluation.run.directoryNoLongerKnown()
 
                     Evaluated.Declined(Given().apply { all() })
                 }) {
@@ -217,7 +217,7 @@ internal object Interpreter {
                 Evaluated.Value(value(evaluation))
             }
         } catch (declined: Declined) {
-            evaluation.run.unfollowedCodeRan()
+            evaluation.run.directoryNoLongerKnown()
 
             Evaluated.Declined(declined.given, declined.holds, declined)
         } catch (thrown: Thrown) {

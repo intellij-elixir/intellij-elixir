@@ -578,6 +578,7 @@ internal class BodyValues(
 
                 if (within != null) within.certain = false else declined = true
                 mayHaveWritten(it.given.of(run.compiling))
+                run.config?.unitDeclined()
             }
         }
 }

@@ -2422,7 +2422,10 @@ internal class Natives(private val evaluation: Evaluation) {
                 }
             }
             is Expansion.Expanded -> {}
-            else -> evaluation.assumeNoRaise()
+            else -> {
+                read.unitDeclined()
+                evaluation.assumeNoRaise()
+            }
         }
 
         return Unknown

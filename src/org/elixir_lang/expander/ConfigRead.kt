@@ -6,6 +6,8 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.expander.interpreter.Unknown
+import org.elixir_lang.expander.interpreter.atom
+import org.elixir_lang.expander.interpreter.holdsClosure
 import org.elixir_lang.expander.interpreter.holdsUnknown
 import org.elixir_lang.expander.interpreter.isKeyword
 import org.elixir_lang.expander.interpreter.isUnknown
@@ -31,19 +33,44 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
     /** Whether a unit declining marks nothing: a statement run again for its value, whose first run marked it. */
     var muted = false
 
-    /** The read's outcome, as `Config.__eval__!/3` takes it: where no `config` call wrote any, a list [result] validated. */
+    private var declined = false
+
+    /** The apps whose env the read wrote, across every file it imports, `null` once it wrote one that isn't known. */
+    private var written: MutableSet<String>? = HashSet()
+
+    /** A unit of the read declined, or code it doesn't follow ran, so its table isn't what Elixir's is. */
+    fun unitDeclined() {
+        if (!muted) declined = true
+    }
+
+    /** Records that the read wrote [app]'s env, or, `null`, an app that isn't known. */
+    fun wroteEnv(app: String?) {
+        if (app == null) written = null else written?.add(app)
+    }
+
+    /**
+     * The read's outcome, as `Config.__eval__!/3` takes it: where no `config` call wrote any, a list [result] validated. A
+     * [result] that isn't known is declined, as whether it is that list isn't known.
+     */
     fun table(level: ElixirLanguageLevel): ConfigTable {
-        val files = imports.toList()
         val result = result
 
         return when {
-            properElements(config)?.isEmpty() != true -> ConfigTable(config, files)
-            isUnknown(result) -> ConfigTable.UNKNOWN
-            result !is OtpErlangList && result !is OtpErlangString -> ConfigTable(config, files)
-            holdsUnknown(result) || !isValid(result, level) -> ConfigTable.UNKNOWN
-            else -> ConfigTable(result, files)
+            declined || properElements(config)?.isEmpty() != true -> outcome(config)
+            isUnknown(result) -> {
+                unitDeclined()
+                outcome(config)
+            }
+            result !is OtpErlangList && result !is OtpErlangString -> outcome(config)
+            holdsUnknown(result) || !isValid(result, level) -> raised()
+            else -> outcome(result)
         }
     }
+
+    /** The read's outcome where it raised, or its result holds a value not known. */
+    fun raised(): ConfigTable = ConfigTable(OtpErlangList(), imports.toList(), declined, unknown = true)
+
+    private fun outcome(config: OtpErlangObject) = ConfigTable(config, imports.toList(), declined, written?.toSet())
 
     /** Whether `Config.validate!/2` lets [result] by: before [CONFIG_VALIDATES_EVERY_ENTRY], the first entry not `{atom, _}` ends its check. */
     private fun isValid(result: OtpErlangObject, level: ElixirLanguageLevel): Boolean {
@@ -79,10 +106,51 @@ internal interface RunFiles {
 }
 
 /**
- * A config read's outcome: the merged [config] and the [files] it read, newest first, or [unknown] where the read
- * raised, as the build then fails.
+ * A config read's outcome: the merged [config] and the [files] it read, newest first. [unknown] where the read raised,
+ * as the build then fails, or its result was a list holding a value not known, so no key's value is known.
+ *
+ * @property declined whether a unit of the read declined, so [config] isn't what Elixir's is
+ * @property written the apps whose env the read wrote, `null` where one isn't known
  */
-internal class ConfigTable(val config: OtpErlangObject, val files: List<String>, val unknown: Boolean = false) {
+internal class ConfigTable(
+    val config: OtpErlangObject,
+    val files: List<String>,
+    val declined: Boolean = false,
+    private val written: Set<String>? = emptySet(),
+    val unknown: Boolean = false,
+) {
+    /**
+     * [app]'s [key]: [AppEnvValue.Declared] with its value where the table knows it, [AppEnvValue.Configured] where it
+     * sets the key to a value not known, or one holding a function the read made, which runs in the read's run and not its
+     * caller's, [AppEnvValue.Unreadable] where the read wrote the app, whose env is what loading
+     * it makes of the write, and `null` where the read leaves the key alone, so the app's `.app` answers.
+     */
+    fun of(app: String, key: OtpErlangObject): AppEnvValue? {
+        if (unknown || isUnknown(key)) return AppEnvValue.Configured
+
+        val value = valueOf(config, atom(app))?.let { settings -> valueOf(settings, key) }
+
+        return when {
+            value == null -> if (written?.contains(app) != false) AppEnvValue.Unreadable else null
+            holdsUnknown(value) || holdsClosure(value) -> AppEnvValue.Configured
+            else -> AppEnvValue.Declared(value)
+        }
+    }
+
+    /** `Keyword.get/2`'s first value under [key], `null` where there is none; where an unknown comes first, unknown. */
+    private fun valueOf(keywords: OtpErlangObject, key: OtpErlangObject): OtpErlangObject? {
+        if (isUnknown(keywords)) return keywords
+
+        val elements = properElements(keywords) ?: return Unknown
+        val pair = keyFound(elements, 1, { if (isUnknown(it)) return Unknown else it }) { first ->
+            if (isUnknown(first)) return Unknown
+
+            first == key
+        }
+
+        return pair?.takeIf { it.arity() == 2 }?.elementAt(1)
+    }
+
     companion object {
         val EMPTY = ConfigTable(OtpErlangList(), emptyList())
         val UNKNOWN = ConfigTable(OtpErlangList(), emptyList(), unknown = true)

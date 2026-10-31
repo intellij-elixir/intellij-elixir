@@ -7,4 +7,9 @@ package org.elixir_lang.expander
  * @property mixEnv what `Mix.env/0` answers, `null` where it isn't known: Mix compiles a dependency under an env of its
  *   own, which needn't be the `_build` env holding it
  */
-internal data class BuildTarget(val configEnv: String?, val mixEnv: String?, val target: String = "host")
+internal data class BuildTarget(val configEnv: String?, val mixEnv: String?, val target: String = HOST) {
+    companion object {
+        /** Every build's target: the plugin takes no outside `MIX_TARGET`. */
+        const val HOST = "host"
+    }
+}
