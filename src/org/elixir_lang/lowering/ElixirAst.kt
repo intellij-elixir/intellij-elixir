@@ -24,8 +24,8 @@ import java.nio.charset.CharacterCodingException
 
 /** What [Aligner.look] finds for a term. */
 sealed class Aligned {
-    /** The term is [node]'s. */
-    class Source(val node: ElixirAst) : Aligned()
+    /** The term is [node]'s, of [nodes] nodes. */
+    class Source(val node: ElixirAst, val nodes: Int) : Aligned()
 
     /** The term has [meta]'s origin, and its children align by position with [source]'s. */
     class Spine(val meta: Meta, val source: OtpErlangObject) : Aligned()
@@ -228,7 +228,7 @@ sealed class ElixirAst {
 
                 val found = aligner?.look(term, aligned)
 
-                if (found is Aligned.Source) return found.node
+                if (found is Aligned.Source) return found.node.takeIf { budget.spend(found.nodes) }
 
                 val spine = found as? Aligned.Spine
                 val below = if (found === Aligned.Stays) null else aligner

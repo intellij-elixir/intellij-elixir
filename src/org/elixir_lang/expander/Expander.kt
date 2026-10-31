@@ -303,6 +303,9 @@ internal class Run(
     /** The project's files the run reaches by path. */
     val files: RunFiles = RunFiles.NONE,
 ) {
+    /** Each macro argument's term and node. */
+    val origins = Origins()
+
     /** The modules whose exports the run read, in the order it read them. */
     val consulted = mutableListOf<String>()
 

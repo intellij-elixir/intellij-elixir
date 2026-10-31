@@ -682,15 +682,14 @@ internal fun truthy(term: OtpErlangObject): Boolean {
 
 /**
  * The code [value] is, as [ElixirAst.fromOtp] reads it, or `null` where it isn't code or the code would hold more than
- * [COPY_NODES] nodes. [onNode] is told each term and the node it became.
+ * [COPY_NODES] nodes.
  */
 internal fun codeOf(
     value: OtpErlangObject,
     origin: TextRange,
     values: Boolean = false,
     known: (OtpErlangObject) -> ElixirAst? = { null },
-    onNode: ((OtpErlangObject, ElixirAst) -> Unit)? = null,
-): ElixirAst? = ElixirAst.fromOtp(value, origin, values, known, COPY_NODES, onNode = onNode)
+): ElixirAst? = ElixirAst.fromOtp(value, origin, values, known, COPY_NODES)
 
 /**
  * [value] as the expander's [Term]: a float is [Term.NonTuple], and what a [Term] can't hold, an unknown value

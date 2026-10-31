@@ -327,9 +327,10 @@ internal fun unquoted(
     evaluates: Boolean = true,
     bindings: HashMap<Binding, OtpErlangObject> = compiling.values.bindings,
 ): Unquoted {
-    // A definition in a followed body is stored once per run of the body: each store's nodes, and so the records the
-    // stored clause keeps by node, are its own.
-    fun own(node: ElixirAst?): ElixirAst? = if (definition.followed) node?.let { copied(it, run) } else node
+    // A definition in a followed body is stored once per run of the body, and a fragment's value may stand at several
+    // places: each store's nodes, and so the records the stored clause keeps by node, are its own.
+    fun own(node: ElixirAst?): ElixirAst? =
+        if (definition.followed || definition.fragments != null) node?.let { copied(it, run) } else node
 
     val fragments = definition.fragments
         ?: return Unquoted(own(definition.head)!!, own(definition.body), null, null, definition.statement)
@@ -434,7 +435,7 @@ internal fun unquoted(
             when {
                 fragment.check != null -> held.addLast(holding)
                 fragment.kind == Fragment.Kind.UNQUOTE ->
-                    place(holding, (known ?: holding.term?.let { valueNode(it, fragment.call) })
+                    place(holding, (known ?: holding.term?.let { valueNode(it, fragment.call, run) })
                         ?.let { replacements[fragment.call] = it })
                 else -> place(holding, nowhere(fragment, holding.term))
             }
@@ -469,7 +470,7 @@ internal fun unquoted(
                     // the value the helper took, as the elements beside it are placed by their own nodes.
                     value?.let { if (checking.fragment.list != null) it else checking.term }
                         ?.let(::properElements)
-                        ?.map { valueNode(it, call) }
+                        ?.map { valueNode(it, call, run) }
                         ?.takeIf { elements -> elements.all { it != null } }
                         ?.let { elements -> splices[checking.fragment.list?.last() ?: call] = elements.filterNotNull() }
                 Fragment.Kind.NAME -> value?.let { dotted(checking.fragment, it, left!!, leftTerm!!) }
@@ -532,11 +533,12 @@ private data class Held(val fragment: Fragment, val known: ElixirAst?, val evalu
 }
 
 /**
- * The code [value] is, as a macro's result is read, for [call]: marked built, as no observer is to take it for a node of
- * the source. It is `null` where the value nests too deeply to convert on the thread's stack or is too large to copy.
+ * The code [value] is, as a macro's result is read, for [call]: what isn't a source node is marked built, as no observer
+ * is to take it for one. It is `null` where the value nests too deeply to convert on the thread's stack or is too large
+ * to copy.
  */
-private fun valueNode(value: OtpErlangObject, call: ElixirAst): ElixirAst? =
-    unlessTooDeep({ null }) { codeOf(value, call.meta.origin, values = true)?.let(Quote::builtCopy) }
+private fun valueNode(value: OtpErlangObject, call: ElixirAst, run: Run): ElixirAst? =
+    unlessTooDeep({ null }) { rebuilt(value, call.meta.origin, run, built = true) }
 
 /** The name in `{{:., _, [_, name]}, _, _}`, the call `elixir_quote:dot/4` made. */
 private fun calledName(call: OtpErlangObject): String? {
