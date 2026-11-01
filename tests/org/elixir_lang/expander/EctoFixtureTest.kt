@@ -126,8 +126,9 @@ class EctoFixtureTest : HeavyTestCase() {
         val expected = modules.map { module ->
             val exports = info.get(OtpErlangAtom(module)) as OtpErlangMap
 
-            // The schema module's expansion declines, so the `__schema__(:source)` call Queries' functions make can't be
-            // answered.
+            // `q_no_on`'s `join/4` stops at the `inspect/1` of its `:on` warning, and where Ecto sets `@after_compile
+            // Ecto.Schema` the schemas' exports are unknown, so its calls stop earlier: each leaves the exports unknown.
+            // [testQueriesStoresWhatElixirGives] reads what the module stored.
             if (module == QUERIES) return@map "$module ${ModuleExports.Unreadable}"
 
             "$module functions: ${names(exports.get(OtpErlangAtom("functions")))}; macros: ${names(exports.get(OtpErlangAtom("macros")))}"
@@ -141,6 +142,18 @@ class EctoFixtureTest : HeavyTestCase() {
         }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
+    }
+
+    /** On a leg whose Ecto sets `@after_compile Ecto.Schema`, the schemas' exports are unknown, so Queries' calls stop earlier. */
+    fun testQueriesStoresWhatElixirGives() {
+        val compiled = compiled ?: return
+
+        if (compiled.afterCompile) return
+
+        val info = etf(File(compiled.oracle, "info.etf")) as OtpErlangMap
+        val result = expansion(ProjectModules(project), file(corpus!!, compiled, ASKER)).modules.single()
+
+        assertEquals(exportsIn(info, QUERIES), stored(result))
     }
 
     fun testCompileConfigIsElixirs() {
@@ -206,10 +219,9 @@ class EctoFixtureTest : HeavyTestCase() {
         }
         val actual = SCHEMAS.map { module ->
             val result = results.getValue(module)
-            val named = { kind: DefinitionTable.Kind -> names(result.table.entries.filterValues { it.kind == kind }.keys.toList()) }
             val struct = (result.struct as? ModuleStruct.Present)?.fields?.sorted()?.joinToString(", ") ?: "${result.struct}"
 
-            "$module functions: ${named(DefinitionTable.Kind.DEF)}; macros: ${named(DefinitionTable.Kind.DEFMACRO)}; struct: $struct"
+            "$module ${stored(result)}; struct: $struct"
         }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
@@ -387,6 +399,13 @@ class EctoFixtureTest : HeavyTestCase() {
             System.getProperty(name) ?: throw AssertionError("This test needs the system property $name, which Gradle's `test` sets.")
 
         fun etf(file: File): OtpErlangObject = binaryToTerm(file.readBytes(), 0).first
+
+        /** The functions and macros [result] stored, as [exportsIn] gives Elixir's. */
+        fun stored(result: ExpansionResult): String {
+            val named = { kind: DefinitionTable.Kind -> names(result.table.entries.filterValues { it.kind == kind }.keys.toList()) }
+
+            return "functions: ${named(DefinitionTable.Kind.DEF)}; macros: ${named(DefinitionTable.Kind.DEFMACRO)}"
+        }
 
         fun exportsIn(info: OtpErlangMap, module: String): String {
             val exports = info.get(OtpErlangAtom(module)) as OtpErlangMap
