@@ -164,6 +164,7 @@ private val RUNS = mapOf(
     Triple("lists", "foldl", 3) to listOf(0),
     Triple("lists", "mapfoldl", 3) to listOf(0),
     Triple("lists", "all", 2) to listOf(0),
+    Triple("lists", "sort", 2) to listOf(0),
     Triple("Elixir.Enum", "map", 2) to listOf(1),
     Triple("Elixir.Enum", "flat_map", 2) to listOf(1),
     Triple("Elixir.Enum", "filter", 2) to listOf(1),
@@ -432,7 +433,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 OtpErlangBinary(bytes.copyOfRange(from.toInt(), to.toInt()))
             }
             "byte_size/1" -> integer(((bitSize(seen(args[0]) as? OtpErlangBitstr ?: badarg()) + 7) / 8).toLong())
-            "iolist_to_binary/1" -> OtpErlangBinary(iodataBytes(args[0], badarg))
+            "iolist_to_binary/1" -> iolistToBinary(args[0], badarg)
             "setelement/3" -> {
                 val tuple = seen(args[1]) as? OtpErlangTuple ?: badarg()
                 val elements = tuple.elements()
@@ -769,6 +770,8 @@ internal class Natives(private val evaluation: Evaluation) {
                 TRUE
             }
             "sort/1" -> sort(args[0], functionClause)
+            "sort/2" -> sortWith(ran, args, functionClause)
+            "keysort/2" -> keysort(args, functionClause, badarg)
             else -> null
         }
     }
@@ -817,6 +820,158 @@ internal class Natives(private val evaluation: Evaluation) {
         }
 
         functionClause(split.helper, split.arguments(tail))
+    }
+
+    /**
+     * `lists:keysort/2`: a proper list's stable sort by each tuple's element, in term order. A list of one is returned
+     * without reading it. A longer improper list raises in a helper whose runs aren't ported, so it declines, as does a
+     * list OTP's own sort gives in a different order before and after its stability fix.
+     */
+    private fun keysort(
+        args: List<OtpErlangObject>,
+        functionClause: (String, List<OtpErlangObject>) -> Nothing,
+        badarg: (String) -> Nothing,
+    ): OtpErlangObject {
+        val position = (seen(args[0]) as? OtpErlangLong)?.takeIf { it.signum() > 0 } ?: functionClause("keysort", args)
+        val (elements, tail) = cells(args[1]) ?: evaluation.error(tuple(atom("case_clause"), args[1]))
+
+        if (tail != null) {
+            if (elements.size < 2) evaluation.error(tuple(atom("case_clause"), args[1]))
+
+            decline("lists:keysort/2 of an improper list")
+        }
+        if (elements.size < 2) return args[1]
+
+        val index = position.bigIntegerValue().min(Int.MAX_VALUE.toBigInteger()).toInt()
+        val keyed = elements.map { element ->
+            val key = (seen(element) as? OtpErlangTuple)?.takeIf { index <= it.arity() }?.elementAt(index - 1) ?: badarg("keysort")
+
+            key to element
+        }
+        val run = keyed.takeWhile { (_, element) -> compare(element, keyed[0].second, level) == 0 }
+        val next = keyed.getOrNull(run.size)
+
+        if (next != null && run.size > 1 && run.any { (_, element) -> compare(element, keyed[0].second, level, exact = true) != 0 } &&
+            compare(next.first, keyed[0].first, level) < 0
+        ) {
+            decline("lists:keysort/2 of tuples that compare equal, not exactly, before a lower key")
+        }
+
+        return list(keyed.sortedWith { (left, _), (right, _) ->
+            ProgressManager.checkCanceled()
+
+            compare(left, right, level)
+        }.map { it.second })
+    }
+
+    /** `lists:sort/2`, which declines on an improper list or a value it can't call, whose raise is in a helper not ported. */
+    private fun sortWith(
+        ran: OtpErlangObject,
+        args: List<OtpErlangObject>,
+        functionClause: (String, List<OtpErlangObject>) -> Nothing,
+    ): OtpErlangObject {
+        val function = function(ran, 2)
+        val (elements, tail) = cells(args[1]) ?: functionClause("sort", args)
+
+        if (tail != null) {
+            if (elements.size < 2) functionClause("sort", args)
+
+            decline("lists:sort/2 of an improper list")
+        }
+        if (elements.size < 2) return if (function != null) args[1] else functionClause("sort", args)
+        if (function == null) decline("lists:sort/2 with %s", args[0])
+
+        return list(FunSort { left, right ->
+            when (val result = function.call(left, right)) {
+                TRUE -> true
+                FALSE -> false
+                else -> evaluation.error(tuple(atom("case_clause"), seen(result)))
+            }
+        }.sorted(elements))
+    }
+
+    /**
+     * `lists:sort/2`'s runs and merges (`fsplit_*`, `fmergel`, `rfmergel`, `fmerge2_*`, `rfmerge2_*`) as OTP calls [before]:
+     * which pairs it is given, and so the result of one that isn't a total preorder, depend on them.
+     */
+    private class FunSort(private val before: (OtpErlangObject, OtpErlangObject) -> Boolean) {
+        fun sorted(elements: List<OtpErlangObject>): List<OtpErlangObject> {
+            val ascending = before(elements[0], elements[1])
+            var x = elements[0]
+            var y = elements[1]
+            var r = ArrayList<OtpErlangObject>()
+            var s: OtpErlangObject? = null
+            val runs = ArrayList<List<OtpErlangObject>>()
+
+            for (z in elements.drop(2)) {
+                ProgressManager.checkCanceled()
+
+                val pending = s
+
+                when {
+                    before(y, z) == ascending -> {
+                        r += x
+                        x = y
+                        y = z
+                    }
+                    before(x, z) == ascending -> {
+                        r += x
+                        x = z
+                    }
+                    pending == null && r.isEmpty() -> r += z
+                    pending == null -> s = z
+                    else -> {
+                        val inOrder = before(pending, z) == ascending
+
+                        runs.add(0, listOf(y, x) + r.asReversed())
+                        r = ArrayList()
+                        x = if (inOrder) pending else z
+                        y = if (inOrder) z else pending
+                        s = null
+                    }
+                }
+            }
+
+            runs.add(0, listOf(y, x) + r.asReversed())
+            s?.let { runs.add(0, listOf(it)) }
+
+            return merged(runs, ascending, forward = !ascending)
+        }
+
+        /** `fmergel/4` where [forward], else `rfmergel/4`. */
+        private tailrec fun merged(runs: List<List<OtpErlangObject>>, ascending: Boolean, forward: Boolean): List<OtpErlangObject> {
+            val merges = ArrayList<List<OtpErlangObject>>()
+
+            for (pair in runs.chunked(2).filter { it.size == 2 }) {
+                val (first, second) = if (ascending == forward) pair[0] to pair[1] else pair[1] to pair[0]
+
+                merges.add(0, merge(first, second, forward))
+            }
+
+            if (runs.size % 2 == 0) return merged(merges, ascending, !forward)
+
+            val last = runs.last()
+
+            return if (forward && merges.isEmpty()) last else merged(listOf(last.asReversed()) + merges, ascending, !forward)
+        }
+
+        /** `fmerge2_1/5` where [forward], taking from [first] where [before] holds, else `rfmerge2_1/5`, reversed as they give it. */
+        private fun merge(first: List<OtpErlangObject>, second: List<OtpErlangObject>, forward: Boolean): List<OtpErlangObject> {
+            val merged = ArrayList<OtpErlangObject>(first.size + second.size)
+            var i = 0
+            var j = 0
+
+            while (i < first.size && j < second.size) {
+                ProgressManager.checkCanceled()
+
+                merged += if (before(first[i], second[j]) == forward) first[i++] else second[j++]
+            }
+
+            merged += first.subList(i, first.size)
+            merged += second.subList(j, second.size)
+
+            return merged.asReversed()
+        }
     }
 
     /**
@@ -2124,15 +2279,27 @@ internal class Natives(private val evaluation: Evaluation) {
         }
 
     /**
-     * `Kernel.inspect/2`, `when is_list(opts)`: with no options, a binary whose bytes aren't known, as `inspect/1` gives.
-     * Options decline: which of them raise is `Inspect.Opts`' and `Inspect.Algebra`'s to say, and those aren't read.
+     * `Kernel.inspect/2`, `when is_list(opts)`: with no options, or `:charlists` with a value that only chooses how a list
+     * reads, a binary whose bytes aren't known, as `inspect/1` gives. `:as_charlists` and other options decline: which of
+     * them raise is `Inspect.Opts`' and `Inspect.Algebra`'s to say, and those aren't read.
      */
     private fun inspect(options: OtpErlangObject, args: List<OtpErlangObject>): OtpErlangObject =
         when {
-            options == EMPTY -> UnknownBinary
+            options == EMPTY || choosesOnlyCharlists(options) -> UnknownBinary
             !isUnknown(options) && !isList(options) -> functionClause("Elixir.Kernel", "inspect", args)
             else -> decline("Kernel.inspect/2 with options %s", options)
         }
+
+    private fun choosesOnlyCharlists(options: OtpErlangObject): Boolean {
+        val (elements, tail) = options.takeUnless(::isUnknown)?.let(::cells) ?: return false
+
+        return tail == null && elements.all { element ->
+            val option = (element as? OtpErlangTuple)?.takeIf { it.arity() == 2 && it.elementAt(0) == atom("charlists") }
+                ?: return@all false
+
+            !isUnknown(option.elementAt(1)) && option.elementAt(1) != atom("as_charlists")
+        }
+    }
 
     private fun macro(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
         when (key) {
@@ -2753,11 +2920,22 @@ internal class Natives(private val evaluation: Evaluation) {
      * the first term that isn't. Past [COPY_NODES] elements, nested lists' included, it declines, as their parts may be
      * shared many times over.
      */
-    private fun leaves(term: OtpErlangObject, binary: (OtpErlangBitstr) -> Unit, integer: (OtpErlangLong) -> Unit): Boolean {
+    private fun leaves(
+        term: OtpErlangObject,
+        binary: (OtpErlangBitstr) -> Unit,
+        unknownBinary: (() -> Unit)? = null,
+        integer: (OtpErlangLong) -> Unit,
+    ): Boolean {
         var met = 0
 
         fun walk(term: OtpErlangObject): Boolean {
             ProgressManager.checkCanceled()
+
+            if (term === UnknownBinary && unknownBinary != null) {
+                unknownBinary()
+
+                return true
+            }
 
             val known = seen(term)
 
@@ -2768,21 +2946,27 @@ internal class Natives(private val evaluation: Evaluation) {
             for (element in elements) {
                 if (++met > COPY_NODES) decline("iodata or chardata of over $COPY_NODES elements")
 
-                val part = seen(element)
-
-                if (part is OtpErlangLong) integer(part) else if (!walk(part)) return false
+                if (element is OtpErlangLong) integer(element) else if (!walk(element)) return false
             }
 
-            return tail == null || seen(tail) is OtpErlangBitstr && walk(tail)
+            return tail == null || (tail === UnknownBinary || seen(tail) is OtpErlangBitstr) && walk(tail)
         }
 
         return walk(term)
     }
 
+    /** `iolist_to_binary/1`: a binary whose bytes aren't known where a part of the iodata [term] is one. */
+    private fun iolistToBinary(term: OtpErlangObject, badarg: () -> Nothing): OtpErlangObject {
+        var unknown = false
+        val bytes = iodataBytes(term, badarg) { unknown = true }
+
+        return if (unknown) UnknownBinary else OtpErlangBinary(bytes)
+    }
+
     /** The bytes of the iodata [term], as `iolist_to_binary/1` gives them; [badarg] where [term] isn't iodata. */
-    private fun iodataBytes(term: OtpErlangObject, badarg: () -> Nothing): ByteArray {
+    private fun iodataBytes(term: OtpErlangObject, badarg: () -> Nothing, unknownBinary: (() -> Unit)? = null): ByteArray {
         val bytes = Built()
-        val iodata = leaves(term, { bytes.write(it.binaryValue()) }) { byte ->
+        val iodata = leaves(term, { bytes.write(it.binaryValue()) }, unknownBinary) { byte ->
             bytes.write(byte.bigIntegerValue().takeIf { it.signum() >= 0 && it.bitLength() <= 8 }?.toInt() ?: badarg())
         }
 
