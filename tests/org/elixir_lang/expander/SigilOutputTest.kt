@@ -11,7 +11,8 @@ import java.io.File
  * `Macro.expand_once/2` of `use` and each `Kernel` sigil on every leg, against what that leg's Elixir and Erlang/OTP
  * give (`sigil_output/<leg>/A.txt`, from `generate.exs` beside it): the quoted term printed as
  * [KernelSummaryOutputTest] prints it, a `Regex` as [OutputFixture] says, or the error the macro raises. A leg runs
- * its Elixir on the OTP its first line names; a directory suffix `-otp-<major>` tells legs of one Elixir apart.
+ * its Elixir on the OTP its first line names; a directory suffix `-otp-<major>`, or `-otp-<major>.<minor>` inside a
+ * major, tells legs of one Elixir apart.
  */
 class SigilOutputTest : ExpanderTestCase() {
     override fun tearDown() {
