@@ -7,6 +7,7 @@ import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.testFramework.LightProjectDescriptor
+import org.elixir_lang.declaration.expanderSwitchOn
 import java.io.File
 
 /**
@@ -24,11 +25,15 @@ object MatrixProjectDescriptor : LightProjectDescriptor() {
             .filter(File::isDirectory)
             .sortedBy { it.parentFile.name }
 
+    /** With the leg SDK attached the real `Kernel` is found there; the `elixir_sdk` copies would be a second one. */
+    private fun attached(): List<File> =
+        if (expanderSwitchOn()) ebinDirectories.filterNot { it.parentFile.name == "elixir_sdk" } else ebinDirectories
+
     override fun configureModule(module: Module, model: ModifiableRootModel, contentEntry: ContentEntry) {
-        VfsRootAccess.allowRootAccess(module.project, *ebinDirectories.map(File::getPath).toTypedArray())
+        VfsRootAccess.allowRootAccess(module.project, *attached().map(File::getPath).toTypedArray())
 
         model.moduleLibraryTable.createLibrary("code-intelligence-matrix").modifiableModel.apply {
-            ebinDirectories.forEach { addRoot(VfsUtilCore.pathToUrl(it.path), OrderRootType.CLASSES) }
+            attached().forEach { addRoot(VfsUtilCore.pathToUrl(it.path), OrderRootType.CLASSES) }
             commit()
         }
     }
