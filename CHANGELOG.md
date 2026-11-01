@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4583](https://github.com/intellij-elixir/intellij-elixir/pull/4583) [@sh41](https://github.com/sh41)
+  - **The expander now sees a module that uses `Phoenix.Component` as Elixir compiles it, with its `__components__/0`, each component's wrapper function and `__global__?/1`, unless a `~H` comes before the end of the module; and an `@assign` in a `.leex` component template now resolves through parenthesised `live_component/3` and `live_modal/3` calls and qualified module names, and no longer through a `live_component/3` that isn't LiveView's or a `live_modal/3` in a library.** Refs [#4576](https://github.com/intellij-elixir/intellij-elixir/issues/4576).
+
 - [#4575](https://github.com/intellij-elixir/intellij-elixir/pull/4575) [@sh41](https://github.com/sh41)
   - **With "Run the expander" on, a setting in a file that `import_config` reaches from a subfolder, such as `config/prod/database.exs`, now counts: Go To from a read reaches it, Find Usages lists it, completion offers its key and the unread config key inspection counts it.** Refs [#4539](https://github.com/intellij-elixir/intellij-elixir/issues/4539).
 

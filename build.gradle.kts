@@ -991,6 +991,39 @@ val getEctoFixtureDeps: TaskProvider<GetQuoterDepsTask> = tasks.register<GetQuot
     }
 }
 
+// The expander tests' Phoenix.Component fixture, laid out and fetched as the Ecto fixture is.
+val phoenixComponentFixturePath: Directory = layout.projectDirectory.dir("testData/org/elixir_lang/expander/phoenix_component")
+val phoenixComponentFixtureLocks: Directory = phoenixComponentFixturePath.dir("locks")
+val phoenixComponentFixtureCachePath: Directory = cachePath.dir("$quoterPairToken-phoenix-component-fixture")
+val phoenixComponentFixtureDeps: Directory = phoenixComponentFixtureCachePath.dir("deps")
+val phoenixComponentFixtureMixHome: Directory = phoenixComponentFixtureCachePath.dir("mix_home")
+val phoenixComponentFixtureMixArchives: Directory = phoenixComponentFixtureCachePath.dir("mix_archives")
+
+val getPhoenixComponentFixtureDeps: TaskProvider<GetQuoterDepsTask> = tasks.register<GetQuoterDepsTask>("getPhoenixComponentFixtureDeps") {
+    description = "Fetches the Phoenix.Component fixture's dependencies, for an Elixir it has a lock for"
+    dependsOn(resolveElixirErlangSdks)
+
+    projectDir.set(phoenixComponentFixturePath)
+    depsDir.set(phoenixComponentFixtureDeps)
+    sdkProperties.set(sdkPropertiesFile)
+    mixHome.set(phoenixComponentFixtureMixHome)
+    mixArchives.set(phoenixComponentFixtureMixArchives)
+    mixEnv.set("dev")
+
+    inputs.file(phoenixComponentFixturePath.file("mix.exs"))
+        .withPropertyName("mixExs")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir(phoenixComponentFixtureLocks)
+        .withPropertyName("mixLocks")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+
+    val resolvedSdks = sdkPropertiesFile.get().asFile
+    val locks = phoenixComponentFixtureLocks.asFile
+    onlyIf("the Phoenix.Component fixture has a lock for this Elixir") {
+        File(locks, "${readPropertiesFile(resolvedSdks)["elixir.version"]}.lock").isFile
+    }
+}
+
 val releaseQuoter: TaskProvider<ReleaseQuoterTask> = tasks.register<ReleaseQuoterTask>("releaseQuoter") {
     description = "Builds the Quoter tool"
     dependsOn(getQuoterDeps)
@@ -1055,6 +1088,9 @@ tasks.register<CachePathsTask>("quoterCachePaths") {
             ectoFixtureDeps.asFile,
             ectoFixtureMixHome.asFile,
             ectoFixtureMixArchives.asFile,
+            phoenixComponentFixtureDeps.asFile,
+            phoenixComponentFixtureMixHome.asFile,
+            phoenixComponentFixtureMixArchives.asFile,
         ).map { projectPath.relativize(it.toPath()).joinToString("/") } +
             // Sockets, not build output - actions/cache cannot archive them.
             "!cache/**/tmp/pipe/**"
@@ -1062,11 +1098,12 @@ tasks.register<CachePathsTask>("quoterCachePaths") {
     // The cache is saved only when its key misses, so a lock bump must change the key for the new dependencies to
     // be saved. CI asks for this before any SDK is resolved, so the lock is named by the requested Elixir, which
     // CI gives in full.
-    key.set(
-        providers.fileContents(ectoFixtureLocks.file("$elixirVersion.lock")).asBytes
+    val lockDigest = { locks: Directory ->
+        providers.fileContents(locks.file("$elixirVersion.lock")).asBytes
             .map { bytes -> MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) } }
             .orElse("none")
-    )
+    }
+    key.set(lockDigest(ectoFixtureLocks).zip(lockDigest(phoenixComponentFixtureLocks)) { ecto, phoenix -> "$ecto-$phoenix" })
 }
 
 // --- Elixir parsing corpus ---
@@ -1166,7 +1203,7 @@ tasks.named<Test>("test") {
     // decompiler tests read the Elixir stdlib ebin, and the parser tests read stdlib sources.
     // Resolved paths are only known at execution, so set env in a doFirst reading the resolver
     // output.
-    dependsOn("prepareTestSandbox", resolveElixirErlangSdks, startQuoter, getEctoFixtureDeps)
+    dependsOn("prepareTestSandbox", resolveElixirErlangSdks, startQuoter, getEctoFixtureDeps, getPhoenixComponentFixtureDeps)
     usesService(quoterService)
     // Backstop for local runs, which have no step limit of CI's: a full run took 5m54s locally on 9 forks,
     // and a stuck test fork otherwise runs until someone notices.
@@ -1190,10 +1227,13 @@ tasks.named<Test>("test") {
     val quoterAvailability = quoterAvailabilityFile.asFile
     val quoterStarted = quoterStartedFile.asFile
     val corpusRoot = elixirParsingCorpusRoot.asFile.takeIf { elixirParsingCorpus.isNotEmpty() }
-    val ectoFixtureMix = mapOf(
+    val fixtureMix = mapOf(
         "elixir.ectoFixture.deps" to ectoFixtureDeps.asFile,
         "elixir.ectoFixture.mixHome" to ectoFixtureMixHome.asFile,
         "elixir.ectoFixture.mixArchives" to ectoFixtureMixArchives.asFile,
+        "elixir.phoenixComponentFixture.deps" to phoenixComponentFixtureDeps.asFile,
+        "elixir.phoenixComponentFixture.mixHome" to phoenixComponentFixtureMixHome.asFile,
+        "elixir.phoenixComponentFixture.mixArchives" to phoenixComponentFixtureMixArchives.asFile,
     )
     doFirst {
         // `startQuoter` writes the start marker every run and copies the build marker's reason when it
@@ -1204,7 +1244,7 @@ tasks.named<Test>("test") {
         corpusRoot?.let { environment("ELIXIR_PARSING_CORPUS", it.absolutePath) }
         // Set here rather than as inputs: each is a path under this checkout, and the lock that decides what the
         // deps hold is already an input as part of testData.
-        ectoFixtureMix.forEach { (name, dir) -> systemProperty(name, dir.absolutePath) }
+        fixtureMix.forEach { (name, dir) -> systemProperty(name, dir.absolutePath) }
     }
 
     inputs.files(elixirParsingCorpusTask)

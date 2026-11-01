@@ -1,15 +1,20 @@
 package org.elixir_lang.leex.reference.resolver
 
+import com.intellij.concurrency.ConcurrentCollectionFactory
 import com.intellij.openapi.roots.impl.LibraryScopeCache
 import com.intellij.psi.*
 import com.intellij.psi.impl.source.resolve.ResolveCache
 import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.search.searches.ReferencesSearch
+import com.intellij.psi.search.PsiSearchHelper
+import com.intellij.psi.search.UsageSearchContext
 import com.intellij.psi.stubs.StubIndex
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.leex.reference.Assign
 import org.elixir_lang.lowering.ElementLowering
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.model.psi.function.definitionClause
+import org.elixir_lang.model.psi.module.ModuleSymbol
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.Modular.callDefinitionClauseCallFoldWhile
 import org.elixir_lang.psi.call.Call
@@ -406,33 +411,61 @@ object Assign : ResolveCache.PolyVariantResolver<ReferenceAssign> {
         incompleteCode: Boolean,
         viewModule: Call
     ): List<ResolveResult> {
-        val searchScope = GlobalSearchScope.projectScope(assign.element.project)
+        val symbol = ModuleSymbol.fromModular(viewModule) ?: return emptyList()
+        val project = assign.element.project
+        val searchScope = GlobalSearchScope.projectScope(project)
             .let { GlobalSearchScope.getScopeRestrictedByFileTypes(it, org.elixir_lang.leex.file.Type.INSTANCE) }
+        val calls = ConcurrentCollectionFactory.createConcurrentSet<Call>()
 
-        return ReferencesSearch
-            .search(viewModule, searchScope)
-            .mapNotNull { liveComponentCall(it) }
+        // Not `ReferencesSearch`: it looks for the whole name, where a qualified alias's reference covers only its last segment.
+        PsiSearchHelper.getInstance(project).processElementsWithWord(
+            { element, _ ->
+                // The start of a longer alias refers to its own module, but the call names the longer one.
+                if (element is QualifiableAlias && element.parent !is QualifiableAlias && element.reference?.isReferenceTo(viewModule) == true) {
+                    liveComponentCall(element.parent)?.let(calls::add)
+                }
+
+                true
+            },
+            searchScope,
+            symbol.searchText,
+            UsageSearchContext.IN_CODE,
+            true
+        )
+
+        return calls
+            .sortedWith(compareBy({ it.containingFile.virtualFile.path }, { it.textOffset }))
             .flatMap { resolveInLiveComponentCall(assign, incompleteCode, it) }
     }
 
-    private fun liveComponentCall(psiReference: PsiReference): Call? = liveComponentCall(psiReference.element)
-
     private tailrec fun liveComponentCall(element: PsiElement): Call? =
         when (element) {
-            is Arguments, is ElixirAccessExpression, is QualifiableAlias -> liveComponentCall(element.parent)
-            is Call -> if ((element.functionName() == "live_component" && element.resolvedFinalArity() == 3) ||
-                // `live_modal` is auto-generated in `MyAppWeb.LiveHelpers` by the `mix phx.gen.live` generator`
-                // to turn a live component into modal dialog.  It calls `live_component`, so count it as a
-                // `live_component` call.
-                (element.functionName() == "live_modal" && element.resolvedFinalArity() == 3)
-            ) {
-                element
-            } else {
-                null
-            }
-
+            is Arguments, is ElixirMatchedParenthesesArguments, is ElixirAccessExpression -> liveComponentCall(element.parent)
+            is Call -> element.takeIf(::isLiveComponentCall)
             else -> null
         }
+
+    /**
+     * Whether [call] renders a live component: LiveView's `live_component/3`, or a `live_modal/3` of the project's own,
+     * which the `mix phx.gen.live` generator writes to call it. A call that resolves to nothing counts, as the dependency
+     * that declares it may not be indexed.
+     */
+    private fun isLiveComponentCall(call: Call): Boolean {
+        val owns: (ModuleSymbol) -> Boolean = when (call.functionName()) {
+            "live_component" -> { owner -> owner.moduleName == "Phoenix.LiveView.Helpers" }
+            "live_modal" -> { owner -> !owner.declaredInLibrary }
+            else -> return false
+        }
+
+        if (call.resolvedFinalArity() != 3) return false
+
+        val target = (call.reference as? PsiPolyVariantReference)?.let(Resolved::target) ?: return true
+
+        return definitionClause(target)
+            ?.let { CallDefinitionClause.enclosingModularMacroCall(it) }
+            ?.let { ModuleSymbol.fromModular(it) }
+            ?.let(owns) == true
+    }
 
     private fun resolveInLiveComponentCall(
         assign: Assign,
