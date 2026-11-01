@@ -241,7 +241,12 @@ private fun compileRegex(
                 listOf(exported),
             )
         }
-        ESCAPED_REGEX_RECOMPILES_ON_OTP_28.isSufficient(level) -> return Summary.Output.Unported(node)
+        ESCAPED_REGEX_RECOMPILES_ON_OTP_28.isSufficient(level) -> {
+            val recompile = s.remoteCall("re", "compile", listOf(source, s.list(translated)))
+            val variable = { s.variable("pattern", "Elixir.Regex") }
+
+            ElixirAst.Block(s.meta(), listOf(s.call("=", listOf(s.tuple(s.atom("ok"), variable()), recompile)), variable()))
+        }
         else -> s.tuple(listOf(s.atom("re_pattern"), compiled(), compiled(), compiled(), compiled()), emptyList())
     }
     val fields = buildMap {
