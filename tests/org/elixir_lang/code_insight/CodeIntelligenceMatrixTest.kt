@@ -1,6 +1,10 @@
 package org.elixir_lang.code_insight
 
 import com.intellij.ide.impl.HeadlessDataManager
+import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.roots.ProjectRootManager
+import org.elixir_lang.declaration.expanderSwitchOn
+import org.elixir_lang.expander.LegSdk
 import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
@@ -239,7 +243,16 @@ private class Group(val scenario: Scenario) {
         closed = true
         // `myFixture` is only unset when the factory itself threw, and then there is nothing to tear down; calling it
         // anyway would replace the real failure with an uninitialized-property one.
-        if (this::myFixture.isInitialized) timed("tearDown") { myFixture.tearDown() }
+        if (this::myFixture.isInitialized) timed("tearDown") {
+            try {
+                if (expanderSwitchOn()) {
+                    WriteAction.runAndWait<Throwable> { ProjectRootManager.getInstance(myFixture.project).projectSdk = null }
+                    LegSdk.tearDown(myFixture.module)
+                }
+            } finally {
+                myFixture.tearDown()
+            }
+        }
     }
 
     /**
@@ -269,6 +282,11 @@ private class Group(val scenario: Scenario) {
         myFixture = factory.createCodeInsightFixture(fixture, LightTempDirTestFixtureImpl(true))
         myFixture.testDataPath = Fixtures.DIRECTORY
         myFixture.setUp()
+        // The expander reads the leg's SDK; the walk needs none, so the walk-backed cells stay as they were.
+        if (expanderSwitchOn()) {
+            val sdk = LegSdk.setUp(myFixture.module, myFixture.testRootDisposable)
+            WriteAction.runAndWait<Throwable> { ProjectRootManager.getInstance(myFixture.project).projectSdk = sdk }
+        }
         HeadlessDataManager.fallbackToProductionDataManager(myFixture.testRootDisposable)
         // What the editor says is a question only an enabled inspection answers, and `References` ships off by
         // default. Both are enabled for every group rather than only the diagnostic cells, so that a complaint one
