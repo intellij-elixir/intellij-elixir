@@ -1,8 +1,17 @@
 package org.elixir_lang.mix.watcher
 
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.ReadActionListener
+import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.application.ex.ApplicationManagerEx
 import com.intellij.openapi.progress.EmptyProgressIndicator
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
+import com.intellij.psi.impl.PsiManagerEx
+import com.intellij.util.ui.EDT
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.mix.Dep
 import org.elixir_lang.mix.sync.MixSyncTestHelpers
@@ -526,5 +535,91 @@ class TransitiveResolutionTest : PlatformTestCase() {
 
     fun testInUmbrellaDepOfADepIsNotReached() {
         assertNotReachedInsideADep("{:sib, in_umbrella: true}")
+    }
+
+    // -----------------------------------------------------------------
+    // A provider dropped between two read actions
+    // -----------------------------------------------------------------
+
+    private fun mixExsOf(directory: VirtualFile): VirtualFile = directory.findChild("mix.exs")!!
+
+    /**
+     * Resolves from [roots] while dropping every cached `PsiFile` of [mixExs] each time a read action
+     * ends with one cached, the way a write action between two reads would.
+     *
+     * The drop runs on the thread that finished the read, once it holds no lock, and waits for the
+     * write to complete, so a `PsiFile` held across the gap is invalid by the time it is used. A
+     * read action nested in another ends while the outer one is still held, and the listener leaves
+     * it alone.
+     *
+     * Looking in the cache takes a read action of its own, because newer platforms require one, and
+     * that read ends through this listener too.
+     */
+    private fun applicationsFromDropping(mixExs: List<VirtualFile>, vararg roots: VirtualFile): Set<String> {
+        MixSyncTestHelpers.awaitMixDepsSyncs(project)
+        val fileManager = PsiManagerEx.getInstanceEx(project).fileManager
+        val disposable: Disposable = Disposer.newDisposable("TransitiveResolutionTest.drop")
+        val looking = ThreadLocal.withInitial { false }
+
+        try {
+            ApplicationManagerEx.getApplicationEx().addReadActionListener(
+                object : ReadActionListener {
+                    override fun afterReadActionFinished(action: Class<*>) {
+                        if (looking.get() ||
+                            EDT.isCurrentThreadEdt() ||
+                            ApplicationManager.getApplication().holdsReadLock()
+                        ) {
+                            return
+                        }
+
+                        looking.set(true)
+                        try {
+                            val cached = ReadAction.computeBlocking<Boolean, Throwable> {
+                                mixExs.any { fileManager.getCachedPsiFile(it) != null }
+                            }
+
+                            if (cached) {
+                                WriteAction.runAndWait<Throwable> { fileManager.cleanupForNextTest() }
+                            }
+                        } finally {
+                            looking.set(false)
+                        }
+                    }
+                },
+                disposable,
+            )
+
+            return applicationsFrom(*roots)
+        } finally {
+            Disposer.dispose(disposable)
+        }
+    }
+
+    fun testADroppedMixExsStillGivesAProjectRootsDeps() {
+        val root = mixProject(nextFixturePath(), "{:jason, \">= 0.0.0\"}")
+
+        assertEquals(setOf("jason"), applicationsFromDropping(listOf(mixExsOf(root)), root))
+    }
+
+    fun testADroppedMixExsStillGivesAnUmbrellaAppsDeps() {
+        val path = nextFixturePath()
+        val umbrella = mixProject(path, "", "      apps_path: \"apps\",\n")
+        val app = mixProject("$path/apps/app_a", "{:jason, \">= 0.0.0\"}")
+
+        assertEquals(
+            setOf("jason"),
+            applicationsFromDropping(listOf(mixExsOf(umbrella), mixExsOf(app)), umbrella, app),
+        )
+    }
+
+    fun testADroppedMixExsStillGivesADepsOwnDeps() {
+        val path = nextFixturePath()
+        val root = mixProject(path, "{:cachex, \">= 0.0.0\"}")
+        val dep = mixProject("$path/deps/cachex", "{:jason, \">= 0.0.0\"}")
+
+        assertEquals(
+            setOf("cachex", "jason"),
+            applicationsFromDropping(listOf(mixExsOf(root), mixExsOf(dep)), root),
+        )
     }
 }

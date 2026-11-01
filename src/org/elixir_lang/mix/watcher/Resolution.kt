@@ -12,6 +12,7 @@ import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager.getCachedValue
 import com.intellij.util.IncorrectOperationException
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.PackageManager
 import org.elixir_lang.mix.Dep
 import org.elixir_lang.mix.Project.MIX_EXS
@@ -219,28 +220,34 @@ class Resolution(
             packageVirtualFile: VirtualFile,
             isDependency: Boolean
         ): PackageDeps {
+            if (progressIndicator.isCanceled) {
+                return PackageDeps.EMPTY
+            }
+
+            progressIndicator.text2 = "Finding deps in ${packageVirtualFile.path}"
+
             // WARA: acquires the read lock without blocking the EDT. If a write action preempts,
-            // readAction restarts the lambda. IncorrectOperationException can occur when the
-            // VirtualFile is no longer valid (e.g., deleted while we waited for the lock).
-            val packagePsiFile = readAction {
-                try {
+            // readAction restarts the lambda. The file is found and read in the one action because a
+            // write action between two can drop its provider and leave the PsiFile invalid.
+            // IncorrectOperationException can occur when the VirtualFile is no longer valid (e.g.,
+            // deleted while we waited for the lock).
+            return readAction {
+                val packagePsiFile = try {
                     psiManager.findFile(packageVirtualFile)
                 } catch (@Suppress("unused") error: IncorrectOperationException) {
                     null
                 }
-            }
 
-            return if (packagePsiFile != null && !progressIndicator.isCanceled) {
-                progressIndicator.text2 = "Finding deps in ${packagePsiFile.virtualFile.path}"
-
-                packagePsiFileToPackageDeps(packageManager, packagePsiFile, isDependency)
-            } else {
-                PackageDeps.EMPTY
+                if (packagePsiFile != null) {
+                    packagePsiFileToPackageDeps(packageManager, packagePsiFile, isDependency)
+                } else {
+                    PackageDeps.EMPTY
+                }
             }
         }
 
         /**
-         * Reads the dep-set from [packagePsiFile] under a WARA read lock.
+         * Reads the dep-set from [packagePsiFile], whose caller holds the read lock.
          *
          * The result is cached via [CachedValueProvider] keyed on [packagePsiFile]'s modification
          * tracker. If a write action cancels the WARA and modifies a *different* file, the cached
@@ -251,22 +258,21 @@ class Resolution(
          * The [org.elixir_lang.package_manager.DepGatherer] is constructed freshly per WARA attempt (via [PackageManager.depGatherer])
          * so partial results from a cancelled attempt are never reused.
          */
-        private suspend fun packagePsiFileToPackageDeps(
+        @RequiresReadLock
+        private fun packagePsiFileToPackageDeps(
             packageManager: PackageManager,
             packagePsiFile: PsiFile,
             isDependency: Boolean
         ): PackageDeps =
-            readAction {
-                // Two keys, because the dep set a file yields now depends on how the file was
-                // reached, while a CachedValue outlives the resolution that populated it: one
-                // module's run can hand in a root that another's reaches as a dependency.
-                getCachedValue(packagePsiFile, if (isDependency) DEPENDENCY_DEP_SET else PROJECT_DEP_SET) {
-                    packageManager
-                        .depGatherer(isDependency)
-                        .apply { packagePsiFile.accept(this) }
-                        .let { PackageDeps(it.depSet.toSet(), it.depsPath) }
-                        .let { CachedValueProvider.Result.create(it, packagePsiFile) }
-                }
+            // Two keys, because the dep set a file yields now depends on how the file was
+            // reached, while a CachedValue outlives the resolution that populated it: one
+            // module's run can hand in a root that another's reaches as a dependency.
+            getCachedValue(packagePsiFile, if (isDependency) DEPENDENCY_DEP_SET else PROJECT_DEP_SET) {
+                packageManager
+                    .depGatherer(isDependency)
+                    .apply { packagePsiFile.accept(this) }
+                    .let { PackageDeps(it.depSet.toSet(), it.depsPath) }
+                    .let { CachedValueProvider.Result.create(it, packagePsiFile) }
             }
     }
 }
