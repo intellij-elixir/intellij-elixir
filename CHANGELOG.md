@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4599](https://github.com/intellij-elixir/intellij-elixir/pull/4599) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, code after a point the expander can't follow keeps what a `use` had already imported or aliased by then, so in a LiveView `def`, `connected?` and `assign` resolve to Phoenix's.** Refs [#4595](https://github.com/intellij-elixir/intellij-elixir/issues/4595).
+
 - [#4592](https://github.com/intellij-elixir/intellij-elixir/pull/4592) [@sh41](https://github.com/sh41)
   - **With "Run the expander" on, a module no longer stops being expanded at a `~r` sigil or at `use Mix.Task`, and valid `%{@key => value}` patterns and `quote bind_quoted: binding()` no longer count as errors.** Refs [#4584](https://github.com/intellij-elixir/intellij-elixir/issues/4584).
 
