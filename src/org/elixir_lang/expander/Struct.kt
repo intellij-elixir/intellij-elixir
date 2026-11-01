@@ -31,7 +31,7 @@ internal fun expandStruct(node: ElixirAst.Call, state: ExState, env: Env, run: R
     }.thenAst { s, e, values, asts ->
         val name = (values as Term.List).elements.first()
         val match = env.context == Env.Context.MATCH
-        val ast = run.ast { ElixirAst.Call(node.meta, node.callee, asts.elements) }
+        val ast = asts.map { ElixirAst.Call(node.meta, node.callee, (it as ElixirAst.ListNode).elements) }
 
         unknownStop(name, node)?.let { return@thenAst it }
 
@@ -41,7 +41,7 @@ internal fun expandStruct(node: ElixirAst.Call, state: ExState, env: Env, run: R
 
                 keys.zip(pairNodes(map))
                     .firstNotNullOfOrNull { (key, pair) ->
-                        unknownStop(key, (expandedShape(pair) as ElixirAst.Tuple).elements[0])
+                        unknownStop(key, (expandedShape(pair) as? ElixirAst.Tuple)?.elements?.get(0) ?: pair)
                     }
                     ?.let { return@thenAst it }
 
