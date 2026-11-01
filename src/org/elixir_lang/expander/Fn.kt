@@ -24,11 +24,11 @@ internal fun expandFn(node: ElixirAst.Call, state: ExState, env: Env, run: Run):
         val arities = clauses.map { arity((it as ElixirAst.Call).arguments!!.first() as ElixirAst.ListNode) }.distinct()
 
         if (arities.size == 1) {
-            Expansion.Expanded(s, e, NODE, clausesAst).endConstruct(node, env, run) { (it as ElixirAst.ListNode).elements }
+            Expansion.Expanded(s, e, NODE, clausesAst)
         } else {
             Expansion.Error("clauses_with_different_arities", node)
         }
-    }
+    }.endConstruct(node, env, run) { (it as ElixirAst.ListNode).elements }
 }
 
 /** `elixir_fn:fn_arity/1`: a guard isn't an argument. */

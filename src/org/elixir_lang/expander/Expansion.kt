@@ -20,16 +20,26 @@ sealed class Expansion {
         val variable: ElixirAst? = null,
     ) : Expansion()
 
+    /** An expansion that goes no further: Elixir raises there, or what it does there isn't ported. */
+    sealed class Stop : Expansion() {
+        /**
+         * The env the node stopped at so far would return under Elixir's threading: stamped by the block that holds it,
+         * then overwritten by each construct it passes, or `null` before either. In the body because a stop's identity
+         * is compared, so a stamp can't be a copy.
+         */
+        var envAtStop: Env? = null
+    }
+
     /**
      * Elixir's expander raises at [at], the node whose metadata it reports.
      *
      * @property kind the error's reason as atom text, such as `undefined_var`, or `null` for a raise the evaluator
      *   computed whose exception isn't known
      */
-    data class Error(val kind: String?, val at: ElixirAst) : Expansion()
+    data class Error(val kind: String?, val at: ElixirAst) : Stop()
 
     /** [at] reaches a clause, or a branch of one, that isn't ported. */
-    data class Unported(val at: ElixirAst) : Expansion()
+    data class Unported(val at: ElixirAst) : Stop()
 
     /** [at] calls a macro, as [dispatch] finds it, whose expansion isn't modelled. */
     data class Opaque(val at: ElixirAst, val dispatch: Dispatch) : Expansion()
