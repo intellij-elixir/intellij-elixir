@@ -382,6 +382,8 @@ internal class Natives(private val evaluation: Evaluation) {
             "self/0" -> SELF
             // The processes the build runs, which aren't known.
             "whereis/1" -> if (isAtom(args[0])) Unknown else badarg()
+            // A hash the VM defines, which isn't computed here.
+            "phash2/1" -> Unknown
             "make_ref/0" -> OtpErlangRef(LOCAL_NODE, intArrayOf(evaluation.run.nextRef(), 0, 0), 0)
             "</2" -> bool(compare(args[0], args[1], level) < 0)
             ">/2" -> bool(compare(args[0], args[1], level) > 0)
