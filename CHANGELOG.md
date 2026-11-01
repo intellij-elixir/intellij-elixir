@@ -828,6 +828,8 @@
 
 ### Build / CI
 
+- [#4587](https://github.com/intellij-elixir/intellij-elixir/pull/4587) [@sh41](https://github.com/sh41)
+  - **`ExpanderPathToggleHeavyTest` no longer fails now and then with a pending background write action: it waits for what the toggle queued.** Fixes [#4585](https://github.com/intellij-elixir/intellij-elixir/issues/4585).
 - [#4573](https://github.com/intellij-elixir/intellij-elixir/pull/4573) [@sh41](https://github.com/sh41)
   - **The plugin compiles on the 263 EAP builds, and a failed verify job on an EAP build no longer fails `All tests passed`: it is flagged and its reports still upload.** Refs [#4571](https://github.com/intellij-elixir/intellij-elixir/issues/4571).
 - [#4536](https://github.com/intellij-elixir/intellij-elixir/pull/4536) [@sh41](https://github.com/sh41)
