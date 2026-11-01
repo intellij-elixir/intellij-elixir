@@ -1,14 +1,23 @@
 package org.elixir_lang.leex.reference.resolver
 
+import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiPolyVariantReference
+import com.intellij.psi.ReferenceRange
 import com.intellij.psi.ResolveResult
+import com.intellij.psi.search.GlobalSearchScope
+import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
+import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.language_level.elixir
 import org.elixir_lang.psi.AtOperation
+import org.elixir_lang.psi.QualifiableAlias
+import org.elixir_lang.psi.call.Call
+import java.io.File
 
 /**
  * An `@assign` in a LiveView layout resolves by walking the Phoenix functions that set it, naming
@@ -167,6 +176,224 @@ class AssignTest : PlatformTestCase() {
         )
     }
 
+    fun testAUsersOwnLiveComponentIsNotFollowed() {
+        assertNotFollowed(resolveInComponentTemplate(OWN_LIVE_COMPONENT, "live_component @socket, Widget, title: \"x\"", "Widget"))
+    }
+
+    fun testAUsersOwnLiveComponentWithParenthesesIsNotFollowed() {
+        assertNotFollowed(resolveInComponentTemplate(OWN_LIVE_COMPONENT, "live_component(@socket, Widget, title: \"x\")", "Widget"))
+    }
+
+    fun testAUsersOwnLiveComponentOfAQualifiedModuleIsNotFollowed() {
+        assertNotFollowed(resolveInComponentTemplate(OWN_LIVE_COMPONENT, "live_component @socket, AppWeb.Widget, title: \"x\""))
+    }
+
+    fun testAnImportOfAUsersLiveComponentBeforeOneOfLiveViewsIsNotFollowed() {
+        myFixture.addFileToProject(
+            "lib/app_web/live/own.ex",
+            "defmodule AppWeb.Own do\n  def live_component(_socket, _component, _assigns), do: nil\nend\n"
+        )
+
+        assertNotFollowed(
+            resolveInComponentTemplate(
+                "defmodule AppWeb.Page do\n  import AppWeb.Own\n  import Phoenix.LiveView.Helpers\nend",
+                "live_component @socket, Widget, title: \"x\"",
+                "Widget",
+            )
+        )
+    }
+
+    fun testLiveViewsLiveComponentThroughAnAliasIsFollowed() {
+        assertFollowed(resolveInComponentTemplate(ALIASED_HELPERS, "H.live_component(@socket, AppWeb.Widget, title: \"x\")"))
+    }
+
+    fun testLiveViewsLiveComponentThroughAnAliasOfASingleSegmentModuleIsFollowed() {
+        assertFollowed(resolveInComponentTemplate(ALIASED_HELPERS, "H.live_component(@socket, Widget, title: \"x\")", "Widget"))
+    }
+
+    fun testLiveViewsLiveComponentThroughAnAliasWithoutParenthesesIsFollowed() {
+        assertFollowed(resolveInComponentTemplate(ALIASED_HELPERS, "H.live_component @socket, Widget, title: \"x\"", "Widget"))
+    }
+
+    fun testAnImportedLiveComponentIsFollowed() {
+        assertFollowed(resolveInComponentTemplate(IMPORTED_HELPERS, "live_component @socket, Widget, title: \"x\"", "Widget"))
+    }
+
+    fun testAnImportedLiveComponentWithParenthesesIsFollowed() {
+        assertFollowed(resolveInComponentTemplate(IMPORTED_HELPERS, "live_component(@socket, Widget, title: \"x\")", "Widget"))
+    }
+
+    fun testAnImportedLiveComponentOfAQualifiedModuleIsFollowed() {
+        assertFollowed(resolveInComponentTemplate(IMPORTED_HELPERS, "live_component @socket, AppWeb.Widget, title: \"x\""))
+    }
+
+    fun testAnImportedLiveComponentWithParenthesesOfAQualifiedModuleIsFollowed() {
+        assertFollowed(resolveInComponentTemplate(IMPORTED_HELPERS, "live_component(@socket, AppWeb.Widget, title: \"x\")"))
+    }
+
+    /** Why the search anchors on the last segment: the whole name is found where a qualified alias's reference isn't. */
+    fun testAWholeNameSearchMissesAQualifiedModulesReference() {
+        resolveInComponentTemplate(IMPORTED_HELPERS, "live_component @socket, AppWeb.Widget, title: \"x\"")
+
+        val viewModule = myFixture.file.viewProvider.allFiles.first { it.language.id == "Elixir" }.context!!
+        val page = PsiManager.getInstance(project).findFile(myFixture.findFileInTempDir("lib/app_web/live/page.html.leex"))!!
+        val alias = PsiTreeUtil.findChildrenOfType(
+            page.viewProvider.allFiles.first { it.language.id == "Elixir" },
+            QualifiableAlias::class.java
+        ).first { it.text == "AppWeb.Widget" }
+        val reference = alias.reference!!
+
+        assertTrue(reference.isReferenceTo(viewModule))
+        assertFalse(ReferenceRange.containsOffsetInElement(reference, 0))
+        assertTrue(ReferenceRange.containsOffsetInElement(reference, "AppWeb.".length))
+        assertEmpty(ReferencesSearch.search(viewModule, GlobalSearchScope.projectScope(project)).findAll())
+    }
+
+    fun testALiveComponentOfAnAliasedModuleIsFollowed() {
+        assertFollowed(
+            resolveInComponentTemplate(
+                "defmodule AppWeb.Page do\n  import Phoenix.LiveView.Helpers\n  alias AppWeb.Widget\nend",
+                "live_component @socket, Widget, title: \"x\"",
+            )
+        )
+    }
+
+    fun testALiveComponentOfASingleSegmentModuleThatResolvesToNothingIsFollowed() {
+        assertFollowed(resolveInComponentTemplate("defmodule AppWeb.Page do\nend", "live_component @socket, Widget, title: \"x\"", "Widget"))
+    }
+
+    fun testALiveModalThatResolvesToNothingIsFollowed() {
+        assertFollowed(resolveInComponentTemplate("defmodule AppWeb.Page do\nend", "live_modal @socket, Widget, title: \"x\"", "Widget"))
+    }
+
+    fun testALiveComponentThatResolvesToNothingIsFollowed() {
+        assertFollowed(
+            resolveInComponentTemplate("defmodule AppWeb.Page do\nend", "live_component @socket, AppWeb.Widget, title: \"x\"")
+        )
+    }
+
+    fun testALiveComponentOfAnotherModuleIsNotFollowed() {
+        myFixture.addFileToProject("lib/app_web/live/other.ex", "defmodule AppWeb.Other do\nend\n")
+
+        assertNotFollowed(resolveInComponentTemplate(IMPORTED_HELPERS, "live_component @socket, AppWeb.Other, title: \"x\""))
+    }
+
+    fun testALiveComponentOfAQualifiedModuleNestedUnderTheComponentIsNotFollowed() {
+        myFixture.addFileToProject("lib/app_web/live/item.ex", "defmodule AppWeb.Widget.Item do\nend\n")
+
+        assertNotFollowed(resolveInComponentTemplate(IMPORTED_HELPERS, "live_component @socket, AppWeb.Widget.Item, title: \"x\""))
+    }
+
+    fun testALiveComponentOfASingleSegmentModuleNestedUnderTheComponentIsNotFollowed() {
+        myFixture.addFileToProject("lib/app_web/live/item.ex", "defmodule Widget.Item do\nend\n")
+
+        assertNotFollowed(resolveInComponentTemplate(IMPORTED_HELPERS, "live_component @socket, Widget.Item, title: \"x\"", "Widget"))
+    }
+
+    fun testAnImportedLiveComponentFromABeamIsFollowed() {
+        val results = resolveInComponentTemplate(IMPORTED_HELPERS, "live_component @socket, Widget, title: \"x\"", "Widget", compiledHelpers = true)
+
+        assertTheCallResolvesToABeam()
+        assertFollowed(results)
+    }
+
+    fun testLiveViewsLiveComponentThroughAnAliasFromABeamIsFollowed() {
+        val results = resolveInComponentTemplate(ALIASED_HELPERS, "H.live_component(@socket, AppWeb.Widget, title: \"x\")", compiledHelpers = true)
+
+        assertTheCallResolvesToABeam()
+        assertFollowed(results)
+    }
+
+    fun testAProjectsLiveModalIsFollowed() {
+        myFixture.addFileToProject("lib/app_web/live/live_helpers.ex", LIVE_HELPERS)
+
+        assertFollowed(resolveInComponentTemplate(IMPORTED_LIVE_HELPERS, "live_modal @socket, AppWeb.Widget, title: \"x\""))
+    }
+
+    fun testAProjectsLiveModalOfASingleSegmentModuleIsFollowed() {
+        myFixture.addFileToProject("lib/app_web/live/live_helpers.ex", LIVE_HELPERS)
+
+        assertFollowed(resolveInComponentTemplate(IMPORTED_LIVE_HELPERS, "live_modal @socket, Widget, title: \"x\"", "Widget"))
+    }
+
+    fun testALiveModalInALibraryIsNotFollowed() {
+        myFixture.addFileToProject(
+            "deps/phoenix_live_view/lib/modal.ex",
+            "defmodule Library.Modal do\n  def live_modal(_socket, _component, _assigns), do: nil\nend\n"
+        )
+
+        val deps = myFixture.tempDirFixture.findOrCreateDir("deps")
+
+        PsiTestUtil.addExcludedRoot(module, deps)
+
+        try {
+            assertNotFollowed(
+                resolveInComponentTemplate(
+                    "defmodule AppWeb.Page do\n  import Library.Modal\nend",
+                    "live_modal @socket, Widget, title: \"x\"",
+                    "Widget",
+                )
+            )
+        } finally {
+            PsiTestUtil.removeExcludedRoot(module, deps)
+        }
+    }
+
+    private fun assertTheCallResolvesToABeam() {
+        val page = PsiManager.getInstance(project).findFile(myFixture.findFileInTempDir("lib/app_web/live/page.html.leex"))!!
+        val call = PsiTreeUtil.findChildrenOfType(page.viewProvider.allFiles.first { it.language.id == "Elixir" }, Call::class.java)
+            .first { it.functionName() == "live_component" }
+        val target = Resolved.target(call.reference as PsiPolyVariantReference)
+
+        assertEquals("the call should resolve into the `.beam`", COMPILED_HELPERS, target?.containingFile?.virtualFile?.name)
+    }
+
+    private fun assertFollowed(results: Array<ResolveResult>) {
+        assertTrue("@title should resolve to the `title:` given to the call", results.any(ResolveResult::isValidResult))
+    }
+
+    private fun assertNotFollowed(results: Array<ResolveResult>) {
+        assertFalse("@title should not resolve through the call", results.any(ResolveResult::isValidResult))
+    }
+
+    /**
+     * `@title` in the template of `AppWeb.Widget`, whose assigns come from the `live_component/3` call in [call], made in
+     * the template of the view module [page], when the component's module is named [widget]. `Phoenix.LiveView.Helpers` is
+     * a library's source or, with [compiledHelpers], its `.beam` alone, as a built dependency's is loaded.
+     */
+    private fun resolveInComponentTemplate(
+        page: String,
+        call: String,
+        widget: String = "AppWeb.Widget",
+        compiledHelpers: Boolean = false,
+    ): Array<ResolveResult> {
+        if (compiledHelpers) {
+            myFixture.copyFileToProject(File(COMPILED_HELPERS_DIRECTORY, COMPILED_HELPERS).absolutePath, "deps/phoenix_live_view/ebin/$COMPILED_HELPERS")
+        } else {
+            myFixture.addFileToProject(
+                "deps/phoenix_live_view/lib/helpers.ex",
+                """
+                defmodule Phoenix.LiveView.Helpers do
+                  defmacro live_component(socket, component, assigns \\ [], do_block \\ []), do: {socket, component, assigns, do_block}
+                end
+                """.trimIndent()
+            )
+        }
+        BeamLibraryFixture.addLibrary(project, myFixture.module, LIBRARY, listOf(myFixture.tempDirFixture.findOrCreateDir("deps/phoenix_live_view")))
+        myFixture.addFileToProject("lib/app_web/live/widget.ex", "defmodule $widget do\nend\n")
+        myFixture.addFileToProject("lib/app_web/live/page.ex", page)
+        myFixture.addFileToProject("lib/app_web/live/page.html.leex", "<%= $call %>")
+
+        val template = myFixture.addFileToProject("lib/app_web/live/widget.html.leex", "<%= @title %>")
+        myFixture.configureFromExistingVirtualFile(template.virtualFile)
+        val atOperation = PsiTreeUtil.findChildOfType(
+            myFixture.file.viewProvider.allFiles.first { it.language.id == "Elixir" },
+            AtOperation::class.java
+        )!!
+        assertNotNull("a component's template has its module as its context", atOperation.containingFile.context)
+        return (atOperation.reference as PsiPolyVariantReference).multiResolve(false)
+    }
+
     private fun addPhoenixFunction(definition: String) {
         myFixture.addFileToProject(
             "deps/phoenix_live_view/lib/utils.ex",
@@ -200,5 +427,12 @@ class AssignTest : PlatformTestCase() {
 
     private companion object {
         const val LIBRARY = "phoenix_live_view"
+        const val COMPILED_HELPERS_DIRECTORY = "testData/org/elixir_lang/leex/reference/resolver/assign"
+        const val COMPILED_HELPERS = "Elixir.Phoenix.LiveView.Helpers.beam"
+        const val OWN_LIVE_COMPONENT = "defmodule AppWeb.Page do\n  def live_component(_socket, _component, _assigns), do: nil\nend"
+        const val ALIASED_HELPERS = "defmodule AppWeb.Page do\n  alias Phoenix.LiveView.Helpers, as: H\nend"
+        const val IMPORTED_HELPERS = "defmodule AppWeb.Page do\n  import Phoenix.LiveView.Helpers\nend"
+        const val IMPORTED_LIVE_HELPERS = "defmodule AppWeb.Page do\n  import AppWeb.LiveHelpers\nend"
+        const val LIVE_HELPERS = "defmodule AppWeb.LiveHelpers do\n  def live_modal(_socket, _component, _assigns), do: nil\nend\n"
     }
 }
