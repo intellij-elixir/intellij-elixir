@@ -3,7 +3,9 @@ package org.elixir_lang.reference.resolver
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.roots.LibraryOrderEntry
+import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ProjectFileIndex
+import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.diagnostic.ControlFlowException
 import kotlinx.coroutines.CancellationException
@@ -26,6 +28,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.psi.scope.module.MultiResolve
 import org.elixir_lang.psi.stub.index.ModularName
+import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 
 
 object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Module> {
@@ -109,6 +112,8 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
     /**
      * Those of [candidates] Elixir would load for [asker]:
      * - when a library or the SDK holds a `.beam`, no source outside the project's content;
+     * - when [asker]'s SDK holds one of several `.beam`s, no copy outside the project's content that the SDK does not
+     *   hold: a stale library's copy of the SDK's module;
      * - a module's own `.beam` over its consolidated copy, whose exports are the same;
      * - the `.beam`s built for [asker]'s Mix env ([defaultBuildEnv]), over other envs' builds.
      */
@@ -120,11 +125,12 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
         val file = { candidate: VisitedElementSetResolveResult -> candidate.element.containingFile?.originalFile?.virtualFile }
         val beam = { candidate: VisitedElementSetResolveResult -> candidate.element.isDecompiled() }
 
-        val loadable = if (candidates.any { beam(it) && file(it)?.let(index::isInLibraryClasses) == true }) {
+        val sourceRuled = if (candidates.any { beam(it) && file(it)?.let(index::isInLibraryClasses) == true }) {
             candidates.filter { beam(it) || file(it)?.let(index::isInContent) == true }
         } else {
             candidates
         }
+        val loadable = sdkCopyOverStale(asker, index, sourceRuled, file, beam)
         val consolidated = { candidate: VisitedElementSetResolveResult ->
             beam(candidate) && isConsolidated(index, file(candidate))
         }
@@ -140,6 +146,29 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
         } else {
             unconsolidated
         }
+    }
+
+    /**
+     * [copies] without those outside the project's content that [asker]'s SDK does not hold, when several `.beam`s
+     * are left and the SDK holds one. An exclusion is ignored ([ProjectFileIndex.getContentRootForFile]): Mix sync
+     * excludes a dependency's build, which loads before the SDK's copy.
+     */
+    private fun sdkCopyOverStale(
+        asker: PsiElement,
+        index: ProjectFileIndex,
+        copies: List<VisitedElementSetResolveResult>,
+        file: (VisitedElementSetResolveResult) -> VirtualFile?,
+        beam: (VisitedElementSetResolveResult) -> Boolean,
+    ): List<VisitedElementSetResolveResult> {
+        if (copies.count(beam) < 2) return copies
+
+        val roots = ElixirSdkLookup.mostSpecificSdk(asker)?.rootProvider?.getFiles(OrderRootType.CLASSES)?.toSet()
+            ?: return copies
+        val inSdk = { copy: VisitedElementSetResolveResult -> file(copy)?.let { VfsUtilCore.isUnder(it, roots) } == true }
+
+        if (copies.none { beam(it) && inSdk(it) }) return copies
+
+        return copies.filterNot { !inSdk(it) && file(it)?.let { f -> index.getContentRootForFile(f, false) } == null }
     }
 
     /** Whether [file] is in Mix sync's consolidated-protocols library. */
