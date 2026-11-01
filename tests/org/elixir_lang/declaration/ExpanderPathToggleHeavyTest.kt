@@ -5,6 +5,8 @@ import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.codeInsight.daemon.impl.DaemonCodeAnalyzerImpl
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.backgroundWriteAction
+import com.intellij.openapi.application.ex.ApplicationManagerEx
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
@@ -21,7 +23,7 @@ import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.impl.CodeInsightTestFixtureImpl
-import com.intellij.util.ui.UIUtil
+import kotlinx.coroutines.runBlocking
 import org.elixir_lang.expander.ConfigHeavyTestCase
 import org.elixir_lang.expander.edit
 import org.elixir_lang.model.psi.config.ConfigReads
@@ -29,6 +31,7 @@ import org.elixir_lang.model.psi.config.ConfigSettings
 import org.elixir_lang.settings.ElixirExperimentalSettings
 import java.io.File
 import java.util.concurrent.Callable
+import java.util.concurrent.Future
 
 /**
  * What changing the Experimental setting does in the open projects, through the topic that the Settings page publishes
@@ -140,9 +143,20 @@ class ExpanderPathToggleHeavyTest : ConfigHeavyTestCase() {
 
         settings.state.enableHtmlInjection = !settings.state.enableHtmlInjection
         publish(old, settings.state.copy())
-        UIUtil.dispatchAllInvocationEvents()
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
         assertEquals(count, PsiModificationTracker.getInstance(project).modificationCount)
+    }
+
+    fun testAToggleDropsPastABackgroundWriteAction() {
+        aliasKeyProject()
+        val count = PsiModificationTracker.getInstance(project).modificationCount
+        val writing = writeInTheBackground()
+
+        toggle(true, Through.PAGE)
+
+        assertTrue("dropped", PsiModificationTracker.getInstance(project).modificationCount != count)
+        PlatformTestUtil.waitWithEventsDispatching("the background write action never finished", writing::isDone, 30)
     }
 
     // Edits made while the setting is off
@@ -233,13 +247,24 @@ class ExpanderPathToggleHeavyTest : ConfigHeavyTestCase() {
             Through.LOAD -> settings.loadState(settings.state.copy(enableExpander = on))
         }
 
-        UIUtil.dispatchAllInvocationEvents()
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
     }
 
     private fun publish(old: ElixirExperimentalSettings.State, new: ElixirExperimentalSettings.State) {
         ApplicationManager.getApplication().messageBus
             .syncPublisher(ElixirExperimentalSettings.SETTINGS_CHANGED_TOPIC)
             .settingsChanged(old, new)
+    }
+
+    private fun writeInTheBackground(): Future<*> {
+        val application = ApplicationManagerEx.getApplicationEx()
+        val writing = application.executeOnPooledThread { runBlocking { backgroundWriteAction { } } }
+        val deadline = System.currentTimeMillis() + 30_000
+        while (!application.isWriteActionPending) {
+            assertTrue("no background write action came", System.currentTimeMillis() < deadline)
+            Thread.sleep(1)
+        }
+        return writing
     }
 
     private fun dirtyScope(document: Document, file: PsiFile) =
