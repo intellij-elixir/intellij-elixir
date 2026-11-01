@@ -1,7 +1,9 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_BIND_QUOTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_ESCAPES_STRUCT
@@ -11,6 +13,8 @@ import org.elixir_lang.expander.interpreter.Binding
 import org.elixir_lang.expander.interpreter.Evaluated
 import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.expander.interpreter.atom
+import org.elixir_lang.expander.interpreter.holdsAFunction
+import org.elixir_lang.expander.interpreter.termOf
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
@@ -107,7 +111,7 @@ private fun fieldsAt(
     val expanded = fields.expanded ?: return Fields.Dynamic
 
     return when (val values = evaluatedArguments(listOf(term), listOf(expanded), compiling, state, env, run, bindings)) {
-        is ArgumentValues.Evaluated -> fieldsOf(fields.node, values.terms.single(), at, run.level, run.exports)
+        is ArgumentValues.Evaluated -> fieldsOf(fields.node, values.terms.single(), values.values.single(), at, run.level, run.exports)
         is ArgumentValues.Raised -> Fields.Raised(values.expansion)
     }
 }
@@ -128,25 +132,42 @@ private sealed interface Fields {
 }
 
 /**
- * A value of the fields: the [term] its expansion gave, or `null` where it gave none, and the [node] it was written as,
- * or `null` where that isn't known to line up with the term.
+ * A value of the fields: the [term] its expansion gave, or `null` where it gave none, the [node] it was written as, or
+ * `null` where that isn't known to line up with the term, and the [value] the evaluator holds where a term can't.
  */
-private class FieldPart(val term: Term?, val node: ElixirAst?)
+private class FieldPart(term: Term?, val node: ElixirAst?, val value: OtpErlangObject? = null) {
+    val term: Term? = if (value != null && (term == null || term.isUnexpanded())) termOf(value) else term
+}
 
 /**
  * `Kernel.Utils.defstruct`'s check of `fields` and its `mapper`, for the [node] `defstruct` is given. The [term] it
- * expanded to decides each key and default it has a literal value for; the node's shape decides only where the
- * expansion computed none: a map, a number, a function.
+ * expanded to decides each key and default it has a literal value for, and the [value] the evaluator holds each one a
+ * term can't hold, such as a map; the node's shape decides only where neither is known: a map, a number, a function.
  *
  * @param at the call, whose location the values built from terms take
  */
-private fun fieldsOf(node: ElixirAst, term: Term?, at: ElixirAst, level: ElixirLanguageLevel, exports: Exports): Fields {
+private fun fieldsOf(
+    node: ElixirAst,
+    term: Term?,
+    value: OtpErlangObject?,
+    at: ElixirAst,
+    level: ElixirLanguageLevel,
+    exports: Exports,
+): Fields {
     if (term == null) return Fields.Dynamic
 
     val s = Synthetic(at.meta)
     val fragment = s.atom("nil")
     val escape = QuoteEscape(ImportTermEscapeView, AstEscapeBuilder(s), { literalOf(fragment, it) }, level, exports)
     val escaped = { part: Term -> (escape.escape(part) as? EscapeResult.Built)?.value }
+    val heldEscape = QuoteEscape(TermEscapeView, AstEscapeBuilder(s), { null }, level, exports)
+    val literal = { part: FieldPart ->
+        part.term?.let(escaped)
+            // A function in a default isn't followed from its value; [evaluated] reads the node it was written as.
+            ?: part.value?.takeUnless { holdsAFunction(listOf(it)) }
+                ?.let { (heldEscape.escape(it) as? EscapeResult.Built)?.value }
+    }
+    val held = (value as? OtpErlangList)?.takeIf { it.lastTail == null }?.elements()
 
     val parts = when {
         term is Term.List -> {
@@ -154,13 +175,20 @@ private fun fieldsOf(node: ElixirAst, term: Term?, at: ElixirAst, level: ElixirL
 
             val nodes = (node as? ElixirAst.ListNode)?.elements?.takeIf { it.size == term.elements.size }
 
-            term.elements.mapIndexed { index, element -> FieldPart(element, nodes?.get(index)) }
+            val values = held?.takeIf { it.size == term.elements.size }
+
+            term.elements.mapIndexed { index, element -> FieldPart(element, nodes?.get(index), values?.get(index)) }
         }
-        node is ElixirAst.ListNode -> node.elements.map { FieldPart(null, it) }
+        node is ElixirAst.ListNode -> {
+            val values = held?.takeIf { it.size == node.elements.size }
+
+            node.elements.mapIndexed { index, element -> FieldPart(null, element, values?.get(index)) }
+        }
+        held != null -> held.map { FieldPart(null, null, it) }
         else -> return if (escaped(term) != null || evaluated(node, level) != Value.DYNAMIC) Fields.NotAList else Fields.Dynamic
     }
 
-    val fields = parts.map { fieldOf(it, fragment, level, escaped) }
+    val fields = parts.map { fieldOf(it, fragment, level, literal) }
 
     if (fields.any { it.key is FieldKey.Unknown || it.value == Value.DYNAMIC }) return Fields.Dynamic
 
@@ -191,47 +219,50 @@ private sealed interface FieldKey {
 
 private class FieldKeyed(val key: FieldKey, val value: Value, val default: ElixirAst)
 
-/** The key and default [part] gives, [escaped] building each term it has: a bare key is `nil`'s. */
-private fun fieldOf(part: FieldPart, nil: ElixirAst, level: ElixirLanguageLevel, escaped: (Term) -> ElixirAst?): FieldKeyed {
+/** The key and default [part] gives, [literal] building each value it has: a bare key is `nil`'s. */
+private fun fieldOf(part: FieldPart, nil: ElixirAst, level: ElixirLanguageLevel, literal: (FieldPart) -> ElixirAst?): FieldKeyed {
     val term = part.term
     val node = part.node
     val written = (node as? ElixirAst.Tuple)?.elements?.takeIf { it.size == 2 }
+    val values = (part.value as? OtpErlangTuple)?.takeIf { it.arity() == 2 }
     val pair = when {
-        term is Term.Pair -> FieldPart(term.first, written?.get(0)) to FieldPart(term.second, written?.get(1))
-        (term == null || term.isUnexpanded()) && written != null -> FieldPart(null, written[0]) to FieldPart(null, written[1])
+        term is Term.Pair ->
+            FieldPart(term.first, written?.get(0), values?.elementAt(0)) to FieldPart(term.second, written?.get(1), values?.elementAt(1))
+        (term == null || term.isUnexpanded()) && written != null ->
+            FieldPart(null, written[0], values?.elementAt(0)) to FieldPart(null, written[1], values?.elementAt(1))
         else -> null
     }
 
-    if (pair == null) return FieldKeyed(keyOf(part, escaped), Value.LITERAL, nil)
+    if (pair == null) return FieldKeyed(keyOf(part, literal), Value.LITERAL, nil)
 
-    return FieldKeyed(keyOf(pair.first, escaped), valueOf(pair.second, level, escaped), defaultOf(pair.second, nil, escaped))
+    return FieldKeyed(keyOf(pair.first, literal), valueOf(pair.second, level, literal), defaultOf(pair.second, nil, literal))
 }
 
 /** Whether the expansion computed no value for the term: the node it was written as says what it is. */
 private fun Term.isUnexpanded(): Boolean = this is Term.Node || this is Term.NonTuple || this == Term.Unexpanded
 
-private fun keyOf(part: FieldPart, escaped: (Term) -> ElixirAst?): FieldKey {
-    val literal = part.term?.let(escaped)
+private fun keyOf(part: FieldPart, literal: (FieldPart) -> ElixirAst?): FieldKey {
+    val built = literal(part)
     val node = part.node
 
     return when {
-        literal is ElixirAst.Literal.Atom -> FieldKey.Name(literal.name)
-        literal != null -> FieldKey.NotAtom
+        built is ElixirAst.Literal.Atom -> FieldKey.Name(built.name)
+        built != null -> FieldKey.NotAtom
         node is ElixirAst.Literal.Atom -> FieldKey.Name(node.name)
         node is ElixirAst.Literal || node is ElixirAst.ListNode || node is ElixirAst.Tuple -> FieldKey.NotAtom
         else -> FieldKey.Unknown
     }
 }
 
-private fun valueOf(part: FieldPart, level: ElixirLanguageLevel, escaped: (Term) -> ElixirAst?): Value =
-    if (part.term?.let(escaped) != null) {
+private fun valueOf(part: FieldPart, level: ElixirLanguageLevel, literal: (FieldPart) -> ElixirAst?): Value =
+    if (literal(part) != null) {
         Value.LITERAL
     } else {
         part.node?.let { evaluated(it, level) } ?: Value.DYNAMIC
     }
 
-private fun defaultOf(part: FieldPart, nil: ElixirAst, escaped: (Term) -> ElixirAst?): ElixirAst =
-    part.term?.let(escaped) ?: part.node?.let(::unlocated) ?: nil
+private fun defaultOf(part: FieldPart, nil: ElixirAst, literal: (FieldPart) -> ElixirAst?): ElixirAst =
+    literal(part) ?: part.node?.let(::unlocated) ?: nil
 
 /** [node] with the locations of its metadata taken out: `elixir_quote:escape/3` gives a default none. */
 private fun unlocated(node: ElixirAst): ElixirAst {

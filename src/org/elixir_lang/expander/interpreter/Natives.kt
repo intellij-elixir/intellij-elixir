@@ -243,14 +243,11 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /**
      * What [module]'s [function], given [args], runs, given what: every argument where it runs a function its arguments
-     * name ([RUNS]), known or not, or where a function is held in any ([anyHeld]), which the others may flow into, and
-     * none otherwise.
+     * name ([RUNS]), known or not, or where a function is held in any ([holdsAFunction]), which the others may flow into,
+     * and none otherwise.
      */
     fun runs(module: String, function: String, args: List<OtpErlangObject>): List<OtpErlangObject> =
-        args.takeIf {
-            runsAFunction(module, function, args.size) ||
-                anyHeld(it) { term -> term is Closure || term is OtpErlangExternalFun }
-        }.orEmpty()
+        args.takeIf { runsAFunction(module, function, args.size) || holdsAFunction(it) }.orEmpty()
 
     /** Whether [module]'s [function] of [arity] runs a function it is given ([RUNS]). */
     fun runsAFunction(module: String, function: String, arity: Int): Boolean = Triple(module, function, arity) in RUNS
