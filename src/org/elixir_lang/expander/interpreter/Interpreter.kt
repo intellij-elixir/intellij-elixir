@@ -570,7 +570,7 @@ internal class Evaluation(
 
         return when (expanded) {
             // A node that didn't expand is the term given, metadata the node doesn't hold included.
-            is MacroExpanded.Node -> if (expanded.expanded) termOf(expanded.node) else ast
+            is MacroExpanded.Node -> if (expanded.expanded) readableTermOf(expanded.node) else ast
             MacroExpanded.Dir -> UnknownBinary
             is MacroExpanded.Stopped -> decline("Macro.expand/2 stops")
         }
@@ -632,10 +632,14 @@ internal class Evaluation(
     /** [node] as the term a macro is given, each of its terms remembering the node it came from. */
     private fun termOf(node: ElixirAst): OtpErlangObject = termOf(node) { _, _ -> }
 
+    /** [node] as a term the macro's body reads, where a compiled node's stand-in would answer in place of its bytes. */
+    private fun readableTermOf(node: ElixirAst): OtpErlangObject =
+        termOf(node) { each, _ -> if (each is ElixirAst.Placeholder) decline("Macro.expand/2's result holds a placeholder") }
+
     private fun termOf(node: ElixirAst, onNode: (ElixirAst, OtpErlangObject) -> Unit): OtpErlangObject =
         node.toOtp(ParserOptions.DEFAULT) { each, term ->
             when (each) {
-                is ElixirAst.Placeholder -> decline("an argument holds a placeholder")
+                is ElixirAst.Placeholder -> if (each.stopsExpansion) decline("an argument holds a placeholder")
                 is ElixirAst.Literal.Atom -> atoms += each.name
                 else -> {}
             }
