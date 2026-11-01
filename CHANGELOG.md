@@ -192,6 +192,8 @@
 
 ### Bug Fixes
 
+- [#4580](https://github.com/intellij-elixir/intellij-elixir/pull/4580) [@sh41](https://github.com/sh41)
+  - **Mix dependency sync no longer fails or drops the syncs queued behind it when the IDE discards a `mix.exs`'s parsed form while the sync reads it.** Refs [#4579](https://github.com/intellij-elixir/intellij-elixir/issues/4579).
 - [#4564](https://github.com/intellij-elixir/intellij-elixir/pull/4564) [@sh41](https://github.com/sh41)
   - **A documentation link to a function name that is missing, or defined only at another arity, no longer opens a longer-named function, and a link to an `EEx.function_from_string` function whose arity can't be known is now linked.** Refs [#4562](https://github.com/intellij-elixir/intellij-elixir/issues/4562).
 - [#4557](https://github.com/intellij-elixir/intellij-elixir/pull/4557) [@sh41](https://github.com/sh41)
