@@ -6,6 +6,7 @@ import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
+import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileFactory
@@ -15,6 +16,7 @@ import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
 import com.intellij.psi.impl.source.PsiFileImpl
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
+import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.Signature
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.CandidateSource
@@ -27,6 +29,7 @@ import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.declaration.preferred
+import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
 import org.elixir_lang.psi.ElixirFile
@@ -72,6 +75,28 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             "Kernel.defdelegate/2 IMPLICIT_IMPORT VALID via []",
             candidates(file, "defdelegate h(x)", "defdelegate h(x), to: Target, as: :f"),
         )
+    }
+
+    /** A library outside the project's content holding a copy of an SDK module is no reason to stop at the macro. */
+    fun testAStaleLibraryBesideTheSdkLeavesAKernelMacrosAnswer() {
+        val file = file(
+            """
+            defmodule Asker do
+              def f, do: Kernel.if(true, do: 1)
+            end
+            """
+        )
+        val call = "Kernel.if(true, do: 1)"
+        val before = candidates(file, call, call)
+        assertTrue("a remote Kernel macro has candidates:\n$before", before.isNotEmpty())
+
+        val directory = createTempDir("stale_ebin")
+        File(LegManifest.ebin(), "Elixir.Kernel.beam").copyTo(File(directory, "Elixir.Kernel.beam"))
+        VfsRootAccess.allowRootAccess(testRootDisposable, directory.path)
+        BeamLibraryFixture.addLibrary(project, module, "stale", listOf(LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!))
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
+
+        assertEquals(before, candidates(file, call, call))
     }
 
     fun testDelegationTargetReaches() {
