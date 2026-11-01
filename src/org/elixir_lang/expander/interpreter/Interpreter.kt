@@ -53,6 +53,7 @@ import org.elixir_lang.expander.macroExpand
 import org.elixir_lang.expander.macroExpandOnce
 import org.elixir_lang.expander.metaValue
 import org.elixir_lang.expander.orGuards
+import org.elixir_lang.expander.rebuilt
 import org.elixir_lang.expander.rescueHead
 import org.elixir_lang.expander.splitOptions
 import org.elixir_lang.expander.unfollowed
@@ -455,8 +456,10 @@ internal class Evaluation(
             ?.takeIf { it.kind.macro }
             ?: decline("${dispatch.receiver} has no macro ${dispatch.name}/${dispatch.arity}")
         val marks = stopGenerated && MACRO_ARGUMENTS_STOP_GENERATED.isSufficient(run.level)
+        run.origins.expanded(call)
         val args = arguments.map { arg ->
-            run.givenEnvs[arg]?.let(::envOf) ?: termOf(arg).let { if (marks) stopGenerated(it, arg) else it }
+            run.givenEnvs[arg]?.let(::envOf)
+                ?: termOf(arg) { each, term -> run.origins.record(each, term) }.let { if (marks) stopGenerated(it, arg) else it }
         }
         val function = ModuleExports.macroExport(NameArity(dispatch.name, args.size))
         val linifier = Linify(dispatch.receiver, run.level)
@@ -469,7 +472,7 @@ internal class Evaluation(
         }
 
         return Summary.Output.Built(
-            codeOf(result, call.meta.origin, values = true, known = nodes::get) { term, node ->
+            rebuilt(result, call.meta.origin, run, built = false, known = nodes::get) { term, node ->
                 placeOf(term)?.let { run.placedAt[node] = it }
             } ?: decline("the result isn't quoted or is too large to copy"),
             injects = true,
@@ -546,7 +549,10 @@ internal class Evaluation(
         val meta = (term as? OtpErlangTuple)?.takeIf { it.arity() == 3 }?.elementAt(1) as? OtpErlangList ?: return term
 
         return tuple(term.elementAt(0), cons(listOf(tuple(atom("stop_generated"), TRUE)), meta), term.elementAt(2))
-            .also { nodes[it] = arg }
+            .also {
+                nodes[it] = arg
+                run.origins.record(arg, it)
+            }
     }
 
     /**
@@ -557,7 +563,7 @@ internal class Evaluation(
     fun macroExpand(ast: OtpErlangObject, env: OtpErlangObject, once: Boolean): OtpErlangObject {
         val (given, expandState) = expansionEnv(env) ?: decline("Macro.expand/2 in an env other than __CALLER__")
         val expanding = givenAt(given, lineAt(given), run.level)
-        val node = codeOf(ast, call.meta.origin, values = true, known = nodes::get)
+        val node = rebuilt(ast, call.meta.origin, run, built = false, known = nodes::get)
             ?: decline("Macro.expand/2 of a term it can't read or copy")
         val expanded =
             if (once) macroExpandOnce(node, expandState, expanding, run) else macroExpand(node, expandState, expanding, run)
@@ -624,7 +630,9 @@ internal class Evaluation(
         )
 
     /** [node] as the term a macro is given, each of its terms remembering the node it came from. */
-    private fun termOf(node: ElixirAst): OtpErlangObject =
+    private fun termOf(node: ElixirAst): OtpErlangObject = termOf(node) { _, _ -> }
+
+    private fun termOf(node: ElixirAst, onNode: (ElixirAst, OtpErlangObject) -> Unit): OtpErlangObject =
         node.toOtp(ParserOptions.DEFAULT) { each, term ->
             when (each) {
                 is ElixirAst.Placeholder -> decline("an argument holds a placeholder")
@@ -633,6 +641,7 @@ internal class Evaluation(
             }
 
             nodes[term] = each
+            onNode(each, term)
             val place = run.placedAt[each] ?: Place(null, each.meta.origin)
             metaOf(term).forEach { metaPlaces.putIfAbsent(it, IndexedValue(0, place)) }
         }

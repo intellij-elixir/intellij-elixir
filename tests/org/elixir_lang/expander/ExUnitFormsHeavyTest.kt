@@ -120,12 +120,9 @@ class ExUnitFormsHeavyTest : HeavyTestCase() {
 
         val expected = origins(without)
 
-        // Until 1.17 `test` gives `def` its body as a value, which keeps no origins.
-        if (!isBefore(version, "1.17.0")) {
-            val user = "user ${source.indexOf("assert user") + "assert ".length} binds ${source.indexOf("test: user") + "test: ".length}"
+        val user = "user ${source.indexOf("assert user") + "assert ".length} binds ${source.indexOf("test: user") + "test: ".length}"
 
-            assertTrue("$user in:\n$expected", user in expected)
-        }
+        assertTrue("$user in:\n$expected", user in expected)
         assertEquals(expected, origins(with))
     }
 
@@ -155,19 +152,7 @@ class ExUnitFormsHeavyTest : HeavyTestCase() {
               end
             end
 
-            for {app, sources} <- [ex_unit_forms_template: "deps/ex_unit_forms_template/lib", ex_unit_forms: "lib"] do
-              ebin = Path.join([dir, "_build/dev/lib", Atom.to_string(app), "ebin"])
-              File.mkdir_p!(ebin)
-              {:ok, modules, _} =
-                Kernel.ParallelCompiler.compile_to_path(Path.wildcard(Path.join([dir, sources, "**/*.ex"])), ebin, return_diagnostics: true)
-
-              Code.prepend_path(ebin)
-
-              # The quoter's embedded mode loads nothing from the code path until asked, as `mix test`'s VM would.
-              for module <- modules, :code.is_loaded(module) == false do
-                {:module, _} = :code.load_abs(String.to_charlist(Path.join(ebin, Atom.to_string(module))))
-              end
-            end
+            $COMPILE_APPS
 
             for file <- [${files.joinToString(", ") { elixirString(it) }}] do
               path = Path.join(dir, file)
@@ -177,14 +162,14 @@ class ExUnitFormsHeavyTest : HeavyTestCase() {
                 Code.compile_string(source, path)
                 IntellijElixir.Quoter.Probe.send(__ENV__, {:compiled, path})
               rescue
-                exception -> IntellijElixir.Quoter.Probe.send(__ENV__, {:raised, path, exception.__struct__})
+                exception -> IntellijElixir.Quoter.Probe.send(__ENV__, {:raised, path, exception.__struct__, Exception.message(exception)})
               end
             end
             """.trimIndent(),
             COMPILE_TIMEOUT,
         )
 
-        assertEquals("forms compile: ${compiled.diagnostics}", OtpErlangAtom("ok"), compiled.status)
+        assertEquals("forms compile: ${compiled.failure}", OtpErlangAtom("ok"), compiled.status)
 
         val prefix = dir.invariantSeparatorsPath + "/"
         val path = { term: OtpErlangObject -> String((term as OtpErlangBinary).binaryValue()).removePrefix(prefix) }
@@ -209,7 +194,11 @@ class ExUnitFormsHeavyTest : HeavyTestCase() {
                         addAll(tests(name, tests.takeUnless { it == NIL }))
                     }.map { "${path(file)} $it" }
                 }
-                "raised" -> listOf("${path(elements[1])} raised ${atom(elements[2])}")
+                "raised" -> {
+                    // Compared by kind alone; the message is for a raise Elixir shouldn't have made.
+                    println("${path(elements[1])} raised ${String((elements[3] as OtpErlangBinary).binaryValue())}")
+                    listOf("${path(elements[1])} raised ${atom(elements[2])}")
+                }
                 else -> emptyList()
             }
         }
@@ -262,8 +251,26 @@ class ExUnitFormsHeavyTest : HeavyTestCase() {
             else -> term
         }
 
-    private companion object {
+    internal companion object {
         val CORPUS = File("testData/org/elixir_lang/expander/ex_unit_forms")
+
+        /** Elixir that writes the dependency's and the app's `lib`, under `dir`, to their `_build` `ebin`s, and loads them. */
+        val COMPILE_APPS =
+            """
+            for {app, sources} <- [ex_unit_forms_template: "deps/ex_unit_forms_template/lib", ex_unit_forms: "lib"] do
+              ebin = Path.join([dir, "_build/dev/lib", Atom.to_string(app), "ebin"])
+              File.mkdir_p!(ebin)
+              {:ok, modules, _} =
+                Kernel.ParallelCompiler.compile_to_path(Path.wildcard(Path.join([dir, sources, "**/*.ex"])), ebin, return_diagnostics: true)
+
+              Code.prepend_path(ebin)
+
+              # The quoter's embedded mode loads nothing from the code path until asked, as `mix test`'s VM would.
+              for module <- modules, :code.is_loaded(module) == false do
+                {:module, _} = :code.load_abs(String.to_charlist(Path.join(ebin, Atom.to_string(module))))
+              end
+            end
+            """
 
         /**
          * The files whose modules end otherwise than in Elixir on [version]'s leg, to how each ends in the expander: their
@@ -272,8 +279,7 @@ class ExUnitFormsHeavyTest : HeavyTestCase() {
          *   and where a test body reads a variable it isn't given. Before 1.14 `use ExUnit.Case` passes over a raising
          *   arm whose test can't be decided, and from 1.17 every `test` reads the application's environment as it
          *   expands: an answer the expander takes as an assumption, so a raise after it may not be Elixir's, and the
-         *   module stops there instead. Until 1.17 `test` gives `def` its body as a value, so the body's read stops at
-         *   the `test`.
+         *   module stops there instead.
          * - From 1.14 to 1.16 the body's `x` is a call to an undefined `x/0`, which Elixir raises as a `CompileError`
          *   once the module's callbacks have run. The expander raises it too, but its lines don't say the callbacks ran.
          * - A module with a `doctest` is reported at it, whose tests aren't known. From 1.14 the tests after it are still
@@ -301,16 +307,7 @@ class ExUnitFormsHeavyTest : HeavyTestCase() {
                     )
                 } else {
                     put("test/duplicate_test.exs", listOf("Elixir.ExUnitForms.DuplicateTest stopped on line 8 `test \"same\" do`"))
-                    put(
-                        "test/for_read_test.exs",
-                        listOf(
-                            if (isBefore(version, "1.17.0")) {
-                                "Elixir.ExUnitForms.ForReadTest stopped on line 5 `test \"t #{x}\" do`"
-                            } else {
-                                "Elixir.ExUnitForms.ForReadTest stopped on line 6 `x`"
-                            },
-                        ),
-                    )
+                    put("test/for_read_test.exs", listOf("Elixir.ExUnitForms.ForReadTest stopped on line 6 `x`"))
                 }
             }
         }

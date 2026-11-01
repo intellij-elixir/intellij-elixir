@@ -182,8 +182,12 @@ class InjectedDefinitionTest : PlatformTestCase() {
                 "    {:def, meta, [head, [do: quote(do: (_ = :wrapped; unquote(body)))]]}\n  end",
         )
 
-    fun testACallersDefTheMacroWalksIsPlacedAtItsDef() =
-        assertCallersDefIsPlaced("defmacro deco(do: block), do: Macro.prewalk(block, & &1)")
+    /** The term the walk gives back equals what the macro was given, so it is the caller's node, as a pass-through is. */
+    fun testACallersDefTheMacroWalksIsNotInjected() {
+        add("deco.ex", "defmodule Deco do\n  defmacro deco(do: block), do: Macro.prewalk(block, & &1)\nend\n")
+
+        assertEquals("", injected("defmodule A do\n  require Deco\n\n  Deco.deco do\n    def f, do: raise(\"x\")\n  end\nend\n"))
+    }
 
     /** `A`'s `def f`, given to `Deco.deco`, defined as [deco], is placed at its own `def`. */
     private fun assertCallersDefIsPlaced(deco: String) {
