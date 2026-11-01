@@ -212,6 +212,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "Elixir.IO" -> io(key, args)
             "Elixir.Module" -> module(key, args)
             "Elixir.Application" -> application(key, args)
+            "Elixir.Code" -> if (key == "can_await_module_compilation?/0") canAwaitModuleCompilation() else null
             "Elixir.Atom" -> if (key == "to_string/1") erlang("atom_to_binary/1", args) else null
             "Elixir.String" -> string(key, args)
             "Elixir.String.Chars" -> if (key == "to_string/1") toString(args[0]) else null
@@ -2620,6 +2621,17 @@ internal class Natives(private val evaluation: Evaluation) {
 
         return atom("ok")
     }
+
+    /**
+     * `Code.can_await_module_compilation?/0`, which is true only in a process Elixir's parallel compiler spawned: an `.ex`
+     * file's, not a config read's. Where neither is known, as for an `.exs` file, `null` runs `Code`'s clause.
+     */
+    private fun canAwaitModuleCompilation(): OtpErlangObject? =
+        when {
+            evaluation.run.config != null -> bool(false)
+            evaluation.run.file()?.endsWith(".ex") == true -> bool(true)
+            else -> null
+        }
 
     /**
      * `File.exists?/1,2`: whether a file or directory is at [path], relative to `Run.workingDirectory` where it is relative,
