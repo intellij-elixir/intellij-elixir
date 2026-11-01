@@ -23,7 +23,6 @@ import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.impl.CodeInsightTestFixtureImpl
-import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.runBlocking
 import org.elixir_lang.expander.ConfigHeavyTestCase
 import org.elixir_lang.expander.edit
@@ -144,7 +143,7 @@ class ExpanderPathToggleHeavyTest : ConfigHeavyTestCase() {
 
         settings.state.enableHtmlInjection = !settings.state.enableHtmlInjection
         publish(old, settings.state.copy())
-        UIUtil.dispatchAllInvocationEvents()
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
         assertEquals(count, PsiModificationTracker.getInstance(project).modificationCount)
     }
@@ -248,7 +247,7 @@ class ExpanderPathToggleHeavyTest : ConfigHeavyTestCase() {
             Through.LOAD -> settings.loadState(settings.state.copy(enableExpander = on))
         }
 
-        UIUtil.dispatchAllInvocationEvents()
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
     }
 
     private fun publish(old: ElixirExperimentalSettings.State, new: ElixirExperimentalSettings.State) {
