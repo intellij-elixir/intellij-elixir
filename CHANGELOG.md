@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4592](https://github.com/intellij-elixir/intellij-elixir/pull/4592) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, a module no longer stops being expanded at a `~r` sigil or at `use Mix.Task`, and valid `%{@key => value}` patterns and `quote bind_quoted: binding()` no longer count as errors.** Refs [#4584](https://github.com/intellij-elixir/intellij-elixir/issues/4584).
+
 - [#4583](https://github.com/intellij-elixir/intellij-elixir/pull/4583) [@sh41](https://github.com/sh41)
   - **The expander now sees a module that uses `Phoenix.Component` as Elixir compiles it, with its `__components__/0`, each component's wrapper function and `__global__?/1`, unless a `~H` comes before the end of the module; and an `@assign` in a `.leex` component template now resolves through parenthesised `live_component/3` and `live_modal/3` calls and qualified module names, and no longer through a `live_component/3` that isn't LiveView's or a `live_modal/3` in a library.** Refs [#4576](https://github.com/intellij-elixir/intellij-elixir/issues/4576).
 

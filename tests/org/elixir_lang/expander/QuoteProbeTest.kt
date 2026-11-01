@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangTuple
+import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_OPTIONS_EXPANDED_FIRST
 import org.elixir_lang.lowering.ElixirAst
 
 /**
@@ -40,6 +41,18 @@ class QuoteProbeTest : SdkProbeTestCase() {
 
         assertEquals(
             "f = String.trim(\"x.ex\")",
+            (outcome as? Expansion.Unported)?.at?.let(expansion::source) ?: outcome.toString(),
+        )
+    }
+
+    /** An expanded list has no position of its own: the stop is at what is written. */
+    fun testADynamicOptionHoldingAListIsUnportedAtItsValue() {
+        val body = "quote(file: [String.trim(\"x.ex\")], do: x)"
+        val expansion = probes.expand(body)
+        val outcome = expansion.outcome
+
+        assertEquals(
+            "[String.trim(\"x.ex\")]",
             (outcome as? Expansion.Unported)?.at?.let(expansion::source) ?: outcome.toString(),
         )
     }
@@ -86,6 +99,102 @@ class QuoteProbeTest : SdkProbeTestCase() {
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }
 
+    fun testBindQuotedIsValidatedExpanded() {
+        val expansions = EXPANDED_OPTIONS.associateWith { expand(it, OPTION_MACROS) }
+
+        assertUnported(expansions, emptyList())
+        printed { probes.assertMatchesElixir(expansions) }
+    }
+
+    /** Elixir's answer depends on a read the expander has no value for: a stop, never its `invalid_bind_quoted`. */
+    fun testAnUnknownBindQuotedStops() {
+        val unknown = "System.get_env(\"HOME\")"
+        val bodies = listOf(
+            "@b $unknown\ndef f, do: quote(bind_quoted: @b, do: 1)",
+            "@p $unknown\ndef f, do: quote(bind_quoted: [@p], do: 1)",
+            "@k $unknown\ndef f, do: quote(bind_quoted: [{@k, 1}], do: 1)",
+            "@o $unknown\ndef f, do: quote(@o, do: 1)",
+            "@p $unknown\ndef f, do: quote([@p], do: 1)",
+            "@k $unknown\ndef f, do: quote([{@k, 1}], do: 1)",
+        )
+
+        assertEquals(
+            bodies.joinToString("\n") { "$it: Unported" },
+            bodies.joinToString("\n") { "$it: ${expand(it, "").outcome::class.simpleName}" },
+        )
+    }
+
+    fun testBindQuotedStillRaises() {
+        val expansions = listOf(
+            "x = 1\nquote(bind_quoted: x, do: 1)",
+            "quote(bind_quoted: 1, do: 1)",
+            "quote(bind_quoted: [{\"a\", 1}], do: 1)",
+            "quote(bind_quoted: @nope, do: 1)",
+            "@b 1\ndef f, do: quote(bind_quoted: @b, do: 1)",
+            "@p 1\ndef f, do: quote(bind_quoted: [@p], do: 1)",
+            "@k 1\ndef f, do: quote(bind_quoted: [{@k, 1}], do: 1)",
+            "quote(bind_quoted: Keyword.merge([], []), do: 1)",
+            "require $OPTION_MODULE\nquote(bind_quoted: $OPTION_MODULE.not_a_list(), do: 1)",
+        ).associateWith { expand(it, OPTION_MACROS) }
+
+        assertUnported(expansions, emptyList())
+        printed { probes.assertMatchesElixir(expansions) }
+    }
+
+    fun testOptionValuesExpandUnderAsk() {
+        val values = listOf(
+            "fn -> 1 end",
+            "case 1 do\nx -> x\nend",
+            "try do\n1\nrescue\ne in ArgumentError -> e\nend",
+            "for(x <- [1], do: x)",
+            "with(x <- 1, do: x)",
+            "%{a: 1}",
+            "%URI{path: \"a\"}",
+            "<<1, 2>>",
+            "&String.to_atom/1",
+        )
+        val expansions = values.associateWith { expand("_ = quote(bind_quoted: [a: $it], do: a)", "") }
+
+        // Before 1.17 Elixir expands a value a second time, as what the first gave, which isn't ported for a call.
+        assertUnported(expansions, if (QUOTE_OPTIONS_EXPANDED_FIRST.isSufficient(legLevel())) emptyList() else values)
+        printed { probes.assertMatchesElixir(expansions) }
+    }
+
+    /** A macro of the preamble's runs from its source, where a binding's value must be a node the expansion recorded. */
+    fun testASourceMacroWithBindQuotedEvaluates() {
+        val called = "require $CALLED_MODULE\n_ = $CALLED_MODULE.called(1)"
+        val written = mapOf("require $WRITTEN_MODULE\n_ = $WRITTEN_MODULE.written(1)".let { it to expand(it, WRITTEN_MACROS) })
+        val calledExpansion = expand(called, CALLED_MACROS)
+        val bound = (listOf("bound", "bound_twice").map { "require $BOUND_MODULE\n_ = $BOUND_MODULE.$it(1)" } + "use $BOUND_MODULE, a: 1")
+            .associateWith { expand(it, BOUND_MACROS) }
+        // Before 1.17 Elixir expands a value a second time, as what the first gave, which isn't ported for a call.
+        val expandedFirst = QUOTE_OPTIONS_EXPANDED_FIRST.isSufficient(legLevel())
+        val expansions = written + bound + if (expandedFirst) mapOf(called to calledExpansion) else emptyMap()
+
+        if (!expandedFirst) assertTrue("${calledExpansion.outcome}", calledExpansion.outcome is Expansion.Unported)
+        assertEquals(
+            "",
+            expansions.filterValues { it.outcome is Expansion.Unported || it.outcome is Expansion.Opaque }
+                .map { (body, expansion) -> "${body.replace("\n", "; ")}: ${expansion.outcome}" }
+                .joinToString("\n"),
+        )
+        printed { probes.assertMatchesElixir(expansions) }
+    }
+
+    /** The expansion may stop at this macro, and never gives another answer than Elixir's. */
+    fun testABindingWithNoWrittenValueNeverAnswersWrongly() {
+        val attribute = { value: String -> "@b [a: $value]\n  defmacro copied(_), do: quote(bind_quoted: @b, do: a)" }
+        val macros = listOf("{1, 2, 3}", "quote(do: x)", "{:__MODULE__, [], nil}", "<<1, 2>>").map(attribute) +
+            "defmacro copied(y), do: quote(bind_quoted: quote(do: [a: unquote(y)]), do: a)"
+
+        for (macro in macros) {
+            val preamble = "defmodule $COPIED_MODULE do\n  $macro\nend"
+            val body = "require $COPIED_MODULE\n_ = $COPIED_MODULE.copied(1)"
+
+            printed { probes.assertMatchesElixir(mapOf(body to expand(body, preamble))) }
+        }
+    }
+
     private fun assertUnported(expansions: Map<String, ExpansionProbes.CaseExpansion>, expected: List<String>) =
         assertEquals(
             expected.joinToString("\n"),
@@ -94,6 +203,79 @@ class QuoteProbeTest : SdkProbeTestCase() {
 
     private companion object {
         val COMPILE_FILE = Regex("""quoter-compile-\d+\.ex""")
+
+        const val OPTION_MODULE = "QuoteOptions{token}"
+
+        val OPTION_MACROS =
+            """
+            defmodule $OPTION_MODULE do
+              defmacro keywords, do: [a: 1]
+              defmacro pair, do: {:a, 1}
+              defmacro opts, do: [bind_quoted: [a: 1]]
+              defmacro no, do: false
+              defmacro not_a_list, do: 1
+            end
+            """.trimIndent()
+
+        const val WRITTEN_MODULE = "QuoteWritten{token}"
+
+        val WRITTEN_MACROS =
+            """
+            defmodule $WRITTEN_MODULE do
+              defmacro written(x), do: quote(bind_quoted: [x: x], do: x)
+            end
+            """.trimIndent()
+
+        const val CALLED_MODULE = "QuoteCalled{token}"
+
+        val CALLED_MACROS =
+            """
+            defmodule $CALLED_MODULE do
+              defmacro called(y), do: quote(bind_quoted: [x: id(y)], do: x)
+
+              defp id(y), do: y
+            end
+            """.trimIndent()
+
+        const val COPIED_MODULE = "QuoteCopied{token}"
+
+        const val BOUND_MODULE = "QuoteBound{token}"
+
+        val BOUND_MACROS =
+            """
+            defmodule $BOUND_MODULE do
+              defmacro bound(x), do: quote(bind_quoted: binding(), do: x)
+              defmacro bound_twice(x) do
+                y = x
+                quote bind_quoted: binding() do
+                  {x, y}
+                end
+              end
+              defmacro __using__(opts) do
+                quote bind_quoted: binding() do
+                  @used opts
+                end
+              end
+            end
+            """.trimIndent()
+
+        val EXPANDED_OPTIONS = listOf(
+            "def f(opts) do\nquote bind_quoted: binding() do\n_ = opts\nend\nend",
+            "defmacro m(opts) do\nquote bind_quoted: binding() do\n_ = opts\nend\nend",
+            "@b [a: 1]\n_ = quote(bind_quoted: @b, do: a)",
+            "@b [a: 1]\ndef f, do: quote(bind_quoted: @b, do: a)",
+            "require $OPTION_MODULE\n_ = quote(bind_quoted: $OPTION_MODULE.keywords(), do: a)",
+            "require $OPTION_MODULE\n_ = quote(bind_quoted: [$OPTION_MODULE.pair()], do: a)",
+            "_ = quote(bind_quoted: [{__MODULE__, 1}], do: 1)",
+            "_ = quote(bind_quoted: [{Foo, 1}], do: 1)",
+            "require $OPTION_MODULE\n_ = quote($OPTION_MODULE.opts(), do: a)",
+            "require $OPTION_MODULE\n_ = quote(unquote: $OPTION_MODULE.no(), do: a)",
+            "@p {:a, 1}\n_ = quote(bind_quoted: [@p], do: a)",
+            "@p {:a, 1}\ndef f, do: quote(bind_quoted: [@p], do: a)",
+            "@k :a\n_ = quote(bind_quoted: [{@k, 1}], do: a)",
+            "@k :a\ndef f, do: quote(bind_quoted: [{@k, 1}], do: a)",
+            "@o [bind_quoted: [a: 1]]\ndef f, do: quote(@o, do: a)",
+        )
 
         /** After `l = 3` and `f = "x.ex"`. */
         val SITE_FORMS = listOf(

@@ -1,7 +1,7 @@
 # Regenerates <leg>/A.txt beside this script: `Macro.expand_once/2` of each `use` and sigil case below, for every Elixir/OTP
 # pair .github/ci-versions.json declares, and for the pairs @extra_pairs names, whose directory is
-# `<elixir>-otp-<major>`: the output of `~r` depends on the OTP release as well as the Elixir one. Run it from the
-# repository root with the mise.toml pins (1.18 or later, for JSON):
+# `<elixir>-otp-<major>`, or `<elixir>-otp-<suffix>` for a pair naming a suffix: the output of `~r` depends on the OTP
+# release as well as the Elixir one. Run it from the repository root with the mise.toml pins (1.18 or later, for JSON):
 #
 #     mise exec -- elixir testData/org/elixir_lang/expander/sigil_output/generate.exs
 #
@@ -215,8 +215,15 @@ defmodule SigilOutput do
   ]
 
   # Pairs beyond the ones ci-versions.json declares: the OTP windows `~r` changes at, each on one OTP release so a
-  # newer install on the machine cannot change what is written.
-  @extra_pairs [{"1.18.4", "28.4"}, {"1.19.5", "27.3.4.12"}, {"1.20.4", "27.3.4.12"}, {"1.20.4", "28.4"}]
+  # newer install on the machine cannot change what is written. A third element is the directory's suffix, for an OTP
+  # window inside a major another pair has the directory of.
+  @extra_pairs [
+    {"1.18.4", "28.4"},
+    {"1.19.5", "27.3.4.12"},
+    {"1.20.4", "27.3.4.12"},
+    {"1.20.4", "28.4"},
+    {"1.20.4", "28.0.2", "28.0"}
+  ]
 
   def run(env) do
     otp = File.read!(Path.join([:code.root_dir(), "releases", System.otp_release(), "OTP_VERSION"]))
@@ -358,10 +365,12 @@ case System.argv() do
       end
 
     extra =
-      for {elixir, otp} <- SigilOutput.extra_pairs() do
+      for pair <- SigilOutput.extra_pairs() do
+        {elixir, otp} = {elem(pair, 0), elem(pair, 1)}
         major = otp |> String.split(".") |> hd()
+        suffix = if tuple_size(pair) == 3, do: elem(pair, 2), else: major
 
-        {elixir, major, otp, "#{elixir}-otp-#{major}"}
+        {elixir, major, otp, "#{elixir}-otp-#{suffix}"}
       end
 
     for {elixir, major, otp, dir} <- declared ++ extra do

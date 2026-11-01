@@ -324,6 +324,7 @@ private fun captureExpr(
             val fn = ElixirAst.Call(at.meta, ElixirAst.Literal.Atom(at.meta, "fn"), listOf(clause))
 
             recordDispatch(amp, ModuleClauses.Dispatched.Fn(fn), env, run)
+            run.statementsAt(env)?.captured(amp, fn)
             expandFn(fn, state, env, run)
         }
     }

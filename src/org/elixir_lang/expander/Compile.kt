@@ -625,6 +625,9 @@ internal class Statements {
      */
     private val holders = IdentityHashMap<ElixirAst, ElixirAst>()
 
+    /** The captures a function call is given. The `fn` one of them rewrites to is followed as a given `fn` is ([captured]). */
+    private val givenCaptures: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
+
     /** Whether [node] is a statement of the body, on the statement path. */
     fun contains(node: ElixirAst): Boolean = node in contained
 
@@ -702,7 +705,8 @@ internal class Statements {
     /**
      * [call], a statement, dispatched as a function, whose [arguments] run before it, where it does, as `expand_local/4`
      * and `expand_remote/8` expand them: each is a statement within it, except that the clause bodies of an `fn` it is
-     * given are [followed], in that `fn`, which runs them only where it is called.
+     * given, or of the `fn` a capture it is given becomes ([captured]), are [followed], in that `fn`, which runs them
+     * only where it is called.
      */
     fun called(call: ElixirAst.Call, arguments: List<ElixirAst> = call.arguments.orEmpty()) {
         val followed = follows(call)
@@ -714,12 +718,24 @@ internal class Statements {
         // An argument Elixir takes as it is raises nowhere, so it needs no unit.
         for (argument in arguments.filterNot(::isTakenAsIs)) {
             if (isNamedCall(argument, "fn")) {
-                holder?.let { holders[argument] = it }
-                clauseBodies((argument as ElixirAst.Call).arguments!!).forEach { add(it, followed = true, holder = argument) }
+                followFn(argument as ElixirAst.Call, holder)
             } else {
                 add(argument, isWhole = false, within = call, followed = followed, holder = holder)
+
+                if (isCall(argument, "&", 1)) givenCaptures += argument
             }
         }
+    }
+
+    /** [fn], what `capture_expr/6` rewrites [capture] to, whose clause bodies run as those of an `fn` a call is given do. */
+    fun captured(capture: ElixirAst, fn: ElixirAst.Call) {
+        if (capture in givenCaptures) followFn(fn, holders[capture])
+    }
+
+    /** [fn], held by [holder] where one holds it, runs its clause bodies only where it is called. */
+    private fun followFn(fn: ElixirAst.Call, holder: ElixirAst?) {
+        holder?.let { holders[fn] = it }
+        clauseBodies(fn.arguments!!).forEach { add(it, followed = true, holder = fn) }
     }
 
     /**

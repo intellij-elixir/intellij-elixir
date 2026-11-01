@@ -161,16 +161,29 @@ internal object Quote {
             ?.let { (it as ElixirAst.Tuple).elements[1] }
             ?: throw Stop(Expansion.Error("missing_option", call))
 
-        val expandedOpts = Expander.expand(opts, state, env, run)
+        val expandedOpts = run.askingAst { Expander.expand(opts, state, env, run) }
         if (expandedOpts !is Expansion.Expanded) throw Stop(expandedOpts)
 
-        val options = options(call, opts)
+        val asked = (expandedOpts.ast as? ExpandedAst.Built)?.node ?: throw Stop(Expansion.Unported(call))
         val values = expandedOpts.value
 
-        fun optionValue(key: String): Term? =
-            values.keyfind(key)?.also { term -> unknownStop(term, options.getValue(key))?.let { throw Stop(it) } }
+        unreadStop(values, opts)?.let { throw Stop(it) }
 
-        val bindQuoted = options["bind_quoted"]?.let { bindings(call, it, env, level) }
+        val options = options(call, asked)
+
+        fun written(key: String): ElixirAst? = writtenOption(key, opts, asked, env, run)
+
+        // An expanded list has no position of its own, so a stop names what is written.
+        fun stopAt(key: String): ElixirAst = written(key) ?: call
+
+        fun optionValue(key: String): Term? =
+            values.keyfind(key)?.also { term -> unknownStop(term, stopAt(key))?.let { throw Stop(it) } }
+
+        val bindQuoted = options["bind_quoted"]?.let {
+            unreadStop(values.keyfind("bind_quoted"), stopAt("bind_quoted"))?.let { stop -> throw Stop(stop) }
+
+            bindings(call, it, written("bind_quoted"), env, run)
+        }
         val unquote = options["unquote"]?.let { boolean(it, optionValue("unquote")) }
             ?: Option.Static(bindQuoted == null)
         val generated = options["generated"]?.let { boolean(it, optionValue("generated")) } ?: Option.Static(false)
@@ -267,14 +280,14 @@ internal object Quote {
 
         // The prelude is given each value as expanded, so it is expanded a second time.
         prelude.zip(bindings).forEach { (option, binding) ->
-            expanded = expandAgain(option.second, state, env, expanded, run) {
+            expanded = expandAgain(option.second, stopAt(option.first), state, env, expanded, run) {
                 Expander.expand(binding, it.state, it.env, run)
             }
         }
 
         if (!expandedFirst) {
-            bindQuoted.orEmpty().forEach { (_, value) ->
-                expanded = expandAgain(value, state, env, expanded, run) {
+            bindQuoted.orEmpty().forEach { (_, value, traced) ->
+                expanded = expandAgain(value, if (traced) value else call, state, env, expanded, run) {
                     Expander.expand(builtCopy(value), it.state, it.env, run)
                 }
             }
@@ -297,7 +310,7 @@ internal object Quote {
             s.tuple(s.atom("__block__"), s.list(), s.list(bindings + quoted))
         }
 
-        val known = path == null || path.bytes != null
+        val known = (path == null || path.bytes != null) && bindQuoted.orEmpty().all { it.traced }
 
         return Built.Escaped(quoted, block, expanded.state, expanded.env, known, bindings)
     }
@@ -308,13 +321,14 @@ internal object Quote {
      */
     private inline fun expandAgain(
         value: ElixirAst,
+        stopAt: ElixirAst,
         state: ExState,
         env: Env,
         from: Expansion.Expanded,
         run: Run,
         expansion: (Expansion.Expanded) -> Expansion,
     ): Expansion.Expanded {
-        if (holdsCall(value, state, env, run.level, inPattern = false)) throw Stop(Expansion.Unported(value))
+        if (holdsCall(value, state, env, run.level, inPattern = false)) throw Stop(Expansion.Unported(stopAt))
 
         return when (val again = expansion(from)) {
             is Expansion.Expanded -> again
@@ -461,26 +475,73 @@ internal object Quote {
         return Term.Binary(relative.toByteArray())
     }
 
-    /** `bind_quoted:`'s `[{Key, Value}]`, validated as `elixir_expand` validates it. */
+    /**
+     * The stop where validating [term], a list of pairs as expanded, reads a value that isn't known here: [term] itself,
+     * an element or an element's key.
+     */
+    private fun unreadStop(term: Term?, at: ElixirAst): Expansion.Unported? =
+        unknownStop(term, at) ?: (term as? Term.List)?.elements?.firstNotNullOfOrNull { element ->
+            unknownStop(element, at) ?: unknownStop((element as? Term.Pair)?.first, at)
+        }
+
+    /**
+     * A `bind_quoted` binding. [value] is the node the escaped block evaluates, by the records of the source it was
+     * expanded from, which a copy from the expansion has none of: [traced] is whether it is that node, or holds no
+     * variable to look up.
+     */
+    private data class Binding(val key: String, val value: ElixirAst, val traced: Boolean)
+
+    /** `bind_quoted:`'s `[{Key, Value}]` as [expanded], validated as `elixir_expand` validates it. */
     private fun bindings(
         call: ElixirAst.Call,
-        value: ElixirAst,
+        expanded: ElixirAst,
+        written: ElixirAst?,
         env: Env,
-        level: ElixirLanguageLevel,
-    ): List<Pair<String, ElixirAst>> {
+        run: Run,
+    ): List<Binding> {
         val invalid = Stop(Expansion.Error("invalid_bind_quoted_for_quote", call))
-        val list = expandedShape(value) as? ElixirAst.ListNode ?: throw invalid
+        val list = expandedShape(expanded) as? ElixirAst.ListNode ?: throw invalid
+        val writtenElements = written
+            ?.let { (followed(it, env, run) as? ElixirAst.ListNode)?.elements }
+            ?.takeIf { it.size == list.elements.size }
 
-        return list.elements.map { element ->
+        return list.elements.mapIndexed { index, element ->
             ProgressManager.checkCanceled()
 
             val pair = (expandedShape(element) as? ElixirAst.Tuple)?.takeIf { it.elements.size == 2 } ?: throw invalid
             val key = when (val key = pair.elements[0]) {
-                is ElixirAst.Alias -> atomValue(key, env, level) ?: throw Stop(Expansion.Unported(key))
+                is ElixirAst.Alias -> atomValue(key, env, run.level) ?: throw Stop(Expansion.Unported(key))
                 else -> (expandedShape(key) as? ElixirAst.Literal.Atom)?.name ?: throw invalid
             }
+            val value = pair.elements[1]
+            val writtenValue = writtenElements?.let { writtenPairValue(it[index], env, run) }
 
-            key to pair.elements[1]
+            Binding(key, writtenValue ?: value, writtenValue != null || isLiteral(value))
+        }
+    }
+
+    /** The value of option [key] where [opts], as [expanded], writes it, its macro calls followed. */
+    private fun writtenOption(key: String, opts: ElixirAst, expanded: ElixirAst, env: Env, run: Run): ElixirAst? {
+        val elements = (expandedShape(expanded) as? ElixirAst.ListNode)?.elements ?: return null
+        val written = (followed(opts, env, run) as? ElixirAst.ListNode)?.elements?.takeIf { it.size == elements.size }
+        val index = elements.indexOfFirst { keyOf(expandedShape(it)) == key }
+
+        return written?.getOrNull(index)?.let { writtenPairValue(it, env, run) }
+    }
+
+    private fun writtenPairValue(element: ElixirAst, env: Env, run: Run): ElixirAst? =
+        (followed(element, env, run) as? ElixirAst.Tuple)?.elements?.takeIf { it.size == 2 }?.get(1)
+
+    /** [node] with each macro call [run] recorded for it replaced by its output, as the interpreter follows them. */
+    private fun followed(node: ElixirAst, env: Env, run: Run): ElixirAst {
+        var current = expandedShape(node)
+
+        while (true) {
+            ProgressManager.checkCanceled()
+
+            val macro = run.dispatchesAt(env)?.of(current) as? ModuleClauses.Dispatched.Macro ?: return current
+
+            current = expandedShape(macro.output)
         }
     }
 

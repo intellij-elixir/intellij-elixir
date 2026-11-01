@@ -19,23 +19,21 @@ internal fun expandMapPairs(node: ElixirAst.Call, state: ExState, env: Env, run:
 
     return when {
         update == null ->
-            expandArgs(args, state, env, run).thenAst { s, e, pairs, asts ->
-                validated(node, args, s, e, pairs, run.level, run.ast { ElixirAst.Call(node.meta, node.callee, asts.elements) })
+            expandAndValidate(node, args, emptyList(), state, env, run) { asts ->
+                asts.map { ElixirAst.Call(node.meta, node.callee, (it as ElixirAst.ListNode).elements) }
             }
         env.context != Env.Context.NONE -> Expansion.Error("update_syntax_in_wrong_context", node)
         else -> {
             val (map, pairs) = update.arguments!!
 
             if (pairs is ElixirAst.ListNode) {
-                expandArgs(listOf(map) + pairs.elements, state, env, run).thenAst { s, e, values, asts ->
-                    val ast = run.ast {
-                        val (expandedMap, expandedPairs) = asts.elements.let { it.first() to it.drop(1) }
+                expandAndValidate(node, pairs.elements, listOf(map), state, env, run) { asts ->
+                    asts.map {
+                        val (expandedMap, expandedPairs) = (it as ElixirAst.ListNode).elements.let { all -> all.first() to all.drop(1) }
                         val bar = ElixirAst.Call(update.meta, update.callee, listOf(expandedMap, ElixirAst.ListNode(pairs.meta, expandedPairs)))
 
                         ElixirAst.Call(node.meta, node.callee, listOf(bar))
                     }
-
-                    validated(node, pairs.elements, s, e, Term.List((values as Term.List).elements.drop(1)), run.level, ast)
                 }
             } else {
                 Expansion.Unported(node)
@@ -48,15 +46,34 @@ internal fun expandMapPairs(node: ElixirAst.Call, state: ExState, env: Env, run:
 internal fun mapUpdate(map: ElixirAst.Call): ElixirAst.Call? =
     map.arguments!!.singleOrNull()?.takeIf { isCall(it, "|", 2) } as ElixirAst.Call?
 
-private fun validated(
+/**
+ * [before], then [kv], expanded, and [kv] validated as expanded. Outside a pattern no key is checked and a written
+ * tuple keeps its size, so only a pattern, or an argument that might expand to a pair, asks for the AST.
+ */
+private inline fun expandAndValidate(
     node: ElixirAst,
     kv: List<ElixirAst>,
+    before: List<ElixirAst>,
     state: ExState,
     env: Env,
-    pairs: Term,
-    level: ElixirLanguageLevel,
-    ast: ExpandedAst,
-) = kvError(kv, env, level)?.let { Expansion.Error(it, node) } ?: Expansion.Expanded(state, env, pairs, ast)
+    run: Run,
+    ast: (ExpandedAst) -> ExpandedAst,
+): Expansion {
+    val args = before + kv
+    val asked = env.context == Env.Context.MATCH || kv.any { it !is ElixirAst.Tuple }
+    val expansion = if (asked) run.askingAst { expandArgs(args, state, env, run) } else expandArgs(args, state, env, run)
+
+    return expansion.thenAst { s, e, values, asts ->
+        if (asked && asts !is ExpandedAst.Built) return Expansion.Unported(node)
+
+        val pairs = Term.List((values as Term.List).elements.drop(before.size))
+        val pairNodes = if (asked) asts.elements.drop(before.size) else kv
+
+        pairs.elements.zip(pairNodes).firstNotNullOfOrNull { (pair, at) -> unknownStop(pair, at) }?.let { return it }
+
+        kvError(pairNodes, env, run.level)?.let { Expansion.Error(it, node) } ?: Expansion.Expanded(s, e, pairs, ast(asts))
+    }
+}
 
 /**
  * The error `elixir_map:validate_kv/4` raises, if any: each argument must be a pair, and in a pattern each key must be
@@ -96,6 +113,8 @@ private fun matchKeyError(node: ElixirAst, level: ElixirLanguageLevel): String? 
     val key = expandedShape(node)
 
     return when {
+        // What the expander holds of a value it can't read: the value itself is escaped, so holds no variable.
+        isCall(key, "@", 1) || isVariableNamed(key, "__DIR__") -> null
         isVariable(key) -> "invalid_variable_in_map_key_match"
         isCall(key, "::", 2) && BITSTRING_SIZE_IN_MAP_KEY_PATTERN.isSufficient(level) ->
             matchKeyError((key as ElixirAst.Call).arguments!!.first(), level)

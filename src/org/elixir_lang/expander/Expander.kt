@@ -985,7 +985,7 @@ internal fun whenArguments(node: ElixirAst): List<ElixirAst>? =
 
 /**
  * [node] in the shape its expansion has, as far as a ported clause's check reads it: a block of one expression is that
- * expression, an empty block is `nil`, and an alias is an atom. Every other ported clause keeps its node's shape.
+ * expression, an empty block is `nil`, and an alias is an atom.
  */
 internal fun expandedShape(node: ElixirAst): ElixirAst {
     ProgressManager.checkCanceled()
