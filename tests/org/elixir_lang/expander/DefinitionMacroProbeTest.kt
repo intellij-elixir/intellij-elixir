@@ -11,8 +11,8 @@ import org.elixir_lang.psi.Import.Term
 /**
  * The macros that define definitions, `defstruct`, `defexception`, `defguard`, `defoverridable` and `super`, compiled
  * in module bodies on the leg's Elixir: at each probe the env, the variables and the hygiene counters taken, each
- * error they raise, and the dispatch events where the module compiles. A module that stops at a `@derive`'s
- * `__deriving__`, which the expander doesn't model, equals Elixir up to that macro.
+ * error they raise, and the dispatch events where the module compiles. A module with a `@derive` goes on past its
+ * `__deriving__`, whose output the expander doesn't follow, and equals Elixir up to that macro.
  */
 class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
     /** Each case ends as the compiler ends it, whether it compiles or raises, and ports every macro it calls. */
@@ -37,15 +37,31 @@ class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
         printed { probes.assertTracesMatchElixir(probes.expandAll(compiling(), clauses = sdk)) }
     }
 
-    /** A non-empty `@derive` stops at the `__deriving__` macro Elixir expands when the struct is defined. */
-    fun testADeriveStopsAtItsMacro() {
-        val bodies = DERIVES
-        val expansions = bodies.associateWith { expand(it, "") }
+    /**
+     * A non-empty `@derive` goes on past the `__deriving__` macro Elixir expands when the struct is defined, whose output
+     * isn't followed, so a `def` after the struct is stored.
+     */
+    fun testADeriveGoesOnPastItsMacro() {
+        val expansions = DERIVES.associateWith { expand("$it\ndef after_struct, do: 1", DERIVE_PREAMBLE) }
+
+        assertCompiled(expansions)
+        assertEquals(
+            DERIVES.joinToString("\n") { "${it.replace("\n", "; ")}: true" },
+            expansions.map { (body, expansion) ->
+                "${body.replace("\n", "; ")}: ${expansion.result.table.entries.keys.any { it.name == "after_struct" }}"
+            }.joinToString("\n"),
+        )
+        printed { probes.assertMatchesElixirUpToMacro(expansions) }
+    }
+
+    /** A protocol after one whose macro the module went past stops it, where its derivation can't be followed. */
+    fun testALaterDeriveStopsWhereItCannotBeFollowed() {
+        val expansions = LATER_STOPS.associateWith { expand(it, DERIVE_PREAMBLE) }
 
         assertEquals(
-            bodies.joinToString("\n") { "${it.replace("\n", "; ")}: opaque" },
+            LATER_STOPS.joinToString("\n") { "${it.replace("\n", "; ")}: unported" },
             expansions.map { (body, expansion) ->
-                "${body.replace("\n", "; ")}: ${if (expansion.outcome is Expansion.Opaque) "opaque" else expansion.outcome}"
+                "${body.replace("\n", "; ")}: ${if (expansion.outcome is Expansion.Unported) "unported" else expansion.outcome}"
             }.joinToString("\n"),
         )
         printed { probes.assertMatchesElixirUpToMacro(expansions) }
@@ -250,6 +266,11 @@ class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
             "@derive [Enumerable]\ndefstruct [:a]",
             "@derive [Missing]\ndefstruct [:a]",
             "@derive [Enum, Inspect]\ndefstruct [:a]",
+            // each protocol runs, the one written last first
+            "@derive [Enum]\n@derive [Inspect]\ndefstruct [:a]",
+            "@derive [Enumerable]\n@derive [Inspect]\ndefstruct [:a]",
+            "@derive [Enum]\n@derive [Missing]\ndefstruct [:a]",
+            "@derive [Missing]\n@derive [Enum]\ndefstruct [:a]",
             "defexception [\"a\"]",
             "defguard is_one(x) when x == 1 when x == 2",
             "defguard 1 when true",
@@ -290,7 +311,17 @@ class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
             "defguard is_three(x)",
         )
 
-        /** Each stops at the `__deriving__` macro of `Inspect`, which the `defstruct` last in the body runs. */
+        /**
+         * Protocols of the file: `Inspect` is the SDK's only derivable one below 1.18 and no leg's SDK has one that falls
+         * back to `Module.create/3`. [Macro]'s `Any` has `__deriving__/3`, `Fallback`'s has none.
+         */
+        const val DERIVE_PREAMBLE =
+            "defprotocol {token}.Macro do\n  def f(x)\nend\n" +
+                "defimpl {token}.Macro, for: Any do\n  defmacro __deriving__(_module, _struct, _options), do: :ok\n  def f(_), do: :ok\nend\n" +
+                "defprotocol {token}.Fallback do\n  def f(x)\nend\n" +
+                "defimpl {token}.Fallback, for: Any do\n  def f(_), do: :ok\nend\n"
+
+        /** Each goes on past the `__deriving__` macro of `Inspect`, written last where there are two, so it runs first. */
         val DERIVES = listOf(
             "@derive [Inspect]\ndefstruct [:a]",
             "@derive Inspect\ndefstruct [:a]",
@@ -298,8 +329,14 @@ class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
             "@derive [Inspect]\n@enforce_keys [:a]\ndefstruct [:a]",
             "a = 1\n@derive Inspect\ndefstruct [:a]",
             "def before, do: 1\n@derive Inspect\ndefstruct [:a]",
-            "@derive [Enum]\n@derive [Inspect]\ndefstruct [:a]",
             "@derive Inspect\ndefexception [:message]",
+            "@derive [{token}.Macro]\n@derive [Inspect]\ndefstruct [:a]",
+        )
+
+        /** Each goes past `Inspect`'s macro to a protocol it can't follow: a fallback, and a value Elixir reads. */
+        val LATER_STOPS = listOf(
+            "@derive [{token}.Fallback]\n@derive [Inspect]\ndefstruct [:a]",
+            "@derive :erlang.whereis(:no_such_process) && []\n@derive [Inspect]\ndefstruct [:a]",
         )
 
         /** Each defines a guard's macro, whose template it expands. */

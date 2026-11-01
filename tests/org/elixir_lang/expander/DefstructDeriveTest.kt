@@ -1,13 +1,13 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.NameArity
-import org.elixir_lang.language_level.ElixirLanguageFeature.PROTOCOL_DERIVING_MACRO
 import org.elixir_lang.language_level.ElixirLanguageLevel
 
 /**
- * A non-empty `@derive`: `Protocol.__derive__/3` runs the first protocol written last, and the module stops at the
- * `defstruct` where Elixir would expand its `__deriving__` macro, with the definitions of the struct kept. The output's
- * statements after the stop are declined, so up to 1.13 both arms of its `case` on `@enforce_keys` store `__struct__/1`.
+ * A non-empty `@derive`: `Protocol.__derive__/3` runs each protocol, the one written last first. The module goes on past
+ * a `__deriving__` macro, whose output isn't followed, and stops at the `defstruct` for a protocol it can't follow, with
+ * the definitions of the struct kept. The output's statements after a stop are declined, so up to 1.13 both arms of its
+ * `case` on `@enforce_keys` store `__struct__/1`.
  */
 class DefstructDeriveTest : ExpanderTestCase() {
     override val exports: Exports = Exports { module ->
@@ -28,24 +28,52 @@ class DefstructDeriveTest : ExpanderTestCase() {
     }
     override val kernel: KernelImports = DefstructFixtures.KERNEL
 
-    fun testAProtocolWithADerivingMacroStopsAtItFromTheRelease() {
-        val code = "defmodule A do\n  @derive [Derivable]\n  defstruct [:a]\nend"
-        val derivable = "opaque remote_macro Elixir.Derivable.__deriving__/2"
-        val any = "opaque remote_macro Elixir.Derivable.Any.__deriving__/3"
-
-        assertLevels(code, LEVELS) {
-            "$STOPPED${stopped(3, it)} | ${if (PROTOCOL_DERIVING_MACRO.isSufficient(ElixirLanguageLevel.of(it))) derivable else any}"
-        }
+    /** `defexception`'s output's `Map.has_key?(struct, :message)` runs from `Map`'s clause. */
+    override val clauses: ModuleClauses.Lookup by lazy {
+        fixtureClauses("defmodule Map do\n  def has_key?(map, key), do: :maps.is_key(key, map)\nend")
     }
 
-    fun testAnAtomOnItsOwnStopsAtTheImplementationsMacro() =
-        assertStopped("defmodule A do\n  @derive Plain\n  defstruct [:a]\nend", 3, PLAIN)
+    fun testAProtocolWithADerivingMacroGoesOnPastIt() =
+        assertEvery("defmodule A do\n  @derive [Derivable]\n  defstruct [:a]\n  def g, do: 1\nend", "$COMPILED$TABLE_AT_3$G_AT_4")
+
+    fun testAnAtomOnItsOwnGoesOnPastTheImplementationsMacro() =
+        assertEvery("defmodule A do\n  @derive Plain\n  defstruct [:a]\n  def g, do: 1\nend", "$COMPILED$TABLE_AT_3$G_AT_4")
 
     fun testAProtocolWithOptionsDoes() =
-        assertStopped("defmodule A do\n  @derive [{Plain, only: [:a]}]\n  defstruct [:a]\nend", 3, PLAIN)
+        assertEvery("defmodule A do\n  @derive [{Plain, only: [:a]}]\n  defstruct [:a]\n  def g, do: 1\nend", "$COMPILED$TABLE_AT_3$G_AT_4")
+
+    fun testTwoProtocolsWithMacrosGoOnPastBoth() =
+        assertEvery("defmodule A do\n  @derive Derivable\n  @derive Plain\n  defstruct [:a]\nend", "$COMPILED$TABLE_AT_4")
+
+    fun testALaterImplementationWithoutAMacroStopsWithNoMacroOpaque() =
+        assertStopped("defmodule A do\n  @derive Fallback\n  @derive Plain\n  defstruct [:a]\nend", 4)
+
+    fun testALaterValueTheExpanderCannotReadStops() =
+        assertStopped("defmodule A do\n  @derive Foo.protocols()\n  @derive Plain\n  defstruct [:a]\nend", 4)
+
+    fun testALaterModuleThatIsNoProtocolRaises() =
+        assertEvery(
+            "defmodule A do\n  @derive [Enum]\n  @derive Plain\n  defstruct [:a]\nend",
+            "module Elixir.A raised derive_not_a_protocol `defstruct [:a]`",
+        )
+
+    fun testALaterProtocolWithoutAnImplementationForAnyRaises() =
+        assertEvery(
+            "defmodule A do\n  @derive [Lonely]\n  @derive Plain\n  defstruct [:a]\nend",
+            "module Elixir.A raised derive_not_available `defstruct [:a]`",
+        )
 
     fun testTheProtocolWrittenLastRunsFirst() =
-        assertStopped("defmodule A do\n  @derive Fallback\n  @derive Plain\n  defstruct [:a]\nend", 4, PLAIN)
+        assertEvery(
+            "defmodule A do\n  @derive [Enum]\n  @derive [Missing]\n  defstruct [:a]\nend",
+            "module Elixir.A raised derive_not_available `defstruct [:a]`",
+        )
+
+    fun testTheProtocolWrittenFirstRunsLast() =
+        assertEvery(
+            "defmodule A do\n  @derive [Missing]\n  @derive [Enum]\n  defstruct [:a]\nend",
+            "module Elixir.A raised derive_not_a_protocol `defstruct [:a]`",
+        )
 
     fun testAnImplementationWithoutAMacroIsNotFollowed() =
         assertStopped("defmodule A do\n  @derive Fallback\n  defstruct [:a]\nend", 3)
@@ -85,7 +113,7 @@ class DefstructDeriveTest : ExpanderTestCase() {
             "defmodule A do\n  @derive [NoAny]\n  defstruct [:a]\nend",
             "1.18.0-rc.0",
             "module Elixir.A raised derive_not_available `defstruct [:a]`",
-            "$STOPPED$TABLE_AT_3 | opaque remote_macro Elixir.NoAny.__deriving__/2",
+            "$COMPILED$TABLE_AT_3",
         )
 
     fun testAnImplementationForAnyThatIsNoImplementationRaises() =
@@ -94,17 +122,15 @@ class DefstructDeriveTest : ExpanderTestCase() {
             "module Elixir.A raised derive_not_an_implementation `defstruct [:a]`",
         )
 
-    /** The `if` on the struct's keys after the stop is declined too, so both arms' definitions are stored. */
-    fun testAnExceptionStopsAtItsStructAndKeepsItsOverridableDefinition() {
-        val code = "defmodule A do\n  @derive Plain\n  defexception [:reason]\nend"
-        val overridable = " | def message/1 line 3 clauses 1 | def exception/1 line 3 clauses 2"
-
-        assertLevels(code, LEVELS) { "module Elixir.A stopped `defexception [:reason]`${stopped(3, it)}$overridable | $PLAIN" }
-    }
+    fun testAnExceptionGoesOnPastTheMacro() =
+        assertEvery(
+            "defmodule A do\n  @derive Plain\n  defexception [:reason]\nend",
+            "module Elixir.A compiled$TABLE_AT_3 | def exception/1 line 3 clauses 1",
+        )
 
     override fun expandAndRender(code: String, version: String): String {
         val level = ElixirLanguageLevel.of(version)
-        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
+        val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV, clauses = clauses)
 
         return file.modules.joinToString("\n") { result ->
             (listOf(ModuleRendering.render(code, result)) + result.opaque.map { "opaque ${render(it.dispatch)}" })
@@ -112,9 +138,8 @@ class DefstructDeriveTest : ExpanderTestCase() {
         }
     }
 
-    /** [code] stops at its `defstruct` on line [line] at every level, keeping the struct's definitions, with [opaque] after them. */
-    private fun assertStopped(code: String, line: Int, opaque: String? = null) =
-        assertLevels(code, LEVELS) { "$STOPPED${stopped(line, it)}${opaque?.let { macro -> " | $macro" }.orEmpty()}" }
+    /** [code] stops at its `defstruct` on line [line] at every level, keeping the struct's definitions. */
+    private fun assertStopped(code: String, line: Int) = assertLevels(code, LEVELS) { "$STOPPED${stopped(line, it)}" }
 
     /** The struct's definitions on [line] in a module that stopped at its `defstruct`, at [version]. */
     private fun stopped(line: Int, version: String): String =
@@ -131,8 +156,10 @@ class DefstructDeriveTest : ExpanderTestCase() {
 
     private companion object {
         const val STOPPED = "module Elixir.A stopped `defstruct [:a]`"
-        const val PLAIN = "opaque remote_macro Elixir.Plain.Any.__deriving__/3"
+        const val COMPILED = "module Elixir.A compiled"
         const val TABLE = " | def __struct__/0 line 2 clauses 1 | def __struct__/1 line 2 clauses 1"
         const val TABLE_AT_3 = " | def __struct__/0 line 3 clauses 1 | def __struct__/1 line 3 clauses 1"
+        const val TABLE_AT_4 = " | def __struct__/0 line 4 clauses 1 | def __struct__/1 line 4 clauses 1"
+        const val G_AT_4 = " | def g/0 line 4 clauses 1"
     }
 }
