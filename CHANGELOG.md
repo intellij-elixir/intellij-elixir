@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4575](https://github.com/intellij-elixir/intellij-elixir/pull/4575) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, a setting in a file that `import_config` reaches from a subfolder, such as `config/prod/database.exs`, now counts: Go To from a read reaches it, Find Usages lists it, completion offers its key and the unread config key inspection counts it.** Refs [#4539](https://github.com/intellij-elixir/intellij-elixir/issues/4539).
+
 - [#4574](https://github.com/intellij-elixir/intellij-elixir/pull/4574) [@sh41](https://github.com/sh41)
   - **The variables written in an ExUnit `setup` body, and in a `test` body on Elixir 1.16 and earlier, keep their place in the source, so the expander finds each where it is written rather than at the `setup` or `test` around it.** Refs [#4546](https://github.com/intellij-elixir/intellij-elixir/issues/4546).
 

@@ -37,7 +37,22 @@ object ConfigFiles {
     }
 
     /**
-     * Whether the config a build reads may hold files that [scope], the files that count, doesn't: a content `mix.exs`
+     * [scope] and the files `import_config` reaches from it, which only the expander's evaluation tells ([KeyAtom]), and
+     * which is asked only where [unread] says the build may read a file [scope] doesn't hold. Never read from inside an
+     * evaluation, which [scope] is.
+     */
+    @RequiresReadLock
+    fun counted(project: Project): GlobalSearchScope {
+        val scope = scope(project)
+        val reached = KeyAtom.reachedConfigFiles(project, projects(project).mapTo(LinkedHashSet()) { it.first }) {
+            unread(project, scope)
+        }
+
+        return if (reached.isEmpty()) scope else scope.uniteWith(GlobalSearchScope.filesScope(project, reached))
+    }
+
+    /**
+     * Whether the config a build reads may hold files that [scope], the config folders' files, doesn't: a content `mix.exs`
      * names its `config_path:` in a way that can't be read, or an `import_config` in [scope] may name a file that
      * doesn't count.
      */

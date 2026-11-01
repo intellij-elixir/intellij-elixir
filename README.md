@@ -6010,7 +6010,7 @@ The expander is the plugin's own implementation of how Elixir expands code: impo
 
 Today the expander answers the keys of `config` files: usages, navigation, completion and the unread config key inspection.
 
-With the box off, a config key written as a module (`config :my_app, MyApp.Repo, ...`), and a read through an alias or a nested import, are not answered. The unread config key inspection can warn on a key that is read that way; turning the box on removes the warning.
+With the box off, a config key written as a module (`config :my_app, MyApp.Repo, ...`), a read through an alias or a nested import, and a setting in a file `import_config` reaches from a subfolder (`config/prod/database.exs`), are not answered. The unread config key inspection can warn on a key that is read that way; turning the box on removes the warning.
 
 ## Installation
 
