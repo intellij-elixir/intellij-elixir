@@ -21,6 +21,7 @@
       - [Running the latest EAP snapshot](#running-the-latest-eap-snapshot)
       - [Testing](#testing)
         - [Test tasks](#test-tasks)
+        - [UI tests](#ui-tests)
         - [Debugging a failing test](#debugging-a-failing-test)
       - [Which versions CI tests against](#which-versions-ci-tests-against)
         - [Widening Elixir support](#widening-elixir-support)
@@ -318,7 +319,7 @@ release cycles, when no pre-release is newer than the latest release, the build 
 | `test` | `tests/` | the whole JUnit suite, parser tests included | **yes** (soft) | **yes** |
 | `:jps-builder:test` | `jps-builder/tests/` | the JPS build process | no | no |
 | `check` | - | both of the above | yes | yes |
-| `testUI` | `testUI/kotlin` | IDE UI tests; needs a built plugin | no | no |
+| `testUI` | `testUI/kotlin` | IDE UI tests in a real IntelliJ IDEA ([UI tests](#ui-tests)); needs a built plugin | no | **yes**, the IDE |
 
 ```sh
 ./gradlew check                                                        # everything
@@ -437,6 +438,28 @@ To build (so you get a .zip file):
 ./gradlew build              # the zip AND the full suite
 ./gradlew build -x test      # the zip, skipping the root suite
 ```
+
+##### UI tests
+
+`testUI` drives a real IntelliJ IDEA, downloaded on first use, through IDE Starter. On Linux it runs with no screen: under
+Xvfb, with the display variables removed, `BROWSER` and `xdg-open` going to a sink that only logs, in a fresh private
+home, and in free mode with no license. Every test runs behind a guard that fails it if anything reached the real
+display, tried to open a browser, or met a license or trial. On Linux the guard also watches the run's processes, through
+`/proc`. Off Linux, a run fails before the IDE starts unless it is on screen, and the guard reads only the sink and the
+test homes.
+
+`CodeIntelligenceTest` opens a generated Phoenix project, `own`, once with the default declaration source and once with
+the expander, and checks the answer each of its rows states. Generate the subject outside the repository, then name it:
+
+```sh
+testUI/subjects/generate-own.sh ~/subjects    # writes ~/subjects/own, at the deps testUI/subjects/own.mix.lock pins
+./gradlew testUI --tests "org.elixir_lang.ui.code_intelligence.CodeIntelligenceTest" -PtestUiSubject=$HOME/subjects/own
+```
+
+Each side also writes its timings, the IDE's spans and a flight recording to `build/testUI/recordings/<side>-<time>/`.
+
+`-PtestUiHeadless=false` runs on screen instead, to watch a run. It uses your display and real windows, so leave the
+machine alone while it runs. `-PtestUiTimeoutMinutes=<n>` changes the whole run's timeout, 30 minutes by default.
 
 ##### Debugging a failing test
 
