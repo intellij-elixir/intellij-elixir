@@ -160,7 +160,10 @@ class ReachedConfigGesturesHeavyTest : UsefulTestCase() {
                 val file = destination.containingFile
                 val line = StringUtil.offsetToLineNumber(file.text, destination.textRange.startOffset) + 1
 
-                "${FileUtil.getRelativePath(myFixture.tempDirPath, file.virtualFile.path, '/')}:$line"
+                val base = FileUtil.toSystemIndependentName(myFixture.tempDirPath)
+                val path = FileUtil.toSystemIndependentName(file.virtualFile.path)
+
+                "${FileUtil.getRelativePath(base, path, '/')}:$line"
             }.sorted()
             GtduNavigation.None, is GtduNavigation.ShowUsages -> emptyList()
         }

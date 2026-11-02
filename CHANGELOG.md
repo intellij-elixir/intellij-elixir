@@ -839,6 +839,8 @@
 
 ### Build / CI
 
+- [#4608](https://github.com/intellij-elixir/intellij-elixir/pull/4608) [@sh41](https://github.com/sh41)
+  - **`ReachedConfigGesturesHeavyTest` and `ExUnitFormsHeavyTest` pass on Windows: one compared a temp path with mixed separators, the other kept the drive letter's case that Elixir lowercases.** Refs [#4606](https://github.com/intellij-elixir/intellij-elixir/issues/4606).
 - [#4605](https://github.com/intellij-elixir/intellij-elixir/pull/4605) [@sh41](https://github.com/sh41)
   - **`./gradlew testUI` runs its tests again; it stopped before the first with "Could not start Gradle Test Executor 1".** Fixes [#4600](https://github.com/intellij-elixir/intellij-elixir/issues/4600).
 - [#4587](https://github.com/intellij-elixir/intellij-elixir/pull/4587) [@sh41](https://github.com/sh41)
