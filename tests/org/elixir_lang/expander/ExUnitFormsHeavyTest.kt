@@ -135,6 +135,8 @@ class ExUnitFormsHeavyTest : HeavyTestCase() {
         val compiled = Quoter.compile(
             """
             dir = ${elixirString(dir.invariantSeparatorsPath)}
+            expanded = Path.expand(dir)
+            IntellijElixir.Quoter.Probe.send(__ENV__, {:dir, expanded})
             ExUnit.start(autorun: false)
 
             defmodule ExUnitForms.Recorder do
@@ -155,7 +157,7 @@ class ExUnitFormsHeavyTest : HeavyTestCase() {
             $COMPILE_APPS
 
             for file <- [${files.joinToString(", ") { elixirString(it) }}] do
-              path = Path.join(dir, file)
+              path = Path.expand(Path.join(dir, file))
               source = Regex.replace(~r/^(\s*use .*)$/m, File.read!(path), "\\1; @before_compile ExUnitForms.Recorder", global: false)
 
               try do
@@ -171,7 +173,9 @@ class ExUnitFormsHeavyTest : HeavyTestCase() {
 
         assertEquals("forms compile: ${compiled.failure}", OtpErlangAtom("ok"), compiled.status)
 
-        val prefix = dir.invariantSeparatorsPath + "/"
+        val prefix = compiled.messages.firstNotNullOf { message ->
+            (message as OtpErlangTuple).elements().takeIf { (it[0] as OtpErlangAtom).atomValue() == "dir" }
+        }.let { String((it[1] as OtpErlangBinary).binaryValue()) + "/" }
         val path = { term: OtpErlangObject -> String((term as OtpErlangBinary).binaryValue()).removePrefix(prefix) }
         val atom = { term: OtpErlangObject -> (term as OtpErlangAtom).atomValue() }
 
