@@ -452,6 +452,7 @@ test homes.
 the expander, and checks the answer each of its rows states. Generate the subject outside the repository, then name it:
 
 ```sh
+./gradlew resolveElixirErlangSdks             # the Elixir and Erlang the script compiles the subject with, as testUI gives the IDE
 testUI/subjects/generate-own.sh ~/subjects    # writes ~/subjects/own, at the deps testUI/subjects/own.mix.lock pins
 ./gradlew testUI --tests "org.elixir_lang.ui.code_intelligence.CodeIntelligenceTest" -PtestUiSubject=$HOME/subjects/own
 ```
