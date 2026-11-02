@@ -17,6 +17,9 @@ enum class Uncertain {
     /** The module has more than one copy, and which one Elixir loads is unknown: the definition is in one of them. */
     SEVERAL,
 
+    /** The definition was found by the name index alone, so whether the use reaches it is unknown. */
+    INDEX,
+
     /** There was no expansion to read: the file has no SDK inputs, the IDE is indexing, or the expander doesn't answer the use. */
     NO_EXPANSION,
 }

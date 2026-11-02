@@ -34,7 +34,7 @@ object Resolved {
     private fun takes(feature: Feature, found: Found): Boolean =
         when (found.uncertain) {
             null, Uncertain.STOP, Uncertain.OPAQUE, Uncertain.UNREACHED -> true
-            Uncertain.SEVERAL -> feature.takesUncertain
+            Uncertain.SEVERAL, Uncertain.INDEX -> feature.takesUncertain
             // An absence's marks, which no find carries.
             Uncertain.MODULE, Uncertain.NO_EXPANSION -> true
         }

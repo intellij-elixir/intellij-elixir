@@ -23,7 +23,10 @@ enum class Reach {
     IMPORT,
 
     /** Brought in by the implicit `import Kernel` and `import Kernel.SpecialForms`. */
-    IMPLICIT_IMPORT;
+    IMPLICIT_IMPORT,
+
+    /** Found by the name index alone, where the expansion can't say what reaches the use. */
+    INDEXED;
 
     /** What the module itself holds, public or not. */
     val held: Boolean get() = this == OWN || this == USE

@@ -107,7 +107,7 @@ class RejectedCallTest {
 
     @Test
     fun aLocalCallNamesWhatEveryOtherReachBringsIn() {
-        for (reach in listOf(OWN, USE, OUTER, IMPORT, IMPLICIT_IMPORT)) {
+        for (reach in Reach.entries.filterNot { it.delegationTarget }) {
             val wrong = candidate(reach = reach, definer = Definer.DEFP)
 
             assertEquals(reach.name, listOf(Named(wrong, listOf(2))), named(wrong, admits = everyArity))

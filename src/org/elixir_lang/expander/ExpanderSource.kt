@@ -9,8 +9,10 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.ResolveState
 import com.intellij.psi.StubBasedPsiElement
+import com.intellij.psi.stubs.StubIndex
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.beam.psi.CallDefinition
 import org.elixir_lang.beam.psi.stubs.ModuleStub
 import org.elixir_lang.call.Visibility
 import org.elixir_lang.code_insight.eachNameOnce
@@ -38,11 +40,17 @@ import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.Definition
 import org.elixir_lang.psi.ElixirFile
+import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.qualification.Qualified
+import org.elixir_lang.psi.definition
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
+import org.elixir_lang.psi.stub.index.AllName
+import org.elixir_lang.psi.stub.type.Named
 import org.jetbrains.annotations.TestOnly
 import java.util.EnumMap
 import org.elixir_lang.beam.psi.Module as BeamModule
@@ -109,6 +117,12 @@ internal object ExpanderSource : CandidateSource {
                 addAll(own(at, name, use.arity))
                 addAll(imported(at, at.file, at.env, name, use.arity, emptySet()))
                 addAll(specialForms(at, name, use.arity))
+                // Past where the env is known, what the code after it brings in may be any definition of the name.
+                if (at.uncertain != null && name != null) {
+                    val own = at.env.module?.let(Module::indexName)
+
+                    addAll(beside(this, indexed(at, name, use.arity, own), name, use.arity))
+                }
             }
         }
 
@@ -265,6 +279,9 @@ internal object ExpanderSource : CandidateSource {
 
         /** Whether [declaration] takes [arity] arguments, which is not known past a head with no largest arity. */
         fun admits(arity: Int?): Boolean = arity == null || declaration.arity.admits(arity)
+
+        /** Its module and name, which are one Elixir function among the definitions admitting one arity. */
+        val key: Pair<String, String> get() = module to declaration.name
     }
 
     /**
@@ -510,6 +527,61 @@ internal object ExpanderSource : CandidateSource {
         }
     }
 
+    /**
+     * The name index's definitions of [name] admitting [arity], each [Uncertain.INDEX]: the public ones, and the private
+     * ones of [own], the module the use is in. One for each module and name, as Elixir has one function of each among
+     * those admitting an arity, so a library's source and its `.beam` give one.
+     */
+    private fun indexed(at: At, name: String, arity: Int?, own: String?): List<Defined> {
+        Probe.count(Probe.Counter.INDEX_QUERIES, 1)
+
+        return StubIndex.getElements(AllName.KEY, name, at.file.project, at.file.resolveScope, NamedElement::class.java)
+            .flatMap { element ->
+                ProgressManager.checkCanceled()
+
+                indexedDefined(element)
+            }
+            .filter { defined ->
+                defined.declaration.name == name &&
+                    defined.admits(arity) &&
+                    (defined.declaration.visibility != Visibility.PRIVATE || defined.module == own)
+            }
+            .distinctBy { it.key }
+    }
+
+    /**
+     * What [element] defines, in each module the module index keys its module under: a source definition's nearest
+     * `defmodule`, `defimpl` or `defprotocol`, whose names it is indexed by, and none in any other, such as a `quote`.
+     */
+    private fun indexedDefined(element: NamedElement): List<Defined> =
+        when (element) {
+            is CallDefinition -> {
+                val module = indexName(element.parent) ?: return emptyList()
+
+                listOf(Defined(element.declaration(), element, element, module, null, uncertain = Uncertain.INDEX))
+            }
+            is Call if CallDefinitionClause.`is`(element) -> {
+                val declaration = CallDefinitionClause.declaration(element, ResolveState.initial()) ?: return emptyList()
+                val modular = CallDefinitionClause.enclosingModularMacroCall(element) ?: return emptyList()
+                val definition = definition(modular)?.takeIf { it.type == Definition.Type.MODULAR } ?: return emptyList()
+                val written = DeclaringForm.head(element, Form.CLAUSE, declaration.name, declaration.arity)
+
+                Named.indexedNames(definition, SyntacticCall.of(modular).canonicalNameSet()).map { module ->
+                    Defined(declaration, element, written, module, null, uncertain = Uncertain.INDEX)
+                }
+            }
+            else -> emptyList()
+        }
+
+    /** [indexed]'s definitions that none of [found] admitting [arity] has the module and name of, each [Reach.INDEXED]. */
+    private fun beside(found: List<Reached>, indexed: List<Defined>, name: String, arity: Int?): List<Reached> {
+        val known = found.filter { it.defined.admits(arity) }.mapTo(HashSet()) { it.defined.key }
+
+        return indexed
+            .filter { it.key !in known }
+            .map { reached(it, Reach.INDEXED, emptyList(), name, arity, remote = false) }
+    }
+
     /** [result], which is a gap where there is none or what it defines isn't known. */
     private fun known(at: At, result: ExpansionResult?): ExpansionResult? {
         if (result == null) {
@@ -571,8 +643,7 @@ internal object ExpanderSource : CandidateSource {
             ?.filterIsInstance<BeamModule>()
             ?.singleOrNull()
             ?: return at.gap(Uncertain.MODULE)
-        val indexName = ((module as? StubBasedPsiElement<*>)?.stub as? ModuleStub<*>)?.canonicalNameSet()?.singleOrNull()
-            ?: return at.gap(Uncertain.MODULE)
+        val indexName = indexName(module) ?: return at.gap(Uncertain.MODULE)
         val definitions = NameIndex.of(module)
 
         return NameIndex.of(exports).named(name).mapNotNull { nameArity ->
@@ -590,6 +661,10 @@ internal object ExpanderSource : CandidateSource {
             )
         }
     }
+
+    /** The name the module index keys [module] under, from its stub. */
+    private fun indexName(module: BeamModule): String? =
+        ((module as? StubBasedPsiElement<*>)?.stub as? ModuleStub<*>)?.canonicalNameSet()?.singleOrNull()
 
     /** Whether an `import` of [arities] brings in [defined] at any of its arities, an unknown arity being any. */
     private fun bringsIn(defined: Defined, arities: List<Int>): Boolean {
@@ -689,6 +764,9 @@ internal object ExpanderSource : CandidateSource {
 
             /** Entries a lookup examines. */
             EXAMINED,
+
+            /** Queries of the name index. */
+            INDEX_QUERIES,
         }
 
         @Volatile

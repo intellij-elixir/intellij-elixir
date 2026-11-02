@@ -556,9 +556,19 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(
             listOf(
                 "Stopped.target/1 OWN VALID via [] line 7",
-                "Stopped.target/1 OWN VALID via [] line 7 OPAQUE",
+                listOf(
+                    "Stopped.target/1 OWN VALID via [] line 7 OPAQUE",
+                    "Mix.target/1 INDEXED VALID via [] INDEX",
+                    "Raised.target/1 INDEXED VALID via [] line 14 INDEX",
+                    "Tainted.target/1 INDEXED VALID via [] line 2 INDEX",
+                ).joinToString("\n"),
                 "Raised.target/1 OWN VALID via [] line 14",
-                "Raised.target/1 OWN VALID via [] line 14 STOP",
+                listOf(
+                    "Raised.target/1 OWN VALID via [] line 14 STOP",
+                    "Mix.target/1 INDEXED VALID via [] INDEX",
+                    "Stopped.target/1 INDEXED VALID via [] line 7 INDEX",
+                    "Tainted.target/1 INDEXED VALID via [] line 2 INDEX",
+                ).joinToString("\n"),
                 "Stopped.target/1 OWN VALID via [] line 7",
                 "",
                 "Tainted.target/1 OWN VALID via [] line 2",
@@ -1086,7 +1096,10 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
 
         assertEquals(
-            listOf("Outer.target/1 OWN VALID via [] line 6", "Outer.target/1 OWN VALID via [] line 6 STOP"),
+            listOf(
+                "Outer.target/1 OWN VALID via [] line 6",
+                "Outer.target/1 OWN VALID via [] line 6 STOP\nMix.target/1 INDEXED VALID via [] INDEX",
+            ),
             listOf(candidates(file, "target(1)", "target(1)"), candidates(file, "target(2)", "target(2)")),
         )
     }
@@ -1123,7 +1136,10 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
 
         assertEquals(
-            listOf("Outer.target/1 OWN VALID via [] line 7", "Outer.target/1 OWN VALID via [] line 7 STOP"),
+            listOf(
+                "Outer.target/1 OWN VALID via [] line 7",
+                "Outer.target/1 OWN VALID via [] line 7 STOP\nMix.target/1 INDEXED VALID via [] INDEX",
+            ),
             listOf(candidates(file, "target(1)", "target(1)"), candidates(file, "target(2)", "target(2)")),
         )
     }
@@ -1151,7 +1167,10 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
 
         assertEquals(
-            listOf("Opaquer.target/1 OWN VALID via [] line 7", "Opaquer.target/1 OWN VALID via [] line 7 OPAQUE"),
+            listOf(
+                "Opaquer.target/1 OWN VALID via [] line 7",
+                "Opaquer.target/1 OWN VALID via [] line 7 OPAQUE\nMix.target/1 INDEXED VALID via [] INDEX",
+            ),
             listOf(candidates(file, "target(1)", "target(1)"), candidates(file, "target(2)", "target(2)")),
         )
     }
@@ -1195,7 +1214,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
 
         assertEquals(
-            "Outer.target/1 OWN VALID via [] line 2 STOP",
+            "Outer.target/1 OWN VALID via [] line 2 STOP\nMix.target/1 INDEXED VALID via [] INDEX",
             candidates(file, "target(1)", "target(1)"),
         )
     }
@@ -1394,7 +1413,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val reached = "Kernel.defmodule/2 IMPLICIT_IMPORT VALID via []"
         assertEquals(
             if (DEFMODULE_FAST_PATH.isSufficient(legLevel())) {
-                "$reached UNREACHED"
+                "$reached UNREACHED\n:elixir_bootstrap.defmodule/2 INDEXED VALID via [] INDEX"
             } else {
                 reached
             },
@@ -1422,7 +1441,8 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
 
         assertEquals("Foo.g/1 IMPORT VALID via [import Foo, only: [g: 1]] line 2", candidates(file, "do: g(1)\nend\n\ndefmodule Bar", "g(1)"))
-        assertEquals("", candidates(file, "do: g(1)\nend\n", "g(1)", last = true))
+        // Elixir doesn't compile `Bar`, whose `import` raises, so the index's `g/1` may not be what it reaches.
+        assertEquals("Foo.g/1 INDEXED VALID via [] line 2 INDEX", candidates(file, "do: g(1)\nend\n", "g(1)", last = true))
     }
 
     fun testEveryHeadIsACandidate() {
@@ -2030,6 +2050,173 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         }
 
         assertEquals(listOf(":Elixir.foo"), modules)
+    }
+
+    /**
+     * The issue's shape: a `use` after a stop imports a `defp/2` macro in place of `Kernel`'s, so past the stop `defp`
+     * answers `Kernel.defp/2` from the env at the stop and every other `defp/2` the index holds.
+     */
+    fun testPastAStopTheIndexGivesWhatAUseAfterTheStopMayImport() {
+        val file = file(
+            """
+            defmodule Defs do
+              defmacro __using__(_) do
+                quote do
+                  import Kernel, except: [defp: 2]
+                  import Defs, only: [defp: 2]
+                end
+              end
+
+              defmacro defp(call, expr), do: quote(do: Kernel.defp(unquote(call), unquote(expr)))
+            end
+
+            defmodule User do
+              1.f()
+              use Defs
+              defp go(a), do: a
+            end
+            """
+        )
+
+        assertEquals(
+            """
+            Kernel.defp/1 IMPLICIT_IMPORT WRONG_ARITY via [] STOP
+            Kernel.defp/2 IMPLICIT_IMPORT VALID via [] STOP
+            :elixir_bootstrap.defp/2 INDEXED VALID via [] INDEX
+            Defs.defp/2 INDEXED VALID via [] line 9 INDEX
+            """.trimIndent(),
+            candidates(file, "defp go(a), do: a", "defp go(a), do: a"),
+        )
+    }
+
+    /** The index gives a private definition only in the module the use is in, where a local call reaches it. */
+    fun testPastAStopTheIndexGivesAPrivateDefinitionOnlyInTheUsesModule() {
+        val file = file(
+            """
+            defmodule Other do
+              defp secret(a), do: a
+            end
+
+            defmodule User do
+              1.f()
+              def go, do: secret(1)
+              def again, do: later(1)
+              defp later(a), do: a
+            end
+            """
+        )
+
+        assertEquals(
+            listOf("", "User.later/1 INDEXED VALID via [] line 9 INDEX"),
+            listOf(candidates(file, "secret(1)", "secret(1)"), candidates(file, "later(1)", "later(1)")),
+        )
+    }
+
+    /** A `def` in a `quote` defines nothing in the module the `quote` is in, so the index gives none. */
+    fun testPastAStopTheIndexGivesNoDefinitionInAQuote() {
+        val file = file(
+            """
+            defmodule Q do
+              defmacro make do
+                quote do
+                  def quoted(a), do: a
+                end
+              end
+            end
+
+            defmodule User do
+              1.f()
+              def go, do: quoted(1)
+            end
+            """
+        )
+
+        assertEquals("", candidates(file, "quoted(1)", "quoted(1)"))
+    }
+
+    /** A `defimpl` for several modules defines its functions in each, so the index gives one for each. */
+    fun testPastAStopTheIndexGivesADefimplsDefinitionInEachModuleItIsFor() {
+        val file = file(
+            """
+            defprotocol Measured do
+              def p_measure(x)
+            end
+
+            defimpl Measured, for: [Atom, Integer] do
+              def p_measure(_), do: 1
+            end
+
+            defmodule User do
+              1.f()
+              def go, do: p_measure(1)
+            end
+            """
+        )
+
+        assertEquals(
+            """
+            Measured.p_measure/1 INDEXED VALID via [] line 2 INDEX
+            Measured.Atom.p_measure/1 INDEXED VALID via [] line 6 INDEX
+            Measured.Integer.p_measure/1 INDEXED VALID via [] line 6 INDEX
+            """.trimIndent(),
+            candidates(file, "p_measure(1)", "p_measure(1)"),
+        )
+    }
+
+    /** A library's source and its `.beam` define one function, so the index gives it once. */
+    fun testPastAStopTheIndexGivesALibrarysSourceAndBeamOnce() {
+        val library = File("testData/org/elixir_lang/beam/elixir_prefixed_atom_module").absoluteFile
+        val file = file("defmodule Asker do\n  1.f()\n  def f, do: hello()\nend")
+        val use = use(file, "hello()", "hello()")
+
+        val found = WalkTestSupport.withLibrary(project, module, testRootDisposable, "elixir_prefixed_atom_module", library) {
+            read { ExpanderSource.candidates(use, false).map { "${name(it)} ${it.candidate.reach} ${it.uncertain}" } }
+        }
+
+        assertEquals(listOf(":Elixir.foo.hello/0 INDEXED INDEX"), found)
+    }
+
+    /** The index names a `.beam`'s module as the env does, so it repeats no find the env gives. */
+    fun testPastAStopTheIndexRepeatsNoFindOfABeamTheEnvImports() {
+        val ebin = File("testData/org/elixir_lang/beam/elixir_prefixed_atom_module/ebin").absoluteFile
+        val file = file("defmodule Asker do\n  import :\"Elixir.foo\"\n  1.f()\n  def f, do: hello()\nend")
+        val use = use(file, "hello()", "hello()")
+
+        val found = WalkTestSupport.withLibrary(project, module, testRootDisposable, "elixir_prefixed_atom_module", ebin) {
+            read { ExpanderSource.candidates(use, false).map { "${name(it)} ${it.candidate.reach} ${it.uncertain}" } }
+        }
+
+        assertEquals(listOf(":Elixir.foo.hello/0 IMPORT STOP"), found)
+    }
+
+    /** The index is read once for each name it is asked for, whatever it holds of it. */
+    fun testTheIndexIsQueriedOncePerRead() {
+        val file = file(
+            """
+            defmodule One do
+              def counted(a), do: a
+            end
+
+            defmodule Two do
+              def counted(a), do: a
+            end
+
+            defmodule User do
+              1.f()
+              def go, do: counted(1)
+            end
+            """
+        )
+        val use = use(file, "counted(1)", "counted(1)")
+
+        val queries = read {
+            ExpanderSource.candidates(use, false)
+            ExpanderSource.Probe.reset()
+            ExpanderSource.Probe.counting { ExpanderSource.candidates(use, false) }
+            ExpanderSource.Probe.snapshot().getValue(ExpanderSource.Probe.Counter.INDEX_QUERIES)
+        }
+
+        assertEquals(1L, queries)
     }
 
     /** Why [ExpanderSource]'s answer to the use [call] in [context] may be missing what it reaches, or `certain`. */
