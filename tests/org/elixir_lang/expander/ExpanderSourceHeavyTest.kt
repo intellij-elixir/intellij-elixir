@@ -2313,6 +2313,52 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
     }
 
+    /**
+     * The env at a stop has no `alias` written after it, so past the stop a qualifier may name any module whose name
+     * ends in it as written: `alias A.B` and `alias A.{B, C}` are found by their last segment, `alias A.B, as: D` by
+     * no name the module has.
+     */
+    fun testPastAStopAQualifierGetsTheIndexsDefinitionsInEachModuleEndingInIt() {
+        val file = file(
+            """
+            defmodule Aliased.B do
+              def b_f(a), do: a
+              defp b_p(a), do: a
+            end
+
+            defmodule Aliased.C do
+              def c_f(a), do: a
+            end
+
+            defmodule User do
+              1.f()
+              alias Aliased.B
+              alias Aliased.{C}
+              alias Aliased.B, as: D
+              def b, do: B.b_f(1)
+              def c, do: C.c_f(1)
+              def d, do: D.b_f(2)
+              def p, do: B.b_p(1)
+            end
+            """
+        )
+
+        assertEquals(
+            listOf(
+                "Aliased.B.b_f/1 INDEXED VALID via [] line 2 INDEX",
+                "Aliased.C.c_f/1 INDEXED VALID via [] line 7 INDEX",
+                "",
+                "",
+            ),
+            listOf(
+                candidates(file, "B.b_f(1)", "B.b_f(1)"),
+                candidates(file, "C.c_f(1)", "C.c_f(1)"),
+                candidates(file, "D.b_f(2)", "D.b_f(2)"),
+                candidates(file, "B.b_p(1)", "B.b_p(1)"),
+            ),
+        )
+    }
+
     /** Why [ExpanderSource]'s answer to the use [call] in [context] may be missing what it reaches, or `certain`. */
     private fun absence(file: PsiFile, context: String, call: String): String {
         val use = use(file, context, call)
