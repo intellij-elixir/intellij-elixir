@@ -836,6 +836,8 @@
 
 ### Build / CI
 
+- [#4605](https://github.com/intellij-elixir/intellij-elixir/pull/4605) [@sh41](https://github.com/sh41)
+  - **`./gradlew testUI` runs its tests again; it stopped before the first with "Could not start Gradle Test Executor 1".** Fixes [#4600](https://github.com/intellij-elixir/intellij-elixir/issues/4600).
 - [#4587](https://github.com/intellij-elixir/intellij-elixir/pull/4587) [@sh41](https://github.com/sh41)
   - **`ExpanderPathToggleHeavyTest` no longer fails now and then with a pending background write action: it waits for what the toggle queued.** Fixes [#4585](https://github.com/intellij-elixir/intellij-elixir/issues/4585).
 - [#4573](https://github.com/intellij-elixir/intellij-elixir/pull/4573) [@sh41](https://github.com/sh41)
