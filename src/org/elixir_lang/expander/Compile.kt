@@ -1300,11 +1300,13 @@ private fun reaching(
                 if (stepped.ends) throw RunEnded(values)
                 // The evaluator ends the loop or block holding the unit, as it does where it ran the raise itself.
                 stepped.endedDecline?.let { throw it }
-                // A match or statement on the statement path declines the code taking its value, as one the walk ran
-                // before that code does.
-                val takesItsValue = unit is Pending.Match || unit is Pending.Statement
+                // A match on the statement path whose value code takes declines that code, as one the walk ran before it
+                // does. A statement nothing takes, such as a block's before its last, leaves only what it binds unknown.
+                val takesItsValue = unit is Pending.Match &&
+                    !values.statements.isWhole(site) &&
+                    !values.statements.follows(site)
 
-                if (stepped.declined && takesItsValue && !values.statements.follows(site)) {
+                if (stepped.declined && takesItsValue) {
                     throw Declined("code the walk ran").apply { holds += stepped.value }
                 }
                 UnitRun(stepped.value, stepped.declined)
