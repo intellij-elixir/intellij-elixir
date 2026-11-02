@@ -351,17 +351,20 @@ internal class ProjectModules(private val project: Project) {
         return chosen to held.fallback.map { Copy.Compiled(it.virtualFile) }
     }
 
+    /** What moves the copies a file holds: a file added, moved or deleted, a module name defined or dropped, a root. */
+    fun copyTrackers(): Array<Any> =
+        arrayOf(
+            VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS,
+            ModuleNamesTracker.getInstance(project),
+            ProjectRootManager.getInstance(project),
+        )
+
     private fun heldCopies(asker: PsiFile, atom: String): HeldCopies {
         val byAtom = CachedValuesManager.getManager(project).getCachedValue(
             asker,
             chosen,
             {
-                CachedValueProvider.Result.create(
-                    ConcurrentHashMap<String, HeldCopies>(),
-                    VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS,
-                    ModuleNamesTracker.getInstance(project),
-                    ProjectRootManager.getInstance(project),
-                )
+                CachedValueProvider.Result.create(ConcurrentHashMap<String, HeldCopies>(), *copyTrackers())
             },
             false,
         )

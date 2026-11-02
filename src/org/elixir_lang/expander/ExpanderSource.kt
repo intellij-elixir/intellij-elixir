@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.DumbService
+import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiElement
@@ -10,6 +11,10 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.ResolveState
 import com.intellij.psi.StubBasedPsiElement
 import com.intellij.psi.stubs.StubIndex
+import com.intellij.psi.util.CachedValue
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
+import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.CallDefinition
@@ -55,6 +60,7 @@ import org.elixir_lang.psi.stub.index.AllName
 import org.elixir_lang.psi.stub.type.Named
 import org.jetbrains.annotations.TestOnly
 import java.util.EnumMap
+import java.util.concurrent.ConcurrentHashMap
 import org.elixir_lang.beam.psi.Module as BeamModule
 
 /**
@@ -62,6 +68,10 @@ import org.elixir_lang.beam.psi.Module as BeamModule
  * each module's copy as Elixir loads it.
  */
 internal object ExpanderSource : CandidateSource {
+    private val indexedByName = Key.create<CachedValue<ConcurrentHashMap<String, List<Defined>>>>(
+        "org.elixir_lang.expander.ExpanderSource.indexed",
+    )
+
     @RequiresReadLock
     override fun candidates(use: Use, incompleteCode: Boolean): List<Found> {
         ThreadingAssertions.assertReadAccess()
@@ -567,15 +577,8 @@ internal object ExpanderSource : CandidateSource {
      * the public ones, and the private ones of [own], the module the use is in. One for each module and name, as Elixir
      * has one function of each among those admitting an arity, so a library's source and its `.beam` give one.
      */
-    private fun indexed(at: At, name: String, arity: Int?, own: String?, wanted: (String) -> Boolean): List<Defined> {
-        Probe.count(Probe.Counter.INDEX_QUERIES, 1)
-
-        return StubIndex.getElements(AllName.KEY, name, at.file.project, at.file.resolveScope, NamedElement::class.java)
-            .flatMap { element ->
-                ProgressManager.checkCanceled()
-
-                indexedDefined(element)
-            }
+    private fun indexed(at: At, name: String, arity: Int?, own: String?, wanted: (String) -> Boolean): List<Defined> =
+        indexed(at.file, name)
             .filter { defined ->
                 defined.declaration.name == name &&
                     defined.admits(arity) &&
@@ -583,6 +586,36 @@ internal object ExpanderSource : CandidateSource {
                     (defined.declaration.visibility != Visibility.PRIVATE || defined.module == own)
             }
             .distinctBy { it.key }
+
+    /**
+     * What the name index defines [name] as in [file]'s resolve scope, held on [file] until a tracker of
+     * [ProjectModules.copyTrackers] or any PSI change moves: a `.beam` rewritten in place moves only the PSI.
+     */
+    private fun indexed(file: PsiFile, name: String): List<Defined> {
+        val project = file.project
+        val byName = CachedValuesManager.getManager(project).getCachedValue(
+            file,
+            indexedByName,
+            {
+                CachedValueProvider.Result.create(
+                    ConcurrentHashMap<String, List<Defined>>(),
+                    *ProjectModules.getInstance(project).copyTrackers(),
+                    PsiModificationTracker.MODIFICATION_COUNT,
+                )
+            },
+            false,
+        )
+        byName[name]?.let { return it }
+
+        Probe.count(Probe.Counter.INDEX_QUERIES, 1)
+        val defined = StubIndex.getElements(AllName.KEY, name, project, file.resolveScope, NamedElement::class.java)
+            .flatMap { element ->
+                ProgressManager.checkCanceled()
+
+                indexedDefined(element)
+            }
+
+        return byName.putIfAbsent(name, defined) ?: defined
     }
 
     /**

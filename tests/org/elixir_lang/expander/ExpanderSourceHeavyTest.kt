@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.text.StringUtil
@@ -2190,8 +2191,8 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(listOf(":Elixir.foo.hello/0 IMPORT STOP"), found)
     }
 
-    /** The index is read once for each name it is asked for, whatever it holds of it. */
-    fun testTheIndexIsQueriedOncePerRead() {
+    /** The index is read once for a name, whatever it holds of it, and not again while nothing changes. */
+    fun testTheIndexIsQueriedOnceForANameWhileNothingChanges() {
         val file = file(
             """
             defmodule One do
@@ -2211,13 +2212,46 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val use = use(file, "counted(1)", "counted(1)")
 
         val queries = read {
-            ExpanderSource.candidates(use, false)
             ExpanderSource.Probe.reset()
-            ExpanderSource.Probe.counting { ExpanderSource.candidates(use, false) }
+            ExpanderSource.Probe.counting {
+                ExpanderSource.candidates(use, false)
+                ExpanderSource.candidates(use, false)
+            }
             ExpanderSource.Probe.snapshot().getValue(ExpanderSource.Probe.Counter.INDEX_QUERIES)
         }
 
         assertEquals(1L, queries)
+    }
+
+    /** A `.beam` rewritten in place gives the index's definitions it now has, not those it had. */
+    fun testPastAStopTheIndexGivesWhatABeamRewrittenInPlaceNowDefines() {
+        val ebin = FileUtil.createTempDirectory("rewritten_ebin", null, true)
+        val beam = File("testData/org/elixir_lang/expander/loaded_copy/Elixir.LoadedCopy.Dep.beam")
+        beam.copyTo(File(ebin, beam.name))
+        val file = file("defmodule Asker do\n  1.f()\n  def go, do: {f(), g()}\nend")
+        val f = use(file, "{f(), g()}", "f()")
+        val g = use(file, "{f(), g()}", "g()")
+
+        val (before, after) = WalkTestSupport.withLibrary(
+            project,
+            module,
+            testRootDisposable,
+            "rewritten",
+            ebin,
+        ) { root ->
+            val dep = { use: Use.OfCall ->
+                read { ExpanderSource.candidates(use, false).map(::name).filter { it.startsWith("LoadedCopy.Dep.") } }
+            }
+            val before = dep(f) + dep(g)
+            val rebuilt = File("testData/org/elixir_lang/expander/loaded_copy/changed/${beam.name}").readBytes()
+            WriteAction.runAndWait<Throwable> { root.findChild(beam.name)!!.setBinaryContent(rebuilt) }
+            IndexingTestUtil.waitUntilIndexesAreReady(project)
+
+            before to dep(f) + dep(g)
+        }
+
+        assertEquals(listOf("LoadedCopy.Dep.f/0"), before)
+        assertEquals(listOf("LoadedCopy.Dep.g/0"), after)
     }
 
     /** A definition at another arity, before the module's opaque call, leaves the index's definitions after it. */
