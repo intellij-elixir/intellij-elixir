@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4615](https://github.com/intellij-elixir/intellij-elixir/pull/4615) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, a `Logger` call in a function, such as `Logger.info/1` or `Logger.log/2`, and `String.to_charlist/1` in a macro no longer stop the expander at their module, so across six projects 500 more modules on Elixir 1.20 and 362 on 1.11 are followed to their end.** A long EEx template compiled at expansion, such as Makeup's HTML style's, now stops its module where it overflows the stack. Refs [#4578](https://github.com/intellij-elixir/intellij-elixir/issues/4578).
+
 - [#4601](https://github.com/intellij-elixir/intellij-elixir/pull/4601) [@sh41](https://github.com/sh41)
   - **The expander now follows a module that uses `Ecto.Schema` to its end, so a schema's struct, `__schema__/1,2` and `__changeset__/0` are known, and a module with `@derive` goes on past a protocol's `__deriving__` macro rather than stopping there.** On Ecto 3.12 and earlier, other files still don't see a schema's functions, and an inline `embeds_one` or `embeds_many` with a `do` block still stops its module. Refs [#4591](https://github.com/intellij-elixir/intellij-elixir/issues/4591).
 
