@@ -570,7 +570,8 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
                     "Tainted.target/1 INDEXED VALID via [] line 2 INDEX",
                 ).joinToString("\n"),
                 "Stopped.target/1 OWN VALID via [] line 7",
-                "",
+                // What Raised defines isn't known to its end; Elixir loads no Tainted.
+                "Raised.target/1 INDEXED VALID via [] line 14 INDEX",
                 "Tainted.target/1 OWN VALID via [] line 2",
                 "",
             ),
@@ -2217,6 +2218,99 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         }
 
         assertEquals(1L, queries)
+    }
+
+    /** A definition at another arity, before the module's opaque call, leaves the index's definitions after it. */
+    fun testAQualifiedCallFindingOnlyAnotherArityGetsTheIndexsDefinitions() {
+        val file = file(
+            """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Target do
+              require M
+              def f(a), do: a
+              M.m()
+              def f(a, b), do: {a, b}
+            end
+
+            defmodule Caller do
+              def g, do: Target.f(1, 2)
+            end
+            """
+        )
+
+        assertEquals(
+            "Target.f/1 OWN WRONG_ARITY via [] line 7\nTarget.f/2 INDEXED VALID via [] line 9 INDEX",
+            candidates(file, "Target.f(1, 2)", "Target.f(1, 2)"),
+        )
+    }
+
+    /**
+     * A qualified call into a module whose definitions aren't known to its end, finding nothing there, gets the index's
+     * definitions of the name in that module; a delegation into it, which finds its own head, gets none.
+     */
+    fun testAQualifiedCallIntoAModuleNotKnownToItsEndGetsItsIndexedDefinitions() {
+        val file = file(
+            """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Target do
+              require M
+              M.m()
+              def later(a), do: a
+            end
+
+            defmodule Delegator do
+              defdelegate later(a), to: Target
+            end
+
+            defmodule Caller do
+              def direct, do: Target.later(1)
+              def delegated, do: Delegator.later(1)
+            end
+            """
+        )
+
+        assertEquals(
+            listOf("Target.later/1 INDEXED VALID via [] line 8 INDEX", "Delegator.later/1 OWN VALID via [] line 12"),
+            listOf(
+                candidates(file, "Target.later(1)", "Target.later(1)"),
+                candidates(file, "Delegator.later(1)", "Delegator.later(1)"),
+            ),
+        )
+    }
+
+    /**
+     * Elixir loads no module whose body raises, so a qualified call into it reaches nothing; past a stop, the qualifier
+     * may name another module than the env at the stop says, so it gets the index's definitions in the module named.
+     */
+    fun testAQualifiedCallIntoAModuleElixirLoadsNoneOfGetsItsIndexedDefinitionsOnlyPastAStop() {
+        file(
+            """
+            defmodule Gone do
+              def x(a), do: a
+              1.f()
+            end
+            """
+        )
+        val caller = file(
+            """
+            defmodule Caller do
+              def reached, do: Gone.x(1)
+              1.f()
+              def past, do: Gone.x(2)
+            end
+            """
+        )
+
+        assertEquals(
+            listOf("", "Gone.x/1 INDEXED VALID via [] line 2 INDEX"),
+            listOf(candidates(caller, "Gone.x(1)", "Gone.x(1)"), candidates(caller, "Gone.x(2)", "Gone.x(2)")),
+        )
     }
 
     /** Why [ExpanderSource]'s answer to the use [call] in [context] may be missing what it reaches, or `certain`. */
