@@ -25,10 +25,19 @@ object Resolved {
     ): List<Preferred> =
         preferred(
             use,
-            sourceFor(feature).candidates(use, incompleteCode).filter { reaches(use, it) },
+            sourceFor(feature).candidates(use, incompleteCode).filter { reaches(use, it) && takes(feature, it) },
             incompleteCode,
             bound
         )
+
+    /** Whether [feature] takes [found]: a definition that may not be Elixir's only where its rule takes one, any other find. */
+    private fun takes(feature: Feature, found: Found): Boolean =
+        when (found.uncertain) {
+            null, Uncertain.STOP, Uncertain.OPAQUE, Uncertain.UNREACHED -> true
+            Uncertain.SEVERAL -> feature.takesUncertain
+            // An absence's marks, which no find carries.
+            Uncertain.MODULE, Uncertain.NO_EXPANSION -> true
+        }
 
     /** An MFA is called at runtime from another module, so it reaches only a function that module exports. */
     private fun reaches(use: Use, found: Found): Boolean =

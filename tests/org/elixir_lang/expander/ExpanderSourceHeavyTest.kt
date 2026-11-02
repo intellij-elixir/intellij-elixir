@@ -25,9 +25,12 @@ import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.EXPANDER
+import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Preferred
+import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.SOURCE_PROPERTY
+import org.elixir_lang.declaration.Uncertain
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.declaringModuleName
@@ -1951,6 +1954,69 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             listOf("NO_EXPANSION", "NO_EXPANSION", "NO_EXPANSION"),
             listOf(dumb, specifiedAbsence, absence(file, "missing(x)", "missing(x)")),
         )
+    }
+
+    /**
+     * A feature whose rule takes no uncertain answer gets none of a module's several copies, though the expander finds
+     * each of them.
+     */
+    fun testAFeatureWithNoRuleGetsNoneOfSeveralCopies() {
+        file("defmodule Twice do\n  def g(a), do: a\nend\n")
+        file("defmodule Twice do\n  def g(a), do: a\nend\n")
+        val caller = file("defmodule Caller do\n  def f, do: Twice.g(1)\nend\n")
+        val use = use(caller, "Twice.g(1)", "Twice.g(1)")
+
+        val (found, stepped) = withExpanderSwitch {
+            read {
+                ExpanderSource.candidates(use, false).map { it.uncertain } to
+                    Feature.entries.associateWith { feature -> Resolved.step(use, false, feature = feature).size }
+            }
+        }
+
+        assertEquals(listOf(Uncertain.SEVERAL, Uncertain.SEVERAL), found)
+        assertEquals(Feature.entries.associateWith { 0 }, stepped)
+    }
+
+    /** A delegation in several copies may not be the one Elixir loads, so neither is the target it reaches. */
+    fun testAFeatureWithNoRuleGetsNoTargetOfADelegationInSeveralCopies() {
+        file("defmodule Twice do\n  defdelegate g(a), to: Target\nend\n")
+        file("defmodule Twice do\n  defdelegate g(a), to: Target\nend\n")
+        file("defmodule Target do\n  def g(a), do: a\nend\n")
+        val caller = file("defmodule Caller do\n  def f, do: Twice.g(1)\nend\n")
+        val use = use(caller, "Twice.g(1)", "Twice.g(1)")
+
+        val (found, stepped) = withExpanderSwitch {
+            read {
+                ExpanderSource.candidates(use, false).map { "${it.candidate.reach} ${it.uncertain}" } to
+                    Feature.entries.associateWith { feature -> Resolved.step(use, false, feature = feature).size }
+            }
+        }
+
+        assertEquals(
+            listOf("OWN SEVERAL", "DELEGATION_TARGET SEVERAL", "OWN SEVERAL", "DELEGATION_TARGET SEVERAL"),
+            found,
+        )
+        assertEquals(Feature.entries.associateWith { 0 }, stepped)
+    }
+
+    /** Past a stop every feature keeps the env's find, marked STOP. */
+    fun testEveryFeatureKeepsAFindPastAStop() {
+        val file = file(
+            """
+            defmodule Stopped do
+              def target(a), do: a
+              1.f()
+              def after_stop, do: target(1)
+            end
+            """
+        )
+        val use = use(file, "target(1)", "target(1)")
+
+        val stepped = withExpanderSwitch {
+            read { Feature.entries.associateWith { feature -> Resolved.step(use, false, feature = feature).map { it.found.uncertain } } }
+        }
+
+        assertEquals(Feature.entries.associateWith { listOf(Uncertain.STOP) }, stepped)
     }
 
     /** Why [ExpanderSource]'s answer to the use [call] in [context] may be missing what it reaches, or `certain`. */

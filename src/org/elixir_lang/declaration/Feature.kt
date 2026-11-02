@@ -15,7 +15,10 @@ enum class Feature {
     COMPLETION,
     FIND_USAGES_AND_RENAME,
     STRUCTURE_VIEW,
-    HEEX_COMPONENTS
+    HEEX_COMPONENTS;
+
+    /** Whether the feature's rule takes a definition that may not be Elixir's; one that states no rule takes none. */
+    val takesUncertain: Boolean get() = false
 }
 
 /** Set to [EXPANDER] only by the test harness, to put [ExpanderSource] behind every feature. */
