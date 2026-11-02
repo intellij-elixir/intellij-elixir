@@ -4,9 +4,11 @@ import com.intellij.ide.starter.utils.Git
 import com.intellij.util.system.OS
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 import kotlin.io.path.Path
 import kotlin.io.path.createDirectories
 import kotlin.io.path.createParentDirectories
+import kotlin.io.path.deleteIfExists
 import kotlin.io.path.exists
 import kotlin.io.path.isRegularFile
 import kotlin.io.path.name
@@ -23,6 +25,9 @@ object NoScreen {
     private val REMOVED = DISPLAY_VARIABLES + listOf("DBUS_SESSION_BUS_ADDRESS", "PULSE_SERVER")
     internal val FORBIDDEN = listOf("wslview", "msedge", "cmd.exe", "powershell.exe", "explorer.exe")
     internal const val SINK_LOG = "NO_SCREEN_SINK_LOG"
+
+    /** What [proveBrowserRoute] opens. */
+    private const val PROOF_URL = "https://example.invalid/"
 
     /** `-PtestUiHeadless=false`: the display variables stay, so the IDE shows on the real screen. */
     val onScreen: Boolean
@@ -94,6 +99,30 @@ object NoScreen {
         return Files.walk(root).use { paths ->
             paths.asSequence().filter { path -> skipped.none(path::startsWith) && path.isRegularFile() }.toList()
         }
+    }
+
+    /**
+     * `xdg-open` under `xvfb-run` and this environment has to reach the sink and start no browser. `https`, because a
+     * scheme with no handler takes the same path in `xdg-open` whichever branch it is on. The sink logs it to a file of its
+     * own, so the guard's sink log stays empty.
+     */
+    fun proveBrowserRoute() {
+        check()
+        val proofLog = sinkLog.resolveSibling("proof-sink.log").apply { deleteIfExists() }
+        val process = ProcessBuilder("xvfb-run", "--auto-servernum", "--server-num=188", "xdg-open", PROOF_URL)
+            .redirectErrorStream(true)
+            .apply { environment()[SINK_LOG] = proofLog.toString() }
+            .start()
+        val children = mutableSetOf<String>()
+        while (process.isAlive) {
+            process.toHandle().descendants().asSequence().mapNotNull { it.info().command().orElse(null) }.forEach { children += it }
+            process.waitFor(50, TimeUnit.MILLISECONDS)
+        }
+        val output = process.inputStream.bufferedReader().readText()
+        val entries = if (proofLog.exists()) proofLog.readLines() else emptyList()
+        check(entries.singleOrNull()?.endsWith(PROOF_URL) == true) { "xdg-open did not reach the sink: $entries, output $output" }
+        val browsers = children.filter { command -> FORBIDDEN.any { command.substringAfterLast('/').contains(it) } }
+        check(browsers.isEmpty()) { "xdg-open started a browser: $browsers" }
     }
 
     fun sinkEntries(): List<String> = if (sinkLog.exists()) sinkLog.readLines() else emptyList()
