@@ -459,6 +459,12 @@ testUI/subjects/generate-own.sh ~/subjects    # writes ~/subjects/own, at the de
 
 Each side also writes its timings, the IDE's spans and a flight recording to `build/testUI/recordings/<side>-<time>/`.
 
+CI runs the whole suite every night on `main` (the `UI tests` workflow, 04:37 UTC), on demand, and on a pull request that
+changes `.github/workflows/ui-tests.yml` or `testUI/subjects/generate-own.sh`. A red night on `main` opens an issue titled
+"Nightly UI tests failed", or comments on the open one, naming the run, the commits since the last green run, and each
+failed step and test with the rows it names. A green night closes nothing: close the issue once someone has read it. The
+run's `ui-tests` artifact holds the test results, each side's recordings, the guard's records and the IDE logs.
+
 `-PtestUiHeadless=false` runs on screen instead, to watch a run. It uses your display and real windows, so leave the
 machine alone while it runs. `-PtestUiTimeoutMinutes=<n>` changes the whole run's timeout, 30 minutes by default.
 
