@@ -25,6 +25,7 @@ import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Head
 import org.elixir_lang.declaration.Reach
+import org.elixir_lang.declaration.Uncertain
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.importedArities
@@ -82,7 +83,7 @@ internal object ExpanderSource : CandidateSource {
             }
         }
 
-        return reached.mapNotNull { found(it, use) }
+        return reached.mapNotNull { found(at, it, use) }
     }
 
     /**
@@ -160,8 +161,8 @@ internal object ExpanderSource : CandidateSource {
     }
 
     /**
-     * Where a use is, as its file's expansion saw it, what each receiver it reached expanded to, and the [lowering] it
-     * read the file through.
+     * Where a use is, as its file's expansion saw it, what each receiver it reached expanded to, the [lowering] it
+     * read the file through, and why [env] may not be the env Elixir expands the use in, [uncertain], `null` where it is.
      */
     private class At(
         val file: ElixirFile,
@@ -171,6 +172,7 @@ internal object ExpanderSource : CandidateSource {
         val holder: ProjectModules,
         val receivers: ReceiverIndex,
         val lowering: Lowering,
+        val uncertain: Uncertain?,
     )
 
     /** `null` where the file's SDK gives no inputs. */
@@ -188,7 +190,9 @@ internal object ExpanderSource : CandidateSource {
 
         val indexed = holder.indexed(file, inputs)
 
-        return At(file, element.textRange, inputs, indexed.envs.at(element.textRange), holder, indexed.receivers, indexed.lowering)
+        val placed = indexed.envs.placed(element.textRange)
+
+        return At(file, element.textRange, inputs, placed.env, holder, indexed.receivers, indexed.lowering, placed.uncertain)
     }
 
     /**
@@ -521,7 +525,7 @@ internal object ExpanderSource : CandidateSource {
     private fun receiver(at: At, qualifier: PsiElement): String? =
         EnvAtom.receiver(qualifier, at.receivers, at.env, at.lowering, at.inputs, at.holder)
 
-    private fun found(reached: Reached, use: Use.OfCall): Found? =
+    private fun found(at: At, reached: Reached, use: Use.OfCall): Found? =
         applicability(reached, use)?.let { applicability ->
             Found(
                 Candidate(reached.defined.declaration, reached.reach, applicability),
@@ -529,6 +533,7 @@ internal object ExpanderSource : CandidateSource {
                 reached.paths + reached.delegations,
                 reached.defined.head,
                 reached.through,
+                at.uncertain,
             )
         }
 

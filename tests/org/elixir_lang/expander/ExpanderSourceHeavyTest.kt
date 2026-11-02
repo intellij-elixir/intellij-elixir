@@ -31,6 +31,7 @@ import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.declaration.preferred
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.junit.HeavyTestCase
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.call.Call
@@ -548,9 +549,9 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(
             listOf(
                 "Stopped.target/1 OWN VALID via [] line 7",
-                "Stopped.target/1 OWN VALID via [] line 7",
+                "Stopped.target/1 OWN VALID via [] line 7 OPAQUE",
                 "Raised.target/1 OWN VALID via [] line 14",
-                "Raised.target/1 OWN VALID via [] line 14",
+                "Raised.target/1 OWN VALID via [] line 14 STOP",
                 "Stopped.target/1 OWN VALID via [] line 7",
                 "",
                 "Tainted.target/1 OWN VALID via [] line 2",
@@ -973,7 +974,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals("Foo.Bar.f/1 OWN VALID via [] line 2", candidates(file, "do: @mod.f(x)", "@mod.f(x)"))
         assertEquals("Foo.Bar.f/1 OWN VALID via [] line 2", candidates(file, "C.f(x)", "C.f(x)"))
         assertEquals("Foo.Bar.f/1 OWN VALID via [] line 2", candidates(file, "B.f(unquote(x))", "B.f(unquote(x))"))
-        assertEquals("Foo.Bar.f/1 OWN VALID via [] line 2", candidates(file, "B.f(x)", "B.f(x)"))
+        assertEquals("Foo.Bar.f/1 OWN VALID via [] line 2 STOP", candidates(file, "B.f(x)", "B.f(x)"))
         assertEquals("", candidates(file, "    @mod.f(x)", "@mod.f(x)"))
         assertEquals("Foo.Nested.f/1 OWN VALID via [] line 19", candidates(file, "__MODULE__.f(x)", "__MODULE__.f(x)"))
     }
@@ -1043,10 +1044,153 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             """
         )
 
-        assertEquals("Dir.Target.f/1 OWN VALID via [] line 2", candidates(byAlias, "D.f(x)", "D.f(x)"))
+        assertEquals("Dir.Target.f/1 OWN VALID via [] line 2 STOP", candidates(byAlias, "D.f(x)", "D.f(x)"))
         assertEquals("", candidates(byAlias, "F.f(x)", "F.f(x)"))
-        assertEquals("Dir.Target.g/1 IMPORT VALID via [import Dir.Target] line 3", candidates(byImport, "g(x)", "g(x)"))
-        assertEquals("Dir.Target.f/1 OWN VALID via [] line 2", candidates(inBody, "E.f(x)", "E.f(x)"))
+        assertEquals("Dir.Target.g/1 IMPORT VALID via [import Dir.Target] line 3 STOP", candidates(byImport, "g(x)", "g(x)"))
+        assertEquals("Dir.Target.f/1 OWN VALID via [] line 2 STOP", candidates(inBody, "E.f(x)", "E.f(x)"))
+    }
+
+    /**
+     * A `defmodule` in a function body is compiled when the function runs, so its stop leaves the body's own expansion
+     * going; a use after it reads the env at that stop, as code past any stop does.
+     */
+    fun testAUseAfterAStoppedSiblingIsPastAStop() {
+        val file = file(
+            """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Outer do
+              def target(a), do: a
+
+              def go do
+                target(1)
+
+                defmodule Inner do
+                  require M
+                  M.m()
+                end
+
+                target(2)
+              end
+            end
+            """
+        )
+
+        assertEquals(
+            listOf("Outer.target/1 OWN VALID via [] line 6", "Outer.target/1 OWN VALID via [] line 6 STOP"),
+            listOf(candidates(file, "target(1)", "target(1)"), candidates(file, "target(2)", "target(2)")),
+        )
+    }
+
+    /**
+     * A definition with an `after` is expanded as a `try` only when it is stored, once the code around it was expanded,
+     * so its stop marks only its own node; a use after it that nothing entered reads the env at that stop.
+     */
+    fun testAUseAfterADefinitionThatStoppedWhenStoredIsPastAStop() {
+        val file = file(
+            """
+            defmodule Drop do
+              defmacro first(a, _b), do: a
+            end
+
+            defmodule Outer do
+              require Drop
+              def target(a), do: a
+
+              Drop.first(
+                def go do
+                  target(1)
+
+                  defmodule Inner do
+                    def x, do: 1
+                  end
+                after
+                  :ok
+                end,
+                target(2)
+              )
+            end
+            """
+        )
+
+        assertEquals(
+            listOf("Outer.target/1 OWN VALID via [] line 7", "Outer.target/1 OWN VALID via [] line 7 STOP"),
+            listOf(candidates(file, "target(1)", "target(1)"), candidates(file, "target(2)", "target(2)")),
+        )
+    }
+
+    /**
+     * Past a call of a macro whose body the expander can't evaluate, a use reads the env the enclosing node was entered
+     * in, which misses whatever the call would have added: the same answer as before the call, marked as not known to
+     * be Elixir's.
+     */
+    fun testAUseAfterAnOpaqueCallIsMarkedOpaque() {
+        val file = file(
+            """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Opaquer do
+              require M
+              def target(a), do: a
+              def before_call, do: target(1)
+              M.m()
+              def after_call, do: target(2)
+            end
+            """
+        )
+
+        assertEquals(
+            listOf("Opaquer.target/1 OWN VALID via [] line 7", "Opaquer.target/1 OWN VALID via [] line 7 OPAQUE"),
+            listOf(candidates(file, "target(1)", "target(1)"), candidates(file, "target(2)", "target(2)")),
+        )
+    }
+
+    /** An opaque call in a definition's body leaves the env of the module body after the definition as it was. */
+    fun testAUseAfterADefinitionWhoseBodyCallsAnOpaqueMacroIsCertain() {
+        val file = file(
+            """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Opaquer do
+              require M
+              def a, do: M.m()
+              def b(x), do: x
+            end
+            """
+        )
+
+        assertEquals(
+            "Kernel.def/1 IMPLICIT_IMPORT WRONG_ARITY via []\nKernel.def/2 IMPLICIT_IMPORT VALID via []",
+            candidates(file, "def b(x), do: x", "def b(x), do: x"),
+        )
+    }
+
+    /** A module defined in a function's body is compiled only when the function runs, so a use in it is past a stop. */
+    fun testAUseInAModuleDefinedInAFunctionBodyIsPastAStop() {
+        val file = file(
+            """
+            defmodule Outer do
+              def target(a), do: a
+
+              def f do
+                defmodule Inner do
+                  def g, do: target(1)
+                end
+              end
+            end
+            """
+        )
+
+        assertEquals(
+            "Outer.target/1 OWN VALID via [] line 2 STOP",
+            candidates(file, "target(1)", "target(1)"),
+        )
     }
 
     /**
@@ -1238,7 +1382,17 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             """
         )
 
-        assertEquals("Kernel.defmodule/2 IMPLICIT_IMPORT VALID via []", candidates(file, "defmodule M", "defmodule M do\nend"))
+        // From DEFMODULE_FAST_PATH a file of only modules compiles each directly, so its top-level calls are in no unit
+        // the expansion records, and read the file's top env. Before it, the file's top level is expanded.
+        val reached = "Kernel.defmodule/2 IMPLICIT_IMPORT VALID via []"
+        assertEquals(
+            if (DEFMODULE_FAST_PATH.isSufficient(legLevel())) {
+                "$reached UNREACHED"
+            } else {
+                reached
+            },
+            candidates(file, "defmodule M", "defmodule M do\nend"),
+        )
     }
 
     fun testAnOnlyListWithAnAliasIsNoImport() {
@@ -1685,7 +1839,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
                 }
 
                 "${found.declaringModuleName()}.${declaration.name}/$arity ${found.candidate.reach} " +
-                    "${found.candidate.applicability} via [$via]$line"
+                    "${found.candidate.applicability} via [$via]$line${found.uncertain?.let { " $it" }.orEmpty()}"
             }
         }
 

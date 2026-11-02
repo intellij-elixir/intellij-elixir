@@ -258,6 +258,15 @@ class CandidateSourceTest : PlatformTestCase() {
         )
     }
 
+    /** The walk reads no expansion, so nothing it finds is past a point an expansion couldn't follow. */
+    fun testTheWalksFindsAreCertain() {
+        configure("applicability.ex")
+        val found = listOf("Uses.foo(1)", "chained(1, 2)", "exception(1)", "Uses.unquote(f)(1)").flatMap { candidates(it, false) }
+
+        assertTrue("the walk finds something", found.isNotEmpty())
+        assertEquals(emptyList<Uncertain>(), found.mapNotNull { it.uncertain })
+    }
+
     private fun configure(file: String) {
         myFixture.copyDirectoryToProject("", "")
         myFixture.configureFromTempProjectFile(file)
