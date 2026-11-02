@@ -2065,6 +2065,16 @@ class InterpreterTest : PlatformTestCase() {
             run = RunInputs(path = "/l.ex"),
         )
 
+    /** `Logger`'s level macros compare their level with the lowest one compiled in before they log. */
+    fun testALoggerLevelMacroInAFunctionCompiles() =
+        assertFile(
+            "defmodule L do\n  require Logger\n  def g, do: Logger.info(\"y\")\n  def w, do: Logger.warning(\"w\", a: 1)\n" +
+                "  def d, do: Logger.debug(fn -> \"d\" end)\nend",
+            "top expanded\nmodule Elixir.L compiled [d/0 def, g/0 def, w/0 def]",
+            tables = true,
+            run = RunInputs(path = "/l.ex"),
+        )
+
     /**
      * [MAKEUP_STYLE]'s template overflows [SMALL_STACK] in the evaluator, as EEx's tokenizer recurses once per
      * character.
@@ -5880,6 +5890,14 @@ class InterpreterTest : PlatformTestCase() {
                 """,
                 pins = DECLINED,
             ),
+            macro("native:compare-levels", "defmacro m, do: :logger.compare_levels(:debug, :warning)"),
+            macro("native:compare-levels-gt", "defmacro m, do: :logger.compare_levels(:error, :info)"),
+            macro("native:compare-levels-eq", "defmacro m, do: :logger.compare_levels(:info, :info)"),
+            macro("native:compare-levels-none", "defmacro m, do: :logger.compare_levels(:none, :all)"),
+            macro("native:compare-levels-all", "defmacro m, do: :logger.compare_levels(:all, :emergency)"),
+            macro("native:compare-levels-badarg-same", "defmacro m, do: :logger.compare_levels(:a, :a)"),
+            macro("native:compare-levels-badarg", "defmacro m, do: :logger.compare_levels(:info, :a)"),
+            macro("native:compare-levels-badarg-first", "defmacro m, do: :logger.compare_levels(:a, :info)"),
             // Three parts that share one 8 MiB binary, and a list of 2^21 empty lists, whose parts share one another.
             macro(
                 "native:iolist-to-binary-past-the-bitstring-limit",
