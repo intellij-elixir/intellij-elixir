@@ -1374,6 +1374,13 @@ tasks.register<Test>("testUI") {
     systemProperty("idea.home.path", tasks.prepareTestSandbox.get().destinationDir.parentFile.absolutePath)
     systemProperty("uiPlatformBuildVersion", actualPlatformVersion)
     systemProperty("projectPath", unzipQuoter.get().destinationDir.absolutePath)
+    providers.gradleProperty("testUiSubject").orNull?.let { systemProperty("testUi.subject", it) }
+    val headless = when (val value = providers.gradleProperty("testUiHeadless").getOrElse("true")) {
+        "true" -> true
+        "false" -> false
+        else -> throw GradleException("-PtestUiHeadless is 'true' or 'false', not '$value'")
+    }
+    systemProperty("testUi.headless", headless)
     // Keep Allure outputs under build/ instead of the repo root.
     systemProperty("allure.results.directory", layout.buildDirectory.dir("results/allure").get().asFile.absolutePath)
 
@@ -1388,6 +1395,28 @@ tasks.register<Test>("testUI") {
         "--add-opens=java.desktop/javax.swing=ALL-UNNAMED"
     )
 
+    // A run drives a live IDE over a subject and an IDE download that Gradle doesn't track, so a run is never up to date or taken from the cache.
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+
+    // An IDE that hangs under Xvfb, where nobody sees it, would otherwise hold the run forever.
+    timeout.set(Duration.ofMinutes(providers.gradleProperty("testUiTimeoutMinutes").map(String::toLong).getOrElse(30)))
+
+    val noScreenSink = layout.projectDirectory.file("testUI/no-screen/xdg-open").asFile
+    val noScreenSinkLog = layout.buildDirectory.file("no-screen/sink.log").get().asFile
+    // Here and not in the shell: the forked JVM's environment comes from the Gradle daemon. Starter wraps the IDE in
+    // `xvfb-run` only when `DISPLAY` is absent.
+    doFirst {
+        val display = if (headless) listOf("DISPLAY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR") else emptyList()
+        (display + listOf("DBUS_SESSION_BUS_ADDRESS", "PULSE_SERVER")).forEach { environment.remove(it) }
+        environment("BROWSER", noScreenSink.absolutePath)
+        // Windows names it `Path`, and this map's keys are case-sensitive.
+        val pathKeys = environment.keys.filter { it.equals("PATH", ignoreCase = true) }
+        val inherited = pathKeys.mapNotNull { environment.remove(it)?.toString() }
+        environment("PATH", (listOf(noScreenSink.parentFile.absolutePath) + inherited).joinToString(File.pathSeparator))
+        environment("NO_SCREEN_SINK_LOG", noScreenSinkLog.absolutePath)
+        noScreenSinkLog.parentFile.mkdirs()
+    }
 }
 
 // Uncomment to allow using build-scan.
