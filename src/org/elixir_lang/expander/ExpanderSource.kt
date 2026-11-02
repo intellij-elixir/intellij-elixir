@@ -55,7 +55,7 @@ internal object ExpanderSource : CandidateSource {
         ThreadingAssertions.assertReadAccess()
 
         return when (use) {
-            is Use.OfCall -> inputs(use.entrance)?.let { answer(use, it) }.orEmpty()
+            is Use.OfCall -> inputs(use.entrance)?.let { answerWith(use, it).found }.orEmpty()
             is Use.Specified, is Use.Remote, is Use.Tag, is Use.Link -> emptyList()
         }
     }
@@ -77,7 +77,16 @@ internal object ExpanderSource : CandidateSource {
     internal fun candidates(use: Use.OfCall, inputs: ProjectModules.Inputs): List<Found> {
         ThreadingAssertions.assertReadAccess()
 
-        return answer(use, inputs)
+        return answerWith(use, inputs).found
+    }
+
+    /** [use]'s answer, its file expanded with [inputs] in place of its SDK's. */
+    @TestOnly
+    @RequiresReadLock
+    internal fun answer(use: Use.OfCall, inputs: ProjectModules.Inputs): Answer {
+        ThreadingAssertions.assertReadAccess()
+
+        return answerWith(use, inputs)
     }
 
     private fun answerWith(use: Use.OfCall, inputs: ProjectModules.Inputs): Answer {
@@ -86,9 +95,6 @@ internal object ExpanderSource : CandidateSource {
 
         return Answer(found, at.gaps.firstOrNull())
     }
-
-    private fun answer(use: Use.OfCall, inputs: ProjectModules.Inputs): List<Found> =
-        at(use.entrance, inputs)?.let { answer(it, use) }.orEmpty()
 
     private fun answer(at: At, use: Use.OfCall): List<Found> {
         val call = use.entrance
@@ -146,23 +152,28 @@ internal object ExpanderSource : CandidateSource {
 
         return eachNameOnce(
             ofModule(at, module, null).filter { it.declaration.visibility != Visibility.PRIVATE && it.admits(arity) },
-        ).map { visible(it, null) }
+        ).mapNotNull { visible(it, null) }
     }
 
     private fun visibleAt(position: Call, inputs: ProjectModules.Inputs): List<Visible> {
         val at = at(position, inputs) ?: return emptyList()
 
         return buildList {
-            ownDefined(at, null).mapTo(this) { visible(it, null) }
-            importedDefined(at, at.file, at.env, null).mapTo(this) { (defined, _, _, arities) ->
+            ownDefined(at, null).mapNotNullTo(this) { visible(it, null) }
+            importedDefined(at, at.file, at.env, null).mapNotNullTo(this) { (defined, _, _, arities) ->
                 visible(defined, importedArities(defined.declaration.arity) { it in arities })
             }
-            specialFormsDefined(at, null).mapTo(this) { visible(it, null) }
+            specialFormsDefined(at, null).mapNotNullTo(this) { visible(it, null) }
         }
     }
 
-    private fun visible(defined: Defined, importedArities: Set<Int>?): Visible =
-        Visible(defined.declaration.name, defined.declaration.name, defined.declaration, defined.element, importedArities)
+    /** `null` for a definition that may not be Elixir's, which completion doesn't offer. */
+    private fun visible(defined: Defined, importedArities: Set<Int>?): Visible? =
+        if (defined.uncertain == null) {
+            Visible(defined.declaration.name, defined.declaration.name, defined.declaration, defined.element, importedArities)
+        } else {
+            null
+        }
 
     /**
      * [defined] as completion offers a module's functions: of a source module's, the preferred head of each name its
@@ -233,6 +244,7 @@ internal object ExpanderSource : CandidateSource {
      * @property written the head written for it, as [Head.written] is, `null` where nothing written declares it
      * @property module the module's index name (`Module.indexName`), as [Head.module] has it
      * @property injectedBy the call whose evaluated output injected it into [module], as written in [module]'s file
+     * @property uncertain why it may not be a definition Elixir has, `null` where it is
      */
     private class Defined(
         val declaration: Declaration,
@@ -241,9 +253,13 @@ internal object ExpanderSource : CandidateSource {
         val module: String,
         val injectedBy: Call?,
         val delegation: DefinitionTable.Delegation? = null,
+        val uncertain: Uncertain? = null,
     ) {
         /** Its head, which tells apart the heads of a list of `defdelegate` heads, and the modules one macro's output declares it in. */
         val head: Head get() = Head(written, module, declaration.name, declaration.arity)
+
+        fun marked(uncertain: Uncertain): Defined =
+            Defined(declaration, element, written, module, injectedBy, delegation, this.uncertain ?: uncertain)
 
         /** Whether [declaration] takes [arity] arguments, which is not known past a head with no largest arity. */
         fun admits(arity: Int?): Boolean = arity == null || declaration.arity.admits(arity)
@@ -360,6 +376,7 @@ internal object ExpanderSource : CandidateSource {
                 defined.module,
                 defined.injectedBy,
                 defined.delegation,
+                defined.uncertain,
             )
         }
 
@@ -377,19 +394,13 @@ internal object ExpanderSource : CandidateSource {
     ): List<Reached> {
         ProgressManager.checkCanceled()
 
-        return when (val located = at.holder.locate(at.file, module, at.inputs)) {
-            ProjectModules.Located.Unknown -> at.gap(Uncertain.NO_EXPANSION)
-            ProjectModules.Located.None, is ProjectModules.Located.Several -> emptyList()
-            is ProjectModules.Located.Source -> {
-                val result = known(at, located.result) ?: return emptyList()
-                val own = defined(located.file, result, name).flatMap { held(at, it, name, arity, remote = true, crossed) }
-                val body = if (imports) bodyEnv(result) ?: run { at.gap(Uncertain.MODULE); null } else null
+        val located = at.holder.locate(at.file, module, at.inputs)
+        val own = definedIn(at, located, module, name).flatMap { held(at, it, name, arity, remote = true, crossed) }
+        val source = located as? ProjectModules.Located.Source ?: return own
+        val result = source.result?.takeIf { imports } ?: return own
+        val body = bodyEnv(result) ?: return own.also { at.gap(Uncertain.MODULE) }
 
-                own + body?.let { imported(at, located.file, it, name, arity, crossed) }.orEmpty()
-            }
-            is ProjectModules.Located.Compiled ->
-                compiled(at, located, name).flatMap { held(at, it, name, arity, remote = true, crossed) }
-        }
+        return own + imported(at, source.file, body, name, arity, crossed)
     }
 
     /** [defined], looked up as [name] at [arity], and what it reaches when it delegates. */
@@ -433,7 +444,8 @@ internal object ExpanderSource : CandidateSource {
      * What [delegation] reaches: its target module's lookup of the function it calls, at its head's largest arity,
      * named only where [named] is. A `defdelegate` head already crossed is not crossed again. A head the use reaches
      * itself, with nothing [crossed], is followed whatever its validity; one reached through a delegation only where
-     * it [admits] the arity that delegation calls it at, as no other head runs.
+     * it [admits] the arity that delegation calls it at, as no other head runs. A target keeps the mark of a head
+     * that may not be the one Elixir loads.
      */
     private fun throughDelegation(
         at: At,
@@ -455,7 +467,7 @@ internal object ExpanderSource : CandidateSource {
             .filter { it.defined.head !in within }
             .map {
                 Reached(
-                    it.defined,
+                    delegation.defined.uncertain?.let(it.defined::marked) ?: it.defined,
                     if (delegation.reach.held && it.reach.remote) Reach.DELEGATION_TARGET else Reach.UNHELD_DELEGATION_TARGET,
                     delegation.paths + it.paths,
                     listOf(element) + it.delegations,
@@ -475,12 +487,26 @@ internal object ExpanderSource : CandidateSource {
 
     /** [module]'s declarations of [name], or of every name when it is `null`, from its copy that [at]'s file loads. */
     private fun ofModule(at: At, module: String, name: String?): List<Defined> =
-        when (val located = at.holder.locate(at.file, module, at.inputs)) {
+        definedIn(at, at.holder.locate(at.file, module, at.inputs), module, name)
+
+    /** [module]'s declarations of [name], or of every name when it is `null`, in [located], with the gap it meets. */
+    private fun definedIn(at: At, located: ProjectModules.Located, module: String, name: String?): List<Defined> =
+        when (located) {
             ProjectModules.Located.Unknown -> at.gap(Uncertain.NO_EXPANSION)
-            ProjectModules.Located.None, is ProjectModules.Located.Several -> emptyList()
+            ProjectModules.Located.None -> emptyList()
+            is ProjectModules.Located.Several -> everyCopy(at, located, module, name)
             is ProjectModules.Located.Source -> known(at, located.result)?.let { defined(located.file, it, name) }.orEmpty()
             is ProjectModules.Located.Compiled -> compiled(at, located, name)
         }
+
+    /** Each of [several]'s copies' declarations of [name], each [Uncertain.SEVERAL], as which copy loads is unknown. */
+    private fun everyCopy(at: At, several: ProjectModules.Located.Several, module: String, name: String?): List<Defined> {
+        at.gap(Uncertain.SEVERAL)
+
+        return at.holder.locateEach(at.file, several, module, at.inputs).flatMap { copy ->
+            definedIn(at, copy, module, name).map { it.marked(Uncertain.SEVERAL) }
+        }
+    }
 
     /** [result], which is a gap where there is none or what it defines isn't known. */
     private fun known(at: At, result: ExpansionResult?): ExpansionResult? {
@@ -580,7 +606,7 @@ internal object ExpanderSource : CandidateSource {
                 reached.paths + reached.delegations,
                 reached.defined.head,
                 reached.through,
-                at.uncertain,
+                reached.defined.uncertain ?: at.uncertain,
             )
         }
 

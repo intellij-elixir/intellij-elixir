@@ -148,7 +148,9 @@ internal class ProjectModules(private val project: Project) {
         data object None : Located
 
         /** More than one copy, so which one loads is unknown. */
-        class Several(val copies: List<VirtualFile>) : Located
+        class Several internal constructor(internal val each: List<Copy>) : Located {
+            val copies: List<VirtualFile> get() = each.map { it.virtualFile }
+        }
 
         class Compiled(val beam: VirtualFile, val exports: ModuleExports) : Located
 
@@ -158,26 +160,36 @@ internal class ProjectModules(private val project: Project) {
 
     /** The copy of [atom] Elixir loads for [asker], as [exports] and [struct] choose it. */
     @RequiresReadLock
-    fun locate(asker: PsiFile, atom: String, inputs: Inputs): Located {
-        fun locate(choice: Choice): Located =
-            when (choice) {
-                Choice.Unknown -> Located.Unknown
-                Choice.None -> Located.None
-                is Choice.Several -> Located.Several(choice.copies.map { it.virtualFile })
-                is Choice.One ->
-                    when (val copy = choice.copy) {
-                        is Copy.Compiled -> Located.Compiled(copy.virtualFile, compiled(copy.virtualFile).exports)
-                        is Copy.Source -> {
-                            val file = if (copy.virtualFile == fileOf(asker)) asker as? ElixirFile ?: copy.file else copy.file
-                            val held = held(file, inputs)
+    fun locate(asker: PsiFile, atom: String, inputs: Inputs): Located = located(asker, atom, inputs, choose(asker, atom))
 
-                            if (held.loaded.answer(atom) == null) locate(choice.fallingThrough()) else Located.Source(file, held.results[atom])
+    /**
+     * Each of [several]'s copies of [atom] as [locate] answers one it alone holds: a `.beam`, or a source file's module.
+     * A source file that leaves the name no module gives none, as the other copies hold it.
+     */
+    @RequiresReadLock
+    fun locateEach(asker: PsiFile, several: Located.Several, atom: String, inputs: Inputs): List<Located> =
+        several.each.map { located(asker, atom, inputs, Choice.One(it, emptyList())) }.filter { it != Located.None }
+
+    private fun located(asker: PsiFile, atom: String, inputs: Inputs, choice: Choice): Located =
+        when (choice) {
+            Choice.Unknown -> Located.Unknown
+            Choice.None -> Located.None
+            is Choice.Several -> Located.Several(choice.copies)
+            is Choice.One ->
+                when (val copy = choice.copy) {
+                    is Copy.Compiled -> Located.Compiled(copy.virtualFile, compiled(copy.virtualFile).exports)
+                    is Copy.Source -> {
+                        val file = if (copy.virtualFile == fileOf(asker)) asker as? ElixirFile ?: copy.file else copy.file
+                        val held = held(file, inputs)
+
+                        if (held.loaded.answer(atom) == null) {
+                            located(asker, atom, inputs, choice.fallingThrough())
+                        } else {
+                            Located.Source(file, held.results[atom])
                         }
                     }
-            }
-
-        return locate(choose(asker, atom))
-    }
+                }
+        }
 
     /** [file]'s expansion, against the modules the other files define, held on [file] while what it read is unchanged. */
     @RequiresReadLock
@@ -924,7 +936,7 @@ internal class ProjectModules(private val project: Project) {
     private class HeldCopies(val chosen: List<HeldCopy>, val fallback: List<HeldCopy>)
 
     /** Where Elixir loads a module from. */
-    private sealed interface Copy {
+    internal sealed interface Copy {
         val virtualFile: VirtualFile
 
         data class Compiled(override val virtualFile: VirtualFile) : Copy

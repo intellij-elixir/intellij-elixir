@@ -8,23 +8,34 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
-import org.elixir_lang.reference.Resolver
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.IndexingTestUtil
-import org.elixir_lang.PlatformTestCase
+import com.intellij.util.system.OS
 import org.elixir_lang.Facet
+import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.beam.SdkBeams
+import org.elixir_lang.declaration.Use
 import org.elixir_lang.elixir_surface.LegManifest
+import org.elixir_lang.expander.ExpanderSource
+import org.elixir_lang.expander.ProjectModules
+import org.elixir_lang.expander.legKernel
+import org.elixir_lang.expander.legLevel
 import org.elixir_lang.facet.Type
 import org.elixir_lang.mix.library.CONSOLIDATED_LIBRARY_BASE_NAME
 import org.elixir_lang.mix.sync.contentRootToken
 import org.elixir_lang.mix.sync.scopedDepLibraryName
+import org.elixir_lang.psi.ElixirFile
+import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.call.qualification.Qualified
+import org.elixir_lang.reference.Resolver
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkFixtures
 import java.io.File
@@ -322,6 +333,153 @@ class LoadedCopyTest : PlatformTestCase() {
         }
     }
 
+    // The expander's answer where `locate` answers `Several`: every copy, each uncertain, as which one loads is unknown.
+
+    fun testTwoLibraryCopiesWithAnSdkAnswerEveryCopy() {
+        layout(
+            *copies("stale/ebin", "stale2/ebin"),
+            "sdk/ebin/$DEP_BEAM" to fixture(DEP_BEAM),
+            "sdk/lib/enum.ex" to enumerableSource(),
+            CALLER to COUNT_CALLER,
+        )
+        staleLibrary("stale", "stale/ebin")
+        staleLibrary("stale2", "stale2/ebin")
+
+        withSdk(classes = "sdk/ebin") {
+            assertEquals(
+                listOf("stale/ebin/$ENUMERABLE_BEAM\tSEVERAL", "stale2/ebin/$ENUMERABLE_BEAM\tSEVERAL"),
+                expanderAnswer(CALLER, "count"),
+            )
+        }
+    }
+
+    fun testTwoSourceCopiesInContentAnswerEveryCopy() {
+        layout(
+            "app/lib/twice_one.ex" to TWICE,
+            "app/lib/twice_two.ex" to TWICE,
+            CALLER to "defmodule Caller do\n  def f, do: LoadedCopy.Twice.g(1)\nend\n".toByteArray(),
+        )
+
+        assertEquals(
+            listOf("app/lib/twice_one.ex\tSEVERAL", "app/lib/twice_two.ex\tSEVERAL"),
+            expanderAnswer(CALLER, "g"),
+        )
+    }
+
+    /** A source copy that leaves the name no module falls through to the code path, which holds two `.beam`s. */
+    fun testASourceCopyWithNoModuleFallsThroughToEveryBeam() {
+        layout(
+            *copies("stale/ebin", "stale2/ebin"),
+            "app/lib/enumerable.ex" to "defmodule Enumerable do\n  :ok = :bad\nend\n".toByteArray(),
+            CALLER to COUNT_CALLER,
+        )
+        staleLibrary("stale", "stale/ebin")
+        staleLibrary("stale2", "stale2/ebin")
+
+        assertEquals(
+            listOf("stale/ebin/$ENUMERABLE_BEAM\tSEVERAL", "stale2/ebin/$ENUMERABLE_BEAM\tSEVERAL"),
+            expanderAnswer(CALLER, "count"),
+        )
+    }
+
+    fun testTwoCopiesUnderContentBesideTheSdksAnswerEveryCopy() {
+        layout(*sdkAnd("app/vendor/one/ebin", "app/vendor/two/ebin"), CALLER to COUNT_CALLER)
+        staleLibrary("one", "app/vendor/one/ebin")
+        staleLibrary("two", "app/vendor/two/ebin")
+
+        withSdk(classes = "sdk/ebin") {
+            assertEquals(
+                listOf("app/vendor/one/ebin/$ENUMERABLE_BEAM\tSEVERAL", "app/vendor/two/ebin/$ENUMERABLE_BEAM\tSEVERAL"),
+                expanderAnswer(CALLER, "count"),
+            )
+        }
+    }
+
+    fun testTwoCopiesInsideTheSdkAnswerEveryCopy() {
+        layout(*sdkAnd("sdk/ebin2"), CALLER to COUNT_CALLER)
+
+        withSdk("sdk/ebin", "sdk/ebin2") {
+            assertEquals(
+                listOf("sdk/ebin/$ENUMERABLE_BEAM\tSEVERAL", "sdk/ebin2/$ENUMERABLE_BEAM\tSEVERAL"),
+                expanderAnswer(CALLER, "count"),
+            )
+        }
+    }
+
+    fun testOneCopyIsCertain() {
+        layout(*sdkAnd("stale/ebin"), CALLER to COUNT_CALLER)
+        staleLibrary("stale", "stale/ebin")
+
+        withSdk(classes = "sdk/ebin") {
+            assertEquals(listOf("sdk/ebin/$ENUMERABLE_BEAM\tcertain"), expanderAnswer(CALLER, "count"))
+        }
+    }
+
+    /** Which copy loads is unknown, so an absence there is too. */
+    fun testAnAbsenceInSeveralCopiesIsUncertain() {
+        layout(*copies("stale/ebin", "stale2/ebin"), CALLER to "defmodule Caller do\n  def f(x), do: Enumerable.missing(x)\nend\n".toByteArray())
+        staleLibrary("stale", "stale/ebin")
+        staleLibrary("stale2", "stale2/ebin")
+
+        assertEquals("SEVERAL", expanderAbsence(CALLER, "missing"))
+    }
+
+    /** Completion offers no copy that may not be the one Elixir loads, after the qualifier or through `Kernel`'s import. */
+    fun testCompletionOffersNoneOfSeveralCopies() {
+        val kernel = File(LegManifest.ebin(), KERNEL_BEAM).readBytes()
+        layout(
+            *copies("stale/ebin", "stale2/ebin"),
+            "stale/ebin/$KERNEL_BEAM" to kernel,
+            "stale2/ebin/$KERNEL_BEAM" to kernel,
+            CALLER to "defmodule Caller do\n  def f(x), do: Enumerable.count(x)\n  def g(x), do: count(x)\nend\n".toByteArray(),
+        )
+        staleLibrary("stale", "stale/ebin")
+        staleLibrary("stale2", "stale2/ebin")
+
+        assertEquals(
+            listOf(listOf<String>(), listOf()),
+            listOf(expanderVisible(CALLER) { it is Qualified }, expanderVisible(CALLER) { it !is Qualified }),
+        )
+    }
+
+    /** The expander's candidates at the first call named [name] in [caller]: each one's file, and why it is uncertain or `certain`. */
+    private fun expanderAnswer(caller: String, name: String): List<String> =
+        expander(caller, name) { use, inputs, base ->
+            ExpanderSource.candidates(use, inputs).map { found ->
+                "${relative(base, found.element)}\t${found.uncertain ?: "certain"}"
+            }.sorted()
+        }
+
+    /** Why the expander's answer at the first call named [name] in [caller] may be missing what it reaches, or `certain`. */
+    private fun expanderAbsence(caller: String, name: String): String =
+        expander(caller, name) { use, inputs, _ -> ExpanderSource.answer(use, inputs).absence?.name ?: "certain" }
+
+    /** The files of what the expander offers at the first `count` call in [caller] that [which] picks, from the stale copies. */
+    private fun expanderVisible(caller: String, which: (Call) -> Boolean): List<String> =
+        ReadAction.nonBlocking(Callable {
+            val file = PsiManager.getInstance(project).findFile(file(caller)) as ElixirFile
+            val call = PsiTreeUtil.findChildrenOfType(file, Call::class.java).first { it.functionName() == "count" && which(it) }
+            val base = FileUtil.toSystemIndependentName(top.path)
+
+            ExpanderSource.visible(call, inputs()).map { relative(base, it.element) }.filter { it.startsWith("stale") }.sorted()
+        }).executeSynchronously()
+
+    private fun <T> expander(caller: String, name: String, answer: (Use.OfCall, ProjectModules.Inputs, String) -> T): T =
+        ReadAction.nonBlocking(Callable {
+            val file = PsiManager.getInstance(project).findFile(file(caller)) as ElixirFile
+            val call = PsiTreeUtil.findChildrenOfType(file, Call::class.java).first { it.functionName() == name }
+
+            answer(Use.of(call) as Use.OfCall, inputs(), FileUtil.toSystemIndependentName(top.path))
+        }).executeSynchronously()
+
+    private fun inputs(): ProjectModules.Inputs = ProjectModules.Inputs(legLevel(), legKernel, OS.CURRENT)
+
+    private fun relative(base: String, element: PsiElement): String {
+        val path = FileUtil.toSystemIndependentName(element.containingFile.originalFile.virtualFile.path)
+
+        return FileUtil.getRelativePath(base, path, '/') ?: path
+    }
+
     private lateinit var top: File
 
     override fun setUp() {
@@ -465,6 +623,9 @@ class LoadedCopyTest : PlatformTestCase() {
         val ASKER = "defmodule Asker do\nend\n".toByteArray()
         const val SOURCE = "loaded_copy.ex"
         const val LIB_ASKER = "app/lib/asker.ex"
+        const val CALLER = "app/lib/caller.ex"
+        val COUNT_CALLER = "defmodule Caller do\n  def f(x), do: Enumerable.count(x)\nend\n".toByteArray()
+        val TWICE = "defmodule LoadedCopy.Twice do\n  def g(a), do: a\nend\n".toByteArray()
         const val TEST_ASKER = "app/test/asker_test.exs"
         const val APP = "LoadedCopy.App"
         const val APP_BEAM = "Elixir.LoadedCopy.App.beam"
@@ -474,6 +635,7 @@ class LoadedCopyTest : PlatformTestCase() {
         const val PROTOCOL_BEAM = "Elixir.LoadedCopy.Protocol.beam"
         const val ENUMERABLE = "Enumerable"
         const val ENUMERABLE_BEAM = "Elixir.Enumerable.beam"
+        const val KERNEL_BEAM = "Elixir.Kernel.beam"
         const val LISTS_BEAM = "lists.beam"
     }
 }
