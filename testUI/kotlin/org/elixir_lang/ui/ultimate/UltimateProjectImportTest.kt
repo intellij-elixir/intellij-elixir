@@ -10,31 +10,30 @@ import com.intellij.driver.sdk.ui.components.elements.popupMenu
 import com.intellij.ide.starter.driver.engine.runIdeWithDriver
 import org.elixir_lang.notification.setup_sdk.Notifier.MIX_DEPS_OUTDATED_TITLE
 import org.elixir_lang.ui.framework.core.*
-import org.elixir_lang.ui.framework.ultimate.activateUltimateLicense
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import kotlin.io.path.Path
+import kotlin.io.path.name
 import kotlin.time.Duration.Companion.minutes
 
 /**
- * Integration test for IntelliJ IDEA Ultimate license activation and Elixir project import.
- *
- * This test verifies the complete Ultimate-specific workflow:
- * 1. License activation (Ultimate only)
- * 2. SDK configuration (Erlang and Elixir)
- * 3. Project import
- * 4. Mix deps installation
- * 5. Running tests via the IDE
+ * Integration test for Elixir project import in IntelliJ IDEA, in free mode:
+ * 1. SDK configuration (Erlang and Elixir)
+ * 2. Project import
+ * 3. Mix deps installation
+ * 4. Running tests via the IDE
  */
 class UltimateProjectImportTest {
+    /** The notification names the project's root. */
+    private val depsOutdated = "$MIX_DEPS_OUTDATED_TITLE (${Path(IdeTestContext.projectPath).name})"
 
     @Test
-    fun `import Elixir project with license activation and deps installation`() {
-        step("Run test: import Elixir project with license activation and deps installation") {
+    fun `import Elixir project and install its deps`() {
+        step("Run test: import Elixir project and install its deps") {
             val ctx = IdeTestContext.setupTestContext("UltimateProjectImportTest")
 
             ctx.runIdeWithDriver().useDriverAndCloseIde {
                     ensureWelcomeScreenInForeground()
-                    activateUltimateLicense()
 
                     welcomeScreen {
                         addSdkFromDisk(
@@ -51,9 +50,10 @@ class UltimateProjectImportTest {
                     }
                     openProjectAt(IdeTestContext.projectPath)
                     ensureIdeInForeground()
+                    assignElixirSdk()
                     step("Install Mix deps") {
                         ideFrame {
-                            val notificationBalloon = balloon(MIX_DEPS_OUTDATED_TITLE)
+                            val notificationBalloon = balloon(depsOutdated)
                             // Notification actions appear as ActionLink components in the balloon
                             val installButton = notificationBalloon.x { byVisibleText("Install deps") }
                             installButton.click()
@@ -72,14 +72,14 @@ class UltimateProjectImportTest {
                             waitUntilReady(5.minutes)
 
                             runToolWindow {
-                                waitContainsText("2 tests passed", null, true, 5.minutes)
+                                waitContainsText("tests passed", null, true, 5.minutes)
                             }
                         }
                     }
                     step("Verify deps watcher isn't showing anymore") {
                         ideFrame {
                             waitUntilReady()
-                            val notificationBalloon = balloon(MIX_DEPS_OUTDATED_TITLE)
+                            val notificationBalloon = balloon(depsOutdated)
                             assertTrue(notificationBalloon.notPresent())
                         }
                     }

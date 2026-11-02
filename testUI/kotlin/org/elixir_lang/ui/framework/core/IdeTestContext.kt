@@ -13,12 +13,14 @@ import com.intellij.ide.starter.models.TestCase
 import com.intellij.ide.starter.path.GlobalPaths
 import com.intellij.ide.starter.plugins.PluginConfigurator
 import com.intellij.ide.starter.project.NoProject
+import com.intellij.ide.starter.project.ProjectInfoSpec
 import com.intellij.ide.starter.runner.Starter
 import com.intellij.ide.starter.utils.Git
 import com.intellij.util.system.OS
 import org.junit.jupiter.api.fail
 import org.kodein.di.DI
 import org.kodein.di.bindSingleton
+import java.nio.file.Path
 import java.nio.file.Paths
 
 /**
@@ -66,6 +68,9 @@ object IdeTestContext {
     val projectPath: String get() = TestProperties.projectPath
     val erlangSdkPath: String get() = TestProperties.erlangSdkPath
     val elixirSdkPath: String get() = TestProperties.elixirSdkPath
+
+    /** Where Starter puts each test's home. Read through this object, as its `init` binds the paths it answers from. */
+    val testsDirectory: Path get() = GlobalPaths.instance.testsDirectory
 
     init {
         // Configure dependency injection to use our custom paths
@@ -145,22 +150,25 @@ object IdeTestContext {
      *
      * @param testName The name of the test (used for test identification)
      * @param ideProduct The IDE product to test (default: IntelliJ IDEA Ultimate)
+     * @param project The project the IDE opens at start (default: none)
      * @return IDETestContext configured for running UI tests
      *
      * @throws IllegalStateException if required system properties are not set
      */
     fun setupTestContext(
         testName: String,
-        ideProduct: IdeInfo = IdeProductProvider.IU
+        ideProduct: IdeInfo = IdeProductProvider.IU,
+        project: ProjectInfoSpec = NoProject,
     ): IDETestContext =
         step("Setup test context for $testName (${ideProduct.productCode})") {
+            checkNotNull(NoScreenGuard.active) { "no NoScreenGuard is active: testUI/resources must register NoScreenExtension" }
 
             // Create test case with the specified IDE product and version
             val testCase = TestCase(
                 ideProduct.copy(
                     version = System.getProperty("uiPlatformBuildVersion"),
                     buildType = BuildType.RELEASE.type
-                ), NoProject
+                ), project
             )
 
             Starter.newContext(testName = testName, testCase = testCase).apply {
@@ -168,7 +176,16 @@ object IdeTestContext {
                 val pluginPath = System.getProperty("path.to.build.plugin")
                 PluginConfigurator(this).installPluginFromPath(Paths.get(pluginPath))
                 withBuildTool<GradleBuildTool>()
+                NoScreen.prepareFreeMode(paths.configDir)
             }.applyVMOptionsPatch {
+                // The driver's Robot can't click under WLToolkit on WSLg, which `auto` picks from the `wayland-0` socket.
+                if (NoScreen.onScreen && NoScreen.onLinux) addSystemProperty("awt.toolkit.name", "XToolkit")
+                val home = NoScreen.privateHome
+                addSystemProperty("user.home", home)
+                addSystemProperty("java.util.prefs.userRoot", home)
+                withEnv("HOME", home.toString())
+                listOf("XDG_CONFIG_HOME" to ".config", "XDG_DATA_HOME" to ".local/share", "XDG_CACHE_HOME" to ".cache")
+                    .forEach { (name, path) -> withEnv(name, home.resolve(path).toString()) }
 
                 // === Common system properties for all operating systems ===
 

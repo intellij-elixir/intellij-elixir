@@ -841,6 +841,8 @@
 
 ### Build / CI
 
+- [#4613](https://github.com/intellij-elixir/intellij-elixir/pull/4613) [@sh41](https://github.com/sh41)
+  - **`./gradlew testUI` runs in free mode with no license, and on Linux with no screen; `CodeIntelligenceTest` checks code intelligence in a real IDE with the expander on and off, recording each run's timings.** Refs [#4607](https://github.com/intellij-elixir/intellij-elixir/issues/4607).
 - [#4608](https://github.com/intellij-elixir/intellij-elixir/pull/4608) [@sh41](https://github.com/sh41)
   - **`ReachedConfigGesturesHeavyTest` and `ExUnitFormsHeavyTest` pass on Windows: one compared a temp path with mixed separators, the other kept the drive letter's case that Elixir lowercases.** Refs [#4606](https://github.com/intellij-elixir/intellij-elixir/issues/4606).
 - [#4605](https://github.com/intellij-elixir/intellij-elixir/pull/4605) [@sh41](https://github.com/sh41)
