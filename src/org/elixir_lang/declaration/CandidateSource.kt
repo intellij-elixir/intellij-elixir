@@ -28,6 +28,10 @@ interface CandidateSource {
     @RequiresReadLock
     fun candidates(use: Use, incompleteCode: Boolean): List<Found>
 
+    /** [candidates], and whether their lacking one Elixir reaches proves [use] reaches nothing. */
+    @RequiresReadLock
+    fun answer(use: Use, incompleteCode: Boolean): Answer = Answer(candidates(use, incompleteCode), absence = null)
+
     /** What completion offers at [position]. */
     @RequiresReadLock
     fun visible(position: CompletionPosition): List<Visible>
@@ -101,6 +105,12 @@ data class Found(
  * written declares the head, as where debug info places it at the macro clause that injected it.
  */
 data class Head(val written: PsiElement?, val module: String?, val name: String, val arity: ArityKnowledge)
+
+/**
+ * A use's [found], and why their holding nothing Elixir reaches may not prove the use reaches nothing, [absence],
+ * `null` where it does.
+ */
+data class Answer(val found: List<Found>, val absence: Uncertain?)
 
 /** The name of the module that declares [this], so two copies of one module are one. */
 fun Found.declaringModuleName(): String? = head.module

@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -14,6 +15,8 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiReferenceService
 import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
 import com.intellij.psi.impl.source.PsiFileImpl
+import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.beam.BeamLibraryFixture
@@ -33,6 +36,7 @@ import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
+import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.WalkTestSupport
@@ -1763,6 +1767,214 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
 
         assertEquals("f/1 line 2", renderVisible(visible(file, "&@mod.f/1", "@mod.f")))
+    }
+
+    /**
+     * An empty answer is a certain absence only where each lookup that could hold the name said it doesn't: in code
+     * the expansion reached, of modules known to their end.
+     */
+    fun testAnAbsenceOnReachedCodeOfKnownModulesIsCertain() {
+        val file = file(
+            """
+            defmodule Known do
+              def f(a), do: a
+            end
+
+            defmodule Asker do
+              def unqualified, do: missing(1)
+              def source, do: Known.missing(1)
+              def compiled, do: Map.missing(1)
+              def nowhere, do: Nowhere.missing(1)
+            end
+            """
+        )
+
+        // The undefined `missing/1` is an error that ends `Asker` tainted, its table complete; before 1.15 it raises.
+        val tainted = if (FUNCTION_ERRORS_CONTINUE.isSufficient(legLevel())) "certain" else "MODULE"
+
+        assertEquals(
+            listOf(tainted, "certain", "certain", "certain"),
+            listOf(
+                absence(file, "unqualified, do: missing(1)", "missing(1)"),
+                absence(file, "Known.missing(1)", "Known.missing(1)"),
+                absence(file, "Map.missing(1)", "Map.missing(1)"),
+                absence(file, "Nowhere.missing(1)", "Nowhere.missing(1)"),
+            ),
+        )
+    }
+
+    /** A qualified call whose qualifier names no module, such as a variable's, may reach any module's function. */
+    fun testAnAbsenceThroughAQualifierNamingNoModuleIsUncertain() {
+        val file = file("defmodule Asker do\n  def f(x), do: x.missing(1)\nend")
+
+        assertEquals("MODULE", absence(file, "x.missing(1)", "x.missing(1)"))
+    }
+
+    /** A delegation into a module not known to its end, as after an opaque call, may reach what it defines later. */
+    fun testAnAbsenceThroughADelegationIntoABodyWithAnOpaqueCallIsUncertain() {
+        val file = file(
+            """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Target do
+              require M
+              M.m()
+            end
+
+            defmodule Delegator do
+              defdelegate later(x), to: Target
+            end
+
+            defmodule Caller do
+              def go, do: Delegator.later(1)
+            end
+            """
+        )
+
+        assertEquals("MODULE", absence(file, "Delegator.later(1)", "Delegator.later(1)"))
+    }
+
+    /** A module tainted by another error still ran its body to its end, so its own definitions are known. */
+    fun testAnAbsenceInAModuleTaintedByAnotherErrorIsCertain() {
+        val file = file(
+            """
+            defmodule Tainted do
+              def g, do: __STACKTRACE__
+              def f, do: missing(1)
+            end
+            """
+        )
+
+        assertEquals(
+            if (FUNCTION_ERRORS_CONTINUE.isSufficient(legLevel())) "certain" else "MODULE",
+            absence(file, "missing(1)", "missing(1)"),
+        )
+    }
+
+    /**
+     * Where a lookup read a module that isn't known to its end, or named none, nothing found doesn't say the name is
+     * missing: a module whose body stopped may define it past the stop.
+     */
+    fun testAnAbsenceInAModuleNotKnownToItsEndIsUncertain() {
+        // Elixir abandons a file at a module that may raise, so each module that stops is last in its file.
+        val stopped = file(
+            """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Stopped do
+              require M
+              def before_stop, do: missing(2)
+              M.m()
+            end
+            """
+        )
+        val caller = file(
+            """
+            defmodule Delegating do
+              defdelegate missing(x), to: Stopped
+            end
+
+            defmodule Asker do
+              @mod Stopped
+              def stopped, do: Stopped.missing(1)
+              def attribute, do: @mod.missing(1)
+              def delegated, do: Delegating.missing(1)
+            end
+            """
+        )
+
+        assertEquals(
+            listOf("MODULE", "MODULE", "MODULE", "MODULE"),
+            listOf(
+                absence(stopped, "missing(2)", "missing(2)"),
+                absence(caller, "Stopped.missing(1)", "Stopped.missing(1)"),
+                absence(caller, "@mod.missing(1)", "@mod.missing(1)"),
+                absence(caller, "Delegating.missing(1)", "Delegating.missing(1)"),
+            ),
+        )
+    }
+
+    /** A `.beam` whose exports can't be read may export the name. */
+    fun testAnAbsenceInABeamWithNoExportsIsUncertain() {
+        val ebin = FileUtil.createTempDirectory("no_exports_ebin", null, true)
+        val beam = File("testData/org/elixir_lang/expander/injecting_use", "Elixir.InjectingUse.beam").readBytes()
+        File(ebin, "Elixir.InjectingUse.beam").writeBytes(withoutChunk(beam, "ExpT"))
+        val file = file("defmodule Asker do\n  def f, do: InjectingUse.missing(1)\nend")
+
+        val absence = WalkTestSupport.withLibrary(project, module, testRootDisposable, "no_exports", ebin) {
+            absence(file, "InjectingUse.missing(1)", "InjectingUse.missing(1)")
+        }
+
+        assertEquals("MODULE", absence)
+    }
+
+    /** Past a stop, the env at the stop misses what was written after it, so an absence there is uncertain first for that. */
+    fun testAnAbsencePastAStopIsUncertainForTheStop() {
+        val file = file(
+            """
+            defmodule Stopped do
+              1.f()
+              def after_stop, do: missing(3)
+            end
+            """
+        )
+
+        assertEquals("STOP", absence(file, "missing(3)", "missing(3)"))
+    }
+
+    /** With no expansion to read, nothing is known: with no SDK, while the IDE indexes, and at a use the expander doesn't answer. */
+    fun testAnAbsenceWithNoExpansionIsUncertain() {
+        val file = file(
+            """
+            defmodule Asker do
+              @spec f(integer) :: integer
+              def f(x), do: missing(x)
+            end
+            """
+        )
+        val specified = read {
+            val attribute = PsiTreeUtil.findChildrenOfType(file, AtUnqualifiedNoParenthesesCall::class.java).single()
+            val head = PsiTreeUtil.findChildrenOfType(attribute, Call::class.java).first { it.text == "f(integer)" }
+
+            Use.specification(head, attribute)!!
+        }
+        var dumb: String? = null
+        DumbModeTestUtils.runInDumbModeSynchronously(project) { dumb = absence(file, "missing(x)", "missing(x)") }
+        val specifiedAbsence = read { ExpanderSource.answer(specified, false) }.absence?.name ?: "certain"
+        ModuleRootModificationUtil.setModuleSdk(module, null)
+
+        assertEquals(
+            listOf("NO_EXPANSION", "NO_EXPANSION", "NO_EXPANSION"),
+            listOf(dumb, specifiedAbsence, absence(file, "missing(x)", "missing(x)")),
+        )
+    }
+
+    /** Why [ExpanderSource]'s answer to the use [call] in [context] may be missing what it reaches, or `certain`. */
+    private fun absence(file: PsiFile, context: String, call: String): String {
+        val use = use(file, context, call)
+
+        return read { ExpanderSource.answer(use, false) }.absence?.name ?: "certain"
+    }
+
+    /** [beam], an IFF `FOR1`/`BEAM` file, with its chunk [id] dropped. */
+    private fun withoutChunk(beam: ByteArray, id: String): ByteArray {
+        val input = java.nio.ByteBuffer.wrap(beam)
+        val out = java.io.ByteArrayOutputStream()
+        out.write(beam, 8, 4) // "BEAM"
+        var at = 12
+        while (at < beam.size) {
+            val size = input.getInt(at + 4)
+            val padded = (size + 3) and 3.inv()
+            if (String(beam, at, 4, Charsets.US_ASCII) != id) out.write(beam, at, 8 + padded)
+            at += 8 + padded
+        }
+        val body = out.toByteArray()
+
+        return java.nio.ByteBuffer.allocate(8 + body.size).put("FOR1".toByteArray()).putInt(body.size).put(body).array()
     }
 
     /** How each module [file] defines at its top ended, by name. */

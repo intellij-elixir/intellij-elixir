@@ -22,6 +22,9 @@ import org.elixir_lang.lowering.ElixirAst
  *   compiles: it compiled, its `defmodule` and each around it are placed where Elixir runs them ([BodyValues.placed]),
  *   its tables hold what Elixir's do ([Compiling.tablesCertain]), and no `@after_compile` callback runs code the
  *   expander doesn't follow
+ * @property ownDefinitionsKnown whether what the module defines is known to its own code: its body ran to its end, with
+ *   Elixir's outcome or with errors Elixir reports once it has, its `defmodule` and each around it are placed where
+ *   Elixir runs them, and its tables hold what Elixir's do
  */
 internal data class ExpansionResult(
     val module: String,
@@ -37,6 +40,7 @@ internal data class ExpansionResult(
     val struct: ModuleStruct?,
     val certain: Boolean,
     val definitionsKnown: Boolean,
+    val ownDefinitionsKnown: Boolean,
 ) {
     /**
      * One body.

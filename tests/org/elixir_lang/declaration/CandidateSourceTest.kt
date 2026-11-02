@@ -267,6 +267,14 @@ class CandidateSourceTest : PlatformTestCase() {
         assertEquals(emptyList<Uncertain>(), found.mapNotNull { it.uncertain })
     }
 
+    /** The walk's empty answer is the absence its readers take it for. */
+    fun testTheWalksAbsenceIsCertain() {
+        configure("applicability.ex")
+        val answer = sourceFor(Feature.SYMBOL_REFERENCES).answer(Use.of(call("fo(1)"))!!, false)
+
+        assertEquals(Answer(emptyList(), null), answer)
+    }
+
     private fun configure(file: String) {
         myFixture.copyDirectoryToProject("", "")
         myFixture.configureFromTempProjectFile(file)

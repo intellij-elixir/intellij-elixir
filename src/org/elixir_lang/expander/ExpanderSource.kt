@@ -12,6 +12,7 @@ import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.call.Visibility
 import org.elixir_lang.code_insight.eachNameOnce
+import org.elixir_lang.declaration.Answer
 import org.elixir_lang.declaration.Applicability
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Candidate
@@ -59,6 +60,17 @@ internal object ExpanderSource : CandidateSource {
         }
     }
 
+    /** The absence is the first gap the lookups met: the use's env mark, then each lookup's, in the order met. */
+    @RequiresReadLock
+    override fun answer(use: Use, incompleteCode: Boolean): Answer {
+        ThreadingAssertions.assertReadAccess()
+
+        return when (use) {
+            is Use.OfCall -> inputs(use.entrance)?.let { answerWith(use, it) }
+            is Use.Specified, is Use.Remote, is Use.Tag, is Use.Link -> null
+        } ?: Answer(emptyList(), Uncertain.NO_EXPANSION)
+    }
+
     /** [use]'s candidates, its file expanded with [inputs] in place of its SDK's. */
     @TestOnly
     @RequiresReadLock
@@ -68,12 +80,21 @@ internal object ExpanderSource : CandidateSource {
         return answer(use, inputs)
     }
 
-    private fun answer(use: Use.OfCall, inputs: ProjectModules.Inputs): List<Found> {
+    private fun answerWith(use: Use.OfCall, inputs: ProjectModules.Inputs): Answer {
+        val at = at(use.entrance, inputs) ?: return Answer(emptyList(), Uncertain.NO_EXPANSION)
+        val found = answer(at, use)
+
+        return Answer(found, at.gaps.firstOrNull())
+    }
+
+    private fun answer(use: Use.OfCall, inputs: ProjectModules.Inputs): List<Found> =
+        at(use.entrance, inputs)?.let { answer(it, use) }.orEmpty()
+
+    private fun answer(at: At, use: Use.OfCall): List<Found> {
         val call = use.entrance
-        val at = at(call, inputs) ?: return emptyList()
         val name = (use as? Use.Named)?.name
         val reached = if (call is Qualified) {
-            val module = receiver(at, call.qualifier()) ?: return emptyList()
+            val module = receiver(at, call.qualifier()) ?: return at.gap(Uncertain.MODULE)
             inModule(at, module, name, use.arity, imports = false, emptySet())
         } else {
             buildList {
@@ -163,6 +184,8 @@ internal object ExpanderSource : CandidateSource {
     /**
      * Where a use is, as its file's expansion saw it, what each receiver it reached expanded to, the [lowering] it
      * read the file through, and why [env] may not be the env Elixir expands the use in, [uncertain], `null` where it is.
+     *
+     * @property gaps why a lookup from here could not say a name is missing, [uncertain] first, then in the order met
      */
     private class At(
         val file: ElixirFile,
@@ -173,7 +196,16 @@ internal object ExpanderSource : CandidateSource {
         val receivers: ReceiverIndex,
         val lowering: Lowering,
         val uncertain: Uncertain?,
-    )
+    ) {
+        val gaps: MutableSet<Uncertain> = LinkedHashSet<Uncertain>().apply { uncertain?.let(::add) }
+
+        /** Records [uncertain] as a gap, and finds nothing. */
+        fun gap(uncertain: Uncertain): List<Nothing> {
+            gaps.add(uncertain)
+
+            return emptyList()
+        }
+    }
 
     /** `null` where the file's SDK gives no inputs. */
     private fun inputs(element: PsiElement): ProjectModules.Inputs? {
@@ -262,7 +294,8 @@ internal object ExpanderSource : CandidateSource {
         val result = ProjectModules.results(at.holder.expansion(at.file, at.inputs)).firstOrNull { result ->
             result.module == module &&
                 result.units.any { it.owner == ExpansionResult.Owner.ModuleBody && it.node.meta.origin.contains(at.range) }
-        } ?: return emptyList()
+        } ?: return at.gap(Uncertain.MODULE)
+        if (!result.ownDefinitionsKnown) at.gap(Uncertain.MODULE)
 
         return defined(at.file, result, name)
     }
@@ -345,16 +378,17 @@ internal object ExpanderSource : CandidateSource {
         ProgressManager.checkCanceled()
 
         return when (val located = at.holder.locate(at.file, module, at.inputs)) {
-            ProjectModules.Located.Unknown, ProjectModules.Located.None, is ProjectModules.Located.Several -> emptyList()
+            ProjectModules.Located.Unknown -> at.gap(Uncertain.NO_EXPANSION)
+            ProjectModules.Located.None, is ProjectModules.Located.Several -> emptyList()
             is ProjectModules.Located.Source -> {
-                val result = located.result ?: return emptyList()
+                val result = known(at, located.result) ?: return emptyList()
                 val own = defined(located.file, result, name).flatMap { held(at, it, name, arity, remote = true, crossed) }
-                val body = if (imports) bodyEnv(result) else null
+                val body = if (imports) bodyEnv(result) ?: run { at.gap(Uncertain.MODULE); null } else null
 
                 own + body?.let { imported(at, located.file, it, name, arity, crossed) }.orEmpty()
             }
             is ProjectModules.Located.Compiled ->
-                compiled(at.file, located, name).flatMap { held(at, it, name, arity, remote = true, crossed) }
+                compiled(at, located, name).flatMap { held(at, it, name, arity, remote = true, crossed) }
         }
     }
 
@@ -442,10 +476,23 @@ internal object ExpanderSource : CandidateSource {
     /** [module]'s declarations of [name], or of every name when it is `null`, from its copy that [at]'s file loads. */
     private fun ofModule(at: At, module: String, name: String?): List<Defined> =
         when (val located = at.holder.locate(at.file, module, at.inputs)) {
-            ProjectModules.Located.Unknown, ProjectModules.Located.None, is ProjectModules.Located.Several -> emptyList()
-            is ProjectModules.Located.Source -> located.result?.let { defined(located.file, it, name) }.orEmpty()
-            is ProjectModules.Located.Compiled -> compiled(at.file, located, name)
+            ProjectModules.Located.Unknown -> at.gap(Uncertain.NO_EXPANSION)
+            ProjectModules.Located.None, is ProjectModules.Located.Several -> emptyList()
+            is ProjectModules.Located.Source -> known(at, located.result)?.let { defined(located.file, it, name) }.orEmpty()
+            is ProjectModules.Located.Compiled -> compiled(at, located, name)
         }
+
+    /** [result], which is a gap where there is none or what it defines isn't known. */
+    private fun known(at: At, result: ExpansionResult?): ExpansionResult? {
+        if (result == null) {
+            at.gap(Uncertain.MODULE)
+
+            return null
+        }
+        if (!result.definitionsKnown) at.gap(Uncertain.MODULE)
+
+        return result
+    }
 
     /**
      * [result]'s module's definitions of [name], or of every name when it is `null`, in [file]: one for each head, each
@@ -489,13 +536,13 @@ internal object ExpanderSource : CandidateSource {
         }
 
     /** [located]'s exports of [name], or of every name when it is `null`, each declared by its decompiled definition. */
-    private fun compiled(asker: PsiFile, located: ProjectModules.Located.Compiled, name: String?): List<Defined> {
-        val exports = located.exports as? ModuleExports.Present ?: return emptyList()
-        val module = (PsiManager.getInstance(asker.project).findFile(located.beam) as? PsiCompiledFile)
+    private fun compiled(at: At, located: ProjectModules.Located.Compiled, name: String?): List<Defined> {
+        val exports = located.exports as? ModuleExports.Present ?: return at.gap(Uncertain.MODULE)
+        val module = (PsiManager.getInstance(at.file.project).findFile(located.beam) as? PsiCompiledFile)
             ?.children
             ?.filterIsInstance<BeamModule>()
             ?.singleOrNull()
-            ?: return emptyList()
+            ?: return at.gap(Uncertain.MODULE)
         val definitions = NameIndex.of(module)
 
         return NameIndex.of(exports).named(name).mapNotNull { nameArity ->

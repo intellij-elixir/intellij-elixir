@@ -1485,6 +1485,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
             ended(Expansion.Error(kind, module.node), values.expansionCertain, compiling, run)!!,
             emptyList(), emptySet(), emptyList(), AttributeLog.EMPTY, null, certain = false,
             definitionsKnown = false,
+            ownDefinitionsKnown = false,
         )
     }
 
@@ -1770,6 +1771,8 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
         certain = ended == Ended.Compiled && sure() && !compiling.attributes.callsBack("after_compile"),
         definitionsKnown = ended == Ended.Compiled && values.placed && compiling.tablesCertain() &&
             !compiling.stoppedWithin && !compiling.attributes.callsBack("after_compile"),
+        ownDefinitionsKnown = (ended == Ended.Compiled || ended == Ended.Tainted) && values.placed &&
+            compiling.tablesCertain() && !compiling.stoppedWithin,
     )
 
     run.load(result, placed) { ModuleClauses.of(result.module, compiling, run.virtualFile) }
