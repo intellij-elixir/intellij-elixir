@@ -19,6 +19,7 @@ import com.intellij.util.system.OS
 import org.junit.jupiter.api.fail
 import org.kodein.di.DI
 import org.kodein.di.bindSingleton
+import java.nio.file.Path
 import java.nio.file.Paths
 
 /**
@@ -66,6 +67,9 @@ object IdeTestContext {
     val projectPath: String get() = TestProperties.projectPath
     val erlangSdkPath: String get() = TestProperties.erlangSdkPath
     val elixirSdkPath: String get() = TestProperties.elixirSdkPath
+
+    /** Where Starter puts each test's home. Read through this object, as its `init` binds the paths it answers from. */
+    val testsDirectory: Path get() = GlobalPaths.instance.testsDirectory
 
     init {
         // Configure dependency injection to use our custom paths
@@ -154,6 +158,7 @@ object IdeTestContext {
         ideProduct: IdeInfo = IdeProductProvider.IU
     ): IDETestContext =
         step("Setup test context for $testName (${ideProduct.productCode})") {
+            checkNotNull(NoScreenGuard.active) { "no NoScreenGuard is active: testUI/resources must register NoScreenExtension" }
 
             // Create test case with the specified IDE product and version
             val testCase = TestCase(
@@ -168,7 +173,16 @@ object IdeTestContext {
                 val pluginPath = System.getProperty("path.to.build.plugin")
                 PluginConfigurator(this).installPluginFromPath(Paths.get(pluginPath))
                 withBuildTool<GradleBuildTool>()
+                NoScreen.prepareFreeMode(paths.configDir)
             }.applyVMOptionsPatch {
+                // The driver's Robot can't click under WLToolkit on WSLg, which `auto` picks from the `wayland-0` socket.
+                if (NoScreen.onScreen && NoScreen.onLinux) addSystemProperty("awt.toolkit.name", "XToolkit")
+                val home = NoScreen.privateHome
+                addSystemProperty("user.home", home)
+                addSystemProperty("java.util.prefs.userRoot", home)
+                withEnv("HOME", home.toString())
+                listOf("XDG_CONFIG_HOME" to ".config", "XDG_DATA_HOME" to ".local/share", "XDG_CACHE_HOME" to ".cache")
+                    .forEach { (name, path) -> withEnv(name, home.resolve(path).toString()) }
 
                 // === Common system properties for all operating systems ===
 

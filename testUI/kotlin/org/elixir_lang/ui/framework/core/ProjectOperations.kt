@@ -1,7 +1,7 @@
 package org.elixir_lang.ui.framework.core
 
 import com.intellij.driver.client.Driver
-import com.intellij.driver.sdk.invokeActionByShortcut
+import com.intellij.driver.sdk.invokeAction
 import com.intellij.driver.sdk.step
 import com.intellij.driver.sdk.ui.*
 import com.intellij.driver.sdk.ui.components.common.ideFrame
@@ -9,6 +9,8 @@ import com.intellij.driver.sdk.ui.components.common.welcomeScreen
 import com.intellij.driver.sdk.ui.components.elements.WindowUiComponent
 import com.intellij.driver.sdk.ui.components.elements.comboBox
 import com.intellij.driver.sdk.ui.components.elements.dialog
+import com.intellij.driver.sdk.waitFor
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Extensions for project and SDK operations.
@@ -93,10 +95,19 @@ fun Driver.openProjectAt(path: String) = step("Open project at $path") {
  */
 fun WindowUiComponent.addSdkFromDisk(sdkType: String, sdkPath: String, dialogTitle: String) =
     step("Add SDK: $sdkType from $sdkPath") {
-        invokeActionByShortcut("ShowProjectStructureSettings")
+        // Not by its shortcut: under Xvfb the welcome screen doesn't answer one. Not `now`, as the dialog is modal.
+        driver.invokeAction("ShowProjectStructureSettings", now = false, component = component)
         projectStructure {
             waitUntilReady()
-            driver.selectItemByAccessibleName("Project structure categories", "SDKs")
+            if (NoScreen.onScreen) {
+                // On a real display a click right after the dialog opens can leave its first page showing.
+                waitFor("the SDKs page", 30.seconds, 1.seconds) {
+                    driver.selectItemByAccessibleName("Project structure categories", "SDKs")
+                    x("//div[@visible_text='Add New SDK' or @accessiblename='Add New SDK']").present()
+                }
+            } else {
+                driver.selectItemByAccessibleName("Project structure categories", "SDKs")
+            }
             clickButtonText("Add New SDK")
         }
 
