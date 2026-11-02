@@ -204,6 +204,8 @@
 
 ### Bug Fixes
 
+- [#4612](https://github.com/intellij-elixir/intellij-elixir/pull/4612) [@sh41](https://github.com/sh41)
+  - **On Elixir 1.14 and later, the expander no longer stops a `defimpl` that ends in an `EEx.function_from_string` or `EEx.function_from_file` call, and a call it can't run in a parenthesised block no longer makes it run every branch of a `case` or `if` after that call.** Refs [#4577](https://github.com/intellij-elixir/intellij-elixir/issues/4577).
 - [#4598](https://github.com/intellij-elixir/intellij-elixir/pull/4598) [@sh41](https://github.com/sh41)
   - **With "Run the expander" on, a library that holds an old Elixir or Erlang SDK's `ebin` no longer blanks the answers for the SDK modules they share, such as a remote `Kernel` macro.** Refs [#4594](https://github.com/intellij-elixir/intellij-elixir/issues/4594).
 - [#4580](https://github.com/intellij-elixir/intellij-elixir/pull/4580) [@sh41](https://github.com/sh41)
