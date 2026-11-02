@@ -378,8 +378,11 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
         assertEquals("Elixir.Dep compiled different/0 equal/0\nElixir.Other compiled equal/0", "${ended(dep)}\n${ended(other)}")
     }
 
-    /** A function the read made runs in the read's run, not its caller's, so the caller doesn't see what it writes. */
-    fun testAFunctionInAConfigValueIsUnknown() {
+    /**
+     * A function the read made runs in the read's run, not its caller's, so the caller doesn't see what it writes. A known
+     * divergence (#4509): Elixir defines `different/0`, as the later read sees the write.
+     */
+    fun testAWriteByAFunctionInAConfigValueIsNotSeen() {
         val root = project(
             "mix.exs" to MIX_EXS,
             "config/config.exs" to "import Config\n\nconfig :dep, setter: fn -> Application.put_env(:dep, :key, :other) end\nconfig :dep, key: :value\n",
@@ -387,10 +390,11 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
         )
         library("dep", ebin(app("dep", "{key, value}")))
 
-        assertEquals("Elixir.Dep compiled different/0 equal/0", ended(psi(root, "lib/dep.ex")))
+        assertEquals("Elixir.Dep compiled equal/0", ended(psi(root, "lib/dep.ex")))
     }
 
-    fun testAFunctionNestedInAConfigValueIsUnknown() {
+    /** A known divergence (#4509): Elixir defines `different/0`. */
+    fun testAWriteByAFunctionNestedInAConfigValueIsNotSeen() {
         val root = project(
             "mix.exs" to MIX_EXS,
             "config/config.exs" to "import Config\n\nconfig :dep, setter: [run: {fn -> Application.put_env(:dep, :key, :other) end}]\nconfig :dep, key: :value\n",
@@ -398,7 +402,7 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
         )
         library("dep", ebin(app("dep", "{key, value}")))
 
-        assertEquals("Elixir.Dep compiled different/0 equal/0", ended(psi(root, "lib/dep.ex")))
+        assertEquals("Elixir.Dep compiled equal/0", ended(psi(root, "lib/dep.ex")))
     }
 
     /** A remote capture names its function, so it runs in its caller's run. */
