@@ -1,6 +1,10 @@
 package org.elixir_lang.ui.framework.core
 
 import com.intellij.driver.client.Driver
+import com.intellij.driver.client.Remote
+import com.intellij.driver.client.utility
+import com.intellij.driver.sdk.Module
+import com.intellij.driver.sdk.getModules
 import com.intellij.driver.sdk.invokeAction
 import com.intellij.driver.sdk.step
 import com.intellij.driver.sdk.ui.*
@@ -10,6 +14,7 @@ import com.intellij.driver.sdk.ui.components.elements.WindowUiComponent
 import com.intellij.driver.sdk.ui.components.elements.comboBox
 import com.intellij.driver.sdk.ui.components.elements.dialog
 import com.intellij.driver.sdk.waitFor
+import org.elixir_lang.jps.shared.ElixirSdkTypeId.ELIXIR_SDK_TYPE_ID
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -123,3 +128,34 @@ fun WindowUiComponent.addSdkFromDisk(sdkType: String, sdkPath: String, dialogTit
         }
         waitUntilReady()
     }
+
+@Remote("com.intellij.openapi.projectRoots.ProjectJdkTable")
+private interface SdkTable {
+    fun getInstance(): SdkTable
+    fun getAllJdks(): Array<TableSdk>
+}
+
+@Remote("com.intellij.openapi.projectRoots.Sdk")
+private interface TableSdk {
+    fun getSdkType(): TableSdkType
+}
+
+@Remote("com.intellij.openapi.projectRoots.SdkTypeId")
+private interface TableSdkType {
+    fun getName(): String
+}
+
+@Remote("com.intellij.openapi.roots.ModuleRootModificationUtil")
+private interface ModuleSdk {
+    fun setModuleSdk(module: Module, sdk: TableSdk)
+}
+
+/**
+ * Gives every module of the open project the one Elixir SDK in the table, as its module SDK: where a user sets it in
+ * IntelliJ IDEA, and what `ElixirSdkLookup.resolve(module)` reads there. Opening a project leaves its modules with no
+ * Elixir SDK; this is setup, not a gesture under test.
+ */
+fun Driver.assignElixirSdk() = step("Assign the Elixir SDK") {
+    val sdk = utility(SdkTable::class).getInstance().getAllJdks().single { it.getSdkType().getName() == ELIXIR_SDK_TYPE_ID }
+    getModules().forEach { utility(ModuleSdk::class).setModuleSdk(it, sdk) }
+}
