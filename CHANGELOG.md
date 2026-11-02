@@ -844,6 +844,8 @@
 
 ### Build / CI
 
+- [#4617](https://github.com/intellij-elixir/intellij-elixir/pull/4617) [@sh41](https://github.com/sh41)
+  - **The real IDE tests (`./gradlew testUI`) now run every night on CI, and a red run opens or updates one issue, "Nightly UI tests failed".** Fixes [#4614](https://github.com/intellij-elixir/intellij-elixir/issues/4614).
 - [#4613](https://github.com/intellij-elixir/intellij-elixir/pull/4613) [@sh41](https://github.com/sh41)
   - **`./gradlew testUI` runs in free mode with no license, and on Linux with no screen; `CodeIntelligenceTest` checks code intelligence in a real IDE with the expander on and off, recording each run's timings.** Refs [#4607](https://github.com/intellij-elixir/intellij-elixir/issues/4607).
 - [#4608](https://github.com/intellij-elixir/intellij-elixir/pull/4608) [@sh41](https://github.com/sh41)
