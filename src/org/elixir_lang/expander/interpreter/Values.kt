@@ -197,6 +197,10 @@ internal inline fun anyHeld(
     return false
 }
 
+/** Whether a function is held in any of [terms] ([anyHeld]). */
+internal fun holdsAFunction(terms: List<OtpErlangObject>): Boolean =
+    anyHeld(terms) { it is Closure || it is OtpErlangExternalFun }
+
 /** Declines for [reason], each `%s` in which names the next of [terms]. */
 internal fun decline(reason: String, vararg terms: OtpErlangObject): Nothing =
     throw Declined(if (terms.isEmpty()) reason else reason.format(*terms.map { Named(it).text }.toTypedArray()))

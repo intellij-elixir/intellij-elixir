@@ -24,11 +24,12 @@ import org.elixir_lang.psi.ElixirFile
 import java.io.File
 
 /**
- * Ecto's query and Repo macros as the expander expands them and as Elixir's compile of the Mix project in [FIXTURE]
- * does: each `Macro.expand_once/2` step of every function body in `lib/queries.ex`, the functions and macros of its
- * Queries and Repo modules, `Ecto.Repo.Supervisor.compile_config/2` through `lib/probe.ex`'s macro, and the warnings the
- * compile prints. The project's dependencies are those of the leg's lock, which `getEctoFixtureDeps` fetches; a leg
- * whose Elixir has no lock asserts nothing.
+ * Ecto's query, Repo and schema macros as the expander expands them and as Elixir's compile of the Mix project in
+ * [FIXTURE] does: each `Macro.expand_once/2` step of every function body in `lib/queries.ex`, the functions and macros
+ * of its Queries, Repo and schema modules, what a schema's functions return and
+ * `Ecto.Repo.Supervisor.compile_config/2` through `lib/probe.ex`'s macros, and the warnings the compile prints. The
+ * project's dependencies are those of the leg's lock, which `getEctoFixtureDeps` fetches; a leg whose Elixir has no lock
+ * asserts nothing.
  */
 class EctoFixtureTest : HeavyTestCase() {
     private var corpus: PhoenixCorpus? = null
@@ -125,8 +126,9 @@ class EctoFixtureTest : HeavyTestCase() {
         val expected = modules.map { module ->
             val exports = info.get(OtpErlangAtom(module)) as OtpErlangMap
 
-            // The schema module's expansion declines, so the `__schema__(:source)` call Queries' functions make can't be
-            // answered.
+            // `q_no_on`'s `join/4` stops at the `inspect/1` of its `:on` warning, and where Ecto sets `@after_compile
+            // Ecto.Schema` the schemas' exports are unknown, so its calls stop earlier: each leaves the exports unknown.
+            // [testQueriesStoresWhatElixirGives] reads what the module stored.
             if (module == QUERIES) return@map "$module ${ModuleExports.Unreadable}"
 
             "$module functions: ${names(exports.get(OtpErlangAtom("functions")))}; macros: ${names(exports.get(OtpErlangAtom("macros")))}"
@@ -140,6 +142,18 @@ class EctoFixtureTest : HeavyTestCase() {
         }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
+    }
+
+    /** On a leg whose Ecto sets `@after_compile Ecto.Schema`, the schemas' exports are unknown, so Queries' calls stop earlier. */
+    fun testQueriesStoresWhatElixirGives() {
+        val compiled = compiled ?: return
+
+        if (compiled.afterCompile) return
+
+        val info = etf(File(compiled.oracle, "info.etf")) as OtpErlangMap
+        val result = expansion(ProjectModules(project), file(corpus!!, compiled, ASKER)).modules.single()
+
+        assertEquals(exportsIn(info, QUERIES), stored(result))
     }
 
     fun testCompileConfigIsElixirs() {
@@ -169,6 +183,103 @@ class EctoFixtureTest : HeavyTestCase() {
         assertEquals(compared(expanded, compiled), actual)
     }
 
+    /**
+     * Ecto up to 3.12 sets `@after_compile Ecto.Schema`, whose callback the expander doesn't follow, so another file can't
+     * read a schema's exports there; [testEachSchemaStoresWhatElixirGives] reads what its module stored.
+     */
+    fun testEachSchemaExportsWhatElixirGives() {
+        val compiled = compiled ?: return
+        val info = etf(File(compiled.oracle, "info.etf")) as OtpErlangMap
+        val holder = ProjectModules(project)
+        val asker = file(corpus!!, compiled, ASKER)
+
+        val expected = SCHEMAS.map { module ->
+            if (compiled.afterCompile) "$module ${ModuleExports.Unreadable}" else "$module ${exportsIn(info, module)}"
+        }
+        val actual = SCHEMAS.map { module ->
+            when (val exports = exports(holder, asker, module)) {
+                is ModuleExports.Present -> "$module functions: ${names(exports.functions)}; macros: ${names(exports.macros)}"
+                else -> "$module $exports"
+            }
+        }
+
+        assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
+    }
+
+    fun testEachSchemaStoresWhatElixirGives() {
+        val compiled = compiled ?: return
+        val info = etf(File(compiled.oracle, "info.etf")) as OtpErlangMap
+        val structs = etf(File(compiled.oracle, "structs.etf")) as OtpErlangMap
+        val results = expansion(ProjectModules(project), file(corpus!!, compiled, "lib/schema.ex")).modules.associateBy { it.module }
+
+        val expected = SCHEMAS.map { module ->
+            val keys = (structs.get(OtpErlangAtom(module)) as OtpErlangList).elements().map { (it as OtpErlangAtom).atomValue() }
+
+            "$module ${exportsIn(info, module)}; struct: ${keys.joinToString(", ")}"
+        }
+        val actual = SCHEMAS.map { module ->
+            val result = results.getValue(module)
+            val struct = (result.struct as? ModuleStruct.Present)?.fields?.sorted()?.joinToString(", ") ?: "${result.struct}"
+
+            "$module ${stored(result)}; struct: $struct"
+        }
+
+        assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
+    }
+
+    /** `__struct__/0`, `__changeset__/0` and `__schema__/1,2` as a macro's body calls them, so the expander's answer is a value. */
+    fun testEachCallOfASchemasFunctionsIsElixirs() {
+        val compiled = compiled ?: return
+
+        // Their exports can't be read, as testEachSchemaExportsWhatElixirGives says.
+        if (compiled.afterCompile) return
+
+        val calls = (etf(File(compiled.oracle, "calls.etf")) as OtpErlangList).elements().map { it as OtpErlangTuple }
+        val expected = calls.map {
+            // `:erlang.phash2/1` of the schema's fields, whose value the expander can't match.
+            val answer = if (HASH in inspect(it.elementAt(0))) "opaque $CALLED" else compared(it.elementAt(1), compiled)
+
+            "${inspect(it.elementAt(0))} $answer"
+        }
+        val actual = called(compiled, calls.map { it.elementAt(0) }).zip(calls) { answer, call -> "${inspect(call.elementAt(0))} $answer" }
+
+        assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
+    }
+
+    fun testCanAwaitModuleCompilationIsTheCompiles() {
+        val compiled = compiled ?: return
+        val (call, expanded) = (etf(File(compiled.oracle, "can_await.etf")) as OtpErlangTuple).elements()
+
+        assertEquals("true", inspect(expanded))
+        assertEquals(compared(expanded, compiled), called(compiled, listOf(call)).single())
+    }
+
+    /** It pins that such a module is left unknown, not wrong, until `Module.create/3` is answered. */
+    fun testAnInlineEmbedStopsItsModule() {
+        val compiled = compiled ?: return
+        val corpus = corpus!!
+        val holder = ProjectModules(project)
+        val inline = file(corpus, compiled, "lib/inline.ex")
+        val result = expansion(holder, inline).modules.single()
+        val ended = result.ended as ExpansionResult.Ended.Stopped
+
+        assertEquals("embedded_schema do", inline.text.substring(ended.at.meta.origin.startOffset).substringBefore("\n"))
+        assertEquals(ModuleExports.Unreadable, exports(holder, file(corpus, compiled, ASKER), INLINE))
+    }
+
+    /** It pins that nothing tells the expander of a module a `__deriving__` macro defines, where Elixir has loaded it. */
+    fun testADerivedImplementationIsAbsent() {
+        val compiled = compiled ?: return
+        val holder = ProjectModules(project)
+        val asker = file(corpus!!, compiled, ASKER)
+        val derived = etf(File(compiled.oracle, "derived.etf")) as OtpErlangMap
+
+        for (module in DERIVED) {
+            assertEquals(module, OtpErlangAtom(true), derived.get(OtpErlangAtom(module)))
+            assertEquals(module, ModuleExports.Absent, exports(holder, asker, module))
+        }
+    }
+
     /** Each warning as its message and where it is reported, as Elixir prints a warning given a stacktrace. */
     fun testTheWarningsAreTheCompilesInTextAndLocation() {
         val compiled = compiled ?: return
@@ -194,14 +305,48 @@ class EctoFixtureTest : HeavyTestCase() {
     private fun file(corpus: PhoenixCorpus, compiled: Compiled, path: String): ElixirFile =
         corpus.psi(File(compiled.project, path)) ?: error("no Elixir file at $path")
 
-    /** The fixture compiled in [project], with its dependencies, and what Elixir's oracle scripts wrote in [oracle]. */
-    private class Compiled(val project: File, val stderr: String, val oracle: File)
+    /** What expanding each of [calls], `lib/probe.ex`'s macros, once gives. */
+    private fun called(compiled: Compiled, calls: List<OtpErlangObject>): List<String> {
+        val corpus = corpus!!
+        val level = legLevel()
+        val asker = file(corpus, compiled, ASKER)
+        val holder = ProjectModules(project)
+        val empty = Env.empty(level, legKernel)
+        val env = empty.copy(requires = (empty.requires + PROBE).distinct().sorted())
+
+        return corpus.read {
+            val run = Run(
+                level,
+                ExpansionObserver.NONE,
+                { holder.exports(asker, it, legInputs) },
+                { holder.struct(asker, it, legInputs) },
+                legAppEnv(),
+                clauses = { holder.clauses(asker, it, legInputs) },
+            )
+
+            calls.map { described(macroExpandOnce(ElixirAst.fromOtp(it, TextRange.EMPTY_RANGE)!!, ExState.empty(level), env, run), compiled) }
+        }
+    }
+
+    /**
+     * The fixture compiled in [project], with its dependencies, and what Elixir's oracle scripts wrote in [oracle].
+     * [afterCompile] is whether the leg's Ecto sets `@after_compile Ecto.Schema`.
+     */
+    private class Compiled(val project: File, val stderr: String, val oracle: File, val afterCompile: Boolean)
 
     private companion object {
         val FIXTURE: File = File("testData/org/elixir_lang/expander/ecto").absoluteFile
         const val QUERIES = "Elixir.EctoFixture.Queries"
         const val REPO = "Elixir.EctoFixture.Repo"
         const val PROBE = "Elixir.EctoFixture.Probe"
+        const val INLINE = "Elixir.EctoFixture.Inline"
+        const val CALLED = "EctoFixture.Probe.called/3"
+        const val HASH = ":hash"
+
+        /** Not lib/probe.ex or lib/schema.ex, whose own modules are compiling, so not loaded, while it asks. */
+        const val ASKER = "lib/queries.ex"
+        val SCHEMAS = listOf("Comment", "Post", "Tag", "Author", "Book").map { "Elixir.EctoFixture.$it" }
+        val DERIVED = listOf("Tag", "Author", "Book").map { "Elixir.Inspect.EctoFixture.$it" }
         const val UNEXPANDED = "unexpanded"
         const val MISSING_ON = "missing `:on` in join"
         const val WARNING = "warning: "
@@ -247,13 +392,26 @@ class EctoFixtureTest : HeavyTestCase() {
                 MixProcess.run(project, environment + ("ECTO_FIXTURE_ORACLE" to oracle.path), listOf("run", "--no-start", "--no-compile", "oracle/$script"))
             }
 
-            return Compiled(project, stderr, oracle)
+            return Compiled(project, stderr, oracle, etf(File(oracle, "after_compile.etf")) == OtpErlangAtom(true))
         }
 
         fun property(name: String): String =
             System.getProperty(name) ?: throw AssertionError("This test needs the system property $name, which Gradle's `test` sets.")
 
         fun etf(file: File): OtpErlangObject = binaryToTerm(file.readBytes(), 0).first
+
+        /** The functions and macros [result] stored, as [exportsIn] gives Elixir's. */
+        fun stored(result: ExpansionResult): String {
+            val named = { kind: DefinitionTable.Kind -> names(result.table.entries.filterValues { it.kind == kind }.keys.toList()) }
+
+            return "functions: ${named(DefinitionTable.Kind.DEF)}; macros: ${named(DefinitionTable.Kind.DEFMACRO)}"
+        }
+
+        fun exportsIn(info: OtpErlangMap, module: String): String {
+            val exports = info.get(OtpErlangAtom(module)) as OtpErlangMap
+
+            return "functions: ${names(exports.get(OtpErlangAtom("functions")))}; macros: ${names(exports.get(OtpErlangAtom("macros")))}"
+        }
 
         fun names(term: OtpErlangObject): String =
             names((term as OtpErlangList).elements().map { NameArity.from(it)!! })

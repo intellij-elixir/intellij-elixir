@@ -93,7 +93,8 @@ internal class ExpansionProbes(
      * @property starts the state and env each of [statements] was expanded from
      * @property traces each dispatch, quoted import and struct expansion the expander reported, as [DispatchEvents]
      *   keys it, in order, up to where it stopped
-     * @property macro the key of the macro dispatch [outcome] stopped at, if it did
+     * @property macro the key of the macro dispatch [outcome] stopped at, if it did; one the module went past, a
+     *   `__deriving__`, has none, and [compareUpToMacro] takes it from Elixir's events
      * @property tagRanges where the statement each statement probe follows is in the case body
      * @property definitions where each `def*` call is in the case body
      * @property unordered whether the comparison stops at a body Elixir may expand elsewhere
@@ -353,10 +354,10 @@ internal class ExpansionProbes(
     }
 
     /**
-     * Compares each of [cases], which stop at [Expansion.Opaque], with Elixir up to the macro, compiled together, or
-     * alone if that fails: the probes Elixir delivers before the macro's statement in the body it is in, and those the
-     * expander reached, equal the expander's steps, and the traces equal the leg's events up to and including the
-     * first macro event on the macro's line. What follows the macro isn't compared.
+     * Compares each of [cases], which stop at [Expansion.Opaque] or go on past a `__deriving__` macro, with Elixir up to
+     * the macro, compiled together, or alone if that fails: the probes Elixir delivers before the macro's statement in the
+     * body it is in, and those the expander reached, equal the expander's steps, and the traces equal the leg's events up
+     * to and including the first macro event on the macro's line. What follows the macro isn't compared.
      */
     fun assertMatchesElixirUpToMacro(cases: Map<String, CaseExpansion>) = assertSame(compareUpToMacro(cases).values)
 
@@ -377,20 +378,22 @@ internal class ExpansionProbes(
 
             names.forEachIndexed { position, name ->
                 val (expansion, attempt, index) = attempts[position]
-                val tags = expansion.steps.map { it.tag }.toSet()
-                val before = beforeMacro(expansion)
+                val events = events(attempt, index)
+                val derive = upToDerive(expansion, events)
+                val steps = derive?.steps ?: expansion.steps
+                val tags = steps.map { it.tag }.toSet()
+                val before = derive?.before ?: beforeMacro(expansion)
                 val observed = attempt.batch.observations.filter {
                     it.tag.case == index && it.tag.copy(case = 0).let { tag -> tag in tags || before(tag) }
                 }
-                val macro = expansion.macro ?: "not opaque: ${expansion.outcome}"
-                val events = events(attempt, index)
+                val macro = derive?.macro ?: expansion.macro ?: "not opaque: ${expansion.outcome}"
                 val line = DispatchEvents.line(macro)
                 val end = events.indexOf(macro).takeIf { it >= 0 }
                     ?: events.indexOfFirst { DispatchEvents.isMacro(it) && DispatchEvents.line(it) == line }
                 val prefix = if (end < 0) events + "no macro event on line $line" else events.take(end + 1)
 
                 comparisons[name] = Comparison(
-                    render(name, expansion.steps) + "\n" + (expansion.traces + macro).joinToString("\n"),
+                    render(name, steps) + "\n" + ((derive?.traces ?: expansion.traces) + macro).joinToString("\n"),
                     render(name, observed, attempt.batch.probeModule, delivered(attempt, index)) + "\n" +
                         prefix.joinToString("\n"),
                 )
@@ -432,13 +435,50 @@ internal class ExpansionProbes(
     private fun renderTraces(body: String, traces: List<String>) =
         "== ${body.replace("\n", "; ")}\n" + traces.joinToString("") { "  $it\n" }
 
+    /** What [CaseExpansion]'s module, which went on past a `__deriving__` macro, did before the [macro] Elixir expands. */
+    private class UpToDerive(val macro: String, val steps: List<Step>, val traces: List<String>, val before: (Tag) -> Boolean)
+
+    /**
+     * [expansion] cut at the first `__deriving__` of [events], where nothing stopped it to name the macro, or `null`
+     * where something did or Elixir expands none. Elixir expands the whole body, then expands it as the body runs, before
+     * the definitions the statement's output stores and after the earlier ones, so the steps of what follows the statement
+     * go, and the traces in a function from its line on, while those of the later statements in the body stay.
+     */
+    private fun upToDerive(expansion: CaseExpansion, events: List<String>): UpToDerive? {
+        if (expansion.macro != null) return null
+
+        val macro = events.firstOrNull { ".__deriving__/" in it } ?: return null
+        val line = DispatchEvents.line(macro) ?: return null
+        val body = expansion.case.body
+        val lineAt = { offset: Int -> body.substring(0, offset).count { it == '\n' } + 1 }
+        val statement = expansion.tagRanges.values
+            .filter { lineAt(it.startOffset) <= line && line <= lineAt(it.endOffset - 1) }
+            .maxByOrNull { it.length }
+            ?: return null
+        val first = lineAt(statement.startOffset)
+
+        return UpToDerive(
+            macro,
+            expansion.steps.filter { it.offset < statement.startOffset },
+            expansion.traces.filterNot { trace ->
+                " in " in trace && DispatchEvents.line(trace).let { it == null || it >= first }
+            },
+            before(expansion, statement),
+        )
+    }
+
     /**
      * Whether Elixir delivers a tag's probe before [expansion]'s macro: it is in the body the macro is in, in a
      * statement before the macro's, and not in a definition or module nested there, whose body Elixir expands later.
      */
     private fun beforeMacro(expansion: CaseExpansion): (Tag) -> Boolean {
         val opaque = expansion.outcome as? Expansion.Opaque ?: return { false }
-        val at = expansion.range(opaque.at)
+
+        return before(expansion, expansion.range(opaque.at))
+    }
+
+    /** [beforeMacro] for the macro at [at] in the case body. */
+    private fun before(expansion: CaseExpansion, at: TextRange): (Tag) -> Boolean {
         // The case module's own body is the first unit.
         val nested = units(expansion.result).drop(1).map { expansion.range(it.node) }
         val body = nested.filter { it.contains(at) }.minByOrNull { it.length }
@@ -1176,12 +1216,10 @@ internal class ExpansionProbes(
             val bodyEnd = result.units.firstOrNull()?.let { leftAt[it.node] }?.let { end -> serials.count { it < end } }
                 ?: steps.size
             val unorderedRanges = units(result).filterNot { it.ordered }.map { it.node.meta.origin.shiftLeft(start) }
-            val walked = walkedStop(result)
-            val stopping = stop ?: walked
-            val stopped = stopping != null && result.ended.let {
+            val stopped = stop != null && result.ended.let {
                 it is Ended.Stopped || it is Ended.Raised || it is Ended.Crashed
             }
-            val stopAt = at(stopping)?.meta?.origin?.shiftLeft(start)
+            val stopAt = at(stop)?.meta?.origin?.shiftLeft(start)
             // A body that isn't ordered can stop before any step is taken in it.
             val unordered = (bodyEnd until steps.size).firstOrNull { index ->
                 unorderedRanges.any { it.contains(steps[index].offset) }
@@ -1190,7 +1228,7 @@ internal class ExpansionProbes(
             val outcome = when (val ended = result.ended) {
                 is Ended.Raised -> ended.error
                 is Ended.Crashed -> ended.error
-                is Ended.Stopped -> stopping ?: Expansion.Unported(ended.at)
+                is Ended.Stopped -> stop ?: Expansion.Unported(ended.at)
                 Ended.Compiled, Ended.Tainted -> result.units.first().expansion
             }
 
@@ -1206,49 +1244,13 @@ internal class ExpansionProbes(
                 statements,
                 starts,
                 if (stopped) signed.take(signedStop) else signed,
-                (macro ?: walked?.let { DispatchEvents.key(it.at, it.dispatch, macroDefinedBy(result, it), bodyLine) })
-                    .takeIf { stopped },
+                macro.takeIf { stopped },
                 shape.tagRanges,
                 shape.definitions,
                 unordered != null && unordered == cut,
                 origin,
             )
         }
-
-        /**
-         * The [Expansion.Opaque] the walk stopped the module at, when no node's expansion did: an effect's, such as a
-         * `defstruct` whose `@derive` names a protocol with a `__deriving__` macro. Elixir expands that macro when the
-         * module body runs, before the definitions the call's output stores and after the earlier ones, so the stop
-         * follows the steps before the call's statement, including those of the definitions the walk stored first,
-         * and the traces before the first of a definition from there.
-         */
-        private fun walkedStop(result: ExpansionResult): Expansion.Opaque? {
-            val ended = result.ended as? Ended.Stopped ?: return null
-            val opaque = result.opaque.firstOrNull { it.at === ended.at }?.takeIf { stop == null } ?: return null
-            val offset = opaque.at.meta.origin.startOffset - start
-
-            // The statements from the call on were probed before the walk reached it, but Elixir takes them after.
-            val (later, earlier) = steps.indices.partition { steps[it].offset >= offset }
-            val order = earlier + later
-            val reordered = order.map { steps[it] }
-            val serialised = order.map { serials[it] }
-
-            steps.clear()
-            steps.addAll(reordered)
-            serials.clear()
-            serials.addAll(serialised)
-            stopSteps = earlier.size
-            stopTraces = sites.indexOfFirst { (site, function) -> function != null && site >= opaque.at.meta.origin.startOffset }
-                .takeIf { it >= 0 } ?: traces.size
-
-            return opaque
-        }
-
-        /** The macro [opaque]'s call defines, in whose body Elixir expands the macro [opaque] stops at, if it does. */
-        private fun macroDefinedBy(result: ExpansionResult, opaque: Expansion.Opaque): NameArity? =
-            result.table.entries.entries.firstOrNull { (_, entry) ->
-                entry.kind.macro && opaque.at.meta.origin.contains(entry.at.meta.origin.startOffset)
-            }?.key
 
         /**
          * [traces] with the `@` reads `Module.compile_definition_attributes/6` makes again once each public clause

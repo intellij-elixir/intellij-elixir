@@ -1496,7 +1496,6 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
     var warningsFrom = run.warnings.size
     val units = mutableListOf<ExpansionResult.Unit>()
     val nested = mutableListOf<ExpansionResult>()
-    val effectOpaque = mutableListOf<Expansion.Opaque>()
 
     run.pending = mutableListOf()
     run.counters.start(name)
@@ -1634,7 +1633,6 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
 
                 val applied = pending.apply(compiling, pending.ordered, bindings)
 
-                (applied as? Expansion.Opaque)?.let(effectOpaque::add)
                 queue.addAll(0, pending.queued())
                 values.givenBy(pending.node)?.let { stepping.value = it }
                 applied
@@ -1760,7 +1758,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
         errors,
         warnings,
         ended,
-        units.mapNotNull { it.expansion as? Expansion.Opaque } + effectOpaque,
+        units.mapNotNull { it.expansion as? Expansion.Opaque },
         run.consulted.subList(consultedFrom, run.consulted.size).toSet(),
         nested,
         compiling.log,

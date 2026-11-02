@@ -164,6 +164,10 @@ class DefstructMacroTest : ExpanderTestCase() {
     fun testAnyOtherCaptureStopsTheModule() =
         assertLevels("defmodule A do\n  defstruct f: &String.upcase(&1)\nend", LEVELS) { stopped(it, "defstruct f: &String.upcase(&1)") }
 
+    /** Elixir raises at a `fn` a default holds, which isn't followed from its value: the module is left unknown. */
+    fun testAClosureHeldAsADefaultStopsTheModule() =
+        assertLevels("defmodule A do\n  f = fn -> 1 end\n  fields = [a: f]\n  defstruct fields\nend", LEVELS) { stopped(it, "defstruct fields", 4) }
+
     fun testASecondDefstructRaises() =
         assertEvery(
             "defmodule A do\n  defstruct [:a]\n  defstruct [:b]\nend",

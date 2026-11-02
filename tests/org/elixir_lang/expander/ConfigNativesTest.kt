@@ -140,12 +140,35 @@ class ConfigNativesTest : PlatformTestCase() {
         assertEquals("[]", result("import Config\n\n:ok"))
     }
 
+    /** A config read doesn't run in a process Elixir's parallel compiler spawned, so a missing module isn't awaited. */
+    fun testEnsureCompiledOfAMissingModuleInAReadIsNofile() {
+        assertEquals("[{app,[{k,{error,nofile}}]}]", config("import Config\n\nconfig :app, k: Code.ensure_compiled(Missing)\n"))
+    }
+
+    /** An `.exs` file may run on its own or in the compiler's process, so whether a missing module is awaited isn't known. */
+    fun testEnsureCompiledOfAMissingModuleInAScriptIsUnknown() {
+        assertEquals(
+            "compiled [nofile/0, other/0]",
+            body(
+                "x = Code.ensure_compiled(Missing)\nif x == {:error, :nofile}, do: def(nofile, do: 1)\nif x != {:error, :nofile}, do: def(other, do: 1)",
+                "/p/script.exs",
+            ),
+        )
+    }
+
+    fun testWhetherAScriptCanAwaitModuleCompilationIsUnknown() {
+        assertEquals(
+            "compiled [no/0, yes/0]",
+            body("x = Code.can_await_module_compilation?()\nif x, do: def(yes, do: 1)\nif !x, do: def(no, do: 1)", "/p/script.exs"),
+        )
+    }
+
     /** With no files to read through, as a run without a project has none, `File.exists?` can't answer. */
     fun testFileExistsWithoutTheRunsFilesDeclines() {
         assertEquals("both", declines("File.exists?(\"/nope.exs\")"))
     }
 
-    private fun run(code: String, read: ConfigRead?, level: ElixirLanguageLevel = legLevel()): FileExpansion {
+    private fun run(code: String, read: ConfigRead?, level: ElixirLanguageLevel = legLevel(), path: String? = null): FileExpansion {
         val file = ReadAction.computeBlocking<ElixirFile, Throwable> {
             PsiFileFactory.getInstance(project).createFileFromText("config.exs", ElixirLanguage, code) as ElixirFile
         }
@@ -158,6 +181,7 @@ class ConfigNativesTest : PlatformTestCase() {
             legExports,
             legStructs,
             NO_APP_ENV,
+            file = { path },
             clauses = sdk,
             config = read,
         )
@@ -188,9 +212,9 @@ class ConfigNativesTest : PlatformTestCase() {
         return if (table.unknown) "unknown" else table.config.toString()
     }
 
-    /** How a module with [statements] as its body ended outside a read, with what it defined. */
-    private fun body(statements: String): String {
-        val expansion = run("defmodule A do\n$statements\nend\n", null)
+    /** How a module with [statements] as its body ended outside a read, in the file at [path], with what it defined. */
+    private fun body(statements: String, path: String? = null): String {
+        val expansion = run("defmodule A do\n$statements\nend\n", null, path = path)
         val result = expansion.modules.single()
 
         return "${result.ended::class.simpleName!!.lowercase()} ${result.table.entries.keys.map { "${it.name}/${it.arity}" }.sorted()}"

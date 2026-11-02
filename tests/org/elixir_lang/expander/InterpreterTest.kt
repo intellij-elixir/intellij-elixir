@@ -5459,6 +5459,12 @@ class InterpreterTest : PlatformTestCase() {
             ),
             macro("native:ensure-loaded-function-clause", "defmacro m, do: :code.ensure_loaded(1)"),
             macro("native:whereis-of-non-atom", "defmacro m, do: (_ = :erlang.whereis(123); :ok)"),
+            macro("native:phash2-discarded", "defmacro m, do: (_ = :erlang.phash2(:a); :ok)"),
+            // The hash's value can't match Elixir's.
+            macro("native:phash2-returned", "defmacro m, do: :erlang.phash2(:a)", pins = DECLINED),
+            macro("native:phash2-2", "defmacro m, do: (_ = :erlang.phash2(:a, 7); :ok)", pins = DECLINED),
+            // `Kernel.ErrorHandler.ensure_compiled` waits on the compile, which isn't modelled.
+            macro("native:ensure-compiled-absent", "defmacro m, do: Macro.escape(Code.ensure_compiled({row}.Missing))", pins = DECLINED),
             // From source, a module whose definitions aren't known can't be read.
             macro(
                 "native:ensure-loaded-unreadable",
@@ -8771,6 +8777,90 @@ class InterpreterTest : PlatformTestCase() {
                 defmodule {row}.E do
                   f = [message: "boom", code: 7]
                   defexception f
+                end
+                """,
+            ),
+            // A default held only as a value, which no written node shows.
+            macro(
+                "body:defstruct-map-default-binding",
+                "defmacro m, do: Macro.escape({row}.MB.__struct__())",
+                pins = { source, level ->
+                    DECLINED_FROM_SOURCE(source, level)?.takeUnless { DEFSTRUCT_ESCAPES_STRUCT.isSufficient(level) }
+                },
+                unordered = true,
+                helper = """
+                defmodule {row}.MB do
+                  fields = [a: %{b: 1}, c: [%{d: :e}]]
+                  defstruct fields
+                end
+                """,
+            ),
+            macro(
+                "body:defstruct-map-default-attribute",
+                "defmacro m, do: Macro.escape({row}.MA.__struct__())",
+                pins = { source, level ->
+                    DECLINED_FROM_SOURCE(source, level)?.takeUnless { DEFSTRUCT_ESCAPES_STRUCT.isSufficient(level) }
+                },
+                unordered = true,
+                helper = """
+                defmodule {row}.MA do
+                  @fields [a: %{b: 1}]
+                  defstruct @fields
+                end
+                """,
+            ),
+            macro(
+                "body:defstruct-map-default-written",
+                "defmacro m, do: Macro.escape({row}.MW.__struct__())",
+                pins = { source, level ->
+                    DECLINED_FROM_SOURCE(source, level)?.takeUnless { DEFSTRUCT_ESCAPES_STRUCT.isSufficient(level) }
+                },
+                unordered = true,
+                helper = """
+                defmodule {row}.MW do
+                  x = 1
+                  defstruct a: %{b: x}
+                end
+                """,
+            ),
+            // Elixir compiles this default, while a function isn't followed from its value: the module is left unknown.
+            macro(
+                "body:defstruct-map-default-external-capture",
+                "defmacro m, do: Macro.escape({row}.ME.__struct__())",
+                pins = CALLS_A_STOPPED_MODULE,
+                unordered = true,
+                helper = """
+                defmodule {row}.ME do
+                  f = &String.upcase/1
+                  fields = [a: f]
+                  defstruct fields
+                end
+                """,
+            ),
+            macro(
+                "body:defstruct-map-default-unknown",
+                "defmacro m, do: Macro.escape({row}.MU.__struct__())",
+                pins = CALLS_A_STOPPED_MODULE,
+                unordered = true,
+                helper = """
+                defmodule {row}.MU do
+                  fields = [a: :erlang.whereis(:no_such_process)]
+                  defstruct fields
+                end
+                """,
+            ),
+            macro(
+                "body:attribute-closure",
+                "defmacro m, do: {row}.AH.r()",
+                helper = """
+                defmodule {row}.AC do
+                  def g(module), do: Module.get_attribute(module, :f)
+                end
+
+                defmodule {row}.AH do
+                  @f fn x -> x end
+                  @r {row}.AC.g(__MODULE__).(1)
+                  def r, do: @r
                 end
                 """,
             ),
