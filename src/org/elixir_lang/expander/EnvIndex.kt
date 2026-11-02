@@ -14,6 +14,12 @@ internal class EnvIndex(private val top: Env) {
         /** Where its expansion stopped, at an error or at what isn't ported: that node's start, or `null`. */
         var stop: Int? = null
 
+        /** The first stop left here. A macro's output shares this origin, and a unit it queued can stop after the output. */
+        var stopped: Expansion.Stop? = null
+
+        /** [stopped]'s env when this node was left; a stamp further out is not this level's. */
+        var stopEnv: Env? = null
+
         /** Where the run left the module this `defmodule` defines uncompiled: its body's start, or `null`. */
         var uncompiled: Int? = null
 
@@ -36,13 +42,18 @@ internal class EnvIndex(private val top: Env) {
     }
 
     fun left(node: ElixirAst, expansion: Expansion) {
+        if (expansion !is Expansion.Stop) return
         val at = when (expansion) {
             is Expansion.Error -> expansion.at
             is Expansion.Unported -> expansion.at
-            else -> return
         }
         val origin = node.meta.origin
-        byRange[key(origin.startOffset, origin.endOffset)]?.stop = at.meta.origin.startOffset
+        val entry = byRange[key(origin.startOffset, origin.endOffset)] ?: return
+        entry.stop = at.meta.origin.startOffset
+        if (entry.stopped == null || entry.stopped === expansion) {
+            entry.stopped = expansion
+            entry.stopEnv = expansion.envAtStop
+        }
     }
 
     /** [defmodule]'s module was never compiled, so nothing in its [body] was reached. */
@@ -53,14 +64,14 @@ internal class EnvIndex(private val top: Env) {
 
     /**
      * The env of the innermost node entered whose origin contains [range]. Where none was, as for a `defmodule` Elixir
-     * compiles directly, the [top] env. A node after a stop in that node takes the env the stopped node was entered in,
-     * which the nodes before it left.
+     * compiles directly, the [top] env. A node after a stop in that node takes the env as it stood at the stop, or, where
+     * the stop held none when the stopped node was left, the env that node was entered in.
      */
     fun at(range: TextRange): Env {
         byRange[key(range.startOffset, range.endOffset)]?.let { return it.env }
         val enclosing = enclosing(range) ?: return top
 
-        return enclosing.before?.takeIf { it.stop != null }?.env ?: enclosing.entry.env
+        return enclosing.before?.takeIf { it.stop != null }?.let { it.stopEnv ?: it.env } ?: enclosing.entry.env
     }
 
     /**

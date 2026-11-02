@@ -47,11 +47,10 @@ class EnvIndexTest : PlatformTestCase() {
     }
 
     /**
-     * A node after a stop, in the node the stopping statement is in, takes the env that statement was entered in, which
-     * the statements before it left; one a nested scope made is not in it. A module that raises ends its file, so each
-     * stop is in a file of its own.
+     * A node after a stop, in the node the stopping statement is in, takes the env as it stood at the stop; one a nested
+     * scope made is not in it. A module that raises ends its file, so each stop is in a file of its own.
      */
-    fun testANodeAfterAStopTakesTheEnvOfItsStoppingStatement() {
+    fun testANodeAfterAStopTakesTheEnvAtTheStop() {
         val inputs = inputs("1.20.4")
         val byAlias = file(
             "by_alias.ex",
@@ -72,6 +71,103 @@ class EnvIndexTest : PlatformTestCase() {
         assertEquals("aliases [Elixir.E] imports []", directives(inBody, "E.f(x)", inputs))
         assertEquals("aliases [Elixir.D] imports []", directives(inIf, "D.f(x)", inputs))
     }
+
+    fun testAStopInAUsesOutput_1_20_4() = assertAStopInAUsesOutput("1.20.4")
+
+    fun testAStopInAUsesOutput_1_11_4() = assertAStopInAUsesOutput("1.11.4")
+
+    private fun assertAStopInAUsesOutput(version: String) =
+        assertFollower("aliases [] imports [Elixir.String]", "import String; import S", version = version)
+
+    fun testARaiseInAUsesOutput() = assertFollower("aliases [] imports [Elixir.String]", "import String; 1.f()")
+
+    fun testAnAliasBeforeAStopInAUsesOutput() = assertFollower(
+        "aliases [Elixir.D] imports []",
+        "alias T, as: D; import S",
+        follower = "def g(x), do: D.f(x)",
+        at = "D.f(x)",
+    )
+
+    fun testAStopInANestedOutput_1_20_4() = assertAStopInANestedOutput("1.20.4")
+
+    fun testAStopInANestedOutput_1_11_4() = assertAStopInANestedOutput("1.11.4")
+
+    private fun assertAStopInANestedOutput(version: String) = assertFollower(
+        "aliases [] imports [Elixir.String, Elixir.Integer]",
+        "use V; unquote(helpers())",
+        helpers = "import String; import S",
+        version = version,
+    )
+
+    fun testAStopAfterANestedOutput() = assertFollower("aliases [] imports [Elixir.Integer]", "use V; import S")
+
+    fun testAUnitAfterTheBodyStoppedLeavesItsEnvAlone() = assertFollower(
+        "aliases [] imports [Elixir.Integer]",
+        "import Integer; def f do import String; import S end; import S",
+    )
+
+    fun testADefBodyInAMacrosOutput() =
+        assertFollower("aliases [] imports []", "def f do import String; import S end")
+
+    fun testADefBodyInAMacrosOutputThenAStopInTheNextDef() {
+        val inputs = inputs("1.20.4")
+        val file = using("def f do import String; import S end", "def g do import S; trim(\" \") end; def h, do: upcase(\" \")")
+
+        assertSIsStopped(file, inputs)
+        assertEquals("aliases [] imports []", directives(file, "trim(\" \")", inputs))
+        assertEquals("aliases [] imports []", directives(file, "upcase(\" \")", inputs))
+    }
+
+    fun testAFollowerInABranchAfterAStopKeepsTheBranch() {
+        val inputs = inputs("1.20.4")
+        val file = source("import Integer; if true do import String; import S; trim(\" \") end")
+
+        assertSIsStopped(file, inputs)
+        assertEquals("aliases [] imports [Elixir.String, Elixir.Integer]", directives(file, "trim(\" \")", inputs))
+    }
+
+    fun testAFollowerAfterANestedStopInABranch() {
+        val inputs = inputs("1.20.4")
+        val file = source(
+            "import Integer; if true do import String; if true do import Float; import S end; trim(\" \") end; upcase(\" \")",
+        )
+
+        assertSIsStopped(file, inputs)
+        assertEquals("aliases [] imports [Elixir.String, Elixir.Integer]", directives(file, "trim(\" \")", inputs))
+        assertEquals("aliases [] imports [Elixir.Integer]", directives(file, "upcase(\" \")", inputs))
+    }
+
+    fun testAnIfInAUsesOutput_1_20_4() = assertAScopeInAUsesOutput("if true do import String; import S end", "1.20.4")
+
+    fun testAnIfInAUsesOutput_1_11_4() = assertAScopeInAUsesOutput("if true do import String; import S end", "1.11.4")
+
+    fun testACaseInAUsesOutput() = assertAScopeInAUsesOutput("case 1 do _ -> import String; import S end")
+
+    fun testACondInAUsesOutput() = assertAScopeInAUsesOutput("cond do true -> import String; import S end")
+
+    fun testAFnInAUsesOutput() = assertAScopeInAUsesOutput("_ = fn -> import String; import S end")
+
+    fun testAForInAUsesOutput() = assertAScopeInAUsesOutput("for _ <- [1] do import String; import S end")
+
+    fun testATryInAUsesOutput() = assertAScopeInAUsesOutput("try do import String; import S after :ok end")
+
+    fun testAWithInAUsesOutput() = assertAScopeInAUsesOutput("with _ <- 1 do import String; import S end")
+
+    fun testAReceiveInAUsesOutput() =
+        assertAScopeInAUsesOutput("receive do _ -> import String; import S after 0 -> :ok end")
+
+    private fun assertAScopeInAUsesOutput(construct: String, version: String = "1.20.4") =
+        assertFollower("aliases [] imports [Elixir.Integer]", "import Integer; $construct", version = version)
+
+    fun testACaseSubjectInAUsesOutputPassesOn() = assertFollower(
+        "aliases [] imports [Elixir.String, Elixir.Integer]",
+        "import Integer; case (import String; 1) do _ -> import Float; import S end",
+    )
+
+    fun testAStopInACaseSubjectInAUsesOutput() = assertFollower(
+        "aliases [] imports [Elixir.String, Elixir.Integer]",
+        "import Integer; case (import String; import S) do _ -> :ok end",
+    )
 
     fun testAtReachedIsNullAfterAStop() {
         val inputs = inputs("1.20.4")
@@ -107,6 +203,37 @@ class EnvIndexTest : PlatformTestCase() {
         return "aliases ${env.aliases.map { it.alias }} imports ${env.functions.map { it.module }.filter { it != "Elixir.Kernel" }}"
     }
 
+    /** Asserts [expected] from [directives] at [at] in [follower], after a `use` whose output is [output]. */
+    private fun assertFollower(
+        expected: String,
+        output: String,
+        follower: String = "def g, do: trim(\" \")",
+        at: String = "trim(\" \")",
+        helpers: String? = null,
+        version: String = "1.20.4",
+    ) {
+        val inputs = inputs(version)
+        val file = using(output, follower, helpers)
+
+        if ("import S" in output || "import S" in helpers.orEmpty()) assertSIsStopped(file, inputs)
+        assertEquals(expected, directives(file, at, inputs))
+    }
+
+    private fun assertSIsStopped(file: ElixirFile, inputs: ProjectModules.Inputs) {
+        val s = holder.expansion(file, inputs).modules.single { it.module == "Elixir.S" }
+
+        assertTrue("${s.ended}", s.ended is ExpansionResult.Ended.Stopped)
+    }
+
+    private fun using(output: String, follower: String, helpers: String? = null): ElixirFile = file(
+        "$name.ex",
+        "$S\n$V\ndefmodule U do\n  ${helpers?.let { "defp helpers, do: quote(do: ($it))" }.orEmpty()}\n" +
+            "  defmacro __using__(_) do\n    quote do\n      $output\n    end\n  end\nend\n" +
+            "defmodule M do\n  use U\n  $follower\nend\n",
+    )
+
+    private fun source(body: String): ElixirFile = file("$name.ex", "$S\ndefmodule M do\n  $body\nend\n")
+
     private fun assertEveryUseHasTheReexpansionsEnv(inputs: ProjectModules.Inputs) {
         val files = listOf("psi/callable_declaration", "snapshot/inputs").flatMap { directory ->
             val root = myFixture.copyDirectoryToProject(directory, directory)
@@ -129,14 +256,14 @@ class EnvIndexTest : PlatformTestCase() {
     /**
      * The env of the innermost node containing [range] that an expansion of [file] stopping at [range] enters. Where the
      * expansion doesn't reach [range], and the last node it entered before [range] in that one stopped, as at an error
-     * that ends the module, the env that node was entered in, as [testANodeAfterAStopTakesTheEnvOfItsStoppingStatement]
-     * pins.
+     * that ends the module, the env at that stop, as [testANodeAfterAStopTakesTheEnvAtTheStop] pins.
      */
     private fun reexpanded(file: ElixirFile, range: TextRange, inputs: ProjectModules.Inputs): Env {
         var innermost: Pair<TextRange, Env>? = null
         var reached = false
         val entered = LinkedHashMap<TextRange, Env>()
-        val stopped = mutableSetOf<TextRange>()
+        val stopped = mutableMapOf<TextRange, Expansion.Stop>()
+        val stopEnv = mutableMapOf<TextRange, Env?>()
         val observer = object : ExpansionObserver {
             override fun entering(node: ElixirAst, state: ExState, env: Env) {
                 val origin = node.meta.origin
@@ -149,7 +276,9 @@ class EnvIndexTest : PlatformTestCase() {
             }
 
             override fun left(node: ElixirAst, expansion: Expansion) {
-                if (expansion is Expansion.Error || expansion is Expansion.Unported) stopped += node.meta.origin
+                if (expansion !is Expansion.Stop) return
+                val origin = node.meta.origin
+                if (stopped.getOrPut(origin) { expansion } === expansion) stopEnv[origin] = expansion.envAtStop
             }
         }
         try {
@@ -167,7 +296,7 @@ class EnvIndexTest : PlatformTestCase() {
             .sortedWith(compareBy<TextRange> { it.startOffset }.thenByDescending { it.endOffset })
             .forEach { if (before?.contains(it) != true) before = it }
 
-        return before?.takeIf { it in stopped }?.let(entered::get) ?: container.second
+        return before?.takeIf { it in stopped }?.let { stopEnv[it] ?: entered[it] } ?: container.second
     }
 
     private class Reached : RuntimeException(null, null, false, false)
@@ -200,4 +329,10 @@ class EnvIndexTest : PlatformTestCase() {
     }
 
     private fun inputs(version: String) = ProjectModules.Inputs(ElixirLanguageLevel.of(version), legKernel, OS.CURRENT)
+
+    private companion object {
+        /** Stops in its body: Elixir raises there, so nothing will port it as a success. */
+        const val S = "defmodule S do\n  quote(location: :other, do: 1)\nend"
+        const val V = "defmodule V do\n  defmacro __using__(_) do\n    quote do\n      import Integer\n    end\n  end\nend"
+    }
 }

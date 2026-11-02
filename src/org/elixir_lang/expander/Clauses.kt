@@ -470,8 +470,10 @@ internal inline fun Expansion.endConstruct(
     run: Run,
     noinline value: (Term) -> Term = { NODE },
     crossinline arguments: (ElixirAst) -> List<ElixirAst>,
-): Expansion =
-    thenAst { state, _, options, ast ->
+): Expansion {
+    if (this is Expansion.Stop) envAtStop = env
+
+    return thenAst { state, _, options, ast ->
         val versioned = CLAUSES_TAKE_VERSION.isSufficient(run.level)
         val built = run.ast {
             val call = node as ElixirAst.Call
@@ -482,6 +484,7 @@ internal inline fun Expansion.endConstruct(
 
         Expansion.Expanded(state.copy(version = if (versioned) state.version + 1 else state.version), env, value(options), built)
     }
+}
 
 /** `elixir_expand:assert_no_underscore_clause_in_cond/2`, which reads only a lone `do`. */
 private fun underscoreInCond(node: ElixirAst, options: ElixirAst): Expansion? {

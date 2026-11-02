@@ -185,7 +185,9 @@ internal enum class Clause(vararg val heads: Head) {
             return mapfold(expressions, state, env, run) { expression, s, e ->
                 val discarded = if (expression !== expressions.last()) discardedFor(expression) else null
 
-                Expander.expand(discarded ?: expression, s, e, run)
+                Expander.expand(discarded ?: expression, s, e, run).also {
+                    if (it is Expansion.Stop && it.envAtStop == null) it.envAtStop = e
+                }
             }.thenAst { s, e, values, asts ->
                 val last = (values as Term.List).elements.last()
 
