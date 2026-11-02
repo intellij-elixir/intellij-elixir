@@ -120,6 +120,33 @@ jobs:
             build/no-screen/sink.log
             build/out/ide-tests/tests/**/log/
 
+      # A red nightly run on main opens the issue "Nightly UI tests failed" or comments on the open one. A pull
+      # request run is the proof of this workflow and reports nowhere.
+      - name: Find the last successful run
+        id: previous
+        if: failure() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          RUN_ID: ${{ github.run_id }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: node .github/scripts/last-successful-run.js
+
+      - name: Report the failure
+        id: report
+        if: failure() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          SHA: ${{ github.sha }}
+          PREVIOUS_SHA: ${{ steps.previous.outputs.sha }}
+          STEPS: ${{ toJSON(steps) }}
+        run: node .github/scripts/ui-tests-report.js
+
       # Only a green run that missed the cache saves, and never a pull request: its writes are scoped to its own
       # merge ref. Starter moves a download into place only when it completes, but could move an error page
       # from its download proxy, so an archive from a run that failed is not trusted.
