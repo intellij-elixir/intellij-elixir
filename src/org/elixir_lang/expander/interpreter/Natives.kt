@@ -205,6 +205,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "application" -> envWrite(key, args)
             "unicode" -> unicode(key, args)
             "unicode_util" -> if (key == "gc/1") gc(seen(args[0])) else null
+            "logger" -> if (key == "compare_levels/2") compareLevels(args) else null
             "Elixir.Keyword" -> keyword(key, args)
             "Elixir.Enum" -> enum(key, args)
             "Elixir.Access" -> access(key, args)
@@ -2871,6 +2872,24 @@ internal class Natives(private val evaluation: Evaluation) {
             ?: decline("$function/1 of %s, which isn't UTF-8", args[0])
     }
 
+    /**
+     * `logger:compare_levels/2` (`logger.erl:1297-1306`): `gt` where the first level is the more severe by [LOG_LEVELS],
+     * and `badarg` where either term isn't a level, the same term twice included.
+     */
+    private fun compareLevels(args: List<OtpErlangObject>): OtpErlangObject {
+        val (first, second) = args.map { LOG_LEVELS.indexOf((seen(it) as? OtpErlangAtom)?.atomValue()) }
+
+        if (first < 0 || second < 0) evaluation.error(atom("badarg"), frame("logger", "compare_levels", list(args)))
+
+        return atom(
+            when {
+                first == second -> "eq"
+                first < second -> "gt"
+                else -> "lt"
+            },
+        )
+    }
+
     /** [term] where it is a Unicode code point, which a surrogate isn't, `null` where it is something else. */
     private fun codePoint(term: OtpErlangObject): Int? =
         (term as? OtpErlangLong)?.takeIf { it.bitLength() < Int.SIZE_BITS }?.intValue()?.takeIf { isScalarValue(it.toLong()) }
@@ -3023,6 +3042,9 @@ internal class Natives(private val evaluation: Evaluation) {
  * `elixir_config`'s defaults from it.
  */
 private val STATIC_OPTIONS = mapOf("bootstrap" to FALSE, "identifier_tokenizer" to atom("Elixir.String.Tokenizer"))
+
+/** `logger`'s levels, the more severe first, as `logger_config:level_to_int/1` orders them. */
+private val LOG_LEVELS = listOf("none", "emergency", "alert", "critical", "error", "warning", "notice", "info", "debug", "all")
 
 /** The node of a process or reference the evaluator makes. */
 private const val LOCAL_NODE = "nonode@nohost"
