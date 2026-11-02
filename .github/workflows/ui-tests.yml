@@ -1,0 +1,134 @@
+name: UI tests
+
+# The whole testUI suite: a real IntelliJ IDEA, with no screen and no license, driving code intelligence over a
+# generated Phoenix project. Nothing else on CI runs it, so this is what finds a change that breaks a row, or a
+# platform bump that stops testUI compiling.
+#
+# The nightly run is on main. A pull request runs it only when the workflow or the subject script changes, which is
+# the only proof either gets. setup-env is deliberately not a trigger path: every job uses it.
+on:
+  # After shared-test.yml's 02:17 run.
+  schedule:
+    - cron: '37 4 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/ui-tests.yml'
+      - 'testUI/subjects/generate-own.sh'
+
+concurrency:
+  group: ui-tests-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# The repository's default is write, so say what this job needs.
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ui-tests:
+    name: UI tests
+    runs-on: ubuntu-24.04
+    # A backstop only: a job past its limit ends cancelled with no step recorded. The steps below each carry a
+    # limit that keeps the total under this, so a hang ends as a failed step instead.
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        id: checkout
+        timeout-minutes: 3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # testUI resolves dependencies no other job does, so it keeps its own Gradle User Home cache.
+      - name: Setup Build Environment
+        id: setup-env
+        timeout-minutes: 15
+        uses: ./.github/actions/setup-env
+        with:
+          cache-key-prefix: ui
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          gradle-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+
+      # The no-screen guard's browser proof runs under xvfb-run.
+      - name: Install xvfb
+        id: xvfb
+        timeout-minutes: 3
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends xvfb
+
+      # Both version flags are required and must match what setup-beam put on PATH: there is no mise here,
+      # so they are the only source of the versions the build expects.
+      - name: Name the Gradle flags
+        id: gradle-flags
+        timeout-minutes: 1
+        env:
+          ELIXIR_VERSION: ${{ steps.setup-env.outputs.elixir-version }}
+          OTP_VERSION: ${{ steps.setup-env.outputs.otp-version }}
+        run: |
+          echo "GRADLE_FLAGS=-Dorg.gradle.console=plain --stacktrace -PelixirVersion=$ELIXIR_VERSION -PotpVersion=$OTP_VERSION" >> "$GITHUB_ENV"
+
+      # Starter downloads IntelliJ IDEA (1.3-1.6 GiB) into this folder and skips the download when the archive is
+      # there. No restore-keys: the archive is one platform build.
+      - name: Restore IDE installer cache
+        id: installers
+        timeout-minutes: 8
+        uses: actions/cache/restore@v6
+        with:
+          path: build/out/ide-tests/installers
+          key: starter-installers-${{ runner.os }}-${{ runner.arch }}-${{ env.ORG_GRADLE_PROJECT_platformVersion }}
+
+      - name: Keep testUI compiling
+        id: compile
+        timeout-minutes: 15
+        run: ./gradlew $GRADLE_FLAGS compileTestUIKotlin
+
+      - name: Resolve Elixir and Erlang
+        id: sdks
+        timeout-minutes: 3
+        run: ./gradlew $GRADLE_FLAGS resolveElixirErlangSdks
+
+      - name: Generate the subject
+        id: subject
+        timeout-minutes: 10
+        run: testUI/subjects/generate-own.sh "$RUNNER_TEMP/subjects"
+
+      - name: Run the UI suite
+        id: test
+        timeout-minutes: 45
+        run: ./gradlew $GRADLE_FLAGS testUI -PtestUiSubject="$RUNNER_TEMP/subjects/own"
+
+      - name: Upload results
+        id: upload
+        if: always()
+        timeout-minutes: 8
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ui-tests
+          if-no-files-found: warn
+          path: |
+            build/test-results/testUI/
+            build/reports/tests/testUI/
+            build/testUI/recordings/
+            build/no-screen/runs/
+            build/no-screen/sink.log
+            build/out/ide-tests/tests/**/log/
+
+      # Only a green run that missed the cache saves, and never a pull request: its writes are scoped to its own
+      # merge ref. Starter moves a download into place only when it completes, but could move an error page
+      # from its download proxy, so an archive from a run that failed is not trusted.
+      - name: Save IDE installer cache
+        id: installers-save
+        if: success() && steps.installers.outputs.cache-hit != 'true' && github.event_name != 'pull_request' && hashFiles('build/out/ide-tests/installers/IU/*.tar.gz') != ''
+        continue-on-error: true
+        timeout-minutes: 10
+        uses: actions/cache/save@v6
+        with:
+          path: build/out/ide-tests/installers
+          key: ${{ steps.installers.outputs.cache-primary-key }}
