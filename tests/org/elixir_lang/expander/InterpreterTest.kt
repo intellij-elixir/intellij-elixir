@@ -17,6 +17,7 @@ import com.intellij.psi.PsiFileFactory
 import com.intellij.util.system.OS
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.coverage.ExpanderProgress
 import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
@@ -2047,6 +2048,95 @@ class InterpreterTest : PlatformTestCase() {
             tables = true,
         )
 
+    fun testStringToCharlistEvaluates() =
+        assertFile(
+            "defmodule A do\n  defmacro n, do: length(String.to_charlist(\"a\\u00e9\"))\nend\n" +
+                "defmodule B do\n  require A\n  def unquote(:\"f#{A.n()}\")(), do: 1\nend",
+            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B compiled [f2/0 def]",
+            tables = true,
+        )
+
+    /** `Logger.log/2` passes its caller's file through `String.to_charlist/1` while it expands. */
+    fun testALoggerLogInAFunctionCompiles() =
+        assertFile(
+            "defmodule L do\n  require Logger\n  def f, do: Logger.log(:info, \"x\")\n  def h(level), do: Logger.log(level, \"z\")\nend",
+            "top expanded\nmodule Elixir.L compiled [f/0 def, h/1 def]",
+            tables = true,
+            run = RunInputs(path = "/l.ex"),
+        )
+
+    /** `Logger`'s level macros compare their level with the lowest one compiled in before they log. */
+    fun testALoggerLevelMacroInAFunctionCompiles() =
+        assertFile(
+            "defmodule L do\n  require Logger\n  def g, do: Logger.info(\"y\")\n  def w, do: Logger.warning(\"w\", a: 1)\n" +
+                "  def d, do: Logger.debug(fn -> \"d\" end)\nend",
+            "top expanded\nmodule Elixir.L compiled [d/0 def, g/0 def, w/0 def]",
+            tables = true,
+            run = RunInputs(path = "/l.ex"),
+        )
+
+    /**
+     * [MAKEUP_STYLE]'s template overflows [SMALL_STACK] in the evaluator, as EEx's tokenizer recurses once per
+     * character.
+     */
+    fun testALongEExTemplateStopsAtItsMatch() =
+        assertEquals("stopped =/2 [call/5 def, render_css/5 defp]", endedOnAStack(MAKEUP_STYLE, SMALL_STACK))
+
+    fun testAShortEExTemplateStaysCompiled() =
+        assertEquals(
+            "compiled [f/1 def]",
+            endedOnAStack("defmodule A do\n  require EEx\n  EEx.function_from_string(:def, :f, \"<%= a %>\", [:a])\nend", SMALL_STACK),
+        )
+
+    fun testALongEExTemplateCompilesOnALargeStack() =
+        assertEquals("compiled [call/5 def, render_css/5 defp]", endedOnAStack(MAKEUP_STYLE, stackSize = 1L shl 30))
+
+    /**
+     * How [code]'s one module ended, with its table, expanded from `/s.ex` at the leg's level on a thread of [stackSize]
+     * bytes, with nothing thrown.
+     */
+    private fun endedOnAStack(code: String, stackSize: Long): String {
+        val level = legLevel()
+        val forms = lowered(code, level)
+        var result: ExpansionResult? = null
+        var escaped: Throwable? = null
+        val thread = Thread(
+            null,
+            {
+                try {
+                    result = Expander.expandFile(
+                        forms,
+                        Env.empty(level, legKernel),
+                        level,
+                        sdkExports,
+                        legStructs,
+                        legAppEnv(),
+                        clauses = sdk,
+                        file = { "/s.ex" },
+                    ).modules.single()
+                } catch (e: Throwable) {
+                    escaped = e
+                }
+            },
+            "stack of $stackSize",
+            stackSize,
+        )
+
+        thread.start()
+        thread.join()
+
+        assertNull("escaped: $escaped", escaped)
+
+        val module = result!!
+        val ended = when (val ended = module.ended) {
+            Ended.Compiled -> "compiled"
+            is Ended.Stopped -> "stopped ${ExpanderProgress.shape(ended.at)}"
+            else -> "$ended"
+        }
+
+        return "$ended ${table(module)}"
+    }
+
     // `Mix.Generator`'s embeds write `@file {__ENV__.file, __ENV__.line + 1}`. A run with no path reads `__ENV__.file` as
     // an unread binary, and Elixir accepts that write, so the module is defined.
 
@@ -2696,6 +2786,46 @@ class InterpreterTest : PlatformTestCase() {
 
         /** A template's absolute path: the quoter's node has no working directory a relative one is read from. */
         val TEMPLATE: String = FileUtil.toSystemIndependentName(File("testData/org/elixir_lang/expander/eex/t.eex").absolutePath)
+
+        /** The template of `Makeup.Styles.HTML.Style`'s `render_css/5` in Makeup 1.2.1. */
+        val MAKEUP_TEMPLATE = """
+            .<%= highlight_class %> .hll {background-color: <%= highlight_color %>}
+            .<%= highlight_class %> {\
+            <%= if token_text.color do %>color: <%= token_text.color %>; <% end %>\
+            <%= if token_text.font_style do %>font-style: <%= token_text.font_style %>; <% end %>\
+            <%= if token_text.font_weight do %>font-weight: <%= token_text.font_weight %>; <% end %>\
+            <%= if token_text.border do %>border: <%= token_text.border %>; <% end %>\
+            <%= if token_text.text_decoration do %>text-decoration: <%= token_text.text_decoration %>; <% end %>\
+            <%= if background_color do %>background-color: <%= background_color %><% end %>}\
+            .<%= highlight_class %> .unselectable {
+              -webkit-touch-callout: none;
+              -webkit-user-select: none;
+              -khtml-user-select: none;
+              -moz-user-select: none;
+              -ms-user-select: none;
+              user-select: none;
+            }
+            <%= for {css_class, token_style, token_type} <- styles do %>
+            .<%= highlight_class %> .<%= css_class %> {\
+            <%= if token_style.color do %>color: <%= token_style.color %>; <% end %>\
+            <%= if token_style.font_style do %>font-style: <%= token_style.font_style %>; <% end %>\
+            <%= if token_style.font_weight do %>font-weight: <%= token_style.font_weight %>; <% end %>\
+            <%= if token_style.border do %>border: <%= token_style.border %>; <% end %>\
+            <%= if token_style.text_decoration do %>text-decoration: <%= token_style.text_decoration %>; <% end %>\
+            <%= if token_style.background_color do %>background-color: <%= token_style.background_color %>; <% end %>\
+            } /* :<%= Atom.to_string(token_type) %> */\
+            <% end %>
+        """.trimIndent()
+
+        /** A fixed small stack, so an overflow doesn't depend on the platform's default thread stack or `-Xss`. */
+        const val SMALL_STACK = 512L * 1024
+
+        /** `render_css/5` from Makeup's template twice over, with a function calling it. */
+        val MAKEUP_STYLE = "defmodule A do\n  require EEx\n\n  EEx.function_from_string(\n    :defp,\n    :render_css,\n    $QUOTES\n" +
+            "$MAKEUP_TEMPLATE\n$MAKEUP_TEMPLATE".prependIndent("    ") +
+            "\n    $QUOTES,\n    [:highlight_class, :highlight_color, :background_color, :token_text, :styles]\n  )\n\n" +
+            "  def call(a, b, c, d, e), do: render_css(a, b, c, d, e)\nend"
+
         val DIRECTORIES = CompileDirectories { "/" }
         val COMPILE_TIMEOUT = 60.seconds
 
@@ -5726,6 +5856,48 @@ class InterpreterTest : PlatformTestCase() {
                 pins = DECLINED,
             ),
             macro("native:characters-to-binary-split", "defmacro m, do: :unicode.characters_to_binary([<<195>>, <<169>>])"),
+            macro(
+                "native:characters-to-list",
+                "defmacro m, do: :unicode.characters_to_list([\"a\", [128512, 98], \"\\u00e9\" | \"c\"])",
+            ),
+            macro("native:characters-to-list-split", "defmacro m, do: :unicode.characters_to_list([<<195>>, <<169>>])"),
+            macro("native:characters-to-list-binary", "defmacro m, do: :unicode.characters_to_list(\"a\\u00e9\")"),
+            macro("native:characters-to-list-badarg", "defmacro m, do: :unicode.characters_to_list(:a)"),
+            macro("native:characters-to-list-badarg-after-error", "defmacro m, do: :unicode.characters_to_list([<<255>>, :a])"),
+            macro(
+                "native:characters-to-list-error",
+                "defmacro m, do: Macro.escape(:unicode.characters_to_list([97, 55296]))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:characters-to-list-incomplete",
+                "defmacro m, do: Macro.escape(:unicode.characters_to_list(<<97, 195>>))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:characters-to-list-bignum-then-badarg",
+                "defmacro m, do: Macro.escape(:unicode.characters_to_list([:erlang.bsl(1, 64), :a]))",
+                pins = DECLINED,
+            ),
+            // One binary is one part of chardata, so the list it gives is bounded on its own.
+            macro(
+                "native:characters-to-list-past-the-limit",
+                """
+                defmacro m, do: length(:unicode.characters_to_list(<<grow("a", 20)::binary, "a">>))
+
+                defp grow(b, 0), do: b
+                defp grow(b, n), do: grow(b <> b, n - 1)
+                """,
+                pins = DECLINED,
+            ),
+            macro("native:compare-levels", "defmacro m, do: :logger.compare_levels(:debug, :warning)"),
+            macro("native:compare-levels-gt", "defmacro m, do: :logger.compare_levels(:error, :info)"),
+            macro("native:compare-levels-eq", "defmacro m, do: :logger.compare_levels(:info, :info)"),
+            macro("native:compare-levels-none", "defmacro m, do: :logger.compare_levels(:none, :all)"),
+            macro("native:compare-levels-all", "defmacro m, do: :logger.compare_levels(:all, :emergency)"),
+            macro("native:compare-levels-badarg-same", "defmacro m, do: :logger.compare_levels(:a, :a)"),
+            macro("native:compare-levels-badarg", "defmacro m, do: :logger.compare_levels(:info, :a)"),
+            macro("native:compare-levels-badarg-first", "defmacro m, do: :logger.compare_levels(:a, :info)"),
             // Three parts that share one 8 MiB binary, and a list of 2^21 empty lists, whose parts share one another.
             macro(
                 "native:iolist-to-binary-past-the-bitstring-limit",
@@ -10075,7 +10247,7 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
             ),
-            // `EEx.compile_string/2` and `EEx.compile_file/2` aren't evaluated, so the body each defines is unknown.
+            // The body each defines stays unknown.
             eex("eex:string", "EEx.function_from_string(:def, :f, \"<%= a %>\", [:a])"),
             eex("eex:defp", "EEx.function_from_string(:defp, :f, \"<%= a %>\", [:a])\ndef call(a), do: f(a)"),
             eex("eex:args-attribute", "@args [:a, :b]\nEEx.function_from_string(:def, :g, \"x\", @args)"),
