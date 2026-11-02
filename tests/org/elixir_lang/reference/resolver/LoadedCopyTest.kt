@@ -1,7 +1,11 @@
 package org.elixir_lang.reference.resolver
 
+import com.intellij.facet.FacetManager
+import com.intellij.facet.FacetType
+import com.intellij.facet.impl.FacetUtil
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import org.elixir_lang.reference.Resolver
@@ -13,11 +17,15 @@ import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiManager
 import com.intellij.testFramework.IndexingTestUtil
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.Facet
 import org.elixir_lang.beam.BeamLibraryFixture
+import org.elixir_lang.beam.SdkBeams
 import org.elixir_lang.elixir_surface.LegManifest
+import org.elixir_lang.facet.Type
 import org.elixir_lang.mix.library.CONSOLIDATED_LIBRARY_BASE_NAME
 import org.elixir_lang.mix.sync.contentRootToken
 import org.elixir_lang.mix.sync.scopedDepLibraryName
+import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkFixtures
 import java.io.File
 import java.util.concurrent.Callable
@@ -126,6 +134,194 @@ class LoadedCopyTest : PlatformTestCase() {
         assertEquals(listOf("app/deps/d/lib/loaded_copy.ex"), resolved(LIB_ASKER, DEP, loaded = false))
     }
 
+    fun testAnSdkCopyWinsOverAStaleLibrarysCopy() {
+        layout(*sdkAnd("stale/ebin"))
+        staleLibrary("stale", "stale/ebin")
+
+        withSdk(classes = "sdk/ebin") {
+            assertEquals(listOf("sdk/ebin/$ENUMERABLE_BEAM"), loaded(LIB_ASKER, ENUMERABLE))
+        }
+    }
+
+    fun testAnSdkCopyWinsOverTwoLibraryCopies() {
+        layout(*sdkAnd("stale/ebin", "stale2/ebin"))
+        staleLibrary("stale", "stale/ebin")
+        staleLibrary("stale2", "stale2/ebin")
+
+        withSdk(classes = "sdk/ebin") {
+            assertEquals(listOf("sdk/ebin/$ENUMERABLE_BEAM"), loaded(LIB_ASKER, ENUMERABLE))
+        }
+    }
+
+    fun testAnSdkCopyWinsOverACopyInAnotherRegisteredSdksRoots() {
+        layout(*sdkAnd("stale/ebin"))
+        staleLibrary("stale", "stale/ebin")
+        registerSdk("Other SDK", "other", "stale/ebin")
+
+        withSdk(classes = "sdk/ebin") {
+            assertEquals(listOf("sdk/ebin/$ENUMERABLE_BEAM"), loaded(LIB_ASKER, ENUMERABLE))
+        }
+    }
+
+    fun testAnSdkCopyWinsOverStaleAndConsolidatedCopies() {
+        layout(
+            *sdkAnd("stale/ebin"),
+            "app/_build/dev/lib/app/consolidated/$ENUMERABLE_BEAM" to enumerableBeam(),
+        )
+        staleLibrary("stale", "stale/ebin")
+        consolidated("app/_build/dev/lib/app/consolidated")
+
+        withSdk(classes = "sdk/ebin") {
+            assertEquals(listOf("sdk/ebin/$ENUMERABLE_BEAM"), loaded(LIB_ASKER, ENUMERABLE))
+        }
+    }
+
+    fun testAnSdkCopyWinsForAnErlangModule() {
+        val lists = SdkBeams.forSdk(System.getenv("ERLANG_SDK_HOME"), "erlang")
+            .single { it.file.name == LISTS_BEAM }
+            .file
+            .readBytes()
+
+        layout(
+            "sdk/ebin/$LISTS_BEAM" to lists,
+            "stale/ebin/$LISTS_BEAM" to lists,
+            "sdk/lib/enum.ex" to enumerableSource(),
+        )
+        staleLibrary("stale", "stale/ebin")
+
+        withSdk(classes = "sdk/ebin") {
+            assertEquals(listOf("sdk/ebin/$LISTS_BEAM"), loaded(LIB_ASKER, ":lists"))
+        }
+    }
+
+    fun testASmallIdesSdkCopyWins() {
+        layout(*sdkAnd("stale/ebin"))
+        staleLibrary("Stale", "stale/ebin")
+        val sdk = registerSdk("Small IDE", "small-ide", "sdk/ebin")
+        WriteAction.runAndWait<Throwable> {
+            sdk.sdkModificator.apply {
+                addRoot(file("sdk/lib"), OrderRootType.SOURCES)
+                commitChanges()
+            }
+        }
+        ProcessOutput.isSmallIdeOverride = true
+        try {
+            WriteAction.runAndWait<Throwable> {
+                FacetUtil.addFacet(module, FacetType.findInstance(Type::class.java))
+                FacetManager.getInstance(module).getFacetByType(Facet.ID)!!.sdk = sdk
+            }
+            IndexingTestUtil.waitUntilIndexesAreReady(project)
+
+            assertEquals(listOf("sdk/ebin/$ENUMERABLE_BEAM"), loaded(LIB_ASKER, ENUMERABLE))
+        } finally {
+            WriteAction.runAndWait<Throwable> {
+                FacetManager.getInstance(module).getFacetByType(Facet.ID)?.let { facet ->
+                    facet.sdk = null
+                    FacetManager.getInstance(module).createModifiableModel().apply {
+                        removeFacet(facet)
+                        commit()
+                    }
+                }
+            }
+            ProcessOutput.isSmallIdeOverride = null
+        }
+    }
+
+    fun testASourceInContentStillComesFirst() {
+        layout(*sdkAnd("stale/ebin"), "app/lib/enum.ex" to enumerableSource())
+        staleLibrary("stale", "stale/ebin")
+
+        withSdk(classes = "sdk/ebin") {
+            assertEquals(listOf("app/lib/enum.ex"), loaded(LIB_ASKER, ENUMERABLE))
+        }
+    }
+
+    fun testACopyInADependencysExcludedBuildBeatsTheSdks() {
+        layout(
+            *sdkAnd(),
+            "app/deps/d/lib/loaded_copy.ex" to fixture(SOURCE),
+            "app/_build/dev/lib/d/ebin/$ENUMERABLE_BEAM" to enumerableBeam(),
+            "app/_build/test/lib/d/ebin/$ENUMERABLE_BEAM" to enumerableBeam(),
+        )
+        dependency("dev", "test")
+
+        withSdk(classes = "sdk/ebin") {
+            assertEquals(listOf("app/_build/dev/lib/d/ebin/$ENUMERABLE_BEAM"), loaded(LIB_ASKER, ENUMERABLE))
+            assertEquals(listOf("app/_build/test/lib/d/ebin/$ENUMERABLE_BEAM"), loaded(TEST_ASKER, ENUMERABLE))
+        }
+    }
+
+    fun testACopyUnderContentBeatsBothTheSdksAndAStaleCopy() {
+        layout(*sdkAnd("stale/ebin", "app/vendor/ebin"))
+        staleLibrary("stale", "stale/ebin")
+        staleLibrary("app", "app/vendor/ebin")
+
+        withSdk(classes = "sdk/ebin") {
+            assertEquals(listOf("app/vendor/ebin/$ENUMERABLE_BEAM"), loaded(LIB_ASKER, ENUMERABLE))
+        }
+    }
+
+    fun testTwoCopiesUnderContentStaySeveralBesideTheSdks() {
+        layout(*sdkAnd("app/vendor/one/ebin", "app/vendor/two/ebin"))
+        staleLibrary("one", "app/vendor/one/ebin")
+        staleLibrary("two", "app/vendor/two/ebin")
+
+        withSdk(classes = "sdk/ebin") {
+            assertEquals(
+                listOf("app/vendor/one/ebin/$ENUMERABLE_BEAM", "app/vendor/two/ebin/$ENUMERABLE_BEAM"),
+                loaded(LIB_ASKER, ENUMERABLE),
+            )
+        }
+    }
+
+    fun testTwoLibraryCopiesStaySeveralWithAnSdk() {
+        layout(
+            *copies("stale/ebin", "stale2/ebin"),
+            "sdk/ebin/$DEP_BEAM" to fixture(DEP_BEAM),
+            "sdk/lib/enum.ex" to enumerableSource(),
+        )
+        staleLibrary("stale", "stale/ebin")
+        staleLibrary("stale2", "stale2/ebin")
+
+        withSdk(classes = "sdk/ebin") {
+            assertEquals(
+                listOf("stale/ebin/$ENUMERABLE_BEAM", "stale2/ebin/$ENUMERABLE_BEAM"),
+                loaded(LIB_ASKER, ENUMERABLE),
+            )
+        }
+    }
+
+    fun testTwoLibraryCopiesStaySeveralWithoutAnSdk() {
+        layout(*copies("stale/ebin", "stale2/ebin"))
+        staleLibrary("stale", "stale/ebin")
+        staleLibrary("stale2", "stale2/ebin")
+
+        assertEquals(
+            listOf("stale/ebin/$ENUMERABLE_BEAM", "stale2/ebin/$ENUMERABLE_BEAM"),
+            loaded(LIB_ASKER, ENUMERABLE),
+        )
+    }
+
+    fun testTwoCopiesInsideTheSdkStaySeveral() {
+        layout(*sdkAnd("sdk/ebin2"))
+
+        withSdk("sdk/ebin", "sdk/ebin2") {
+            assertEquals(
+                listOf("sdk/ebin/$ENUMERABLE_BEAM", "sdk/ebin2/$ENUMERABLE_BEAM"),
+                loaded(LIB_ASKER, ENUMERABLE),
+            )
+        }
+    }
+
+    fun testALibraryCopyStaysWhenTheSdkHoldsOnlySource() {
+        layout(*copies("stale/ebin"), "sdk/lib/enum.ex" to enumerableSource())
+        staleLibrary("stale", "stale/ebin")
+
+        withSdk(classes = null) {
+            assertEquals(listOf("stale/ebin/$ENUMERABLE_BEAM"), loaded(LIB_ASKER, ENUMERABLE))
+        }
+    }
+
     private lateinit var top: File
 
     override fun setUp() {
@@ -181,15 +377,44 @@ class LoadedCopyTest : PlatformTestCase() {
         IndexingTestUtil.waitUntilIndexesAreReady(project)
     }
 
-    /** An Elixir SDK with [classes] and `sdk/lib` as its roots, as the module's SDK while [block] runs. */
-    private fun withSdk(classes: String?, block: () -> Unit) {
+    /** The `Enumerable` beam in each of [dirs]. */
+    private fun copies(vararg dirs: String): Array<Pair<String, ByteArray>> =
+        dirs.map { "$it/$ENUMERABLE_BEAM" to enumerableBeam() }.toTypedArray()
+
+    /** The SDK's own `Enumerable` beam and source, and a copy of the beam in each of [dirs]. */
+    private fun sdkAnd(vararg dirs: String): Array<Pair<String, ByteArray>> =
+        arrayOf("sdk/ebin/$ENUMERABLE_BEAM" to enumerableBeam(), "sdk/lib/enum.ex" to enumerableSource()) + copies(*dirs)
+
+    /** A library named [name] with each of [classes] as a CLASSES root, in no content root unless [classes] sit in one. */
+    private fun staleLibrary(name: String, vararg classes: String) {
+        BeamLibraryFixture.addLibrary(project, module, name, classes.map(::file))
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
+    }
+
+    /** An Elixir SDK in the table with [classes] as CLASSES roots, assigned to nothing. */
+    private fun registerSdk(name: String, home: String, vararg classes: String): Sdk {
         val sdk = SdkFixtures.registerAndWaitForFill(
-            SdkFixtures.elixirSdk("Loaded copy", SdkFixtures.fakeHome("elixir/loaded-copy")),
+            SdkFixtures.elixirSdk(name, SdkFixtures.fakeHome("elixir/$home")),
             testRootDisposable,
         )
         WriteAction.runAndWait<Throwable> {
             sdk.sdkModificator.apply {
-                classes?.let { addRoot(file(it), OrderRootType.CLASSES) }
+                classes.forEach { addRoot(file(it), OrderRootType.CLASSES) }
+                commitChanges()
+            }
+        }
+
+        return sdk
+    }
+
+    /**
+     * An Elixir SDK with [classes] and [more] as CLASSES roots and `sdk/lib` as SOURCES, as the module's SDK while
+     * [block] runs.
+     */
+    private fun withSdk(classes: String?, vararg more: String, block: () -> Unit) {
+        val sdk = registerSdk("Loaded copy", "loaded-copy", *listOfNotNull(classes).toTypedArray(), *more)
+        WriteAction.runAndWait<Throwable> {
+            sdk.sdkModificator.apply {
                 addRoot(file("sdk/lib"), OrderRootType.SOURCES)
                 commitChanges()
             }
@@ -249,5 +474,6 @@ class LoadedCopyTest : PlatformTestCase() {
         const val PROTOCOL_BEAM = "Elixir.LoadedCopy.Protocol.beam"
         const val ENUMERABLE = "Enumerable"
         const val ENUMERABLE_BEAM = "Elixir.Enumerable.beam"
+        const val LISTS_BEAM = "lists.beam"
     }
 }

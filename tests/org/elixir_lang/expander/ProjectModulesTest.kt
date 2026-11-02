@@ -13,6 +13,10 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.projectRoots.Sdk
+import com.intellij.openapi.roots.ModuleRootManager
+import com.intellij.openapi.roots.ModuleRootModificationUtil
+import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -42,6 +46,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.ElixirFile
+import org.elixir_lang.sdk.SdkFixtures
 import java.io.File
 import java.math.BigInteger
 import java.util.concurrent.Callable
@@ -292,6 +297,57 @@ class ProjectModulesTest : PlatformTestCase() {
             (located as? ProjectModules.Located.Several)?.copies?.toSet(),
         )
         assertEquals(ModuleExports.Unreadable, exports(holder, a, "Elixir.LoadedCopy.Dep"))
+    }
+
+    /** A stale library's copy of a module the module's SDK also holds is the SDK's to answer for, so the SDK's is read. */
+    fun testAnSdkCopyBesideALibraryCopyIsLocatedAsTheSdks() {
+        addLegElixir()
+        val beam = File(LOADED_COPY, DEP_BEAM)
+        copiedLibrary(beam, "stale_ebin")
+        val sdk = sdkHolding("Sdk with copy", beam)
+        val a = add("a.ex", "defmodule A do\nend\n")
+
+        withModuleSdk(sdk) {
+            val located = locate(holder, a, "Elixir.LoadedCopy.Dep")
+
+            assertEquals(located.toString(), sdkBeam(sdk), beamOf(located))
+            assertTrue("${exports(holder, a, "Elixir.LoadedCopy.Dep")}", exports(holder, a, "Elixir.LoadedCopy.Dep") is ModuleExports.Present)
+        }
+    }
+
+    /** A source copy that leaves the name no module falls through to the code path, where the SDK's copy is the one. */
+    fun testAFailedRedefinitionWithAnSdkCopyAndALibraryCopyFallsToTheSdks() {
+        addLegElixir()
+        val beam = File(LOADED_COPY, DEP_BEAM)
+        copiedLibrary(beam, "stale_ebin")
+        val sdk = sdkHolding("Sdk with copy", beam)
+        add("dep.ex", "defmodule LoadedCopy.Dep do\n  :ok = :bad\nend\n")
+        val a = add("a.ex", "defmodule A do\nend\n")
+
+        withModuleSdk(sdk) {
+            val located = locate(holder, a, "Elixir.LoadedCopy.Dep")
+
+            assertEquals(located.toString(), sdkBeam(sdk), beamOf(located))
+        }
+    }
+
+    fun testAChangedSdkMovesAHeldAnswer() {
+        addLegElixir()
+        val beam = File(LOADED_COPY, DEP_BEAM)
+        val library = copiedLibrary(beam, "stale_ebin").findChild(beam.name)
+        val withCopy = sdkHolding("Sdk with copy", beam)
+        val withoutCopy = sdkHolding("Sdk without copy", null)
+        val a = add("a.ex", "defmodule A do\nend\n")
+
+        withModuleSdk(withCopy) {
+            assertEquals(sdkBeam(withCopy), beamOf(locate(holder, a, "Elixir.LoadedCopy.Dep")))
+
+            ModuleRootModificationUtil.setModuleSdk(module, withoutCopy)
+            IndexingTestUtil.waitUntilIndexesAreReady(project)
+
+            assertEquals(library, beamOf(locate(holder, a, "Elixir.LoadedCopy.Dep")))
+            assertEquals(library, beamOf(locate(ProjectModules(project), a, "Elixir.LoadedCopy.Dep")))
+        }
     }
 
     /**
@@ -2821,6 +2877,50 @@ class ProjectModulesTest : PlatformTestCase() {
         return addLibrary(name, directory)
     }
 
+    /** An Elixir SDK registered for the test, holding a copy of [beam] as its class root when [beam] is given. */
+    private fun sdkHolding(name: String, beam: File?): Sdk {
+        val sdk = SdkFixtures.registerAndWaitForFill(
+            SdkFixtures.elixirSdk(name, SdkFixtures.fakeHome("elixir/${name.replace(' ', '-')}")),
+            testRootDisposable,
+        )
+
+        if (beam != null) {
+            val directory = FileUtil.createTempDirectory(name.replace(' ', '_'), null, true)
+            beam.copyTo(File(directory, beam.name))
+            VfsRootAccess.allowRootAccess(testRootDisposable, directory.path)
+            val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!
+
+            WriteAction.runAndWait<Throwable> {
+                sdk.sdkModificator.apply {
+                    addRoot(root, OrderRootType.CLASSES)
+                    commitChanges()
+                }
+            }
+        }
+
+        return sdk
+    }
+
+    /** [block] with [sdk] as the module's SDK, the module's own restored after. */
+    private fun withModuleSdk(sdk: Sdk, block: () -> Unit) {
+        val previous = ModuleRootManager.getInstance(module).sdk
+        ModuleRootModificationUtil.setModuleSdk(module, sdk)
+        try {
+            IndexingTestUtil.waitUntilIndexesAreReady(project)
+            block()
+        } finally {
+            ModuleRootModificationUtil.setModuleSdk(module, previous)
+        }
+    }
+
+    /** The `Dep` beam [sdkHolding] put in [sdk]'s class root. */
+    private fun sdkBeam(sdk: Sdk): VirtualFile? = sdk.rootProvider.getFiles(OrderRootType.CLASSES).single().findChild(DEP_BEAM)
+
+    private fun locate(holder: ProjectModules, asker: PsiFile, atom: String): ProjectModules.Located =
+        ReadAction.nonBlocking(Callable { holder.locate(asker, atom, legInputs) }).executeSynchronously()
+
+    private fun beamOf(located: ProjectModules.Located): VirtualFile? = (located as? ProjectModules.Located.Compiled)?.beam
+
     /** The loaded-copy fixture's [beam] at [path] in the project's own build output, as a build writes it. */
     private fun built(path: String, beam: String): VirtualFile {
         val file = add(path, "").virtualFile
@@ -2956,6 +3056,8 @@ class ProjectModulesTest : PlatformTestCase() {
 
         /** `B`, which reads the `Foo` a callback's output defines. */
         const val IMPORTS_FOO = "defmodule B do\n  import Foo\n  def g, do: f()\nend\n"
+
+        val LOADED_COPY = File("testData/org/elixir_lang/expander/loaded_copy")
 
         const val DEP_BEAM = "Elixir.LoadedCopy.Dep.beam"
 

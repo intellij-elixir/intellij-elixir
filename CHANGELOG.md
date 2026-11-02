@@ -201,6 +201,8 @@
 
 ### Bug Fixes
 
+- [#4598](https://github.com/intellij-elixir/intellij-elixir/pull/4598) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, a library that holds an old Elixir or Erlang SDK's `ebin` no longer blanks the answers for the SDK modules they share, such as a remote `Kernel` macro.** Refs [#4594](https://github.com/intellij-elixir/intellij-elixir/issues/4594).
 - [#4580](https://github.com/intellij-elixir/intellij-elixir/pull/4580) [@sh41](https://github.com/sh41)
   - **Mix dependency sync no longer fails or drops the syncs queued behind it when the IDE discards a `mix.exs`'s parsed form while the sync reads it.** Refs [#4579](https://github.com/intellij-elixir/intellij-elixir/issues/4579).
 - [#4564](https://github.com/intellij-elixir/intellij-elixir/pull/4564) [@sh41](https://github.com/sh41)
