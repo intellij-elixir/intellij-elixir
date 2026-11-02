@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4616](https://github.com/intellij-elixir/intellij-elixir/pull/4616) [@sh41](https://github.com/sh41)
+  - **The expander now says which of its answers may not be the one Elixir gives, past code it can't follow or where several copies of a module could load, and also finds in the index the definitions such code could bring in; each feature keeps the answer it gives today until it is changed to use them.** Refs [#4611](https://github.com/intellij-elixir/intellij-elixir/issues/4611).
+
 - [#4615](https://github.com/intellij-elixir/intellij-elixir/pull/4615) [@sh41](https://github.com/sh41)
   - **With "Run the expander" on, a `Logger` call in a function, such as `Logger.info/1` or `Logger.log/2`, and `String.to_charlist/1` in a macro no longer stop the expander at their module, so across six projects 500 more modules on Elixir 1.20 and 362 on 1.11 are followed to their end.** A long EEx template compiled at expansion, such as Makeup's HTML style's, now stops its module where it overflows the stack. Refs [#4578](https://github.com/intellij-elixir/intellij-elixir/issues/4578).
 
