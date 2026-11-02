@@ -514,7 +514,9 @@ sourceSets {
         kotlin.srcDir("testUI/kotlin")
         resources.srcDir("testUI/resources")
         compileClasspath += sourceSets["main"].output + sourceSets["test"].output
-        runtimeClasspath += sourceSets["main"].output + sourceSets["test"].output
+        // Classes only: testResources/ registers the JUnit suite's own listeners and extensions,
+        // which must not load in the UI tests' JVM.
+        runtimeClasspath += sourceSets["main"].output + sourceSets["test"].output.classesDirs
     })
 }
 
