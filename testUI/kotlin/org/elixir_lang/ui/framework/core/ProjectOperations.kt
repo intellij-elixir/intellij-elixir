@@ -15,6 +15,7 @@ import com.intellij.driver.sdk.ui.components.elements.comboBox
 import com.intellij.driver.sdk.ui.components.elements.dialog
 import com.intellij.driver.sdk.waitFor
 import org.elixir_lang.jps.shared.ElixirSdkTypeId.ELIXIR_SDK_TYPE_ID
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -34,11 +35,18 @@ import kotlin.time.Duration.Companion.seconds
  * which properly sets up directory marks (source folders, exclude folders).
  *
  * @param projectPath The absolute file system path to the project directory
+ * @param keepBuild Leaves `deps`, `_build` and `out`, for a project whose compiled beams are read
  */
-private fun cleanIdeaFiles(projectPath: String) {
+private fun cleanIdeaFiles(projectPath: String, keepBuild: Boolean) {
     step("Clean existing IntelliJ configuration and Mix build files") {
         val projectDir = java.io.File(projectPath)
-        val pathsToClean = listOf(".idea", "quoter.iml", "deps", "_build", "out")
+        // A module file left anywhere under the project stops the open at the "Module Files Found" dialog.
+        val moduleFiles = if (keepBuild) {
+            projectDir.walkTopDown().filter { it.extension == "iml" }.map { it.relativeTo(projectDir).path }.toList()
+        } else {
+            listOf("quoter.iml")
+        }
+        val pathsToClean = listOf(".idea") + moduleFiles + if (keepBuild) emptyList() else listOf("deps", "_build", "out")
 
         pathsToClean.forEach { path ->
             val file = java.io.File(projectDir, path)
@@ -64,14 +72,16 @@ private fun cleanIdeaFiles(projectPath: String) {
  *
  * @receiver Driver The UI test driver instance
  * @param path The absolute file system path to the project directory
+ * @param keepBuild Leaves the project's compiled output in place
+ * @param ready How long the project window may take to be ready
  * @throws Exception if the project cannot be opened or UI components are not found
  */
-fun Driver.openProjectAt(path: String) = step("Open project at $path") {
+fun Driver.openProjectAt(path: String, keepBuild: Boolean = false, ready: Duration = 30.seconds) = step("Open project at $path") {
     // Clean any existing IntelliJ configuration to force OpenProcessor flow
     // Without this, IntelliJ opens the existing project config and bypasses
     // OpenProcessor.openProjectAsync() and Builder.commit(), which means
     // directory marks (source folders, exclude folders) are never set up
-    cleanIdeaFiles(path)
+    cleanIdeaFiles(path, keepBuild)
 
     welcomeScreen {
         openProjectButton.click()
@@ -82,7 +92,7 @@ fun Driver.openProjectAt(path: String) = step("Open project at $path") {
         clickButtonText("OK")
     }
     ideFrame {
-        waitUntilReady()
+        waitUntilReady(ready)
     }
 }
 
