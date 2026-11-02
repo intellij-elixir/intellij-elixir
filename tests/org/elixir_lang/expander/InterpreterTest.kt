@@ -21,7 +21,6 @@ import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
-import org.elixir_lang.language_level.ElixirLanguageFeature.DEFIMPL_IMPL4
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINER_REFUSED_IN_MATCH_OR_GUARD
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
@@ -1391,37 +1390,14 @@ class InterpreterTest : PlatformTestCase() {
         )
     }
 
-    /**
-     * An `EEx` function as an implementation's last expression stops it at `EEx`'s `defp` branch from v1.14, a known
-     * divergence: `Protocol.__impl__` puts the implementation's body on the right of `res = unquote(block)`, and a
-     * declined call in a module-body `=`'s block runs the units after it unselected, so both branches define
-     * `to_string/1`, where Elixir defines it once. Before v1.14 the body is a statement of its own, and is defined.
-     */
-    fun testAnEexFunctionEndingAnImplementationStopsAtItsDefpBranch() {
-        val code = "$STRUCT_S\n\ndefimpl String.Chars, for: S do\n  require EEx\n  $TO_STRING\nend"
-        val level = legLevel()
-        val result = DEFIMPL_IMPL4.isSufficient(level)
-
+    /** An `EEx` function as an implementation's last expression is defined there, as Elixir defines it. */
+    fun testAnEexFunctionEndingAnImplementationIsDefined() =
         assertFile(
-            code,
+            "$STRUCT_S\n\ndefimpl String.Chars, for: S do\n  require EEx\n  $TO_STRING\nend",
             "top expanded\nmodule Elixir.S compiled [__struct__/0 def, __struct__/1 def]\n" +
-                "module Elixir.String.Chars.S ${if (result) "stopped `${code.substringAfter("\n\n")}`" else "compiled"} " +
-                "[__impl__/1 def, to_string/1 def]",
+                "module Elixir.String.Chars.S compiled [__impl__/1 def, to_string/1 def]",
             tables = true,
         )
-
-        if (!result) return
-
-        val implementation = Expander
-            .expandFile(lowered(code, level), Env.empty(level, legKernel), level, sdkExports, legStructs, legAppEnv(), clauses = sdk)
-            .modules
-            .single { it.module == "Elixir.String.Chars.S" }
-
-        assertEquals(
-            ExpansionResult.Owner.Definition(DefinitionTable.Kind.DEFP, "to_string", 1),
-            implementation.units.single { it.expansion is Expansion.Unported }.owner,
-        )
-    }
 
     /** An `EEx` function followed by another expression in an implementation is defined there, as Elixir defines it. */
     fun testAnEexFunctionBeforeAnImplementationsLastExpressionIsDefined() =
@@ -1429,6 +1405,182 @@ class InterpreterTest : PlatformTestCase() {
             "$STRUCT_S\n\ndefimpl String.Chars, for: S do\n  require EEx\n  $TO_STRING\n  :ok\nend",
             "top expanded\nmodule Elixir.S compiled [__struct__/0 def, __struct__/1 def]\n" +
                 "module Elixir.String.Chars.S compiled [__impl__/1 def, to_string/1 def]",
+            tables = true,
+        )
+
+    /** A declined statement in a matched block leaves the block's `case` selected, as the same statements written alone. */
+    fun testADeclinedStatementInAMatchedBlockLeavesItsCaseSelected() =
+        assertFile(
+            """
+            defmodule A do
+              res = (
+                k = :def
+                d = $DECLINE
+                case k do
+                  :def -> def f, do: 1
+                  :defp -> defp f, do: 1
+                end
+              )
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.A compiled [f/0 def]",
+            tables = true,
+        )
+
+    fun testADeclinedStatementInADiscardedBlockLeavesItsIfSelected() =
+        assertFile(
+            """
+            defmodule A do
+              _ = (
+                k = true
+                d = $DECLINE
+                if k do
+                  def f, do: 1
+                else
+                  defp f, do: 1
+                end
+              )
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.A compiled [f/0 def]",
+            tables = true,
+        )
+
+    fun testADeclinedStatementInAMatchedBlockLeavesItsForRunning() =
+        assertFile(
+            """
+            defmodule A do
+              res = (
+                d = $DECLINE
+                for n <- [:p, :q] do
+                  def unquote(n)(), do: 1
+                end
+              )
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.A compiled [p/0 def, q/0 def]",
+            tables = true,
+        )
+
+    fun testADeclinedStatementInAMatchedBlockLeavesItsFnRunning() =
+        assertFile(
+            """
+            defmodule A do
+              res = (
+                d = $DECLINE
+                Enum.each([:p], fn n -> def unquote(n)(), do: 1 end)
+              )
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.A compiled [p/0 def]",
+            tables = true,
+        )
+
+    fun testAMatchedBlockGivesItsLastValueAfterADeclinedStatement() =
+        assertFile(
+            """
+            defmodule A do
+              res = (
+                d = $DECLINE
+                :ok
+              )
+              def unquote(res)(), do: 1
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.A compiled [ok/0 def]",
+            tables = true,
+        )
+
+    fun testADeclinedCallInAMatchedBlockLeavesItsCaseSelected() =
+        assertFile(
+            """
+            defmodule A do
+              res = (
+                k = :def
+                $DECLINE
+                case k do
+                  :def -> def f, do: 1
+                  :defp -> defp f, do: 1
+                end
+              )
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.A compiled [f/0 def]",
+            tables = true,
+        )
+
+    fun testADeclinedStatementInACaseSubjectsBlockLeavesTheCaseSelected() =
+        assertFile(
+            """
+            defmodule A do
+              case (d = $DECLINE; :def) do
+                :def -> def f, do: 1
+                :defp -> defp f, do: 1
+              end
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.A compiled [f/0 def]",
+            tables = true,
+        )
+
+    /** A block's statement is whole wherever the block is, so one in a list's part leaves the list known. */
+    fun testADeclinedStatementInABlockInAListPartLeavesTheListKnown() =
+        assertFile(
+            """
+            defmodule A do
+              res = [(d = $DECLINE; :f), 2]
+              def unquote(hd(res))(), do: 1
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.A compiled [f/0 def]",
+            tables = true,
+        )
+
+    fun testADeclinedStatementInAFilesMatchedBlockLeavesItsCaseSelected() =
+        assertFile(
+            """
+            res = (
+              k = :one
+              d = $DECLINE
+              case k do
+                :one -> defmodule F1, do: nil
+                :two -> defmodule F2, do: nil
+              end
+            )
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.F1 compiled []",
+            tables = true,
+        )
+
+    /** A raise after a declined statement isn't certain, so the match stops rather than raising, where Elixir raises. */
+    fun testARaiseAfterADeclinedStatementInAMatchedBlockStops() {
+        val match = "res = (\n    d = $DECLINE\n    raise \"boom\"\n  )"
+
+        assertFile("defmodule A do\n  $match\nend", "top unported `$match`\nmodule Elixir.A stopped `$match` []", tables = true)
+    }
+
+    /** Where the subject itself declined, no clause is selected, so each runs unordered and the module stops. */
+    fun testAnUnknownSubjectInAMatchedBlockStillRunsEveryClause() {
+        val match = "res = (\n    k = $DECLINE\n    case k do\n      :def -> def f, do: 1\n      :defp -> defp f, do: 1\n    end\n  )"
+
+        assertFile("defmodule A do\n  $match\nend", "top expanded\nmodule Elixir.A stopped `$match` [f/0 def]", tables = true)
+    }
+
+    fun testALastExpressionReadingADeclinedStatementStaysUnknown() =
+        assertFile(
+            """
+            defmodule A do
+              res = (
+                y = $DECLINE
+                y
+              )
+              def f, do: unquote(res)
+            end
+            defmodule B do
+              def unquote(:"g#{A.f()}")(), do: 1
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.A compiled [f/0 def]\nmodule Elixir.B stopped `unquote(:\"g#{A.f()}\")` []",
             tables = true,
         )
 
@@ -2539,6 +2691,7 @@ class InterpreterTest : PlatformTestCase() {
         const val FILE = "probe.ex"
         const val OS_TYPE = "defmodule A do\n  {family, name} = :os.type()\n  def unquote(family)(), do: 1\n  def unquote(name)(), do: 1\nend"
         const val STRUCT_S = "defmodule S do\n  defstruct []\nend"
+        const val DECLINE = "receive do after 0 -> 1 end"
         const val TO_STRING = "EEx.function_from_string(:def, :to_string, \"<%= t %>\", [:t])"
 
         /** A template's absolute path: the quoter's node has no working directory a relative one is read from. */

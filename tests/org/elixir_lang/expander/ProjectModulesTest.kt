@@ -838,28 +838,31 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
-     * A block one of whose expressions declines gives a decline, wherever it runs: as a match's right side the walk runs,
-     * or as a fragment the evaluator does, and whether the expression is a call or a match. So `def unquote(x)` after
-     * `x = (H.noop(1); :ok)` stops, as `def unquote((H.noop(1); :ok))` does. (Elixir defines `ok/0`.) A definition the
-     * walk ran before the last expression declines nothing: after `x = (def f, do: 1; :ok)`, `ok/0` is defined.
+     * A block one of whose expressions declines, as a fragment the evaluator runs, gives a decline, whether the
+     * expression is a call or a match: `def unquote((H.noop(1); :ok))` stops, where Elixir defines `ok/0`. On a match's
+     * right side the walk runs, the block goes on to its last expression, so after `x = (H.noop(1); :ok)`,
+     * `def unquote(x)` defines `ok/0`. A definition the walk ran before the last expression declines nothing: after
+     * `x = (def f, do: 1; :ok)`, `ok/0` is defined.
      */
-    fun testABlockWithADeclinedExpressionDeclinesWhereverItRuns() {
+    fun testABlockWithADeclinedExpressionDeclinesOnlyAsAFragment() {
         addLegElixir()
         add("h.ex", "defmodule H do\n  def noop(_), do: receive(do: (x -> x), after: (0 -> :ok))\nend\n")
         val a = add("a.ex", "")
+        val g = NameArity("g", 0)
+        val expected = listOf(
+            "x = (H.noop(1); :ok)\n  def unquote(x)(), do: 1" to setOf(NameArity("ok", 0), g),
+            "def unquote((H.noop(1); :ok))(), do: 1" to setOf(g),
+            "x = (y = H.noop(1); :ok)\n  def unquote(x)(), do: 1" to setOf(NameArity("ok", 0), g),
+            "def unquote((y = H.noop(1); :ok))(), do: 1" to setOf(g),
+        )
 
-        val tables = listOf(
-            "x = (H.noop(1); :ok)\n  def unquote(x)(), do: 1",
-            "def unquote((H.noop(1); :ok))(), do: 1",
-            "x = (y = H.noop(1); :ok)\n  def unquote(x)(), do: 1",
-            "def unquote((y = H.noop(1); :ok))(), do: 1",
-        ).map { definition ->
+        val tables = expected.map { (definition, _) ->
             edit(project, a, "defmodule A do\n  $definition\n  def g, do: 1\nend\n")
 
             definition to expansion(holder, a).modules.single { it.module == "Elixir.A" }.table.entries.keys
         }
 
-        assertEquals(tables.map { it.first to setOf(NameArity("g", 0)) }, tables)
+        assertEquals(expected, tables)
 
         edit(project, a, "defmodule A do\n  x = (def f, do: 1; :ok)\n  def unquote(x)(), do: 1\n  def g, do: 1\nend\n")
 
