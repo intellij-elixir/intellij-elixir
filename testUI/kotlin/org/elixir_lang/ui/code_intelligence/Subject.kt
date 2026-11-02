@@ -35,8 +35,8 @@ fun IDETestContext.withDeclarationSource(source: DeclarationSource): IDETestCont
     DeclarationSource.EXPANDER -> applyVMOptionsPatch { addSystemProperty("org.elixir_lang.declaration.source", "expander") }
 }
 
-/** With no project open, as `addSdkFromDisk` needs the welcome screen. Its compiled output stays: the expander reads it. */
-fun Driver.openSubject(indexing: Duration = 15.minutes) = step("Open ${Subject.name}") {
+/** From the welcome screen, which `addSdkFromDisk` needs, so before [openSubject]. */
+fun Driver.addSdks() = step("Add the Erlang and Elixir SDKs") {
     ensureWelcomeScreenInForeground()
     welcomeScreen {
         addSdkFromDisk(
@@ -46,6 +46,10 @@ fun Driver.openSubject(indexing: Duration = 15.minutes) = step("Open ${Subject.n
         )
         addSdkFromDisk("Add Elixir SDK from disk", IdeTestContext.elixirSdkPath, "Select Home Directory for Elixir SDK")
     }
+}
+
+/** Opens the subject and waits for its indexing. Its compiled output stays: the expander reads it. */
+fun Driver.openSubject(indexing: Duration = 15.minutes) = step("Open ${Subject.name}") {
     openProjectAt(Subject.root.toString(), keepBuild = true, ready = indexing)
     ensureIdeInForeground()
     assignElixirSdk()

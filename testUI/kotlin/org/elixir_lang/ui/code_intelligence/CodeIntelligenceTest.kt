@@ -21,7 +21,8 @@ class Row(
 
 /**
  * The generated subject, opened once per side, with every row driven by its gesture and judged by [verdict]. Every row
- * runs; the test then fails naming each that failed.
+ * runs; the test then fails naming each that failed. Its timings are recorded first, under `build/`, and fail it only by
+ * a hang.
  */
 class CodeIntelligenceTest {
     @Test
@@ -31,18 +32,33 @@ class CodeIntelligenceTest {
     fun expander() = run(DeclarationSource.EXPANDER)
 
     private fun run(source: DeclarationSource) {
+        val side = source.name.lowercase()
         val verdicts = mutableListOf<Pair<Row, Verdict>>()
-        IdeTestContext.setupTestContext("CodeIntelligence-${source.name.lowercase()}")
+        val recording = Recording(side)
+        val context = IdeTestContext.setupTestContext("CodeIntelligence-$side")
             .withDeclarationSource(source)
-            .runIdeWithDriver(runTimeout = 20.minutes)
-            .useDriverAndCloseIde {
-                openSubject()
+            .applyVMOptionsPatch { addLine("-XX:StartFlightRecording:filename=${recording.flight},settings=profile,dumponexit=true") }
+        var probesStopped: Throwable? = null
+        context.runIdeWithDriver(runTimeout = 20.minutes).useDriverAndCloseIde {
+            addSdks()
+            // With no subject, no row can run.
+            if (recording.timed("open and index") { openSubject() }) {
+                probesStopped = runCatching { PerformanceProbes(this, recording).run(TELEMETRY, TELEMETRY_INIT) }.exceptionOrNull()
                 val probes = FeatureProbes(this)
                 ROWS.forEach { row -> verdicts += row to verdict(row.answer, row.known(source), probes.(row.gesture)()) }
             }
-        verdicts.forEach { (row, verdict) -> println("${source.name.lowercase()}: ${row.name}: $verdict") }
+        }
+        verdicts.forEach { (row, verdict) -> println("$side: ${row.name}: $verdict") }
+        val noSpans = runCatching { recording.spans(context.paths.testHome) }.exceptionOrNull()
         val failed = verdicts.mapNotNull { (row, verdict) -> (verdict as? Verdict.Fail)?.let { "${row.name}: ${it.reason}" } }
-        check(failed.isEmpty()) { "${failed.size} of ${verdicts.size} rows failed on the ${source.name.lowercase()}:\n${failed.joinToString("\n")}" }
+        check(failed.isEmpty() && recording.hangs.isEmpty() && probesStopped == null && noSpans == null) {
+            listOfNotNull(
+                failed.takeIf { it.isNotEmpty() }?.let { "${it.size} of ${verdicts.size} rows failed on the $side:\n${it.joinToString("\n")}" },
+                recording.hangs.takeIf { it.isNotEmpty() }?.let { "hung on the $side:\n${it.joinToString("\n")}" },
+                probesStopped?.let { "the performance probes stopped on the $side: $it" },
+                noSpans?.let { "no spans from the $side: $it" },
+            ).joinToString("\n")
+        }
     }
 
     private companion object {

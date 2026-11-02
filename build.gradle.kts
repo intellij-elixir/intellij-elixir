@@ -1381,6 +1381,7 @@ tasks.register<Test>("testUI") {
         else -> throw GradleException("-PtestUiHeadless is 'true' or 'false', not '$value'")
     }
     systemProperty("testUi.headless", headless)
+    systemProperty("testUi.recordings", layout.buildDirectory.dir("testUI/recordings").get().asFile.absolutePath)
     // Keep Allure outputs under build/ instead of the repo root.
     systemProperty("allure.results.directory", layout.buildDirectory.dir("results/allure").get().asFile.absolutePath)
 
