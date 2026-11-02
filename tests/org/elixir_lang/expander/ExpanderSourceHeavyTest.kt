@@ -2019,6 +2019,19 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(Feature.entries.associateWith { listOf(Uncertain.STOP) }, stepped)
     }
 
+    /** A `.beam`'s definition is declared by its module as the module index names it, without `inspect`'s quotes. */
+    fun testABeamsDefinitionIsDeclaredByItsModulesIndexName() {
+        val ebin = File("testData/org/elixir_lang/beam/elixir_prefixed_atom_module/ebin").absoluteFile
+        val file = file("defmodule Asker do\n  def f, do: :\"Elixir.foo\".hello()\nend")
+        val use = use(file, ":\"Elixir.foo\".hello()", ":\"Elixir.foo\".hello()")
+
+        val modules = WalkTestSupport.withLibrary(project, module, testRootDisposable, "elixir_prefixed_atom_module", ebin) {
+            read { ExpanderSource.candidates(use, false).map { it.declaringModuleName() } }
+        }
+
+        assertEquals(listOf(":Elixir.foo"), modules)
+    }
+
     /** Why [ExpanderSource]'s answer to the use [call] in [context] may be missing what it reaches, or `certain`. */
     private fun absence(file: PsiFile, context: String, call: String): String {
         val use = use(file, context, call)

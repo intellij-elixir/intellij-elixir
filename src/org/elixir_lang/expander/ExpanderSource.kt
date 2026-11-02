@@ -8,8 +8,10 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.ResolveState
+import com.intellij.psi.StubBasedPsiElement
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.beam.psi.stubs.ModuleStub
 import org.elixir_lang.call.Visibility
 import org.elixir_lang.code_insight.eachNameOnce
 import org.elixir_lang.declaration.Answer
@@ -569,6 +571,8 @@ internal object ExpanderSource : CandidateSource {
             ?.filterIsInstance<BeamModule>()
             ?.singleOrNull()
             ?: return at.gap(Uncertain.MODULE)
+        val indexName = ((module as? StubBasedPsiElement<*>)?.stub as? ModuleStub<*>)?.canonicalNameSet()?.singleOrNull()
+            ?: return at.gap(Uncertain.MODULE)
         val definitions = NameIndex.of(module)
 
         return NameIndex.of(exports).named(name).mapNotNull { nameArity ->
@@ -581,7 +585,7 @@ internal object ExpanderSource : CandidateSource {
                 Declaration(nameArity.name, ArityKnowledge.Exact(nameArity.arity), definition.capabilities, Declared.Compiled(origin)),
                 definition,
                 definition,
-                origin.module,
+                indexName,
                 null,
             )
         }
