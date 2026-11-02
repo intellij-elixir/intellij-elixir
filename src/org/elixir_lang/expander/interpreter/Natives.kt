@@ -2748,8 +2748,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
         if (elements.any { small(it) == null }) decline("filename:basename/2 of the extension %s, which is no list of code points", term)
 
-        return (unicode("characters_to_binary/1", listOf(term)) as? OtpErlangBitstr)?.binaryValue()
-            ?: decline("filename:basename/2 of the extension %s, which is no text", term)
+        return chardataBytes("characters_to_binary", listOf(term))
     }
 
     /** The bytes of the binary [term], declining where it is not one, as a list or atom name is not. */
@@ -2831,31 +2830,46 @@ internal class Natives(private val evaluation: Evaluation) {
     }
 
     /**
-     * `unicode:characters_to_binary/1` (`unicode.erl:305-311`): chardata as a UTF-8 binary, raising `badarg` for a term
-     * that isn't chardata, which OTP checks before it encodes any of the term, up to the first integer too large to be
-     * small. Where a binary isn't UTF-8 or an integer isn't a code point, it gives `{error, ...}` or
-     * `{incomplete, ...}`, which decline.
+     * `unicode:characters_to_binary/1` (`unicode.erl:305-311`) and `characters_to_list/1` (`:289-295`): chardata as a
+     * UTF-8 binary or a list of code points. The list is a copy, so past [COPY_NODES] code points it declines.
      */
     private fun unicode(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
         when (key) {
-            "characters_to_binary/1" -> {
-                // One binary's bytes run on into the next's, so a character may be split between them.
-                val bytes = Built()
-                var codePoints = true
-                val chardata = leaves(args[0], { bytes.write(it.binaryValue()) }) { integer ->
-                    if (small(integer) == null) decline("characters_to_binary/1 of %s, which is no code point", integer)
+            "characters_to_binary/1" -> OtpErlangBinary(chardataBytes("characters_to_binary", args))
+            "characters_to_list/1" -> {
+                val text = String(chardataBytes("characters_to_list", args), Charsets.UTF_8)
 
-                    codePoint(integer)?.let { bytes.write(Character.toString(it).toByteArray()) } ?: run { codePoints = false }
+                if (text.codePointCount(0, text.length) > COPY_NODES) {
+                    decline("characters_to_list/1 of %s, past $COPY_NODES code points", args[0])
                 }
 
-                if (!chardata) evaluation.error(atom("badarg"), frame("unicode", "characters_to_binary", list(args)))
-                if (!codePoints) decline("characters_to_binary/1 of %s, which holds no code point", args[0])
-
-                OtpErlangBinary(bytes.toByteArray()).takeIf { utf8(it) != null }
-                    ?: decline("characters_to_binary/1 of %s, which isn't UTF-8", args[0])
+                list(text.codePoints().mapToObj { integer(it.toLong()) }.toList())
             }
             else -> null
         }
+
+    /**
+     * The UTF-8 bytes of the chardata `unicode:`[function]`/1` is given in [args], raising `badarg` for a term that
+     * isn't chardata, which OTP checks before it encodes any of the term, up to the first integer too large to be small.
+     * Where a binary isn't UTF-8 or an integer isn't a code point, OTP gives `{error, ...}` or `{incomplete, ...}`, which
+     * decline.
+     */
+    private fun chardataBytes(function: String, args: List<OtpErlangObject>): ByteArray {
+        // One binary's bytes run on into the next's, so a character may be split between them.
+        val bytes = Built()
+        var codePoints = true
+        val chardata = leaves(args[0], { bytes.write(it.binaryValue()) }) { integer ->
+            if (small(integer) == null) decline("$function/1 of %s, which is no code point", integer)
+
+            codePoint(integer)?.let { bytes.write(Character.toString(it).toByteArray()) } ?: run { codePoints = false }
+        }
+
+        if (!chardata) evaluation.error(atom("badarg"), frame("unicode", function, list(args)))
+        if (!codePoints) decline("$function/1 of %s, which holds no code point", args[0])
+
+        return bytes.toByteArray().takeIf { utf8(OtpErlangBinary(it)) != null }
+            ?: decline("$function/1 of %s, which isn't UTF-8", args[0])
+    }
 
     /** [term] where it is a Unicode code point, which a surrogate isn't, `null` where it is something else. */
     private fun codePoint(term: OtpErlangObject): Int? =

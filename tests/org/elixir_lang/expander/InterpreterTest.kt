@@ -10229,7 +10229,7 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
             ),
-            // `EEx.compile_string/2` and `EEx.compile_file/2` aren't evaluated, so the body each defines is unknown.
+            // The body each defines stays unknown.
             eex("eex:string", "EEx.function_from_string(:def, :f, \"<%= a %>\", [:a])"),
             eex("eex:defp", "EEx.function_from_string(:defp, :f, \"<%= a %>\", [:a])\ndef call(a), do: f(a)"),
             eex("eex:args-attribute", "@args [:a, :b]\nEEx.function_from_string(:def, :g, \"x\", @args)"),
