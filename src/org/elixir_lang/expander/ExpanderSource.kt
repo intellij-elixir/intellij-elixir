@@ -116,14 +116,22 @@ internal object ExpanderSource : CandidateSource {
             qualified(at, call.qualifier(), module, name, use.arity)
         } else {
             buildList {
-                addAll(own(at, name, use.arity))
+                val defined = ownDefined(at, name)
+                // This lookup is the use's first, so a MODULE gap is one it met: what its module defines isn't known.
+                val ownUnknown = Uncertain.MODULE in at.gaps
+                addAll(defined.flatMap { held(at, it, name, use.arity, remote = false, emptySet()) })
                 addAll(imported(at, at.file, at.env, name, use.arity, emptySet()))
                 addAll(specialForms(at, name, use.arity))
-                // Past where the env is known, what the code after it brings in may be any definition of the name.
-                if (at.uncertain != null && name != null) {
-                    val indexed = indexed(at, name, use.arity, own(at)) { true }
-
-                    addAll(beside(this, indexed, name, use.arity, remote = false))
+                // Past where the env is known, what the code after it brings in may be any definition of the name; on
+                // reached code in a module not known to its end, any the module defines.
+                val own = own(at)
+                val wanted: ((String) -> Boolean)? = when {
+                    at.uncertain != null -> { _ -> true }
+                    ownUnknown -> { module -> module == own }
+                    else -> null
+                }
+                if (name != null && wanted != null) {
+                    addAll(beside(this, indexed(at, name, use.arity, own, wanted), name, use.arity, remote = false))
                 }
             }
         }
@@ -339,9 +347,6 @@ internal object ExpanderSource : CandidateSource {
         val imported: Boolean,
         val remote: Boolean,
     )
-
-    private fun own(at: At, name: String?, arity: Int): List<Reached> =
-        ownDefined(at, name).flatMap { held(at, it, name, arity, remote = false, emptySet()) }
 
     /**
      * [defined], which its module holds, looked up there as [name] at [arity]: through the call whose output injected

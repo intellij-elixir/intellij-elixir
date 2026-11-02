@@ -2359,6 +2359,39 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
     }
 
+    /**
+     * On reached code in a module whose run stopped, what the module defines after the stop is unknown, so a local call
+     * also gets the index's definitions of the name in that module, private ones too, and in no other.
+     */
+    fun testAUseBeforeItsModulesStopGetsTheIndexsDefinitionsInItsModule() {
+        val file = file(
+            """
+            defmodule Engine do
+              def go, do: changed(1, 2, 3)
+              def hide, do: hidden(1)
+              1.f()
+              def changed(a, b, c), do: {a, b, c}
+              defp hidden(a), do: a
+            end
+
+            defmodule Other do
+              def changed(a, b, c), do: {c, b, a}
+            end
+            """
+        )
+
+        assertEquals(
+            listOf(
+                "Engine.changed/3 INDEXED VALID via [] line 5 INDEX",
+                "Engine.hidden/1 INDEXED VALID via [] line 6 INDEX",
+            ),
+            listOf(
+                candidates(file, "changed(1, 2, 3)", "changed(1, 2, 3)"),
+                candidates(file, "hidden(1)", "hidden(1)"),
+            ),
+        )
+    }
+
     /** Why [ExpanderSource]'s answer to the use [call] in [context] may be missing what it reaches, or `certain`. */
     private fun absence(file: PsiFile, context: String, call: String): String {
         val use = use(file, context, call)
