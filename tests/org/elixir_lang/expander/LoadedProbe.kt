@@ -55,29 +55,23 @@ internal fun clausesOf(project: Project, beam: File): ModuleClauses? =
 
 /**
  * What [answer], an expression of the loaded module `m`, gives for each of [modules] on the leg's node, [BATCH_SIZE]
- * to a compile. A module its release doesn't hold is loaded from its [appBeams] `.beam` for the probe, then unloaded.
- * A module the node can't load is null.
+ * to a compile. A module its release doesn't hold is used from its [appBeams] `.beam` for the probe, through
+ * [USE_MODULE]. A module the node can't load is null.
  */
 internal fun ProbeHarness.probeLoaded(modules: List<String>, answer: String): Map<String, OtpErlangObject?> =
     modules.chunked(BATCH_SIZE).flatMap { batch ->
         // Names are binaries made atoms at run time: a quoted atom per module makes the compiler warn once for each.
         val list = batch.joinToString(", ") { "{\"$it\", ${elixirString(appBeams.getValue(it).path)}}" }
         val compiled = compileSource(
-            """
+            USE_MODULE + DROP_MODULE + """
             for {name, path} <- [$list] do
               m = String.to_atom(name)
-              held = Code.ensure_loaded?(m)
-              loaded = held or match?({:module, _}, :code.load_binary(m, String.to_charlist(path), File.read!(path)))
 
-              if loaded do
+              if use_module.(m, path) do
                 IntellijElixir.Quoter.Probe.send(__ENV__, {m, {:loaded, ($answer)}})
+                drop_module.(m)
               else
                 IntellijElixir.Quoter.Probe.send(__ENV__, {m, :unloaded})
-              end
-
-              if loaded and not held do
-                :code.delete(m)
-                :code.purge(m)
               end
             end
             """.trimIndent(),
@@ -109,9 +103,8 @@ internal fun expandedOnAStack(forms: ElixirAst, level: ElixirLanguageLevel, clau
     }!!.getOrThrow()
 
 /**
- * [block], with the leg's `EEx` and `Mix.Generator`, which the quoter's release doesn't hold, loaded from their
- * [appBeams] `.beam`s for Elixir's compiles, as [probeLoaded] loads a module, then unloaded, so no other test's compile
- * sees them.
+ * [block], with the leg's `EEx` and `Mix.Generator`, which the quoter's release doesn't hold, used from their
+ * [appBeams] `.beam`s for Elixir's compiles, through [USE_MODULE].
  */
 internal fun <T> ProbeHarness.withEex(block: () -> T): T {
     val ebin = appBeams.getValue("Elixir.EEx").parentFile
@@ -119,28 +112,67 @@ internal fun <T> ProbeHarness.withEex(block: () -> T): T {
         .entries
         .joinToString(", ") { (module, beam) -> "{\"$module\", ${elixirString(beam.path)}}" }
 
-    val loaded = compileSource(
-        """
-        for {name, path} <- [$beams] do
-          {:module, _} = :code.load_binary(String.to_atom(name), String.to_charlist(path), File.read!(path))
-        end
-        """.trimIndent(),
-    )
+    val loaded = compileSource(USE_MODULE + "for {name, path} <- [$beams], do: true = use_module.(String.to_atom(name), path)")
 
     assertEquals("EEx's load", OtpErlangAtom("ok"), loaded.status)
     try {
         return block()
     } finally {
-        compileSource(
-            """
-            for {name, _} <- [$beams] do
-              :code.delete(String.to_atom(name))
-              :code.purge(String.to_atom(name))
-            end
-            """.trimIndent(),
-        )
+        compileSource(DROP_MODULE + "for {name, _} <- [$beams], do: drop_module.(String.to_atom(name))")
     }
 }
+
+/**
+ * Binds `use_module.(m, path)`, true where `m` is loaded. Test forks share the node, and a second load would make a
+ * running user's copy old, which a purge then kills, so a module loaded from `path` is loaded once and its uses counted.
+ */
+internal val USE_MODULE = """
+    use_module = fn m, path ->
+      key = {IntellijElixir.Test.SharedLoads, m}
+
+      :global.trans({IntellijElixir.Test.SharedLoads, self()}, fn ->
+        users = :persistent_term.get(key, 0)
+
+        cond do
+          users > 0 ->
+            :persistent_term.put(key, users + 1)
+            true
+
+          Code.ensure_loaded?(m) ->
+            true
+
+          match?({:module, _}, :code.load_binary(m, String.to_charlist(path), File.read!(path))) ->
+            :persistent_term.put(key, 1)
+            true
+
+          true ->
+            false
+        end
+      end, [node()])
+    end
+"""
+
+/** Binds `drop_module.(m)`, which ends a use of `m` that [USE_MODULE] counted, unloading `m` after the last. */
+private val DROP_MODULE = """
+    drop_module = fn m ->
+      key = {IntellijElixir.Test.SharedLoads, m}
+
+      :global.trans({IntellijElixir.Test.SharedLoads, self()}, fn ->
+        case :persistent_term.get(key, 0) do
+          0 ->
+            :ok
+
+          1 ->
+            :persistent_term.erase(key)
+            :code.delete(m)
+            :code.purge(m)
+
+          users ->
+            :persistent_term.put(key, users - 1)
+        end
+      end, [node()])
+    end
+"""
 
 /** [text] as an Elixir string literal, so a Windows path's backslashes aren't read as escapes. */
 internal fun elixirString(text: String): String =
