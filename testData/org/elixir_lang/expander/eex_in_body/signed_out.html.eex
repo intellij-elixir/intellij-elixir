@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Signed out</title>
+</head>
+<body>
+<%= if script_nonce do %>
+  <script nonce="<%= script_nonce %>">
+<% else %>
+  <script>
+<% end %>
+  "use strict";
+
+  // Clears what this tab kept for the session, tells the other tabs, then leaves for the sign-in page.
+  (function () {
+    var KEYS = ["session.user", "session.expires", "drafts.unsaved", "filters.recent"];
+    var channel = null;
+
+    function forget(storage) {
+      try {
+        for (var i = 0; i < KEYS.length; i++) {
+          storage.removeItem(KEYS[i]);
+        }
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function announce() {
+      if (typeof BroadcastChannel === "undefined") {
+        return;
+      }
+      channel = new BroadcastChannel("session");
+      channel.postMessage({ type: "signed-out", at: Date.now() });
+    }
+
+    function nextPage() {
+      var query = new URLSearchParams(window.location.search);
+      var next = query.get("next");
+      if (next && next.charAt(0) === "/" && next.charAt(1) !== "/") {
+        return "/sign-in?next=" + encodeURIComponent(next);
+      }
+      return "/sign-in";
+    }
+
+    function report(problem) {
+      var note = document.createElement("p");
+      note.className = "problem";
+      note.textContent = "Some of this tab's data could not be cleared (" + problem + "). Close the tab to finish.";
+      document.body.appendChild(note);
+    }
+
+    function leave() {
+      var local = forget(window.localStorage);
+      var session = forget(window.sessionStorage);
+      announce();
+      if (!local || !session) {
+        report(!local ? "local storage" : "session storage");
+        return;
+      }
+      if (channel) {
+        channel.close();
+      }
+      window.location.replace(nextPage());
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", leave);
+    } else {
+      leave();
+    }
+  })();
+</script>
+<noscript>
+  <p>You are signed out. <a href="/sign-in">Sign in again</a>.</p>
+</noscript>
+</body>
+</html>
