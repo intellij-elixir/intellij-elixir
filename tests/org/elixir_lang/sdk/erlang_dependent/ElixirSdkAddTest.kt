@@ -3,6 +3,7 @@ package org.elixir_lang.sdk.erlang_dependent
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
+import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.testFramework.common.runAll
 import org.elixir_lang.PlatformTestCase
@@ -143,6 +144,22 @@ class ElixirSdkAddTest : PlatformTestCase() {
         assertEquals("the link goes back to the Elixir install", listOf("home", "erlang", "home", "erlang"), asked.events)
         assertTrue(wslCompat.pathsEqualWslAware(otp26Elixir, elixirSdk.homePath))
         assertEquals("Add OTP 26 Erlang", (elixirSdk.sdkAdditionalData as SdkAdditionalData).getErlangSdkName())
+    }
+
+    fun testTheSecondSdkOnAnInstallIsNamedWithItsErlang() {
+        val model = model(registeredErlang("Add first install Erlang", "27", "27.3.4"), registeredErlang("Add second install Erlang", "26", "26.2.5"))
+        model.addSdk(ProjectJdkImpl("Elixir 1.18.4-otp-27", ElixirSdkType.instance, elixirHome, null))
+        script(ScriptedErlangStep.pick("Add second install Erlang"))
+
+        assertEquals("Elixir 1.18.4-otp-27 (Erlang 26.2.5)", addedSdk(model).name)
+        assertNotNull("the SDK already on the install keeps its name", model.findSdk("Elixir 1.18.4-otp-27"))
+    }
+
+    fun testTheFirstSdkOnAnInstallKeepsItsName() {
+        val model = model(registeredErlang("Add only install Erlang", "27", "27.3.4"))
+        script(ScriptedErlangStep.pick("Add only install Erlang"))
+
+        assertEquals("Elixir 1.18.4-otp-27", addedSdk(model).name)
     }
 
     fun testCancellingTheElixirSetupProgressLeavesTheErlangRegisteredAndUnpaired() {

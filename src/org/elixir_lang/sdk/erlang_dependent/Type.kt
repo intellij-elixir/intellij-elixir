@@ -10,11 +10,13 @@ import com.intellij.openapi.roots.OrderRootType
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import org.elixir_lang.sdk.ProcessOutput.isSmallIde
 import org.elixir_lang.sdk.SdkHomeChooser
+import org.elixir_lang.sdk.SdkRegistrar
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
 import org.elixir_lang.sdk.elixir.Type.Companion.erlangSdkType
 import org.jdom.Element
 import java.util.function.Consumer
 import javax.swing.JComponent
+import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 
 /**
  * An SDK that depends on an Erlang SDK, either
@@ -70,7 +72,7 @@ abstract class Type protected constructor(name: String) : DependentSdkType(name)
                 val sdks = sdkModel.sdks.asList()
                 val erlangSdk = ErlangStep.getInstance().ask(parentComponent, elixirHome, sdkModel, chooseAnotherInstall = ::create)
                     ?: return@selectSdkHome
-                val elixirSdk = SdkConfigurationUtil.createSdk(sdks, elixirHome, this, null, null)
+                val elixirSdk = SdkConfigurationUtil.createSdk(sdks, elixirHome, this, null, variantName(sdks, elixirHome, erlangSdk))
                 // Before the callback's `setupSdkPaths`, which reads the pick from `ERLANG_SDK_KEY`.
                 WriteAction.run<Throwable> { ElixirSdkMutation.applyDependencySelection(elixirSdk, erlangSdk) }
                 sdkCreatedCallback.accept(elixirSdk)
@@ -79,6 +81,17 @@ abstract class Type protected constructor(name: String) : DependentSdkType(name)
 
         create(null)
     }
+
+    /**
+     * A second Elixir SDK on one install, one already among [sdks], is named with its Erlang; null, the type's own
+     * name, for the first. No SDK already in the model is renamed.
+     */
+    private fun variantName(sdks: List<Sdk>, elixirHome: String, erlangSdk: Sdk): String? =
+        if (sdks.none { SdkRegistrar.onInstall(it, elixirHome) }) {
+            null
+        } else {
+            ElixirSdkType.suggestSdkNameFromStore(elixirHome, null, erlangSdk.homePath)
+        }
 
     companion object {
         private const val ERLANG_SDK_TYPE_CANONICAL_NAME = "org.intellij.erlang.sdk.ErlangSdkType"
