@@ -216,6 +216,8 @@
 
 ### Bug Fixes
 
+- [#4629](https://github.com/intellij-elixir/intellij-elixir/pull/4629) [@sh41](https://github.com/sh41)
+  - **In IDEs other than IntelliJ IDEA, choosing a new home for an Elixir or Erlang SDK in Settings no longer throws or logs an error, and takes the new home's library paths and version; Save Changes on the Elixir SDKs page no longer throws when Settings is shown as an editor tab; and when an SDK's paths change, External Libraries still names its library folders after their OTP applications.** Refs [#4627](https://github.com/intellij-elixir/intellij-elixir/issues/4627).
 - [#4612](https://github.com/intellij-elixir/intellij-elixir/pull/4612) [@sh41](https://github.com/sh41)
   - **On Elixir 1.14 and later, the expander no longer stops a `defimpl` that ends in an `EEx.function_from_string` or `EEx.function_from_file` call, and a call it can't run in a parenthesised block no longer makes it run every branch of a `case` or `if` after that call.** Refs [#4577](https://github.com/intellij-elixir/intellij-elixir/issues/4577).
 - [#4598](https://github.com/intellij-elixir/intellij-elixir/pull/4598) [@sh41](https://github.com/sh41)
