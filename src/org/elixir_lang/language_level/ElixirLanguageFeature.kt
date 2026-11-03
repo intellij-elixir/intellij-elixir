@@ -728,6 +728,14 @@ enum class ElixirLanguageFeature(
     FUNCTION_ERRORS_CONTINUE(sinceElixir = "1.15.0-rc.0"),
 
     /**
+     * A name `elixir_module:validate_module_name/1` refuses raises an `ArgumentError`. Before it, a `CompileError`.
+     *
+     * `elixir-lang/elixir@b24869687` ("Introduce mechanism to collect several errors in a module", #12275), first
+     * released in v1.15.0-rc.0.
+     */
+    INVALID_MODULE_NAME_IS_ARGUMENT_ERROR(sinceElixir = "1.15.0-rc.0"),
+
+    /**
      * `@` builds `Module.__put_attribute__/5` and `Module.__get_attribute__/4`, `@behavior` raises rather than warns,
      * and a doc attribute's `{line, list}` is metadata before the doc is checked, so `@doc []` is empty metadata, and
      * `Kernel` builds the `@` of the attributes it writes, such as `defguard`'s `@doc guard: true`, as `Elixir.Kernel.@`.

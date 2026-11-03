@@ -784,11 +784,12 @@ internal class Evaluation(
     }
 
     /** Raises [module]'s exception, its struct with [fields] put. */
-    fun raise(module: String, vararg fields: Pair<String, OtpErlangObject>): Nothing {
-        val struct = remote(atom(module), "__struct__", emptyList()) as? OtpErlangMap ?: decline("$module has no struct")
+    fun raise(module: String, vararg fields: Pair<String, OtpErlangObject>): Nothing =
+        error(mapOf(entries(exceptionStruct(module)) + fields.map { (key, value) -> atom(key) to value }, run.level))
 
-        error(mapOf(entries(struct) + fields.map { (key, value) -> atom(key) to value }, run.level))
-    }
+    /** [module]'s struct, which its exception is raised as. */
+    private fun exceptionStruct(module: String): OtpErlangMap =
+        remote(atom(module), "__struct__", emptyList()) as? OtpErlangMap ?: decline("$module has no struct")
 
     /**
      * [expr] read as a guard reads it in [frame], `null` where it raises, which fails its guard or its pattern: a raise
@@ -1033,6 +1034,15 @@ internal class Evaluation(
         mapOf(
             listOf(atom("__struct__") to atom("Elixir.Macro.Env")) + envFields(run.level).map { atom(it) to valueOf(it) },
             run.level,
+        )
+
+    /** Raises [exception] with every field but those that make it an exception unknown, since Elixir's aren't known. */
+    fun raiseFieldsUnknown(exception: String): Nothing =
+        error(
+            mapOf(
+                entries(exceptionStruct(exception)).map { (key, value) -> key to if (key == STRUCT || key == EXCEPTION) value else Unknown },
+                run.level,
+            ),
         )
 
     /** `Left.right(args)`: a remote call, or a field of a map. */

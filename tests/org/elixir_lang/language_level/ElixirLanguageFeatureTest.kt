@@ -83,6 +83,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             UNDERSCORE_TAKES_VERSION to ("1.20.0-rc.4" to "1.20.0-rc.5"),
             UNDEFINED_VARIABLE_RAISES to ("1.14.5" to "1.15.0-rc.0"),
             FUNCTION_ERRORS_CONTINUE to ("1.14.5" to "1.15.0-rc.0"),
+            INVALID_MODULE_NAME_IS_ARGUMENT_ERROR to ("1.14.5" to "1.15.0-rc.0"),
             MISPLACED_TYPE_AND_CONS_OPERATORS to ("1.14.5" to "1.15.0-rc.0"),
             CURSOR_RAISES to ("1.16.3" to "1.17.0-rc.0"),
             BITSTRING_SIZE_EXPANDED_AS_GUARD to ("1.13.4" to "1.14.0-rc.0"),

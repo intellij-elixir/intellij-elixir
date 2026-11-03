@@ -1,6 +1,5 @@
 package org.elixir_lang.expander
 
-import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
 import org.elixir_lang.language_level.ElixirLanguageLevel
 
 /**
@@ -328,92 +327,8 @@ object ErrorKinds {
         "undefined_var_in_spec" to """^undefined variable ".+" in bitstring segment\. If the size of the binary is a variable""",
     ).mapValues { (_, pattern) -> Regex(pattern, RegexOption.DOT_MATCHES_ALL) }
 
-    /** The kinds Elixir raises as a `CompileError` at line 0, whose message names only the file. */
-    private val AT_LINE_ZERO = setOf("invalid_quoted_expr")
-
-    /** The kinds Elixir raises at expansion as an exception other than `CompileError`, whose message has no line. */
-    private val WITHOUT_LINE = setOf(
-        "quote_unquote_splicing",
-        "quote_invalid_runtime_option",
-        "var_bang_not_a_variable",
-        "var_bang_context_not_atom",
-        "alias_bang_function_clause",
-        "struct_unknown_key",
-        "struct_missing_enforced_keys",
-        "struct_twice",
-        "struct_fields_not_list",
-        "struct_reserved_key",
-        "struct_invalid_default",
-        "struct_field_not_atom",
-        "enforce_key_not_atom",
-        "enforce_keys_not_defined",
-        "derive_not_available",
-        "derive_not_a_protocol",
-        "derive_not_an_implementation",
-        "delegate_no_to",
-        "delegate_self",
-        "delegate_guard",
-        "delegate_call",
-        "delegate_arg",
-        "delegate_options",
-        "protocol_def_no_args",
-        "protocol_def_bad",
-        "impl_outside_no_for",
-        "impl_no_do",
-        "impl_bad_opt",
-        "impl_options",
-        "impl_not_available",
-        "impl_not_a_protocol",
-        "invalid_defguard",
-        "defguard_two_whens",
-        "overridable_not_defined",
-        "overridable_bad_element",
-        "overridable_undefined_behaviour",
-        "overridable_not_a_behaviour",
-        "overridable_missing_behaviour",
-        "compile_error",
-        "definer_outside_module",
-        "definer_inside_function",
-        "definer_in_match",
-        "definer_in_guard",
-        "reserved_word",
-        "attribute_outside_module",
-        "attribute_in_match_or_guard",
-        "attribute_set_in_function",
-        "behavior_attribute",
-        "attribute_arity",
-        "invalid_attribute_value",
-        "invalid_if_keys",
-        "kernel_invalid_match",
-        "kernel_invalid_guard",
-        "use_invalid_arguments",
-        "sigil_function_clause",
-        "sigil_w_modifier",
-        "regex_invalid_option",
-        "hex_escape_invalid",
-        "hex_escape_missing",
-        "unicode_escape_invalid",
-        "unicode_escape_missing",
-        "unicode_code_point_reserved",
-        "iso_invalid_format",
-        "iso_invalid_date",
-        "iso_invalid_time",
-        "iso_missing_offset",
-        "iso_non_utc_offset",
-        "iso_date_out_of_range",
-        "pipe_bad_target",
-        "pipe_special_form",
-        "pipe_fn",
-        "pipe_unary",
-        "pipe_from_brackets",
-        "pipe_operator_arity",
-        "in_invalid_guard_argument",
-        "concat_not_binary",
-        "concat_unknown_size",
-        "destructure_function_clause",
-        "range_not_integers",
-        "range_zero_step",
-    )
+    /** The kinds Elixir raises as a `CompileError` with no line: at line 0, and a nested module's failure. */
+    private val WITHOUT_LINE = setOf("invalid_quoted_expr", "compile_error")
 
     fun pattern(kind: String?): Regex = PATTERNS[kind] ?: throw AssertionError("no message pattern for error $kind")
 
@@ -425,13 +340,9 @@ object ErrorKinds {
 
     /** Whether Elixir at [level] reports [kind] with a line. */
     fun hasLine(kind: String?, level: ElixirLanguageLevel): Boolean =
-        kind !in AT_LINE_ZERO && isCompileError(kind, level)
+        kind !in WITHOUT_LINE && isCompileError(kind, level)
 
-    /**
-     * Whether Elixir at [level] raises [kind] as a `CompileError`: an invalid module name is one up to 1.14, and an
-     * `ArgumentError` from 1.15.
-     */
+    /** Whether Elixir at [level] raises the bare kind [kind] as a `CompileError`, as [Expansion.Error.exception] has it. */
     fun isCompileError(kind: String?, level: ElixirLanguageLevel): Boolean =
-        kind !in WITHOUT_LINE && !isException(kind) &&
-            !(kind == "invalid_module_name" && FUNCTION_ERRORS_CONTINUE.isSufficient(level))
+        !isException(kind) && Expansion.Error.exception(kind, level) == "Elixir.CompileError"
 }

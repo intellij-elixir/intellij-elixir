@@ -682,7 +682,7 @@ internal class ExpansionProbes(
             is Ended.Raised ->
                 if (ended.error.kind in FILE_ERROR_KINDS) {
                     FILE_NOT_COMPILED
-                } else if (ended.error.kind == NESTED_RAISED || ErrorKinds.isCompileError(ended.error.kind, level)) {
+                } else if (ErrorKinds.isCompileError(ended.error.kind, level)) {
                     "raise CompileError"
                 } else {
                     ended.error.kind?.let { "raise $it" } ?: RAISED

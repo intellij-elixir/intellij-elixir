@@ -2603,14 +2603,12 @@ internal class Natives(private val evaluation: Evaluation) {
         val expansion = evaluation.run.files.imported(text, read) ?: decline("Config.__import__!/1 of %s, which can't be read", path)
 
         when (val top = expansion.top) {
-            is Expansion.Error -> when (val kind = top.kind) {
-                null -> decline("Config.__import__!/1 of %s, whose raise isn't known", path)
-                else -> {
-                    // Only its type is known, so a `rescue` can't read the rest.
-                    evaluation.mayRaise()
-                    // An expansion error, which `Code.eval_string/3` raises as a `CompileError`.
-                    evaluation.raise(if (kind.startsWith("Elixir.")) kind else "Elixir.CompileError")
-                }
+            is Expansion.Error -> {
+                val exception = Expansion.Error.exception(top.kind, level)
+                    ?: decline("Config.__import__!/1 of %s, whose raise isn't known", path)
+
+                evaluation.mayRaise()
+                evaluation.raiseFieldsUnknown(exception)
             }
             is Expansion.Expanded -> {}
             else -> {

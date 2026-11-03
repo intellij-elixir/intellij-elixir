@@ -102,7 +102,7 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
         assertEquals("[{app,[{k,1}]}] [config/dev.exs, config/config.exs]", read(root))
     }
 
-    /** Only the type of an imported file's raise is known, so a `rescue` above it can't read the rest. */
+    /** A `rescue` above an imported file's raise declines. */
     fun testARescuedErrorFromAnImportedFileIsDeclined() {
         val root = project(CONFIG to rescuing("dev.exs"), DEV to "import Config\nimport_config \"missing.exs\"\n")
 
@@ -117,6 +117,13 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
         val root = project(CONFIG to "import Config\nimport_config \"dev.exs\"\n", DEV to "import Config\nimport_config \"missing.exs\"\n")
 
         assertEquals("unknown", read(root))
+    }
+
+    /** Elixir raises `KeyError` for the unknown key, a raise whose fields the read doesn't hold. */
+    fun testAnImportedFilesUnknownStructKeyIsDeclined() {
+        val root = project(CONFIG to "import Config\nimport_config \"dev.exs\"\n", DEV to "import Config\n%URI{nope: 1}\n")
+
+        assertEquals("declined", read(root))
     }
 
     private fun rescuing(file: String) =
