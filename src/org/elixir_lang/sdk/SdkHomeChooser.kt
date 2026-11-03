@@ -170,8 +170,11 @@ object SdkHomeChooser {
 
     @VisibleForTesting
     internal fun firstUnregistered(homesNewestFirst: List<String>, registeredHomes: Collection<String>): String? =
-        homesNewestFirst.firstOrNull { home -> registeredHomes.none { wslCompat.pathsEqualWslAware(it, home) } }
-            ?: homesNewestFirst.firstOrNull()
+        unregistered(homesNewestFirst, registeredHomes).firstOrNull() ?: homesNewestFirst.firstOrNull()
+
+    /** The [homes] none of [registeredHomes] is. */
+    internal fun unregistered(homes: List<String>, registeredHomes: Collection<String>): List<String> =
+        homes.filter { home -> registeredHomes.none { wslCompat.pathsEqualWslAware(it, home) } }
 
     /** The native Windows and macOS dialogs may ignore the start folder. */
     @VisibleForTesting

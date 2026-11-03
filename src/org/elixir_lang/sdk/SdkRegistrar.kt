@@ -178,10 +178,11 @@ object SdkRegistrar {
      * The caller distinguishes confirmed vs. legacy matches by checking whether `erlangSdkHomePath`
      * is non-null on the returned SDK.
      *
+     * The Erlang is the SDK at [erlangHome] named [erlangName], or an install no SDK has when [erlangName] is null.
      * Returns the first match in [sdks], or null if none exists.
      */
-    internal fun findElixirSdkByVariant(sdks: Iterable<Sdk>, homePath: String, erlangSdk: Sdk?): Sdk? =
-        sdks.firstOrNull { sdk -> onInstall(sdk, homePath) && sameErlangHome(sdk, erlangSdk) }
+    internal fun findElixirSdkByVariant(sdks: Iterable<Sdk>, homePath: String, erlangHome: String?, erlangName: String?): Sdk? =
+        sdks.firstOrNull { sdk -> onInstall(sdk, homePath) && sameErlangHome(sdk, erlangHome, erlangName) }
 
     /** [sdk] is an Elixir SDK on the install at [homePath]: the variant rule's first half. */
     internal fun onInstall(sdk: Sdk, homePath: String): Boolean =
@@ -189,23 +190,21 @@ object SdkRegistrar {
 
     private fun findElixirSdkByVariant(homePath: String, erlangSdk: Sdk?): Sdk? {
         ThreadingAssertions.assertReadAccess()
-        return findElixirSdkByVariant(ProjectJdkTable.getInstance().allJdks.asList(), homePath, erlangSdk)
+        return findElixirSdkByVariant(ProjectJdkTable.getInstance().allJdks.asList(), homePath, erlangSdk?.homePath, erlangSdk?.name)
     }
 
-    private fun sameErlangHome(sdk: Sdk, erlangSdk: Sdk?): Boolean {
+    private fun sameErlangHome(sdk: Sdk, requestedHome: String?, requestedName: String?): Boolean {
         val additionalData = sdk.sdkAdditionalData as? SdkAdditionalData
         val persistedHome = additionalData?.getErlangSdkHomePath()
-        val requestedHome = erlangSdk?.homePath
         return when {
             persistedHome == null && requestedHome == null -> true
             // Legacy SDK: home path not yet persisted but a name is stored. Require the stored
             // name to match the requested SDK's name - this prevents an Elixir SDK already paired
             // with Erlang 24 from absorbing a registration request for Erlang 25, which would
             // recreate the variant-collapse bug Problem 5 fixed for modern (home-path-persisted)
-            // SDKs. Branch 1 already handles the erlangSdk == null case (requestedHome == null),
-            // so when this branch is evaluated, erlangSdk is always non-null.
+            // SDKs. An install no SDK has has no name, so no legacy pairing matches it.
             persistedHome == null && additionalData?.getErlangSdkName() != null ->
-                additionalData.getErlangSdkName() == erlangSdk?.name
+                additionalData.getErlangSdkName() == requestedName
 
             persistedHome == null || requestedHome == null -> false
             else -> wslCompat.pathsEqualWslAware(persistedHome, requestedHome)

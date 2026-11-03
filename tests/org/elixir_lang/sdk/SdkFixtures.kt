@@ -68,6 +68,11 @@ internal object SdkFixtures {
     fun waitForRegistrationFills() =
         waitUntil("the registration fill finishes") { SdkVersionWatchService.isIdleForTests() }
 
+    /** Commits [elixirSdk]'s pairing with [erlangSdk], as picking it does. */
+    @RequiresEdt
+    fun commitPairing(elixirSdk: Sdk, erlangSdk: Sdk): Sdk =
+        elixirSdk.also { commit(it, ElixirSdkAdditionalData(erlangSdk, it)) }
+
     @RequiresEdt
     fun commit(sdk: Sdk, data: SdkAdditionalData?) {
         WriteAction.run<Throwable> {
