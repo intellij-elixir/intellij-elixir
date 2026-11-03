@@ -33,6 +33,7 @@ import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
 import org.elixir_lang.sdk.wsl.wslCompat
+import org.jetbrains.annotations.VisibleForTesting
 
 class Editor(private val sdkModel: SdkModel, private val history: History, private var sdk: ProjectJdkImpl) :
     Configurable, Place.Navigator {
@@ -187,6 +188,9 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
         initialName = sdk.name
         initialPath = sdk.homePath
         val sdkModificator = sdk.sdkModificator
+        if (!FileUtil.pathsEqual(homeValue, sdk.homePath ?: "")) {
+            sdkModificator.versionString = _versionString
+        }
         sdkModificator.homePath = FileUtil.toSystemDependentName(homeValue)
 
         sdkPathEditorByOrderRootType.values.forEach { pathEditor -> pathEditor.apply(sdkModificator) }
@@ -265,19 +269,21 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
         SdkHomeChooser.selectSdkHome(sdkType, basePath) { path -> doSetHomePath(path, sdkType) }
     }
 
-    private fun doSetHomePath(homePath: String?, sdkType: SdkType) {
+    @VisibleForTesting
+    internal fun doSetHomePath(homePath: String?, sdkType: SdkType) {
         if (homePath != null) {
             setHomePathValue(homePath.replace('/', File.separatorChar))
 
-            sdk.name = suggestSdkName(homePath)
-
             try {
                 val dummySdk = sdk.clone() as Sdk
-                dummySdk.sdkModificator.apply {
+                // Read before the write action: under write access the versions store returns without reading.
+                val versionString = sdkType.getVersionString(homePath)
+                val dummySdkModificator = dummySdk.sdkModificator.apply {
                     this.homePath = homePath
+                    this.versionString = versionString
                     removeAllRoots()
-                    commitChanges()
                 }
+                ApplicationManager.getApplication().runWriteAction { dummySdkModificator.commitChanges() }
 
                 sdkType.setupSdkPaths(dummySdk, sdkModel)
 
@@ -304,25 +310,6 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
             } catch (e: CloneNotSupportedException) {
                 LOG.error(e) // should not happen in normal program
             }
-        }
-    }
-
-    private fun suggestSdkName(homePath: String): String {
-        val currentName = sdk.name
-        val suggestedName = (sdk.sdkType as SdkType).suggestSdkName(currentName, homePath)
-
-        return if (Objects.equals(currentName, suggestedName)) {
-            currentName
-        } else {
-            var newSdkName = suggestedName
-            val allNames = sdkModel.sdks.map(Sdk::getName).toSet()
-            var i = 0
-
-            while (allNames.contains(newSdkName)) {
-                newSdkName = suggestedName + " (" + ++i + ")"
-            }
-
-            newSdkName
         }
     }
 

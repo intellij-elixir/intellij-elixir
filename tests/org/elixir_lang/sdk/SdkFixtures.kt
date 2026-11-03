@@ -32,6 +32,16 @@ internal object SdkFixtures {
         return home.path
     }
 
+    /**
+     * [erlangHome] with a stdlib ebin: without one, root checks pass vacuously and `SdkEbinPaths` reports the missing
+     * `lib` as an error.
+     */
+    fun erlangHomeWithEbin(major: String, otpVersion: String): String =
+        erlangHome(major, otpVersion).also { home ->
+            val ebin = File(home, "lib/stdlib-$otpVersion/ebin")
+            check(ebin.mkdirs()) { "Failed to create $ebin" }
+        }
+
     /** A home that does not exist, absolute on every OS as a real home is: a Unix `/fake` path is relative on Windows. */
     fun fakeHome(path: String): String = File(FileUtil.getTempDirectory(), "fake/$path").path
 
