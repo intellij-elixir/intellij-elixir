@@ -101,11 +101,8 @@ internal class Bits(private val evaluation: Evaluation) {
             }
         }
 
-        when (val evaluated = turn.outcome) {
-            is PartsOutcome.Declines -> throw evaluated.declined
-            is PartsOutcome.Raises -> throw evaluated.raise
-            is PartsOutcome.Values -> writes.forEach { it() }
-        }
+        turn.outcome.valuesOrThrow()
+        writes.forEach { it() }
 
         return when {
             !unknown -> writer.bitstring()

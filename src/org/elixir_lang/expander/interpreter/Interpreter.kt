@@ -877,14 +877,9 @@ internal class Evaluation(
      */
     private fun block(expressions: List<ElixirAst>, frame: Frame, tail: Boolean): OtpErlangObject {
         val last = expressions.lastOrNull() ?: return NIL
-        val outcome = partsOf(expressions.dropLast(1).filterNot(bodyValues::ranWithoutValue), rest = listOf(last)) {
+        val before = partsOf(expressions.dropLast(1).filterNot(bodyValues::ranWithoutValue), rest = listOf(last)) {
             using(use.ofExpression(it, last)) { part(it, frame) }
-        }
-        val before = when (outcome) {
-            is PartsOutcome.Values -> outcome.values
-            is PartsOutcome.Declines -> throw outcome.declined
-            is PartsOutcome.Raises -> throw outcome.raise
-        }
+        }.valuesOrThrow()
 
         return holding(before, emptyList(), frame) { once(last, frame, tail) }
     }
@@ -907,12 +902,7 @@ internal class Evaluation(
         frame: Frame,
         before: List<OtpErlangObject> = emptyList(),
         rest: List<ElixirAst> = emptyList(),
-    ): List<OtpErlangObject> =
-        when (val outcome = partsOf(parts, before, rest) { part(it, frame) }) {
-            is PartsOutcome.Values -> outcome.values
-            is PartsOutcome.Declines -> throw outcome.declined
-            is PartsOutcome.Raises -> throw outcome.raise
-        }
+    ): List<OtpErlangObject> = partsOf(parts, before, rest) { part(it, frame) }.valuesOrThrow()
 
     /** [evaluate]'s value: where it declines, what the value built from it would have held includes [held] and [rest]. */
     private inline fun <T> holding(held: List<OtpErlangObject>, rest: List<ElixirAst>, frame: Frame, evaluate: () -> T): T =
