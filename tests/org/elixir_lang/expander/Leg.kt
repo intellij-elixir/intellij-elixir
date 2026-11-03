@@ -88,22 +88,18 @@ internal fun legModules(): List<String> =
 
 /**
  * The leg's `ex_unit` loaded on the quoter node, as `mix test` has it: the quoter's release holds no `ex_unit`, and in
- * its embedded mode nothing on the code path loads until asked. Under a lock, as another test may be loading it too: a
- * third load of a module is `:not_purged`.
+ * its embedded mode nothing on the code path loads until asked. Each module is a [USE_MODULE] use that is never dropped.
  */
 internal fun exUnitOnQuoter() {
     val ebin = File(LegManifest.environment("ELIXIR_LANG_ELIXIR_PATH"), "lib/ex_unit/ebin")
     val compiled = Quoter.compile(
-        """
+        USE_MODULE + """
         ebin = ${elixirString(ebin.invariantSeparatorsPath)}
         true = Code.prepend_path(ebin)
 
-        :global.trans({:ex_unit_on_quoter, self()}, fn ->
-          for beam <- Path.wildcard(Path.join(ebin, "*.beam")),
-              :code.is_loaded(String.to_atom(Path.basename(beam, ".beam"))) == false do
-            {:module, _} = :code.load_abs(String.to_charlist(Path.rootname(beam)))
-          end
-        end, [node()])
+        for beam <- Path.wildcard(Path.join(ebin, "*.beam")) do
+          true = use_module.(String.to_atom(Path.basename(beam, ".beam")), beam)
+        end
 
         {:module, _} = Code.ensure_loaded(ExUnit.Case)
         """.trimIndent(),
