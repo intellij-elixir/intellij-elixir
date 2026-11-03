@@ -4,13 +4,11 @@ import com.intellij.ide.projectView.PresentationData
 import com.intellij.ide.projectView.ViewSettings
 import com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode
 import com.intellij.openapi.application.WriteAction
-import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
-import com.intellij.testFramework.common.runAll
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 
@@ -21,14 +19,6 @@ import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
  * Libraries listed them all under that one name and no node said which application it belonged to.
  */
 class ElixirSdkLibraryNodeDecoratorTest : PlatformTestCase() {
-    private var sdk: Sdk? = null
-
-    override fun tearDown() = runAll(
-        { sdk?.let { registered -> WriteAction.run<Throwable> { ProjectJdkTable.getInstance().removeJdk(registered) } } },
-        { sdk = null },
-        { super.tearDown() },
-    )
-
     fun testClassRootIsNamedAfterItsOtpApplication() {
         val iex = myFixture.tempDirFixture.findOrCreateDir("elixir_home/lib/iex/ebin")
         val logger = myFixture.tempDirFixture.findOrCreateDir("elixir_home/lib/logger/ebin")
@@ -58,11 +48,11 @@ class ElixirSdkLibraryNodeDecoratorTest : PlatformTestCase() {
     fun testRootAddedToARegisteredSdkIsNamedAfterItsOtpApplication() {
         val iex = myFixture.tempDirFixture.findOrCreateDir("elixir_home/lib/iex/ebin")
         val logger = myFixture.tempDirFixture.findOrCreateDir("elixir_home/lib/logger/ebin")
-        registerElixirSdk(classRoots = listOf(iex))
+        val sdk = registerElixirSdk(classRoots = listOf(iex))
         assertEquals("iex", presentableTextOf(iex))
 
         WriteAction.run<Throwable> {
-            sdk!!.sdkModificator.apply {
+            sdk.sdkModificator.apply {
                 addRoot(logger, OrderRootType.CLASSES)
                 commitChanges()
             }
@@ -74,18 +64,17 @@ class ElixirSdkLibraryNodeDecoratorTest : PlatformTestCase() {
     private fun registerElixirSdk(
         classRoots: List<VirtualFile> = emptyList(),
         sourceRoots: List<VirtualFile> = emptyList(),
-    ) {
-        sdk = ProjectJdkImpl("Test Elixir SDK", ElixirSdkType.instance).apply {
-            WriteAction.run<Throwable> {
-                sdkModificator.apply {
-                    homePath = myFixture.tempDirFixture.findOrCreateDir("elixir_home").path
-                    classRoots.forEach { addRoot(it, OrderRootType.CLASSES) }
-                    sourceRoots.forEach { addRoot(it, OrderRootType.SOURCES) }
-                    commitChanges()
-                }
+    ): Sdk {
+        val sdk = ProjectJdkImpl("Test Elixir SDK", ElixirSdkType.instance)
+        WriteAction.run<Throwable> {
+            sdk.sdkModificator.apply {
+                homePath = myFixture.tempDirFixture.findOrCreateDir("elixir_home").path
+                classRoots.forEach { addRoot(it, OrderRootType.CLASSES) }
+                sourceRoots.forEach { addRoot(it, OrderRootType.SOURCES) }
+                commitChanges()
             }
-            WriteAction.run<Throwable> { ProjectJdkTable.getInstance().addJdk(this) }
         }
+        return SdkFixtures.register(sdk, testRootDisposable)
     }
 
     private fun presentableTextOf(directory: VirtualFile): String? {
