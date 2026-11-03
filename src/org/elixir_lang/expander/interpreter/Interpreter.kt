@@ -11,6 +11,7 @@ import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
+import com.ericsson.otp.erlang.OtpOutputStream
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.Compiling
@@ -650,13 +651,54 @@ internal class Evaluation(
             metaOf(term).forEach { metaPlaces.putIfAbsent(it, IndexedValue(0, place)) }
         }
 
-    /** [definition] of [module]'s, called as [function] with [args]; [arity] is its stacktrace entry's. */
+    /**
+     * [definition] of [module]'s, called as [function] with [args]; [arity] is its stacktrace entry's. In [tail]
+     * position, the call is made, not run ([called]).
+     */
     fun invoke(
         module: ModuleClauses,
         definition: ModuleClauses.Definition,
         function: String,
         args: List<OtpErlangObject>,
         arity: Int = args.size,
+        tail: Boolean = false,
+    ): OtpErlangObject = called(tail) { invoked(module, definition, function, args, arity) }
+
+    /**
+     * [call]'s value. In [tail] position, the call itself, which the loop its caller runs in runs ([looped]) once its
+     * caller has returned, so the caller's frame has left the stack, as on the BEAM.
+     */
+    private inline fun called(tail: Boolean, crossinline call: () -> OtpErlangObject): OtpErlangObject =
+        if (tail) TailCall({ call() }) else looped(call())
+
+    /**
+     * [value], once each tail call it is has run, one after another, each the call the one before it gave in place of
+     * its value. Where one declines, the marks its call makes ([TailCall.gives]) are made: those of the calls before it
+     * aren't, as their code had ended and what they gave it is what it was given.
+     */
+    private fun looped(value: OtpErlangObject): OtpErlangObject {
+        var next = value
+
+        while (next is TailCall) {
+            val call = next
+
+            next = try {
+                call.evaluate()
+            } catch (declined: Declined) {
+                throw call.gives(declined)
+            }
+        }
+
+        return next
+    }
+
+    /** [definition]'s clauses, run as [invoke] calls them; a call in the body's tail position is made, not run. */
+    private fun invoked(
+        module: ModuleClauses,
+        definition: ModuleClauses.Definition,
+        function: String,
+        args: List<OtpErlangObject>,
+        arity: Int,
     ): OtpErlangObject {
         ProgressManager.checkCanceled()
 
@@ -676,7 +718,7 @@ internal class Evaluation(
                 if (arms.tested(body, frame) { matches(clause.args, args, frame) && guards(clause.guards, frame) }) {
                     // A function's result is read, as the compiler sees its body, wherever it is called.
                     return using(ValueUse.READ) {
-                        arms.taken(body ?: decline("$function/${args.size} matches a clause that stopped expanding"), frame)
+                        arms.taken(body ?: decline("$function/${args.size} matches a clause that stopped expanding"), frame, tail = true)
                     }
                 }
             }
@@ -757,7 +799,8 @@ internal class Evaluation(
             if (declined.ended) null else throw declined
         }
 
-    internal fun eval(node: ElixirAst, frame: Frame): OtpErlangObject {
+    /** [node]'s value in [frame]; in [tail] position, a function call in it is made, not run ([called]). */
+    internal fun eval(node: ElixirAst, frame: Frame, tail: Boolean = false): OtpErlangObject {
         ProgressManager.checkCanceled()
 
         // A unit of the statement being run, which the walk runs where the evaluator reaches it.
@@ -788,11 +831,11 @@ internal class Evaluation(
             is ElixirAst.ListNode -> using(use.ofPartsOf(node)) { evalList(node.elements, frame) }
             is ElixirAst.Tuple ->
                 using(use.ofPartsOf(node)) { placed(OtpErlangTuple(parts(node.elements, frame).toTypedArray()), node, frame) }
-            is ElixirAst.Block -> block(node.expressions, frame)
+            is ElixirAst.Block -> block(node.expressions, frame, tail)
             is ElixirAst.Alias -> if (frame.source) value(node, frame) else decline("an alias in debug info")
             is ElixirAst.Placeholder -> decline("a placeholder")
             // A function's arguments are read wherever it is called ([operands]).
-            is ElixirAst.Call -> using(use.ofPartsOf(node)) { evalCall(node, frame) }
+            is ElixirAst.Call -> using(use.ofPartsOf(node)) { evalCall(node, frame, tail) }
             is ElixirAst.Value -> node.term
         }
     }
@@ -826,19 +869,20 @@ internal class Evaluation(
     /**
      * The last of [expressions], each evaluated in turn as [parts] are, so one that declines runs those after it, past
      * those before the last the walk ran without a value
-     * ([ranWithoutValue][org.elixir_lang.expander.BodyValues.ranWithoutValue]).
+     * ([ranWithoutValue][org.elixir_lang.expander.BodyValues.ranWithoutValue]). In [tail] position, so is the last.
      */
-    private fun block(expressions: List<ElixirAst>, frame: Frame): OtpErlangObject {
-        val last = expressions.lastOrNull()
-        val values = bodyValues
-        val taken = expressions.filter { it === last || !values.ranWithoutValue(it) }
-        val outcome = partsOf(taken) { using(use.ofExpression(it, last)) { part(it, frame) } }
-
-        return when (outcome) {
-            is PartsOutcome.Values -> outcome.values.lastOrNull() ?: NIL
+    private fun block(expressions: List<ElixirAst>, frame: Frame, tail: Boolean): OtpErlangObject {
+        val last = expressions.lastOrNull() ?: return NIL
+        val outcome = partsOf(expressions.dropLast(1).filterNot(bodyValues::ranWithoutValue), rest = listOf(last)) {
+            using(use.ofExpression(it, last)) { part(it, frame) }
+        }
+        val before = when (outcome) {
+            is PartsOutcome.Values -> outcome.values
             is PartsOutcome.Declines -> throw outcome.declined
             is PartsOutcome.Raises -> throw outcome.raise
         }
+
+        return holding(before, emptyList(), frame) { once(last, frame, tail) }
     }
 
     private fun evalList(elements: List<ElixirAst>, frame: Frame): OtpErlangObject {
@@ -883,9 +927,9 @@ internal class Evaluation(
      * [node]'s value: a statement the walk ran gives what it gave
      * ([ranGave][org.elixir_lang.expander.BodyValues.ranGave]), not a second run.
      */
-    private fun once(node: ElixirAst, frame: Frame): OtpErlangObject =
+    private fun once(node: ElixirAst, frame: Frame, tail: Boolean = false): OtpErlangObject =
         when (val gave = bodyValues.ranGave(node, run)) {
-            null -> eval(node, frame)
+            null -> eval(node, frame, tail)
             is Evaluated.Value -> gave.value
             is Evaluated.Declined -> throw Declined("code the walk ran").apply { holds += gave.holds }
             is Evaluated.Raised -> throw Declined("code the walk ran")
@@ -929,25 +973,25 @@ internal class Evaluation(
             throw declined
         }
 
-    private fun evalCall(node: ElixirAst.Call, frame: Frame): OtpErlangObject {
+    private fun evalCall(node: ElixirAst.Call, frame: Frame, tail: Boolean): OtpErlangObject {
         val callee = node.callee
         val args = node.arguments
 
         if (callee is ElixirAst.Literal.Atom) {
-            return if (args == null) variable(callee.name, node, frame) else named(callee.name, args, node, frame)
+            return if (args == null) variable(callee.name, node, frame, tail) else named(callee.name, args, node, frame, tail)
         }
         if (args == null) decline("a variable whose name isn't an atom")
-        if (isCall(callee, ".", 2)) return dot(callee as ElixirAst.Call, node, args, frame)
+        if (isCall(callee, ".", 2)) return dot(callee as ElixirAst.Call, node, args, frame, tail)
         if (isCall(callee, ".", 1)) {
             val function = operands(listOf((callee as ElixirAst.Call).arguments!!.single()), frame, rest = args).single()
 
-            return apply(function, operands(args, frame, before = listOf(function)))
+            return apply(function, operands(args, frame, before = listOf(function)), tail)
         }
 
         decline("a call of ${callee.javaClass.simpleName}")
     }
 
-    private fun variable(name: String, node: ElixirAst.Call, frame: Frame): OtpErlangObject {
+    private fun variable(name: String, node: ElixirAst.Call, frame: Frame, tail: Boolean): OtpErlangObject {
         frame.binding(node)?.let(frame.vars::get)?.let { return it }
 
         return when (name) {
@@ -958,7 +1002,7 @@ internal class Evaluation(
             // An env the expansion gave no term of is a `Macro.Env` whose fields may name any module being compiled.
             "__ENV__" if frame.source -> givingAll { value(node, frame) }.let { if (it === Unknown) unknownEnv else it }
             // Before 1.15, the local call its expansion made of it.
-            else if frame.source && frame.module.dispatches.of(node) != null -> dispatched(name, emptyList(), node, frame)
+            else if frame.source && frame.module.dispatches.of(node) != null -> dispatched(name, emptyList(), node, frame, tail)
             else -> decline("reads $name, which isn't bound here")
         }
     }
@@ -998,48 +1042,47 @@ internal class Evaluation(
         )
 
     /** `Left.right(args)`: a remote call, or a field of a map. */
-    private fun dot(callee: ElixirAst.Call, node: ElixirAst.Call, args: List<ElixirAst>, frame: Frame): OtpErlangObject {
+    private fun dot(callee: ElixirAst.Call, node: ElixirAst.Call, args: List<ElixirAst>, frame: Frame, tail: Boolean): OtpErlangObject {
         val (left, right) = callee.arguments!!
         val name = (right as? ElixirAst.Literal.Atom)?.name ?: decline("a remote call whose name isn't an atom")
+        val marks = node !in run.effects
 
         if (frame.source) {
             when (val dispatched = frame.module.dispatches.of(node)) {
-                is Dispatched.Remote ->
-                    return remoteCall(atom(dispatched.module), dispatched.name, args, frame, marks = node !in run.effects)
-                is Dispatched.Macro -> return once(dispatched.output, frame)
+                is Dispatched.Remote -> return remoteCall(atom(dispatched.module), dispatched.name, args, frame, marks, tail)
+                is Dispatched.Macro -> return once(dispatched.output, frame, tail)
                 is Dispatched.Value -> return otpOf(dispatched.value)
                 Dispatched.Apply -> {}
                 else -> decline("a remote call its expansion didn't reach")
             }
         }
 
-        val marks = node !in run.effects
+        if (args.isEmpty() && isFieldReceiver(left, frame)) return field(eval(left, frame), name, node.meta, frame, marks, tail)
 
-        if (args.isEmpty() && isFieldReceiver(left, frame)) return field(eval(left, frame), name, node.meta, frame, marks)
-
-        return remoteCall(operands(listOf(left), frame, marks, rest = args).single(), name, args, frame, marks)
+        return remoteCall(operands(listOf(left), frame, marks, rest = args).single(), name, args, frame, marks, tail)
     }
 
     /**
      * `receiver.name(args)`, `:erlang.andalso/2` and `orelse/2` evaluating their right only where it is needed. A call
-     * whose effect the walk applies [marks] nothing it is given.
+     * whose effect the walk applies [marks] nothing it is given. In [tail] position, so is the right.
      */
     private fun remoteCall(
         receiver: OtpErlangObject,
         name: String,
         args: List<ElixirAst>,
         frame: Frame,
-        marks: Boolean = true,
+        marks: Boolean,
+        tail: Boolean,
     ): OtpErlangObject {
         if (receiver is OtpErlangAtom && shortCircuits(receiver.atomValue(), name, args.size)) {
             val value = selecting(args.subList(1, 2), emptyList(), emptyList(), frame) { seen(once(args[0], frame)) }
 
             if (value != TRUE && value != FALSE) error(tuple(atom("badarg"), value))
 
-            return if ((value == TRUE) == (name == "andalso")) eval(args[1], frame) else value
+            return if ((value == TRUE) == (name == "andalso")) eval(args[1], frame, tail) else value
         }
 
-        return remote(receiver, name, operands(args, frame, marks, before = listOf(receiver)), marks)
+        return remote(receiver, name, operands(args, frame, marks, before = listOf(receiver)), marks, tail)
     }
 
     /**
@@ -1070,7 +1113,7 @@ internal class Evaluation(
             else -> false
         }
 
-    private fun field(value: OtpErlangObject, name: String, meta: Meta, frame: Frame, marks: Boolean): OtpErlangObject {
+    private fun field(value: OtpErlangObject, name: String, meta: Meta, frame: Frame, marks: Boolean, tail: Boolean): OtpErlangObject {
         val key = atom(name)
 
         if (frame.guard) return natives.mapGet(key, value)
@@ -1080,16 +1123,16 @@ internal class Evaluation(
         if (!FIELD_OF_NON_MAP_RAISES_BADKEY.isSufficient(run.level)) {
             if (value is OtpErlangMap) error(tuple(atom("badkey"), key, value))
 
-            return remote(value, name, emptyList(), marks)
+            return remote(value, name, emptyList(), marks, tail)
         }
 
-        if ((metaValue(meta, "no_parens") as? Meta.Value.Atom)?.name != "true") return remote(value, name, emptyList(), marks)
+        if ((metaValue(meta, "no_parens") as? Meta.Value.Atom)?.name != "true") return remote(value, name, emptyList(), marks, tail)
 
         val badmap = FIELD_OF_NON_MAP_RAISES_BADMAP.isSufficient(run.level)
 
         return when {
             value is OtpErlangMap -> error(tuple(atom("badkey"), key, value))
-            value is OtpErlangAtom && value.atomValue() !in setOf("nil", "true", "false") -> remote(value, name, emptyList(), marks)
+            value is OtpErlangAtom && value.atomValue() !in setOf("nil", "true", "false") -> remote(value, name, emptyList(), marks, tail)
             badmap -> error(tuple(atom("badmap"), value))
             else -> error(tuple(atom("badkey"), key, value))
         }
@@ -1122,15 +1165,18 @@ internal class Evaluation(
         return bind(pattern, value, frame)
     }
 
-    /** A call of [name], a special form at the arity `elixir_expand` and `translate/3` take it, else a call. */
-    private fun named(name: String, args: List<ElixirAst>, node: ElixirAst.Call, frame: Frame): OtpErlangObject =
+    /**
+     * A call of [name], a special form at the arity `elixir_expand` and `translate/3` take it, else a call. In [tail]
+     * position, so is the value of a form that gives one of its own.
+     */
+    private fun named(name: String, args: List<ElixirAst>, node: ElixirAst.Call, frame: Frame, tail: Boolean): OtpErlangObject =
         when (name) {
             "=" if args.size == 2 -> match(args[0], args[1], frame)
             "{}" -> placed(OtpErlangTuple(parts(args, frame).toTypedArray()), node, frame)
             "%{}" -> map(args, frame)
             "%" if args.size == 2 -> struct(args, frame)
             "<<>>" -> bits.build(args, frame)
-            "__block__" -> block(args, frame)
+            "__block__" -> block(args, frame, tail)
             "case" if args.size == 2 -> {
                 val options = (frame.module.dispatches.of(node) as? Dispatched.Clauses)?.options ?: args[1]
                 val arrows = arrows(doOption(options))
@@ -1138,17 +1184,17 @@ internal class Evaluation(
                     selecting(arrows, heads(arrows), emptyList(), frame) { once(args[0], frame) }
                 } catch (declined: Declined) {
                     // An arm after those that only raise may still be taken.
-                    return clauses(arrows, listOf(unknownOf(declined.holds)), frame, subject = declined)!!
+                    return clauses(arrows, listOf(unknownOf(declined.holds)), frame, subject = declined, tail = tail)!!
                 }
 
-                clauses(arrows, listOf(value), frame) ?: error(tuple(atom("case_clause"), value))
+                clauses(arrows, listOf(value), frame, tail = tail) ?: error(tuple(atom("case_clause"), value))
             }
-            "cond" if args.size == 1 -> cond(arrows(doOption(args[0])), frame)
+            "cond" if args.size == 1 -> cond(arrows(doOption(args[0])), frame, tail)
             "fn" -> fn(node, args, frame)
             "&" if args.size == 1 -> capture(node, frame)
-            "try" if args.size == 1 -> evalTry(args.single(), frame)
+            "try" if args.size == 1 -> evalTry(args.single(), frame, tail)
             "for" if args.isNotEmpty() -> evalFor(args, frame)
-            "with" if args.isNotEmpty() -> evalWith(args, frame)
+            "with" if args.isNotEmpty() -> evalWith(args, frame, tail)
             "quote" if args.size in 1..2 ->
                 if (frame.source) {
                     eval(frame.module.quotes.of(node) ?: decline("a quote whose escaped block wasn't built"), frame)
@@ -1160,18 +1206,18 @@ internal class Evaluation(
 
                 selecting(arrows, heads(arrows), emptyList(), frame) { decline("receive") }
             }
-            "super" -> superCall(node, args, frame)
+            "super" -> superCall(node, args, frame, tail)
             // Outside a pattern, only in the size `expand_specs/7` infers for a pin: `byte_size(^x)`.
             "^" if args.size == 1 -> eval(args.single(), frame)
-            else -> if (frame.source) dispatched(name, args, node, frame) else local(name, args, frame)
+            else -> if (frame.source) dispatched(name, args, node, frame, tail) else local(name, args, frame, tail)
         }
 
     /** A source call of [name], as its expansion dispatched it. */
-    private fun dispatched(name: String, args: List<ElixirAst>, node: ElixirAst.Call, frame: Frame): OtpErlangObject =
+    private fun dispatched(name: String, args: List<ElixirAst>, node: ElixirAst.Call, frame: Frame, tail: Boolean): OtpErlangObject =
         when (val dispatched = frame.module.dispatches.of(node)) {
-            Dispatched.Local -> local(name, args, frame)
-            is Dispatched.Remote -> remoteCall(atom(dispatched.module), dispatched.name, args, frame)
-            is Dispatched.Macro -> once(dispatched.output, frame)
+            Dispatched.Local -> local(name, args, frame, tail)
+            is Dispatched.Remote -> remoteCall(atom(dispatched.module), dispatched.name, args, frame, marks = true, tail)
+            is Dispatched.Macro -> once(dispatched.output, frame, tail)
             is Dispatched.Value -> otpOf(dispatched.value)
             is Dispatched.Apply, is Dispatched.Super, is Dispatched.Fn, is Dispatched.Clauses, null ->
                 decline("calls $name/${args.size}, which its expansion didn't reach")
@@ -1186,22 +1232,16 @@ internal class Evaluation(
      * `translate/3`'s `super` [node]: a call of the definition its `{super, {Kind, Name}}` names, or a source `super`'s
      * expansion stored, and a macro's given `__CALLER__`.
      */
-    private fun superCall(node: ElixirAst.Call, args: List<ElixirAst>, frame: Frame): OtpErlangObject {
+    private fun superCall(node: ElixirAst.Call, args: List<ElixirAst>, frame: Frame, tail: Boolean): OtpErlangObject {
         val (kind, name) = superOf(node, frame) ?: decline("a super its expansion didn't reach")
-        val definition = frame.module.definitions[NameArity(name, args.size)]
+        val nameArity = NameArity(name, args.size)
+        val definition = frame.module.definitions[nameArity]
             ?.takeIf { it.kind.macro == kind.macro }
             ?: decline("super calls $name/${args.size}, which ${frame.module.module} doesn't hold")
+        val function = if (kind.macro) ModuleExports.macroExport(nameArity) else nameArity
         val values = operands(args, frame)
 
-        return calling(values) {
-            if (kind.macro) {
-                val function = ModuleExports.macroExport(NameArity(name, args.size))
-
-                invoke(frame.module, definition, function.name, values, function.arity)
-            } else {
-                invoke(frame.module, definition, name, values)
-            }
-        }
+        return calling(values) { invoke(frame.module, definition, function.name, values, function.arity, tail) }
     }
 
     /** The kind and name of the definition [node], a `super`, calls. */
@@ -1230,15 +1270,15 @@ internal class Evaluation(
         }
 
     /** A call of a function of the clause's own module. */
-    private fun local(name: String, args: List<ElixirAst>, frame: Frame): OtpErlangObject {
+    private fun local(name: String, args: List<ElixirAst>, frame: Frame, tail: Boolean): OtpErlangObject {
         val definition = frame.module.definitions[NameArity(name, args.size)]
             ?.takeIf { !it.kind.macro }
             ?: decline("calls $name/${args.size}, which isn't a function of ${frame.module.module}")
 
         val values = operands(args, frame)
 
-        return nativeResult(frame.module.module, name, values, marks = true)
-            ?: calling(values) { invoke(frame.module, definition, name, values) }
+        return nativeResult(frame.module.module, name, values, marks = true, tail)
+            ?: calling(values) { invoke(frame.module, definition, name, values, tail = tail) }
     }
 
     private fun map(args: List<ElixirAst>, frame: Frame): OtpErlangObject {
@@ -1329,7 +1369,7 @@ internal class Evaluation(
         return update(value, pairsOf(parts(pairNodes, frame, before = listOf(name, value))))
     }
 
-    private fun cond(arrows: List<ElixirAst>, frame: Frame): OtpErlangObject {
+    private fun cond(arrows: List<ElixirAst>, frame: Frame, tail: Boolean): OtpErlangObject {
         val arms = Arms { soleArm(arrows.map { arrowParts(it).second }, frame) }
 
         for ((index, arrow) in arrows.withIndex()) {
@@ -1339,7 +1379,7 @@ internal class Evaluation(
 
             val test = { selecting(rest, emptyList(), emptyList(), scope) { truthy(eval(head.single(), scope)) } }
 
-            if (arms.tested(body, scope, test)) return arms.taken(body, scope)
+            if (arms.tested(body, scope, test)) return arms.taken(body, scope, tail)
         }
 
         arms.none()
@@ -1355,7 +1395,7 @@ internal class Evaluation(
             run.running.addLast(node)
 
             try {
-                clauses(arrows, values, closed, fresh = true) ?: noClause(closed, values)
+                clauses(arrows, values, closed, fresh = true, tail = true) ?: noClause(closed, values)
             } finally {
                 run.running.removeLast()
             }
@@ -1755,24 +1795,25 @@ internal class Evaluation(
             ?.takeIf { !it.kind.macro }
             ?: decline("a capture of $name/$arity, which isn't a function of ${module.module}")
 
-        return Closure(arity, { listOf(OtpErlangAtom(module.module)) }) { values -> invoke(module, definition, name, values) }
+        return Closure(arity, { listOf(OtpErlangAtom(module.module)) }) { values -> invoked(module, definition, name, values, values.size) }
     }
 
-    /** [function] applied to [args]. */
-    fun apply(function: OtpErlangObject, args: List<OtpErlangObject>): OtpErlangObject {
+    /** [function] applied to [args]; in [tail] position, the call is made, not run ([called]). */
+    fun apply(function: OtpErlangObject, args: List<OtpErlangObject>, tail: Boolean = false): OtpErlangObject {
         // As [invoke] does, so a loop calling an `fn` checks once per call, though the `fn` calls nothing.
         ProgressManager.checkCanceled()
 
         return when (function) {
             is Closure ->
                 if (function.arity == args.size) {
-                    calling(args) { using(ValueUse.READ) { function.invoke(args) } }
+                    // A closure's body makes the call in its tail position, which this runs.
+                    calling(args) { called(tail) { using(ValueUse.READ) { function.invoke(args) } } }
                 } else {
                     error(tuple(atom("badarity"), tuple(function, list(args))))
                 }
             is OtpErlangExternalFun ->
                 if (function.arity == args.size) {
-                    remote(atom(function.module), function.function, args)
+                    remote(atom(function.module), function.function, args, tail = tail)
                 } else {
                     error(tuple(atom("badarity"), tuple(function, list(args))))
                 }
@@ -1784,30 +1825,37 @@ internal class Evaluation(
     /**
      * `receiver:function(args)`: a native, else a public function of a module whose clauses can be read. A decline in
      * it [marks] what [args] give it ([calling]). A native's unknown result came from a module being compiled where an
-     * argument it may return ([Natives.returnable]) gives one.
+     * argument it may return ([Natives.returnable]) gives one. In [tail] position, the call is made, not run ([called]).
      */
     fun remote(
         receiver: OtpErlangObject,
         function: String,
         args: List<OtpErlangObject>,
         marks: Boolean = true,
+        tail: Boolean = false,
     ): OtpErlangObject {
         received(receiver, args, marks)
 
         val module = (receiver as? OtpErlangAtom)?.atomValue()
             ?: error(atom("badarg"), frame("erlang", "apply", list(listOf(receiver, atom(function), list(args)))))
 
-        nativeResult(module, function, args, marks)?.let { return it }
+        nativeResult(module, function, args, marks, tail)?.let { return it }
 
-        return if (marks) callingDefined(module, function, args) else defined(module, function, args)
+        return if (marks) callingDefined(module, function, args, tail) else defined(module, function, args, tail)
     }
 
     /**
      * [module]`.`[function]`(`[args]`)` where it is a native, else `null`, called by its module or from outside it alike. Its
      * unknown result came from a module being compiled where an argument it may return ([Natives.returnable]) gives one.
      */
-    private fun nativeResult(module: String, function: String, args: List<OtpErlangObject>, marks: Boolean): OtpErlangObject? =
-        native(module, function, args, marks)?.let { result ->
+    private fun nativeResult(
+        module: String,
+        function: String,
+        args: List<OtpErlangObject>,
+        marks: Boolean,
+        tail: Boolean,
+    ): OtpErlangObject? =
+        native(module, function, args, marks, tail)?.let { result ->
             if (result === Unknown) unknownOf(natives.returnable(module, function, args)) else result
         }
 
@@ -1824,23 +1872,25 @@ internal class Evaluation(
      * written what those it runs give it ([Natives.runs]) and the module it writes ([Natives.writes]). A write whose
      * effect the walk applies declines, as its row applies it.
      */
-    private fun native(module: String, function: String, args: List<OtpErlangObject>, marks: Boolean): OtpErlangObject? =
-        try {
+    private fun native(module: String, function: String, args: List<OtpErlangObject>, marks: Boolean, tail: Boolean): OtpErlangObject? =
+        marking({ declined -> nativeGave(declined, module, function, args, marks) }) {
             if (!marks && natives.writes(module, function, args).isNotEmpty()) {
                 decline("$module:$function/${args.size}'s effect is applied by the walk")
             }
 
-            natives.call(module, function, args)
-        } catch (declined: Declined) {
-            declined.holds += natives.returnable(module, function, args)
-            if (!marks) throw declined
-            throw gave(declined) {
-                add(natives.runs(module, function, args) + natives.writes(module, function, args), run.compiling.keys)
-            }
+            natives.call(module, function, args, tail)
         }
 
+    /** [declined], escaping the native [module]`.`[function]`(`[args]`)`, holding and giving what [native] says. */
+    private fun nativeGave(declined: Declined, module: String, function: String, args: List<OtpErlangObject>, marks: Boolean): Declined {
+        declined.holds += natives.returnable(module, function, args)
+        if (!marks) return declined
+
+        return calledGave(declined, natives.runs(module, function, args) + natives.writes(module, function, args))
+    }
+
     /** [module]`.`[function]`(`[args]`)`, from its clauses: what Elixir runs where it isn't a native. */
-    private fun defined(module: String, function: String, args: List<OtpErlangObject>): OtpErlangObject {
+    private fun defined(module: String, function: String, args: List<OtpErlangObject>, tail: Boolean): OtpErlangObject {
         if (module in Natives.CLAUSES_UNREAD) decline("$module:$function/${args.size} isn't a native")
 
         val clauses = run.clausesOf(module) ?: decline("no clauses of $module")
@@ -1848,7 +1898,7 @@ internal class Evaluation(
         val definition = clauses.definitions[nameArity]
 
         when (definition?.kind) {
-            DefinitionTable.Kind.DEF -> return invoke(clauses, definition, function, args)
+            DefinitionTable.Kind.DEF -> return invoke(clauses, definition, function, args, tail = tail)
             DefinitionTable.Kind.DEFMACRO, DefinitionTable.Kind.DEFMACROP -> decline("calls the macro $module.$nameArity")
             DefinitionTable.Kind.DEFP, null -> {}
         }
@@ -1875,24 +1925,32 @@ internal class Evaluation(
      * compiled that [args] give it ([calling]), but an argument that is one whose writes its clauses say
      * ([attributesWritten]) gives only those.
      */
-    private fun callingDefined(module: String, function: String, args: List<OtpErlangObject>): OtpErlangObject =
-        try {
-            defined(module, function, args)
-        } catch (declined: Declined) {
+    private fun callingDefined(module: String, function: String, args: List<OtpErlangObject>, tail: Boolean): OtpErlangObject =
+        marking({ declined ->
             val written = run.compiling.keys.mapNotNull { given ->
                 attributesWritten(given, module, function, args.size, args.indices.filter { args[it] == atom(given) })
             }
 
-            throw calledGave(declined, args, written)
-        }
+            calledGave(declined, args, written)
+        }) { defined(module, function, args, tail) }
 
     /** [call], given [args]: a decline in it may have written each module being compiled that [args] give it ([Given]). */
-    private inline fun <T> calling(args: List<OtpErlangObject>, call: () -> T): T =
-        try {
+    private inline fun <T> calling(args: List<OtpErlangObject>, call: () -> T): T = marking({ calledGave(it, args) }, call)
+
+    /**
+     * [call]'s value, where a decline in it makes the marks [gives] makes: where its value is a tail call
+     * ([TailCall]), a decline in that call makes them too, after its own.
+     */
+    private inline fun <T> marking(crossinline gives: (Declined) -> Declined, call: () -> T): T {
+        val value = try {
             call()
         } catch (declined: Declined) {
-            throw calledGave(declined, args)
+            throw gives(declined)
         }
+
+        @Suppress("UNCHECKED_CAST")
+        return if (value is TailCall) TailCall(value.evaluate) { gives(value.gives(it)) } as T else value
+    }
 
     /**
      * [declined], escaping a call given [args], which may have written each module being compiled that [args] give it,
@@ -1904,9 +1962,12 @@ internal class Evaluation(
             add(args.filterNot { arg -> written.any { arg == atom(it.module) } }, run.compiling.keys)
         }
 
-    private fun evalTry(options: ElixirAst, frame: Frame): OtpErlangObject {
+    /** A `try` of [options]; in [tail] position, so are its arms' values, where it has no `after`. */
+    private fun evalTry(options: ElixirAst, frame: Frame, tail: Boolean): OtpErlangObject {
         var declined: Declined? = null
         var raised: Thrown? = null
+        val after = optionOrNull(options, "after")
+        val armsTail = tail && after == null
 
         try {
             // Where the body declines, it may have raised, thrown or exited, or not.
@@ -1923,14 +1984,14 @@ internal class Evaluation(
                     }
                 }
             } catch (thrown: Thrown) {
-                return rescued(thrown, options, frame) ?: throw thrown
+                return rescued(thrown, options, frame, armsTail) ?: throw thrown
             } catch (body: Declined) {
                 body.endedBy?.let { raise -> rescuedAfter(raise, body, options, frame) }
                 throw body
             }
 
             return optionOrNull(options, "else")?.let { elses ->
-                clauses(arrows(elses), listOf(value), frame) ?: error(tuple(atom("try_clause"), value))
+                clauses(arrows(elses), listOf(value), frame, tail = armsTail) ?: error(tuple(atom("try_clause"), value))
             } ?: value
         } catch (body: Declined) {
             declined = body
@@ -1939,7 +2000,7 @@ internal class Evaluation(
             raised = thrown
             throw thrown
         } finally {
-            optionOrNull(options, "after")?.let { after ->
+            if (after != null) {
                 val body = declined
 
                 // Nothing reads `after`'s value.
@@ -2000,13 +2061,16 @@ internal class Evaluation(
         }
     }
 
-    /** The body of the first `rescue` or `catch` clause [thrown] matches, evaluated, or `null` where none does. */
-    private fun rescued(thrown: Thrown, options: ElixirAst, frame: Frame): OtpErlangObject? {
+    /**
+     * The body of the first `rescue` or `catch` clause [thrown] matches, evaluated, or `null` where none does; in [tail]
+     * position, a call in its tail position is made, not run ([called]).
+     */
+    private fun rescued(thrown: Thrown, options: ElixirAst, frame: Frame, tail: Boolean = false): OtpErlangObject? {
         for (arrow in optionOrNull(options, "rescue")?.let(::arrows).orEmpty()) {
             val (head, body) = arrowParts(arrow)
             val scope = frame.copy(thrown.stacktrace)
 
-            if (thrown.kind == "error" && rescue(head.single(), thrown, scope)) return eval(body, scope)
+            if (thrown.kind == "error" && rescue(head.single(), thrown, scope)) return eval(body, scope, tail)
         }
 
         for (arrow in optionOrNull(options, "catch")?.let(::arrows).orEmpty()) {
@@ -2022,7 +2086,7 @@ internal class Evaluation(
 
             if (kindPattern == null && thrown.kind != "throw") continue
             if (matches(listOfNotNull(kindPattern, patterns.last()), values, scope) && guards(guards, scope)) {
-                return eval(body, scope)
+                return eval(body, scope, tail)
             }
         }
 
@@ -2376,7 +2440,8 @@ internal class Evaluation(
         turn.declined?.let { throw it }
     }
 
-    private fun evalWith(args: List<ElixirAst>, frame: Frame): OtpErlangObject {
+    /** A `with` of [args]; in [tail] position, so are its `do` and its `else` clauses' values. */
+    private fun evalWith(args: List<ElixirAst>, frame: Frame, tail: Boolean): OtpErlangObject {
         // From `Dbgi`, `expand_with/3` has merged the options into the last list.
         val (clauses, elements) = if (frame.source) withOptions(args, run.level) else splitOptions(args, false)
         val options = ElixirAst.ListNode(args.last().meta, elements)
@@ -2427,11 +2492,11 @@ internal class Evaluation(
                     else -> "with_clause"
                 }
 
-                return clauses(elses, listOf(value), frame) ?: error(tuple(atom(error), value))
+                return clauses(elses, listOf(value), frame, tail = tail) ?: error(tuple(atom(error), value))
             }
         }
 
-        return eval(doOption(options), scope)
+        return eval(doOption(options), scope, tail)
     }
 
     /** Whether [arrow]'s head is one variable, with no guard. */
@@ -2444,7 +2509,7 @@ internal class Evaluation(
     /**
      * The body of the first of [arrows] whose head matches [values], evaluated, or `null` where none does; [fresh] as
      * [matches] takes it. Where [subject] declined, [values] hold what it would have given, and only an arm after one
-     * passed over is taken ([Arms]).
+     * passed over is taken ([Arms]). In [tail] position, so is the body's value.
      */
     private fun clauses(
         arrows: List<ElixirAst>,
@@ -2452,6 +2517,7 @@ internal class Evaluation(
         frame: Frame,
         fresh: Boolean = false,
         subject: Declined? = null,
+        tail: Boolean = false,
     ): OtpErlangObject? {
         val arms = Arms(subject) { soleArm(arrows.map { arrowParts(it).second }, frame) }
 
@@ -2467,7 +2533,7 @@ internal class Evaluation(
                 selecting(rest, heads(rest), values, frame) { matches(patterns, values, scope, fresh) && guards(guards, scope) }
             }
 
-            if (arms.tested(body, scope, test)) return arms.taken(body, scope)
+            if (arms.tested(body, scope, test)) return arms.taken(body, scope, tail)
         }
 
         arms.none()
@@ -2505,15 +2571,15 @@ internal class Evaluation(
                 left
             }
 
-        /** [body], of the arm taken, evaluated in [frame]. */
-        fun taken(body: ElixirAst, frame: Frame): OtpErlangObject {
+        /** [body], of the arm taken, evaluated in [frame], in [tail] position or not. */
+        fun taken(body: ElixirAst, frame: Frame, tail: Boolean): OtpErlangObject {
             if (passed == null && subject != null && passable(subject) && body === sole) {
                 run.unfollowedCodeRan()
                 passed = subject
             }
             if (passed == null) subject?.let { throw it } else assumeNoRaise()
 
-            return eval(body, frame)
+            return eval(body, frame, tail)
         }
 
         /** No arm is taken: where one was passed over, or the values weren't known, the loop declines. */
@@ -2760,3 +2826,17 @@ private fun isNonEmptyList(term: OtpErlangObject) =
  */
 internal fun shortCircuits(module: String, name: String, arity: Int): Boolean =
     module == "erlang" && arity == 2 && (name == "andalso" || name == "orelse")
+
+/**
+ * A call in tail position, made but not run: [Evaluation.looped] runs it by [evaluate], once its caller has returned,
+ * and makes the marks [gives] makes where it declines.
+ */
+private class TailCall(val evaluate: () -> OtpErlangObject, val gives: (Declined) -> Declined = { it }) : OtpErlangObject() {
+    override fun encode(buf: OtpOutputStream) = throw UnsupportedOperationException("a tail call isn't a term")
+
+    override fun equals(other: Any?) = this === other
+
+    override fun hashCode() = System.identityHashCode(this)
+
+    override fun toString() = "#TailCall"
+}

@@ -347,7 +347,8 @@ internal fun isUnknown(term: OtpErlangObject) = term is UnknownValue || term ===
 
 /**
  * An `fn`, or a capture, that [invoke]s its clauses with [arity] arguments, and the values it holds ([marks]), so a call
- * given it is given them ([Given]).
+ * given it is given them ([Given]). [invoke] may give its body's call in tail position, made but not run, which only
+ * [Evaluation.apply] runs, so nothing else calls it.
  */
 internal class Closure(
     val arity: Int,
