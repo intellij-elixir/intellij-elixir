@@ -96,7 +96,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     fun testARaiseInABlocksEarlierStatementIsTheModules() =
         assertFile(
             "defmodule A do\n  x = (raise ArgumentError; :ok)\n  @a raise(KeyError)\nend",
-            "top expanded\nmodule Elixir.A raised Elixir.ArgumentError `raise ArgumentError`",
+            raisedIn("Elixir.A", "Elixir.ArgumentError `raise ArgumentError`"),
         )
 
     /** Elixir raises `KeyError` in the block, so the later raise stops. */
@@ -127,7 +127,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     fun testAMapUpdateAsTheBodysLastExpressionIsTheModules() =
         assertFile(
             "defmodule A do\n  m = %{}\n  %{m | a: 1}\nend",
-            "top expanded\nmodule Elixir.A raised Elixir.KeyError `%{m | a: 1}`",
+            raisedIn("Elixir.A", "Elixir.KeyError `%{m | a: 1}`"),
         )
 
     /**
@@ -148,20 +148,20 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     fun testACaseTheEvaluatorRunsThatRaisesIsTheModules() =
         assertFile(
             "defmodule A do\n  case Map.fetch!(%{}, :k) do\n    _ -> :ok\n  end\n  @a raise(ArgumentError)\nend",
-            "top expanded\nmodule Elixir.A raised Elixir.KeyError `case Map.fetch!(%{}, :k) do\n    _ -> :ok\n  end`",
+            raisedIn("Elixir.A", "Elixir.KeyError `case Map.fetch!(%{}, :k) do\n    _ -> :ok\n  end`"),
         )
 
     /** A statement no other unit runs is run by the evaluator where the body runs it. */
     fun testARaiseAfterAStatementTheEvaluatorRunsIsTheModules() =
         assertFile(
             "defmodule A do\n  f = fn _ -> 1 end\n  f.(1)\n  @a raise(ArgumentError)\nend",
-            "top expanded\nmodule Elixir.A raised Elixir.ArgumentError `raise(ArgumentError)`",
+            raisedIn("Elixir.A", "Elixir.ArgumentError `raise(ArgumentError)`"),
         )
 
     fun testAStatementTheEvaluatorRunsThatRaisesIsTheModules() =
         assertFile(
             "defmodule A do\n  f = fn _ -> raise KeyError end\n  f.(1)\n  @a raise(ArgumentError)\nend",
-            "top expanded\nmodule Elixir.A raised Elixir.KeyError `f.(1)`",
+            raisedIn("Elixir.A", "Elixir.KeyError `f.(1)`"),
         )
 
     fun testAFileMatchThatRaisesAfterAStatementTheEvaluatorRunsIsTheFilesError() =
@@ -171,35 +171,35 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     fun testARaiseAfterAMatchOfABlockEndingInADefinitionIsTheModules() =
         assertFile(
             "defmodule A do\n  x = (:ok\n  def f(y), do: y)\n  @a raise(ArgumentError)\nend",
-            "top expanded\nmodule Elixir.A raised Elixir.ArgumentError `raise(ArgumentError)`",
+            raisedIn("Elixir.A", "Elixir.ArgumentError `raise(ArgumentError)`"),
         )
 
     /** A `case` no clause of matches raises `CaseClauseError`, which `Exception.normalize/3` names from its clauses. */
     fun testACaseNoClauseMatchesIsTheModules() =
         assertFile(
             "defmodule A do\n  case 1 do\n    2 -> :ok\n  end\nend",
-            "top expanded\nmodule Elixir.A raised Elixir.CaseClauseError `case 1 do\n    2 -> :ok\n  end`",
+            raisedIn("Elixir.A", "Elixir.CaseClauseError `case 1 do\n    2 -> :ok\n  end`"),
         )
 
     /** A statement whose value the expansion knows ran with that outcome. */
     fun testARaiseAfterStatementsWithKnownValuesIsTheModules() =
         assertFile(
             "defmodule A do\n  alias Foo.Bar\n  import Kernel\n  require Integer\n  :ok\n  @a raise(ArgumentError)\nend",
-            "top expanded\nmodule Elixir.A raised Elixir.ArgumentError `raise(ArgumentError)`",
+            raisedIn("Elixir.A", "Elixir.ArgumentError `raise(ArgumentError)`"),
         )
 
     /** A port's output says where it raises, the macros it calls included, so a raise after it is the module's. */
     fun testARaiseAfterAPortsOutputIsTheModules() =
         assertFile(
             "defmodule A do\n  defexception [:reason]\n  @a raise(ArgumentError)\nend",
-            "top expanded\nmodule Elixir.A raised Elixir.ArgumentError `raise(ArgumentError)`",
+            raisedIn("Elixir.A", "Elixir.ArgumentError `raise(ArgumentError)`"),
         )
 
     /** A directive's value is its module, which a match takes. */
     fun testADirectiveInAMatchIsItsModule() =
         assertFile(
             "defmodule A do\n  Foo.Bar = alias Foo.Bar\n  Integer = require Integer\n  Kernel = import Kernel\n  @a raise(ArgumentError)\nend",
-            "top expanded\nmodule Elixir.A raised Elixir.ArgumentError `raise(ArgumentError)`",
+            raisedIn("Elixir.A", "Elixir.ArgumentError `raise(ArgumentError)`"),
         )
 
     /** A decline in a nested module's body is one in the body around it. */
@@ -752,7 +752,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         )
         assertFile(
             "defmodule FA do\n  @a raise(ArgumentError)\nend\ndefmodule x do\nend\ndefmodule FC do\nend",
-            "top expanded\nmodule Elixir.FA raised Elixir.ArgumentError `raise(ArgumentError)`",
+            raisedIn("Elixir.FA", "Elixir.ArgumentError `raise(ArgumentError)`"),
         )
     }
 
@@ -891,7 +891,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 "defmodule Mac do\n$attribute  defmacro m do\n    t = {$unknown, fn -> 1 end, $unknown, 0}\n" +
                     "    {:def, [context: Elixir, imports: [{1, Kernel}, {2, Kernel}]], [{:f, [], [t]}, [do: {:unquote, [], [1]}]]}\n  end\nend\n" +
                     "defmodule U do\n  defmodule I do\n    def g, do: 1\n  end\n  require Mac\n  Mac.m()\nend",
-                "top expanded\nmodule Elixir.Mac compiled\nmodule Elixir.U raised Elixir.ArgumentError `Mac.m()`",
+                "top error Elixir.ArgumentError `Mac.m()`\nmodule Elixir.Mac compiled\nmodule Elixir.U raised Elixir.ArgumentError `Mac.m()`",
             )
         }
     }
@@ -906,7 +906,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
         assertFile(
             "defmodule A do\n  $statement\n\n  def unquote(v)(), do: 1\nend",
-            "top expanded\nmodule Elixir.A raised Elixir.ErlangError `$statement`",
+            raisedIn("Elixir.A", "Elixir.ErlangError `$statement`"),
         )
     }
 
@@ -920,7 +920,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
         assertFile(
             "defmodule A do\n  $statement\n\n  def unquote(v)(), do: 1\nend",
-            if (ESCAPED_MAP_ENTRIES_QUOTED_APART.isSufficient(legLevel())) "top expanded\nmodule Elixir.A raised Elixir.ErlangError `$statement`"
+            if (ESCAPED_MAP_ENTRIES_QUOTED_APART.isSufficient(legLevel())) raisedIn("Elixir.A", "Elixir.ErlangError `$statement`")
             else "top expanded\nmodule Elixir.A compiled",
         )
     }
@@ -979,7 +979,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                   Mac.m()
                 end
                 """.trimIndent(),
-                "top expanded\nmodule Elixir.Mac compiled\nmodule Elixir.U $u",
+                "${top(u)}\nmodule Elixir.Mac compiled\nmodule Elixir.U $u",
             )
         }
     }
@@ -996,7 +996,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             end
             defmodule A do @before_compile CB; def f, do: 1; defoverridable f: 0 end
             """.trimIndent(),
-            "top expanded\nmodule Elixir.CB compiled\n" +
+            "top error bad_kind `defmodule A do @before_compile CB; def f, do: 1; defoverridable f: 0 end`\nmodule Elixir.CB compiled\n" +
                 "module Elixir.A raised bad_kind `defmodule A do @before_compile CB; def f, do: 1; defoverridable f: 0 end`",
         )
 
@@ -1073,7 +1073,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
               Mac.m()
             end
             """.trimIndent(),
-            "top expanded\nmodule Elixir.Mac compiled\nmodule Elixir.U $u",
+            "${top(u)}\nmodule Elixir.Mac compiled\nmodule Elixir.U $u",
         )
     }
 
@@ -1099,7 +1099,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         ).forEach { (def, raisedAt, before) ->
             val ended = if (together) "raised Elixir.ArgumentError `${raisedAt ?: def}`" else before
 
-            assertFile("defmodule B3 do\n  x = 1\n  $def\nend", "top expanded\nmodule Elixir.B3 $ended")
+            assertFile("defmodule B3 do\n  x = 1\n  $def\nend", "${top(ended)}\nmodule Elixir.B3 $ended")
         }
     }
 
@@ -1130,7 +1130,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                   Mac.m()
                 end
                 """.trimIndent(),
-                "top expanded\nmodule Elixir.Mac compiled\nmodule Elixir.U $u",
+                "${top(u)}\nmodule Elixir.Mac compiled\nmodule Elixir.U $u",
             )
         }
     }
@@ -1151,7 +1151,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
               @a raise(ArgumentError)
             end
             """.trimIndent(),
-            "top expanded\nmodule Elixir.CB compiled\nmodule Elixir.M raised Elixir.KeyError `def f, do: 1`",
+            "top error Elixir.KeyError `def f, do: 1`\nmodule Elixir.CB compiled\nmodule Elixir.M raised Elixir.KeyError `def f, do: 1`",
         )
 
     /** A callback the evaluator declines may have raised, as Elixir's `ArgumentError` at `@a` can't show here. */
@@ -1221,7 +1221,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
               @a raise(ArgumentError)
             end
             """.trimIndent(),
-            "top expanded\nmodule Elixir.CB compiled\nmodule Elixir.A compiled\nmodule Elixir.B raised Elixir.ArgumentError `raise(ArgumentError)`",
+            "top error Elixir.ArgumentError `raise(ArgumentError)`\nmodule Elixir.CB compiled\nmodule Elixir.A compiled\nmodule Elixir.B raised Elixir.ArgumentError `raise(ArgumentError)`",
         )
 
     /** A `@before_compile` callback runs after the body, so after a decline its raise stops. */
@@ -1250,11 +1250,11 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     fun testRaisesWithNoDeclineBeforeThemAreTheModules() {
         assertFile(
             "defmodule A do\n  f = &IO.inspect(1, &1)\n  f.(1)\nend",
-            "top expanded\nmodule Elixir.A raised Elixir.FunctionClauseError `f.(1)`",
+            raisedIn("Elixir.A", "Elixir.FunctionClauseError `f.(1)`"),
         )
         assertFile(
             "defmodule A do\n  x = \"l\"\n  for e <- [1, 2], do: e + x\nend",
-            "top expanded\nmodule Elixir.A raised Elixir.ArithmeticError `e + x`",
+            raisedIn("Elixir.A", "Elixir.ArithmeticError `e + x`"),
         )
     }
 
@@ -1283,14 +1283,14 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     fun testAnErrorAfterAnApplicationReadIsTheModules() =
         assertFile(
             "defmodule A do\n  @x Application.compile_env(:nope, :k)\n  _ = Application.fetch_env(:nope, :k)\n  :ok = :bad\nend",
-            "top expanded\nmodule Elixir.A raised Elixir.MatchError `:ok = :bad`",
+            raisedIn("Elixir.A", "Elixir.MatchError `:ok = :bad`"),
         )
 
     /** `Macro.expand_literals/2` calls `expand/2` from inside `Macro`, which is as much the native as a call from outside. */
     fun testAnAliasKeyOfACompileEnvExpands() =
         assertFile(
             "defmodule A do\n  @x Application.compile_env(:nope, A.K)\n  :ok = :bad\nend",
-            "top expanded\nmodule Elixir.A raised Elixir.MatchError `:ok = :bad`",
+            raisedIn("Elixir.A", "Elixir.MatchError `:ok = :bad`"),
         )
 
     /**
@@ -1302,7 +1302,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             for (call in listOf("Enum.each(s, fn _ -> :ok = :bad end)", "Enum.reduce(s, nil, fn _, _ -> :ok = :bad end)", "Enum.map(s, fn _ -> :ok = :bad end)")) {
                 assertFile(
                     "defmodule A do\n  s = $stream\n  $call\nend",
-                    "top expanded\nmodule Elixir.A raised Elixir.MatchError `:ok = :bad`",
+                    raisedIn("Elixir.A", "Elixir.MatchError `:ok = :bad`"),
                 )
             }
         }
@@ -1319,7 +1319,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         )) {
             assertFile(
                 "defmodule A do\n  $expected = Enum.flat_map([1], fn _ -> $returned end)\n  :ok = :bad\nend",
-                "top expanded\nmodule Elixir.A raised Elixir.MatchError `:ok = :bad`",
+                raisedIn("Elixir.A", "Elixir.MatchError `:ok = :bad`"),
             )
         }
     }
@@ -1328,7 +1328,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     fun testConcatOfARangeRunsItsClauses() {
         assertFile(
             "defmodule A do\n  [1, 2, 3] = Enum.concat(1..2, [3])\n  :ok = :bad\nend",
-            "top expanded\nmodule Elixir.A raised Elixir.MatchError `:ok = :bad`",
+            raisedIn("Elixir.A", "Elixir.MatchError `:ok = :bad`"),
         )
     }
 
@@ -1577,7 +1577,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     fun testAConflictInAUnitReachedPastADeclinedPartEndsTheModulesRun() =
         assertFile(
             "defmodule M do\n  def f, do: 1\n  IO.inspect(Foo.bar(), defp(f, do: 2))\n  def later, do: 1\nend",
-            "top expanded\nmodule Elixir.M raised changed_kind `defp(f, do: 2)` [f/0 def]",
+            raisedIn("Elixir.M", "changed_kind `defp(f, do: 2)`") + " [f/0 def]",
             tables = true,
         )
 
@@ -2084,7 +2084,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     fun testAnOverridableNameFromTheUnreadFileRaisesWithNoPath() =
         assertFile(
             "defmodule A do\n  def f, do: 1\n  n = __ENV__.file\n  defoverridable [{n, 0}]\nend",
-            "top expanded\nmodule Elixir.A raised overridable_bad_element `defoverridable [{n, 0}]`",
+            raisedIn("Elixir.A", "overridable_bad_element `defoverridable [{n, 0}]`"),
         )
 
     /**
@@ -2139,6 +2139,17 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
      */
     private fun assertFile(code: String, expected: String, tables: Boolean = false, run: RunInputs = RunInputs()) =
         assertEquals(expected, file(code, tables, run))
+
+    /** The file's top where its last module [ended] so: a raise ends the file, and a compiled module leaves it expanded. */
+    private fun top(ended: String) =
+        when {
+            ended.startsWith("raised ") -> "top error ${ended.removePrefix("raised ")}"
+            ended == "compiled" -> "top expanded"
+            else -> error("no top modelled for a module that ended $ended")
+        }
+
+    /** [module] raised [raise], which ends the file. */
+    private fun raisedIn(module: String, raise: String) = "${top("raised $raise")}\nmodule $module raised $raise"
 
     /** The file, its compile directories, the OS its SDK runs as and the modules it sees, where a test names them. */
     private class RunInputs(

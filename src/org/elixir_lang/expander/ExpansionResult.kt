@@ -78,6 +78,20 @@ internal data class ExpansionResult(
          */
         fun endsRunAt(statement: Boolean): Boolean = raises || statement && endsRun
 
+        /**
+         * The ending as the code that compiled the module at [node] sees it: nothing where it compiled, a raise where it
+         * raised, of the exception it raised, ending that code's run too, and a stop where it stopped.
+         */
+        fun seenAt(node: ElixirAst): Expansion? =
+            when (this) {
+                Compiled -> null
+                // `elixir_module:compile/6` raises once the module's checks have run.
+                Tainted -> Expansion.Error("compile_error", node)
+                is Raised -> error
+                is Crashed -> Expansion.Error(exception, error.at)
+                is Stopped -> Expansion.Unported(at)
+            }
+
         /** No error was reported. */
         data object Compiled : Ended
 

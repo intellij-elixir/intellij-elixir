@@ -126,6 +126,26 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
         assertEquals("declined", read(root))
     }
 
+    /** Elixir raises `CompileError` for the module's undefined variable, which ends the read. */
+    fun testAnImportedFilesTaintedModuleLeavesEveryKeyUnknown() {
+        val root = project(
+            CONFIG to "import Config\nimport_config \"dev.exs\"\n",
+            DEV to "import Config\ndefmodule T do\n  def f, do: x\nend\n",
+        )
+
+        assertEquals("unknown", read(root))
+    }
+
+    /** Elixir raises `CompileError` for the nested module's undefined variable, which ends the read. */
+    fun testAnImportedFilesTaintedNestedModuleLeavesEveryKeyUnknown() {
+        val root = project(
+            CONFIG to "import Config\nimport_config \"dev.exs\"\n",
+            DEV to "import Config\ndefmodule T do\n  defmodule U do\n    def f, do: x\n  end\nend\n",
+        )
+
+        assertEquals("unknown", read(root))
+    }
+
     private fun rescuing(file: String) =
         "import Config\ntry do\n  import_config \"$file\"\nrescue\n  e in File.Error -> config :app, k: match?(%{reason: :enoent}, e)\nend\n"
 

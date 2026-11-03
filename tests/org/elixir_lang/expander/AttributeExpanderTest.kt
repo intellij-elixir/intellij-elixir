@@ -26,7 +26,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             end
             """.trimIndent(),
             """
-            top expanded {} next 0
+            top error attribute_in_match_or_guard `@x`
             module Elixir.A raised attribute_in_match_or_guard `@x`
             """.trimIndent(),
         )
@@ -46,7 +46,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             val kind = if (isBefore(version, "1.15.0")) "invalid_guard" else "attribute_in_match_or_guard"
 
             """
-            top expanded {} next 0
+            top error $kind `@x`
             module Elixir.A raised $kind `@x`
             """.trimIndent()
         }
@@ -78,7 +78,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             end
             """.trimIndent(),
             """
-            top expanded {} next 0
+            top error attribute_set_in_function `@x 1`
             module Elixir.A raised attribute_set_in_function `@x 1`
             """.trimIndent(),
         )
@@ -97,7 +97,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             module Elixir.A compiled
             """.trimIndent(),
             """
-            top expanded {} next 0
+            top error behavior_attribute `@behavior Foo`
             module Elixir.A raised behavior_attribute `@behavior Foo`
             """.trimIndent(),
         )
@@ -110,7 +110,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             end
             """.trimIndent(),
             """
-            top expanded {} next 0
+            top error attribute_arity `@x 1, 2`
             module Elixir.A raised attribute_arity `@x 1, 2`
             """.trimIndent(),
         )
@@ -1021,7 +1021,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             end
             """.trimIndent(),
             """
-            top expanded {} next 0
+            top error invalid_attribute_value `@impl 1`
             module Elixir.A raised invalid_attribute_value `@impl 1`
               write impl 1 `@impl 1`
               final impl: :nil
@@ -1043,7 +1043,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
               final behaviour: ["a"]
             """.trimIndent(),
             """
-            top expanded {} next 0
+            top error invalid_attribute_value `@behaviour "a"`
             module Elixir.A raised invalid_attribute_value `@behaviour "a"`
               write behaviour "a" `@behaviour "a"`
               final behaviour: []
@@ -1191,9 +1191,9 @@ class AttributeExpanderTest : ExpanderTestCase() {
             val attribute = "  write u 2 not a statement `@u 2`\n  read u in def g/1: unexpanded\n  final u: unknown"
 
             when (version) {
-                "1.14.5" -> "top expanded {} next 0\nmodule Elixir.A raised bad_unit_argument $segment\n$attribute"
+                "1.14.5" -> "top error bad_unit_argument $segment\nmodule Elixir.A raised bad_unit_argument $segment\n$attribute"
                 "1.15.8" ->
-                    "top expanded {} next 0\nmodule Elixir.A crashed bad_unit_argument $segment Elixir.ArithmeticError\n" +
+                    "top error Elixir.ArithmeticError $segment\nmodule Elixir.A crashed bad_unit_argument $segment Elixir.ArithmeticError\n" +
                         "$attribute\n  reported bad_unit_argument $segment"
                 else -> "top expanded {} next 0\nmodule Elixir.A stopped `+@u`\n$attribute"
             }
@@ -1245,7 +1245,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             end
             """.trimIndent(),
             """
-            top expanded {} next 0
+            top error invalid_rescue_clause `x in [@e, 1] -> x`
             module Elixir.A raised invalid_rescue_clause `x in [@e, 1] -> x`
               write e :Elixir.ArgumentError not a statement `@e ArgumentError`
               read e in def g/0: unexpanded
@@ -1315,7 +1315,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             end
             """.trimIndent(),
             """
-            top expanded {} next 0
+            top error options_are_not_keyword `import Kernel, @opts`
             module Elixir.A raised options_are_not_keyword `import Kernel, @opts`
               write opts node `@opts (receive do after 0 -> [only: [is_atom: 1]] end)`
               final opts: unknown
@@ -1377,7 +1377,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             end
             """.trimIndent(),
             """
-            top expanded {} next 0
+            top error unsupported_option `import Kernel, foo: @x`
             module Elixir.A raised unsupported_option `import Kernel, foo: @x`
               write x 1 not a statement `@x 1`
               read x in def f/0: unexpanded
@@ -1397,7 +1397,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             end
             """.trimIndent(),
             """
-            top expanded {} next 0
+            top error unsupported_option `alias :lists, as: L, foo: @x`
             module Elixir.A raised unsupported_option `alias :lists, as: L, foo: @x`
               write x 1 not a statement `@x 1`
               read x in def f/0: unexpanded
@@ -1419,7 +1419,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
             "1.17.0-rc.0",
             """
-            top expanded {} next 0
+            top error only_and_except_given `import Kernel, only: [is_atom: 1], except: @x`
             module Elixir.A raised only_and_except_given `import Kernel, only: [is_atom: 1], except: @x`
               write x [{:is_atom, 1}] not a statement `@x [is_atom: 1]`
               read x in def f/0: unexpanded
@@ -1468,7 +1468,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
             "1.17.0-rc.0",
             """
-            top expanded {} next 0
+            top error invalid_option `import Kernel, only: :foo, except: @x`
             module Elixir.A raised invalid_option `import Kernel, only: :foo, except: @x`
               write x [{:is_atom, 1}] not a statement `@x [is_atom: 1]`
               read x in def f/0: unexpanded
@@ -1504,7 +1504,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
               final x: unknown
             """.trimIndent(),
             """
-            top expanded {} next 0
+            top error invalid_option `import Kernel, only: @x, except: :foo`
             module Elixir.A raised invalid_option `import Kernel, only: @x, except: :foo`
               write x [{:is_atom, 1}] not a statement `@x [is_atom: 1]`
               read x in def f/0: unexpanded
@@ -1525,7 +1525,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             end
             """.trimIndent(),
             """
-            top expanded {} next 0
+            top error invalid_option `import Kernel, only: [{:is_list, 1} | @x]`
             module Elixir.A raised invalid_option `import Kernel, only: [{:is_list, 1} | @x]`
               write x [{:is_atom, 1}] not a statement `@x [is_atom: 1]`
               read x in def f/0: unexpanded
@@ -1546,7 +1546,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             end
             """.trimIndent(),
             """
-            top expanded {} next 0
+            top error unsupported_option `import Kernel, [@x, foo: 1]`
             module Elixir.A raised unsupported_option `import Kernel, [@x, foo: 1]`
               write x [{:is_atom, 1}] not a statement `@x [is_atom: 1]`
               read x in def f/0: unexpanded
@@ -1608,7 +1608,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             end
             """.trimIndent(),
             """
-            top expanded {} next 0
+            top error unsupported_option `require Kernel, [{@x, L}, foo: 1]`
             module Elixir.A raised unsupported_option `require Kernel, [{@x, L}, foo: 1]`
               write x [{:is_atom, 1}] not a statement `@x [is_atom: 1]`
               read x in def f/0: unexpanded
@@ -1627,14 +1627,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
             "1.15.0-rc.0",
             """
-            top expanded {} next 0
+            top error bad_unit_argument `y::size(4)-unit(@l)`
             module Elixir.A raised bad_unit_argument `y::size(4)-unit(@l)`
               write l [1] `@l [1]`
               read l in def g/1: [1]
               final l: [1]
             """.trimIndent(),
             """
-            top expanded {} next 0
+            top error Elixir.ArithmeticError `y::size(4)-unit(@l)`
             module Elixir.A crashed bad_unit_argument `y::size(4)-unit(@l)` Elixir.ArithmeticError
               write l [1] `@l [1]`
               read l in def g/1: [1]
@@ -1654,99 +1654,85 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
             "1.15.0-rc.0",
             """
-            top expanded {} next 0
+            top error bad_unit_argument `y::size(4)-unit(fl())`
             module Elixir.A raised bad_unit_argument `y::size(4)-unit(fl())`
             """.trimIndent(),
             """
-            top expanded {} next 0
+            top error compile_error `defmodule A do
+              defmacrop fl, do: 2.0
+              def g(y), do: <<y::size(4)-unit(fl())>>
+            end`
             module Elixir.A tainted
               reported bad_unit_argument `y::size(4)-unit(fl())`
             """.trimIndent(),
         )
 
     /** In 1.15 `-2.0` is `:erlang.-/1`'s call, which `number_size/2` can't multiply; from 1.16 it folds to a float. */
-    fun testANegatedFloatAsAUnitIsReported() =
-        assertLevels(
-            """
-            defmodule A do
-              def g(y), do: <<y::size(4)-unit(-2.0)>>
-            end
-            """.trimIndent(),
-            listOf("1.14.5", "1.15.8", "1.16.3", "1.20.4"),
-        ) { version ->
+    fun testANegatedFloatAsAUnitIsReported() {
+        val code = "defmodule A do\n  def g(y), do: <<y::size(4)-unit(-2.0)>>\nend"
+
+        assertLevels(code, listOf("1.14.5", "1.15.8", "1.16.3", "1.20.4")) { version ->
             val segment = "`y::size(4)-unit(-2.0)`"
 
             when (version) {
-                "1.14.5" -> "top expanded {} next 0\nmodule Elixir.A raised bad_unit_argument $segment"
+                "1.14.5" -> "top error bad_unit_argument $segment\nmodule Elixir.A raised bad_unit_argument $segment"
                 "1.15.8" ->
-                    "top expanded {} next 0\nmodule Elixir.A crashed bad_unit_argument $segment Elixir.ArithmeticError\n" +
+                    "top error Elixir.ArithmeticError $segment\nmodule Elixir.A crashed bad_unit_argument $segment Elixir.ArithmeticError\n" +
                         "  reported bad_unit_argument $segment"
-                else -> "top expanded {} next 0\nmodule Elixir.A tainted\n  reported bad_unit_argument $segment"
+                else -> "top error compile_error `$code`\nmodule Elixir.A tainted\n  reported bad_unit_argument $segment"
             }
         }
+    }
 
     /** A bitstring's unit must be 1, which a float's may be, so from 1.16 a folded float stops after its report. */
-    fun testAFloatUnitOnABitstringStops() =
-        assertLevels(
-            """
-            defmodule A do
-              def g(y), do: <<y::bitstring-unit(+1.0)>>
-            end
-            """.trimIndent(),
-            listOf("1.14.5", "1.15.8", "1.16.3", "1.20.4"),
-        ) { version ->
+    fun testAFloatUnitOnABitstringStops() {
+        val code = "defmodule A do\n  def g(y), do: <<y::bitstring-unit(+1.0)>>\nend"
+
+        assertLevels(code, listOf("1.14.5", "1.15.8", "1.16.3", "1.20.4")) { version ->
             val segment = "`y::bitstring-unit(+1.0)`"
 
             when (version) {
-                "1.14.5" -> "top expanded {} next 0\nmodule Elixir.A raised bad_unit_argument $segment"
+                "1.14.5" -> "top error bad_unit_argument $segment\nmodule Elixir.A raised bad_unit_argument $segment"
                 "1.15.8" ->
-                    "top expanded {} next 0\nmodule Elixir.A tainted\n  reported bad_unit_argument $segment\n" +
+                    "top error compile_error `$code`\nmodule Elixir.A tainted\n  reported bad_unit_argument $segment\n" +
                         "  reported bittype_mismatch $segment"
                 else -> "top expanded {} next 0\nmodule Elixir.A stopped $segment\n  reported bad_unit_argument $segment"
             }
         }
+    }
 
     /** A repeated spec matches its earlier value exactly, so a float is never the integer before it. */
-    fun testAFloatUnitAfterAnIntegerUnitIsAMismatch() =
-        assertLevels(
-            """
-            defmodule A do
-              def g(y), do: <<y::size(4)-unit(2)-unit(+2.0)>>
-            end
-            """.trimIndent(),
-            listOf("1.14.5", "1.16.3", "1.20.4"),
-        ) { version ->
+    fun testAFloatUnitAfterAnIntegerUnitIsAMismatch() {
+        val code = "defmodule A do\n  def g(y), do: <<y::size(4)-unit(2)-unit(+2.0)>>\nend"
+
+        assertLevels(code, listOf("1.14.5", "1.16.3", "1.20.4")) { version ->
             val segment = "`y::size(4)-unit(2)-unit(+2.0)`"
 
             if (version == "1.14.5") {
-                "top expanded {} next 0\nmodule Elixir.A raised bad_unit_argument $segment"
+                "top error bad_unit_argument $segment\nmodule Elixir.A raised bad_unit_argument $segment"
             } else {
-                "top expanded {} next 0\nmodule Elixir.A tainted\n  reported bad_unit_argument $segment\n" +
+                "top error compile_error `$code`\nmodule Elixir.A tainted\n  reported bad_unit_argument $segment\n" +
                     "  reported bittype_mismatch $segment"
             }
         }
+    }
 
     /** A float is never the list before it, so the units conflict. */
-    fun testAFloatUnitAfterAListUnitIsAMismatch() =
-        assertLevels(
-            """
-            defmodule A do
-              @l [1]
-              def g(y), do: <<y::size(4)-unit(@l)-unit(+2.0)>>
-            end
-            """.trimIndent(),
-            listOf("1.14.5", "1.16.3", "1.20.4"),
-        ) { version ->
+    fun testAFloatUnitAfterAListUnitIsAMismatch() {
+        val code = "defmodule A do\n  @l [1]\n  def g(y), do: <<y::size(4)-unit(@l)-unit(+2.0)>>\nend"
+
+        assertLevels(code, listOf("1.14.5", "1.16.3", "1.20.4")) { version ->
             val segment = "`y::size(4)-unit(@l)-unit(+2.0)`"
             val l = "  write l [1] `@l [1]`\n  read l in def g/1: [1]\n  final l: [1]"
 
             if (version == "1.14.5") {
-                "top expanded {} next 0\nmodule Elixir.A raised bad_unit_argument $segment\n$l"
+                "top error bad_unit_argument $segment\nmodule Elixir.A raised bad_unit_argument $segment\n$l"
             } else {
-                "top expanded {} next 0\nmodule Elixir.A tainted\n$l\n  reported bad_unit_argument $segment\n" +
+                "top error compile_error `$code`\nmodule Elixir.A tainted\n$l\n  reported bad_unit_argument $segment\n" +
                     "  reported bad_unit_argument $segment\n  reported bittype_mismatch $segment"
             }
         }
+    }
 
     /** Two floats whose values aren't kept may be the same, so the spec stops after their reports. */
     fun testTwoFloatUnitsStop() =

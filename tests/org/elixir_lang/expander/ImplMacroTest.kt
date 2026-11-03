@@ -75,14 +75,16 @@ class ImplMacroTest : ExpanderTestCase() {
 
     fun testAModuleThatIsNotAProtocolRaises() {
         val code = "defmodule A do\n  defimpl Plain, for: Integer do\n  end\nend"
+        val raised = "impl_not_a_protocol `defimpl Plain, for: Integer do\n  end`"
 
-        assertEvery(code, "module Elixir.A raised impl_not_a_protocol `defimpl Plain, for: Integer do\n  end`")
+        assertEvery(code, "module Elixir.A raised $raised\ntop error $raised")
     }
 
     fun testAModuleThatIsNotThereRaises() {
         val code = "defmodule A do\n  defimpl Missing, for: Integer do\n  end\nend"
+        val raised = "impl_not_available `defimpl Missing, for: Integer do\n  end`"
 
-        assertEvery(code, "module Elixir.A raised impl_not_available `defimpl Missing, for: Integer do\n  end`")
+        assertEvery(code, "module Elixir.A raised $raised\ntop error $raised")
     }
 
     /**

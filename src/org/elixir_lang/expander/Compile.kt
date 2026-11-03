@@ -1137,10 +1137,11 @@ internal fun compilePending(run: Run): Walked {
 
                 modules += result
 
-                // The file's run ends where it first stopped, or at the module's own stop where nothing stopped before.
+                // The file's run ends where it first stopped, or at the module's own stop or raise where nothing stopped
+                // before.
                 if (result.ended.endsRunAt(statement)) {
                     stepping.ends = true
-                    endedAt = stopped ?: (result.ended as? Ended.Stopped)?.let { Expansion.Unported(it.at) }
+                    endedAt = stopped ?: result.ended.seenAt(pending.node)
                 }
 
                 stepping.compiled(result)
@@ -1651,15 +1652,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
                 nested += result
                 stepping.compiled(result)
                 stepping.ends = result.ended.endsRunAt(statement)
-                when (val inner = result.ended) {
-                    Ended.Compiled -> null
-                    // `elixir_module:compile/6` raises once the nested module's checks have run.
-                    Ended.Tainted -> Expansion.Error("compile_error", pending.node)
-                    // A raise in a nested module ends the module around it too.
-                    is Ended.Raised -> inner.error
-                    is Ended.Crashed -> inner.error
-                    is Ended.Stopped -> Expansion.Unported(inner.at)
-                }
+                result.ended.seenAt(pending.node)
             }
         } } }
 

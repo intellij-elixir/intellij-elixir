@@ -112,6 +112,7 @@ class ExpanderProgressHeavyTest : HeavyTestCase() {
             module	app	progress	lib/twice_b.ex	Progress.Twice	1	1	compiled	-	-
             module	app	progress	lib/unreadable.ex	Progress.Unreadable	1	0	stopped	unported require/1	2
             module	dep	dep-progress_dep	deps/progress_dep/lib/progress_dep.ex	ProgressDep	2	2	compiled	-	-
+            file	app	progress	lib/raised.ex	error unloaded_module	2
             file	app	progress	test/top_test.exs	opaque Progress.Macros.wrap/1	2
             total	app	progress	9	9	12	8	4	0	1	0	4
             total	dep	dep-progress_dep	1	1	2	2	1	0	0	0	0
