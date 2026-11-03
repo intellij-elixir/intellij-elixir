@@ -87,12 +87,17 @@ fun Driver.openProjectAt(path: String, keepBuild: Boolean = false, ready: Durati
         openProjectButton.click()
     }
 
-    ui.dialog(xQuery { byTitle("Open File or Project") }) {
-        comboBox().enterTextWithFocus(path)
-        clickButtonText("OK")
-    }
+    choosePath("Open File or Project", path)
     ideFrame {
         waitUntilReady(ready)
+    }
+}
+
+/** Types [path] into the file chooser titled [title] and confirms it. */
+fun Driver.choosePath(title: String, path: String) {
+    ui.dialog(xQuery { byTitle(title) }) {
+        comboBox().enterTextWithFocus(path)
+        clickButtonText("OK")
     }
 }
 
@@ -128,32 +133,13 @@ fun WindowUiComponent.addSdkFromDisk(sdkType: String, sdkPath: String, dialogTit
 
         driver.selectItemFromList(sdkType)
 
-        dialog(xQuery { byTitle(dialogTitle) }) {
-            comboBox().enterTextWithFocus(sdkPath)
-            clickButtonText("OK")
-        }
+        driver.choosePath(dialogTitle, sdkPath)
 
         projectStructure {
             clickButtonText("OK")
         }
         waitUntilReady()
     }
-
-@Remote("com.intellij.openapi.projectRoots.ProjectJdkTable")
-private interface SdkTable {
-    fun getInstance(): SdkTable
-    fun getAllJdks(): Array<TableSdk>
-}
-
-@Remote("com.intellij.openapi.projectRoots.Sdk")
-private interface TableSdk {
-    fun getSdkType(): TableSdkType
-}
-
-@Remote("com.intellij.openapi.projectRoots.SdkTypeId")
-private interface TableSdkType {
-    fun getName(): String
-}
 
 @Remote("com.intellij.openapi.roots.ModuleRootModificationUtil")
 private interface ModuleSdk {
