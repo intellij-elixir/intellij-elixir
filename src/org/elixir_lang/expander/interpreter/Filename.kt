@@ -1,5 +1,6 @@
 package org.elixir_lang.expander.interpreter
 
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.util.system.OS
 import java.io.ByteArrayOutputStream
 import java.util.Arrays
@@ -111,7 +112,11 @@ internal object Filename {
         var at = 0
 
         while (at < subject.size) {
-            val length = patterns.maxOfOrNull { if (matches(subject, at, it)) it.size else 0 } ?: 0
+            val length = patterns.maxOfOrNull {
+                ProgressManager.checkCanceled()
+
+                if (matches(subject, at, it)) it.size else 0
+            } ?: 0
 
             if (length == 0) {
                 at++

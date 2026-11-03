@@ -898,6 +898,24 @@ class ModuleExpanderTest : ExpanderTestCase() {
         }
     }
 
+    /** A macro searching a long binary that holds no match is cancelled as the search moves along it. */
+    fun testABinarySearchIsCancelledAsItScans() {
+        val bytes = 4096
+
+        assertCancelledIn("org.elixir_lang.expander.interpreter.Filename", "binaryMatches", bytes / 2) {
+            expandMacro("(:binary.matches(<<0::size(${bytes * 8})>>, [<<1>>]))")
+        }
+    }
+
+    /** A macro searching a binary for a long list of patterns is cancelled as it compares them at one position. */
+    fun testABinarySearchIsCancelledAsItComparesPatterns() {
+        val patterns = "p = [<<1>>]; " + "p = :erlang.++(p, p); ".repeat(DOUBLINGS)
+
+        assertCancelledIn("org.elixir_lang.expander.interpreter.Filename", "binaryMatches", (1 shl DOUBLINGS) / 2) {
+            expandMacro("($patterns :binary.match(<<0>>, p))")
+        }
+    }
+
     /** A macro ordering two such lists is cancelled while it compares them, once it has walked each. */
     fun testAComparisonIsCancelledAsItWalks() {
         val trees = "$TREE ${TREE.replace("t", "u")}"
