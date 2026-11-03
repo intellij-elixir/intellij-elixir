@@ -472,7 +472,7 @@ internal class Bits(private val evaluation: Evaluation) {
                 true
             }
             Type.UTF8, Type.UTF16, Type.UTF32 -> {
-                val code = (value as? OtpErlangLong)?.takeIf { it.bitLength() < Int.SIZE_BITS }?.intValue() ?: return false
+                val code = smallInt(value) ?: return false
 
                 if (!isScalarValue(code.toLong())) return false
 

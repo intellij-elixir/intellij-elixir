@@ -6,7 +6,6 @@ import com.ericsson.otp.erlang.OtpErlangBitstr
 import com.ericsson.otp.erlang.OtpErlangDouble
 import com.ericsson.otp.erlang.OtpErlangExternalFun
 import com.ericsson.otp.erlang.OtpErlangList
-import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
@@ -616,9 +615,9 @@ internal class Evaluation(
             NIL -> null
             is OtpErlangTuple -> {
                 val name = (value.elementAt(0) as? OtpErlangAtom)?.takeIf { value.arity() == 2 } ?: return null
-                val arity = (seen(value.elementAt(1)) as? OtpErlangLong)?.takeIf { it.signum() >= 0 && it.bitLength() < 32 } ?: return null
+                val arity = smallInt(seen(value.elementAt(1)))?.takeIf { it >= 0 } ?: return null
 
-                NameArity(name.atomValue(), arity.intValue())
+                NameArity(name.atomValue(), arity)
             }
             else -> return null
         }

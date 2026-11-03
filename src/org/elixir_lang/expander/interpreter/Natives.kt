@@ -440,7 +440,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 // Before OTP 27 a bitstring's part is taken from its whole bytes.
                 val bytes = bitstring.binaryValue().copyOf(bitSize(bitstring) / Byte.SIZE_BITS)
                 val (start, length) = args.drop(1).map {
-                    (seen(it) as? OtpErlangLong)?.takeIf { long -> long.bitLength() < Int.SIZE_BITS }?.longValue() ?: badarg()
+                    smallInt(seen(it))?.toLong() ?: badarg()
                 }
                 val (from, to) = if (length < 0) start + length to start else start to start + length
 
@@ -2467,7 +2467,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** [term] as a 1-based index of a tuple of [size] elements. */
     private fun index(term: OtpErlangObject, size: Int): Int? =
-        (seen(term) as? OtpErlangLong)?.takeIf { it.isLong }?.longValue()?.takeIf { it in 1..size }?.toInt()
+        smallInt(seen(term))?.takeIf { it in 1..size }
 
     private fun map(term: OtpErlangObject): OtpErlangMap =
         seen(term) as? OtpErlangMap ?: evaluation.error(tuple(atom("badmap"), term))
@@ -2787,7 +2787,7 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun byteAt(subject: OtpErlangObject, position: OtpErlangObject): OtpErlangObject {
         val badarg = { evaluation.error(atom("badarg"), frame("binary", "at", list(listOf(subject, position)))) }
         val bytes = (seen(subject) as? OtpErlangBitstr)?.takeIf(::isBinary)?.binaryValue() ?: badarg()
-        val index = (seen(position) as? OtpErlangLong)?.takeIf { it.bitLength() < Int.SIZE_BITS }?.intValue() ?: badarg()
+        val index = smallInt(seen(position)) ?: badarg()
 
         return integer((bytes.getOrNull(index) ?: badarg()).toLong() and 0xFF)
     }
@@ -2841,9 +2841,9 @@ internal class Natives(private val evaluation: Evaluation) {
 
         if (arities == ArityKnowledge.Open(0)) return TRUE
 
-        val int = (seen(arity) as? OtpErlangLong)?.takeIf { it.isLong }?.longValue()
+        val int = smallInt(seen(arity))
 
-        return bool(int != null && int in Int.MIN_VALUE..Int.MAX_VALUE && arities.admits(int.toInt()))
+        return bool(int != null && arities.admits(int))
     }
 
     /** The text of the binary [term], `null` where it isn't a binary of UTF-8. */
@@ -2923,7 +2923,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** [term] where it is a Unicode code point, which a surrogate isn't, `null` where it is something else. */
     private fun codePoint(term: OtpErlangObject): Int? =
-        (term as? OtpErlangLong)?.takeIf { it.bitLength() < Int.SIZE_BITS }?.intValue()?.takeIf { isScalarValue(it.toLong()) }
+        smallInt(term)?.takeIf { isScalarValue(it.toLong()) }
 
     /**
      * `unicode_util:gc/1`: the first grapheme cluster of a binary or a flat list of code points, then the rest. Where
