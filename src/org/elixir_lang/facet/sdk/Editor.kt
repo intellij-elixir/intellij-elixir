@@ -271,8 +271,6 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
         if (homePath != null) {
             setHomePathValue(homePath.replace('/', File.separatorChar))
 
-            sdk.name = suggestSdkName(homePath)
-
             try {
                 val dummySdk = sdk.clone() as Sdk
                 val dummySdkModificator = dummySdk.sdkModificator.apply {
@@ -306,25 +304,6 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
             } catch (e: CloneNotSupportedException) {
                 LOG.error(e) // should not happen in normal program
             }
-        }
-    }
-
-    private fun suggestSdkName(homePath: String): String {
-        val currentName = sdk.name
-        val suggestedName = (sdk.sdkType as SdkType).suggestSdkName(currentName, homePath)
-
-        return if (Objects.equals(currentName, suggestedName)) {
-            currentName
-        } else {
-            var newSdkName = suggestedName
-            val allNames = sdkModel.sdks.map(Sdk::getName).toSet()
-            var i = 0
-
-            while (allNames.contains(newSdkName)) {
-                newSdkName = suggestedName + " (" + ++i + ")"
-            }
-
-            newSdkName
         }
     }
 

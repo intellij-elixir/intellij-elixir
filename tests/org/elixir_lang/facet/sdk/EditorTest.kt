@@ -21,7 +21,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.facet.SdksService
-import org.elixir_lang.junit.logs.expectErrors
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.wsl.MockWslCompatService
@@ -117,9 +116,8 @@ class EditorTest : PlatformTestCase() {
         val sdkType = sdk.sdkType as SdkType
         val editor = onEdt { Editor(model(), history(), sdk).also { ConfigurableCardPanel.createConfigurableComponent(it) } }
         try {
-            expectErrors(ProjectJdkImpl::class.java, Regex("Forbidden to mutate SDK outside of the `SdkModificator`")) {
-                onEdt { editor.doSetHomePath(homeB, sdkType) }
-            }
+            val name = sdk.name
+            onEdt { editor.doSetHomePath(homeB, sdkType) }
             assertTrue("browsing to a new home modifies the editor", onEdt { editor.isModified })
 
             onEdt { editor.apply() }
@@ -128,6 +126,7 @@ class EditorTest : PlatformTestCase() {
             val roots = sdk.rootProvider.getUrls(OrderRootType.CLASSES).map(VfsUtilCore::urlToPath)
             assertTrue("a CLASSES root lies under the new home: $roots", roots.any { FileUtil.isAncestor(homeB, it, false) })
             assertFalse("no CLASSES root lies under the old home: $roots", roots.any { FileUtil.isAncestor(homeA, it, false) })
+            assertEquals("browsing renames nothing", name, sdk.name)
         } finally {
             onEdt { editor.disposeUIResources() }
         }
