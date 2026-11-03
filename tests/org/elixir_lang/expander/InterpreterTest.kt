@@ -6385,6 +6385,57 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
             ),
+            macro(
+                "pure:binary-rest-aligned",
+                """
+                defmacro m do
+                  <<_, rest::binary>> = "abcdef"
+                  [rest, (<<_, _, r::binary>> = rest; r), (<<_::binary-size(5), e::binary>> = rest; e)]
+                end
+                """,
+            ),
+            macro(
+                "pure:binary-rest-after-a-head",
+                """
+                defmacro m do
+                  <<a::8, b::16, rest::binary>> = <<1, 2, 3, 4, 5, 6>>
+                  <<c::16-little, tail::bitstring>> = rest
+                  [a, b, rest, c, tail]
+                end
+                """,
+            ),
+            macro(
+                "pure:bitstring-rest-unaligned",
+                """
+                defmacro m do
+                  <<x::3, rest::bitstring>> = <<0b10110011, 0b01010101>>
+                  <<y::5, z::binary>> = rest
+                  <<_::1, w::bitstring>> = z
+                  [x, bit_size(rest), y, z, bit_size(w), (<<v::7>> = w; v)]
+                end
+                """,
+            ),
+            macro(
+                "pure:bitstring-rest-ragged",
+                """
+                defmacro m do
+                  <<a::8, r::bitstring>> = <<1, 0b10110011, 0b101::3>>
+                  <<b::4, s::bitstring>> = r
+                  [a, bit_size(r), r == <<0b10110011, 0b101::3>>, b, bit_size(s), s == <<0b0011101::7>>]
+                end
+                """,
+            ),
+            macro(
+                "pure:binary-size-segment",
+                """
+                defmacro m(n) do
+                  <<h::binary-size(2), t::binary-size(n), r::binary>> = "abcdefgh"
+                  <<_::4, s::bitstring-size(8), _::4>> = <<0xAB, 0xCD>>
+                  [h, t, r, s]
+                end
+                """,
+                "m(3)",
+            ),
             macro("pure:utf-literal", """defmacro m, do: <<"é"::utf8, "a"::utf16>>"""),
             macro("pure:float-overflow", "defmacro m(x), do: <<x::32-float>>", "m(1.0e300)"),
             macro(
