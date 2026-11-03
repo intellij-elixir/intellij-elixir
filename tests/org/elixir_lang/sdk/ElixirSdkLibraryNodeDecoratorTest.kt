@@ -55,12 +55,26 @@ class ElixirSdkLibraryNodeDecoratorTest : PlatformTestCase() {
         assertNull("A dep's ebin is not an SDK root and must keep its own name", presentableTextOf(depEbin))
     }
 
+    fun testRootAddedToARegisteredSdkIsNamedAfterItsOtpApplication() {
+        val iex = myFixture.tempDirFixture.findOrCreateDir("elixir_home/lib/iex/ebin")
+        val logger = myFixture.tempDirFixture.findOrCreateDir("elixir_home/lib/logger/ebin")
+        registerElixirSdk(classRoots = listOf(iex))
+        assertEquals("iex", presentableTextOf(iex))
+
+        WriteAction.run<Throwable> {
+            sdk!!.sdkModificator.apply {
+                addRoot(logger, OrderRootType.CLASSES)
+                commitChanges()
+            }
+        }
+
+        assertEquals("logger", presentableTextOf(logger))
+    }
+
     private fun registerElixirSdk(
         classRoots: List<VirtualFile> = emptyList(),
         sourceRoots: List<VirtualFile> = emptyList(),
     ) {
-        // Roots go on before the SDK reaches the table: ElixirSdkRootsCache only invalidates on
-        // JDK_TABLE_TOPIC, so a root added afterwards would not be seen.
         sdk = ProjectJdkImpl("Test Elixir SDK", ElixirSdkType.instance).apply {
             WriteAction.run<Throwable> {
                 sdkModificator.apply {
