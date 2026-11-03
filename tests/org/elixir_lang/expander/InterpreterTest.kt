@@ -6463,6 +6463,27 @@ class InterpreterTest : PlatformTestCase() {
                 """,
                 "m(3)",
             ),
+            macro(
+                "pure:bitstring-build-unaligned",
+                """
+                defmacro m do
+                  a = <<0b101::3>>
+                  b = <<0b11001100, 0b1010::4>>
+                  ab = <<a::bitstring, b::bitstring>>
+                  Macro.escape([ab, bit_size(ab), <<1::1, "ab", a::bitstring>>, <<a::bitstring, "xyz"::binary, 0b11::2>>])
+                end
+                """,
+            ),
+            macro(
+                "pure:bitstring-build-sized",
+                """
+                defmacro m do
+                  b = <<0b11001100, 0b1010::4>>
+                  s = "abcd"
+                  Macro.escape([<<1::1, b::bitstring-size(5)>>, <<s::binary-size(2), 1::3>>, <<0b111::3, s::binary-size(3)>>])
+                end
+                """,
+            ),
             macro("pure:utf-literal", """defmacro m, do: <<"é"::utf8, "a"::utf16>>"""),
             macro("pure:float-overflow", "defmacro m(x), do: <<x::32-float>>", "m(1.0e300)"),
             macro(
