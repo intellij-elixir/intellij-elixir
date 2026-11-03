@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4630](https://github.com/intellij-elixir/intellij-elixir/pull/4630) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, a module that macro code creates with `Module.create/3`, such as the one an Ecto inline embedded schema defines, is known with its functions.** Refs [#4597](https://github.com/intellij-elixir/intellij-elixir/issues/4597).
+
 - [#4633](https://github.com/intellij-elixir/intellij-elixir/pull/4633) [@sh41](https://github.com/sh41)
   - **Adding an Elixir SDK asks for its install, then which Erlang it runs on, showing each Erlang's OTP and preselecting none, and leaves the new SDK selected; an Elixir SDK's Erlang changes only when you pick one, and deleting its Erlang SDK, renaming it or changing its home, even from the welcome screen, keeps it paired, loading a new home's Erlang modules, or asks which to use instead.** Refs [#4087](https://github.com/intellij-elixir/intellij-elixir/issues/4087).
 
