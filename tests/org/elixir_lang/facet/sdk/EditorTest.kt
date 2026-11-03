@@ -6,9 +6,12 @@ import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.UI
 import com.intellij.openapi.options.ex.ConfigurableCardPanel
 import com.intellij.openapi.projectRoots.Sdk
+import com.intellij.openapi.projectRoots.SdkType
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
+import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.testFramework.registerOrReplaceServiceInstance
 import com.intellij.ui.navigation.History
 import com.intellij.ui.navigation.Place
@@ -18,6 +21,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.facet.SdksService
+import org.elixir_lang.junit.logs.expectErrors
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.wsl.MockWslCompatService
@@ -88,9 +92,54 @@ class EditorTest : PlatformTestCase() {
         assertFalse("an editor just shown must match its SDK", onEdt { editor.isModified })
     }
 
-    private fun pairedElixirSdkCopy(name: String, erlangHome: String = "/fake/erlang/${name.hashCode()}"): ProjectJdkImpl {
+    fun testBrowsingToANewErlangHomeKeepsIt() {
+        val homeA = SdkFixtures.erlangHomeWithEbin("26", "26.2.5")
+        val homeB = SdkFixtures.erlangHomeWithEbin("27", "27.3.4")
+        val sdk = onEdt {
+            register(SdkFixtures.erlangSdk("Browsed Erlang", homeA))
+            SdksService.getInstance()!!.resetForTests()
+            model().findSdk("Browsed Erlang") as ProjectJdkImpl
+        }
+
+        assertBrowsingKeepsTheNewHome(sdk, homeA, homeB)
+    }
+
+    fun testBrowsingToANewElixirHomeKeepsIt() {
+        val homeA = SdkFixtures.elixirHome("1.18.4")
+        val homeB = SdkFixtures.elixirHome("1.19.5")
+        val sdk = onEdt { pairedElixirSdkCopy("Browsed Elixir", SdkFixtures.erlangHomeWithEbin("27", "27.3.4"), homeA) }
+
+        assertBrowsingKeepsTheNewHome(sdk, homeA, homeB)
+    }
+
+    /** Browses [sdk]'s editor from [homeA] to [homeB] as the home chooser's callback does: on the EDT, no write action. */
+    private fun assertBrowsingKeepsTheNewHome(sdk: ProjectJdkImpl, homeA: String, homeB: String) {
+        val sdkType = sdk.sdkType as SdkType
+        val editor = onEdt { Editor(model(), history(), sdk).also { ConfigurableCardPanel.createConfigurableComponent(it) } }
+        try {
+            expectErrors(ProjectJdkImpl::class.java, Regex("Forbidden to mutate SDK outside of the `SdkModificator`")) {
+                onEdt { editor.doSetHomePath(homeB, sdkType) }
+            }
+            assertTrue("browsing to a new home modifies the editor", onEdt { editor.isModified })
+
+            onEdt { editor.apply() }
+
+            assertEquals(FileUtil.toSystemIndependentName(homeB), FileUtil.toSystemIndependentName(sdk.homePath!!))
+            val roots = sdk.rootProvider.getUrls(OrderRootType.CLASSES).map(VfsUtilCore::urlToPath)
+            assertTrue("a CLASSES root lies under the new home: $roots", roots.any { FileUtil.isAncestor(homeB, it, false) })
+            assertFalse("no CLASSES root lies under the old home: $roots", roots.any { FileUtil.isAncestor(homeA, it, false) })
+        } finally {
+            onEdt { editor.disposeUIResources() }
+        }
+    }
+
+    private fun pairedElixirSdkCopy(
+        name: String,
+        erlangHome: String = "/fake/erlang/${name.hashCode()}",
+        elixirHome: String = "/fake/elixir/${name.hashCode()}",
+    ): ProjectJdkImpl {
         val erlangSdk = register(SdkFixtures.erlangSdk("$name Erlang", erlangHome))
-        val elixirSdk = register(SdkFixtures.elixirSdk(name, "/fake/elixir/${name.hashCode()}"))
+        val elixirSdk = register(SdkFixtures.elixirSdk(name, elixirHome))
         SdkFixtures.commit(elixirSdk, ElixirSdkAdditionalData(erlangSdk, elixirSdk))
         SdksService.getInstance()!!.resetForTests()
 

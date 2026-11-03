@@ -33,6 +33,7 @@ import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
 import org.elixir_lang.sdk.wsl.wslCompat
+import org.jetbrains.annotations.VisibleForTesting
 
 class Editor(private val sdkModel: SdkModel, private val history: History, private var sdk: ProjectJdkImpl) :
     Configurable, Place.Navigator {
@@ -265,7 +266,8 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
         SdkHomeChooser.selectSdkHome(sdkType, basePath) { path -> doSetHomePath(path, sdkType) }
     }
 
-    private fun doSetHomePath(homePath: String?, sdkType: SdkType) {
+    @VisibleForTesting
+    internal fun doSetHomePath(homePath: String?, sdkType: SdkType) {
         if (homePath != null) {
             setHomePathValue(homePath.replace('/', File.separatorChar))
 
@@ -273,11 +275,11 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
 
             try {
                 val dummySdk = sdk.clone() as Sdk
-                dummySdk.sdkModificator.apply {
+                val dummySdkModificator = dummySdk.sdkModificator.apply {
                     this.homePath = homePath
                     removeAllRoots()
-                    commitChanges()
                 }
+                ApplicationManager.getApplication().runWriteAction { dummySdkModificator.commitChanges() }
 
                 sdkType.setupSdkPaths(dummySdk, sdkModel)
 
