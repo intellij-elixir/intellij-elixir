@@ -847,6 +847,8 @@
 
 ### Build / CI
 
+- [#4621](https://github.com/intellij-elixir/intellij-elixir/pull/4621) [@sh41](https://github.com/sh41)
+  - **The nightly real IDE tests (`./gradlew testUI`) pass again: five fixed known failures are unmarked, and the import test gives the IDE five minutes to index instead of thirty seconds.** Fixes [#4619](https://github.com/intellij-elixir/intellij-elixir/issues/4619).
 - [#4617](https://github.com/intellij-elixir/intellij-elixir/pull/4617) [@sh41](https://github.com/sh41)
   - **The real IDE tests (`./gradlew testUI`) now run every night on CI, and a red run opens or updates one issue, "Nightly UI tests failed".** Fixes [#4614](https://github.com/intellij-elixir/intellij-elixir/issues/4614).
 - [#4613](https://github.com/intellij-elixir/intellij-elixir/pull/4613) [@sh41](https://github.com/sh41)

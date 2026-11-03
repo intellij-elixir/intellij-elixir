@@ -69,7 +69,7 @@ class UltimateProjectImportTest {
                             popupMenu().selectContains("Run 'Mix ExUnit")
 
                             // Wait for test runner to open and tests to execute
-                            waitUntilReady(5.minutes)
+                            waitUntilReady()
 
                             runToolWindow {
                                 waitContainsText("tests passed", null, true, 5.minutes)

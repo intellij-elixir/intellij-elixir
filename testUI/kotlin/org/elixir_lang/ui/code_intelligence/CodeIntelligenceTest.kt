@@ -178,7 +178,6 @@ class CodeIntelligenceTest {
             Row(
                 "stopped module, local call",
                 Answer.Is("lib/own/text/summary.ex: defp local_prefix, do: \"words: \""),
-                expander = Known("#4578", Reading.Read("unmoved")),
             ) {
                 navigation(SUMMARY, "local_prefix() <>", 1)
             },
@@ -188,7 +187,6 @@ class CodeIntelligenceTest {
             Row(
                 "stopped module, parameter info",
                 Answer.Is("text, minimum \\\\ 0"),
-                expander = Known("#4578", Reading.Read("no popup")),
             ) {
                 parameterInfo(SUMMARY, "count(text)", 6)
             },
@@ -208,10 +206,6 @@ class CodeIntelligenceTest {
                     summary(text): ELIXIR_PARAMETER
                     """.trimIndent()
                 ),
-                expander = Known(
-                    "#4578",
-                    Reading.Read("defp local_prefix: ELIXIR_FUNCTION_DECLARATION\nlocal_prefix() <>: \ncount(text): \nsummary(text): ELIXIR_PARAMETER"),
-                ),
             ) {
                 highlighting(
                     SUMMARY,
@@ -226,14 +220,12 @@ class CodeIntelligenceTest {
             Row(
                 "stopped module, find usages",
                 Answer.Is("lib/own/text/summary.ex: local_prefix() <> Integer.to_string(count(text))"),
-                expander = Known("#4578", Reading.Read("the table closed")),
             ) {
                 findUsages(WORDS, "def count", 5)
             },
             Row(
                 "stopped module, rename",
                 Answer.Is("local_lead() <> Integer.to_string(count(text))\ndefp local_lead, do: \"words: \""),
-                expander = Known("#4578", Reading.NotStarted("RenameElement didn't run; the last action was null")),
             ) {
                 rename(SUMMARY, "local_prefix", "local_lead")
             },
