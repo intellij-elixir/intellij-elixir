@@ -2,6 +2,8 @@ package org.elixir_lang.expander
 
 import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -14,6 +16,8 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiReferenceService
 import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
 import com.intellij.psi.impl.source.PsiFileImpl
+import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.beam.BeamLibraryFixture
@@ -22,16 +26,21 @@ import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.EXPANDER
+import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Preferred
+import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.SOURCE_PROPERTY
+import org.elixir_lang.declaration.Uncertain
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.declaration.preferred
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.junit.HeavyTestCase
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
+import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.WalkTestSupport
@@ -548,11 +557,22 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(
             listOf(
                 "Stopped.target/1 OWN VALID via [] line 7",
-                "Stopped.target/1 OWN VALID via [] line 7",
+                listOf(
+                    "Stopped.target/1 OWN VALID via [] line 7 OPAQUE",
+                    "Mix.target/1 INDEXED VALID via [] INDEX",
+                    "Raised.target/1 INDEXED VALID via [] line 14 INDEX",
+                    "Tainted.target/1 INDEXED VALID via [] line 2 INDEX",
+                ).joinToString("\n"),
                 "Raised.target/1 OWN VALID via [] line 14",
-                "Raised.target/1 OWN VALID via [] line 14",
+                listOf(
+                    "Raised.target/1 OWN VALID via [] line 14 STOP",
+                    "Mix.target/1 INDEXED VALID via [] INDEX",
+                    "Stopped.target/1 INDEXED VALID via [] line 7 INDEX",
+                    "Tainted.target/1 INDEXED VALID via [] line 2 INDEX",
+                ).joinToString("\n"),
                 "Stopped.target/1 OWN VALID via [] line 7",
-                "",
+                // What Raised defines isn't known to its end; Elixir loads no Tainted.
+                "Raised.target/1 INDEXED VALID via [] line 14 INDEX",
                 "Tainted.target/1 OWN VALID via [] line 2",
                 "",
             ),
@@ -973,7 +993,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals("Foo.Bar.f/1 OWN VALID via [] line 2", candidates(file, "do: @mod.f(x)", "@mod.f(x)"))
         assertEquals("Foo.Bar.f/1 OWN VALID via [] line 2", candidates(file, "C.f(x)", "C.f(x)"))
         assertEquals("Foo.Bar.f/1 OWN VALID via [] line 2", candidates(file, "B.f(unquote(x))", "B.f(unquote(x))"))
-        assertEquals("Foo.Bar.f/1 OWN VALID via [] line 2", candidates(file, "B.f(x)", "B.f(x)"))
+        assertEquals("Foo.Bar.f/1 OWN VALID via [] line 2 STOP", candidates(file, "B.f(x)", "B.f(x)"))
         assertEquals("", candidates(file, "    @mod.f(x)", "@mod.f(x)"))
         assertEquals("Foo.Nested.f/1 OWN VALID via [] line 19", candidates(file, "__MODULE__.f(x)", "__MODULE__.f(x)"))
     }
@@ -1043,10 +1063,162 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             """
         )
 
-        assertEquals("Dir.Target.f/1 OWN VALID via [] line 2", candidates(byAlias, "D.f(x)", "D.f(x)"))
+        assertEquals("Dir.Target.f/1 OWN VALID via [] line 2 STOP", candidates(byAlias, "D.f(x)", "D.f(x)"))
         assertEquals("", candidates(byAlias, "F.f(x)", "F.f(x)"))
-        assertEquals("Dir.Target.g/1 IMPORT VALID via [import Dir.Target] line 3", candidates(byImport, "g(x)", "g(x)"))
-        assertEquals("Dir.Target.f/1 OWN VALID via [] line 2", candidates(inBody, "E.f(x)", "E.f(x)"))
+        assertEquals("Dir.Target.g/1 IMPORT VALID via [import Dir.Target] line 3 STOP", candidates(byImport, "g(x)", "g(x)"))
+        assertEquals("Dir.Target.f/1 OWN VALID via [] line 2 STOP", candidates(inBody, "E.f(x)", "E.f(x)"))
+    }
+
+    /**
+     * A `defmodule` in a function body is compiled when the function runs, so its stop leaves the body's own expansion
+     * going; a use after it reads the env at that stop, as code past any stop does.
+     */
+    fun testAUseAfterAStoppedSiblingIsPastAStop() {
+        val file = file(
+            """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Outer do
+              def target(a), do: a
+
+              def go do
+                target(1)
+
+                defmodule Inner do
+                  require M
+                  M.m()
+                end
+
+                target(2)
+              end
+            end
+            """
+        )
+
+        assertEquals(
+            listOf(
+                "Outer.target/1 OWN VALID via [] line 6",
+                "Outer.target/1 OWN VALID via [] line 6 STOP\nMix.target/1 INDEXED VALID via [] INDEX",
+            ),
+            listOf(candidates(file, "target(1)", "target(1)"), candidates(file, "target(2)", "target(2)")),
+        )
+    }
+
+    /**
+     * A definition with an `after` is expanded as a `try` only when it is stored, once the code around it was expanded,
+     * so its stop marks only its own node; a use after it that nothing entered reads the env at that stop.
+     */
+    fun testAUseAfterADefinitionThatStoppedWhenStoredIsPastAStop() {
+        val file = file(
+            """
+            defmodule Drop do
+              defmacro first(a, _b), do: a
+            end
+
+            defmodule Outer do
+              require Drop
+              def target(a), do: a
+
+              Drop.first(
+                def go do
+                  target(1)
+
+                  defmodule Inner do
+                    def x, do: 1
+                  end
+                after
+                  :ok
+                end,
+                target(2)
+              )
+            end
+            """
+        )
+
+        assertEquals(
+            listOf(
+                "Outer.target/1 OWN VALID via [] line 7",
+                "Outer.target/1 OWN VALID via [] line 7 STOP\nMix.target/1 INDEXED VALID via [] INDEX",
+            ),
+            listOf(candidates(file, "target(1)", "target(1)"), candidates(file, "target(2)", "target(2)")),
+        )
+    }
+
+    /**
+     * Past a call of a macro whose body the expander can't evaluate, a use reads the env the enclosing node was entered
+     * in, which misses whatever the call would have added: the same answer as before the call, marked as not known to
+     * be Elixir's.
+     */
+    fun testAUseAfterAnOpaqueCallIsMarkedOpaque() {
+        val file = file(
+            """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Opaquer do
+              require M
+              def target(a), do: a
+              def before_call, do: target(1)
+              M.m()
+              def after_call, do: target(2)
+            end
+            """
+        )
+
+        assertEquals(
+            listOf(
+                "Opaquer.target/1 OWN VALID via [] line 7",
+                "Opaquer.target/1 OWN VALID via [] line 7 OPAQUE\nMix.target/1 INDEXED VALID via [] INDEX",
+            ),
+            listOf(candidates(file, "target(1)", "target(1)"), candidates(file, "target(2)", "target(2)")),
+        )
+    }
+
+    /** An opaque call in a definition's body leaves the env of the module body after the definition as it was. */
+    fun testAUseAfterADefinitionWhoseBodyCallsAnOpaqueMacroIsCertain() {
+        val file = file(
+            """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Opaquer do
+              require M
+              def a, do: M.m()
+              def b(x), do: x
+            end
+            """
+        )
+
+        assertEquals(
+            "Kernel.def/1 IMPLICIT_IMPORT WRONG_ARITY via []\nKernel.def/2 IMPLICIT_IMPORT VALID via []",
+            candidates(file, "def b(x), do: x", "def b(x), do: x"),
+        )
+    }
+
+    /** A module defined in a function's body is compiled only when the function runs, so a use in it is past a stop. */
+    fun testAUseInAModuleDefinedInAFunctionBodyIsPastAStop() {
+        val file = file(
+            """
+            defmodule Outer do
+              def target(a), do: a
+
+              def f do
+                defmodule Inner do
+                  def g, do: target(1)
+                end
+              end
+            end
+            """
+        )
+
+        assertEquals(
+            "Outer.target/1 OWN VALID via [] line 2 STOP\nMix.target/1 INDEXED VALID via [] INDEX",
+            candidates(file, "target(1)", "target(1)"),
+        )
     }
 
     /**
@@ -1238,7 +1410,17 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             """
         )
 
-        assertEquals("Kernel.defmodule/2 IMPLICIT_IMPORT VALID via []", candidates(file, "defmodule M", "defmodule M do\nend"))
+        // From DEFMODULE_FAST_PATH a file of only modules compiles each directly, so its top-level calls are in no unit
+        // the expansion records, and read the file's top env. Before it, the file's top level is expanded.
+        val reached = "Kernel.defmodule/2 IMPLICIT_IMPORT VALID via []"
+        assertEquals(
+            if (DEFMODULE_FAST_PATH.isSufficient(legLevel())) {
+                "$reached UNREACHED\n:elixir_bootstrap.defmodule/2 INDEXED VALID via [] INDEX"
+            } else {
+                reached
+            },
+            candidates(file, "defmodule M", "defmodule M do\nend"),
+        )
     }
 
     fun testAnOnlyListWithAnAliasIsNoImport() {
@@ -1261,7 +1443,8 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
 
         assertEquals("Foo.g/1 IMPORT VALID via [import Foo, only: [g: 1]] line 2", candidates(file, "do: g(1)\nend\n\ndefmodule Bar", "g(1)"))
-        assertEquals("", candidates(file, "do: g(1)\nend\n", "g(1)", last = true))
+        // Elixir doesn't compile `Bar`, whose `import` raises, so the index's `g/1` may not be what it reaches.
+        assertEquals("Foo.g/1 INDEXED VALID via [] line 2 INDEX", candidates(file, "do: g(1)\nend\n", "g(1)", last = true))
     }
 
     fun testEveryHeadIsACandidate() {
@@ -1611,6 +1794,662 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals("f/1 line 2", renderVisible(visible(file, "&@mod.f/1", "@mod.f")))
     }
 
+    /**
+     * An empty answer is a certain absence only where each lookup that could hold the name said it doesn't: in code
+     * the expansion reached, of modules known to their end.
+     */
+    fun testAnAbsenceOnReachedCodeOfKnownModulesIsCertain() {
+        val file = file(
+            """
+            defmodule Known do
+              def f(a), do: a
+            end
+
+            defmodule Asker do
+              def unqualified, do: missing(1)
+              def source, do: Known.missing(1)
+              def compiled, do: Map.missing(1)
+              def nowhere, do: Nowhere.missing(1)
+            end
+            """
+        )
+
+        // The undefined `missing/1` is an error that ends `Asker` tainted, its table complete; before 1.15 it raises.
+        val tainted = if (FUNCTION_ERRORS_CONTINUE.isSufficient(legLevel())) "certain" else "MODULE"
+
+        assertEquals(
+            listOf(tainted, "certain", "certain", "certain"),
+            listOf(
+                absence(file, "unqualified, do: missing(1)", "missing(1)"),
+                absence(file, "Known.missing(1)", "Known.missing(1)"),
+                absence(file, "Map.missing(1)", "Map.missing(1)"),
+                absence(file, "Nowhere.missing(1)", "Nowhere.missing(1)"),
+            ),
+        )
+    }
+
+    /** A qualified call whose qualifier names no module, such as a variable's, may reach any module's function. */
+    fun testAnAbsenceThroughAQualifierNamingNoModuleIsUncertain() {
+        val file = file("defmodule Asker do\n  def f(x), do: x.missing(1)\nend")
+
+        assertEquals("MODULE", absence(file, "x.missing(1)", "x.missing(1)"))
+    }
+
+    /** A delegation into a module not known to its end, as after an opaque call, may reach what it defines later. */
+    fun testAnAbsenceThroughADelegationIntoABodyWithAnOpaqueCallIsUncertain() {
+        val file = file(
+            """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Target do
+              require M
+              M.m()
+            end
+
+            defmodule Delegator do
+              defdelegate later(x), to: Target
+            end
+
+            defmodule Caller do
+              def go, do: Delegator.later(1)
+            end
+            """
+        )
+
+        assertEquals("MODULE", absence(file, "Delegator.later(1)", "Delegator.later(1)"))
+    }
+
+    /** A module tainted by another error still ran its body to its end, so its own definitions are known. */
+    fun testAnAbsenceInAModuleTaintedByAnotherErrorIsCertain() {
+        val file = file(
+            """
+            defmodule Tainted do
+              def g, do: __STACKTRACE__
+              def f, do: missing(1)
+            end
+            """
+        )
+
+        assertEquals(
+            if (FUNCTION_ERRORS_CONTINUE.isSufficient(legLevel())) "certain" else "MODULE",
+            absence(file, "missing(1)", "missing(1)"),
+        )
+    }
+
+    /**
+     * Where a lookup read a module that isn't known to its end, or named none, nothing found doesn't say the name is
+     * missing: a module whose body stopped may define it past the stop.
+     */
+    fun testAnAbsenceInAModuleNotKnownToItsEndIsUncertain() {
+        // Elixir abandons a file at a module that may raise, so each module that stops is last in its file.
+        val stopped = file(
+            """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Stopped do
+              require M
+              def before_stop, do: missing(2)
+              M.m()
+            end
+            """
+        )
+        val caller = file(
+            """
+            defmodule Delegating do
+              defdelegate missing(x), to: Stopped
+            end
+
+            defmodule Asker do
+              @mod Stopped
+              def stopped, do: Stopped.missing(1)
+              def attribute, do: @mod.missing(1)
+              def delegated, do: Delegating.missing(1)
+            end
+            """
+        )
+
+        assertEquals(
+            listOf("MODULE", "MODULE", "MODULE", "MODULE"),
+            listOf(
+                absence(stopped, "missing(2)", "missing(2)"),
+                absence(caller, "Stopped.missing(1)", "Stopped.missing(1)"),
+                absence(caller, "@mod.missing(1)", "@mod.missing(1)"),
+                absence(caller, "Delegating.missing(1)", "Delegating.missing(1)"),
+            ),
+        )
+    }
+
+    /** A `.beam` whose exports can't be read may export the name. */
+    fun testAnAbsenceInABeamWithNoExportsIsUncertain() {
+        val ebin = FileUtil.createTempDirectory("no_exports_ebin", null, true)
+        val beam = File("testData/org/elixir_lang/expander/injecting_use", "Elixir.InjectingUse.beam").readBytes()
+        File(ebin, "Elixir.InjectingUse.beam").writeBytes(withoutChunk(beam, "ExpT"))
+        val file = file("defmodule Asker do\n  def f, do: InjectingUse.missing(1)\nend")
+
+        val absence = WalkTestSupport.withLibrary(project, module, testRootDisposable, "no_exports", ebin) {
+            absence(file, "InjectingUse.missing(1)", "InjectingUse.missing(1)")
+        }
+
+        assertEquals("MODULE", absence)
+    }
+
+    /** Past a stop, the env at the stop misses what was written after it, so an absence there is uncertain first for that. */
+    fun testAnAbsencePastAStopIsUncertainForTheStop() {
+        val file = file(
+            """
+            defmodule Stopped do
+              1.f()
+              def after_stop, do: missing(3)
+            end
+            """
+        )
+
+        assertEquals("STOP", absence(file, "missing(3)", "missing(3)"))
+    }
+
+    /** With no expansion to read, nothing is known: with no SDK, while the IDE indexes, and at a use the expander doesn't answer. */
+    fun testAnAbsenceWithNoExpansionIsUncertain() {
+        val file = file(
+            """
+            defmodule Asker do
+              @spec f(integer) :: integer
+              def f(x), do: missing(x)
+            end
+            """
+        )
+        val specified = read {
+            val attribute = PsiTreeUtil.findChildrenOfType(file, AtUnqualifiedNoParenthesesCall::class.java).single()
+            val head = PsiTreeUtil.findChildrenOfType(attribute, Call::class.java).first { it.text == "f(integer)" }
+
+            Use.specification(head, attribute)!!
+        }
+        var dumb: String? = null
+        DumbModeTestUtils.runInDumbModeSynchronously(project) { dumb = absence(file, "missing(x)", "missing(x)") }
+        val specifiedAbsence = read { ExpanderSource.answer(specified, false) }.absence?.name ?: "certain"
+        ModuleRootModificationUtil.setModuleSdk(module, null)
+
+        assertEquals(
+            listOf("NO_EXPANSION", "NO_EXPANSION", "NO_EXPANSION"),
+            listOf(dumb, specifiedAbsence, absence(file, "missing(x)", "missing(x)")),
+        )
+    }
+
+    /**
+     * A feature whose rule takes no uncertain answer gets none of a module's several copies, though the expander finds
+     * each of them.
+     */
+    fun testAFeatureWithNoRuleGetsNoneOfSeveralCopies() {
+        file("defmodule Twice do\n  def g(a), do: a\nend\n")
+        file("defmodule Twice do\n  def g(a), do: a\nend\n")
+        val caller = file("defmodule Caller do\n  def f, do: Twice.g(1)\nend\n")
+        val use = use(caller, "Twice.g(1)", "Twice.g(1)")
+
+        val (found, stepped) = withExpanderSwitch {
+            read {
+                ExpanderSource.candidates(use, false).map { it.uncertain } to
+                    Feature.entries.associateWith { feature -> Resolved.step(use, false, feature = feature).size }
+            }
+        }
+
+        assertEquals(listOf(Uncertain.SEVERAL, Uncertain.SEVERAL), found)
+        assertEquals(Feature.entries.associateWith { 0 }, stepped)
+    }
+
+    /** A delegation in several copies may not be the one Elixir loads, so neither is the target it reaches. */
+    fun testAFeatureWithNoRuleGetsNoTargetOfADelegationInSeveralCopies() {
+        file("defmodule Twice do\n  defdelegate g(a), to: Target\nend\n")
+        file("defmodule Twice do\n  defdelegate g(a), to: Target\nend\n")
+        file("defmodule Target do\n  def g(a), do: a\nend\n")
+        val caller = file("defmodule Caller do\n  def f, do: Twice.g(1)\nend\n")
+        val use = use(caller, "Twice.g(1)", "Twice.g(1)")
+
+        val (found, stepped) = withExpanderSwitch {
+            read {
+                ExpanderSource.candidates(use, false).map { "${it.candidate.reach} ${it.uncertain}" } to
+                    Feature.entries.associateWith { feature -> Resolved.step(use, false, feature = feature).size }
+            }
+        }
+
+        assertEquals(
+            listOf("OWN SEVERAL", "DELEGATION_TARGET SEVERAL", "OWN SEVERAL", "DELEGATION_TARGET SEVERAL"),
+            found,
+        )
+        assertEquals(Feature.entries.associateWith { 0 }, stepped)
+    }
+
+    /** Past a stop every feature keeps the env's find, marked STOP. */
+    fun testEveryFeatureKeepsAFindPastAStop() {
+        val file = file(
+            """
+            defmodule Stopped do
+              def target(a), do: a
+              1.f()
+              def after_stop, do: target(1)
+            end
+            """
+        )
+        val use = use(file, "target(1)", "target(1)")
+
+        val stepped = withExpanderSwitch {
+            read { Feature.entries.associateWith { feature -> Resolved.step(use, false, feature = feature).map { it.found.uncertain } } }
+        }
+
+        assertEquals(Feature.entries.associateWith { listOf(Uncertain.STOP) }, stepped)
+    }
+
+    /** A `.beam`'s definition is declared by its module as the module index names it, without `inspect`'s quotes. */
+    fun testABeamsDefinitionIsDeclaredByItsModulesIndexName() {
+        val ebin = File("testData/org/elixir_lang/beam/elixir_prefixed_atom_module/ebin").absoluteFile
+        val file = file("defmodule Asker do\n  def f, do: :\"Elixir.foo\".hello()\nend")
+        val use = use(file, ":\"Elixir.foo\".hello()", ":\"Elixir.foo\".hello()")
+
+        val modules = WalkTestSupport.withLibrary(project, module, testRootDisposable, "elixir_prefixed_atom_module", ebin) {
+            read { ExpanderSource.candidates(use, false).map { it.declaringModuleName() } }
+        }
+
+        assertEquals(listOf(":Elixir.foo"), modules)
+    }
+
+    /**
+     * The issue's shape: a `use` after a stop imports a `defp/2` macro in place of `Kernel`'s, so past the stop `defp`
+     * answers `Kernel.defp/2` from the env at the stop and every other `defp/2` the index holds.
+     */
+    fun testPastAStopTheIndexGivesWhatAUseAfterTheStopMayImport() {
+        val file = file(
+            """
+            defmodule Defs do
+              defmacro __using__(_) do
+                quote do
+                  import Kernel, except: [defp: 2]
+                  import Defs, only: [defp: 2]
+                end
+              end
+
+              defmacro defp(call, expr), do: quote(do: Kernel.defp(unquote(call), unquote(expr)))
+            end
+
+            defmodule User do
+              1.f()
+              use Defs
+              defp go(a), do: a
+            end
+            """
+        )
+
+        assertEquals(
+            """
+            Kernel.defp/1 IMPLICIT_IMPORT WRONG_ARITY via [] STOP
+            Kernel.defp/2 IMPLICIT_IMPORT VALID via [] STOP
+            :elixir_bootstrap.defp/2 INDEXED VALID via [] INDEX
+            Defs.defp/2 INDEXED VALID via [] line 9 INDEX
+            """.trimIndent(),
+            candidates(file, "defp go(a), do: a", "defp go(a), do: a"),
+        )
+    }
+
+    /** The index gives a private definition only in the module the use is in, where a local call reaches it. */
+    fun testPastAStopTheIndexGivesAPrivateDefinitionOnlyInTheUsesModule() {
+        val file = file(
+            """
+            defmodule Other do
+              defp secret(a), do: a
+            end
+
+            defmodule User do
+              1.f()
+              def go, do: secret(1)
+              def again, do: later(1)
+              defp later(a), do: a
+            end
+            """
+        )
+
+        assertEquals(
+            listOf("", "User.later/1 INDEXED VALID via [] line 9 INDEX"),
+            listOf(candidates(file, "secret(1)", "secret(1)"), candidates(file, "later(1)", "later(1)")),
+        )
+    }
+
+    /** A `def` in a `quote` defines nothing in the module the `quote` is in, so the index gives none. */
+    fun testPastAStopTheIndexGivesNoDefinitionInAQuote() {
+        val file = file(
+            """
+            defmodule Q do
+              defmacro make do
+                quote do
+                  def quoted(a), do: a
+                end
+              end
+            end
+
+            defmodule User do
+              1.f()
+              def go, do: quoted(1)
+            end
+            """
+        )
+
+        assertEquals("", candidates(file, "quoted(1)", "quoted(1)"))
+    }
+
+    /** A `defimpl` for several modules defines its functions in each, so the index gives one for each. */
+    fun testPastAStopTheIndexGivesADefimplsDefinitionInEachModuleItIsFor() {
+        val file = file(
+            """
+            defprotocol Measured do
+              def p_measure(x)
+            end
+
+            defimpl Measured, for: [Atom, Integer] do
+              def p_measure(_), do: 1
+            end
+
+            defmodule User do
+              1.f()
+              def go, do: p_measure(1)
+            end
+            """
+        )
+
+        assertEquals(
+            """
+            Measured.p_measure/1 INDEXED VALID via [] line 2 INDEX
+            Measured.Atom.p_measure/1 INDEXED VALID via [] line 6 INDEX
+            Measured.Integer.p_measure/1 INDEXED VALID via [] line 6 INDEX
+            """.trimIndent(),
+            candidates(file, "p_measure(1)", "p_measure(1)"),
+        )
+    }
+
+    /** A library's source and its `.beam` define one function, so the index gives it once. */
+    fun testPastAStopTheIndexGivesALibrarysSourceAndBeamOnce() {
+        val library = File("testData/org/elixir_lang/beam/elixir_prefixed_atom_module").absoluteFile
+        val file = file("defmodule Asker do\n  1.f()\n  def f, do: hello()\nend")
+        val use = use(file, "hello()", "hello()")
+
+        val found = WalkTestSupport.withLibrary(project, module, testRootDisposable, "elixir_prefixed_atom_module", library) {
+            read { ExpanderSource.candidates(use, false).map { "${name(it)} ${it.candidate.reach} ${it.uncertain}" } }
+        }
+
+        assertEquals(listOf(":Elixir.foo.hello/0 INDEXED INDEX"), found)
+    }
+
+    /** The index names a `.beam`'s module as the env does, so it repeats no find the env gives. */
+    fun testPastAStopTheIndexRepeatsNoFindOfABeamTheEnvImports() {
+        val ebin = File("testData/org/elixir_lang/beam/elixir_prefixed_atom_module/ebin").absoluteFile
+        val file = file("defmodule Asker do\n  import :\"Elixir.foo\"\n  1.f()\n  def f, do: hello()\nend")
+        val use = use(file, "hello()", "hello()")
+
+        val found = WalkTestSupport.withLibrary(project, module, testRootDisposable, "elixir_prefixed_atom_module", ebin) {
+            read { ExpanderSource.candidates(use, false).map { "${name(it)} ${it.candidate.reach} ${it.uncertain}" } }
+        }
+
+        assertEquals(listOf(":Elixir.foo.hello/0 IMPORT STOP"), found)
+    }
+
+    /** The index is read once for a name, whatever it holds of it, and not again while nothing changes. */
+    fun testTheIndexIsQueriedOnceForANameWhileNothingChanges() {
+        val file = file(
+            """
+            defmodule One do
+              def counted(a), do: a
+            end
+
+            defmodule Two do
+              def counted(a), do: a
+            end
+
+            defmodule User do
+              1.f()
+              def go, do: counted(1)
+            end
+            """
+        )
+        val use = use(file, "counted(1)", "counted(1)")
+
+        val queries = read {
+            ExpanderSource.Probe.reset()
+            ExpanderSource.Probe.counting {
+                ExpanderSource.candidates(use, false)
+                ExpanderSource.candidates(use, false)
+            }
+            ExpanderSource.Probe.snapshot().getValue(ExpanderSource.Probe.Counter.INDEX_QUERIES)
+        }
+
+        assertEquals(1L, queries)
+    }
+
+    /** A `.beam` rewritten in place gives the index's definitions it now has, not those it had. */
+    fun testPastAStopTheIndexGivesWhatABeamRewrittenInPlaceNowDefines() {
+        val ebin = FileUtil.createTempDirectory("rewritten_ebin", null, true)
+        val beam = File("testData/org/elixir_lang/expander/loaded_copy/Elixir.LoadedCopy.Dep.beam")
+        beam.copyTo(File(ebin, beam.name))
+        val file = file("defmodule Asker do\n  1.f()\n  def go, do: {f(), g()}\nend")
+        val f = use(file, "{f(), g()}", "f()")
+        val g = use(file, "{f(), g()}", "g()")
+
+        val (before, after) = WalkTestSupport.withLibrary(
+            project,
+            module,
+            testRootDisposable,
+            "rewritten",
+            ebin,
+        ) { root ->
+            val dep = { use: Use.OfCall ->
+                read { ExpanderSource.candidates(use, false).map(::name).filter { it.startsWith("LoadedCopy.Dep.") } }
+            }
+            val before = dep(f) + dep(g)
+            val rebuilt = File("testData/org/elixir_lang/expander/loaded_copy/changed/${beam.name}").readBytes()
+            WriteAction.runAndWait<Throwable> { root.findChild(beam.name)!!.setBinaryContent(rebuilt) }
+            IndexingTestUtil.waitUntilIndexesAreReady(project)
+
+            before to dep(f) + dep(g)
+        }
+
+        assertEquals(listOf("LoadedCopy.Dep.f/0"), before)
+        assertEquals(listOf("LoadedCopy.Dep.g/0"), after)
+    }
+
+    /** A definition at another arity, before the module's opaque call, leaves the index's definitions after it. */
+    fun testAQualifiedCallFindingOnlyAnotherArityGetsTheIndexsDefinitions() {
+        val file = file(
+            """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Target do
+              require M
+              def f(a), do: a
+              M.m()
+              def f(a, b), do: {a, b}
+            end
+
+            defmodule Caller do
+              def g, do: Target.f(1, 2)
+            end
+            """
+        )
+
+        assertEquals(
+            "Target.f/1 OWN WRONG_ARITY via [] line 7\nTarget.f/2 INDEXED VALID via [] line 9 INDEX",
+            candidates(file, "Target.f(1, 2)", "Target.f(1, 2)"),
+        )
+    }
+
+    /**
+     * A qualified call into a module whose definitions aren't known to its end, finding nothing there, gets the index's
+     * definitions of the name in that module; a delegation into it, which finds its own head, gets none.
+     */
+    fun testAQualifiedCallIntoAModuleNotKnownToItsEndGetsItsIndexedDefinitions() {
+        val file = file(
+            """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Target do
+              require M
+              M.m()
+              def later(a), do: a
+            end
+
+            defmodule Delegator do
+              defdelegate later(a), to: Target
+            end
+
+            defmodule Caller do
+              def direct, do: Target.later(1)
+              def delegated, do: Delegator.later(1)
+            end
+            """
+        )
+
+        assertEquals(
+            listOf("Target.later/1 INDEXED VALID via [] line 8 INDEX", "Delegator.later/1 OWN VALID via [] line 12"),
+            listOf(
+                candidates(file, "Target.later(1)", "Target.later(1)"),
+                candidates(file, "Delegator.later(1)", "Delegator.later(1)"),
+            ),
+        )
+    }
+
+    /**
+     * Elixir loads no module whose body raises, so a qualified call into it reaches nothing; past a stop, the qualifier
+     * may name another module than the env at the stop says, so it gets the index's definitions in the module named.
+     */
+    fun testAQualifiedCallIntoAModuleElixirLoadsNoneOfGetsItsIndexedDefinitionsOnlyPastAStop() {
+        file(
+            """
+            defmodule Gone do
+              def x(a), do: a
+              1.f()
+            end
+            """
+        )
+        val caller = file(
+            """
+            defmodule Caller do
+              def reached, do: Gone.x(1)
+              1.f()
+              def past, do: Gone.x(2)
+            end
+            """
+        )
+
+        assertEquals(
+            listOf("", "Gone.x/1 INDEXED VALID via [] line 2 INDEX"),
+            listOf(candidates(caller, "Gone.x(1)", "Gone.x(1)"), candidates(caller, "Gone.x(2)", "Gone.x(2)")),
+        )
+    }
+
+    /**
+     * The env at a stop has no `alias` written after it, so past the stop a qualifier may name any module whose name
+     * ends in it as written: `alias A.B` and `alias A.{B, C}` are found by their last segment, `alias A.B, as: D` by
+     * no name the module has.
+     */
+    fun testPastAStopAQualifierGetsTheIndexsDefinitionsInEachModuleEndingInIt() {
+        val file = file(
+            """
+            defmodule Aliased.B do
+              def b_f(a), do: a
+              defp b_p(a), do: a
+            end
+
+            defmodule Aliased.C do
+              def c_f(a), do: a
+            end
+
+            defmodule User do
+              1.f()
+              alias Aliased.B
+              alias Aliased.{C}
+              alias Aliased.B, as: D
+              def b, do: B.b_f(1)
+              def c, do: C.c_f(1)
+              def d, do: D.b_f(2)
+              def p, do: B.b_p(1)
+            end
+            """
+        )
+
+        assertEquals(
+            listOf(
+                "Aliased.B.b_f/1 INDEXED VALID via [] line 2 INDEX",
+                "Aliased.C.c_f/1 INDEXED VALID via [] line 7 INDEX",
+                "",
+                "",
+            ),
+            listOf(
+                candidates(file, "B.b_f(1)", "B.b_f(1)"),
+                candidates(file, "C.c_f(1)", "C.c_f(1)"),
+                candidates(file, "D.b_f(2)", "D.b_f(2)"),
+                candidates(file, "B.b_p(1)", "B.b_p(1)"),
+            ),
+        )
+    }
+
+    /**
+     * On reached code in a module whose run stopped, what the module defines after the stop is unknown, so a local call
+     * also gets the index's definitions of the name in that module, private ones too, and in no other.
+     */
+    fun testAUseBeforeItsModulesStopGetsTheIndexsDefinitionsInItsModule() {
+        val file = file(
+            """
+            defmodule Engine do
+              def go, do: changed(1, 2, 3)
+              def hide, do: hidden(1)
+              1.f()
+              def changed(a, b, c), do: {a, b, c}
+              defp hidden(a), do: a
+            end
+
+            defmodule Other do
+              def changed(a, b, c), do: {c, b, a}
+            end
+            """
+        )
+
+        assertEquals(
+            listOf(
+                "Engine.changed/3 INDEXED VALID via [] line 5 INDEX",
+                "Engine.hidden/1 INDEXED VALID via [] line 6 INDEX",
+            ),
+            listOf(
+                candidates(file, "changed(1, 2, 3)", "changed(1, 2, 3)"),
+                candidates(file, "hidden(1)", "hidden(1)"),
+            ),
+        )
+    }
+
+    /** Why [ExpanderSource]'s answer to the use [call] in [context] may be missing what it reaches, or `certain`. */
+    private fun absence(file: PsiFile, context: String, call: String): String {
+        val use = use(file, context, call)
+
+        return read { ExpanderSource.answer(use, false) }.absence?.name ?: "certain"
+    }
+
+    /** [beam], an IFF `FOR1`/`BEAM` file, with its chunk [id] dropped. */
+    private fun withoutChunk(beam: ByteArray, id: String): ByteArray {
+        val input = java.nio.ByteBuffer.wrap(beam)
+        val out = java.io.ByteArrayOutputStream()
+        out.write(beam, 8, 4) // "BEAM"
+        var at = 12
+        while (at < beam.size) {
+            val size = input.getInt(at + 4)
+            val padded = (size + 3) and 3.inv()
+            if (String(beam, at, 4, Charsets.US_ASCII) != id) out.write(beam, at, 8 + padded)
+            at += 8 + padded
+        }
+        val body = out.toByteArray()
+
+        return java.nio.ByteBuffer.allocate(8 + body.size).put("FOR1".toByteArray()).putInt(body.size).put(body).array()
+    }
+
     /** How each module [file] defines at its top ended, by name. */
     private fun ended(file: PsiFile): Map<String, String> =
         read {
@@ -1685,7 +2524,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
                 }
 
                 "${found.declaringModuleName()}.${declaration.name}/$arity ${found.candidate.reach} " +
-                    "${found.candidate.applicability} via [$via]$line"
+                    "${found.candidate.applicability} via [$via]$line${found.uncertain?.let { " $it" }.orEmpty()}"
             }
         }
 

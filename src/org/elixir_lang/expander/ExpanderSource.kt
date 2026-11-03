@@ -2,16 +2,26 @@ package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.DumbService
+import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.ResolveState
+import com.intellij.psi.StubBasedPsiElement
+import com.intellij.psi.stubs.StubIndex
+import com.intellij.psi.util.CachedValue
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
+import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.beam.psi.CallDefinition
+import org.elixir_lang.beam.psi.stubs.ModuleStub
 import org.elixir_lang.call.Visibility
 import org.elixir_lang.code_insight.eachNameOnce
+import org.elixir_lang.declaration.Answer
 import org.elixir_lang.declaration.Applicability
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Candidate
@@ -25,6 +35,7 @@ import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Head
 import org.elixir_lang.declaration.Reach
+import org.elixir_lang.declaration.Uncertain
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.importedArities
@@ -34,13 +45,22 @@ import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.Definition
 import org.elixir_lang.psi.ElixirFile
+import org.elixir_lang.psi.NamedElement
+import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.qualification.Qualified
+import org.elixir_lang.psi.definition
+import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
+import org.elixir_lang.psi.stub.index.AllName
+import org.elixir_lang.psi.stub.type.Named
 import org.jetbrains.annotations.TestOnly
 import java.util.EnumMap
+import java.util.concurrent.ConcurrentHashMap
 import org.elixir_lang.beam.psi.Module as BeamModule
 
 /**
@@ -48,14 +68,29 @@ import org.elixir_lang.beam.psi.Module as BeamModule
  * each module's copy as Elixir loads it.
  */
 internal object ExpanderSource : CandidateSource {
+    private val indexedByName = Key.create<CachedValue<ConcurrentHashMap<String, List<Defined>>>>(
+        "org.elixir_lang.expander.ExpanderSource.indexed",
+    )
+
     @RequiresReadLock
     override fun candidates(use: Use, incompleteCode: Boolean): List<Found> {
         ThreadingAssertions.assertReadAccess()
 
         return when (use) {
-            is Use.OfCall -> inputs(use.entrance)?.let { answer(use, it) }.orEmpty()
+            is Use.OfCall -> inputs(use.entrance)?.let { answerWith(use, it).found }.orEmpty()
             is Use.Specified, is Use.Remote, is Use.Tag, is Use.Link -> emptyList()
         }
+    }
+
+    /** The absence is the first gap the lookups met: the use's env mark, then each lookup's, in the order met. */
+    @RequiresReadLock
+    override fun answer(use: Use, incompleteCode: Boolean): Answer {
+        ThreadingAssertions.assertReadAccess()
+
+        return when (use) {
+            is Use.OfCall -> inputs(use.entrance)?.let { answerWith(use, it) }
+            is Use.Specified, is Use.Remote, is Use.Tag, is Use.Link -> null
+        } ?: Answer(emptyList(), Uncertain.NO_EXPANSION)
     }
 
     /** [use]'s candidates, its file expanded with [inputs] in place of its SDK's. */
@@ -64,26 +99,83 @@ internal object ExpanderSource : CandidateSource {
     internal fun candidates(use: Use.OfCall, inputs: ProjectModules.Inputs): List<Found> {
         ThreadingAssertions.assertReadAccess()
 
-        return answer(use, inputs)
+        return answerWith(use, inputs).found
     }
 
-    private fun answer(use: Use.OfCall, inputs: ProjectModules.Inputs): List<Found> {
+    /** [use]'s answer, its file expanded with [inputs] in place of its SDK's. */
+    @TestOnly
+    @RequiresReadLock
+    internal fun answer(use: Use.OfCall, inputs: ProjectModules.Inputs): Answer {
+        ThreadingAssertions.assertReadAccess()
+
+        return answerWith(use, inputs)
+    }
+
+    private fun answerWith(use: Use.OfCall, inputs: ProjectModules.Inputs): Answer {
+        val at = at(use.entrance, inputs) ?: return Answer(emptyList(), Uncertain.NO_EXPANSION)
+        val found = answer(at, use)
+
+        return Answer(found, at.gaps.firstOrNull())
+    }
+
+    private fun answer(at: At, use: Use.OfCall): List<Found> {
         val call = use.entrance
-        val at = at(call, inputs) ?: return emptyList()
         val name = (use as? Use.Named)?.name
         val reached = if (call is Qualified) {
-            val module = receiver(at, call.qualifier()) ?: return emptyList()
-            inModule(at, module, name, use.arity, imports = false, emptySet())
+            val module = receiver(at, call.qualifier()) ?: return at.gap(Uncertain.MODULE)
+            qualified(at, call.qualifier(), module, name, use.arity)
         } else {
             buildList {
-                addAll(own(at, name, use.arity))
+                val defined = ownDefined(at, name)
+                // This lookup is the use's first, so a MODULE gap is one it met: what its module defines isn't known.
+                val ownUnknown = Uncertain.MODULE in at.gaps
+                addAll(defined.flatMap { held(at, it, name, use.arity, remote = false, emptySet()) })
                 addAll(imported(at, at.file, at.env, name, use.arity, emptySet()))
                 addAll(specialForms(at, name, use.arity))
+                // Past where the env is known, what the code after it brings in may be any definition of the name; on
+                // reached code in a module not known to its end, any the module defines.
+                val own = own(at)
+                val wanted: ((String) -> Boolean)? = when {
+                    at.uncertain != null -> { _ -> true }
+                    ownUnknown -> { module -> module == own }
+                    else -> null
+                }
+                if (name != null && wanted != null) {
+                    addAll(beside(this, indexed(at, name, use.arity, own, wanted), name, use.arity, remote = false))
+                }
             }
         }
 
-        return reached.mapNotNull { found(it, use) }
+        return reached.mapNotNull { found(at, it, use) }
     }
+
+    /**
+     * [module], which [qualifier] names, and its definitions of [name], as a remote call reaches them. Where none of
+     * them takes [arity] arguments, also the index's: in [module] when what it defines isn't known to its end, or past
+     * where the env is known when no module is [module]; and past where the env is known, in each module whose name
+     * ends in [qualifier] as written, as an `alias` written after that point is missing from the env.
+     */
+    private fun qualified(at: At, qualifier: PsiElement, module: String, name: String?, arity: Int): List<Reached> {
+        val found = inModule(at, module, name, arity, imports = false, emptySet())
+        if (name == null || found.any { it.defined.declaration.name == name && it.defined.admits(arity) }) return found
+        // This lookup is the use's first, so a MODULE gap is one it met.
+        val unknown = Uncertain.MODULE in at.gaps ||
+            (at.uncertain != null && at.holder.locate(at.file, module, at.inputs) == ProjectModules.Located.None)
+        val key = Module.indexName(module).takeIf { unknown }
+        val tail = if (at.uncertain == null) null else aliasTail(qualifier)
+        if (key == null && tail == null) return found
+
+        val indexed = indexed(at, name, arity, own(at)) { it == key || (tail != null && it.endsWith(tail)) }
+
+        return found + beside(found, indexed, name, arity, remote = true)
+    }
+
+    /** `.` and the alias [qualifier] is as written, which ends the name of each module it may name; `null` for none. */
+    private fun aliasTail(qualifier: PsiElement): String? =
+        (qualifier.stripAccessExpressionAndParentheses() as? QualifiableAlias)?.fullyQualifiedName()?.let { ".$it" }
+
+    /** The index name of the module [at] is in. */
+    private fun own(at: At): String? = at.env.module?.let(Module::indexName)
 
     /**
      * At an unqualified call, the definitions of the module it is in, what its env imports and `Kernel.SpecialForms`;
@@ -124,23 +216,28 @@ internal object ExpanderSource : CandidateSource {
 
         return eachNameOnce(
             ofModule(at, module, null).filter { it.declaration.visibility != Visibility.PRIVATE && it.admits(arity) },
-        ).map { visible(it, null) }
+        ).mapNotNull { visible(it, null) }
     }
 
     private fun visibleAt(position: Call, inputs: ProjectModules.Inputs): List<Visible> {
         val at = at(position, inputs) ?: return emptyList()
 
         return buildList {
-            ownDefined(at, null).mapTo(this) { visible(it, null) }
-            importedDefined(at, at.file, at.env, null).mapTo(this) { (defined, _, _, arities) ->
+            ownDefined(at, null).mapNotNullTo(this) { visible(it, null) }
+            importedDefined(at, at.file, at.env, null).mapNotNullTo(this) { (defined, _, _, arities) ->
                 visible(defined, importedArities(defined.declaration.arity) { it in arities })
             }
-            specialFormsDefined(at, null).mapTo(this) { visible(it, null) }
+            specialFormsDefined(at, null).mapNotNullTo(this) { visible(it, null) }
         }
     }
 
-    private fun visible(defined: Defined, importedArities: Set<Int>?): Visible =
-        Visible(defined.declaration.name, defined.declaration.name, defined.declaration, defined.element, importedArities)
+    /** `null` for a definition that may not be Elixir's, which completion doesn't offer. */
+    private fun visible(defined: Defined, importedArities: Set<Int>?): Visible? =
+        if (defined.uncertain == null) {
+            Visible(defined.declaration.name, defined.declaration.name, defined.declaration, defined.element, importedArities)
+        } else {
+            null
+        }
 
     /**
      * [defined] as completion offers a module's functions: of a source module's, the preferred head of each name its
@@ -160,8 +257,10 @@ internal object ExpanderSource : CandidateSource {
     }
 
     /**
-     * Where a use is, as its file's expansion saw it, what each receiver it reached expanded to, and the [lowering] it
-     * read the file through.
+     * Where a use is, as its file's expansion saw it, what each receiver it reached expanded to, the [lowering] it
+     * read the file through, and why [env] may not be the env Elixir expands the use in, [uncertain], `null` where it is.
+     *
+     * @property gaps why a lookup from here could not say a name is missing, [uncertain] first, then in the order met
      */
     private class At(
         val file: ElixirFile,
@@ -171,7 +270,17 @@ internal object ExpanderSource : CandidateSource {
         val holder: ProjectModules,
         val receivers: ReceiverIndex,
         val lowering: Lowering,
-    )
+        val uncertain: Uncertain?,
+    ) {
+        val gaps: MutableSet<Uncertain> = LinkedHashSet<Uncertain>().apply { uncertain?.let(::add) }
+
+        /** Records [uncertain] as a gap, and finds nothing. */
+        fun gap(uncertain: Uncertain): List<Nothing> {
+            gaps.add(uncertain)
+
+            return emptyList()
+        }
+    }
 
     /** `null` where the file's SDK gives no inputs. */
     private fun inputs(element: PsiElement): ProjectModules.Inputs? {
@@ -188,7 +297,9 @@ internal object ExpanderSource : CandidateSource {
 
         val indexed = holder.indexed(file, inputs)
 
-        return At(file, element.textRange, inputs, indexed.envs.at(element.textRange), holder, indexed.receivers, indexed.lowering)
+        val placed = indexed.envs.placed(element.textRange)
+
+        return At(file, element.textRange, inputs, placed.env, holder, indexed.receivers, indexed.lowering, placed.uncertain)
     }
 
     /**
@@ -197,6 +308,7 @@ internal object ExpanderSource : CandidateSource {
      * @property written the head written for it, as [Head.written] is, `null` where nothing written declares it
      * @property module the module's index name (`Module.indexName`), as [Head.module] has it
      * @property injectedBy the call whose evaluated output injected it into [module], as written in [module]'s file
+     * @property uncertain why it may not be a definition Elixir has, `null` where it is
      */
     private class Defined(
         val declaration: Declaration,
@@ -205,12 +317,19 @@ internal object ExpanderSource : CandidateSource {
         val module: String,
         val injectedBy: Call?,
         val delegation: DefinitionTable.Delegation? = null,
+        val uncertain: Uncertain? = null,
     ) {
         /** Its head, which tells apart the heads of a list of `defdelegate` heads, and the modules one macro's output declares it in. */
         val head: Head get() = Head(written, module, declaration.name, declaration.arity)
 
+        fun marked(uncertain: Uncertain): Defined =
+            Defined(declaration, element, written, module, injectedBy, delegation, this.uncertain ?: uncertain)
+
         /** Whether [declaration] takes [arity] arguments, which is not known past a head with no largest arity. */
         fun admits(arity: Int?): Boolean = arity == null || declaration.arity.admits(arity)
+
+        /** Its module and name, which are one Elixir function among the definitions admitting one arity. */
+        val key: Pair<String, String> get() = module to declaration.name
     }
 
     /**
@@ -239,9 +358,6 @@ internal object ExpanderSource : CandidateSource {
         val remote: Boolean,
     )
 
-    private fun own(at: At, name: String?, arity: Int): List<Reached> =
-        ownDefined(at, name).flatMap { held(at, it, name, arity, remote = false, emptySet()) }
-
     /**
      * [defined], which its module holds, looked up there as [name] at [arity]: through the call whose output injected
      * it, as [Reach.USE], or else as [Reach.OWN].
@@ -258,7 +374,8 @@ internal object ExpanderSource : CandidateSource {
         val result = ProjectModules.results(at.holder.expansion(at.file, at.inputs)).firstOrNull { result ->
             result.module == module &&
                 result.units.any { it.owner == ExpansionResult.Owner.ModuleBody && it.node.meta.origin.contains(at.range) }
-        } ?: return emptyList()
+        } ?: return at.gap(Uncertain.MODULE)
+        if (!result.ownDefinitionsKnown) at.gap(Uncertain.MODULE)
 
         return defined(at.file, result, name)
     }
@@ -323,6 +440,7 @@ internal object ExpanderSource : CandidateSource {
                 defined.module,
                 defined.injectedBy,
                 defined.delegation,
+                defined.uncertain,
             )
         }
 
@@ -340,18 +458,13 @@ internal object ExpanderSource : CandidateSource {
     ): List<Reached> {
         ProgressManager.checkCanceled()
 
-        return when (val located = at.holder.locate(at.file, module, at.inputs)) {
-            ProjectModules.Located.Unknown, ProjectModules.Located.None, is ProjectModules.Located.Several -> emptyList()
-            is ProjectModules.Located.Source -> {
-                val result = located.result ?: return emptyList()
-                val own = defined(located.file, result, name).flatMap { held(at, it, name, arity, remote = true, crossed) }
-                val body = if (imports) bodyEnv(result) else null
+        val located = at.holder.locate(at.file, module, at.inputs)
+        val own = definedIn(at, located, module, name).flatMap { held(at, it, name, arity, remote = true, crossed) }
+        val source = located as? ProjectModules.Located.Source ?: return own
+        val result = source.result?.takeIf { imports } ?: return own
+        val body = bodyEnv(result) ?: return own.also { at.gap(Uncertain.MODULE) }
 
-                own + body?.let { imported(at, located.file, it, name, arity, crossed) }.orEmpty()
-            }
-            is ProjectModules.Located.Compiled ->
-                compiled(at.file, located, name).flatMap { held(at, it, name, arity, remote = true, crossed) }
-        }
+        return own + imported(at, source.file, body, name, arity, crossed)
     }
 
     /** [defined], looked up as [name] at [arity], and what it reaches when it delegates. */
@@ -395,7 +508,8 @@ internal object ExpanderSource : CandidateSource {
      * What [delegation] reaches: its target module's lookup of the function it calls, at its head's largest arity,
      * named only where [named] is. A `defdelegate` head already crossed is not crossed again. A head the use reaches
      * itself, with nothing [crossed], is followed whatever its validity; one reached through a delegation only where
-     * it [admits] the arity that delegation calls it at, as no other head runs.
+     * it [admits] the arity that delegation calls it at, as no other head runs. A target keeps the mark of a head
+     * that may not be the one Elixir loads.
      */
     private fun throughDelegation(
         at: At,
@@ -417,7 +531,7 @@ internal object ExpanderSource : CandidateSource {
             .filter { it.defined.head !in within }
             .map {
                 Reached(
-                    it.defined,
+                    delegation.defined.uncertain?.let(it.defined::marked) ?: it.defined,
                     if (delegation.reach.held && it.reach.remote) Reach.DELEGATION_TARGET else Reach.UNHELD_DELEGATION_TARGET,
                     delegation.paths + it.paths,
                     listOf(element) + it.delegations,
@@ -437,11 +551,126 @@ internal object ExpanderSource : CandidateSource {
 
     /** [module]'s declarations of [name], or of every name when it is `null`, from its copy that [at]'s file loads. */
     private fun ofModule(at: At, module: String, name: String?): List<Defined> =
-        when (val located = at.holder.locate(at.file, module, at.inputs)) {
-            ProjectModules.Located.Unknown, ProjectModules.Located.None, is ProjectModules.Located.Several -> emptyList()
-            is ProjectModules.Located.Source -> located.result?.let { defined(located.file, it, name) }.orEmpty()
-            is ProjectModules.Located.Compiled -> compiled(at.file, located, name)
+        definedIn(at, at.holder.locate(at.file, module, at.inputs), module, name)
+
+    /** [module]'s declarations of [name], or of every name when it is `null`, in [located], with the gap it meets. */
+    private fun definedIn(at: At, located: ProjectModules.Located, module: String, name: String?): List<Defined> =
+        when (located) {
+            ProjectModules.Located.Unknown -> at.gap(Uncertain.NO_EXPANSION)
+            ProjectModules.Located.None -> emptyList()
+            is ProjectModules.Located.Several -> everyCopy(at, located, module, name)
+            is ProjectModules.Located.Source -> known(at, located.result)?.let { defined(located.file, it, name) }.orEmpty()
+            is ProjectModules.Located.Compiled -> compiled(at, located, name)
         }
+
+    /** Each of [several]'s copies' declarations of [name], each [Uncertain.SEVERAL], as which copy loads is unknown. */
+    private fun everyCopy(at: At, several: ProjectModules.Located.Several, module: String, name: String?): List<Defined> {
+        at.gap(Uncertain.SEVERAL)
+
+        return at.holder.locateEach(at.file, several, module, at.inputs).flatMap { copy ->
+            definedIn(at, copy, module, name).map { it.marked(Uncertain.SEVERAL) }
+        }
+    }
+
+    /**
+     * The name index's definitions of [name] admitting [arity], in each module [wanted] takes, each [Uncertain.INDEX]:
+     * the public ones, and the private ones of [own], the module the use is in. One for each module and name, as Elixir
+     * has one function of each among those admitting an arity, so a library's source and its `.beam` give one.
+     */
+    private fun indexed(at: At, name: String, arity: Int?, own: String?, wanted: (String) -> Boolean): List<Defined> =
+        indexed(at.file, name)
+            .filter { defined ->
+                defined.declaration.name == name &&
+                    defined.admits(arity) &&
+                    wanted(defined.module) &&
+                    (defined.declaration.visibility != Visibility.PRIVATE || defined.module == own)
+            }
+            .distinctBy { it.key }
+
+    /**
+     * What the name index defines [name] as in [file]'s resolve scope, held on [file] until a tracker of
+     * [ProjectModules.copyTrackers] or any PSI change moves: a `.beam` rewritten in place moves only the PSI.
+     */
+    private fun indexed(file: PsiFile, name: String): List<Defined> {
+        val project = file.project
+        val byName = CachedValuesManager.getManager(project).getCachedValue(
+            file,
+            indexedByName,
+            {
+                CachedValueProvider.Result.create(
+                    ConcurrentHashMap<String, List<Defined>>(),
+                    *ProjectModules.getInstance(project).copyTrackers(),
+                    PsiModificationTracker.MODIFICATION_COUNT,
+                )
+            },
+            false,
+        )
+        byName[name]?.let { return it }
+
+        Probe.count(Probe.Counter.INDEX_QUERIES, 1)
+        val defined = StubIndex.getElements(AllName.KEY, name, project, file.resolveScope, NamedElement::class.java)
+            .flatMap { element ->
+                ProgressManager.checkCanceled()
+
+                indexedDefined(element)
+            }
+
+        return byName.putIfAbsent(name, defined) ?: defined
+    }
+
+    /**
+     * What [element] defines, in each module the module index keys its module under: a source definition's nearest
+     * `defmodule`, `defimpl` or `defprotocol`, whose names it is indexed by, and none in any other, such as a `quote`.
+     */
+    private fun indexedDefined(element: NamedElement): List<Defined> =
+        when (element) {
+            is CallDefinition -> {
+                val module = indexName(element.parent) ?: return emptyList()
+
+                listOf(Defined(element.declaration(), element, element, module, null, uncertain = Uncertain.INDEX))
+            }
+            is Call if CallDefinitionClause.`is`(element) -> {
+                val declaration = CallDefinitionClause.declaration(element, ResolveState.initial()) ?: return emptyList()
+                val modular = CallDefinitionClause.enclosingModularMacroCall(element) ?: return emptyList()
+                val definition = definition(modular)?.takeIf { it.type == Definition.Type.MODULAR } ?: return emptyList()
+                val written = DeclaringForm.head(element, Form.CLAUSE, declaration.name, declaration.arity)
+
+                Named.indexedNames(definition, SyntacticCall.of(modular).canonicalNameSet()).map { module ->
+                    Defined(declaration, element, written, module, null, uncertain = Uncertain.INDEX)
+                }
+            }
+            else -> emptyList()
+        }
+
+    /**
+     * [indexed]'s definitions that none of [found] admitting [arity] has the module and name of, each [Reach.INDEXED],
+     * reached by a [remote] call or a local one.
+     */
+    private fun beside(
+        found: List<Reached>,
+        indexed: List<Defined>,
+        name: String,
+        arity: Int?,
+        remote: Boolean,
+    ): List<Reached> {
+        val known = found.filter { it.defined.admits(arity) }.mapTo(HashSet()) { it.defined.key }
+
+        return indexed
+            .filter { it.key !in known }
+            .map { reached(it, Reach.INDEXED, emptyList(), name, arity, remote) }
+    }
+
+    /** [result], which is a gap where there is none or what it defines isn't known. */
+    private fun known(at: At, result: ExpansionResult?): ExpansionResult? {
+        if (result == null) {
+            at.gap(Uncertain.MODULE)
+
+            return null
+        }
+        if (!result.definitionsKnown) at.gap(Uncertain.MODULE)
+
+        return result
+    }
 
     /**
      * [result]'s module's definitions of [name], or of every name when it is `null`, in [file]: one for each head, each
@@ -485,13 +714,14 @@ internal object ExpanderSource : CandidateSource {
         }
 
     /** [located]'s exports of [name], or of every name when it is `null`, each declared by its decompiled definition. */
-    private fun compiled(asker: PsiFile, located: ProjectModules.Located.Compiled, name: String?): List<Defined> {
-        val exports = located.exports as? ModuleExports.Present ?: return emptyList()
-        val module = (PsiManager.getInstance(asker.project).findFile(located.beam) as? PsiCompiledFile)
+    private fun compiled(at: At, located: ProjectModules.Located.Compiled, name: String?): List<Defined> {
+        val exports = located.exports as? ModuleExports.Present ?: return at.gap(Uncertain.MODULE)
+        val module = (PsiManager.getInstance(at.file.project).findFile(located.beam) as? PsiCompiledFile)
             ?.children
             ?.filterIsInstance<BeamModule>()
             ?.singleOrNull()
-            ?: return emptyList()
+            ?: return at.gap(Uncertain.MODULE)
+        val indexName = indexName(module) ?: return at.gap(Uncertain.MODULE)
         val definitions = NameIndex.of(module)
 
         return NameIndex.of(exports).named(name).mapNotNull { nameArity ->
@@ -504,11 +734,15 @@ internal object ExpanderSource : CandidateSource {
                 Declaration(nameArity.name, ArityKnowledge.Exact(nameArity.arity), definition.capabilities, Declared.Compiled(origin)),
                 definition,
                 definition,
-                origin.module,
+                indexName,
                 null,
             )
         }
     }
+
+    /** The name the module index keys [module] under, from its stub. */
+    private fun indexName(module: BeamModule): String? =
+        ((module as? StubBasedPsiElement<*>)?.stub as? ModuleStub<*>)?.canonicalNameSet()?.singleOrNull()
 
     /** Whether an `import` of [arities] brings in [defined] at any of its arities, an unknown arity being any. */
     private fun bringsIn(defined: Defined, arities: List<Int>): Boolean {
@@ -521,7 +755,7 @@ internal object ExpanderSource : CandidateSource {
     private fun receiver(at: At, qualifier: PsiElement): String? =
         EnvAtom.receiver(qualifier, at.receivers, at.env, at.lowering, at.inputs, at.holder)
 
-    private fun found(reached: Reached, use: Use.OfCall): Found? =
+    private fun found(at: At, reached: Reached, use: Use.OfCall): Found? =
         applicability(reached, use)?.let { applicability ->
             Found(
                 Candidate(reached.defined.declaration, reached.reach, applicability),
@@ -529,6 +763,7 @@ internal object ExpanderSource : CandidateSource {
                 reached.paths + reached.delegations,
                 reached.defined.head,
                 reached.through,
+                reached.defined.uncertain ?: at.uncertain,
             )
         }
 
@@ -607,6 +842,9 @@ internal object ExpanderSource : CandidateSource {
 
             /** Entries a lookup examines. */
             EXAMINED,
+
+            /** Queries of the name index. */
+            INDEX_QUERIES,
         }
 
         @Volatile

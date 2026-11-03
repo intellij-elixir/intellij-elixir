@@ -28,6 +28,10 @@ interface CandidateSource {
     @RequiresReadLock
     fun candidates(use: Use, incompleteCode: Boolean): List<Found>
 
+    /** [candidates], and whether their lacking one Elixir reaches proves [use] reaches nothing. */
+    @RequiresReadLock
+    fun answer(use: Use, incompleteCode: Boolean): Answer = Answer(candidates(use, incompleteCode), absence = null)
+
     /** What completion offers at [position]. */
     @RequiresReadLock
     fun visible(position: CompletionPosition): List<Visible>
@@ -80,7 +84,8 @@ sealed class CompletionPosition {
 /**
  * A [candidate] at a use, the PSI [element] that declares it, [via], the `import` and `use` calls and then the
  * `defdelegate` calls it was reached through, the [head] that declares it, and for a delegation target the head of the
- * delegation the use reached it through, [delegatedThrough], as that delegation's own [head] is.
+ * delegation the use reached it through, [delegatedThrough], as that delegation's own [head] is, and why it may not
+ * be what Elixir reaches, [uncertain], `null` where it is.
  */
 data class Found(
     val candidate: Candidate,
@@ -88,7 +93,10 @@ data class Found(
     val via: List<Call>,
     val head: Head,
     val delegatedThrough: Head?,
-)
+    val uncertain: Uncertain? = null,
+) {
+    val certain: Boolean get() = uncertain == null
+}
 
 /**
  * One head of a definition: the PSI [written] that writes it, the [module] that declares it, as the source that found
@@ -97,6 +105,12 @@ data class Found(
  * written declares the head, as where debug info places it at the macro clause that injected it.
  */
 data class Head(val written: PsiElement?, val module: String?, val name: String, val arity: ArityKnowledge)
+
+/**
+ * A use's [found], and why their holding nothing Elixir reaches may not prove the use reaches nothing, [absence],
+ * `null` where it does.
+ */
+data class Answer(val found: List<Found>, val absence: Uncertain?)
 
 /** The name of the module that declares [this], so two copies of one module are one. */
 fun Found.declaringModuleName(): String? = head.module

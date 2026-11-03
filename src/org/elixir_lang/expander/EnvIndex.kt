@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import com.intellij.openapi.util.TextRange
+import org.elixir_lang.declaration.Uncertain
 import org.elixir_lang.lowering.ElixirAst
 
 /**
@@ -23,8 +24,14 @@ internal class EnvIndex(private val top: Env) {
         /** Where the run left the module this `defmodule` defines uncompiled: its body's start, or `null`. */
         var uncompiled: Int? = null
 
+        /** Where an [Expansion.Opaque] ended this node: the opaque call's start, or `null`. */
+        var opaque: Int? = null
+
         /** Where the expansion stopped reaching this node's descendants, or `null`. */
         val reachedUntil: Int? get() = listOfNotNull(stop, uncompiled).minOrNull()
+
+        /** Whether the expansion stopped reaching this node's descendants before [range] ends. */
+        fun stopsBefore(range: TextRange): Boolean = (reachedUntil ?: Int.MAX_VALUE) < range.endOffset
     }
 
     private val byRange = LinkedHashMap<Long, Entry>()
@@ -42,6 +49,11 @@ internal class EnvIndex(private val top: Env) {
     }
 
     fun left(node: ElixirAst, expansion: Expansion) {
+        if (expansion is Expansion.Opaque) {
+            val origin = node.meta.origin
+            byRange[key(origin.startOffset, origin.endOffset)]?.let { it.opaque = it.opaque ?: expansion.at.meta.origin.startOffset }
+            return
+        }
         if (expansion !is Expansion.Stop) return
         val at = when (expansion) {
             is Expansion.Error -> expansion.at
@@ -62,16 +74,32 @@ internal class EnvIndex(private val top: Env) {
         byRange[key(origin.startOffset, origin.endOffset)]?.uncompiled = body.meta.origin.startOffset
     }
 
+    /** [range]'s env as [placed] reads it. */
+    fun at(range: TextRange): Env = placed(range).env
+
+    /** An env [placed] reads for a range, and why it may not be the env Elixir expands the range in, `null` where it is. */
+    class Placed(val env: Env, val uncertain: Uncertain?)
+
     /**
      * The env of the innermost node entered whose origin contains [range]. Where none was, as for a `defmodule` Elixir
-     * compiles directly, the [top] env. A node after a stop in that node takes the env as it stood at the stop, or, where
-     * the stop held none when the stopped node was left, the env that node was entered in.
+     * compiles directly, the [top] env, [Uncertain.UNREACHED]. A node after a stop in that node takes the env as it stood
+     * at the stop, or, where the stop held none when the stopped node was left, the env that node was entered in, and is
+     * [Uncertain.STOP]; past a stop or an opaque call in a node containing it, it is [Uncertain.STOP] or
+     * [Uncertain.OPAQUE].
      */
-    fun at(range: TextRange): Env {
-        byRange[key(range.startOffset, range.endOffset)]?.let { return it.env }
-        val enclosing = enclosing(range) ?: return top
+    fun placed(range: TextRange): Placed {
+        byRange[key(range.startOffset, range.endOffset)]?.let { return Placed(it.env, null) }
+        val enclosing = enclosing(range) ?: return Placed(top, Uncertain.UNREACHED)
+        enclosing.stoppedBefore()?.let { return Placed(it.stopEnv ?: it.env, Uncertain.STOP) }
+        val uncertain = enclosing.chain().firstNotNullOfOrNull { entry ->
+            when {
+                entry.stopsBefore(range) -> Uncertain.STOP
+                (entry.opaque ?: Int.MAX_VALUE) < range.endOffset -> Uncertain.OPAQUE
+                else -> null
+            }
+        }
 
-        return enclosing.before?.takeIf { it.stop != null }?.let { it.stopEnv ?: it.env } ?: enclosing.entry.env
+        return Placed(enclosing.entry.env, uncertain)
     }
 
     /**
@@ -82,11 +110,7 @@ internal class EnvIndex(private val top: Env) {
         byRange[key(range.startOffset, range.endOffset)]?.let { return it.env }
         val enclosing = enclosing(range) ?: return null
 
-        var index = enclosing.index
-        while (index >= 0) {
-            if ((enclosing.sorted.entries[index].reachedUntil ?: Int.MAX_VALUE) < range.endOffset) return null
-            index = enclosing.sorted.enclosing[index]
-        }
+        if (enclosing.chain().any { it.stopsBefore(range) }) return null
 
         return enclosing.entry.env
     }
@@ -94,6 +118,13 @@ internal class EnvIndex(private val top: Env) {
     /** The innermost entry containing a range, at [index] in [sorted], and the last entry before the range in it. */
     private class Enclosing(val sorted: Sorted, val index: Int, val before: Entry?) {
         val entry: Entry get() = sorted.entries[index]
+
+        /** The node before the range in [entry] where that node stopped, or `null`. */
+        fun stoppedBefore(): Entry? = before?.takeIf { it.stop != null }
+
+        /** [entry], then each entry containing it, outward. */
+        fun chain(): Sequence<Entry> =
+            generateSequence(index) { sorted.enclosing[it].takeIf { enclosing -> enclosing >= 0 } }.map { sorted.entries[it] }
     }
 
     private fun enclosing(range: TextRange): Enclosing? {
