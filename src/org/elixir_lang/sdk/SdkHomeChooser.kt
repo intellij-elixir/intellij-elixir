@@ -55,14 +55,16 @@ object SdkHomeChooser {
         sdkModel: SdkModel,
         sdkType: SdkType,
         basePath: Path,
-        preferredOtpMajor: Int? = null,
         onCreated: (Sdk) -> Unit,
     ) {
-        val registeredHomes = sdkModel.sdks.filter { it.sdkType == sdkType }.mapNotNull(Sdk::getHomePath)
-        selectSdkHome(sdkType, basePath, registeredHomes, preferredOtpMajor) { home ->
+        selectSdkHome(sdkType, basePath, registeredHomes(sdkModel, sdkType)) { home ->
             onCreated(SdkConfigurationUtil.createSdk(sdkModel.sdks.toList(), home, sdkType, null, null))
         }
     }
+
+    /** The homes of [sdkModel]'s SDKs of [sdkType], which an add opens past. */
+    fun registeredHomes(sdkModel: SdkModel, sdkType: SdkType): List<String> =
+        sdkModel.sdks.filter { it.sdkType == sdkType }.mapNotNull(Sdk::getHomePath)
 
     fun selectSdkHome(
         sdkType: SdkType,
@@ -79,6 +81,11 @@ object SdkHomeChooser {
             registeredHomes,
         )
 
+        chooseSdkHome(sdkType, suggestedRoot, onHomeChosen)
+    }
+
+    /** Picks a home in [sdkType]'s chooser opened at [suggestedRoot], with no install scan. */
+    fun chooseSdkHome(sdkType: SdkType, suggestedRoot: VirtualFile?, onHomeChosen: (String) -> Unit) {
         FileChooser.chooseFiles(chooserDescriptor(sdkType), null, null, suggestedRoot) { chosen ->
             val chosenPath = chosen[0].path
             val adjustedPath = sdkType.adjustSelectedSdkHome(chosenPath)
@@ -104,9 +111,11 @@ object SdkHomeChooser {
             { firstUnregistered(homesNewestFirst(basePath), registeredHomes) },
         ) { awaitScan -> home = awaitScan() }
 
-        return home?.let { wslCompat.findFileByPath(it, refresh = true) }
-            ?: wslCompat.findFileByPath(FileUtil.toSystemIndependentName(basePath.toString()), refresh = true)
+        return home?.let { wslCompat.findFileByPath(it, refresh = true) } ?: folderAt(basePath.toString())
     }
+
+    internal fun folderAt(path: String): VirtualFile? =
+        wslCompat.findFileByPath(FileUtil.toSystemIndependentName(path), refresh = true)
 
     /**
      * Runs [scan] on a pooled thread and [body] under modal progress titled [title]; [body] waits for the scan's result
@@ -142,7 +151,7 @@ object SdkHomeChooser {
     }
 
     /** Every install the scan finds, not only the newest a type suggests, so one already an SDK can be passed over. */
-    private fun homesNewestFirst(sdkType: SdkType): (Path) -> List<String> = when (sdkType) {
+    internal fun homesNewestFirst(sdkType: SdkType): (Path) -> List<String> = when (sdkType) {
         is org.elixir_lang.sdk.erlang.Type -> { path -> org.elixir_lang.sdk.erlang.Type.homePathByVersion(path).values.toList() }
         is org.elixir_lang.sdk.elixir.Type -> { path -> sdkType.homePathByVersion(path).values.toList() }
         else -> { path -> listOfNotNull(sdkType.suggestHomePath(path)) }
@@ -168,7 +177,6 @@ object SdkHomeChooser {
     /** mise's and asdf's name for an Elixir build: `1.20.4-otp-28`. */
     private val OTP_SUFFIX = Regex("""-otp-(\d+)$""")
 
-    @VisibleForTesting
     internal fun firstUnregistered(homesNewestFirst: List<String>, registeredHomes: Collection<String>): String? =
         unregistered(homesNewestFirst, registeredHomes).firstOrNull() ?: homesNewestFirst.firstOrNull()
 

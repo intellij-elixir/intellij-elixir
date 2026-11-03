@@ -6,9 +6,11 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkAdditionalData
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
+import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.diagnostic.ThreadDumper
 import com.intellij.testFramework.PlatformTestUtil
+import com.intellij.testFramework.common.runAll
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import java.io.File
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
@@ -55,6 +57,10 @@ internal object SdkFixtures {
         return sdk
     }
 
+    /** Adds [sdk] to the table for a test that removes it itself, as [TableSnapshot.restore] does. */
+    @RequiresEdt
+    fun register(sdk: Sdk): Sdk = sdk.also(SdkConfigurationUtil::addSdk)
+
     /** [register], then [waitForRegistrationFills]. */
     @RequiresEdt
     fun registerAndWaitForFill(sdk: Sdk, parentDisposable: Disposable): Sdk =
@@ -67,6 +73,26 @@ internal object SdkFixtures {
     @RequiresEdt
     fun waitForRegistrationFills() =
         waitUntil("the registration fill finishes") { SdkVersionWatchService.isIdleForTests() }
+
+    /**
+     * The SDK table as a test found it. [restore] puts it back: the registration fills finish, the SDKs added since
+     * are removed, and the versions store is cleared.
+     */
+    class TableSnapshot {
+        private val before: Set<Sdk> = ProjectJdkTable.getInstance().allJdks.toSet()
+
+        @RequiresEdt
+        fun restore() = runAll(
+            { waitForRegistrationFills() },
+            {
+                WriteAction.run<Throwable> {
+                    val table = ProjectJdkTable.getInstance()
+                    table.allJdks.filterNot(before::contains).forEach(table::removeJdk)
+                }
+            },
+            { SdkVersionsStore.getInstance().clearForTests() },
+        )
+    }
 
     /** Commits [elixirSdk]'s pairing with [erlangSdk], as picking it does. */
     @RequiresEdt

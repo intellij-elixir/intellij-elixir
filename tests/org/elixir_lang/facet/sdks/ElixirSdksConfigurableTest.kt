@@ -6,16 +6,29 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar
+import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
+import com.intellij.openapi.ui.Splitter
+import com.intellij.testFramework.TestActionEvent
 import com.intellij.testFramework.common.runAll
+import com.intellij.ui.ToolbarDecorator
+import com.intellij.util.ui.UIUtil
 import java.util.concurrent.atomic.AtomicBoolean
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.facet.SdksService
 import org.elixir_lang.facet.sdk.Model
+import org.elixir_lang.sdk.ProcessOutput
+import org.elixir_lang.sdk.SdkFixtures
+import org.elixir_lang.sdk.erlang_dependent.Asked
+import org.elixir_lang.sdk.erlang_dependent.ScriptedErlangStep
+import org.elixir_lang.sdk.erlang_dependent.ScriptedFileChooserFactory
+import org.elixir_lang.sdk.erlang_dependent.elixirInstall
+import org.elixir_lang.sdk.erlang_dependent.install
+import org.elixir_lang.sdk.wsl.wslCompat
 import org.elixir_lang.facet.sdks.elixir.Configurable as ElixirSdksConfigurable
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 
 /**
- * Tests for the Settings → Elixir → SDKs page ([org.elixir_lang.facet.sdks.Configurable]) and the
+ * Tests for the Settings -> Elixir -> SDKs page ([org.elixir_lang.facet.sdks.Configurable]) and the
  * SDK chooser [Model], covering the regressions:
  *  - the list stays empty even though SDKs exist (model not populated),
  *  - removing an SDK throws an NPE, and
@@ -381,5 +394,44 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         service().getModel().removeSdk(modelClone("Elixir Test C"))
 
         assertFalse("removed SDK must not ghost in the chooser; got ${comboNames(model)}", "Elixir Test C" in comboNames(model))
+    }
+
+    fun testAnAddWithAnInstallPickKeepsThePagesModel() = addThroughThePage { list, model, elixirHome ->
+        val listed = (0 until list.model.size).map(list.model::getElementAt)
+        assertTrue("the new Elixir SDK is listed", listed.any { wslCompat.pathsEqualWslAware(elixirHome, it.homePath) })
+        assertSame("registering the picked install keeps the page's model", model, service().getModel())
+    }
+
+    /**
+     * Adds an Elixir SDK through the page's "+", picking an Erlang install in the step, then hands [check] the page's
+     * list, the model the page held before the add, and the Elixir install.
+     */
+    private fun addThroughThePage(check: (List, ProjectSdksModel, String) -> Unit) {
+        ProcessOutput.isSmallIdeOverride = true
+        val table = SdkFixtures.TableSnapshot()
+        val libraryTable = LibraryTablesRegistrar.getInstance().libraryTable
+        val librariesBefore = libraryTable.libraries.toSet()
+        var configurable: ElixirSdksConfigurable? = null
+        try {
+            val asked = Asked()
+            val elixirHome = elixirInstall("1.18.4", "28")
+            val install = install("28", "28.1")
+            ScriptedErlangStep(asked, ScriptedErlangStep.pickInstall(install), installs = listOf(install)).install(testRootDisposable)
+            ScriptedFileChooserFactory(asked, elixirHome).install(testRootDisposable)
+            val page = ElixirSdksConfigurable().also { configurable = it }
+            val listPanel = (page.createComponent() as Splitter).firstComponent
+            page.reset()
+            val model = service().getModel()
+
+            ToolbarDecorator.findAddButton(listPanel)!!.actionPerformed(TestActionEvent.createTestEvent())
+
+            check(UIUtil.findComponentOfType(listPanel, List::class.java)!!, model, elixirHome)
+        } finally {
+            configurable?.disposeUIResources()
+            ProcessOutput.isSmallIdeOverride = null
+            // The page mirrors each SDK its model adds into an application library.
+            WriteAction.run<Throwable> { libraryTable.libraries.filterNot(librariesBefore::contains).forEach(libraryTable::removeLibrary) }
+            table.restore()
+        }
     }
 }

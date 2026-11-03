@@ -28,6 +28,7 @@ import org.elixir_lang.ui.framework.core.OrderRootTypesRef
 import org.elixir_lang.ui.framework.core.SdkTable
 import org.elixir_lang.ui.framework.core.choosePath
 import org.elixir_lang.ui.framework.core.clickButtonText
+import org.elixir_lang.ui.framework.core.pickInErlangStep
 import org.junit.jupiter.api.Assertions.fail
 import java.awt.event.KeyEvent
 import java.nio.file.Files
@@ -206,13 +207,19 @@ fun Driver.inSettings(page: SdkPage, body: SettingsDialogUiComponent.() -> Unit)
     }
 }
 
-/** Adds a Model at [home] with [page]'s Add and returns its name. With one Erlang Model registered, an Elixir Model pairs with it. */
-fun Driver.addOnPage(page: SdkPage, home: String): String {
+/** Adds an Erlang Model at [home] with its page's Add and returns its name. */
+fun Driver.addErlangOnPage(home: String): String = addOnPage(SdkPage.ERLANG, home) {}
+
+/** Adds an Elixir Model at [home] with its page's Add, picking [erlang] in the Erlang step, and returns its name. */
+fun Driver.addElixirOnPage(home: String, erlang: String): String = addOnPage(SdkPage.ELIXIR, home) { pickInErlangStep(erlang) }
+
+private fun Driver.addOnPage(page: SdkPage, home: String, afterHome: Driver.() -> Unit): String {
     var added = ""
     inSettings(page) {
         val before = rowNames().toSet()
         x(LIST_ADD).click()
         driver.choosePath(page.chooserTitle, home)
+        driver.afterHome()
         Thread.sleep(1_000)
         added = (rowNames().toSet() - before).single()
         clickButtonText("OK")

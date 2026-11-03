@@ -34,6 +34,11 @@ class ErlangStepTest : PlatformTestCase() {
         { super.tearDown() },
     )
 
+    /** As the IDE builds it, not replaced: the platform refuses a light service whose class isn't final. */
+    fun testTheIdeBuildsTheRealStep() {
+        assertNotNull(ErlangStep.getInstance())
+    }
+
     fun testRegisteredErlangSdksInTheInstallsEnvironmentAreListed() {
         val local = SdkFixtures.erlangSdk("Step local Erlang", fakeHome("erlang/27.3.4"))
         val elsewhere = SdkFixtures.erlangSdk("Step elsewhere Erlang", fakeHome("erlang/elsewhere"))
@@ -175,6 +180,33 @@ class ErlangStepTest : PlatformTestCase() {
 
         assertSame(listed, state.selected?.sdk)
         assertEquals("browsing to a listed home adds no row", 1, state.entries.size)
+    }
+
+    fun testBrowseOpensAtTheNewestInstallNoListedSdkHas() {
+        val newest = install("28", "28.1")
+        val middle = install("27", "27.3.4")
+        val oldest = install("26", "26.2.5")
+        val listed = SdkFixtures.erlangSdk("Step browse Erlang", newest)
+        var browseFrom: String? = null
+        val step = ErlangStep({ listOf(newest, middle, oldest) }) { _, _, from, _ -> browseFrom = from; ErlangStepAnswer.Cancelled }
+
+        step.ask(null, elixirHome, model(listed))
+
+        assertEquals(middle, browseFrom)
+    }
+
+    fun testADetectedInstallWithNoErlIsNotListed() {
+        val complete = install("28", "28.1")
+        val incomplete = SdkFixtures.erlangHomeWithEbin("27", "27.3.4")
+        var listed: List<String>? = null
+        val step = ErlangStep({ listOf(complete, incomplete) }) { _, state, _, _ ->
+            listed = state.entries.map { it.home }
+            ErlangStepAnswer.Cancelled
+        }
+
+        step.ask(null, elixirHome, model())
+
+        assertEquals(listOf(complete), listed)
     }
 
     /** The step's dialog state for [sdks], as the step builds it. */

@@ -10,9 +10,11 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
+import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.JDOMUtil
+import com.intellij.util.concurrency.annotations.RequiresEdt
 import org.jdom.Element
 import org.jetbrains.annotations.TestOnly
 import java.util.concurrent.ConcurrentHashMap
@@ -34,6 +36,10 @@ class SdksService : Disposable {
 
     @Volatile
     private var tableChangedWhileApplying = false
+
+    /** The SDK [register] is adding to the table for this service's own model, whose `jdkAdded` must keep the model. */
+    @Volatile
+    private var registering: Sdk? = null
 
     init {
         // Invalidate the cached model whenever the JDK table, or an SDK in it, changes outside of it - e.g. the
@@ -99,6 +105,7 @@ class SdksService : Disposable {
      * while applying, so it is remembered until the apply finishes.
      */
     private fun tableChanged(jdk: Sdk, change: Change) {
+        if (change == Change.ADDED && jdk === registering) return
         val applying = this.applying
         if (applying != null && applying === model) {
             val copy = applying.projectSdks[jdk]
@@ -195,6 +202,21 @@ class SdksService : Disposable {
             committedWhileApplying.clear()
             tableChangedWhileApplying = false
         }
+    }
+
+    /**
+     * Adds [sdk], set up, to the table and then to [sdkModel], keyed by [sdk] itself so applying the model updates it
+     * rather than adding a second. When [sdkModel] is this service's cached model, the page holding it keeps it.
+     */
+    @RequiresEdt
+    internal fun register(sdk: Sdk, sdkModel: SdkModel?) {
+        registering = sdk.takeIf { sdkModel != null && sdkModel === model }
+        try {
+            SdkConfigurationUtil.addSdk(sdk)
+        } finally {
+            registering = null
+        }
+        sdkModel?.addSdk(sdk)
     }
 
     fun <T> projectJdkImplList(clazz: Class<T>) =

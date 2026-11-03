@@ -17,9 +17,9 @@ class SettingsTabSaveTest {
         launchPyCharm("SettingsTabSaveTest") { homes ->
             closeInternalErrors("$row-start")
             runCatching {
-                val erlangA = addOnPage(SdkPage.ERLANG, homes.erlang.a)
-                val elixir = addOnPage(SdkPage.ELIXIR, homes.elixir.a)
-                val erlangB = addOnPage(SdkPage.ERLANG, homes.erlang.b)
+                val erlangA = addErlangOnPage(homes.erlang.a)
+                val elixir = addElixirOnPage(homes.elixir.a, erlangA)
+                val erlangB = addErlangOnPage(homes.erlang.b)
                 rows.check(row, "'$elixir' starts paired with '$erlangA'", stored(elixir).pairedErlang == erlangA)
 
                 // A Settings tab opens in a project's editor area.

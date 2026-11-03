@@ -15,9 +15,8 @@ class SdkHomeBrowseTest {
         val rows = Rows()
         launchPyCharm("SdkHomeBrowseTest") { homes ->
             closeInternalErrors("setup")
-            // Erlang first, so the Elixir Model pairs with the only Erlang Model and nothing asks which.
-            val erlang = addOnPage(SdkPage.ERLANG, homes.erlang.a)
-            val elixir = addOnPage(SdkPage.ELIXIR, homes.elixir.a)
+            val erlang = addErlangOnPage(homes.erlang.a)
+            val elixir = addElixirOnPage(homes.elixir.a, erlang)
             browseRow(rows, SdkPage.ERLANG, erlang, homes.erlang)
             browseRow(rows, SdkPage.ELIXIR, elixir, homes.elixir)
         }

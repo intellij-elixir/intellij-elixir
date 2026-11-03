@@ -11,6 +11,7 @@ internal interface SdkTable {
 
 @Remote("com.intellij.openapi.projectRoots.Sdk")
 internal interface TableSdk {
+    fun getName(): String
     fun getSdkType(): TableSdkType
     fun getHomePath(): String?
     fun getVersionString(): String?

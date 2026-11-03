@@ -13,8 +13,10 @@ import com.intellij.driver.sdk.ui.components.common.welcomeScreen
 import com.intellij.driver.sdk.ui.components.elements.WindowUiComponent
 import com.intellij.driver.sdk.ui.components.elements.comboBox
 import com.intellij.driver.sdk.ui.components.elements.dialog
+import com.intellij.driver.sdk.ui.components.elements.jBlist
 import com.intellij.driver.sdk.waitFor
 import org.elixir_lang.jps.shared.ElixirSdkTypeId.ELIXIR_SDK_TYPE_ID
+import java.nio.file.Path
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -101,6 +103,27 @@ fun Driver.choosePath(title: String, path: String) {
     }
 }
 
+/** Adds an Erlang SDK at [sdkPath] with Project Structure > SDKs, and returns its name. */
+fun WindowUiComponent.addErlangSdkFromDisk(sdkPath: String): String {
+    val before = driver.sdksAt(sdkPath)
+    addSdkFromDisk("Add Erlang SDK for Elixir SDK from disk", sdkPath, "Select Home Directory for Erlang SDK for Elixir SDK") {}
+    return (driver.sdksAt(sdkPath) - before).single()
+}
+
+/** Adds an Elixir SDK at [sdkPath] with Project Structure > SDKs, picking the Erlang SDK named [erlang] in the Erlang step. */
+fun WindowUiComponent.addElixirSdkFromDisk(sdkPath: String, erlang: String) =
+    addSdkFromDisk("Add Elixir SDK from disk", sdkPath, "Select Home Directory for Elixir SDK") { driver.pickInErlangStep(erlang) }
+
+/**
+ * The names of the SDKs in the table whose home is [home]. By home, as IntelliJ IDEA registers a JDK it detects while a
+ * test starts.
+ */
+fun Driver.sdksAt(home: String): List<String> = withReadAction {
+    utility(SdkTable::class).getInstance().getAllJdks()
+        .filter { sdk -> sdk.getHomePath()?.let(Path::of) == Path.of(home) }
+        .map { it.getName() }
+}
+
 /**
  * Adds a new SDK from disk using the Project Structure settings dialog.
  *
@@ -111,9 +134,10 @@ fun Driver.choosePath(title: String, path: String) {
  * @param sdkType The type of SDK to add (e.g., "Add Erlang SDK", "Add Elixir SDK")
  * @param sdkPath The absolute file system path to the SDK installation directory
  * @param dialogTitle The expected title of the SDK home directory selection dialog
+ * @param afterHome What the add asks after the home, answered
  * @throws Exception if the SDK cannot be added or UI components are not found
  */
-fun WindowUiComponent.addSdkFromDisk(sdkType: String, sdkPath: String, dialogTitle: String) =
+private fun WindowUiComponent.addSdkFromDisk(sdkType: String, sdkPath: String, dialogTitle: String, afterHome: () -> Unit) =
     step("Add SDK: $sdkType from $sdkPath") {
         // Not by its shortcut: under Xvfb the welcome screen doesn't answer one. Not `now`, as the dialog is modal.
         driver.invokeAction("ShowProjectStructureSettings", now = false, component = component)
@@ -134,6 +158,7 @@ fun WindowUiComponent.addSdkFromDisk(sdkType: String, sdkPath: String, dialogTit
         driver.selectItemFromList(sdkType)
 
         driver.choosePath(dialogTitle, sdkPath)
+        afterHome()
 
         projectStructure {
             clickButtonText("OK")
@@ -155,3 +180,23 @@ fun Driver.assignElixirSdk() = step("Assign the Elixir SDK") {
     val sdk = utility(SdkTable::class).getInstance().getAllJdks().single { it.getSdkType().getName() == ELIXIR_SDK_TYPE_ID }
     getModules().forEach { utility(ModuleSdk::class).setModuleSdk(it, sdk) }
 }
+
+/**
+ * In the Erlang step of an Elixir SDK add, picks the entry named [erlang] (an Erlang SDK's name, or an install's home)
+ * and clicks Create.
+ */
+fun Driver.pickInErlangStep(erlang: String) =
+    step("Erlang step: pick $erlang") {
+        ui.dialog(xQuery { byTitle("Erlang for Elixir SDK") }) {
+            waitUntilReady()
+            val list = jBlist()
+            val entries = list.items
+            val index = entryIndex(entries, erlang)
+            check(index >= 0) { "no entry '$erlang' in the Erlang step: $entries" }
+            list.clickItemAtIndex(index)
+            clickButtonText("Create")
+        }
+    }
+
+/** The index of the Erlang step's entry named [name]: its row starts with the name. */
+private fun entryIndex(entries: List<String>, name: String): Int = entries.indexOfFirst { it == name || it.startsWith("$name ") }
