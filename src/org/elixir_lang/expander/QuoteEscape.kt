@@ -20,6 +20,7 @@ import org.elixir_lang.NameArity
 import org.elixir_lang.expander.interpreter.COPY_NODES
 import org.elixir_lang.expander.interpreter.UnknownBinary
 import org.elixir_lang.expander.interpreter.codeOf
+import org.elixir_lang.expander.interpreter.shifted
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_BINARY_SPEC_IS_A_NAME
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_QUOTED_APART
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_SORTED
@@ -834,9 +835,8 @@ internal class QuoteEscape<I, O> private constructor(
     /** `<<Bits:Size, Bytes/binary>>`, a bitstring whose last byte holds only its leading `Size` bits. */
     private fun partBits(shape: Shape.Bitstring): O {
         val size = 8 - shape.padBits
-        val bytes = shape.bytes.map { it.toInt() and 0xFF }
-        val bits = bytes[0] ushr (8 - size)
-        val rest = ByteArray(bytes.size - 1) { i -> ((bytes[i] shl size) or (bytes[i + 1] ushr (8 - size))).toByte() }
+        val bits = (shape.bytes[0].toInt() and 0xFF) ushr (8 - size)
+        val rest = shifted(shape.bytes, size, (shape.bytes.size - 1) * 8)
         val binaryArgs = if (ESCAPED_BINARY_SPEC_IS_A_NAME.isSufficient(level)) null else emptyList<O>()
 
         return build.call(

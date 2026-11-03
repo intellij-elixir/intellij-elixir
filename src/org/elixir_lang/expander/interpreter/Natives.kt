@@ -189,14 +189,17 @@ internal class Natives(private val evaluation: Evaluation) {
 
     private val level get() = evaluation.run.level
 
-    /** [module]'s [function] applied to [args], or `null` where it isn't one of these. */
-    fun call(module: String, function: String, args: List<OtpErlangObject>): OtpErlangObject? {
+    /**
+     * [module]'s [function] applied to [args], or `null` where it isn't one of these. In [tail] position, a call
+     * `apply/2,3` makes is made, not run ([Evaluation.apply]).
+     */
+    fun call(module: String, function: String, args: List<OtpErlangObject>, tail: Boolean = false): OtpErlangObject? {
         val key = "$function/${args.size}"
 
         if (key == "__info__/1") info(module, args[0])?.let { return it }
 
         return when (module) {
-            "erlang" -> erlang(key, args)
+            "erlang" -> erlang(key, args, tail)
             "lists" -> lists(key, args)
             "maps" -> maps(key, args)
             "elixir_quote" -> quote(key, args)
@@ -356,7 +359,7 @@ internal class Natives(private val evaluation: Evaluation) {
             else -> null
         }
 
-    private fun erlang(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+    private fun erlang(key: String, args: List<OtpErlangObject>, tail: Boolean = false): OtpErlangObject? {
         val badarg = { evaluation.error(atom("badarg"), frame("erlang", key.substringBefore('/'), list(args))) }
 
         return when (key) {
@@ -536,12 +539,12 @@ internal class Natives(private val evaluation: Evaluation) {
                     ModuleExports.Unreadable -> decline("${module.atomValue()}'s exports aren't known")
                 }
             }
-            "apply/2" -> evaluation.apply(running("erlang", key, args).single(), properElements(args[1]) ?: badarg())
+            "apply/2" -> evaluation.apply(running("erlang", key, args).single(), properElements(args[1]) ?: badarg(), tail)
             "apply/3" -> {
                 val (module, name) = running("erlang", key, args)
                 val function = seen(name) as? OtpErlangAtom ?: badarg()
 
-                evaluation.remote(module, function.atomValue(), properElements(args[2]) ?: badarg())
+                evaluation.remote(module, function.atomValue(), properElements(args[2]) ?: badarg(), tail = tail)
             }
             "error/1" -> evaluation.raiseAs("error", args[0])
             "error/2" -> evaluation.error(args[0], args[1], null)

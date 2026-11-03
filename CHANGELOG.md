@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4622](https://github.com/intellij-elixir/intellij-elixir/pull/4622) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, tail-recursive code that a macro runs at expansion, such as the EEx tokenizer walking a long template in Makeup's HTML style, no longer stops its module as too deep, and matching the rest of a long binary runs faster.** Refs [#4604](https://github.com/intellij-elixir/intellij-elixir/issues/4604).
+
 - [#4616](https://github.com/intellij-elixir/intellij-elixir/pull/4616) [@sh41](https://github.com/sh41)
   - **The expander now says which of its answers may not be the one Elixir gives, past code it can't follow or where several copies of a module could load, and also finds in the index the definitions such code could bring in; each feature keeps the answer it gives today until it is changed to use them.** Refs [#4611](https://github.com/intellij-elixir/intellij-elixir/issues/4611).
 

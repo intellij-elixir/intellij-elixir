@@ -32,6 +32,14 @@ internal sealed interface PartsOutcome<out R> {
     class Raises<out R>(val raise: R) : PartsOutcome<R>
 }
 
+/** The parts' values, or their decline or raise, thrown. */
+internal fun PartsOutcome<Thrown>.valuesOrThrow(): List<OtpErlangObject> =
+    when (this) {
+        is PartsOutcome.Values -> values
+        is PartsOutcome.Declines -> throw declined
+        is PartsOutcome.Raises -> throw raise
+    }
+
 /**
  * The parts of a value built from them, each [taken][take] in turn: their values, or the first raise, after which none
  * runs. Where one declines, the value isn't built, and the parts after it still run: what it would have held is

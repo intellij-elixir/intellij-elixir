@@ -3,11 +3,13 @@ package org.elixir_lang.expander
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.util.Computable
 import com.intellij.psi.PsiElement
 import org.elixir_lang.language_level.ElixirLanguageFeature.CLAUSES_TAKE_VERSION
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
+import org.elixir_lang.onAStack
 import org.elixir_lang.psi.Import.Term
 
 /**
@@ -994,9 +996,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
     private fun checks(body: String): Int = CancelAt(Int.MAX_VALUE).also { expandMacro(body, it) }.checks
 
     private fun expandMacro(body: String, indicator: CancelAt) {
-        whileCheckingIndicators {
-            ProgressManager.getInstance().runProcess({ expandMacro(body) }, indicator)
-        }
+        whileCheckingIndicators(indicator) { expandMacro(body) }
     }
 
     /** Expands `B`, which calls `A.m`, a macro whose body is [body]. */
@@ -2894,34 +2894,11 @@ class ModuleExpanderTest : ExpanderTestCase() {
      */
     private fun readAfterDeepOutput(code: String, version: String): String {
         val indicator = EmptyProgressIndicator()
-        var rendered: String? = null
-        var escaped: Throwable? = null
-        val thread = Thread(
-            null,
-            {
-                try {
-                    ProgressManager.getInstance().runProcess({ rendered = expandAndRender(code, version) }, indicator)
-                } catch (e: Throwable) {
-                    escaped = e
-                }
-            },
-            "default stack",
-            0,
-        )
+        val rendered = onAStack(0, BOUND_MS, indicator::cancel) {
+            ProgressManager.getInstance().runProcess(Computable { expandAndRender(code, version) }, indicator)
+        } ?: return "unfinished"
 
-        thread.start()
-        thread.join(BOUND_MS)
-
-        if (thread.isAlive) {
-            indicator.cancel()
-            thread.join()
-
-            return "unfinished"
-        }
-
-        assertNull("escaped: $escaped", escaped)
-
-        val lines = rendered!!.lines()
+        val lines = rendered.getOrThrow().lines()
         val two = lines.indexOfFirst { it.trim().startsWith("module Elixir.") && it.contains(".Two ") }
 
         if (two < 0) return if (lines.any { it.contains(" stopped `") }) "absent" else "unexpected: no Two in ${lines.filter { it.contains("module ") }}"

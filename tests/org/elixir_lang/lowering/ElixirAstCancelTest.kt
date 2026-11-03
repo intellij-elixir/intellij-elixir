@@ -5,7 +5,6 @@ import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProcessCanceledException
-import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.expander.CancelAt
@@ -31,7 +30,7 @@ class ElixirAstCancelTest : PlatformTestCase() {
         val indicator = CancelAt((1 shl DOUBLINGS) / 2)
 
         try {
-            whileCheckingIndicators { ProgressManager.getInstance().runProcess(read, indicator) }
+            whileCheckingIndicators(indicator, read)
             fail("no cancel at check ${(1 shl DOUBLINGS) / 2}, of ${indicator.checks}")
         } catch (_: ProcessCanceledException) {
         }

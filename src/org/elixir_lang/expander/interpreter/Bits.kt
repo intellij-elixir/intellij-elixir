@@ -101,11 +101,8 @@ internal class Bits(private val evaluation: Evaluation) {
             }
         }
 
-        when (val evaluated = turn.outcome) {
-            is PartsOutcome.Declines -> throw evaluated.declined
-            is PartsOutcome.Raises -> throw evaluated.raise
-            is PartsOutcome.Values -> writes.forEach { it() }
-        }
+        turn.outcome.valuesOrThrow()
+        writes.forEach { it() }
 
         return when {
             !unknown -> writer.bitstring()
@@ -617,19 +614,32 @@ internal class Bits(private val evaluation: Evaluation) {
             for (position in 0 until count) bit(value.testBit(valueBit(position, count, little)))
         }
 
-        /** [value]'s first [count] bits. */
+        /** [value]'s first [count] bits, each byte of them split over the two it straddles, or copied where it straddles none. */
         fun bitstring(value: OtpErlangBitstr, count: Int) {
             reserve(count)
+            ProgressManager.checkCanceled()
 
-            val source = value.binaryValue()
+            val source = if (count % 8 == 0) value.binaryValue() else shifted(value.binaryValue(), 0, count)
+            val size = (count + 7) / 8
+            val start = length / 8
+            val shift = length % 8
 
-            for (index in 0 until count) bit(source[index / 8].toInt() and (0x80 ushr (index % 8)) != 0)
+            if (start + size >= bytes.size) bytes = bytes.copyOf(maxOf(bytes.size * 2, start + size + 1))
+
+            for (index in 0 until size) {
+                val unsigned = source[index].toInt() and 0xFF
+
+                bytes[start + index] = (bytes[start + index].toInt() or (unsigned ushr shift)).toByte()
+                if (shift != 0) bytes[start + index + 1] = (unsigned shl (8 - shift)).toByte()
+            }
+
+            length += count
         }
 
         /** Whether the bits written so far fill whole bytes. */
         val aligned: Boolean get() = length % 8 == 0
 
-        fun bitstring(): OtpErlangBitstr = bitstring(bytes.copyOf((length + 7) / 8), (8 - length % 8) % 8)
+        fun bitstring(): OtpErlangBitstr = bitsOf(bytes, 0, length)
     }
 
     private class Reader(private val bytes: ByteArray) {
@@ -656,13 +666,8 @@ internal class Bits(private val evaluation: Evaluation) {
             return if (signed && count > 0 && value.testBit(count - 1)) value - BigInteger.ONE.shiftLeft(count) else value
         }
 
-        fun bitstring(offset: Int, count: Int): OtpErlangBitstr {
-            val writer = Writer()
-
-            for (index in 0 until count) writer.integer(if (bit(offset + index)) BigInteger.ONE else BigInteger.ZERO, 1, false)
-
-            return writer.bitstring()
-        }
+        /** [count] bits from [offset] ([bitsOf]). */
+        fun bitstring(offset: Int, count: Int): OtpErlangBitstr = bitsOf(bytes, offset, count)
     }
 
     private companion object {
@@ -720,6 +725,35 @@ internal class Bits(private val evaluation: Evaluation) {
         }
     }
 }
+
+/**
+ * [count] bits of [bytes] from [offset], each byte of them shifted out of the two it straddles, or copied where it
+ * straddles none, and the bits past the last cleared.
+ */
+internal fun shifted(bytes: ByteArray, offset: Int, count: Int): ByteArray {
+    val start = offset / 8
+    val shift = offset % 8
+    val size = (count + 7) / 8
+    val copied = if (shift == 0) {
+        bytes.copyOfRange(start, start + size)
+    } else {
+        ByteArray(size) { index ->
+            val high = bytes[start + index].toInt() shl shift
+            val low = if (start + index + 1 == bytes.size) 0 else (bytes[start + index + 1].toInt() and 0xFF) ushr (8 - shift)
+
+            (high or low).toByte()
+        }
+    }
+    val ragged = count % 8
+
+    if (ragged != 0) copied[copied.size - 1] = (copied.last().toInt() and (0xFF shl (8 - ragged))).toByte()
+
+    return copied
+}
+
+/** [count] bits of [bytes] from [offset], as a bitstring ([shifted]). */
+private fun bitsOf(bytes: ByteArray, offset: Int, count: Int): OtpErlangBitstr =
+    bitstring(shifted(bytes, offset, count), (8 - count % 8) % 8)
 
 /** The most bits a bitstring the interpreter builds holds: 16 MiB. */
 private const val MAX_BITS = 1 shl 27

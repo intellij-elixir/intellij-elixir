@@ -16,7 +16,9 @@ import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiFileFactory
 import com.intellij.util.system.OS
 import org.elixir_lang.ElixirLanguage
+import org.elixir_lang.FIXED_STACK
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.SMALL_STACK
 import org.elixir_lang.coverage.ExpanderProgress
 import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.intellij_elixir.Quoter
@@ -72,6 +74,7 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.lowering.inspect
+import org.elixir_lang.onAStack
 import org.elixir_lang.psi.ElixirFile
 import java.io.File
 import java.math.BigInteger
@@ -2075,21 +2078,15 @@ class InterpreterTest : PlatformTestCase() {
             run = RunInputs(path = "/l.ex"),
         )
 
-    /**
-     * [MAKEUP_STYLE]'s template overflows [SMALL_STACK] in the evaluator, as EEx's tokenizer recurses once per
-     * character.
-     */
-    fun testALongEExTemplateStopsAtItsMatch() =
-        assertEquals("stopped =/2 [call/5 def, render_css/5 defp]", endedOnAStack(MAKEUP_STYLE, SMALL_STACK))
+    /** [MAKEUP_STYLE]'s template compiles on [FIXED_STACK], as its tokenizer's tail calls take no stack. */
+    fun testALongEExTemplateCompilesOnAFixedStack() =
+        assertEquals("compiled [call/5 def, render_css/5 defp]", endedOnAStack(MAKEUP_STYLE, FIXED_STACK))
 
     fun testAShortEExTemplateStaysCompiled() =
         assertEquals(
             "compiled [f/1 def]",
             endedOnAStack("defmodule A do\n  require EEx\n  EEx.function_from_string(:def, :f, \"<%= a %>\", [:a])\nend", SMALL_STACK),
         )
-
-    fun testALongEExTemplateCompilesOnALargeStack() =
-        assertEquals("compiled [call/5 def, render_css/5 defp]", endedOnAStack(MAKEUP_STYLE, stackSize = 1L shl 30))
 
     /**
      * How [code]'s one module ended, with its table, expanded from `/s.ex` at the leg's level on a thread of [stackSize]
@@ -2098,36 +2095,18 @@ class InterpreterTest : PlatformTestCase() {
     private fun endedOnAStack(code: String, stackSize: Long): String {
         val level = legLevel()
         val forms = lowered(code, level)
-        var result: ExpansionResult? = null
-        var escaped: Throwable? = null
-        val thread = Thread(
-            null,
-            {
-                try {
-                    result = Expander.expandFile(
-                        forms,
-                        Env.empty(level, legKernel),
-                        level,
-                        sdkExports,
-                        legStructs,
-                        legAppEnv(),
-                        clauses = sdk,
-                        file = { "/s.ex" },
-                    ).modules.single()
-                } catch (e: Throwable) {
-                    escaped = e
-                }
-            },
-            "stack of $stackSize",
-            stackSize,
-        )
-
-        thread.start()
-        thread.join()
-
-        assertNull("escaped: $escaped", escaped)
-
-        val module = result!!
+        val module = onAStack(stackSize) {
+            Expander.expandFile(
+                forms,
+                Env.empty(level, legKernel),
+                level,
+                sdkExports,
+                legStructs,
+                legAppEnv(),
+                clauses = sdk,
+                file = { "/s.ex" },
+            ).modules.single()
+        }!!.getOrThrow()
         val ended = when (val ended = module.ended) {
             Ended.Compiled -> "compiled"
             is Ended.Stopped -> "stopped ${ExpanderProgress.shape(ended.at)}"
@@ -2817,9 +2796,6 @@ class InterpreterTest : PlatformTestCase() {
             <% end %>
         """.trimIndent()
 
-        /** A fixed small stack, so an overflow doesn't depend on the platform's default thread stack or `-Xss`. */
-        const val SMALL_STACK = 512L * 1024
-
         /** `render_css/5` from Makeup's template twice over, with a function calling it. */
         val MAKEUP_STYLE = "defmodule A do\n  require EEx\n\n  EEx.function_from_string(\n    :defp,\n    :render_css,\n    $QUOTES\n" +
             "$MAKEUP_TEMPLATE\n$MAKEUP_TEMPLATE".prependIndent("    ") +
@@ -2984,6 +2960,20 @@ class InterpreterTest : PlatformTestCase() {
         /** A row whose case body [body] holds a call of `Mix.Generator`'s macro, [call] one like it. */
         fun generator(id: String, body: String, call: String, ends: (ElixirLanguageLevel) -> String? = { null }): Row =
             moduleBody(id, body, call, listOf("Mix.Generator"), ends)
+
+        /**
+         * A row whose macro calls `f(:bad)`, whose body is [tail], reaching `g(:bad)`, which raises: the frames above the
+         * macro's, as `{function, arity}`.
+         */
+        fun tailPosition(id: String, tail: String): Row =
+            macro(
+                id,
+                "defmacro m do\n  try do\n    f(:bad)\n  rescue\n    _ -> frames(__STACKTRACE__)\n  end\nend\n\n" +
+                    "defp frames([{_, :\"MACRO-m\", _, _} | _]), do: []\n" +
+                    "defp frames([{_, f, a, _} | t]), do: [{f, a} | frames(t)]\n\n" +
+                    "def g(x), do: if(x == :bad, do: :erlang.error(:e), else: x)\n\n" +
+                    "def f(x) do\n${tail.prependIndent("  ")}\nend",
+            )
 
         /** A row whose `use` runs [statements] in the case module, their `unquote`s the module body's. */
         fun fragments(id: String, statements: String, ends: (ElixirLanguageLevel) -> String? = { null }): Row =
@@ -6367,7 +6357,44 @@ class InterpreterTest : PlatformTestCase() {
                 defp count(0), do: 0
                 defp count(n), do: count(n - 1)
                 """,
-                pins = DECLINED,
+            ),
+            macro(
+                "pure:binary-walk",
+                """
+                defmacro m, do: walk(for(_ <- 1..12_800, into: "", do: "a"), 0)
+
+                defp walk(<<_, rest::binary>>, n), do: walk(rest, n + 1)
+                defp walk(<<>>, n), do: n
+                """,
+            ),
+            // Each position below is a tail call's on the BEAM: the caller's frame leaves the stacktrace.
+            tailPosition("pure:tail-body", "g(x)"),
+            tailPosition("pure:tail-block", "y = [x]\ng(hd(y))"),
+            tailPosition("pure:tail-case", "case x do\n  :bad -> g(x)\n  _ -> :ok\nend"),
+            tailPosition("pure:tail-cond", "cond do\n  x == :ok -> :ok\n  true -> g(x)\nend"),
+            tailPosition("pure:tail-if", "if x == :bad, do: g(x), else: :ok"),
+            tailPosition("pure:tail-with-body", "with :bad <- x, do: g(x)"),
+            tailPosition("pure:tail-with-else", "with :ok <- x do\n  :ok\nelse\n  y -> g(y)\nend"),
+            tailPosition("pure:tail-and", "x == :bad and g(x)"),
+            tailPosition("pure:tail-or", "x == :ok or g(x)"),
+            tailPosition("pure:tail-ampersands", "x && g(x)"),
+            tailPosition("pure:tail-bars", "x == :ok || g(x)"),
+            tailPosition("pure:tail-andalso", ":erlang.andalso(x == :bad, g(x))"),
+            tailPosition("pure:tail-orelse", ":erlang.orelse(x == :ok, g(x))"),
+            tailPosition("pure:tail-fn", "(fn y -> g(y) end).(x)"),
+            tailPosition("pure:tail-apply-2", "apply(&g/1, [x])"),
+            tailPosition("pure:tail-apply-3", "apply(__MODULE__, :g, [x])"),
+            tailPosition("pure:tail-remote", "__MODULE__.g(x)"),
+            tailPosition("pure:tail-pipe", "x |> g()"),
+            tailPosition("pure:tail-rescue", "try do\n  :erlang.error(:r)\nrescue\n  _ -> g(x)\nend"),
+            tailPosition("pure:tail-catch", "try do\n  throw(:t)\ncatch\n  :t -> g(x)\nend"),
+            tailPosition("pure:tail-try-else", "try do\n  x\nelse\n  y -> g(y)\nend"),
+            // A call that isn't in tail position keeps its caller's frame.
+            tailPosition("pure:tail-not-in-a-tuple", "{g(x)}"),
+            tailPosition("pure:tail-not-in-try-after", "try do\n  g(x)\nafter\n  :ok\nend"),
+            tailPosition(
+                "pure:tail-not-in-a-rescue-with-after",
+                "try do\n  :erlang.error(:r)\nrescue\n  _ -> g(x)\nafter\n  :ok\nend",
             ),
             macro(
                 "pure:binary-prefix",
@@ -6382,6 +6409,78 @@ class InterpreterTest : PlatformTestCase() {
                     for(<<"a", c::8 <- "abac">>, do: c),
                     (<<"é"::utf8, x::8>> = <<195, 169, 1>>; x)
                   ]
+                end
+                """,
+            ),
+            macro(
+                "pure:binary-rest-aligned",
+                """
+                defmacro m do
+                  <<_, rest::binary>> = "abcdef"
+                  [rest, (<<_, _, r::binary>> = rest; r), (<<_::binary-size(5), e::binary>> = rest; e)]
+                end
+                """,
+            ),
+            macro(
+                "pure:binary-rest-after-a-head",
+                """
+                defmacro m do
+                  <<a::8, b::16, rest::binary>> = <<1, 2, 3, 4, 5, 6>>
+                  <<c::16-little, tail::bitstring>> = rest
+                  [a, b, rest, c, tail]
+                end
+                """,
+            ),
+            macro(
+                "pure:bitstring-rest-unaligned",
+                """
+                defmacro m do
+                  <<x::3, rest::bitstring>> = <<0b10110011, 0b01010101>>
+                  <<y::5, z::binary>> = rest
+                  <<_::1, w::bitstring>> = z
+                  [x, bit_size(rest), y, z, bit_size(w), (<<v::7>> = w; v)]
+                end
+                """,
+            ),
+            macro(
+                "pure:bitstring-rest-ragged",
+                """
+                defmacro m do
+                  <<a::8, r::bitstring>> = <<1, 0b10110011, 0b101::3>>
+                  <<b::4, s::bitstring>> = r
+                  [a, bit_size(r), r == <<0b10110011, 0b101::3>>, b, bit_size(s), s == <<0b0011101::7>>]
+                end
+                """,
+            ),
+            macro(
+                "pure:binary-size-segment",
+                """
+                defmacro m(n) do
+                  <<h::binary-size(2), t::binary-size(n), r::binary>> = "abcdefgh"
+                  <<_::4, s::bitstring-size(8), _::4>> = <<0xAB, 0xCD>>
+                  [h, t, r, s]
+                end
+                """,
+                "m(3)",
+            ),
+            macro(
+                "pure:bitstring-build-unaligned",
+                """
+                defmacro m do
+                  a = <<0b101::3>>
+                  b = <<0b11001100, 0b1010::4>>
+                  ab = <<a::bitstring, b::bitstring>>
+                  Macro.escape([ab, bit_size(ab), <<1::1, "ab", a::bitstring>>, <<a::bitstring, "xyz"::binary, 0b11::2>>])
+                end
+                """,
+            ),
+            macro(
+                "pure:bitstring-build-sized",
+                """
+                defmacro m do
+                  b = <<0b11001100, 0b1010::4>>
+                  s = "abcd"
+                  Macro.escape([<<1::1, b::bitstring-size(5)>>, <<s::binary-size(2), 1::3>>, <<0b111::3, s::binary-size(3)>>])
                 end
                 """,
             ),

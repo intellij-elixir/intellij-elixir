@@ -1,6 +1,5 @@
 package org.elixir_lang.expander
 
-import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageLevel
 
@@ -583,7 +582,7 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
         )
         val indicator = ChecksBy()
 
-        whileCheckingIndicators { ProgressManager.getInstance().runProcess({ expanding() }, indicator) }
+        whileCheckingIndicators(indicator) { expanding() }
 
         val checks = indicator.count(VALUES, "listed")
 
@@ -621,10 +620,7 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
     ) {
         val expanding = expanding(macros, call, version)
         val indicator = ChecksBy()
-        var ended = "not run"
-
-        whileCheckingIndicators { ProgressManager.getInstance().runProcess({ ended = expanding() }, indicator) }
-
+        val ended = whileCheckingIndicators(indicator) { expanding() }
         val counts = walks.map { (owner, walk) -> walk to indicator.count(owner, walk) }
 
         assertTrue("fewer than $least checks: $counts; $ended", counts.all { (_, count) -> count >= least })
