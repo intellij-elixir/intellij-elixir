@@ -7,7 +7,7 @@ modules = [PhoenixComponentFixture.Remote, PhoenixComponentFixture.Forms, Phoeni
 
 info =
   for module <- modules, into: %{} do
-    {module, %{functions: Enum.sort(module.__info__(:functions)), macros: Enum.sort(module.__info__(:macros))}}
+    {module, %{functions: module.__info__(:functions), macros: module.__info__(:macros)}}
   end
 
 File.write!(Path.join(out, "info.etf"), :erlang.term_to_binary(info))
@@ -63,8 +63,8 @@ routes =
 
         %{
           raised: nil,
-          functions: Enum.sort(module.__info__(:functions)),
-          macros: Enum.sort(module.__info__(:macros)),
+          functions: module.__info__(:functions),
+          macros: module.__info__(:macros),
           routes: :persistent_term.get({PhoenixComponentFixtureOracle.Routes, module})
         }
       rescue

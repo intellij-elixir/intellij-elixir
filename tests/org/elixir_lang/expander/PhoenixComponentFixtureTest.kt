@@ -50,17 +50,8 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
         val holder = ProjectModules(project)
         val asker = file(corpus!!, compiled, ASKER)
 
-        val expected = MODULES.map { module ->
-            val exports = info.get(OtpErlangAtom(module)) as OtpErlangMap
-
-            "$module ${exported(exports)}"
-        }
-        val actual = MODULES.map { module ->
-            when (val exports = exports(holder, asker, module)) {
-                is ModuleExports.Present -> "$module ${exported(exports)}"
-                else -> "$module $exports"
-            }
-        }
+        val expected = MODULES.map { module -> "$module ${exportsIn(info, module)}" }
+        val actual = MODULES.map { module -> "$module ${exported(exports(holder, asker, module))}" }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }
@@ -121,17 +112,15 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
         val level = legLevel()
         val forms = File(compiled.project, "routes").listFiles()!!.map { it.nameWithoutExtension }.sorted()
 
-        val outcomes = forms.associateWith { oracle.get(OtpErlangBinary(it.toByteArray())) as OtpErlangMap }
-        val field = { form: String, name: String -> outcomes.getValue(form).get(OtpErlangAtom(name)) }
-
         val expected = forms.map { form ->
-            val raised = field(form, "raised")
+            val outcome = oracle.get(OtpErlangBinary(form.toByteArray())) as OtpErlangMap
+            val raised = outcome.get(OtpErlangAtom("raised"))
 
             "$form " + when {
                 // Left unknown, not wrong, until the expander evaluates the `~H` of the module they import.
                 form == "html" || form == "liveview" -> "stopped import/1"
                 raised == OtpErlangAtom("nil") ->
-                    "compiled ${exported(outcomes.getValue(form))}; routes: ${routes(field(form, "routes"))}"
+                    "compiled ${exported(outcome)}; routes: ${routes(outcome.get(OtpErlangAtom("routes")))}"
                 else -> "raised ${(raised as OtpErlangAtom).atomValue()}"
             }
         }

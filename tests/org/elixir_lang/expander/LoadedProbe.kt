@@ -11,9 +11,6 @@ import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiManager
 import junit.framework.TestCase.assertEquals
-import org.elixir_lang.language_level.ElixirLanguageLevel
-import org.elixir_lang.lowering.ElixirAst
-import org.elixir_lang.onAStack
 import org.elixir_lang.psi.ElixirFile
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -94,32 +91,28 @@ internal val appExports: Exports = ConcurrentHashMap<String, ModuleExports>().le
     }
 }
 
-/** The one module of [forms], expanded from `/s.ex` at [level] with [clauses] on a thread of [stackSize] bytes. */
-internal fun expandedOnAStack(forms: ElixirAst, level: ElixirLanguageLevel, clauses: ModuleClauses.Lookup, stackSize: Long): ExpansionResult =
-    onAStack(stackSize) {
-        Expander.expandFile(forms, Env.empty(level, legKernel), level, appExports, legStructs, legAppEnv(), clauses = clauses, file = { "/s.ex" })
-            .modules
-            .single()
-    }!!.getOrThrow()
-
 /**
  * [block], with the leg's `EEx` and `Mix.Generator`, which the quoter's release doesn't hold, used from their
  * [appBeams] `.beam`s for Elixir's compiles, through [USE_MODULE].
  */
 internal fun <T> ProbeHarness.withEex(block: () -> T): T {
-    val ebin = appBeams.getValue("Elixir.EEx").parentFile
-    val beams = (appBeams.filterValues { it.parentFile == ebin } + ("Elixir.Mix.Generator" to appBeams.getValue("Elixir.Mix.Generator")))
-        .entries
-        .joinToString(", ") { (module, beam) -> "{\"$module\", ${elixirString(beam.path)}}" }
-
-    val loaded = compileSource(USE_MODULE + "for {name, path} <- [$beams], do: true = use_module.(String.to_atom(name), path)")
+    val loaded = compileSource(USE_MODULE + "for {name, path} <- [$EEX_BEAMS], do: true = use_module.(String.to_atom(name), path)")
 
     assertEquals("EEx's load", OtpErlangAtom("ok"), loaded.status)
     try {
         return block()
     } finally {
-        compileSource(DROP_MODULE + "for {name, _} <- [$beams], do: drop_module.(String.to_atom(name))")
+        compileSource(DROP_MODULE + "for {name, _} <- [$EEX_BEAMS], do: drop_module.(String.to_atom(name))")
     }
+}
+
+/** `EEx`'s app's modules and `Mix.Generator`, each an Elixir tuple of its name and its [appBeams] `.beam`'s path. */
+private val EEX_BEAMS: String by lazy {
+    val ebin = appBeams.getValue("Elixir.EEx").parentFile
+
+    (appBeams.filterValues { it.parentFile == ebin } + ("Elixir.Mix.Generator" to appBeams.getValue("Elixir.Mix.Generator")))
+        .entries
+        .joinToString(", ") { (module, beam) -> "{\"$module\", ${elixirString(beam.path)}}" }
 }
 
 /**

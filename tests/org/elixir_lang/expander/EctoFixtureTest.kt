@@ -130,12 +130,7 @@ class EctoFixtureTest : HeavyTestCase() {
 
             "$module ${exportsIn(info, module)}"
         }
-        val actual = modules.map { module ->
-            when (val exports = exports(holder, probe, module)) {
-                is ModuleExports.Present -> "$module ${exported(exports)}"
-                else -> "$module $exports"
-            }
-        }
+        val actual = modules.map { module -> "$module ${exported(exports(holder, probe, module))}" }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }
@@ -192,12 +187,7 @@ class EctoFixtureTest : HeavyTestCase() {
         val expected = SCHEMAS.map { module ->
             if (compiled.afterCompile) "$module ${ModuleExports.Unreadable}" else "$module ${exportsIn(info, module)}"
         }
-        val actual = SCHEMAS.map { module ->
-            when (val exports = exports(holder, asker, module)) {
-                is ModuleExports.Present -> "$module ${exported(exports)}"
-                else -> "$module $exports"
-            }
-        }
+        val actual = SCHEMAS.map { module -> "$module ${exported(exports(holder, asker, module))}" }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }
@@ -395,8 +385,6 @@ class EctoFixtureTest : HeavyTestCase() {
             System.getProperty(name) ?: throw AssertionError("This test needs the system property $name, which Gradle's `test` sets.")
 
         fun etf(file: File): OtpErlangObject = binaryToTerm(file.readBytes(), 0).first
-
-        fun exportsIn(info: OtpErlangMap, module: String): String = exported(info.get(OtpErlangAtom(module)) as OtpErlangMap)
 
         fun described(expanded: MacroExpanded, compiled: Compiled): String =
             when (expanded) {

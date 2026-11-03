@@ -2031,8 +2031,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
      * bytes, with nothing thrown.
      */
     private fun endedOnAStack(code: String, stackSize: Long): String {
-        val level = legLevel()
-        val module = expandedOnAStack(lowered(code, level), level, sdk, stackSize)
+        val module = expandedOnAStack(code, stackSize)
 
         return "${ending(module)} ${table(module)}"
     }

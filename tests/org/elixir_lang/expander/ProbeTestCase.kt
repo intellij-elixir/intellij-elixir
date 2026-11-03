@@ -11,6 +11,7 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.lowering.inspect
+import org.elixir_lang.onAStack
 import org.elixir_lang.parser_definition.ParsingTestCase
 import org.elixir_lang.psi.ElixirFile
 import org.junit.Assert.assertEquals
@@ -56,6 +57,18 @@ abstract class SdkProbeTestCase(
         val file = parse(text)
 
         return ReadAction.computeBlocking<ElixirAst, Throwable> { Lowering.lower(file, level) }
+    }
+
+    /** The one module of [code], expanded from `/s.ex` at the leg's level with [sdk] on a thread of [stackSize] bytes. */
+    internal fun expandedOnAStack(code: String, stackSize: Long): ExpansionResult {
+        val level = legLevel()
+        val forms = lowered(code, level)
+
+        return onAStack(stackSize) {
+            Expander.expandFile(forms, Env.empty(level, legKernel), level, appExports, legStructs, legAppEnv(), clauses = sdk, file = { "/s.ex" })
+                .modules
+                .single()
+        }!!.getOrThrow()
     }
 
     /** [body] as a case module after [preamble], with the leg's modules' clauses, and [hook] added to it. */

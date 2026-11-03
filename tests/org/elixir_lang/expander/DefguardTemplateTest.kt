@@ -1,17 +1,12 @@
 package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangObject
-import com.intellij.openapi.application.ReadAction
-import com.intellij.psi.PsiFileFactory
-import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFGUARD_UNQUOTE_NAMES
 import org.elixir_lang.language_level.ElixirLanguageFeature.IN_RANGE_LITERAL_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
-import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.lowering.inspect
-import org.elixir_lang.psi.ElixirFile
 
 /**
  * The template `Kernel.Utils.defguard/2` gives each case's `defguard`, as the expander reaches it, against what
@@ -127,11 +122,7 @@ class DefguardTemplateTest : SdkProbeTestCase() {
     /** The last template the expander builds in [source]. */
     private fun pluginTemplate(source: String): ElixirAst? {
         val level = legLevel()
-        val forms = ReadAction.computeBlocking<ElixirAst, Throwable> {
-            val file = PsiFileFactory.getInstance(project).createFileFromText("probe.ex", ElixirLanguage, source)
-
-            Lowering.lower(file as ElixirFile, level)
-        }
+        val forms = lowered(source, level)
         var template: ElixirAst? = null
         val observer = object : ExpansionObserver {
             override fun entering(node: ElixirAst, state: ExState, env: Env) {}

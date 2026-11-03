@@ -8,7 +8,7 @@ schemas = [EctoFixture.Comment, EctoFixture.Post, EctoFixture.Tag, EctoFixture.A
 
 info =
   for module <- [EctoFixture.Queries, EctoFixture.Repo | schemas], into: %{} do
-    {module, %{functions: Enum.sort(module.__info__(:functions)), macros: Enum.sort(module.__info__(:macros))}}
+    {module, %{functions: module.__info__(:functions), macros: module.__info__(:macros)}}
   end
 
 File.write!(Path.join(out, "info.etf"), :erlang.term_to_binary(info))

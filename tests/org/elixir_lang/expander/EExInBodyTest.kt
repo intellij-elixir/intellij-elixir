@@ -58,9 +58,7 @@ class EExInBodyTest : SdkProbeTestCase() {
 
             "compiled ${exported(compiled.messages.single() as OtpErlangMap)}"
         }
-        val level = legLevel()
-        val forms = lowered(source, level)
-        val result = expandedOnAStack(forms, level, sdk, FIXED_STACK)
+        val result = expandedOnAStack(source, FIXED_STACK)
 
         assertEquals(expected, "${ending(result)} ${stored(result)}")
     }

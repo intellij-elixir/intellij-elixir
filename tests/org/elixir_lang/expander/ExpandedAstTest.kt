@@ -6,18 +6,13 @@ import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
-import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.TextRange
-import com.intellij.psi.PsiFileFactory
-import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.language_level.ElixirLanguageFeature.ANNOTATE_CASE
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_SORTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.IN_RANGE_LITERAL_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ENV_VERSIONED_VARS
 import org.elixir_lang.lowering.ElixirAst
-import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.lowering.inspect
-import org.elixir_lang.psi.ElixirFile
 
 /**
  * The expanded AST a run that asks for it builds for each case's expression, against what `:elixir_expand.expand`
@@ -185,11 +180,7 @@ class ExpandedAstTest : SdkProbeTestCase() {
     /** The node the run left at [range] in [source], or just inside it, and its expansion. */
     private fun pluginExpansion(source: String, range: TextRange): Pair<ElixirAst?, Expansion?> {
         val level = legLevel()
-        val forms = ReadAction.computeBlocking<ElixirAst, Throwable> {
-            val file = PsiFileFactory.getInstance(project).createFileFromText("probe.ex", ElixirLanguage, source)
-
-            Lowering.lower(file as ElixirFile, level)
-        }
+        val forms = lowered(source, level)
         val left = mutableMapOf<TextRange, Pair<ElixirAst, Expansion>>()
         val observer = object : ExpansionObserver {
             override fun entering(node: ElixirAst, state: ExState, env: Env) {}
