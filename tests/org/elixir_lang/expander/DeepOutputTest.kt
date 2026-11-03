@@ -30,13 +30,12 @@ class DeepOutputTest : ExpanderTestCase() {
      * where the walk's evaluation of the attribute is too deep before its expansion is.
      */
     fun testAnAttributeTooDeepToExpandStopsItsModuleAtItsBody() {
-        val level = ElixirLanguageLevel.of("1.20.4")
         var depth = FIRST_DEPTH
 
         while (true) {
             val body = "def y, do: 1\n  @x ${"1 + ".repeat(depth)}1\n  def x, do: @x"
             val code = "defmodule B do\n  $body\nend\n"
-            val ended = expandedOnAFixedStack(code, level, depth).modules.single { it.module == "Elixir.B" }.ended
+            val ended = expandedOnAFixedStack(code, depth).modules.single { it.module == "Elixir.B" }.ended
 
             if (ended is ExpansionResult.Ended.Stopped) {
                 val at = ended.at.meta.origin.substring(code)
@@ -54,12 +53,11 @@ class DeepOutputTest : ExpanderTestCase() {
 
     /** `x = 1 + 1 + ...`, written in the source outside any module: the file's top level stops, as a module's body does. */
     fun testAFormTooDeepToExpandOutsideAModuleStopsTheFile() {
-        val level = ElixirLanguageLevel.of("1.20.4")
         var depth = FIRST_DEPTH
 
         while (true) {
             val code = "x = ${"1 + ".repeat(depth)}1\n"
-            val top = expandedOnAFixedStack(code, level, depth).top
+            val top = expandedOnAFixedStack(code, depth).top
 
             if (top is Expansion.Unported) return
 
@@ -74,20 +72,13 @@ class DeepOutputTest : ExpanderTestCase() {
      * and what the match binds is unknown there, as where its right side declines, so a module nested after it defines
      * nothing from the value `x` held before.
      */
-    fun testAMatchTooDeepToRunLeavesWhatItBindsUnknown() {
-        val match = "x = f.(f, $RECURSION)"
-        val code = "defmodule O do\n  x = :a\n  ${recursiveFn("  ")}\n  $match\n\n  defmodule N do\n    def unquote(x)(), do: 1\n  end\nend\n"
-        val outer = expandedOnAFixedStack(code, ElixirLanguageLevel.of("1.20.4"), RECURSION).modules.single { it.module == "Elixir.O" }
-
-        assertStoppedAt(code, match, outer.ended)
-        assertDefinesNoA(outer.nested.single { it.module == "Elixir.O.N" })
-    }
+    fun testAMatchTooDeepToRunLeavesWhatItBindsUnknown() = assertMatchStops("", recursiveFn("  "), "f.(f, $RECURSION)", RECURSION)
 
     /** `x = f.(f, 100_000)` outside any module: the file stops at the match, and a module after it reads `x` as unknown. */
     fun testAMatchTooDeepToRunOutsideAModuleLeavesWhatItBindsUnknown() {
         val match = "x = f.(f, $RECURSION)"
         val code = "x = :a\n${recursiveFn("")}\n$match\n\ndefmodule T do\n  def unquote(x)(), do: 1\nend\n"
-        val expansion = expandedOnAFixedStack(code, ElixirLanguageLevel.of("1.20.4"), RECURSION)
+        val expansion = expandedOnAFixedStack(code, RECURSION)
         val top = expansion.top
 
         assertTrue("top: $top", top is Expansion.Unported && top.at.meta.origin.substring(code) == match)
@@ -102,7 +93,7 @@ class DeepOutputTest : ExpanderTestCase() {
     fun testADefinitionFragmentTooDeepToRunStoresTheDefinitionUnnamed() {
         val fragment = "unquote(f.(f, $RECURSION))"
         val code = "defmodule O do\n  ${recursiveFn("  ")}\n  def $fragment(), do: 1\n  def g, do: 1\nend\n"
-        val result = expandedOnAFixedStack(code, ElixirLanguageLevel.of("1.20.4"), RECURSION).modules.single { it.module == "Elixir.O" }
+        val result = expandedOnAFixedStack(code, RECURSION).modules.single { it.module == "Elixir.O" }
 
         assertStoppedAt(code, fragment, result.ended)
         assertEquals("${result.table.unnamed}", 1, result.table.unnamed.size)
@@ -119,7 +110,7 @@ class DeepOutputTest : ExpanderTestCase() {
             "{:defp, [], [{:f$LAST_DEPTH, [], []}, [do: :ok]]}"
         val code = "defmodule A do\n  defmacro m, do: {:__block__, [], [${definitions.joinToString()}]}\nend\n\n" +
             "defmodule B do\n  require A\n  A.m()\nend\n"
-        val ended = expandedOnAFixedStack(code, ElixirLanguageLevel.of("1.20.4"), LAST_DEPTH)
+        val ended = expandedOnAFixedStack(code, LAST_DEPTH)
             .modules.single { it.module == "Elixir.B" }.ended
 
         assertTrue(
@@ -139,7 +130,7 @@ class DeepOutputTest : ExpanderTestCase() {
 
     /** A tail loop that never ends, cancelled, ends with the cancel. */
     fun testATailLoopEndsWhenCancelled() {
-        val escaped = endedOnAFixedStack(calledFromAMacro("def loop(n), do: loop(n)", "", "H.loop(0)"), ElixirLanguageLevel.of("1.20.4"), checks = 1_000).exceptionOrNull()
+        val escaped = endedOnAFixedStack(calledFromAMacro("def loop(n), do: loop(n)", "", "H.loop(0)"), checks = 1_000).exceptionOrNull()
 
         assertTrue("escaped: $escaped", escaped is ProcessCanceledException)
     }
@@ -149,7 +140,7 @@ class DeepOutputTest : ExpanderTestCase() {
         val code = "defmodule CB do\n  defmacro __before_compile__(_) do\n" +
             "    quote(do: defmodule(Inner, do: @before_compile(CB)))\n  end\nend\n\n" +
             "defmodule B do\n  @before_compile CB\nend\n"
-        val ended = expandedOnAFixedStack(code, ElixirLanguageLevel.of("1.20.4"), depth = 0)
+        val ended = expandedOnAFixedStack(code, depth = 0)
             .modules.single { it.module == "Elixir.B" }.ended
 
         assertTrue("not stopped: $ended", ended is ExpansionResult.Ended.Stopped)
@@ -161,16 +152,23 @@ class DeepOutputTest : ExpanderTestCase() {
      * that site: its module stops at the call, or at the match, where what the match binds is unknown.
      */
     private fun assertLoopStops(definitions: String, setup: String, call: String) {
-        val level = ElixirLanguageLevel.of("1.20.4")
         val macroCode = calledFromAMacro(definitions, setup, call)
-        val fromMacro = expandedOnAFixedStack(macroCode, level, depth = 0, checks = LOOP_CHECKS)
+        val fromMacro = expandedOnAFixedStack(macroCode, depth = 0, checks = LOOP_CHECKS)
 
         assertStoppedAt(macroCode, "A.m()", fromMacro.modules.single { it.module == "Elixir.B" }.ended)
+        assertMatchStops(helper(definitions), setup, call, depth = 0, checks = LOOP_CHECKS)
+    }
 
+    /**
+     * `x = `[call], after [prefix] and, in `O`'s body, [setup], at [depth], cancelled at its [checks]th check where they
+     * are given: `O` stops at the match, and what it binds is unknown, so `O.N`, nested after it, defines nothing from the
+     * value `x` held before.
+     */
+    private fun assertMatchStops(prefix: String, setup: String, call: String, depth: Int, checks: Int? = null) {
         val match = "x = $call"
-        val code = helper(definitions) +
+        val code = prefix +
             "defmodule O do\n  x = :a\n  $setup\n  $match\n\n  defmodule N do\n    def unquote(x)(), do: 1\n  end\nend\n"
-        val outer = expandedOnAFixedStack(code, level, depth = 0, checks = LOOP_CHECKS).modules.single { it.module == "Elixir.O" }
+        val outer = expandedOnAFixedStack(code, depth, checks).modules.single { it.module == "Elixir.O" }
 
         assertStoppedAt(code, match, outer.ended)
         assertDefinesNoA(outer.nested.single { it.module == "Elixir.O.N" })
@@ -183,16 +181,16 @@ class DeepOutputTest : ExpanderTestCase() {
             "defmodule B do\n  require A\n  A.m()\nend\n"
 
     /** [code], expanded on a thread of [FIXED_STACK] bytes, cancelled at its [checks]th check there, with nothing thrown. */
-    private fun expandedOnAFixedStack(code: String, level: ElixirLanguageLevel, depth: Int, checks: Int? = null): FileExpansion =
-        endedOnAFixedStack(code, level, checks).getOrElse { throw AssertionError("escaped at depth $depth: $it", it) }
+    private fun expandedOnAFixedStack(code: String, depth: Int, checks: Int? = null): FileExpansion =
+        endedOnAFixedStack(code, checks).getOrElse { throw AssertionError("escaped at depth $depth: $it", it) }
 
     /**
      * [code], expanded on a thread of [FIXED_STACK] bytes, cancelled at its [checks]th check there where they are
      * given: its expansion, or what escaped it.
      */
-    private fun endedOnAFixedStack(code: String, level: ElixirLanguageLevel, checks: Int?): Result<FileExpansion> {
-        val forms = lower(code, level)
-        val expand = { Expander.expandFile(forms, Env.empty(level, kernel), level, exports, structs, NO_APP_ENV) }
+    private fun endedOnAFixedStack(code: String, checks: Int?): Result<FileExpansion> {
+        val forms = lower(code, LEVEL)
+        val expand = { Expander.expandFile(forms, Env.empty(LEVEL, kernel), LEVEL, exports, structs, NO_APP_ENV) }
 
         return onAStack(FIXED_STACK) {
             if (checks == null) expand() else whileCheckingIndicators(CancelAt(checks), expand)
@@ -205,12 +203,11 @@ class DeepOutputTest : ExpanderTestCase() {
      * depth grows by a quarter at a time: the output overflows at a depth some way short of the one where the body does.
      */
     private fun assertStopsAtTheCall(macros: (Int) -> String, call: String) {
-        val level = ElixirLanguageLevel.of("1.20.4")
         var depth = FIRST_DEPTH
 
         while (true) {
             val code = "defmodule A do\n  ${macros(depth)}\nend\n\ndefmodule B do\n  require A\n  $call\nend\n"
-            val ended = expandedOnAFixedStack(code, level, depth).modules.single { it.module == "Elixir.B" }.ended
+            val ended = expandedOnAFixedStack(code, depth).modules.single { it.module == "Elixir.B" }.ended
 
             if (ended is ExpansionResult.Ended.Stopped) {
                 assertEquals("at depth $depth", "A.m()", ended.at.meta.origin.substring(code))
@@ -239,6 +236,9 @@ class DeepOutputTest : ExpanderTestCase() {
     }
 
     private companion object {
+        /** The level each case expands at. */
+        val LEVEL: ElixirLanguageLevel = ElixirLanguageLevel.of("1.20.4")
+
         /** Shallow enough to expand on any thread. */
         const val FIRST_DEPTH = 256
 
