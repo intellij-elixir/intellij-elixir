@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title><%= report[:title] || "Nightly builds" %></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="<%= report[:theme_url] || "/static/dashboard/theme.css" %>" />
+
+    <%= if style_nonce do %>
+      <style nonce="<%= style_nonce %>">
+    <% else %>
+      <style>
+    <% end %>
+      body { margin: 0; font-family: system-ui, sans-serif; color: #1d2433; background: #f4f6fa; }
+      header { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 24px; background: #26324b; color: #fff; }
+      header small { opacity: 0.7; }
+      main { padding: 16px 24px; }
+      table.jobs { border-collapse: collapse; width: 100%; background: #fff; }
+      table.jobs th, table.jobs td { padding: 6px 10px; border-bottom: 1px solid #dfe3eb; text-align: left; }
+      table.jobs tr.failed td.state { color: #b3261e; font-weight: 600; }
+      table.jobs tr.passed td.state { color: #1e7b34; }
+      table.jobs tr.queued td.state { color: #6b7280; font-style: italic; }
+      .legend { margin: 12px 0; font-size: 0.85em; color: #4b5563; }
+      .empty { padding: 32px; text-align: center; color: #6b7280; }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <h1><%= report[:heading] || "Builds" %></h1>
+      <small>refreshed every <%= report[:refresh_seconds] || 60 %> seconds</small>
+    </header>
+
+    <main>
+      <p class="legend">
+        <%= for {name, value} <- Map.drop(report, [:jobs, :title, :heading, :theme_url, :refresh_seconds]) do %>
+          <span class="fact"><%= label(name) %>: <%= cell(label(name), value) %></span>
+        <% end %>
+      </p>
+
+      <%= if report[:jobs] do %>
+        <table class="jobs">
+          <thead>
+            <tr><th>Job</th><th>Branch</th><th>State</th><th>Took</th></tr>
+          </thead>
+          <tbody id="job-rows"></tbody>
+        </table>
+      <% else %>
+        <div class="empty">No job has run on <%= report.branch %> yet.</div>
+      <% end %>
+    </main>
+
+    <%= if script_nonce do %>
+      <script nonce="<%= script_nonce %>">
+    <% else %>
+      <script>
+    <% end %>
+      const csrf = "<%= csrf %>";
+      const rows = document.getElementById("job-rows");
+
+      <%= if report[:jobs] do %>
+        const jobs = <%=
+          report.jobs
+          |> Enum.sort_by(fn job -> {job.state, job.name} end)
+          |> Enum.map(fn job -> %{name: job.name, branch: job.branch, state: job.state, took: job.seconds} end)
+          |> encode()
+        %>;
+
+        for (const job of jobs) {
+          const row = document.createElement("tr");
+          row.className = job.state;
+          for (const field of ["name", "branch", "state", "took"]) {
+            const td = document.createElement("td");
+            td.className = field;
+            td.textContent = field === "took" ? job.took + " s" : job[field];
+            row.appendChild(td);
+          }
+          rows.appendChild(row);
+        }
+      <% end %>
+
+      setTimeout(function () {
+        fetch(window.location.href, { headers: { "x-csrf-token": csrf } })
+          .then(function (response) { if (response.ok) { window.location.reload(); } });
+      }, <%=
+        report
+        |> Map.get(:refresh_seconds, 60)
+        |> Kernel.*(1000)
+      %>);
+
+      <%= if report[:labels] do %>
+        const labels = <%=
+          report.labels
+          |> Map.new(fn {key, text} -> {label(key), text} end)
+          |> encode()
+        %>;
+        document.title = labels.Title || document.title;
+      <% end %>
+    </script>
+  </body>
+</html>

@@ -392,6 +392,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "=</2" -> bool(compare(args[0], args[1], level) <= 0)
             ">=/2" -> bool(compare(args[0], args[1], level) >= 0)
             "min/2" -> if (compare(args[0], args[1], level) > 0) args[1] else args[0]
+            "max/2" -> if (compare(args[0], args[1], level) < 0) args[1] else args[0]
             "not/1" -> bool(!(boolean(args[0]) ?: badarg()))
             "and/2" -> bool((boolean(args[0]) ?: badarg()) and (boolean(args[1]) ?: badarg()))
             "or/2" -> bool((boolean(args[0]) ?: badarg()) or (boolean(args[1]) ?: badarg()))
@@ -2263,13 +2264,18 @@ internal class Natives(private val evaluation: Evaluation) {
         return erlang(function, listOf(args[0], atom("utf8")))
     }
 
-    /** `String.Chars.to_string/1` by its `BitString`, `Atom` and `Integer` implementations; the others aren't read. */
+    /**
+     * `String.Chars.to_string/1` by its `BitString`, `Atom`, `Integer` and `List` implementations; the others aren't
+     * read. A list that `List.to_string/1` raises on declines, as its exceptions aren't `unicode`'s `badarg`.
+     */
     private fun toString(term: OtpErlangObject): OtpErlangObject =
         when {
             isBinary(term) -> term
             term == NIL -> binary("")
             term is OtpErlangAtom -> binary(term.atomValue())
             term is OtpErlangLong -> binary(term.bigIntegerValue().toString())
+            isList(term) ->
+                OtpErlangBinary(chardataBytes("characters_to_binary", listOf(term)) { decline("List.to_string/1 of %s, which is no chardata", term) })
             else -> decline("String.Chars of %s", term)
         }
 
@@ -2462,7 +2468,23 @@ internal class Natives(private val evaluation: Evaluation) {
         when (key) {
             "at/2" -> byteAt(args[0], args[1])
             "split/3" -> binarySplit(args[0], args[1], args[2])
+            "match/2" -> binaryMatches("binary:$key", args[0], args[1], global = false).firstOrNull()?.let(::part) ?: atom("nomatch")
+            "matches/2" -> list(binaryMatches("binary:$key", args[0], args[1], global = true).map(::part))
             else -> null
+        }
+
+    private fun binaryMatches(function: String, subject: OtpErlangObject, pattern: OtpErlangObject, global: Boolean) =
+        Filename.binaryMatches(nameBytes(function, subject), patterns(function, pattern), global)
+
+    private fun part(match: Pair<Int, Int>) = tuple(integer(match.first.toLong()), integer(match.second.toLong()))
+
+    /**
+     * The binaries the pattern [pattern] of [function] is: one binary, or a list of them, none empty; anything else, such
+     * as a compiled pattern, declines.
+     */
+    private fun patterns(function: String, pattern: OtpErlangObject): List<ByteArray> =
+        (properElements(seen(pattern))?.takeIf { it.isNotEmpty() } ?: listOf(pattern)).map {
+            nameBytes(function, it).takeIf { bytes -> bytes.isNotEmpty() } ?: decline("$function of an empty pattern")
         }
 
     /**
@@ -2470,9 +2492,7 @@ internal class Natives(private val evaluation: Evaluation) {
      * argument, such as the `trim` options, declines.
      */
     private fun binarySplit(subject: OtpErlangObject, pattern: OtpErlangObject, options: OtpErlangObject): OtpErlangObject {
-        val patterns = (properElements(seen(pattern))?.takeIf { it.isNotEmpty() } ?: listOf(pattern)).map {
-            nameBytes("binary:split/3", it).takeIf { bytes -> bytes.isNotEmpty() } ?: decline("binary:split/3 of an empty pattern")
-        }
+        val patterns = patterns("binary:split/3", pattern)
         val flags = properElements(seen(options)) ?: decline("binary:split/3 of %s, which is no list of options", options)
         val global = when {
             flags.isEmpty() -> false
@@ -2853,12 +2873,16 @@ internal class Natives(private val evaluation: Evaluation) {
         }
 
     /**
-     * The UTF-8 bytes of the chardata `unicode:`[function]`/1` is given in [args], raising `badarg` for a term that
-     * isn't chardata, which OTP checks before it encodes any of the term, up to the first integer too large to be small.
-     * Where a binary isn't UTF-8 or an integer isn't a code point, OTP gives `{error, ...}` or `{incomplete, ...}`, which
-     * decline.
+     * The UTF-8 bytes of the chardata `unicode:`[function]`/1` is given in [args], [notChardata] (`badarg`) for a term
+     * that isn't chardata, which OTP checks before it encodes any of the term, up to the first integer too large to be
+     * small. Where a binary isn't UTF-8 or an integer isn't a code point, OTP gives `{error, ...}` or `{incomplete, ...}`,
+     * which decline.
      */
-    private fun chardataBytes(function: String, args: List<OtpErlangObject>): ByteArray {
+    private fun chardataBytes(
+        function: String,
+        args: List<OtpErlangObject>,
+        notChardata: () -> Nothing = { evaluation.error(atom("badarg"), frame("unicode", function, list(args))) },
+    ): ByteArray {
         // One binary's bytes run on into the next's, so a character may be split between them.
         val bytes = Built()
         var codePoints = true
@@ -2868,7 +2892,7 @@ internal class Natives(private val evaluation: Evaluation) {
             codePoint(integer)?.let { bytes.write(Character.toString(it).toByteArray()) } ?: run { codePoints = false }
         }
 
-        if (!chardata) evaluation.error(atom("badarg"), frame("unicode", function, list(args)))
+        if (!chardata) notChardata()
         if (!codePoints) decline("$function/1 of %s, which holds no code point", args[0])
 
         return bytes.toByteArray().takeIf { utf8(OtpErlangBinary(it)) != null }

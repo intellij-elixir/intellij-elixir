@@ -7,6 +7,9 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.psi.PsiFileFactory
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.lowering.inspect
 import org.elixir_lang.parser_definition.ParsingTestCase
 import org.elixir_lang.psi.ElixirFile
@@ -46,6 +49,13 @@ abstract class SdkProbeTestCase(
         super.setUp()
 
         sdk = sdkClauses(project, testRootDisposable)
+    }
+
+    /** [text] parsed and lowered at [level]. */
+    protected fun lowered(text: String, level: ElixirLanguageLevel): ElixirAst {
+        val file = parse(text)
+
+        return ReadAction.computeBlocking<ElixirAst, Throwable> { Lowering.lower(file, level) }
     }
 
     /** [body] as a case module after [preamble], with the leg's modules' clauses, and [hook] added to it. */

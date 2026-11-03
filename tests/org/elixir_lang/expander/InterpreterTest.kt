@@ -10,16 +10,11 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangPid
 import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangTuple
-import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
-import com.intellij.psi.PsiFileFactory
 import com.intellij.util.system.OS
-import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.FIXED_STACK
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.SMALL_STACK
-import org.elixir_lang.coverage.ExpanderProgress
 import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
@@ -72,10 +67,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.UNREQUIRED_MACRO_CAL
 import org.elixir_lang.language_level.ElixirLanguageFeature.WITH_OPTIONS_BEFORE_LAST_ARGUMENT
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
-import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.lowering.inspect
-import org.elixir_lang.onAStack
-import org.elixir_lang.psi.ElixirFile
 import java.io.File
 import java.math.BigInteger
 import kotlin.time.Duration.Companion.seconds
@@ -86,70 +78,16 @@ import kotlin.time.Duration.Companion.seconds
  * Elixir's `Macro.expand_once/2` of the call, up to metadata and counters; the probes after the call against Elixir's;
  * and the definition table against what Elixir's `@before_compile` sees.
  */
-class InterpreterTest : PlatformTestCase() {
-    private val parse: (String) -> ElixirFile = { text ->
-        ReadAction.computeBlocking<ElixirFile, Throwable> {
-            PsiFileFactory.getInstance(project).createFileFromText("probe.ex", ElixirLanguage, text) as ElixirFile
-        }
-    }
-    private val harness = ProbeHarness(parse)
-    private val probes = ExpansionProbes(harness, definitions = true, parse = parse)
-    private lateinit var sdk: ModuleClauses.Lookup
-
-    /** [legExports], and where it has none, the module's [appBeams] `.beam`'s, as for `EEx`. */
-    private val sdkExports: Exports = HashMap<String, ModuleExports>().let { read ->
-        Exports { module ->
-            legExports.of(module).takeUnless { it == ModuleExports.Absent }
-                ?: read.getOrPut(module) {
-                    appBeams[module]?.let { LoadedModules.exports(it.readBytes(), it.path) } ?: ModuleExports.Absent
-                }
-        }
-    }
-
+class InterpreterTest : SdkProbeTestCase(definitions = true) {
     override fun setUp() {
         super.setUp()
 
-        sdk = sdkClauses(project, testRootDisposable)
         exUnitOnQuoter()
     }
 
-    fun testFromSource() = withEex { assertRows(Source.SOURCE) }
+    fun testFromSource() = harness.withEex { assertRows(Source.SOURCE) }
 
-    fun testFromDebugInfo() = withEex { assertRows(Source.DBGI) }
-
-    /**
-     * [block], with the leg's `EEx` and `Mix.Generator`, which the quoter's release doesn't hold, loaded from their
-     * [appBeams] `.beam`s for Elixir's compiles, as [probeLoaded] loads a module, then unloaded, so no other test's
-     * compile sees them.
-     */
-    private fun withEex(block: () -> Unit) {
-        val ebin = appBeams.getValue("Elixir.EEx").parentFile
-        val beams = (appBeams.filterValues { it.parentFile == ebin } + ("Elixir.Mix.Generator" to appBeams.getValue("Elixir.Mix.Generator")))
-            .entries
-            .joinToString(", ") { (module, beam) -> "{\"$module\", ${elixirString(beam.path)}}" }
-
-        val loaded = harness.compileSource(
-            """
-            for {name, path} <- [$beams] do
-              {:module, _} = :code.load_binary(String.to_atom(name), String.to_charlist(path), File.read!(path))
-            end
-            """.trimIndent(),
-        )
-
-        assertEquals("EEx's load", OtpErlangAtom("ok"), loaded.status)
-        try {
-            block()
-        } finally {
-            harness.compileSource(
-                """
-                for {name, _} <- [$beams] do
-                  :code.delete(String.to_atom(name))
-                  :code.purge(String.to_atom(name))
-                end
-                """.trimIndent(),
-            )
-        }
-    }
+    fun testFromDebugInfo() = harness.withEex { assertRows(Source.DBGI) }
 
     // A raise is the module's, or the file's, only where everything Elixir ran before it had an outcome the evaluator
     // produced. Each file's ending is Elixir's on 1.11.4 and 1.20.4, run.
@@ -1967,7 +1905,7 @@ class InterpreterTest : PlatformTestCase() {
             "top expanded\nmodule Elixir.M compiled [o/0 def, w/0 def]",
             tables = true,
             run = RunInputs(
-                exports = Exports { module -> copies[module]?.exports ?: sdkExports.of(module) },
+                exports = Exports { module -> copies[module]?.exports ?: appExports.of(module) },
                 clauses = ModuleClauses.Lookup { module -> copies[module]?.clauses ?: sdk.of(module) },
             ),
         )
@@ -2001,7 +1939,7 @@ class InterpreterTest : PlatformTestCase() {
         val level = legLevel()
 
         return Expander
-            .expandFile(lowered(code, level), Env.empty(level, legKernel), level, sdkExports, legStructs, legAppEnv(), clauses = sdk)
+            .expandFile(lowered(code, level), Env.empty(level, legKernel), level, appExports, legStructs, legAppEnv(), clauses = sdk)
             .modules
             .single()
     }
@@ -2094,26 +2032,9 @@ class InterpreterTest : PlatformTestCase() {
      */
     private fun endedOnAStack(code: String, stackSize: Long): String {
         val level = legLevel()
-        val forms = lowered(code, level)
-        val module = onAStack(stackSize) {
-            Expander.expandFile(
-                forms,
-                Env.empty(level, legKernel),
-                level,
-                sdkExports,
-                legStructs,
-                legAppEnv(),
-                clauses = sdk,
-                file = { "/s.ex" },
-            ).modules.single()
-        }!!.getOrThrow()
-        val ended = when (val ended = module.ended) {
-            Ended.Compiled -> "compiled"
-            is Ended.Stopped -> "stopped ${ExpanderProgress.shape(ended.at)}"
-            else -> "$ended"
-        }
+        val module = expandedOnAStack(lowered(code, level), level, sdk, stackSize)
 
-        return "$ended ${table(module)}"
+        return "${ending(module)} ${table(module)}"
     }
 
     // `Mix.Generator`'s embeds write `@file {__ENV__.file, __ENV__.line + 1}`. A run with no path reads `__ENV__.file` as
@@ -2236,7 +2157,7 @@ class InterpreterTest : PlatformTestCase() {
             lowered(code, level),
             Env.empty(level, legKernel),
             level,
-            run.exports ?: sdkExports,
+            run.exports ?: appExports,
             legStructs,
             legAppEnv(),
             clauses = run.clauses ?: sdk,
@@ -2282,7 +2203,7 @@ class InterpreterTest : PlatformTestCase() {
         val oracle = oracle(rows, token)
         val copies = if (source == Source.DBGI) copies(oracle.binaries) else emptyMap()
         val outputs = outputs(rows, token, source, copies)
-        val exports = Exports { module -> copies[module]?.exports ?: sdkExports.of(module) }
+        val exports = Exports { module -> copies[module]?.exports ?: appExports.of(module) }
         val hook = ProbeHarness.Hook()
         val clauses = ModuleClauses.Lookup { module -> copies[module]?.clauses ?: sdk.of(module) }
         val tokens = mutableListOf(token)
@@ -2458,7 +2379,7 @@ class InterpreterTest : PlatformTestCase() {
                     lowered(file, level),
                     Env.empty(level, legKernel),
                     level,
-                    sdkExports,
+                    appExports,
                     legStructs,
                     legAppEnv(),
                     observer,
@@ -2470,7 +2391,7 @@ class InterpreterTest : PlatformTestCase() {
             }
         }
 
-        val exports = Exports { module -> loaded[module] ?: copies[module]?.exports ?: sdkExports.of(module) }
+        val exports = Exports { module -> loaded[module] ?: copies[module]?.exports ?: appExports.of(module) }
         val clauses = ModuleClauses.Lookup { module ->
             sourceClauses[module] ?: copies[module]?.clauses ?: sdk.of(module)
         }
@@ -2514,12 +2435,6 @@ class InterpreterTest : PlatformTestCase() {
                 }
             }
         }
-    }
-
-    private fun lowered(text: String, level: ElixirLanguageLevel): ElixirAst {
-        val file = parse(text)
-
-        return ReadAction.computeBlocking<ElixirAst, Throwable> { Lowering.lower(file, level) }
     }
 
     /**
@@ -6094,6 +6009,41 @@ class InterpreterTest : PlatformTestCase() {
             ),
             macro("native:binary-split-trim", "defmacro m, do: Macro.escape(:binary.split(\"a/b/\", \"/\", [:trim]))", pins = DECLINED),
             macro("native:binary-split-list-subject", "defmacro m, do: Macro.escape(:binary.split(~c\"a/b\", \"/\", []))", pins = DECLINED),
+            // The earliest match wins, then the longest of those starting there, and `matches/2`'s don't overlap.
+            macro(
+                "native:binary-matches",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :binary.matches("abcabc", "bc"),
+                    :binary.matches("abcde", ["cd", "bcde"]),
+                    :binary.matches("abcd", ["ab", "abc"]),
+                    :binary.matches("aaaa", "aa"),
+                    :binary.matches("abc", "x"),
+                    :binary.matches("", "a"),
+                    :binary.matches("a\"b\\c", ["\"", "\\"])
+                  ])
+                end
+                """,
+            ),
+            macro(
+                "native:binary-match",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :binary.match("abcabc", "bc"),
+                    :binary.match("abcde", ["cd", "bcde"]),
+                    :binary.match("abcd", ["ab", "abc"]),
+                    :binary.match("abc", "x"),
+                    :binary.match("", "a")
+                  ])
+                end
+                """,
+            ),
+            macro("native:binary-matches-empty-pattern", "defmacro m, do: Macro.escape(:binary.matches(\"abc\", \"\"))", pins = DECLINED),
+            macro("native:binary-match-no-patterns", "defmacro m, do: Macro.escape(:binary.match(\"abc\", []))", pins = DECLINED),
+            macro("native:binary-matches-list-subject", "defmacro m, do: Macro.escape(:binary.matches(~c\"abc\", \"b\"))", pins = DECLINED),
+            macro("native:binary-match-atom-pattern", "defmacro m, do: Macro.escape(:binary.match(\"abc\", :b))", pins = DECLINED),
             macro(
                 "native:filename-dirname",
                 """
@@ -10939,6 +10889,15 @@ class InterpreterTest : PlatformTestCase() {
             macro("native:binary-at-bitstring", "defmacro m, do: :binary.at(<<1, 2::4>>, 0)"),
             // Terms that compare equal give the first.
             macro("native:min", "defmacro m, do: [:erlang.min(1, 2), :erlang.min(2, 1), :erlang.min(1, 1.0), :erlang.min(1.0, 1), :erlang.min(:a, 1)]"),
+            macro("native:max", "defmacro m, do: [:erlang.max(1, 2), :erlang.max(2, 1), :erlang.max(1, 1.0), :erlang.max(1.0, 1), :erlang.max(:a, 1)]"),
+            macro(
+                "native:to-string-chardata",
+                "defmacro m, do: [to_string(~c\"abc\"), to_string([?a, \"b\", [?c]]), to_string([]), to_string([233, 128512])]",
+            ),
+            // `List.to_string/1` raises `ArgumentError` or `UnicodeConversionError` where `unicode` would give `badarg`.
+            macro("native:to-string-not-chardata", "defmacro m, do: to_string([:a])", pins = DECLINED),
+            macro("native:to-string-no-code-point", "defmacro m, do: to_string([55296])", pins = DECLINED),
+            macro("native:to-string-incomplete", "defmacro m, do: to_string([<<195>>])", pins = DECLINED),
             // Elixir's static options, which its boot sets.
             macro("native:identifier_tokenizer", "defmacro m, do: :elixir_config.identifier_tokenizer()", legs = STATIC_OPTIONS_IN_PERSISTENT_TERM::isSufficient),
             macro("native:is_bootstrap", "defmacro m, do: :elixir_config.is_bootstrap()", legs = STATIC_OPTIONS_IN_PERSISTENT_TERM::isSufficient),

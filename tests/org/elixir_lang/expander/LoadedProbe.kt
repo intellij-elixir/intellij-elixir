@@ -11,8 +11,12 @@ import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiManager
 import junit.framework.TestCase.assertEquals
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.onAStack
 import org.elixir_lang.psi.ElixirFile
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 /** Each `.beam` in every app of the leg's Elixir and OTP, by module as atom text. */
 internal val appBeams: Map<String, File> by lazy {
@@ -87,6 +91,56 @@ internal fun ProbeHarness.probeLoaded(modules: List<String>, answer: String): Ma
             (module as OtpErlangAtom).atomValue() to (value as? OtpErlangTuple)?.elementAt(1)
         }
     }.toMap()
+
+/** [legExports], and where it has none, the module's [appBeams] `.beam`'s, as for `EEx`, each read once. */
+internal val appExports: Exports = ConcurrentHashMap<String, ModuleExports>().let { read ->
+    Exports { module ->
+        legExports.of(module).takeUnless { it == ModuleExports.Absent }
+            ?: read.computeIfAbsent(module) { appBeams[module]?.let { LoadedModules.exports(it.readBytes(), it.path) } ?: ModuleExports.Absent }
+    }
+}
+
+/** The one module of [forms], expanded from `/s.ex` at [level] with [clauses] on a thread of [stackSize] bytes. */
+internal fun expandedOnAStack(forms: ElixirAst, level: ElixirLanguageLevel, clauses: ModuleClauses.Lookup, stackSize: Long): ExpansionResult =
+    onAStack(stackSize) {
+        Expander.expandFile(forms, Env.empty(level, legKernel), level, appExports, legStructs, legAppEnv(), clauses = clauses, file = { "/s.ex" })
+            .modules
+            .single()
+    }!!.getOrThrow()
+
+/**
+ * [block], with the leg's `EEx` and `Mix.Generator`, which the quoter's release doesn't hold, loaded from their
+ * [appBeams] `.beam`s for Elixir's compiles, as [probeLoaded] loads a module, then unloaded, so no other test's compile
+ * sees them.
+ */
+internal fun <T> ProbeHarness.withEex(block: () -> T): T {
+    val ebin = appBeams.getValue("Elixir.EEx").parentFile
+    val beams = (appBeams.filterValues { it.parentFile == ebin } + ("Elixir.Mix.Generator" to appBeams.getValue("Elixir.Mix.Generator")))
+        .entries
+        .joinToString(", ") { (module, beam) -> "{\"$module\", ${elixirString(beam.path)}}" }
+
+    val loaded = compileSource(
+        """
+        for {name, path} <- [$beams] do
+          {:module, _} = :code.load_binary(String.to_atom(name), String.to_charlist(path), File.read!(path))
+        end
+        """.trimIndent(),
+    )
+
+    assertEquals("EEx's load", OtpErlangAtom("ok"), loaded.status)
+    try {
+        return block()
+    } finally {
+        compileSource(
+            """
+            for {name, _} <- [$beams] do
+              :code.delete(String.to_atom(name))
+              :code.purge(String.to_atom(name))
+            end
+            """.trimIndent(),
+        )
+    }
+}
 
 /** [text] as an Elixir string literal, so a Windows path's backslashes aren't read as escapes. */
 internal fun elixirString(text: String): String =

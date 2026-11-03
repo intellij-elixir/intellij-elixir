@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4625](https://github.com/intellij-elixir/intellij-elixir/pull/4625) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, a module using Phoenix's verified routes no longer stops at its first `~p`, `path` or `url`, so its functions after them are known.** Refs [#4597](https://github.com/intellij-elixir/intellij-elixir/issues/4597).
+
 - [#4622](https://github.com/intellij-elixir/intellij-elixir/pull/4622) [@sh41](https://github.com/sh41)
   - **With "Run the expander" on, tail-recursive code that a macro runs at expansion, such as the EEx tokenizer walking a long template in Makeup's HTML style, no longer stops its module as too deep, and matching the rest of a long binary runs faster.** Refs [#4604](https://github.com/intellij-elixir/intellij-elixir/issues/4604).
 
