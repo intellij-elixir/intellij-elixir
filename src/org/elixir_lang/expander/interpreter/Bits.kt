@@ -617,13 +617,26 @@ internal class Bits(private val evaluation: Evaluation) {
             for (position in 0 until count) bit(value.testBit(valueBit(position, count, little)))
         }
 
-        /** [value]'s first [count] bits. */
+        /** [value]'s first [count] bits, each byte of them split over the two it straddles, or copied where it straddles none. */
         fun bitstring(value: OtpErlangBitstr, count: Int) {
             reserve(count)
+            ProgressManager.checkCanceled()
 
-            val source = value.binaryValue()
+            val source = if (count % 8 == 0) value.binaryValue() else shifted(value.binaryValue(), 0, count)
+            val size = (count + 7) / 8
+            val start = length / 8
+            val shift = length % 8
 
-            for (index in 0 until count) bit(source[index / 8].toInt() and (0x80 ushr (index % 8)) != 0)
+            if (start + size >= bytes.size) bytes = bytes.copyOf(maxOf(bytes.size * 2, start + size + 1))
+
+            for (index in 0 until size) {
+                val unsigned = source[index].toInt() and 0xFF
+
+                bytes[start + index] = (bytes[start + index].toInt() or (unsigned ushr shift)).toByte()
+                if (shift != 0) bytes[start + index + 1] = (unsigned shl (8 - shift)).toByte()
+            }
+
+            length += count
         }
 
         /** Whether the bits written so far fill whole bytes. */
@@ -656,8 +669,18 @@ internal class Bits(private val evaluation: Evaluation) {
             return if (signed && count > 0 && value.testBit(count - 1)) value - BigInteger.ONE.shiftLeft(count) else value
         }
 
-        /** [count] bits from [offset], each byte of them shifted out of the two it straddles, or copied where it straddles none. */
-        fun bitstring(offset: Int, count: Int): OtpErlangBitstr {
+        /** [count] bits from [offset] ([shifted]). */
+        fun bitstring(offset: Int, count: Int): OtpErlangBitstr = bitstring(shifted(bytes, offset, count), (8 - count % 8) % 8)
+    }
+
+    private companion object {
+        val MAX_UNIT: BigInteger = BigInteger.valueOf(256)
+
+        /**
+         * [count] bits of [bytes] from [offset], each byte of them shifted out of the two it straddles, or copied where it
+         * straddles none, and the bits past the last cleared.
+         */
+        fun shifted(bytes: ByteArray, offset: Int, count: Int): ByteArray {
             val start = offset / 8
             val shift = offset % 8
             val size = (count + 7) / 8
@@ -675,12 +698,8 @@ internal class Bits(private val evaluation: Evaluation) {
 
             if (ragged != 0) copied[copied.size - 1] = (copied.last().toInt() and (0xFF shl (8 - ragged))).toByte()
 
-            return bitstring(copied, (8 - ragged) % 8)
+            return copied
         }
-    }
-
-    private companion object {
-        val MAX_UNIT: BigInteger = BigInteger.valueOf(256)
 
         /**
          * The bit of a [count]-bit integer at [position] in its segment. Little-endian, its whole bytes come lowest first,
