@@ -656,12 +656,26 @@ internal class Bits(private val evaluation: Evaluation) {
             return if (signed && count > 0 && value.testBit(count - 1)) value - BigInteger.ONE.shiftLeft(count) else value
         }
 
+        /** [count] bits from [offset], each byte of them shifted out of the two it straddles, or copied where it straddles none. */
         fun bitstring(offset: Int, count: Int): OtpErlangBitstr {
-            val writer = Writer()
+            val start = offset / 8
+            val shift = offset % 8
+            val size = (count + 7) / 8
+            val copied = if (shift == 0) {
+                bytes.copyOfRange(start, start + size)
+            } else {
+                ByteArray(size) { index ->
+                    val high = bytes[start + index].toInt() shl shift
+                    val low = if (start + index + 1 == bytes.size) 0 else (bytes[start + index + 1].toInt() and 0xFF) ushr (8 - shift)
 
-            for (index in 0 until count) writer.integer(if (bit(offset + index)) BigInteger.ONE else BigInteger.ZERO, 1, false)
+                    (high or low).toByte()
+                }
+            }
+            val ragged = count % 8
 
-            return writer.bitstring()
+            if (ragged != 0) copied[copied.size - 1] = (copied.last().toInt() and (0xFF shl (8 - ragged))).toByte()
+
+            return bitstring(copied, (8 - ragged) % 8)
         }
     }
 
