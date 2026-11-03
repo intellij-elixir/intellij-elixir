@@ -188,6 +188,9 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
         initialName = sdk.name
         initialPath = sdk.homePath
         val sdkModificator = sdk.sdkModificator
+        if (!FileUtil.pathsEqual(homeValue, sdk.homePath ?: "")) {
+            sdkModificator.versionString = _versionString
+        }
         sdkModificator.homePath = FileUtil.toSystemDependentName(homeValue)
 
         sdkPathEditorByOrderRootType.values.forEach { pathEditor -> pathEditor.apply(sdkModificator) }
@@ -273,8 +276,11 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
 
             try {
                 val dummySdk = sdk.clone() as Sdk
+                // Read before the write action: under write access the versions store returns without reading.
+                val versionString = sdkType.getVersionString(homePath)
                 val dummySdkModificator = dummySdk.sdkModificator.apply {
                     this.homePath = homePath
+                    this.versionString = versionString
                     removeAllRoots()
                 }
                 ApplicationManager.getApplication().runWriteAction { dummySdkModificator.commitChanges() }

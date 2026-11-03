@@ -127,6 +127,9 @@ class EditorTest : PlatformTestCase() {
             assertTrue("a CLASSES root lies under the new home: $roots", roots.any { FileUtil.isAncestor(homeB, it, false) })
             assertFalse("no CLASSES root lies under the old home: $roots", roots.any { FileUtil.isAncestor(homeA, it, false) })
             assertEquals("browsing renames nothing", name, sdk.name)
+            val versionB = onEdt { sdkType.getVersionString(homeB) }
+            assertFalse("the two homes' versions must differ", versionB == onEdt { sdkType.getVersionString(homeA) })
+            assertEquals("the version is the new home's", versionB, sdk.versionString)
         } finally {
             onEdt { editor.disposeUIResources() }
         }
