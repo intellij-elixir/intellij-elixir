@@ -1883,10 +1883,7 @@ internal class Evaluation(
                 attributesWritten(given, module, function, args.size, args.indices.filter { args[it] == atom(given) })
             }
 
-            throw gave(declined) {
-                written.forEach(::written)
-                add(args.filterNot { arg -> written.any { arg == atom(it.module) } }, run.compiling.keys)
-            }
+            throw calledGave(declined, args, written)
         }
 
     /** [call], given [args]: a decline in it may have written each module being compiled that [args] give it ([Given]). */
@@ -1894,7 +1891,17 @@ internal class Evaluation(
         try {
             call()
         } catch (declined: Declined) {
-            throw gave(declined) { add(args, run.compiling.keys) }
+            throw calledGave(declined, args)
+        }
+
+    /**
+     * [declined], escaping a call given [args], which may have written each module being compiled that [args] give it,
+     * but an argument that is a module whose writes the call's clauses say ([written]) gives only those.
+     */
+    private fun calledGave(declined: Declined, args: List<OtpErlangObject>, written: List<AttributesWritten> = emptyList()): Declined =
+        gave(declined) {
+            written.forEach(::written)
+            add(args.filterNot { arg -> written.any { arg == atom(it.module) } }, run.compiling.keys)
         }
 
     private fun evalTry(options: ElixirAst, frame: Frame): OtpErlangObject {

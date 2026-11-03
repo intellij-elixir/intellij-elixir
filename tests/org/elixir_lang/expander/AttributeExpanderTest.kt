@@ -438,6 +438,114 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
         )
 
+    /**
+     * A function called from the module body whose last call, given the module, writes an attribute and then declines:
+     * a later read of the attribute isn't known.
+     */
+    fun testALastCallGivenTheModuleThatDeclinesLeavesALaterReadUnknown() =
+        assertEvery(
+            """
+            defmodule H do
+              def a, do: b(:"Elixir.C")
+
+              def b(mod) do
+                Module.put_attribute(mod, :x, 1)
+                Process.get(:k, 2)
+              end
+            end
+
+            defmodule C do
+              @x 0
+              H.a()
+              def f, do: @x
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.H compiled
+            module Elixir.C stopped `defmodule C do
+              @x 0
+              H.a()
+              def f, do: @x
+            end`
+              write x 0 `@x 0`
+              write x 1 `H.a()`
+              read x in def f/0: unexpanded
+              final x: unknown
+              attributes f/0: impls [unknown]; doc unknown; deprecated unknown
+            """.trimIndent(),
+        )
+
+    /** As a last call, a capture called with the module, which writes an attribute and then declines. */
+    fun testALastCaptureCallGivenTheModuleThatDeclinesLeavesALaterReadUnknown() =
+        assertEvery(
+            """
+            defmodule H do
+              def a, do: (&b/1).(:"Elixir.C")
+
+              def b(mod) do
+                Module.put_attribute(mod, :x, 1)
+                Process.get(:k, 2)
+              end
+            end
+
+            defmodule C do
+              @x 0
+              H.a()
+              def f, do: @x
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.H compiled
+            module Elixir.C stopped `defmodule C do
+              @x 0
+              H.a()
+              def f, do: @x
+            end`
+              write x 0 `@x 0`
+              write x 1 `H.a()`
+              read x in def f/0: unexpanded
+              final x: unknown
+              attributes f/0: impls [unknown]; doc unknown; deprecated unknown
+            """.trimIndent(),
+        )
+
+    /** As a last call, `:erlang.apply/2` of a capture, given the module, which writes an attribute and then declines. */
+    fun testALastApplyOfACaptureGivenTheModuleThatDeclinesLeavesALaterReadUnknown() =
+        assertEvery(
+            """
+            defmodule H do
+              def a, do: :erlang.apply(&b/1, [:"Elixir.C"])
+
+              def b(mod) do
+                Module.put_attribute(mod, :x, 1)
+                Process.get(:k, 2)
+              end
+            end
+
+            defmodule C do
+              @x 0
+              H.a()
+              def f, do: @x
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.H compiled
+            module Elixir.C stopped `defmodule C do
+              @x 0
+              H.a()
+              def f, do: @x
+            end`
+              write x 0 `@x 0`
+              write x 1 `H.a()`
+              read x in def f/0: unexpanded
+              final x: unknown
+              attributes f/0: impls [unknown]; doc unknown; deprecated unknown
+            """.trimIndent(),
+        )
+
     /** A `@deprecated` that isn't a binary raises at its write, so the walk stops there, a value a term can't hold too. */
     fun testADeprecatedThatIsntABinaryStopsAtItsWrite() =
         assertEvery(
