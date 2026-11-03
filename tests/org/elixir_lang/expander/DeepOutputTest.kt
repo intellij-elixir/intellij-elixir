@@ -1,5 +1,7 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProcessCanceledException
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageLevel
 
 /**
@@ -125,6 +127,22 @@ class DeepOutputTest : ExpanderTestCase() {
         )
     }
 
+    /** `loop(n), do: loop(n)`, a tail loop that never ends, stops as one too deep to run does ([assertLoopStops]). */
+    fun testATailLoopThatNeverEndsStopsAsTooDeep() = assertLoopStops("def loop(n), do: loop(n)", "", "H.loop(0)")
+
+    /** `loop(n), do: loop(n + 1)`, a tail loop that never ends and gives each call a new value, stops as one too deep to run does. */
+    fun testAnAccumulatingTailLoopStopsAsTooDeep() = assertLoopStops("def loop(n), do: loop(n + 1)", "", "H.loop(0)")
+
+    /** `f.(f)`, where `f = fn f -> f.(f) end`, a tail loop of an `fn` that never ends, stops as one too deep to run does. */
+    fun testATailFnLoopThatNeverEndsStopsAsTooDeep() = assertLoopStops("", "f = fn f -> f.(f) end", "f.(f)")
+
+    /** A tail loop that never ends, cancelled, ends with the cancel. */
+    fun testATailLoopEndsWhenCancelled() {
+        val escaped = endedOnAFixedStack(calledFromAMacro("def loop(n), do: loop(n)", "", "H.loop(0)"), ElixirLanguageLevel.of("1.20.4"), checks = 1_000).second
+
+        assertTrue("escaped: $escaped", escaped is ProcessCanceledException)
+    }
+
     /** A `@before_compile` callback that writes a module with the same callback nests modules without end: `B` stops. */
     fun testACallbackNestingModulesWithoutEndStopsItsModule() {
         val code = "defmodule CB do\n  defmacro __before_compile__(_) do\n" +
@@ -136,16 +154,62 @@ class DeepOutputTest : ExpanderTestCase() {
         assertTrue("not stopped: $ended", ended is ExpansionResult.Ended.Stopped)
     }
 
-    /** [code], expanded on a thread of [FIXED_STACK] bytes, with nothing thrown. */
-    private fun expandedOnAFixedStack(code: String, level: ElixirLanguageLevel, depth: Int): FileExpansion {
+    /**
+     * The loop [call] makes, after [setup], of [definitions], `H`'s where there are any, run from a macro called in a module body and from a
+     * module-body match, each under a cancel well past the checks it makes before it stops, ends as an overflow does at
+     * that site: its module stops at the call, or at the match, where what the match binds is unknown.
+     */
+    private fun assertLoopStops(definitions: String, setup: String, call: String) {
+        val level = ElixirLanguageLevel.of("1.20.4")
+        val macroCode = calledFromAMacro(definitions, setup, call)
+        val fromMacro = expandedOnAFixedStack(macroCode, level, depth = 0, checks = LOOP_CHECKS)
+
+        assertStoppedAt(macroCode, "A.m()", fromMacro.modules.single { it.module == "Elixir.B" }.ended)
+
+        val match = "x = $call"
+        val code = helper(definitions) +
+            "defmodule O do\n  x = :a\n  $setup\n  $match\n\n  defmodule N do\n    def unquote(x)(), do: 1\n  end\nend\n"
+        val outer = expandedOnAFixedStack(code, level, depth = 0, checks = LOOP_CHECKS).modules.single { it.module == "Elixir.O" }
+
+        assertStoppedAt(code, match, outer.ended)
+        assertDefinesNoA(outer.nested.single { it.module == "Elixir.O.N" })
+    }
+
+    /** `B`, which calls `A.m()`, a macro whose body makes [call], after [setup], of [definitions], `H`'s. */
+    private fun calledFromAMacro(definitions: String, setup: String, call: String): String =
+        helper(definitions) +
+            "defmodule A do\n  defmacro m do\n    $setup\n    $call\n  end\nend\n\n" +
+            "defmodule B do\n  require A\n  A.m()\nend\n"
+
+    /** [code], expanded on a thread of [FIXED_STACK] bytes, cancelled at its [checks]th check there, with nothing thrown. */
+    private fun expandedOnAFixedStack(code: String, level: ElixirLanguageLevel, depth: Int, checks: Int? = null): FileExpansion {
+        val (expansion, escaped) = endedOnAFixedStack(code, level, checks)
+
+        assertNull("escaped at depth $depth: $escaped", escaped)
+
+        return expansion!!
+    }
+
+    /**
+     * [code], expanded on a thread of [FIXED_STACK] bytes, cancelled at its [checks]th check there where they are
+     * given: its expansion, or what escaped it.
+     */
+    private fun endedOnAFixedStack(code: String, level: ElixirLanguageLevel, checks: Int?): Pair<FileExpansion?, Throwable?> {
         val forms = lower(code, level)
         var expansion: FileExpansion? = null
         var escaped: Throwable? = null
+        val expand = { expansion = Expander.expandFile(forms, Env.empty(level, kernel), level, exports, structs, NO_APP_ENV) }
         val thread = Thread(
             null,
             {
                 try {
-                    expansion = Expander.expandFile(forms, Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
+                    if (checks == null) {
+                        expand()
+                    } else {
+                        val indicator = CancelAt(checks)
+
+                        whileCheckingIndicators { ProgressManager.getInstance().runProcess(expand, indicator) }
+                    }
                 } catch (e: Throwable) {
                     escaped = e
                 }
@@ -157,9 +221,7 @@ class DeepOutputTest : ExpanderTestCase() {
         thread.start()
         thread.join()
 
-        assertNull("escaped at depth $depth: $escaped", escaped)
-
-        return expansion!!
+        return expansion to escaped
     }
 
     /**
@@ -187,6 +249,10 @@ class DeepOutputTest : ExpanderTestCase() {
         }
     }
 
+    /** `H`, which defines [definitions], where there are any. */
+    private fun helper(definitions: String): String =
+        if (definitions.isEmpty()) "" else "defmodule H do\n  $definitions\nend\n\n"
+
     private fun assertStoppedAt(code: String, source: String, ended: ExpansionResult.Ended) {
         assertTrue("not stopped: $ended", ended is ExpansionResult.Ended.Stopped)
         assertEquals(source, (ended as ExpansionResult.Ended.Stopped).at.meta.origin.substring(code))
@@ -206,6 +272,9 @@ class DeepOutputTest : ExpanderTestCase() {
 
         /** `f`, which calls itself `n` times, not in tail position, written at [indent]. */
         fun recursiveFn(indent: String): String = "f = fn\n$indent  _, 0 -> :b\n$indent  f, n -> hd([f.(f, n - 1)])\n${indent}end"
+
+        /** Well past the checks these tail loops make before they stop as too deep to run, at most 16 a call. */
+        const val LOOP_CHECKS = 50_000_000
 
         /** Deep enough to overflow [FIXED_STACK]. */
         const val LAST_DEPTH = 1 shl 14
