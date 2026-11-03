@@ -357,33 +357,32 @@ internal class Run(
 
     /**
      * Whether code the expander doesn't follow ran, which may have changed the directory the compile runs in
-     * ([workingDirectory]); once set it stays.
+     * ([workingDirectory]) and created modules with `Module.create/3` ([maybeCreated]); once set it stays.
      */
-    var directoryMayHaveChanged = false
-        private set
+    private var unfollowedRan = false
 
     /** Code the expander doesn't follow ran, or may have: a decline the walk went on past, a stop, a macro or callback it lost. */
     fun unfollowedCodeRan() {
-        directoryNoLongerKnown()
+        declinedCodeRan()
         config?.unitDeclined()
     }
 
     /**
-     * A unit declined, so what it ran isn't known. What that means for a read's table is for the unit's recording to say,
-     * as only that knows whether the unit is ported.
+     * Code declined, and the evaluation or the walk went on past it, so what it ran isn't known. What that means for a
+     * read's table is for the unit's recording to say, as only that knows whether the unit is ported.
      */
-    fun directoryNoLongerKnown() {
-        directoryMayHaveChanged = true
+    fun declinedCodeRan() {
+        unfollowedRan = true
     }
 
     /**
      * The directory Elixir compiles [file] in now, a config read's project's in a read, which `file:get_cwd/0`,
      * `Path.relative_to_cwd/1` and `filename:absname/1` read, `null` where it isn't known: where [directories] doesn't
-     * have it, or code the expander doesn't follow may have changed it ([directoryMayHaveChanged]). On Windows its drive
+     * have it, or code the expander doesn't follow may have changed it ([unfollowedRan]). On Windows its drive
      * letter is lowercase, as OTP gives it.
      */
     fun workingDirectory(file: String): String? {
-        if (directoryMayHaveChanged) return null
+        if (unfollowedRan) return null
 
         val directory = config?.directory ?: directories.of(file) ?: return null
 
@@ -538,16 +537,24 @@ internal class Run(
 
     /**
      * What each module exports: one the run compiled, what it defined; one it is compiling, nothing, as Elixir hasn't
-     * loaded it; any other, what [exports] gives.
+     * loaded it; any other, what [exports] gives, unless code the expander doesn't follow may have created it
+     * ([maybeCreated]).
      */
     val exports = Exports { module ->
         compiled[module] ?: if (module in compiling) {
             ModuleExports.Absent
         } else {
             consulted += module
-            exports.of(module)
+            maybeCreated(exports.of(module), ModuleExports.Absent, ModuleExports.Unreadable)
         }
     }
+
+    /**
+     * [answer], for a module the run neither compiled nor is compiling, or [unreadable] where it is [absent] and code the
+     * expander doesn't follow ran ([unfollowedRan]), which may have created it with `Module.create/3`. Such code is taken
+     * not to redefine or unload a module whose answer is already present.
+     */
+    private fun <T> maybeCreated(answer: T, absent: T, unreadable: T): T = if (answer == absent && unfollowedRan) unreadable else answer
 
     /**
      * `Module.open?/1` of [module]: whether it is being compiled, or `null` for one the run didn't compile, which another
@@ -566,10 +573,11 @@ internal class Run(
     /**
      * [module]'s struct: one the run is compiling, the record its `defstruct` made, or none before it, and unreadable
      * where the module defines `__struct__/1` itself, which Elixir calls; one it compiled, what it left; any other,
-     * what [structs] gives.
+     * what [structs] gives, unless code the expander doesn't follow may have created it ([maybeCreated]).
      */
     fun structOf(module: String): ModuleStruct {
-        val inProgress = compiling[module] ?: return compiledStructs[module] ?: structs.of(module)
+        val inProgress = compiling[module]
+            ?: return compiledStructs[module] ?: maybeCreated(structs.of(module), ModuleStruct.Absent, ModuleStruct.Unreadable)
 
         return LoadedModules.recorded(inProgress.struct, inProgress.table)
     }

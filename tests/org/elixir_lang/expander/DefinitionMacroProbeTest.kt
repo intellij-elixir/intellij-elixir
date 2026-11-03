@@ -39,19 +39,29 @@ class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
 
     /**
      * A non-empty `@derive` goes on past the `__deriving__` macro Elixir expands when the struct is defined, whose output
-     * isn't followed, so a `def` after the struct is stored.
+     * isn't followed, so a `def` after the struct is stored. Where protocols don't compile ([protocolsCompile]), the
+     * preamble's protocol stops, and a struct that derives it stops at its `defstruct`.
      */
     fun testADeriveGoesOnPastItsMacro() {
-        val expansions = DERIVES.associateWith { expand("$it\ndef after_struct, do: 1", DERIVE_PREAMBLE) }
+        val stops = !protocolsCompile(legLevel())
+        val expansions = (DERIVES + DERIVES_FILES_PROTOCOL)
+            .associateWith { expand("$it\ndef after_struct, do: 1", DERIVE_PREAMBLE) }
+        val going = if (stops) expansions - DERIVES_FILES_PROTOCOL else expansions
 
-        assertCompiled(expansions)
+        assertCompiled(going)
         assertEquals(
-            DERIVES.joinToString("\n") { "${it.replace("\n", "; ")}: true" },
-            expansions.map { (body, expansion) ->
+            going.keys.joinToString("\n") { "${it.replace("\n", "; ")}: true" },
+            going.map { (body, expansion) ->
                 "${body.replace("\n", "; ")}: ${expansion.result.table.entries.keys.any { it.name == "after_struct" }}"
             }.joinToString("\n"),
         )
-        printed { probes.assertMatchesElixirUpToMacro(expansions) }
+        if (stops) {
+            val expansion = expansions.getValue(DERIVES_FILES_PROTOCOL)
+            val at = (expansion.ended as? ExpansionResult.Ended.Stopped)?.at
+
+            assertEquals("defstruct [:a]", at?.let(expansion::source))
+        }
+        printed { probes.assertMatchesElixirUpToMacro(going) }
     }
 
     /** A protocol after one whose macro the module went past stops it, where its derivation can't be followed. */
@@ -330,8 +340,10 @@ class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
             "a = 1\n@derive Inspect\ndefstruct [:a]",
             "def before, do: 1\n@derive Inspect\ndefstruct [:a]",
             "@derive Inspect\ndefexception [:message]",
-            "@derive [{token}.Macro]\n@derive [Inspect]\ndefstruct [:a]",
         )
+
+        /** As [DERIVES], with the preamble's protocol, whose `__deriving__` macro is followed, derived first. */
+        const val DERIVES_FILES_PROTOCOL = "@derive [{token}.Macro]\n@derive [Inspect]\ndefstruct [:a]"
 
         /** Each goes past `Inspect`'s macro to a protocol it can't follow: a fallback, and a value Elixir reads. */
         val LATER_STOPS = listOf(

@@ -213,7 +213,7 @@ internal object Interpreter {
             if (declinesTooDeep) {
                 // Where the stack overflows, which calls were given what isn't known.
                 unlessTooDeep({
-                    evaluation.run.directoryNoLongerKnown()
+                    evaluation.run.declinedCodeRan()
 
                     Evaluated.Declined(Given().apply { all() })
                 }) {
@@ -223,7 +223,7 @@ internal object Interpreter {
                 Evaluated.Value(value(evaluation))
             }
         } catch (declined: Declined) {
-            evaluation.run.directoryNoLongerKnown()
+            evaluation.run.declinedCodeRan()
 
             Evaluated.Declined(declined.given, declined.holds, declined)
         } catch (thrown: Thrown) {
@@ -403,6 +403,19 @@ internal class Evaluation(
 
     /** Whether the value of the code being evaluated is read. */
     private var use = ValueUse.READ
+
+    /**
+     * Whether the evaluator went on past code that declined, a part of a value, a check before its other parts or a
+     * loop's iteration, which Elixir may have left by a raise, throw or exit, so the code run after it may not run in
+     * Elixir.
+     */
+    private var wentOnPastDecline = false
+
+    /** The evaluator goes on past code that declined ([wentOnPastDecline]), whose effects aren't known. */
+    private fun goingOnPastDecline() {
+        run.declinedCodeRan()
+        wentOnPastDecline = true
+    }
 
     /** [block], evaluated as code whose value has [use]. */
     internal inline fun <T> using(use: ValueUse, block: () -> T): T {
@@ -769,6 +782,15 @@ internal class Evaluation(
     fun raiseAs(kind: String, reason: OtpErlangObject, stacktrace: OtpErlangObject? = null): Nothing =
         throw Thrown(kind, reason, stacktrace ?: list(stack.toList()))
 
+    /**
+     * A created module, an effect no decline's marks name, is applied: where the evaluator went on past code that
+     * declined to reach it ([wentOnPastDecline]), Elixir may have left before it, which is taken not to happen
+     * ([assumeNoRaise]).
+     */
+    fun reachingAnEffect() {
+        if (wentOnPastDecline) assumeNoRaise()
+    }
+
     /** A raise whose inputs aren't known is taken not to happen ([mayRaise]): Elixir may have raised there ([assume]). */
     fun assumeNoRaise() {
         mayRaise()
@@ -916,6 +938,7 @@ internal class Evaluation(
             evaluate()
         } catch (declined: Declined) {
             declined.holds += held
+            if (rest.isNotEmpty()) goingOnPastDecline()
             holdRest(declined, rest) { part(it, frame) }
             throw declined
         }
@@ -940,6 +963,7 @@ internal class Evaluation(
         try {
             PartOutcome.Value(evaluate())
         } catch (declined: Declined) {
+            goingOnPastDecline()
             PartOutcome.Declines(declined)
         } catch (thrown: Thrown) {
             PartOutcome.Raises(thrown)
@@ -953,6 +977,7 @@ internal class Evaluation(
         try {
             iteration()
         } catch (declined: Declined) {
+            goingOnPastDecline()
             run.continuedDeclines++
             declines(declined)
             take(PartOutcome.Declines(declined))
@@ -1037,7 +1062,7 @@ internal class Evaluation(
      * guards refuse the arguments or `:file` is missing. Its `binary` and the value of its last expression aren't known.
      * A body, a name or an env that isn't known declines, and so does a module that stops; one that raises raises its
      * exception, whose fields aren't known. One that compiled where it may have raised isn't taken to have raised
-     * ([assumeNoRaise]).
+     * ([assumeNoRaise]), and neither is the code the evaluator went on past to reach the call ([reachingAnEffect]).
      */
     fun createModule(args: List<OtpErlangObject>): OtpErlangObject? {
         val name = (seen(args[0]) as? OtpErlangAtom)?.atomValue() ?: return null
@@ -1046,6 +1071,9 @@ internal class Evaluation(
             ?: return null
         val at = call as? ElixirAst.Call ?: decline("Module.create/3 outside a call")
         val body = code(args[1]) ?: decline("Module.create/3 of a body that isn't code")
+
+        reachingAnEffect()
+
         val linified =
             linifyWithContextCounter(created.line, name, run.counters.next(null), run.level, body, created.generated, inheriting(at, run))
 
@@ -2098,6 +2126,7 @@ internal class Evaluation(
                 clauses(arrows(elses), listOf(value), frame, tail = armsTail) ?: error(tuple(atom("try_clause"), value))
             } ?: value
         } catch (body: Declined) {
+            run.declinedCodeRan()
             declined = body
             throw body
         } catch (thrown: Thrown) {
@@ -2125,6 +2154,8 @@ internal class Evaluation(
      * stays ended.
      */
     private fun rescuedAfter(raise: Thrown, declined: Declined, options: ElixirAst, frame: Frame) {
+        run.declinedCodeRan()
+
         try {
             rescued(raise, options, frame)?.let { value ->
                 declined.holds.add(value)

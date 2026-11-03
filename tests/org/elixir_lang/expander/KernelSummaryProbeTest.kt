@@ -111,7 +111,6 @@ class KernelSummaryProbeTest : ProbeTestCase() {
             "x = 1\n_ = fn -> x in __MODULE__ end",
             "x = 1\ny = [2]\n_ = fn -> x in abs(y) end",
             "x = 1\ny = [2]\n_ = fn -> x in y.foo() end",
-            "x = 1\n_ = fn -> x in Foo.bar() end",
             "x = 1\n_ = fn -> x in Kernel.to_string(1) end",
             "x = 1\n_ = fn -> x in __DIR__ end",
             // <>

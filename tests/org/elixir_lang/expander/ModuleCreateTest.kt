@@ -657,6 +657,153 @@ class ModuleCreateTest : SdkProbeTestCase() {
             readers = readersOf("ChildSurvives", "value") + readersOf("ChildSurvives.Made.Child", "c"),
         )
 
+    /** A create after a part of the same value that throws is never reached, so nothing is created. */
+    fun testACreateAfterAThrowingPartIsNotReached() =
+        assertAsElixir(
+            """
+            defmodule Created.SkippedPart do
+              value =
+                try do
+                  _ = {
+                    receive do
+                      after 0 -> throw(:skip)
+                    end,
+                    Module.create(Created.SkippedPart.Made, quote(do: def(f, do: :f)), __ENV__)
+                  }
+                  :created
+                catch
+                  :skip -> :skipped
+                end
+
+              @value {value, Code.ensure_loaded?(Created.SkippedPart.Made)}
+              def value, do: @value
+            end
+            """,
+            "SkippedPart", "SkippedPart.Made",
+            readers = readersOf("SkippedPart", "value"),
+            unknown = setOf("value"),
+        )
+
+    /** A create after a declined part that returns, which Elixir reaches, so a later read doesn't answer the name absent. */
+    fun testACreateAfterADeclinedPartThatReturnsMayExist() =
+        assertAsElixir(
+            """
+            defmodule Created.MaybePart do
+              try do
+                _ = {
+                  receive do
+                    after 0 -> :ok
+                  end,
+                  Module.create(Created.MaybePart.Made, quote(do: def(f, do: :f)), __ENV__)
+                }
+
+                :created
+              catch
+                :skip -> :skipped
+              end
+
+              @loaded Code.ensure_loaded?(Created.MaybePart.Made)
+              def loaded, do: @loaded
+            end
+            """,
+            "MaybePart",
+            readers = readersOf("MaybePart", "loaded"),
+            unknown = setOf("loaded"),
+        )
+
+    /** A create in a loop's iteration after one that throws is never reached, so nothing is created. */
+    fun testACreateInAnIterationAfterAThrowingOneIsNotReached() =
+        assertAsElixir(
+            """
+            defmodule Created.SkippedIteration do
+              value =
+                try do
+                  for i <- [1, 2] do
+                    if i == 1 do
+                      receive do
+                        after 0 -> throw(:skip)
+                      end
+                    else
+                      Module.create(Created.SkippedIteration.Made, quote(do: def(f, do: :f)), __ENV__)
+                    end
+                  end
+
+                  :created
+                catch
+                  :skip -> :skipped
+                end
+
+              @value {value, Code.ensure_loaded?(Created.SkippedIteration.Made)}
+              def value, do: @value
+            end
+            """,
+            "SkippedIteration", "SkippedIteration.Made",
+            readers = readersOf("SkippedIteration", "value"),
+            unknown = setOf("value"),
+        )
+
+    /** A create in a function after a statement that throws is never reached, so nothing is created. */
+    fun testACreateInAFunctionAfterAThrowingStatementIsNotReached() =
+        assertAsElixir(
+            """
+            defmodule Created.SkippedHelper.Maker do
+              def helper do
+                receive do
+                  after 0 -> throw(:skip)
+                end
+
+                Module.create(Created.SkippedHelper.Made, quote(do: def(f, do: :f)), __ENV__)
+              end
+            end
+
+            defmodule Created.SkippedHelper do
+              value =
+                try do
+                  Created.SkippedHelper.Maker.helper()
+                  :created
+                catch
+                  :skip -> :skipped
+                end
+
+              @value {value, Code.ensure_loaded?(Created.SkippedHelper.Made)}
+              def value, do: @value
+            end
+            """,
+            "SkippedHelper", "SkippedHelper.Made",
+            readers = readersOf("SkippedHelper", "value"),
+            unknown = setOf("value"),
+        )
+
+    /**
+     * A create in a struct update's pair, where the value updated isn't known: before v1.20 the update checks the
+     * struct before it runs the pairs, so where the check raises nothing is created.
+     */
+    fun testACreateInAStructUpdateOfAnUnknownValueIsNotReachedBeforeItsCheck() =
+        assertAsElixir(
+            """
+            defmodule Created.SkippedUpdate.Struct do
+              defstruct [:a]
+            end
+
+            defmodule Created.SkippedUpdate do
+              value =
+                try do
+                  {:module, _, binary, _} = Module.create(Created.SkippedUpdate.First, quote(do: def(f, do: :f)), __ENV__)
+                  _ = %Created.SkippedUpdate.Struct{binary | a: Module.create(Created.SkippedUpdate.Made, quote(do: def(f, do: :f)), __ENV__)}
+                  :created
+                rescue
+                  _ -> :rescued
+                end
+
+              @value {value, Code.ensure_loaded?(Created.SkippedUpdate.Made)}
+              def value, do: @value
+            end
+            """,
+            "SkippedUpdate", "SkippedUpdate.Made",
+            readers = readersOf("SkippedUpdate", "value"),
+            unknown = setOf("value"),
+        )
+
     fun testCreatingTheModuleBeingCompiledRaises() =
         assertAsElixir(
             """
@@ -860,15 +1007,9 @@ class ModuleCreateTest : SdkProbeTestCase() {
 
     fun testAnUnknownNameDeclines() =
         assertExpanded(
-            """
-            defmodule Created.UnknownName do
-              name = Module.concat([System.get_env("CREATE_NAME") || "Created.UnknownName.Made"])
-              Module.create(name, quote(do: def(f, do: :ok)), __ENV__)
-              def g, do: :g
-            end
-            """,
-            listOf("UnknownName", "UnknownName.Made"),
-            "raises nothing\nUnknownName compiled functions: g/0; macros: \nUnknownName.Made absent",
+            DECLINED_NAME,
+            listOf("DeclinedName", "DeclinedName.Made"),
+            "raises nothing\nDeclinedName compiled functions: g/0; macros: \nDeclinedName.Made absent",
         )
 
     fun testAnUnknownBodyDeclines() =
@@ -906,6 +1047,142 @@ class ModuleCreateTest : SdkProbeTestCase() {
             listOf("DeclinedInside", "DeclinedInside.Made"),
             "raises nothing\nDeclinedInside stopped defmodule/2 functions: g/0; macros: \n" +
                 "DeclinedInside.Made stopped unquote/1 functions: first/0, last_one/0; macros: ",
+        )
+
+    /** A call that declines may have created the module, so a later `import` of it stops rather than raises. */
+    fun testAModuleADeclinedCallMayHaveCreatedIsNotImportedAsMissing() =
+        assertExpanded(
+            DECLINED_NAME + """
+            defmodule Created.DeclinedName.User do
+              import Created.DeclinedName.Made
+              def h, do: f()
+            end
+            """,
+            listOf("DeclinedName", "DeclinedName.Made", "DeclinedName.User"),
+            "raises nothing\nDeclinedName compiled functions: g/0; macros: \nDeclinedName.Made absent\n" +
+                "DeclinedName.User stopped import/1 functions: ; macros: ",
+        )
+
+    fun testAModuleADeclinedCallMayHaveCreatedIsNotAStructThatIsMissing() =
+        assertExpanded(
+            DECLINED_CALL + """
+            defmodule Created.DeclinedCall.User do
+              def h, do: %Created.DeclinedCall.Made{}
+            end
+            """,
+            listOf("DeclinedCall.User"),
+            "raises nothing\nDeclinedCall.User stopped %/2 functions: h/0; macros: ",
+        )
+
+    fun testAModuleADeclinedCallMayHaveCreatedIsNotDerivedAsMissing() =
+        assertExpanded(
+            DECLINED_NAME + """
+            defmodule Created.DeclinedName.User do
+              @derive [Created.DeclinedName.Made]
+              defstruct [:a]
+            end
+            """,
+            listOf("DeclinedName", "DeclinedName.User"),
+            "raises nothing\nDeclinedName compiled functions: g/0; macros: \n" +
+                "DeclinedName.User stopped defstruct/1 functions: __struct__/0, __struct__/1; macros: ",
+        )
+
+    fun testAModuleADeclinedCallMayHaveCreatedIsNotABehaviourThatIsMissing() =
+        assertExpanded(
+            DECLINED_NAME + """
+            defmodule Created.DeclinedName.User do
+              def f, do: :ok
+              defoverridable Created.DeclinedName.Made
+            end
+            """,
+            listOf("DeclinedName", "DeclinedName.User"),
+            "raises nothing\nDeclinedName compiled functions: g/0; macros: \n" +
+                "DeclinedName.User stopped Module.make_overridable/2 functions: f/0; macros: ",
+        )
+
+    /** `function_exported?/3` and `Code.ensure_loaded?/1` of the name answer as they do for a name that isn't known. */
+    fun testAModuleADeclinedCallMayHaveCreatedIsNotAnsweredMissing() {
+        val readers = """
+            @exported function_exported?(NAME, :f, 0)
+            @loaded Code.ensure_loaded?(NAME)
+            def exported, do: @exported
+            def loaded, do: @loaded
+        """.trimIndent()
+        val user = { name: String -> "defmodule Created.DeclinedCall.User do\n${readers.replace("NAME", name).prependIndent("  ")}\nend\n" }
+        val modules = listOf("DeclinedCall.User")
+        val readerCalls = readersOf("DeclinedCall.User", "exported", "loaded")
+        val asUnknown = expanded(
+            DECLINED_CALL + user("Module.concat([System.get_env(\"CREATE_USER\") || \"Created.DeclinedCall.Made\"])"),
+            modules,
+            readerCalls,
+        )
+
+        assertExpanded(DECLINED_CALL + user("Created.DeclinedCall.Made"), modules, asUnknown, readerCalls)
+    }
+
+    /** After a `try` whose body declines, the `after` reads the module the body may have created, and creates another. */
+    fun testATrysAfterReadsAModuleItsDeclinedBodyMayHaveCreated() =
+        assertAsElixir(
+            DECLINING_MAKER + """
+            try do
+              Created.H.make()
+            after
+              Code.ensure_loaded?(Created.Made) || raise "gone"
+              Module.create(Created.After, quote(do: def(f, do: :ok)), __ENV__)
+            end
+            """,
+            "After",
+        )
+
+    /** A rescue of a raise whose `after` declines reads the module the `after` may have created. */
+    fun testARescueReadsAModuleTheDeclinedAfterMayHaveCreated() =
+        assertAsElixir(
+            """
+            try do
+              try do
+                raise "x"
+              after
+                receive do
+                after
+                  0 -> Module.create(Created.Made, quote(do: def(f, do: :ok)), __ENV__)
+                end
+              end
+            rescue
+              RuntimeError ->
+                unless Code.ensure_loaded?(Created.Made) do
+                  Module.create(Created.Gone, quote(do: def(f, do: :ok)), __ENV__)
+                end
+            end
+            """,
+            "Gone",
+        )
+
+    /** A comprehension's later iteration reads the module an earlier, declined one may have created. */
+    fun testALaterIterationReadsAModuleADeclinedOneMayHaveCreated() =
+        assertAsElixir(
+            DECLINING_MAKER + """
+            for n <- [1, 2, 3] do
+              case n do
+                1 -> Created.H.make()
+                2 -> Code.ensure_loaded?(Created.Made) || raise "gone"
+                3 -> Module.create(Created.After, quote(do: def(f, do: :ok)), __ENV__)
+              end
+            end
+            """,
+            "After",
+        )
+
+    /** A block's later expression reads the module an earlier, declined one may have created. */
+    fun testALaterExpressionReadsAModuleADeclinedOneMayHaveCreated() =
+        assertAsElixir(
+            DECLINING_MAKER + """
+            for _ <- [1] do
+              Created.H.make()
+              Code.ensure_loaded?(Created.Made) || raise "gone"
+              Module.create(Created.After, quote(do: def(f, do: :ok)), __ENV__)
+            end
+            """,
+            "After",
         )
 
     /** A function [module] defines whose value Elixir gives, against the attribute of the same name it returns. */
@@ -1049,4 +1326,41 @@ class ModuleCreateTest : SdkProbeTestCase() {
 
     /** The exception an error of [kind] raises, as its module. */
     private fun rendered(kind: String?): String = Expansion.Error.exception(kind, legLevel()) ?: "an exception that isn't known"
+
+    private companion object {
+        /** A module whose `if` declines, as the env isn't known, around a create Elixir runs. */
+        val DECLINED_CALL = """
+            defmodule Created.DeclinedCall do
+              if System.get_env("CREATE_NEVER") == nil do
+                Module.create(Created.DeclinedCall.Made, quote(do: def(f, do: :ok)), __ENV__)
+              end
+
+              def g, do: :g
+            end
+
+        """.trimIndent() + "\n"
+
+        /** A module whose `Module.create/3` of a name that isn't known declines, while the module compiles. */
+        val DECLINED_NAME = """
+            defmodule Created.DeclinedName do
+              name = Module.concat([System.get_env("CREATE_NAME") || "Created.DeclinedName.Made"])
+              Module.create(name, quote(do: def(f, do: :ok)), __ENV__)
+              def g, do: :g
+            end
+
+        """.trimIndent() + "\n"
+
+        /** A module whose `make/0` creates `Created.Made` where Elixir runs it and declines at its `receive` in the expander. */
+        val DECLINING_MAKER = """
+            defmodule Created.H do
+              def make do
+                receive do
+                after
+                  0 -> Module.create(Created.Made, quote(do: def(f, do: :ok)), __ENV__)
+                end
+              end
+            end
+
+        """.trimIndent() + "\n"
+    }
 }

@@ -53,7 +53,6 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.OVERRIDABLE_GUARDS_M
 import org.elixir_lang.language_level.ElixirLanguageFeature.PID_IN_FUNCTION_RAISES_MATCH_ERROR
 import org.elixir_lang.language_level.ElixirLanguageFeature.PINNED_BINARY_SEGMENT_INFERS_SIZE
 import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CHECKS_TYPED
-import org.elixir_lang.language_level.ElixirLanguageFeature.PROTOCOL_BEFORE_COMPILE
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_IMPORTS_EVERY_ARITY
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_KEEPS_IMPORTS_META
 import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_ESCAPED_IN_FIXED_FIELD_ORDER
@@ -637,17 +636,29 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     fun testAMacroTheCodeAroundItTakesTheValueOfDefinesWhereThatCodeRunsIt() {
         val impl = "defimpl P, for: Integer do\n    def f(x), do: x\n  end"
         val delegate = "defdelegate(g(x), to: P, as: :f)"
+        val reads = ProtocolReads(legLevel())
         val taken = { form: String -> listOf(form, "_ = $form", "{$form, :ok}", "[$form]", ":erlang.min($form, :ok)") }
         val followed = listOf("if true do\n  $impl\nend", "_ = if true do\n  $impl\nend", "if Code.ensure_loaded?(String) do\n  $impl\nend")
-        val shapes = (taken(impl) + followed).map { it to "module Elixir.A compiled\n  module Elixir.P.Integer compiled" } +
-            taken(delegate).map { "$it\n  true = Module.defines?(__MODULE__, {:g, 1})" to "module Elixir.A compiled" }
+        val shapes = (taken(impl) + followed).map { it to "module Elixir.A ${reads.reader(impl)}\n  module Elixir.P.Integer compiled" } +
+            taken(delegate).map { "$it\n  true = Module.defines?(__MODULE__, {:g, 1})" to "module Elixir.A ${reads.reader(delegate)}" }
 
         assertEquals(
-            shapes.joinToString("\n") { (shape, ended) -> "$shape: top expanded\nmodule Elixir.P compiled\n$ended" },
+            shapes.joinToString("\n") { (shape, ended) -> "$shape: top expanded\nmodule Elixir.P ${reads.protocol}\n$ended" },
             shapes.joinToString("\n") { (shape, _) ->
                 "$shape: " + file("defprotocol P do\n  def f(x)\nend\ndefmodule A do\n  $shape\nend")
             },
         )
+    }
+
+    /**
+     * How `defprotocol P do def f(x) end` and a module reading `P` at a form end at [level]: compiled where protocols
+     * compile ([protocolsCompile]), stopped otherwise, the reader with the protocol.
+     */
+    private class ProtocolReads(level: ElixirLanguageLevel) {
+        private val compiles = protocolsCompile(level)
+        val protocol = if (compiles) "compiled" else "stopped `defprotocol P do\n  def f(x)\nend`"
+
+        fun reader(form: String) = if (compiles) "compiled" else "stopped `$form`"
     }
 
     /** A module write whose argument holds a write in a body the walk doesn't follow writes both, as in Elixir. */
@@ -674,8 +685,10 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             "defdelegate(g(x), to: P, as: (n = :f))" to ":f = n",
         )
 
+        val reads = ProtocolReads(legLevel())
+
         assertEquals(
-            shapes.joinToString("\n") { (shape, _) -> "$shape: top expanded\nmodule Elixir.P compiled\nmodule Elixir.A compiled" },
+            shapes.joinToString("\n") { (shape, _) -> "$shape: top expanded\nmodule Elixir.P ${reads.protocol}\nmodule Elixir.A ${reads.reader(shape)}" },
             shapes.joinToString("\n") { (shape, check) ->
                 "$shape: " + file(
                     "defprotocol P do\n  def f(x)\nend\ndefmodule A do\n  $shape\n  true = Module.defines?(__MODULE__, {:g, 1})\n  $check\nend",
@@ -9015,10 +9028,12 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 """,
                 legs = { !COMPILE_ENV_TAKES_ENV_FIRST.isSufficient(it) },
             ),
+            // The helper's protocols stop where protocols don't compile.
             macro(
                 "body:attribute-point",
                 "defmacro m, do: Macro.escape({{row}.A.f(), {row}.P.__protocol__(:functions), " +
                     "{row}.Q.__protocol__(:functions), {row}.P.Any.g(1)})",
+                pins = { source, level -> UNPORTED.takeIf { source == Source.SOURCE && !protocolsCompile(level) } },
                 helper = """
                 defmodule {row}.A do
                   @x 1
@@ -10450,7 +10465,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                   end
                 end
                 """,
-                legs = { !PROTOCOL_BEFORE_COMPILE.isSufficient(it) },
+                legs = { !protocolsCompile(it) },
                 ends = { "stopped at `$ROW.m()`" },
             ),
             // A raising arm whose test the evaluator can't decide is passed over, as Elixir is taken to compile, and the

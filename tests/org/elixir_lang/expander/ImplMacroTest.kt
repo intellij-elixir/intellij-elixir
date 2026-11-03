@@ -1,6 +1,8 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.NameArity
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFIMPL_EXPANDS_PROTOCOL
+import org.elixir_lang.language_level.ElixirLanguageFeature.PROTOCOL_CONCAT
 import org.elixir_lang.language_level.ElixirLanguageLevel
 
 /**
@@ -15,6 +17,7 @@ class ImplMacroTest : ExpanderTestCase() {
             NameArity("defimpl", 2),
             NameArity("defimpl", 3),
             NameArity("defmodule", 2),
+            NameArity("def", 1),
             NameArity("def", 2),
             NameArity("@", 1),
         ),
@@ -23,6 +26,19 @@ class ImplMacroTest : ExpanderTestCase() {
     override val exports = Exports { module ->
         when (module) {
             "Elixir.Kernel" -> ModuleExports.Present(kernel.functions, kernel.macros, hasInfo = true)
+            // Elixir has these loaded; one missing here may be a module code the expander declined created.
+            "Elixir.Kernel.Typespec" -> ModuleExports.Present(listOf(NameArity("deftypespec", 6)), emptyList(), hasInfo = true)
+            "Elixir.Module" ->
+                ModuleExports.Present(
+                    listOf(
+                        NameArity("__put_attribute__", 4),
+                        NameArity("__put_attribute__", 5),
+                        NameArity("concat", 2),
+                        NameArity("register_attribute", 3),
+                    ),
+                    emptyList(),
+                    hasInfo = true,
+                )
             "Elixir.Unreadable" -> ModuleExports.Unreadable
             "Elixir.Plain" -> ModuleExports.Present(listOf(NameArity("f", 1)), emptyList(), hasInfo = true)
             "Elixir.Proto" ->
@@ -80,11 +96,15 @@ class ImplMacroTest : ExpanderTestCase() {
         assertEvery(code, "module Elixir.A raised $raised\ntop error $raised")
     }
 
+    /** The missing protocol raises, until it may be a module `Protocol`'s own code created ([concatDeclines]). */
     fun testAModuleThatIsNotThereRaises() {
-        val code = "defmodule A do\n  defimpl Missing, for: Integer do\n  end\nend"
-        val raised = "impl_not_available `defimpl Missing, for: Integer do\n  end`"
+        val implementation = "defimpl Missing, for: Integer do\n  end"
+        val code = "defmodule A do\n  $implementation\nend"
+        val raised = "impl_not_available `$implementation`"
 
-        assertEvery(code, "module Elixir.A raised $raised\ntop error $raised")
+        assertLevels(code, LEVELS) { version ->
+            if (concatDeclines(version)) "module Elixir.A stopped `$implementation`" else "module Elixir.A raised $raised\ntop error $raised"
+        }
     }
 
     /**
@@ -101,24 +121,44 @@ class ImplMacroTest : ExpanderTestCase() {
 
     /** What the earlier modules define decides the check, so one that raises isn't reported before they are compiled. */
     fun testATopLevelImplementationAfterAModuleIsTheFilesErrorAfterIt() {
-        val code = "defmodule B do\nend\ndefimpl NoSuch, for: Integer do\nend"
+        val implementation = "defimpl NoSuch, for: Integer do\nend"
 
-        assertEvery(code, "module Elixir.B compiled\ntop error impl_not_available `defimpl NoSuch, for: Integer do\nend`")
+        assertLevels("defmodule B do\nend\n$implementation", LEVELS) { version ->
+            "module Elixir.B compiled\n" + missingAtTheTop(version, implementation, 3)
+        }
     }
 
     /** The check runs where the file reaches the call, so the modules after it aren't defined. */
     fun testATopLevelImplementationOfAMissingProtocolEndsTheFileWhereItRuns() {
-        val code = "defmodule B do\nend\ndefimpl NoSuch, for: Integer do\nend\ndefmodule C do\nend"
+        val implementation = "defimpl NoSuch, for: Integer do\nend"
 
-        assertEvery(code, "module Elixir.B compiled\ntop error impl_not_available `defimpl NoSuch, for: Integer do\nend`")
+        assertLevels("defmodule B do\nend\n$implementation\ndefmodule C do\nend", LEVELS) { version ->
+            "module Elixir.B compiled\n" + missingAtTheTop(version, implementation, 3, "module Elixir.C compiled\n")
+        }
     }
 
     /** A file whose only form is the call raises where the file runs it. */
     fun testATopLevelImplementationOfAMissingProtocolRaises() {
         val code = "defimpl NoSuch, for: Integer do\nend"
 
-        assertEvery(code, "error impl_not_available `$code`")
+        assertLevels(code, LEVELS) { version ->
+            if (concatDeclines(version)) missingAtTheTop(version, code, 1) else "error impl_not_available `$code`"
+        }
     }
+
+    /**
+     * A top-level [implementation], on [line], of a protocol `Exports` doesn't have: the file's error, until the
+     * protocol may be a module `Protocol`'s own code created ([concatDeclines]); then the file stops at the call, after
+     * the implementation compiles in v1.18, and before, from v1.19, as its `@behaviour` requires the protocol. [after]
+     * is the modules after it, which compile only where the file stops.
+     */
+    private fun missingAtTheTop(version: String, implementation: String, line: Int, after: String = "") =
+        when {
+            !concatDeclines(version) -> "top error impl_not_available `$implementation`"
+            !requiresProtocol(version) ->
+                "module Elixir.NoSuch.Integer compiled | def __impl__/1 line $line clauses 2\n${after}top unported `$implementation`"
+            else -> "module Elixir.NoSuch.Integer stopped `$implementation`\n${after}top unported `$implementation`"
+        }
 
     /**
      * Where the file may not run the call, the file stops where the walk lost Elixir's path, while the modules after it
@@ -153,9 +193,9 @@ class ImplMacroTest : ExpanderTestCase() {
      * raise stops, and ends the file's run as a raise does, before `__impl__/1` is defined after the body.
      */
     fun testARaiseAfterBodyCodeTheEvaluatorCannotRunStops() {
-        val code = "defimpl Proto, for: Integer do\n  x = (receive do after 0 -> 1 end)\n  def f(_), do: %Missing{}\nend"
+        val code = "defimpl Proto, for: Integer do\n  x = (receive do after 0 -> 1 end)\n  h = :h\n  def unquote(h)\nend"
 
-        assertEvery(code, "module Elixir.Proto.Integer stopped `def f(_), do: %Missing{}`\ntop unported `def f(_), do: %Missing{}`")
+        assertEvery(code, "module Elixir.Proto.Integer stopped `def unquote(h)`\ntop unported `def unquote(h)`")
     }
 
     /** The file is expanded whole before any of it runs, so a form after the call that fails to expand is reported. */
@@ -211,5 +251,14 @@ class ImplMacroTest : ExpanderTestCase() {
     private companion object {
         /** The release whose implementations define no `__impl__(:target)`. */
         const val IMPL_TARGET_REMOVED = "1.16.0-rc.0"
+
+        /**
+         * Whether `defimpl` names its module with `Protocol.__concat__/2` at [version] ([PROTOCOL_CONCAT]), whose clauses
+         * this test doesn't load, so it declines, and a protocol `Exports` doesn't have may be a module it created.
+         */
+        fun concatDeclines(version: String) = PROTOCOL_CONCAT.isSufficient(ElixirLanguageLevel.of(version))
+
+        /** Whether an implementation's `@behaviour` requires its protocol at [version] ([DEFIMPL_EXPANDS_PROTOCOL]). */
+        fun requiresProtocol(version: String) = DEFIMPL_EXPANDS_PROTOCOL.isSufficient(ElixirLanguageLevel.of(version))
     }
 }

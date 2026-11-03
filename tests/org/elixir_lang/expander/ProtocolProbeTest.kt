@@ -1,6 +1,15 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.NameArity
+import org.elixir_lang.language_level.ElixirLanguageFeature.PROTOCOL_BEFORE_COMPILE
+import org.elixir_lang.language_level.ElixirLanguageLevel
+
+/**
+ * Whether a protocol a file defines compiles at [level], from [PROTOCOL_BEFORE_COMPILE]. Before it `defprotocol` runs
+ * `def impl_for` in a `fn`, where the evaluator declines, so the built-in implementations the protocol reads may exist
+ * and it stops, with the code that reads it.
+ */
+internal fun protocolsCompile(level: ElixirLanguageLevel) = PROTOCOL_BEFORE_COMPILE.isSufficient(level)
 
 /**
  * `defprotocol`, `Protocol.def/1` and `defimpl` compiled in module bodies on the leg's Elixir: at each probe the env,
@@ -8,26 +17,35 @@ import org.elixir_lang.NameArity
  * of the output Elixir expands them to.
  */
 class ProtocolProbeTest : SdkProbeTestCase(accounting = true) {
-    /** Each case ends as the compiler ends it, whether it compiles or raises, and ports every macro it calls. */
+    /**
+     * Each case ends as the compiler ends it, whether it compiles or raises, and ports every macro it calls. Where
+     * protocols don't compile ([protocolsCompile]) every case that reads one stops, but those of [RAISING], which raise first.
+     */
     fun testEachCaseMatchesElixir() {
         val bodies = buildList {
             addAll(PROTOCOLS)
             addAll(IMPLEMENTATIONS)
             addAll(RAISING)
+            addAll(RAISING_LATE)
+            add(MISSING)
+            add(NO_TYPES)
         }
         val expansions = bodies.associateWith { expand(it, PREAMBLE) }
+        val stopping = if (protocolsCompile(legLevel())) emptyList() else bodies - RAISING.toSet() - MISSING - NO_TYPES
 
         assertEquals(
-            "",
-            expansions.filterValues { it.outcome is Expansion.Unported || it.outcome is Expansion.Opaque }
-                .map { (body, expansion) -> "${body.replace("\n", "; ")}: ${expansion.outcome}" }
-                .joinToString("\n"),
+            stopping.joinToString("\n", transform = ::oneLine),
+            expansions.filterKeys { it != MISSING }
+                .filterValues { it.outcome is Expansion.Unported || it.outcome is Expansion.Opaque }
+                .keys.joinToString("\n", transform = ::oneLine),
         )
         printed { probes.assertMatchesElixir(expansions) }
     }
 
-    /** The dispatches of each case that compiles, as the compiler traces them. */
+    /** The dispatches of each case that compiles, as the compiler traces them; where protocols don't, none does. */
     fun testEachCompilingCaseTracesAsTheCompilerDoes() {
+        if (!protocolsCompile(legLevel())) return
+
         printed { probes.assertTracesMatchElixir(probes.expandAll(PROTOCOLS + OWN_PROTOCOL, PREAMBLE, clauses = sdk)) }
     }
 
@@ -81,6 +99,14 @@ class ProtocolProbeTest : SdkProbeTestCase(accounting = true) {
         }
     }
 
+    /** An implementation of a protocol that isn't there raises as Elixir raises it, where no code before it declined. */
+    fun testAnImplementationOfAMissingProtocolRaises() {
+        val expansion = expand(MISSING, "")
+
+        assertTrue("$MISSING: ${expansion.ended}", expansion.ended.raises)
+        printed { probes.assertMatchesElixir(mapOf(MISSING to expansion)) }
+    }
+
     /** A definition the body writes with an unquote of the body's values is defined, or raises, as Elixir does it. */
     fun testADefinitionTheBodyUnquotesIntoEndsAsElixirEndsIt() = assertEndsAsElixirEndsIt(UNQUOTED)
 
@@ -97,27 +123,35 @@ class ProtocolProbeTest : SdkProbeTestCase(accounting = true) {
 
     /**
      * Before v1.13 the functions a protocol declares are in `@functions`, which the body can write too, and
-     * `__protocol__(:functions)` unquotes them sorted: what isn't a quoted expression raises, in Elixir and in the
-     * expander. From v1.13 the attribute is `@__functions__`, which the body can't write, and the module compiles.
+     * `__protocol__(:functions)` unquotes them sorted: what isn't a quoted expression raises, where the expander stops
+     * first ([protocolsCompile]). From v1.13 the attribute is `@__functions__`, which the body can't write, and the
+     * module compiles.
      */
     fun testFunctionsThatAreNotQuotedExpressionsEndAsElixirEndsThem() =
         assertEndsAsElixirEndsIt(listOf("[{1, 2, 3}]", "[{:a}]").map { "defprotocol P do\n  @functions $it\n  def f(x)\nend" })
 
-    /** Each of [bodies] compiles or raises as Elixir does, with no stop, which [ExpansionProbes.assertMatchesElixir] passes over. */
+    /**
+     * Each of [bodies] compiles or raises as Elixir does, with no stop, which [ExpansionProbes.assertMatchesElixir]
+     * passes over; where protocols don't compile ([protocolsCompile]), each stops.
+     */
     private fun assertEndsAsElixirEndsIt(bodies: List<String>) {
         val expansions = bodies.associateWith { expand(it, PREAMBLE) }
+        val stopped = expansions.mapNotNull { (body, expansion) ->
+            (expansion.ended as? ExpansionResult.Ended.Stopped)?.let { body to it.at }
+        }
 
         assertEquals(
-            "",
-            expansions.mapNotNull { (body, expansion) ->
-                (expansion.ended as? ExpansionResult.Ended.Stopped)?.let { stopped ->
-                    val at = if (stopped.at.meta.built) "built ${stopped.at}" else expansion.source(stopped.at)
-                    "${body.replace("\n", "; ")}: stopped at `$at`"
-                }
-            }.joinToString("\n"),
+            stopped.joinToString("\n") { (body, at) ->
+                "${oneLine(body)}: stopped at `${if (at.meta.built) "built $at" else expansions.getValue(body).source(at)}`"
+            },
+            bodies.takeUnless { protocolsCompile(legLevel()) }.orEmpty().joinToString("\n", transform = ::oneLine),
+            stopped.joinToString("\n") { (body, _) -> oneLine(body) },
         )
         printed { probes.assertMatchesElixir(expansions) }
     }
+
+    /** [body] on one line. */
+    private fun oneLine(body: String) = body.replace("\n", "; ")
 
     /** [result] and the modules it compiled inside it, outermost first. */
     private fun compiled(result: ExpansionResult): List<ExpansionResult> = listOf(result) + result.nested.flatMap(::compiled)
@@ -169,7 +203,6 @@ class ProtocolProbeTest : SdkProbeTestCase(accounting = true) {
             "defimpl {token}.Proto, for: [Integer] do\n  def f(x), do: x\nend",
             // a literal block is the one node in each module, and one step in each
             "defimpl {token}.Proto, for: [Integer, Atom], do: :ok",
-            "defimpl {token}.Proto, for: [] do\nend",
             "defimpl {token}.Proto, for: [Integer, Atom, Float, Map, Tuple] do\n  def f(x), do: x\nend",
             // impl_inside
             "defimpl {token}.Proto do\n  def f(x), do: x\nend",
@@ -224,19 +257,35 @@ class ProtocolProbeTest : SdkProbeTestCase(accounting = true) {
             // impl_bad_opt
             "defimpl {token}.Proto, for: Integer, foo: 1 do\n  def f(x), do: x\nend",
             "defimpl {token}.Proto, for: Integer, foo: 1, bar: 2 do\nend",
-            // impl_not_protocol
-            "defimpl Enum, for: Integer do\nend",
-            "defimpl {token}.Missing, for: Integer do\nend",
-            "defimpl :lists, for: Integer do\nend",
             // the Kernel definitions other than `def`, which the body keeps
             "defprotocol P do\n  defp g(x), do: x\n  def f(x)\nend",
             "defprotocol P do\n  defmacro g(x), do: x\n  def f(x)\nend",
             "defprotocol P do\n  defmacrop g(x), do: x\n  def f(x)\nend",
+        )
+
+        /**
+         * Cases that raise after a step that stops where protocols don't compile ([protocolsCompile]): a `defimpl`'s
+         * check of its protocol, after the preamble's protocol stops, or the `defprotocol`'s own `impl_for` loop.
+         */
+        val RAISING_LATE = listOf(
+            // impl_not_protocol
+            "defimpl Enum, for: Integer do\nend",
+            "defimpl :lists, for: Integer do\nend",
+            // the Kernel definitions other than `def`, which the body keeps
             "defprotocol P do\n  defdelegate g(x), to: Kernel\n  def f(x)\nend",
             // the protocol's own definitions cannot be defined again
             "defprotocol P do\n  def impl_for(x)\nend",
             "defprotocol P do\n  Kernel.def(g(x))\n  def f(x)\nend",
         )
+
+        /**
+         * An implementation of a protocol that isn't there, which Elixir refuses. The preamble's `defprotocol` runs code
+         * the evaluator declines, so the protocol may be a module that code created, and the expander stops instead.
+         */
+        const val MISSING = "defimpl {token}.Missing, for: Integer do\nend"
+
+        /** An implementation for no type, which defines nothing and so reads no protocol. */
+        const val NO_TYPES = "defimpl {token}.Proto, for: [] do\nend"
 
         /** Definitions the body writes with an unquote of its values: one defined, one raising in `:lists.sort/1`. */
         val UNQUOTED = listOf(
