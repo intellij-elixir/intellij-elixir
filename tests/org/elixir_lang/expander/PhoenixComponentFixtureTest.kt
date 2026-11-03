@@ -8,7 +8,6 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.io.FileUtil
-import org.elixir_lang.NameArity
 import org.elixir_lang.beam.binaryToTerm
 import org.elixir_lang.coverage.ExpanderProgress
 import org.elixir_lang.coverage.macroName
@@ -54,11 +53,11 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
         val expected = MODULES.map { module ->
             val exports = info.get(OtpErlangAtom(module)) as OtpErlangMap
 
-            "$module functions: ${names(exports.get(OtpErlangAtom("functions")))}; macros: ${names(exports.get(OtpErlangAtom("macros")))}"
+            "$module ${exported(exports)}"
         }
         val actual = MODULES.map { module ->
             when (val exports = exports(holder, asker, module)) {
-                is ModuleExports.Present -> "$module functions: ${names(exports.functions)}; macros: ${names(exports.macros)}"
+                is ModuleExports.Present -> "$module ${exported(exports)}"
                 else -> "$module $exports"
             }
         }
@@ -218,12 +217,6 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
             System.getProperty(name) ?: throw AssertionError("This test needs the system property $name, which Gradle's `test` sets.")
 
         fun etf(file: File): OtpErlangObject = binaryToTerm(file.readBytes(), 0).first
-
-        fun names(term: OtpErlangObject): String =
-            names((term as OtpErlangList).elements().map { NameArity.from(it)!! })
-
-        fun names(nameArities: List<NameArity>): String =
-            nameArities.sortedWith(compareBy({ it.name }, { it.arity })).joinToString(", ") { "${it.name}/${it.arity}" }
 
         /** The route structs of the list [term], each field but `warn_location` in name order. */
         fun routes(term: OtpErlangObject): String =

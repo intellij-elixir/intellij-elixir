@@ -11,7 +11,6 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.util.system.OS
-import org.elixir_lang.NameArity
 import org.elixir_lang.beam.binaryToTerm
 import org.elixir_lang.coverage.ExpanderProgress
 import org.elixir_lang.coverage.macroName
@@ -124,19 +123,16 @@ class EctoFixtureTest : HeavyTestCase() {
         val modules = listOf(QUERIES, REPO)
 
         val expected = modules.map { module ->
-            val exports = info.get(OtpErlangAtom(module)) as OtpErlangMap
-
             // `q_no_on`'s `join/4` stops at the `inspect/1` of its `:on` warning, and where Ecto sets `@after_compile
             // Ecto.Schema` the schemas' exports are unknown, so its calls stop earlier: each leaves the exports unknown.
             // [testQueriesStoresWhatElixirGives] reads what the module stored.
             if (module == QUERIES) return@map "$module ${ModuleExports.Unreadable}"
 
-            "$module functions: ${names(exports.get(OtpErlangAtom("functions")))}; macros: ${names(exports.get(OtpErlangAtom("macros")))}"
+            "$module ${exportsIn(info, module)}"
         }
         val actual = modules.map { module ->
             when (val exports = exports(holder, probe, module)) {
-                is ModuleExports.Present ->
-                    "$module functions: ${names(exports.functions)}; macros: ${names(exports.macros)}"
+                is ModuleExports.Present -> "$module ${exported(exports)}"
                 else -> "$module $exports"
             }
         }
@@ -198,7 +194,7 @@ class EctoFixtureTest : HeavyTestCase() {
         }
         val actual = SCHEMAS.map { module ->
             when (val exports = exports(holder, asker, module)) {
-                is ModuleExports.Present -> "$module functions: ${names(exports.functions)}; macros: ${names(exports.macros)}"
+                is ModuleExports.Present -> "$module ${exported(exports)}"
                 else -> "$module $exports"
             }
         }
@@ -400,24 +396,7 @@ class EctoFixtureTest : HeavyTestCase() {
 
         fun etf(file: File): OtpErlangObject = binaryToTerm(file.readBytes(), 0).first
 
-        /** The functions and macros [result] stored, as [exportsIn] gives Elixir's. */
-        fun stored(result: ExpansionResult): String {
-            val named = { kind: DefinitionTable.Kind -> names(result.table.entries.filterValues { it.kind == kind }.keys.toList()) }
-
-            return "functions: ${named(DefinitionTable.Kind.DEF)}; macros: ${named(DefinitionTable.Kind.DEFMACRO)}"
-        }
-
-        fun exportsIn(info: OtpErlangMap, module: String): String {
-            val exports = info.get(OtpErlangAtom(module)) as OtpErlangMap
-
-            return "functions: ${names(exports.get(OtpErlangAtom("functions")))}; macros: ${names(exports.get(OtpErlangAtom("macros")))}"
-        }
-
-        fun names(term: OtpErlangObject): String =
-            names((term as OtpErlangList).elements().map { NameArity.from(it)!! })
-
-        fun names(nameArities: List<NameArity>): String =
-            nameArities.sortedWith(compareBy({ it.name }, { it.arity })).joinToString(", ") { "${it.name}/${it.arity}" }
+        fun exportsIn(info: OtpErlangMap, module: String): String = exported(info.get(OtpErlangAtom(module)) as OtpErlangMap)
 
         fun described(expanded: MacroExpanded, compiled: Compiled): String =
             when (expanded) {
