@@ -1103,7 +1103,7 @@ internal class Evaluation(
             is ElixirAst.Call -> !(frame.source && isVariableNamed(left, "__MODULE__"))
             is ElixirAst.Tuple, is ElixirAst.Block -> true
             is ElixirAst.Literal.Atom ->
-                FIELD_OF_NON_MAP_RAISES_BADKEY.isSufficient(run.level) && left.name in setOf("nil", "true", "false")
+                FIELD_OF_NON_MAP_RAISES_BADKEY.isSufficient(run.level) && left.name in BOOLEANS_AND_NIL
             else -> false
         }
 
@@ -1126,7 +1126,7 @@ internal class Evaluation(
 
         return when {
             value is OtpErlangMap -> error(tuple(atom("badkey"), key, value))
-            value is OtpErlangAtom && value.atomValue() !in setOf("nil", "true", "false") -> remote(value, name, emptyList(), marks, tail)
+            value is OtpErlangAtom && value.atomValue() !in BOOLEANS_AND_NIL -> remote(value, name, emptyList(), marks, tail)
             badmap -> error(tuple(atom("badmap"), value))
             else -> error(tuple(atom("badkey"), key, value))
         }
@@ -1858,7 +1858,8 @@ internal class Evaluation(
      * what it is given, that code is given it and [args] ([calling]).
      */
     private fun received(receiver: OtpErlangObject, args: List<OtpErlangObject>, marks: Boolean): OtpErlangObject =
-        if (marks) calling(args + receiver) { seen(receiver) } else seen(receiver)
+        // As `calling` does, but `args + receiver` is built only where the receiver declines.
+        if (marks) marking({ calledGave(it, args + receiver) }) { seen(receiver) } else seen(receiver)
 
     /**
      * [module]`.`[function]`(`[args]`)` where it is a native, else `null`. Where it declines, what it didn't return may
@@ -2801,6 +2802,7 @@ internal class Evaluation(
         val EXCEPTION = atom("__exception__")
         val CONTEXT = atom("context")
         val ONE = integer(1)
+        val BOOLEANS_AND_NIL = setOf("nil", "true", "false")
         const val ERLANG_ERROR = "Elixir.ErlangError"
         val REQUIRES_STACKTRACE = listOf("Elixir.FunctionClauseError", "Elixir.UndefinedFunctionError", "Elixir.KeyError")
         val REQUIRES_STACKTRACE_FROM_ERROR_INFO = listOf("Elixir.ArgumentError", "Elixir.SystemLimitError")
