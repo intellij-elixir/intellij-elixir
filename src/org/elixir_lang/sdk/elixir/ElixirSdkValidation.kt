@@ -19,7 +19,11 @@ sealed interface OtpMatch {
     data object Match : OtpMatch
 
     /** The OTP major the build was compiled for, and the Erlang's. */
-    data class Mismatch(val elixirOtpMajor: String, val erlangOtpMajor: String) : OtpMatch
+    data class Mismatch(val elixirOtpMajor: String, val erlangOtpMajor: String) : OtpMatch {
+        /** The warning the SDK page and the Erlang step show. */
+        val warning: String
+            get() = "Elixir SDK was compiled for OTP $elixirOtpMajor but is paired with OTP $erlangOtpMajor"
+    }
 
     data object Unknown : OtpMatch
 }

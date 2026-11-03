@@ -35,6 +35,7 @@ import org.elixir_lang.sdk.elixir.ElixirSdkMutation
 import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
 import org.elixir_lang.sdk.elixir.ElixirSdkValidation
 import org.elixir_lang.sdk.elixir.ElixirSdkValidation.hasErlangClasspathInRoots
+import org.elixir_lang.sdk.elixir.OtpMatch
 import org.elixir_lang.util.ElixirAppCoroutineService
 import org.elixir_lang.util.WriteActions
 import java.awt.GridBagConstraints
@@ -518,7 +519,7 @@ class AdditionalDataConfigurable(
             val mismatch = withContext(otpDetectionDispatcher) {
                 SdkVersionsFiller.fillIfUnread(elixirHome)
                 SdkVersionsFiller.fillIfUnread(erlangHome)
-                ElixirSdkValidation.detectOtpMismatch(elixirHome, erlangHome)
+                ElixirSdkValidation.otpMatch(elixirHome, erlangHome) as? OtpMatch.Mismatch
             }
 
             // Unqualified UI dispatch defaults to nonModal, which would hold the update until this
@@ -526,8 +527,7 @@ class AdditionalDataConfigurable(
             // project model - keep it that way.
             withContext(Dispatchers.UI + ModalityState.any().asContextElement()) {
                 if (mismatch != null) {
-                    otpMismatchWarningLabel.text =
-                            "Elixir SDK was compiled for OTP ${mismatch.first} but is paired with OTP ${mismatch.second}"
+                    otpMismatchWarningLabel.text = mismatch.warning
                 }
                 otpMismatchWarningLabel.isVisible = mismatch != null
             }

@@ -6,10 +6,14 @@ import com.intellij.ui.CollectionListModel
 import org.elixir_lang.sdk.SdkEnvironment
 import org.elixir_lang.sdk.SdkHomeChooser
 import org.elixir_lang.sdk.SdkRegistrar
+import org.elixir_lang.sdk.SdkVersionsFiller
 import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.elixir.ElixirSdkValidation
 import org.elixir_lang.sdk.elixir.OtpMatch
 import org.elixir_lang.sdk.wsl.wslCompat
+import java.awt.Component
+import java.nio.file.Path
+import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
 
 /**
  * One Erlang the step offers for an Elixir install: a registered Erlang SDK, or an install no listed SDK has ([sdk]
@@ -34,6 +38,17 @@ sealed interface Unpickable {
     /** The Erlang is on another machine than the Elixir install, which can't run on it. */
     data object OnAnotherMachine : Unpickable
 }
+
+/** How the step was answered. */
+sealed interface ErlangStepAnswer {
+    data class Picked(val entry: ErlangStepEntry) : ErlangStepAnswer
+
+    /** Nothing picked: cancelled, or gone back to choose another Elixir install. */
+    data object Cancelled : ErlangStepAnswer
+}
+
+/** Where a pick built for another OTP goes back to, to choose another Elixir install, with the pick's OTP major. */
+typealias ChooseAnotherInstall = (otpMajor: Int?) -> Unit
 
 /**
  * What the step's dialog shows and has picked; nothing is picked until the user picks. [installEntry] is the entry for a
@@ -62,6 +77,22 @@ class ErlangStepState(entries: List<ErlangStepEntry>, private val installEntry: 
 
 @Service
 class ErlangStep {
+    /** Asks for one of the [state]'s entries for the Elixir install at [elixirHome] (see [ErlangStepDialog]). */
+    fun choose(
+        parent: Component?,
+        elixirHome: String,
+        state: ErlangStepState,
+        chooseAnotherInstall: ChooseAnotherInstall? = null,
+    ): ErlangStepAnswer =
+        ErlangStepDialog(parent, state, chooseAnotherInstall) { browse(elixirHome, state.entries) }.showAndPick()
+
+    private fun browse(elixirHome: String, entries: List<ErlangStepEntry>): String? {
+        var chosen: String? = null
+        SdkHomeChooser.selectSdkHome(ErlangSdkType.instance, Path.of(elixirHome), entries.map { it.home }) { chosen = it }
+        chosen?.let(SdkVersionsFiller::fillIfUnreadBlocking)
+        return chosen
+    }
+
     companion object {
         /**
          * The step's state for the Elixir install at [elixirHome]: the registered Erlang SDKs in [sdks] it can depend on,
