@@ -5,6 +5,7 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.application.ReadAction
 import com.intellij.psi.PsiFileFactory
+import com.intellij.util.system.OS
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -59,15 +60,23 @@ abstract class SdkProbeTestCase(
         return ReadAction.computeBlocking<ElixirAst, Throwable> { Lowering.lower(file, level) }
     }
 
-    /** The one module of [code], expanded from `/s.ex` at the leg's level with [sdk] on a thread of [stackSize] bytes. */
-    internal fun expandedOnAStack(code: String, stackSize: Long): ExpansionResult {
+    /** A run at [level] with the leg's modules and [sdk], reporting to [observer]. */
+    internal fun legRun(level: ElixirLanguageLevel, observer: ExpansionObserver): Run =
+        Run(level, observer, legExports, legStructs, legAppEnv(), clauses = sdk, newEnv = Env.empty(level, legKernel))
+
+    /** The one module of [code], as [expandedFileOnAStack] expands it. */
+    internal fun expandedOnAStack(code: String, stackSize: Long): ExpansionResult = expandedFileOnAStack(code, stackSize).modules.single()
+
+    /** [code], expanded from `/s.ex` at the leg's level with [sdk] and [os] on a thread of [stackSize] bytes. */
+    internal fun expandedFileOnAStack(code: String, stackSize: Long, os: OS? = null): FileExpansion {
         val level = legLevel()
         val forms = lowered(code, level)
 
         return onAStack(stackSize) {
-            Expander.expandFile(forms, Env.empty(level, legKernel), level, appExports, legStructs, legAppEnv(), clauses = sdk, file = { "/s.ex" })
-                .modules
-                .single()
+            Expander.expandFile(
+                forms, Env.empty(level, legKernel), level, appExports, legStructs, legAppEnv(),
+                clauses = sdk, file = { "/s.ex" }, os = os,
+            )
         }!!.getOrThrow()
     }
 

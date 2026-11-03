@@ -7,7 +7,7 @@ out = System.fetch_env!("ECTO_FIXTURE_ORACLE")
 schemas = [EctoFixture.Comment, EctoFixture.Post, EctoFixture.Tag, EctoFixture.Author, EctoFixture.Book]
 
 info =
-  for module <- [EctoFixture.Queries, EctoFixture.Repo | schemas], into: %{} do
+  for module <- [EctoFixture.Queries, EctoFixture.Repo, EctoFixture.Inline, EctoFixture.Inline.Meta | schemas], into: %{} do
     {module, %{functions: module.__info__(:functions), macros: module.__info__(:macros)}}
   end
 

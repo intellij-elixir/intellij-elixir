@@ -1340,8 +1340,7 @@ internal class AstEscapeBuilder(private val s: Synthetic) : EscapeBuilder<Elixir
     override fun generated(value: ElixirAst, marks: () -> Boolean): ElixirAst {
         if (!value.hasMetadata() || !marks()) return value
 
-        val meta = value.meta
-        val marked = Meta(meta.origin, meta.start, meta.end, GENERATED + meta.keys, meta.built)
+        val marked = markedGenerated(value.meta)
 
         return when (value) {
             is ElixirAst.Call -> ElixirAst.Call(marked, value.callee, value.arguments, value.context)

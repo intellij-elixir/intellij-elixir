@@ -911,9 +911,10 @@ internal fun orGuards(node: ElixirAst): List<ElixirAst> {
 /**
  * Whether `run_with_location_change/3` moves a definition into another file: whether the file of [file], the `@file` it
  * took, or else of the `keep:` that `elixir_utils:meta_keep/1` reads off [head]'s name and arguments, made absolute as
- * `filename:absname/1` makes it, isn't [run]'s. A file that can't be read moves it.
+ * `filename:absname/1` makes it, isn't [env]'s, the run's own made absolute the same way. A file that can't be read
+ * moves it.
  */
-private fun moved(file: AttributeValue?, head: ElixirAst, run: Run): Boolean {
+private fun moved(file: AttributeValue?, head: ElixirAst, env: Env, run: Run): Boolean {
     val path = when (file) {
         null -> keptFile(extractGuards(head).first.meta) ?: return false
         is AttributeValue.Held, AttributeValue.Unknown -> return true
@@ -921,7 +922,7 @@ private fun moved(file: AttributeValue?, head: ElixirAst, run: Run): Boolean {
     }
     val joined = run.absolute(path) ?: return true
 
-    return absname(joined) != run.file()?.let(::absname)
+    return absname(joined) != envFile(run, env, ::absname)
 }
 
 /**
@@ -997,7 +998,7 @@ internal fun storeDefinition(
     }
 
     // `retrieve_location/2`, before the name is checked. Only `invalid_def` comes before it in Elixir, and it raises.
-    compiling.definitionMoved = moved(takeFile(definition, compiling), unquoted.head, run)
+    compiling.definitionMoved = moved(takeFile(definition, compiling), unquoted.head, definition.env, run)
 
     if (unnamedAt != null) {
         compiling.table.define(null, 0, kind, node, unquoted.head, 0, 0, definition.statement, definition.checksClauses)

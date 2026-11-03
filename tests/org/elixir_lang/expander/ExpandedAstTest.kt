@@ -189,9 +189,9 @@ class ExpandedAstTest : SdkProbeTestCase() {
                 left[node.meta.origin] = node to expansion
             }
         }
-        val run = Run(level, observer, legExports, legStructs, legAppEnv(), clauses = sdk)
+        val run = legRun(level, observer)
 
-        run.askingAst { Expander.expandFile(forms, Env.empty(level, legKernel), run) }
+        run.askingAst { Expander.expandFile(forms, run) }
 
         val found = left[range] ?: left[TextRange(range.startOffset + 1, range.endOffset - 1)]
 

@@ -20,6 +20,7 @@ import org.elixir_lang.expander.Dispatch
 import org.elixir_lang.expander.Effect
 import org.elixir_lang.expander.Env
 import org.elixir_lang.expander.ExState
+import org.elixir_lang.expander.Expansion
 import org.elixir_lang.expander.Linify
 import org.elixir_lang.expander.LinifyClause
 import org.elixir_lang.expander.LinifyRight
@@ -35,9 +36,9 @@ import org.elixir_lang.expander.Summary
 import org.elixir_lang.expander.Warning
 import org.elixir_lang.expander.children
 import org.elixir_lang.expander.compilingKnown
-import org.elixir_lang.expander.envField
-import org.elixir_lang.expander.envFields
+import org.elixir_lang.expander.createdModule
 import org.elixir_lang.expander.forOptions
+import org.elixir_lang.expander.inheriting
 import org.elixir_lang.expander.givenAt
 import org.elixir_lang.expander.isBitstringGenerator
 import org.elixir_lang.expander.isCall
@@ -49,6 +50,8 @@ import org.elixir_lang.expander.isVariable
 import org.elixir_lang.expander.isVariableNamed
 import org.elixir_lang.expander.keyOf
 import org.elixir_lang.expander.lineOf
+import org.elixir_lang.expander.linifyWithContextCounter
+import org.elixir_lang.expander.macroEnv
 import org.elixir_lang.expander.literalOf
 import org.elixir_lang.expander.macroExpand
 import org.elixir_lang.expander.macroExpandOnce
@@ -62,6 +65,7 @@ import org.elixir_lang.expander.unlessTooDeep
 import org.elixir_lang.expander.unlessTooDeepToRun
 import org.elixir_lang.expander.whenArguments
 import org.elixir_lang.expander.withOptions
+import org.elixir_lang.language_level.ElixirLanguageFeature.EVAL_ENV_KEEPS_CONTEXT_MODULES
 import org.elixir_lang.language_level.ElixirLanguageFeature.FIELD_OF_NON_MAP_RAISES_BADKEY
 import org.elixir_lang.language_level.ElixirLanguageFeature.FN_CLAUSE_ERROR_IS_FUNCTION_CLAUSE
 import org.elixir_lang.language_level.ElixirLanguageFeature.GENERATOR_RIGHT_SIDE_SCOPED
@@ -472,13 +476,14 @@ internal class Evaluation(
             return Summary.Output.Raised(exceptionModule(thrown))
         }
 
-        return Summary.Output.Built(
-            rebuilt(result, call.meta.origin, run, built = false, known = nodes::get) { term, node ->
-                placeOf(term)?.let { run.placedAt[node] = it }
-            } ?: decline("the result isn't quoted or is too large to copy"),
-            injects = true,
-        )
+        return Summary.Output.Built(code(result) ?: decline("the result isn't quoted or is too large to copy"), injects = true)
     }
+
+    /** [term], evaluated at the call, as code ([rebuilt]), each node placed where its term was. */
+    private fun code(term: OtpErlangObject): ElixirAst? =
+        rebuilt(term, call.meta.origin, run, built = false, known = nodes::get) { each, node ->
+            placeOf(each)?.let { run.placedAt[node] = it }
+        }
 
     /**
      * Raises where `elixir_quote:linify_with_context_counter/3` raises on [term], the macro's result, before
@@ -994,17 +999,17 @@ internal class Evaluation(
             "__STACKTRACE__" -> frame.stacktrace ?: decline("__STACKTRACE__ outside a rescue or catch")
             "__MODULE__" if frame.source -> atom(frame.module.module)
             "__DIR__" if frame.source -> value(node, frame)
-            // An env the expansion gave no term of is a `Macro.Env` whose fields may name any module being compiled.
-            "__ENV__" if frame.source -> givingAll { value(node, frame) }.let { if (it === Unknown) unknownEnv else it }
+            // The escaped env, whose fields may name any module being compiled where it isn't known.
+            "__ENV__" if frame.source -> givingAll { dispatched(name, emptyList(), node, frame, tail) }
             // Before 1.15, the local call its expansion made of it.
             else if frame.source && frame.module.dispatches.of(node) != null -> dispatched(name, emptyList(), node, frame, tail)
             else -> decline("reads $name, which isn't bound here")
         }
     }
 
-    /** [env] at the call, as `__CALLER__` reads it: each field of the leg's `Macro.Env` ([envField]). */
+    /** [env] at the call, as `__CALLER__` reads it: the leg's `Macro.Env` ([macroEnv]). */
     private fun envOf(env: Env): OtpErlangObject = envs.getOrPut(env) {
-        macroEnv { field -> envField(field, env, state, lineAt(env), false, run)!! }
+        macroEnv(env, state, lineAt(env), false, run)
     }
 
     /** The line the macro runs at in [env]: [Env.line], or the call's. */
@@ -1021,20 +1026,114 @@ internal class Evaluation(
 
         val matchEnv = env.copy(context = Env.Context.MATCH)
         val matchState = state.copy(prematch = ExState.Prematch.InMatch(state.read, state.version, emptyMap(), emptyList()))
-        val match = macroEnv { field -> envField(field, matchEnv, matchState, lineAt(matchEnv), false, run)!! }
+        val match = macroEnv(matchEnv, matchState, lineAt(matchEnv), false, run)
 
         return (matchEnv to matchState).takeIf { term == match }
     }
 
-    /** A `Macro.Env` whose every field is [ModuleUnknown]. */
-    private val unknownEnv: OtpErlangObject by lazy { macroEnv { ModuleUnknown } }
+    /**
+     * `Module.create/3`: [args]' module compiled here, through the compile `defmodule` reaches, from the env its third
+     * argument gives and no variables, once its quoted body is code. `null`, for its clauses to raise, where Elixir's
+     * guards refuse the arguments or `:file` is missing. Its `binary` and the value of its last expression aren't known.
+     * A body, a name or an env that isn't known declines, and so does a module that stops; one that raises raises its
+     * exception, whose fields aren't known. One that compiled where it may have raised isn't taken to have raised
+     * ([assumeNoRaise]).
+     */
+    fun createModule(args: List<OtpErlangObject>): OtpErlangObject? {
+        val name = (seen(args[0]) as? OtpErlangAtom)?.atomValue() ?: return null
+        val created = macroEnvOf(args[2])?.let { createEnv(it) }
+            ?: createEnv(properElements(seen(args[2]))?.map(::seen) ?: return null)
+            ?: return null
+        val at = call as? ElixirAst.Call ?: decline("Module.create/3 outside a call")
+        val body = code(args[1]) ?: decline("Module.create/3 of a body that isn't code")
+        val linified =
+            linifyWithContextCounter(created.line, name, run.counters.next(null), run.level, body, created.generated, inheriting(at, run))
 
-    /** The leg's `Macro.Env`, each field [valueOf] it. */
-    private fun macroEnv(valueOf: (String) -> OtpErlangObject): OtpErlangObject =
-        mapOf(
-            listOf(atom("__struct__") to atom("Elixir.Macro.Env")) + envFields(run.level).map { atom(it) to valueOf(it) },
-            run.level,
+        val result = createdModule(name, linified, created.env, at, run, bodyValues)
+
+        return when (val outcome = result.ended.seenAt(at)) {
+            null -> {
+                if (!result.certain) assumeNoRaise()
+
+                tuple(atom("module"), atom(name), Unknown, Unknown)
+            }
+            is Expansion.Error -> raiseFieldsUnknown(
+                Expansion.Error.exception(outcome.kind, run.level) ?: decline("Module.create/3 of a body whose raise isn't known"),
+            )
+            else -> decline("Module.create/3 of a module that stopped")
+        }
+    }
+
+    /**
+     * The env `Module.create/3` compiles its module in, and the line and `generated: true` `linify_with_context_counter/3`
+     * reads from its metadata.
+     */
+    private data class CreateEnv(val env: Env, val line: Int, val generated: Boolean)
+
+    /**
+     * `elixir:env_for_eval/1` of a `%Macro.Env{}` [term] as `Module.create/3` gives it to `elixir_module:compile`, and
+     * the metadata it takes from it: the term's aliases, requires, imports and file, with no macro aliases, context or
+     * function, and its context modules from [EVAL_ENV_KEEPS_CONTEXT_MODULES]. An entry that isn't known, or isn't the
+     * shape `Macro.Env` holds, declines, but for a file that isn't known where the run's isn't either.
+     */
+    private fun createEnv(term: OtpErlangMap): CreateEnv {
+        fun field(name: String) = macroEnvField(term, name)
+        fun name(value: OtpErlangObject) = (seen(value) as? OtpErlangAtom)?.atomValue() ?: decline("a Macro.Env's name %s", value)
+        fun elements(value: OtpErlangObject) = properElements(seen(value)) ?: decline("a Macro.Env's list %s", value)
+        fun pair(value: OtpErlangObject) =
+            (seen(value) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elements() ?: decline("a Macro.Env's pair %s", value)
+        fun imports(value: OtpErlangObject) = elements(value).map { entry ->
+            val (module, names) = pair(entry)
+
+            Env.Imports(
+                name(module),
+                elements(names).map { nameArity ->
+                    val (function, arity) = pair(nameArity)
+
+                    NameArity(name(function), smallInt(arity) ?: decline("a Macro.Env's arity %s", arity))
+                },
+            )
+        }
+
+        val env = Env(
+            aliases = elements(field("aliases")).map { entry -> pair(entry).let { (alias, module) -> Env.Alias(name(alias), name(module)) } },
+            requires = elements(field("requires")).map(::name),
+            functions = imports(field("functions")),
+            macros = imports(field("macros")),
+            macroAliases = emptyList(),
+            context = Env.Context.NONE,
+            contextModules = if (EVAL_ENV_KEEPS_CONTEXT_MODULES.isSufficient(run.level)) elements(field("context_modules")).map(::name) else emptyList(),
+            module = null,
+            function = null,
+            file = macroEnvEntry(term, "file")
+                // The run's file not being known is why its env's isn't, as it is in the created module.
+                .takeUnless { isUnknown(it) && run.file() == null }
+                ?.let(::fileText),
         )
+
+        return CreateEnv(env, field("line").let { smallInt(it) ?: decline("a Macro.Env's line %s", it) }, generated = false)
+    }
+
+    /**
+     * `elixir:env_for_eval/1` of [options], a keyword list, as `Module.create/3` gives it to `elixir_module:compile`, and
+     * the metadata it takes from them: `elixir_env:new()`'s env with the given `:file`, and the `:line` and
+     * `generated: true`. `null` without `:file`, for `Module.create/3`'s clause to raise. An option that sets the env
+     * otherwise declines.
+     */
+    private fun createEnv(options: List<OtpErlangObject>): CreateEnv? {
+        fun option(key: String) = keyValue(options) { seen(it) == atom(key) }
+
+        val file = option("file") ?: return null
+        ENV_OPTIONS.firstOrNull { option(it) != null }?.let { decline("Module.create/3 with the option $it") }
+        val newEnv = run.newEnv ?: decline("Module.create/3 with options outside a file's expansion")
+        val line = option("line")?.let { smallInt(seen(it)) ?: decline("Module.create/3 with the line %s", it) } ?: 0
+        val generated = option("generated")?.let(::seen) == TRUE
+
+        return CreateEnv(newEnv.copy(file = fileText(file)), line, generated)
+    }
+
+    /** [term], a file `elixir_utils:get_file/2` takes, as text; any other term declines. */
+    private fun fileText(term: OtpErlangObject): String = natives.utf8(term) ?: decline("a file that isn't UTF-8 text %s", term)
 
     /** Raises [exception] with every field but those that make it an exception unknown, since Elixir's aren't known. */
     fun raiseFieldsUnknown(exception: String): Nothing =
@@ -2813,6 +2912,9 @@ internal class Evaluation(
         val CONTEXT = atom("context")
         val ONE = integer(1)
         val BOOLEANS_AND_NIL = setOf("nil", "true", "false")
+
+        /** The options `elixir:env_for_eval/1` sets an env's field from, other than `:file` and `:line`. */
+        val ENV_OPTIONS = listOf("module", "function", "tracers", "aliases", "requires", "functions", "macros", "lexical_tracker")
         const val ERLANG_ERROR = "Elixir.ErlangError"
         val REQUIRES_STACKTRACE = listOf("Elixir.FunctionClauseError", "Elixir.UndefinedFunctionError", "Elixir.KeyError")
         val REQUIRES_STACKTRACE_FROM_ERROR_INFO = listOf("Elixir.ArgumentError", "Elixir.SystemLimitError")

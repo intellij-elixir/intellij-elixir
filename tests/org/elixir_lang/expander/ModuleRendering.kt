@@ -27,6 +27,12 @@ internal object ModuleRendering {
     }
 }
 
+/** This module and the modules it compiled inside it, outermost first. */
+internal fun ExpansionResult.withNested(): List<ExpansionResult> = listOf(this) + nested.withNested()
+
+/** These modules and the modules each compiled inside it, outermost first. */
+internal fun List<ExpansionResult>.withNested(): List<ExpansionResult> = flatMap { it.withNested() }
+
 /** How [result] ended: `compiled`, or a stop by its kind and the dispatch it stopped at. */
 internal fun ending(result: ExpansionResult): String =
     when (val ended = result.ended) {

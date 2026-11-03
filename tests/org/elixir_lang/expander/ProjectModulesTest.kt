@@ -408,6 +408,32 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
+     * A module a macro creates while the file's top level expands is the file's first, before its `defmodule`s, as
+     * Elixir expands the whole file before it runs any of it.
+     */
+    fun testAModuleATopLevelMacroCreatesIsTheFilesFirst() {
+        addLegElixir()
+        addTopMaker()
+        val b = add("b.ex", "require Maker\nMaker.make()\n\ndefmodule B do\nend\n")
+
+        assertEquals(listOf("Elixir.TopMade", "Elixir.B"), expansion(holder, b).modules.map { it.module })
+    }
+
+    /**
+     * A module a macro creates while the file's top level expands stays the file's where a later form fails to expand:
+     * Elixir loaded it before it raised.
+     */
+    fun testAModuleATopLevelMacroCreatesOutlivesALaterExpansionError() {
+        addLegElixir()
+        addTopMaker()
+        val b = add("b.ex", "require Maker\nMaker.make()\nundefined_call()\n")
+        val expansion = expansion(holder, b)
+
+        assertTrue("${expansion.top}", expansion.top is Expansion.Error)
+        assertEquals(listOf("Elixir.TopMade"), expansion.modules.map { it.module })
+    }
+
+    /**
      * A stop in the expansion of a `@before_compile` callback's output, after a module the output defines, can't change
      * what that module defined: it loads, while the module the callback ran in stopped.
      */
@@ -2283,6 +2309,11 @@ class ProjectModulesTest : PlatformTestCase() {
         "defmodule $module do\n  name = String.to_atom($name)\n  def unquote(name)(), do: 1\nend\n"
 
     private fun defines(file: PsiFile): String = defines(holder, file)
+
+    /** `Maker`, whose `make` macro creates `TopMade` in its caller. */
+    private fun addTopMaker() {
+        add("maker.ex", "defmodule Maker do\n  defmacro make do\n    Module.create(TopMade, quote(do: def(f, do: :ok)), __CALLER__)\n    :ok\n  end\nend\n")
+    }
 
     /** The leg's compiled `Elixir` and `EEx`, `EEx` with its sources. */
     private fun addCompiledEex() {

@@ -353,15 +353,29 @@ internal class BodyValues(
             statements.allBefore(running.firstOrNull()?.site ?: site) { outcomes[it] }
 
     /**
+     * The site that stands for the code running now: the outermost statement running it, else the unit being stepped;
+     * `null` where the walk runs none, as for a macro's code run as the body expands.
+     */
+    private val runningSite: ElixirAst?
+        get() = running.firstOrNull()?.site ?: stepping.lastOrNull()
+
+    /**
+     * Whether a raise in the code running now is the body's for certain: at its [runningSite] ([certainAt]); where the
+     * walk runs none, the code is a macro's, run as the body expands, whose raise is the body's where the expansion's is
+     * ([expansionCertain]).
+     */
+    fun certainNow(): Boolean = runningSite?.let(::certainAt) ?: expansionCertain
+
+    /**
      * Whether the code running now runs once, where Elixir runs it, which depends on where it is, not on what ran
-     * before it: Elixir runs the body, the code is on the statement path (the outermost statement running it, else the
-     * unit being stepped, is a statement) and in no unit stepped unordered ([unordered]), the unit running it declined
-     * none of its code so far, and nothing in the statements running it was reached where it may never run. What
-     * earlier code may have written is for the module's marks to decide.
+     * before it: Elixir runs the body, the code is on the statement path (its [runningSite] is a statement) and in no
+     * unit stepped unordered ([unordered]), the unit running it declined none of its code so far, and nothing in the
+     * statements running it was reached where it may never run. What earlier code may have written is for the module's
+     * marks to decide.
      */
     val runsOnce: Boolean
         get() = known && !declined && unorderedSteps == 0 && running.all { it.once } &&
-            (running.firstOrNull()?.site ?: stepping.lastOrNull())?.let(statements::contains) != false
+            runningSite?.let(statements::contains) != false
 
     /** The sites of the units the walk is running, innermost last. */
     private val stepping = ArrayDeque<ElixirAst>()
@@ -1105,17 +1119,17 @@ internal fun Run.queueOutput(
 ) = replacePending(from, listOf(Pending.Effect(node, ordered, queued, apply)))
 
 /**
- * What [compilePending] gives: how the file's top level ends, if it does, where it first stopped or raised; each module
- * compiled; and whether the run [endsRun] at an error from certain inputs, after which Elixir compiles nothing.
+ * What [compilePending] gives: how the file's top level ends, if it does, where it first stopped or raised; and whether
+ * the run [endsRun] at an error from certain inputs, after which Elixir compiles nothing. Each module compiled is in
+ * [Run.compiledInto].
  */
-internal class Walked(val ended: Expansion?, val modules: List<ExpansionResult>, val endsRun: Boolean)
+internal class Walked(val ended: Expansion?, val endsRun: Boolean)
 
 /**
  * Each module [run]'s expansion so far defined, compiled in turn, and each `=` and check of the file's top level run in
  * its place, until one raises or reaches a raise from certain inputs, after which none is defined.
  */
 internal fun compilePending(run: Run): Walked {
-    val modules = mutableListOf<ExpansionResult>()
     val values = run.fileValues
     var stopped: Expansion? = null
     // How the file's run ended, where a unit ended it: where it first stopped, or at that unit's own stop or error.
@@ -1135,7 +1149,7 @@ internal fun compilePending(run: Run): Walked {
             is Pending.Module -> {
                 val result = compileModule(pending, run, values, bindings)
 
-                modules += result
+                run.compiledInto += result
 
                 // The file's run ends where it first stopped, or at the module's own stop or raise where nothing stopped
                 // before.
@@ -1182,10 +1196,10 @@ internal fun compilePending(run: Run): Walked {
     }
 
     for (pending in run.pending) {
-        if (step(pending, values.bindings, null).ends) return Walked(endedAt, modules, true)
+        if (step(pending, values.bindings, null).ends) return Walked(endedAt, true)
     }
 
-    return Walked(stopped, modules, false)
+    return Walked(stopped, false)
 }
 
 /** A unit of the body whose values are [values] raised: the run of that body ends there. */
@@ -1441,16 +1455,36 @@ private val Expansion?.runs: Boolean
  * compiles after that output, so the call is restored as the one injecting what it defines. Its body reads the
  * variables it is given from [enclosing], the values the body it is in has bound, and whether Elixir runs it where the
  * expander does: at a statement that runs once in [enclosing], and whether it reaches it with no raise taken not to
- * happen.
+ * happen ([reached], at its `defmodule` unless given).
  */
 internal fun compileModule(
     module: Pending.Module,
     run: Run,
     enclosing: BodyValues,
     bindings: HashMap<Binding, OtpErlangObject> = enclosing.bindings,
+    reached: Boolean = enclosing.certainAt(module.node),
 ): ExpansionResult =
-    module.injectedBy?.let { call -> run.expandInjected(call) { compile(module, run, enclosing, bindings) } }
-        ?: compile(module, run, enclosing, bindings)
+    module.injectedBy?.let { call -> run.expandInjected(call) { compile(module, run, enclosing, bindings, reached) } }
+        ?: compile(module, run, enclosing, bindings, reached)
+
+/**
+ * `elixir_module:compile/6` from inside an evaluation, for `Module.create/3`: [name] compiled now from [body] in [env]
+ * with no variables, at the call [at], where the code running it is reached ([BodyValues.certainNow]). Its node is new,
+ * as each run of the call compiles again. A module that raised defines nothing, so it is left out of what the run
+ * compiled, but the modules its body compiled before the raise are kept.
+ */
+internal fun createdModule(name: String, body: ElixirAst, env: Env, at: ElixirAst.Call, run: Run, enclosing: BodyValues): ExpansionResult {
+    val node = ElixirAst.Call(at.meta, ElixirAst.Literal.Atom(at.meta, "create"), listOf(body))
+    val module = Pending.Module(
+        node, name, true, body, env.copy(module = name), ExState.empty(run.level),
+        injectedBy = at,
+        placed = enclosing.placed,
+        statement = true,
+    )
+
+    return compileModule(module, run, enclosing, HashMap(), enclosing.certainNow())
+        .also { run.compiledInto += if (it.ended.raises) it.nested else listOf(it) }
+}
 
 /**
  * [match] run from [bindings], which it binds into. A value the evaluator can't produce leaves what the match binds
@@ -1462,15 +1496,24 @@ private fun matched(match: Pending.Match, values: BodyValues, run: Run, bindings
 private fun ran(statement: Pending.Statement, values: BodyValues, run: Run, bindings: HashMap<Binding, OtpErlangObject>): Evaluated =
     values.statement(statement.node, statement.state, statement.env, run, bindings)
 
+/** The elements from [index] on, taken out of the list. */
+private fun <T> MutableList<T>.removedFrom(index: Int): List<T> = subList(index, size).let { taken -> taken.toList().also { taken.clear() } }
+
 /**
  * [module] compiled where the body around it reached it, reading the variables it is given from [bindings]: the body's
  * where the `defmodule` is a statement, or those the evaluator has where it reaches the `defmodule` inside one.
  */
-private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bindings: HashMap<Binding, OtpErlangObject>): ExpansionResult {
+private fun compile(
+    module: Pending.Module,
+    run: Run,
+    enclosing: BodyValues,
+    bindings: HashMap<Binding, OtpErlangObject>,
+    reached: Boolean,
+): ExpansionResult {
     val name = module.name
     val statement = module.isStatement(enclosing.statements)
     val placed = statement && module.placed
-    val compiling = Compiling(module.body, run.level, statement && enclosing.runsOnce, placed, enclosing.certainAt(module.node))
+    val compiling = Compiling(module.body, run.level, statement && enclosing.runsOnce, placed, reached)
     val values = compiling.values
 
     for ((version, outer) in module.outer) {
@@ -1494,12 +1537,11 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
     val enclosing = run.compiling.put(name, compiling)
     val enclosingPending = run.pending
     val consultedFrom = run.consulted.size
-    val errors = mutableListOf<Reported>()
-    var errorsFrom = run.errors.size
-    val warnings = mutableListOf<Warning>()
-    var warningsFrom = run.warnings.size
+    val errorsFrom = run.errors.size
+    val warningsFrom = run.warnings.size
     val units = mutableListOf<ExpansionResult.Unit>()
     val nested = mutableListOf<ExpansionResult>()
+    val enclosingCompiled = run.compiledInto.also { run.compiledInto = nested }
 
     run.pending = mutableListOf()
     run.counters.start(name)
@@ -1642,13 +1684,8 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
                 applied
             }
             is Pending.Module -> {
-                errors += run.errors.subList(errorsFrom, run.errors.size)
-                warnings += run.warnings.subList(warningsFrom, run.warnings.size)
-
                 val result = compileModule(pending, run, values, bindings)
 
-                errorsFrom = run.errors.size
-                warningsFrom = run.warnings.size
                 nested += result
                 stepping.compiled(result)
                 stepping.ends = result.ended.endsRunAt(statement)
@@ -1696,6 +1733,7 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
     /** The module's compilation is over: the run compiles what was around it again. */
     fun leave() {
         run.pending = enclosingPending
+        run.compiledInto = enclosingCompiled
 
         if (enclosing == null) run.compiling.remove(name) else run.compiling[name] = enclosing
     }
@@ -1726,11 +1764,12 @@ private fun compile(module: Pending.Module, run: Run, enclosing: BodyValues, bin
 
     if (compiling.ended == null) {
         compiling.ended =
-            postModule(module, compiling, tainted = run.errors.size > errorsFrom || errors.isNotEmpty(), run) { ended(it, sure(), compiling, run, compiling.tablesCertain()) }
+            postModule(module, compiling, tainted = run.errors.size > errorsFrom, run) { ended(it, sure(), compiling, run, compiling.tablesCertain()) }
     }
 
-    errors += run.errors.subList(errorsFrom, run.errors.size)
-    warnings += run.warnings.subList(warningsFrom, run.warnings.size)
+    // They are the module's own, taken from the run's, so the code that compiled it doesn't read them as its own.
+    val errors = run.errors.removedFrom(errorsFrom)
+    val warnings = run.warnings.removedFrom(warningsFrom)
 
     leave()
 

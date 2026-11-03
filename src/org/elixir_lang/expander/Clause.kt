@@ -295,8 +295,7 @@ internal enum class Clause(vararg val heads: Head) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
             isVariableNamed(node, "__ENV__")
 
-        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            recordingValue(node, env, run, expandEnv(node, state, env, run))
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = expandEnv(node, state, env, run)
     },
 
     ENV_FIELD(expandHead("{{'.',_,[{'__ENV__',_,V1},V2]},_,[]} when is_atom(V1), is_atom(V2)")) {

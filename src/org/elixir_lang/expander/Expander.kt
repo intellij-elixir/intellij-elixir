@@ -119,12 +119,12 @@ object Expander {
     ): FileExpansion =
         expandFile(
             forms,
-            env,
-            Run(level, observer, exports, structs, appEnv, counters, file, directories, clauses, virtualFile, os, buildTarget, config, files),
+            Run(level, observer, exports, structs, appEnv, counters, file, directories, clauses, virtualFile, os, buildTarget, config, files, env),
         )
 
-    /** A file's top-level [forms] expanded from [env] in [run], as the other `expandFile` expands them. */
-    internal fun expandFile(forms: ElixirAst, env: Env, run: Run): FileExpansion {
+    /** A file's top-level [forms] expanded from [run]'s [Run.newEnv], as the other `expandFile` expands them. */
+    internal fun expandFile(forms: ElixirAst, run: Run): FileExpansion {
+        val env = requireNotNull(run.newEnv) { "a file's run starts from its new env" }
         val level = run.level
         val state = ExState.empty(level)
 
@@ -148,7 +148,8 @@ object Expander {
 
         val top = expanded.certain(run.fileValues.expansionCertain)
 
-        if (expanded is Expansion.Error) return FileExpansion(top, emptyList(), endsRun = true)
+        // Nothing queued runs, but what a macro created as the file expanded stays: Elixir loaded it before the raise.
+        if (expanded is Expansion.Error) return FileExpansion(top, run.compiledInto, endsRun = true)
 
         val walked = compilePending(run)
 
@@ -167,7 +168,11 @@ object Expander {
             read.result = (value as? Evaluated.Value)?.value ?: Unknown
         }
 
-        return FileExpansion(if (top is Expansion.Expanded) walked.ended ?: top else top, walked.modules, walked.endsRun)
+        return FileExpansion(
+            if (top is Expansion.Expanded) walked.ended ?: top else top,
+            run.compiledInto,
+            walked.endsRun,
+        )
     }
 
     /**
@@ -197,7 +202,7 @@ object Expander {
 
         return FileExpansion(
             walked.ended ?: Expansion.Expanded(state, env, NODE, ExpandedAst.NotAsked),
-            walked.modules,
+            run.compiledInto,
             walked.endsRun,
         )
     }
@@ -303,6 +308,8 @@ internal class Run(
     val config: ConfigRead? = null,
     /** The project's files the run reaches by path. */
     val files: RunFiles = RunFiles.NONE,
+    /** The env the file's forms are expanded from, `elixir_env:new()`, `null` where the run expands no file. */
+    val newEnv: Env? = null,
 ) {
     /** Each macro argument's term and node. */
     val origins = Origins()
@@ -618,10 +625,13 @@ internal class Run(
     /** What each bitstring expanded builds, by node, for the bitstring that nests it. */
     val bitstrings = IdentityHashMap<ElixirAst, BitstringParts>()
 
-    /** The errors Elixir reported and carried on after, in its order. No state restore takes them back. */
+    /**
+     * The errors Elixir reported and carried on after, in its order, while the module that reported them compiles: they
+     * leave with it, as its own. No state restore takes them back.
+     */
     val errors = mutableListOf<Reported>()
 
-    /** The warnings Elixir reported, in its order. No state restore takes them back. */
+    /** The warnings Elixir reported, in its order, as [errors] are kept. No state restore takes them back. */
     val warnings = mutableListOf<Warning>()
 
     /** How Elixir's own code raised after a reported error, if it did. */
@@ -629,6 +639,12 @@ internal class Run(
 
     /** Each module whose body or definitions are being expanded, by name. */
     val compiling = HashMap<String, Compiling>()
+
+    /**
+     * The modules of the module being compiled, or of the file's top level, in the order Elixir compiles them, where
+     * `Module.create/3` puts the module it compiles.
+     */
+    var compiledInto = mutableListOf<ExpansionResult>()
 
     /** The definitions and modules the body being expanded defines, in the order it reached them. */
     var pending = mutableListOf<Pending>()

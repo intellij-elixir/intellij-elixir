@@ -1806,6 +1806,31 @@ enum class ElixirLanguageFeature(
     MODULE_NAME_REJECTS_SLASHES(sinceElixir = "1.13.0-rc.0"),
 
     /**
+     * `elixir_quote:linify_with_context_counter/3` is given its caller's metadata, and where that holds
+     * `generated: true` it marks every node so: a macro's output from the call, `Macro.expand_once/2`'s from the
+     * expression, and `Module.create/3`'s body from its options. Before it, it is given only a line.
+     *
+     * `elixir-lang/elixir@7a90dbf9d` ("Automatically cascade generated: true on macro expansion", #11976), first
+     * released in v1.14.0-rc.0.
+     */
+    LINIFY_CASCADES_GENERATED(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * `elixir_quote:linify_with_context_counter/3` marks a node `generated: true` only where its metadata doesn't
+     * start with that entry already. Before it, it adds the entry to every node.
+     *
+     * `elixir-lang/elixir@a7b208535` ("Avoid adding several generated annotations"), first released in v1.15.0-rc.0.
+     */
+    LINIFY_GENERATED_ONCE(sinceElixir = "1.15.0-rc.0"),
+
+    /**
+     * `elixir:env_for_eval/1` keeps a `Macro.Env`'s `context_modules`. Before it, it clears them.
+     *
+     * `elixir-lang/elixir@71441623c` ("Update CHANGELOG and TODOs"), first released in v1.18.0-rc.0.
+     */
+    EVAL_ENV_KEEPS_CONTEXT_MODULES(sinceElixir = "1.18.0-rc.0"),
+
+    /**
      * A function's default arguments are expanded in turn, each seeing the variables the ones before it bound. Before
      * it, each is expanded from the state before the defaults.
      *

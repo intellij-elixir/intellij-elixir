@@ -283,7 +283,7 @@ private fun expandMacro(dispatch: Dispatch, call: ElixirAst.Call, state: ExState
                 is Summary.Output.Built -> {
                     val counter = run.counters.next(env.module)
 
-                    val linified = linifyWithContextCounter(0, dispatch.receiver, counter, run.level, built.ast, inheriting(call, run))
+                    val linified = linifyWithContextCounter(0, dispatch.receiver, counter, run.level, built.ast, onNode = inheriting(call, run))
 
                     MacroExpanded.Node(linified, true)
                 }

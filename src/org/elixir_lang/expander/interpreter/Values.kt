@@ -645,6 +645,13 @@ internal inline fun keyFound(
     return null
 }
 
+/** The value of the tuple [keyFound] finds, where it is a `{key, Value}` pair; `null` where none is or it isn't one. */
+internal inline fun keyValue(
+    elements: List<OtpErlangObject>,
+    read: (OtpErlangObject) -> OtpErlangObject = { it },
+    matches: (OtpErlangObject) -> Boolean,
+): OtpErlangObject? = keyFound(elements, 1, read, matches)?.takeIf { it.arity() == 2 }?.elementAt(1)
+
 internal fun isNumber(term: OtpErlangObject) = term is OtpErlangLong || term is OtpErlangDouble
 
 /** Erlang's `==` where [exact] is false, else `=:=` ([termsEqual]); declines on terms whose order only the VM knows. */
@@ -674,6 +681,21 @@ private inline fun <T> ordered(left: OtpErlangObject, right: OtpErlangObject, sa
 
 /** [term], declining where it is unknown ([isUnknown]), before its type or value is tested. */
 internal fun seen(term: OtpErlangObject): OtpErlangObject = if (isUnknown(term)) unknown(term) else term
+
+/** [term] where it is a `%Macro.Env{}`, `null` where it is something else. */
+internal fun macroEnvOf(term: OtpErlangObject): OtpErlangMap? =
+    (seen(term) as? OtpErlangMap)?.takeIf { it.get(atom("__struct__"))?.let(::seen) == atom("Elixir.Macro.Env") }
+
+/** The field [name] of [env], a `%Macro.Env{}`, declining where it lacks it or it isn't known. */
+internal fun macroEnvField(env: OtpErlangMap, name: String): OtpErlangObject = seen(macroEnvEntry(env, name))
+
+/** The field [name] of [env], a `%Macro.Env{}`, known or not, declining where it lacks it. */
+internal fun macroEnvEntry(env: OtpErlangMap, name: String): OtpErlangObject =
+    env.get(atom(name)) ?: decline("a Macro.Env without %s", atom(name))
+
+/** [term] as an `Int`, where it is an integer that fits one, `null` where it is something else. */
+internal fun smallInt(term: OtpErlangObject): Int? =
+    (term as? OtpErlangLong)?.takeIf { it.bitLength() < Int.SIZE_BITS }?.intValue()
 
 /** Declines on [term], an unknown value, keeping it where it came from a module being compiled ([Declined.holds]). */
 private fun unknown(term: OtpErlangObject): Nothing =

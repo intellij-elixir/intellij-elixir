@@ -1666,10 +1666,10 @@ internal class Natives(private val evaluation: Evaluation) {
         val context = when (key) {
             "in_guard?/1" -> "guard"
             "in_match?/1" -> "match"
-            "stacktrace/1" -> return stacktrace(macroEnv(args[0]) ?: functionClause("Elixir.Macro.Env", "stacktrace", args))
+            "stacktrace/1" -> return stacktrace(macroEnvOf(args[0]) ?: functionClause("Elixir.Macro.Env", "stacktrace", args))
             else -> return null
         }
-        val env = macroEnv(args[0])?.get(atom("context"))
+        val env = macroEnvOf(args[0])?.get(atom("context"))
             ?: functionClause("Elixir.Macro.Env", key.substringBefore('/'), args)
 
         return bool(seen(env) == atom(context))
@@ -1685,7 +1685,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
         val message = utf8(args[0]) ?: decline("IO.warn/${args.size} of %s", args[0])
         val stacktrace = args.getOrNull(1)?.also { given ->
-            if (macroEnv(given) != null) decline("IO.warn/2 at a Macro.Env")
+            if (macroEnvOf(given) != null) decline("IO.warn/2 at a Macro.Env")
 
             val (elements, _) = cells(seen(given)) ?: functionClause("Elixir.IO", "warn", args)
 
@@ -1701,10 +1701,6 @@ internal class Natives(private val evaluation: Evaluation) {
 
         return atom("ok")
     }
-
-    /** [term] where it is a `%Macro.Env{}`, `null` where it is something else. */
-    private fun macroEnv(term: OtpErlangObject): OtpErlangMap? =
-        (seen(term) as? OtpErlangMap)?.takeIf { it.get(atom("__struct__"))?.let(::seen) == atom("Elixir.Macro.Env") }
 
     /**
      * `Macro.Env.stacktrace/1` (`env.ex`): [env]'s one frame, the compiler's outside a module and the module body's
@@ -1770,6 +1766,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "overridable?/2" -> overridable(args)
             "overridables_in/1" -> if (MODULE_OVERRIDABLES_IN.isSufficient(level)) overridablesIn(args) else null
             "attributes_in/1" -> if (MODULE_ATTRIBUTES_IN.isSufficient(level)) attributesIn(args) else null
+            "create/3" -> evaluation.createModule(args)
             else -> null
         }
 
@@ -2832,7 +2829,7 @@ internal class Natives(private val evaluation: Evaluation) {
     }
 
     /** The text of the binary [term], `null` where it isn't a binary of UTF-8. */
-    private fun utf8(term: OtpErlangObject): String? {
+    fun utf8(term: OtpErlangObject): String? {
         if (!isBinary(term)) return null
 
         return try {
