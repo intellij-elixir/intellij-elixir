@@ -674,13 +674,17 @@ internal class Evaluation(
     /**
      * [value], once each tail call it is has run, one after another, each the call the one before it gave in place of
      * its value. Where one declines, the marks its call makes ([TailCall.gives]) are made: those of the calls before it
-     * aren't, as their code had ended and what they gave it is what it was given.
+     * aren't, as their code had ended and what they gave it is what it was given. Past [TAIL_CALLS] calls, the loop is
+     * too deep to run, as an overflow of the thread's stack is ([unlessTooDeep]).
      */
     private fun looped(value: OtpErlangObject): OtpErlangObject {
         var next = value
+        var calls = 0
 
         while (next is TailCall) {
             val call = next
+
+            if (++calls > TAIL_CALLS) throw StackOverflowError("a tail loop past $TAIL_CALLS calls")
 
             next = try {
                 call.evaluate()
@@ -2826,6 +2830,9 @@ private fun isNonEmptyList(term: OtpErlangObject) =
  */
 internal fun shortCircuits(module: String, name: String, arity: Int): Boolean =
     module == "erlang" && arity == 2 && (name == "andalso" || name == "orelse")
+
+/** The calls one tail loop runs before it is too deep to run, where the BEAM runs it until it ends. */
+private const val TAIL_CALLS = 1_000_000
 
 /**
  * A call in tail position, made but not run: [Evaluation.looped] runs it by [evaluate], once its caller has returned,
