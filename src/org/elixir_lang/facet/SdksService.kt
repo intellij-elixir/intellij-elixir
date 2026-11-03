@@ -3,6 +3,7 @@ package org.elixir_lang.facet
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.application.WriteIntentReadAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.projectRoots.ProjectJdkTable
@@ -170,8 +171,12 @@ class SdksService : Disposable {
     /**
      * Applying commits, adds and removes SDKs in the table, which must not drop the model being applied: pages opened
      * later in the same dialog would get a second model, and applying both reverts one's edits with the other's copies.
+     *
+     * Validating the model reads the SDK table. A modal Settings dialog's Apply holds write-intent, a Settings tab's
+     * Save Changes holds no lock, so the lock is taken here.
      */
-    fun apply(model: ProjectSdksModel) {
+    @Suppress("UnstableApiUsage")
+    fun apply(model: ProjectSdksModel) = WriteIntentReadAction.run {
         committedWhileApplying.clear()
         applying = model
         try {
