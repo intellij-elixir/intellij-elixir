@@ -76,7 +76,7 @@ private fun cleanIdeaFiles(projectPath: String, keepBuild: Boolean) {
  * @param ready How long the project window may take to be ready
  * @throws Exception if the project cannot be opened or UI components are not found
  */
-fun Driver.openProjectAt(path: String, keepBuild: Boolean = false, ready: Duration = 30.seconds) = step("Open project at $path") {
+fun Driver.openProjectAt(path: String, keepBuild: Boolean = false, ready: Duration = INDEXING_TIMEOUT) = step("Open project at $path") {
     // Clean any existing IntelliJ configuration to force OpenProcessor flow
     // Without this, IntelliJ opens the existing project config and bypasses
     // OpenProcessor.openProjectAsync() and Builder.commit(), which means

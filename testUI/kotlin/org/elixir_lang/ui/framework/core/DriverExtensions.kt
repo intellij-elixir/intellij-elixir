@@ -17,10 +17,14 @@ import com.intellij.driver.sdk.ui.remote.Window
 import com.intellij.driver.sdk.waitForIndicators
 import com.intellij.util.system.OS
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 var DEFAULT_TIMEOUT = 30.seconds
 var DEFAULT_MINIMUM_WAIT = 0.seconds
+
+/** `waitForIndicators` needs 10 s with no indicator inside this bound, so it must outlast a project's scan and indexing. */
+val INDEXING_TIMEOUT = 5.minutes
 
 /**
  * Reusable UI helper extensions for common UI test operations.
@@ -119,7 +123,7 @@ fun Driver.selectItemByAccessibleName(
  * to ensure the component is present and ready before interacting with it.
  *
  * @receiver UiComponent The UI component to wait for
- * @param timeout Maximum duration to wait (default: 5 minutes)
+ * @param timeout Maximum duration to wait
  * @param minimum Minimum duration to wait before checking (default: 0 seconds)
  * @throws Exception if the component is not present within the timeout period
  */
@@ -137,11 +141,11 @@ fun UiComponent.waitUntilReady(timeout: Duration = DEFAULT_TIMEOUT, minimum: Dur
  * which is necessary for the main IDE frame to be fully initialized.
  *
  * @receiver IdeaFrameUI The IDE frame to wait for
- * @param timeout Maximum duration to wait (default: 5 minutes)
+ * @param timeout Maximum duration to wait
  * @param minimum Minimum duration to wait before checking (default: 0 seconds)
  * @throws Exception if indicators don't complete within the timeout period
  */
-fun IdeaFrameUI.waitUntilReady(timeout: Duration = DEFAULT_TIMEOUT, minimum: Duration = DEFAULT_MINIMUM_WAIT) {
+fun IdeaFrameUI.waitUntilReady(timeout: Duration = INDEXING_TIMEOUT, minimum: Duration = DEFAULT_MINIMUM_WAIT) {
     step("Wait for IdeaFrameUI $this to be ready for $timeout") {
         Thread.sleep(minimum.inWholeMilliseconds)
         driver.waitForIndicators(timeout)

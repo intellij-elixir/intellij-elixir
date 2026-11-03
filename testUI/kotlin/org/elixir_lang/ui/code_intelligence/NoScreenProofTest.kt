@@ -8,6 +8,7 @@ import com.intellij.driver.sdk.waitForIndicators
 import com.intellij.ide.starter.driver.engine.runIdeWithDriver
 import com.intellij.ide.starter.project.LocalProjectInfo
 import org.elixir_lang.ui.framework.core.IdeTestContext
+import org.elixir_lang.ui.framework.core.INDEXING_TIMEOUT
 import org.elixir_lang.ui.framework.core.NoScreen
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -33,7 +34,7 @@ class NoScreenProofTest {
         IdeTestContext.setupTestContext("NoScreenProof", project = LocalProjectInfo(project))
             .runIdeWithDriver(runTimeout = 10.minutes)
             .useDriverAndCloseIde {
-                waitForIndicators(5.minutes)
+                waitForIndicators(INDEXING_TIMEOUT)
                 openFile("lib/a.ex")
                 step("Type into the editor") {
                     ideFrame {
