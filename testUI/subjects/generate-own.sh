@@ -2,13 +2,27 @@
 # Generates and compiles the testUI subject `own` outside this repository, for `-PtestUiSubject=<root>/own`:
 #   generate-own.sh <root>      writes <root>/own and <root>/own-mix
 # Its deps are the ones `own.mix.lock`, beside this script, pins; `mix deps.get --check-locked` fails if they would move.
+# Elixir and Erlang are the homes `./gradlew resolveElixirErlangSdks` wrote to build/elixir-erlang-sdks.properties, the
+# ones `testUI` gives the IDE, so the SDKs that compile the subject are the SDKs that analyse it.
 # `phx.new` and `phx.gen.live` write a LiveView and a schema. They write no Logger call and no module imported by another,
 # so those are added by hand.
 set -eu
 root=${1:?root}
 here=$(cd "$(dirname "$0")" && pwd)
-leg=${UI_SUBJECT_LEG:-elixir@1.20.4-otp-29 erlang@29.0.6}
-run() { mise exec $leg -- "$@"; }
+props=$here/../../build/elixir-erlang-sdks.properties
+if [ ! -f "$props" ]; then
+  echo "generate-own.sh: $props not found; run ./gradlew resolveElixirErlangSdks first" >&2
+  exit 1
+fi
+elixir_home=$(sed -n 's/^elixir\.sdk\.path=//p' "$props")
+erlang_home=$(sed -n 's/^erlang\.sdk\.path=//p' "$props")
+if [ -z "$elixir_home" ] || [ -z "$erlang_home" ]; then
+  echo "generate-own.sh: $props has no elixir.sdk.path or erlang.sdk.path; run ./gradlew resolveElixirErlangSdks" >&2
+  exit 1
+fi
+# `mix` starts with `#!/usr/bin/env elixir`, so Elixir's bin goes in front of Erlang's.
+export PATH=$elixir_home/bin:$erlang_home/bin:$PATH
+elixir --version
 if [ -e "$root/own" ]; then
   echo "generate-own.sh: $root/own exists; remove it or pick another root" >&2
   exit 1
@@ -20,14 +34,14 @@ export MIX_HOME=$root/own-mix HEX_HOME=$root/own-mix/hex MIX_ENV=dev
 cd "$root"
 start=$(date +%s)
 
-run mix local.hex --force --if-missing
-run mix local.rebar --force --if-missing
-run mix archive.install hex phx_new 1.8.13 --force
-run mix phx.new own --no-install
+mix local.hex --force --if-missing
+mix local.rebar --force --if-missing
+mix archive.install hex phx_new 1.8.13 --force
+mix phx.new own --no-install
 cd own
 cp "$here/own.mix.lock" mix.lock
-run mix deps.get --check-locked
-run mix phx.gen.live Catalog Item items name:string count:integer
+mix deps.get --check-locked
+mix phx.gen.live Catalog Item items name:string count:integer
 
 # After the pipeline, as a route takes only the pipelines piped through above it.
 awk '{ print } /^  scope "\/", OwnWeb do$/ { root = 1 } /^  end$/ { root = 0 }
@@ -96,5 +110,5 @@ defmodule OwnWeb.ProbeLive do
 end
 EOF
 
-run mix compile
+mix compile
 echo "own: compiled in $(($(date +%s) - start)) s"

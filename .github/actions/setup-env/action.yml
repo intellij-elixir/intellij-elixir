@@ -69,6 +69,16 @@ inputs:
     required: false
     default: ''
 
+# The pair setup-beam installs, so a caller can pass the build `-PelixirVersion` and `-PotpVersion`
+# without restating a version.
+outputs:
+  elixir-version:
+    description: 'The Elixir version installed. Empty when setup-elixir is false and elixir-version is not given.'
+    value: ${{ steps.resolve.outputs.elixir-version }}
+  otp-version:
+    description: 'The OTP version installed. Empty when setup-elixir is false and otp-version is not given.'
+    value: ${{ steps.resolve.outputs.otp-version }}
+
 runs:
   using: composite
   steps:
