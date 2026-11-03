@@ -183,16 +183,18 @@ object SdkRegistrar {
      * The caller distinguishes confirmed vs. legacy matches by checking whether `erlangSdkHomePath`
      * is non-null on the returned SDK.
      *
-     * Returns the first match, or null if none exists.
+     * Returns the first match in [sdks], or null if none exists.
      */
+    internal fun findElixirSdkByVariant(sdks: Iterable<Sdk>, homePath: String, erlangSdk: Sdk?): Sdk? =
+        sdks.firstOrNull { sdk -> onInstall(sdk, homePath) && sameErlangHome(sdk, erlangSdk) }
+
+    /** [sdk] is an Elixir SDK on the install at [homePath]: the variant rule's first half. */
+    internal fun onInstall(sdk: Sdk, homePath: String): Boolean =
+        sdk.sdkType is ElixirSdkType && wslCompat.pathsEqualWslAware(sdk.homePath, homePath)
+
     private fun findElixirSdkByVariant(homePath: String, erlangSdk: Sdk?): Sdk? {
         ThreadingAssertions.assertReadAccess()
-        val table = ProjectJdkTable.getInstance()
-        return table.allJdks.firstOrNull { sdk ->
-            sdk.sdkType is ElixirSdkType
-                    && wslCompat.pathsEqualWslAware(sdk.homePath, homePath)
-                    && sameErlangHome(sdk, erlangSdk)
-        }
+        return findElixirSdkByVariant(ProjectJdkTable.getInstance().allJdks.asList(), homePath, erlangSdk)
     }
 
     private fun sameErlangHome(sdk: Sdk, erlangSdk: Sdk?): Boolean {
