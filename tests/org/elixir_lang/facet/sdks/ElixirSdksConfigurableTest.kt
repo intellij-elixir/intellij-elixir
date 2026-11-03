@@ -402,6 +402,12 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         assertSame("registering the picked install keeps the page's model", model, service().getModel())
     }
 
+    fun testAnAddedSdkIsSelected() = addThroughThePage { list, _, elixirHome ->
+        val selected = list.selectedValue
+        assertNotNull("the new Elixir SDK is selected", selected)
+        assertTrue(wslCompat.pathsEqualWslAware(elixirHome, selected.homePath))
+    }
+
     /**
      * Adds an Elixir SDK through the page's "+", picking an Erlang install in the step, then hands [check] the page's
      * list, the model the page held before the add, and the Elixir install.

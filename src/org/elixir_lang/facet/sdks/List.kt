@@ -12,9 +12,12 @@ class List(private val configurable: Configurable): JBList<ProjectJdkImpl>() {
         cellRenderer = Name()
     }
 
+    /** Replacing the model clears the selection, so the selected SDK is selected again if it is still listed. */
     fun refresh() {
+        val selected = selectedValue
         model = CollectionListModel<ProjectJdkImpl>(
                 configurable.sdksService.projectJdkImplList(configurable.sdkType().javaClass)
         )
+        selected?.let { setSelectedValue(it, false) }
     }
 }
