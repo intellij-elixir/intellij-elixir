@@ -2075,21 +2075,15 @@ class InterpreterTest : PlatformTestCase() {
             run = RunInputs(path = "/l.ex"),
         )
 
-    /**
-     * [MAKEUP_STYLE]'s template overflows [SMALL_STACK] in the evaluator, as EEx's tokenizer recurses once per
-     * character.
-     */
-    fun testALongEExTemplateStopsAtItsMatch() =
-        assertEquals("stopped =/2 [call/5 def, render_css/5 defp]", endedOnAStack(MAKEUP_STYLE, SMALL_STACK))
+    /** [MAKEUP_STYLE]'s template compiles on [FIXED_STACK], as its tokenizer's tail calls take no stack. */
+    fun testALongEExTemplateCompilesOnAFixedStack() =
+        assertEquals("compiled [call/5 def, render_css/5 defp]", endedOnAStack(MAKEUP_STYLE, FIXED_STACK))
 
     fun testAShortEExTemplateStaysCompiled() =
         assertEquals(
             "compiled [f/1 def]",
             endedOnAStack("defmodule A do\n  require EEx\n  EEx.function_from_string(:def, :f, \"<%= a %>\", [:a])\nend", SMALL_STACK),
         )
-
-    fun testALongEExTemplateCompilesOnALargeStack() =
-        assertEquals("compiled [call/5 def, render_css/5 defp]", endedOnAStack(MAKEUP_STYLE, stackSize = 1L shl 30))
 
     /**
      * How [code]'s one module ended, with its table, expanded from `/s.ex` at the leg's level on a thread of [stackSize]
@@ -2984,6 +2978,20 @@ class InterpreterTest : PlatformTestCase() {
         /** A row whose case body [body] holds a call of `Mix.Generator`'s macro, [call] one like it. */
         fun generator(id: String, body: String, call: String, ends: (ElixirLanguageLevel) -> String? = { null }): Row =
             moduleBody(id, body, call, listOf("Mix.Generator"), ends)
+
+        /**
+         * A row whose macro calls `f(:bad)`, whose body is [tail], reaching `g(:bad)`, which raises: the frames above the
+         * macro's, as `{function, arity}`.
+         */
+        fun tailPosition(id: String, tail: String): Row =
+            macro(
+                id,
+                "defmacro m do\n  try do\n    f(:bad)\n  rescue\n    _ -> frames(__STACKTRACE__)\n  end\nend\n\n" +
+                    "defp frames([{_, :\"MACRO-m\", _, _} | _]), do: []\n" +
+                    "defp frames([{_, f, a, _} | t]), do: [{f, a} | frames(t)]\n\n" +
+                    "def g(x), do: if(x == :bad, do: :erlang.error(:e), else: x)\n\n" +
+                    "def f(x) do\n${tail.prependIndent("  ")}\nend",
+            )
 
         /** A row whose `use` runs [statements] in the case module, their `unquote`s the module body's. */
         fun fragments(id: String, statements: String, ends: (ElixirLanguageLevel) -> String? = { null }): Row =
@@ -6367,7 +6375,44 @@ class InterpreterTest : PlatformTestCase() {
                 defp count(0), do: 0
                 defp count(n), do: count(n - 1)
                 """,
-                pins = DECLINED,
+            ),
+            macro(
+                "pure:binary-walk",
+                """
+                defmacro m, do: walk(for(_ <- 1..12_800, into: "", do: "a"), 0)
+
+                defp walk(<<_, rest::binary>>, n), do: walk(rest, n + 1)
+                defp walk(<<>>, n), do: n
+                """,
+            ),
+            // Each position below is a tail call's on the BEAM: the caller's frame leaves the stacktrace.
+            tailPosition("pure:tail-body", "g(x)"),
+            tailPosition("pure:tail-block", "y = [x]\ng(hd(y))"),
+            tailPosition("pure:tail-case", "case x do\n  :bad -> g(x)\n  _ -> :ok\nend"),
+            tailPosition("pure:tail-cond", "cond do\n  x == :ok -> :ok\n  true -> g(x)\nend"),
+            tailPosition("pure:tail-if", "if x == :bad, do: g(x), else: :ok"),
+            tailPosition("pure:tail-with-body", "with :bad <- x, do: g(x)"),
+            tailPosition("pure:tail-with-else", "with :ok <- x do\n  :ok\nelse\n  y -> g(y)\nend"),
+            tailPosition("pure:tail-and", "x == :bad and g(x)"),
+            tailPosition("pure:tail-or", "x == :ok or g(x)"),
+            tailPosition("pure:tail-ampersands", "x && g(x)"),
+            tailPosition("pure:tail-bars", "x == :ok || g(x)"),
+            tailPosition("pure:tail-andalso", ":erlang.andalso(x == :bad, g(x))"),
+            tailPosition("pure:tail-orelse", ":erlang.orelse(x == :ok, g(x))"),
+            tailPosition("pure:tail-fn", "(fn y -> g(y) end).(x)"),
+            tailPosition("pure:tail-apply-2", "apply(&g/1, [x])"),
+            tailPosition("pure:tail-apply-3", "apply(__MODULE__, :g, [x])"),
+            tailPosition("pure:tail-remote", "__MODULE__.g(x)"),
+            tailPosition("pure:tail-pipe", "x |> g()"),
+            tailPosition("pure:tail-rescue", "try do\n  :erlang.error(:r)\nrescue\n  _ -> g(x)\nend"),
+            tailPosition("pure:tail-catch", "try do\n  throw(:t)\ncatch\n  :t -> g(x)\nend"),
+            tailPosition("pure:tail-try-else", "try do\n  x\nelse\n  y -> g(y)\nend"),
+            // A call that isn't in tail position keeps its caller's frame.
+            tailPosition("pure:tail-not-in-a-tuple", "{g(x)}"),
+            tailPosition("pure:tail-not-in-try-after", "try do\n  g(x)\nafter\n  :ok\nend"),
+            tailPosition(
+                "pure:tail-not-in-a-rescue-with-after",
+                "try do\n  :erlang.error(:r)\nrescue\n  _ -> g(x)\nafter\n  :ok\nend",
             ),
             macro(
                 "pure:binary-prefix",

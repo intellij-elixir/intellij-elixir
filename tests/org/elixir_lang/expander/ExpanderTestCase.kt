@@ -10,6 +10,9 @@ import org.elixir_lang.lowering.Meta
 import org.elixir_lang.parser_definition.ParsingTestCase
 import org.elixir_lang.psi.ElixirFile
 
+/** The x64 default thread stack, fixed so what overflows on it doesn't move with the platform or `-Xss`. */
+internal const val FIXED_STACK = 1L shl 20
+
 /** Expands snippets at chosen language levels, without Elixir, from the start of an empty module body. */
 abstract class ExpanderTestCase : ParsingTestCase() {
     /** The modules the expanded snippets can load. */
