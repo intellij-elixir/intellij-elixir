@@ -493,9 +493,7 @@ class LoadedModulesTest : ProbeTestCase() {
             Lowering.lower(createPsiFile(getTestName(false), code) as ElixirFile, level)
         }
         val file = Expander.expandFile(forms, Env.empty(level, legKernel), level, legExports, legStructs, NO_APP_ENV)
-        val results = generateSequence(file.modules) { layer -> layer.flatMap { it.nested }.takeIf { it.isNotEmpty() } }
-            .flatten()
-            .associateBy { it.module.removePrefix("Elixir.") }
+        val results = file.modules.withNested().associateBy { it.module.removePrefix("Elixir.") }
 
         return modules.map { module ->
             results[module]?.let { LoadedModules.exports(it)::class.simpleName!! }

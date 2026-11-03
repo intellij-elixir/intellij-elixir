@@ -231,9 +231,7 @@ class ImplMacroTest : ExpanderTestCase() {
         val level = ElixirLanguageLevel.of(version)
         val result = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
 
-        fun modules(module: ExpansionResult): List<ExpansionResult> = listOf(module) + module.nested.flatMap(::modules)
-
-        return result.modules.flatMap(::modules).map { it.module }.filter { it.startsWith("Elixir.Proto.") }
+        return result.modules.withNested().map { it.module }.filter { it.startsWith("Elixir.Proto.") }
     }
 
     override fun expandAndRender(code: String, version: String): String {

@@ -1515,7 +1515,7 @@ internal class ExpansionProbes(
 
         /** [result]'s units, then each nested module's. */
         fun units(result: ExpansionResult): List<ExpansionResult.Unit> =
-            result.units + result.nested.flatMap(::units)
+            result.withNested().flatMap { it.units }
 
         fun start(node: ElixirAst): Int = node.meta.origin.startOffset
 

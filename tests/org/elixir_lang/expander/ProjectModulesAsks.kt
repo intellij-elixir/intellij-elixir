@@ -45,8 +45,7 @@ internal fun render(file: PsiFile, expansion: FileExpansion): String {
         is Expansion.Unported -> "unported `${source(top.at)}`"
         is Expansion.Opaque -> "opaque `${source(top.at)}`"
     }
-    val modules = generateSequence(expansion.modules) { results -> results.flatMap { it.nested }.ifEmpty { null } }
-        .flatten()
+    val modules = ProjectModules.results(expansion)
         .map { result ->
             val ended = when (val ended = result.ended) {
                 ExpansionResult.Ended.Compiled -> "compiled"

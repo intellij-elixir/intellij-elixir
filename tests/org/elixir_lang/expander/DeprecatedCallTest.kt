@@ -196,13 +196,13 @@ class DeprecatedCallTest : ExpanderTestCase() {
         val level = ElixirLanguageLevel.of(version)
         val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV)
 
-        return file.modules.flatMap(::lines).joinToString("\n")
+        return file.modules.withNested().joinToString("\n", transform = ::line)
     }
 
-    private fun lines(result: ExpansionResult): List<String> {
+    private fun line(result: ExpansionResult): String {
         val warnings = result.warnings.joinToString("; ", transform = ::render).ifEmpty { "none" }
 
-        return listOf("${result.module.removePrefix("Elixir.")}: $warnings") + result.nested.flatMap(::lines)
+        return "${result.module.removePrefix("Elixir.")}: $warnings"
     }
 
     private fun render(warning: Warning): String {

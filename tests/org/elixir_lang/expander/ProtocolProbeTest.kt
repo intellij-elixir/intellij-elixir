@@ -55,7 +55,7 @@ class ProtocolProbeTest : SdkProbeTestCase(accounting = true) {
             listOf("defimpl {token}.Proto, for: [Integer, Atom, Float] do\n  def f(x), do: x\nend"),
             PREAMBLE,
             clauses = sdk,
-        ).modules.flatMap(::compiled).map { it.module }
+        ).modules.withNested().map { it.module }
 
         assertEquals(
             listOf("Integer", "Atom", "Float"),
@@ -75,7 +75,7 @@ class ProtocolProbeTest : SdkProbeTestCase(accounting = true) {
             assertEquals(
                 "case $index: ${body.replace("\n", "; ")}",
                 expected.map { it.replace("{token}", token).replace("{case}", case) },
-                expansions.modules.flatMap(::compiled).map { it.module.removePrefix("Elixir.") }.filterNot { it in others },
+                expansions.modules.withNested().map { it.module.removePrefix("Elixir.") }.filterNot { it in others },
             )
         }
     }
@@ -116,7 +116,7 @@ class ProtocolProbeTest : SdkProbeTestCase(accounting = true) {
      */
     fun testAUserHeadWithAnUnquotedCallIsNotTheBuiltInLoop() {
         val body = "defprotocol P do\n  def f(x)\n  Kernel.def g(x) when :erlang.unquote(String.to_atom(\"is_atom\"))(x), do: x\nend"
-        val modules = probes.expandAll(listOf(body), PREAMBLE, clauses = sdk).modules.flatMap(::compiled)
+        val modules = probes.expandAll(listOf(body), PREAMBLE, clauses = sdk).modules.withNested()
 
         assertEquals(1, modules.single { it.module.endsWith(".P") }.table.entries.getValue(NameArity("g", 1)).clauses)
     }
@@ -152,9 +152,6 @@ class ProtocolProbeTest : SdkProbeTestCase(accounting = true) {
 
     /** [body] on one line. */
     private fun oneLine(body: String) = body.replace("\n", "; ")
-
-    /** [result] and the modules it compiled inside it, outermost first. */
-    private fun compiled(result: ExpansionResult): List<ExpansionResult> = listOf(result) + result.nested.flatMap(::compiled)
 
     private companion object {
         /** A protocol of the file, which the implementations read as the exports of a module the run compiled. */

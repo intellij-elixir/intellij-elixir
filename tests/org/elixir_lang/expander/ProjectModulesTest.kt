@@ -784,7 +784,7 @@ class ProjectModulesTest : PlatformTestCase() {
                         "        $body\n    end\n  end\nend\n",
                 )
 
-                val inner = expansion(holder, a).modules.flatMap { it.withNested() }.single { it.module == "Elixir.P.Foo.Inner" }
+                val inner = expansion(holder, a).modules.withNested().single { it.module == "Elixir.P.Foo.Inner" }
 
                 "$label: ${describe(exports(ProjectModules(project), b, "Elixir.P.Foo.Inner"))} ${inner.ended::class.simpleName}"
             },
@@ -2850,9 +2850,6 @@ class ProjectModulesTest : PlatformTestCase() {
         exports::class.simpleName + ((exports as? ModuleExports.Present)?.functions?.map { "${it.name}/${it.arity}" }?.sorted()?.let { " $it" } ?: "")
 
     private fun ending(expansion: FileExpansion): String = expansion.modules.single().ended::class.simpleName!!
-
-    /** This module and every module nested in it, however deep. */
-    private fun ExpansionResult.withNested(): List<ExpansionResult> = listOf(this) + nested.flatMap { it.withNested() }
 
     /**
      * A new holder per order asks [a] then [b], and [b] then [a], and each answer equals a fresh run's, as does each module's
