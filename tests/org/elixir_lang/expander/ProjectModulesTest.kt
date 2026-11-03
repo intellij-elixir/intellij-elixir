@@ -12,7 +12,6 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.progress.ProcessCanceledException
-import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
@@ -2859,11 +2858,8 @@ class ProjectModulesTest : PlatformTestCase() {
     private fun expandUnder(holder: ProjectModules, file: PsiFile, cancelAt: Int, inputs: ProjectModules.Inputs = legInputs): Int {
         val indicator = CancelAt(if (cancelAt > 0) cancelAt else Int.MAX_VALUE)
 
-        whileCheckingIndicators {
-            ProgressManager.getInstance().runProcess(
-                { ReadAction.computeBlocking<FileExpansion, Throwable> { holder.expansion(file as ElixirFile, inputs) } },
-                indicator,
-            )
+        whileCheckingIndicators(indicator) {
+            ReadAction.computeBlocking<FileExpansion, Throwable> { holder.expansion(file as ElixirFile, inputs) }
         }
 
         return indicator.checks

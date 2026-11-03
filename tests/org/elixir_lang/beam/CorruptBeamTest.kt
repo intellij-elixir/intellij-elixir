@@ -15,6 +15,7 @@ import org.elixir_lang.beam.chunk.imports.Import
 import org.elixir_lang.beam.chunk.lines.file_names.Indexer
 import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.junit.logs.GuardedLoggedErrorProcessor
+import org.elixir_lang.onSmallStack
 import org.junit.Assert
 import java.io.ByteArrayOutputStream
 import java.util.zip.GZIPOutputStream
@@ -250,16 +251,6 @@ class CorruptBeamTest : PlatformTestCase() {
     }
 
     private fun <T : Any> read(bytes: ByteArray, block: (BeamReader) -> T?): T? = BeamReader.read(bytes, PATH, block)
-
-    /** A fixed small stack, so the overflow depends on neither `-Xss` nor what the JIT inlined. */
-    private fun <T> onSmallStack(read: () -> T): T {
-        var result: Result<T>? = null
-        val thread = Thread(null, { result = runCatching(read) }, "small stack", 512L * 1024)
-        thread.start()
-        thread.join()
-
-        return result!!.getOrThrow()
-    }
 
     private fun gzipped(write: GZIPOutputStream.() -> Unit): ByteArray =
         ByteArrayOutputStream().also { output -> GZIPOutputStream(output).use(write) }.toByteArray()

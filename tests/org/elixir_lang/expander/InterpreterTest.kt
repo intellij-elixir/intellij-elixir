@@ -16,7 +16,9 @@ import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiFileFactory
 import com.intellij.util.system.OS
 import org.elixir_lang.ElixirLanguage
+import org.elixir_lang.FIXED_STACK
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.SMALL_STACK
 import org.elixir_lang.coverage.ExpanderProgress
 import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.intellij_elixir.Quoter
@@ -72,6 +74,7 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.lowering.inspect
+import org.elixir_lang.onAStack
 import org.elixir_lang.psi.ElixirFile
 import java.io.File
 import java.math.BigInteger
@@ -2092,36 +2095,18 @@ class InterpreterTest : PlatformTestCase() {
     private fun endedOnAStack(code: String, stackSize: Long): String {
         val level = legLevel()
         val forms = lowered(code, level)
-        var result: ExpansionResult? = null
-        var escaped: Throwable? = null
-        val thread = Thread(
-            null,
-            {
-                try {
-                    result = Expander.expandFile(
-                        forms,
-                        Env.empty(level, legKernel),
-                        level,
-                        sdkExports,
-                        legStructs,
-                        legAppEnv(),
-                        clauses = sdk,
-                        file = { "/s.ex" },
-                    ).modules.single()
-                } catch (e: Throwable) {
-                    escaped = e
-                }
-            },
-            "stack of $stackSize",
-            stackSize,
-        )
-
-        thread.start()
-        thread.join()
-
-        assertNull("escaped: $escaped", escaped)
-
-        val module = result!!
+        val module = onAStack(stackSize) {
+            Expander.expandFile(
+                forms,
+                Env.empty(level, legKernel),
+                level,
+                sdkExports,
+                legStructs,
+                legAppEnv(),
+                clauses = sdk,
+                file = { "/s.ex" },
+            ).modules.single()
+        }!!.getOrThrow()
         val ended = when (val ended = module.ended) {
             Ended.Compiled -> "compiled"
             is Ended.Stopped -> "stopped ${ExpanderProgress.shape(ended.at)}"
@@ -2810,9 +2795,6 @@ class InterpreterTest : PlatformTestCase() {
             } /* :<%= Atom.to_string(token_type) %> */\
             <% end %>
         """.trimIndent()
-
-        /** A fixed small stack, so an overflow doesn't depend on the platform's default thread stack or `-Xss`. */
-        const val SMALL_STACK = 512L * 1024
 
         /** `render_css/5` from Makeup's template twice over, with a function calling it. */
         val MAKEUP_STYLE = "defmodule A do\n  require EEx\n\n  EEx.function_from_string(\n    :defp,\n    :render_css,\n    $QUOTES\n" +

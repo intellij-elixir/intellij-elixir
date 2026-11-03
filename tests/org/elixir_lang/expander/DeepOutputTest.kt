@@ -1,8 +1,9 @@
 package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProcessCanceledException
-import com.intellij.openapi.progress.ProgressManager
+import org.elixir_lang.FIXED_STACK
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.onAStack
 
 /**
  * Code nested deeper than a thread's stack can expand, which Elixir compiles, declines: a macro's output stops its module
@@ -138,7 +139,7 @@ class DeepOutputTest : ExpanderTestCase() {
 
     /** A tail loop that never ends, cancelled, ends with the cancel. */
     fun testATailLoopEndsWhenCancelled() {
-        val escaped = endedOnAFixedStack(calledFromAMacro("def loop(n), do: loop(n)", "", "H.loop(0)"), ElixirLanguageLevel.of("1.20.4"), checks = 1_000).second
+        val escaped = endedOnAFixedStack(calledFromAMacro("def loop(n), do: loop(n)", "", "H.loop(0)"), ElixirLanguageLevel.of("1.20.4"), checks = 1_000).exceptionOrNull()
 
         assertTrue("escaped: $escaped", escaped is ProcessCanceledException)
     }
@@ -182,46 +183,20 @@ class DeepOutputTest : ExpanderTestCase() {
             "defmodule B do\n  require A\n  A.m()\nend\n"
 
     /** [code], expanded on a thread of [FIXED_STACK] bytes, cancelled at its [checks]th check there, with nothing thrown. */
-    private fun expandedOnAFixedStack(code: String, level: ElixirLanguageLevel, depth: Int, checks: Int? = null): FileExpansion {
-        val (expansion, escaped) = endedOnAFixedStack(code, level, checks)
-
-        assertNull("escaped at depth $depth: $escaped", escaped)
-
-        return expansion!!
-    }
+    private fun expandedOnAFixedStack(code: String, level: ElixirLanguageLevel, depth: Int, checks: Int? = null): FileExpansion =
+        endedOnAFixedStack(code, level, checks).getOrElse { throw AssertionError("escaped at depth $depth: $it", it) }
 
     /**
      * [code], expanded on a thread of [FIXED_STACK] bytes, cancelled at its [checks]th check there where they are
      * given: its expansion, or what escaped it.
      */
-    private fun endedOnAFixedStack(code: String, level: ElixirLanguageLevel, checks: Int?): Pair<FileExpansion?, Throwable?> {
+    private fun endedOnAFixedStack(code: String, level: ElixirLanguageLevel, checks: Int?): Result<FileExpansion> {
         val forms = lower(code, level)
-        var expansion: FileExpansion? = null
-        var escaped: Throwable? = null
-        val expand = { expansion = Expander.expandFile(forms, Env.empty(level, kernel), level, exports, structs, NO_APP_ENV) }
-        val thread = Thread(
-            null,
-            {
-                try {
-                    if (checks == null) {
-                        expand()
-                    } else {
-                        val indicator = CancelAt(checks)
+        val expand = { Expander.expandFile(forms, Env.empty(level, kernel), level, exports, structs, NO_APP_ENV) }
 
-                        whileCheckingIndicators { ProgressManager.getInstance().runProcess(expand, indicator) }
-                    }
-                } catch (e: Throwable) {
-                    escaped = e
-                }
-            },
-            "fixed stack",
-            FIXED_STACK,
-        )
-
-        thread.start()
-        thread.join()
-
-        return expansion to escaped
+        return onAStack(FIXED_STACK) {
+            if (checks == null) expand() else whileCheckingIndicators(CancelAt(checks), expand)
+        }!!
     }
 
     /**

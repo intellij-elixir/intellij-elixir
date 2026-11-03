@@ -2,8 +2,10 @@ package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProcessCanceledException
+import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.util.AbstractProgressIndicatorBase
+import com.intellij.openapi.util.Computable
 import junit.framework.TestCase
 import java.util.concurrent.CountDownLatch
 import kotlin.concurrent.thread
@@ -67,7 +69,7 @@ internal fun assertCancelledIn(owner: String, walk: String, n: Int, ended: () ->
     val indicator = CancelIn(owner, walk, n)
 
     try {
-        whileCheckingIndicators { ProgressManager.getInstance().runProcess(block, indicator) }
+        whileCheckingIndicators(indicator, block)
         TestCase.fail("no cancel at $walk's check $n, of ${indicator.checks}; ${ended()}")
     } catch (_: ProcessCanceledException) {
     }
@@ -94,10 +96,10 @@ private val PLATFORM = listOf(
 )
 
 /**
- * Runs [block] while another thread runs under a cancelled indicator: only then does `ProgressManager.checkCanceled`
- * call each thread's indicator.
+ * Runs [block] under [indicator] while another thread runs under a cancelled indicator: only then does
+ * `ProgressManager.checkCanceled` call each thread's indicator.
  */
-internal fun whileCheckingIndicators(block: () -> Unit) {
+internal fun <T> whileCheckingIndicators(indicator: ProgressIndicator, block: () -> T): T {
     val running = CountDownLatch(1)
     val done = CountDownLatch(1)
     var failure: Throwable? = null
@@ -124,7 +126,7 @@ internal fun whileCheckingIndicators(block: () -> Unit) {
     failure?.let { throw it }
 
     try {
-        block()
+        return ProgressManager.getInstance().runProcess(Computable { block() }, indicator)
     } finally {
         done.countDown()
         other.join()

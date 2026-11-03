@@ -2,7 +2,6 @@ package org.elixir_lang.expander
 
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
-import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -450,16 +449,11 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
         )
         library("dep", ebin(app("dep", "{key, value}")))
         val file = psi(root, "lib/dep.ex")
-        var expansion: FileExpansion? = null
-
-        whileCheckingIndicators {
-            ProgressManager.getInstance().runProcess(
-                { expansion = ReadAction.computeBlocking<FileExpansion, Throwable> { holder.expansion(file as ElixirFile, legInputs) } },
-                CancelAt(2_000_000),
-            )
+        val expansion = whileCheckingIndicators(CancelAt(2_000_000)) {
+            ReadAction.computeBlocking<FileExpansion, Throwable> { holder.expansion(file as ElixirFile, legInputs) }
         }
 
-        assertEquals("Elixir.Dep compiled different/0", render(expansion!!))
+        assertEquals("Elixir.Dep compiled different/0", render(expansion))
     }
 
     /** The result statement runs a second time for its value, which declining or not, the first run already said. */

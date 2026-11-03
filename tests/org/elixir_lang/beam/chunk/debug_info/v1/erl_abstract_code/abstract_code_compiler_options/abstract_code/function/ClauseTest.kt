@@ -11,6 +11,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.Attributes
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.Function
 import org.elixir_lang.beam.decompiler.Options
+import org.elixir_lang.onSmallStack
 
 class ClauseTest : PlatformTestCase() {
     fun testInlineFallbackIsParsable() {
@@ -58,14 +59,4 @@ class ClauseTest : PlatformTestCase() {
     private fun line(): OtpErlangLong = OtpErlangLong(1)
 
     private fun tuple(vararg elements: OtpErlangObject): OtpErlangTuple = OtpErlangTuple(elements)
-
-    /** A fixed small stack, so the overflow depends on neither `-Xss` nor what the JIT inlined. */
-    private fun <T> onSmallStack(render: () -> T): T {
-        var result: Result<T>? = null
-        val thread = Thread(null, { result = runCatching(render) }, "small stack", 512L * 1024)
-        thread.start()
-        thread.join()
-
-        return result!!.getOrThrow()
-    }
 }
