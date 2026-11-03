@@ -639,7 +639,7 @@ internal class Bits(private val evaluation: Evaluation) {
         /** Whether the bits written so far fill whole bytes. */
         val aligned: Boolean get() = length % 8 == 0
 
-        fun bitstring(): OtpErlangBitstr = bitstring(bytes.copyOf((length + 7) / 8), (8 - length % 8) % 8)
+        fun bitstring(): OtpErlangBitstr = bitsOf(bytes, 0, length)
     }
 
     private class Reader(private val bytes: ByteArray) {
@@ -666,37 +666,12 @@ internal class Bits(private val evaluation: Evaluation) {
             return if (signed && count > 0 && value.testBit(count - 1)) value - BigInteger.ONE.shiftLeft(count) else value
         }
 
-        /** [count] bits from [offset] ([shifted]). */
-        fun bitstring(offset: Int, count: Int): OtpErlangBitstr = bitstring(shifted(bytes, offset, count), (8 - count % 8) % 8)
+        /** [count] bits from [offset] ([bitsOf]). */
+        fun bitstring(offset: Int, count: Int): OtpErlangBitstr = bitsOf(bytes, offset, count)
     }
 
     private companion object {
         val MAX_UNIT: BigInteger = BigInteger.valueOf(256)
-
-        /**
-         * [count] bits of [bytes] from [offset], each byte of them shifted out of the two it straddles, or copied where it
-         * straddles none, and the bits past the last cleared.
-         */
-        fun shifted(bytes: ByteArray, offset: Int, count: Int): ByteArray {
-            val start = offset / 8
-            val shift = offset % 8
-            val size = (count + 7) / 8
-            val copied = if (shift == 0) {
-                bytes.copyOfRange(start, start + size)
-            } else {
-                ByteArray(size) { index ->
-                    val high = bytes[start + index].toInt() shl shift
-                    val low = if (start + index + 1 == bytes.size) 0 else (bytes[start + index + 1].toInt() and 0xFF) ushr (8 - shift)
-
-                    (high or low).toByte()
-                }
-            }
-            val ragged = count % 8
-
-            if (ragged != 0) copied[copied.size - 1] = (copied.last().toInt() and (0xFF shl (8 - ragged))).toByte()
-
-            return copied
-        }
 
         /**
          * The bit of a [count]-bit integer at [position] in its segment. Little-endian, its whole bytes come lowest first,
@@ -750,6 +725,35 @@ internal class Bits(private val evaluation: Evaluation) {
         }
     }
 }
+
+/**
+ * [count] bits of [bytes] from [offset], each byte of them shifted out of the two it straddles, or copied where it
+ * straddles none, and the bits past the last cleared.
+ */
+internal fun shifted(bytes: ByteArray, offset: Int, count: Int): ByteArray {
+    val start = offset / 8
+    val shift = offset % 8
+    val size = (count + 7) / 8
+    val copied = if (shift == 0) {
+        bytes.copyOfRange(start, start + size)
+    } else {
+        ByteArray(size) { index ->
+            val high = bytes[start + index].toInt() shl shift
+            val low = if (start + index + 1 == bytes.size) 0 else (bytes[start + index + 1].toInt() and 0xFF) ushr (8 - shift)
+
+            (high or low).toByte()
+        }
+    }
+    val ragged = count % 8
+
+    if (ragged != 0) copied[copied.size - 1] = (copied.last().toInt() and (0xFF shl (8 - ragged))).toByte()
+
+    return copied
+}
+
+/** [count] bits of [bytes] from [offset], as a bitstring ([shifted]). */
+private fun bitsOf(bytes: ByteArray, offset: Int, count: Int): OtpErlangBitstr =
+    bitstring(shifted(bytes, offset, count), (8 - count % 8) % 8)
 
 /** The most bits a bitstring the interpreter builds holds: 16 MiB. */
 private const val MAX_BITS = 1 shl 27
