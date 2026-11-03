@@ -6009,6 +6009,41 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             ),
             macro("native:binary-split-trim", "defmacro m, do: Macro.escape(:binary.split(\"a/b/\", \"/\", [:trim]))", pins = DECLINED),
             macro("native:binary-split-list-subject", "defmacro m, do: Macro.escape(:binary.split(~c\"a/b\", \"/\", []))", pins = DECLINED),
+            // The earliest match wins, then the longest of those starting there, and `matches/2`'s don't overlap.
+            macro(
+                "native:binary-matches",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :binary.matches("abcabc", "bc"),
+                    :binary.matches("abcde", ["cd", "bcde"]),
+                    :binary.matches("abcd", ["ab", "abc"]),
+                    :binary.matches("aaaa", "aa"),
+                    :binary.matches("abc", "x"),
+                    :binary.matches("", "a"),
+                    :binary.matches("a\"b\\c", ["\"", "\\"])
+                  ])
+                end
+                """,
+            ),
+            macro(
+                "native:binary-match",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :binary.match("abcabc", "bc"),
+                    :binary.match("abcde", ["cd", "bcde"]),
+                    :binary.match("abcd", ["ab", "abc"]),
+                    :binary.match("abc", "x"),
+                    :binary.match("", "a")
+                  ])
+                end
+                """,
+            ),
+            macro("native:binary-matches-empty-pattern", "defmacro m, do: Macro.escape(:binary.matches(\"abc\", \"\"))", pins = DECLINED),
+            macro("native:binary-match-no-patterns", "defmacro m, do: Macro.escape(:binary.match(\"abc\", []))", pins = DECLINED),
+            macro("native:binary-matches-list-subject", "defmacro m, do: Macro.escape(:binary.matches(~c\"abc\", \"b\"))", pins = DECLINED),
+            macro("native:binary-match-atom-pattern", "defmacro m, do: Macro.escape(:binary.match(\"abc\", :b))", pins = DECLINED),
             macro(
                 "native:filename-dirname",
                 """
@@ -10854,6 +10889,15 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro("native:binary-at-bitstring", "defmacro m, do: :binary.at(<<1, 2::4>>, 0)"),
             // Terms that compare equal give the first.
             macro("native:min", "defmacro m, do: [:erlang.min(1, 2), :erlang.min(2, 1), :erlang.min(1, 1.0), :erlang.min(1.0, 1), :erlang.min(:a, 1)]"),
+            macro("native:max", "defmacro m, do: [:erlang.max(1, 2), :erlang.max(2, 1), :erlang.max(1, 1.0), :erlang.max(1.0, 1), :erlang.max(:a, 1)]"),
+            macro(
+                "native:to-string-chardata",
+                "defmacro m, do: [to_string(~c\"abc\"), to_string([?a, \"b\", [?c]]), to_string([]), to_string([233, 128512])]",
+            ),
+            // `List.to_string/1` raises `ArgumentError` or `UnicodeConversionError` where `unicode` would give `badarg`.
+            macro("native:to-string-not-chardata", "defmacro m, do: to_string([:a])", pins = DECLINED),
+            macro("native:to-string-no-code-point", "defmacro m, do: to_string([55296])", pins = DECLINED),
+            macro("native:to-string-incomplete", "defmacro m, do: to_string([<<195>>])", pins = DECLINED),
             // Elixir's static options, which its boot sets.
             macro("native:identifier_tokenizer", "defmacro m, do: :elixir_config.identifier_tokenizer()", legs = STATIC_OPTIONS_IN_PERSISTENT_TERM::isSufficient),
             macro("native:is_bootstrap", "defmacro m, do: :elixir_config.is_bootstrap()", legs = STATIC_OPTIONS_IN_PERSISTENT_TERM::isSufficient),

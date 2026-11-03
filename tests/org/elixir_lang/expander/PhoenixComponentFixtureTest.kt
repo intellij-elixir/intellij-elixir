@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangBinary
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
@@ -17,11 +18,13 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATO
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.inspect
 import org.elixir_lang.psi.ElixirFile
+import org.elixir_lang.psi.Import.Term
 import java.io.File
 
 /**
  * The expander's view of modules that `use Phoenix.Component` as Elixir's compile of the Mix project in [FIXTURE] gives
- * it: each module's functions and macros, and through `lib/probe.ex`'s macros its `__components__/0`, `__global__?/1` and what its wrappers return.
+ * it: each module's functions and macros, and through `lib/probe.ex`'s macros its `__components__/0`, `__global__?/1` and what its wrappers return;
+ * and how each module of `routes/`, which Mix doesn't compile, ends on its own.
  * The project's dependencies are those of the leg's lock, which `getPhoenixComponentFixtureDeps` fetches; a leg whose
  * Elixir has no lock asserts nothing.
  */
@@ -107,6 +110,57 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
         assertFalse(result.table.entries.keys.any { it.name == "__components__" })
     }
 
+    /**
+     * Each module of `routes/`, which writes `~p` its own way, ends as Elixir's compile of it does, with its `__info__`
+     * and what `@phoenix_verified_routes` ends up holding. A route's `warn_location` isn't compared: its column is `nil`
+     * here, and only `@after_verify`, which the IDE never runs, reads it.
+     */
+    fun testEachVerifiedRouteFormEndsAsElixirsCompileDoes() {
+        val compiled = compiled ?: return
+        val oracle = etf(File(compiled.oracle, "routes.etf")) as OtpErlangMap
+        val holder = ProjectModules(project)
+        val level = legLevel()
+        val forms = File(compiled.project, "routes").listFiles()!!.map { it.nameWithoutExtension }.sorted()
+
+        val outcomes = forms.associateWith { oracle.get(OtpErlangBinary(it.toByteArray())) as OtpErlangMap }
+        val field = { form: String, name: String -> outcomes.getValue(form).get(OtpErlangAtom(name)) }
+
+        val expected = forms.map { form ->
+            val raised = field(form, "raised")
+
+            "$form " + when {
+                // Left unknown, not wrong, until the expander evaluates the `~H` of the module they import.
+                form == "html" || form == "liveview" -> "stopped import/1"
+                raised == OtpErlangAtom("nil") ->
+                    "compiled ${exported(outcomes.getValue(form))}; routes: ${routes(field(form, "routes"))}"
+                else -> "raised ${(raised as OtpErlangAtom).atomValue()}"
+            }
+        }
+        val actual = forms.map { form ->
+            val result = expansion(holder, file(corpus!!, compiled, "routes/$form.ex")).modules.single()
+
+            "$form " + when (val ended = result.ended) {
+                ExpansionResult.Ended.Compiled -> {
+                    val routes = when (val value = result.attributes.final["phoenix_verified_routes"]) {
+                        null -> "absent"
+                        is AttributeValue.Held -> routes(value.value)
+                        is AttributeValue.Known -> if (value.term == Term.List(emptyList())) "[]" else "${value.term}"
+                        AttributeValue.Unknown -> "unknown"
+                    }
+
+                    "compiled ${stored(result)}; routes: $routes"
+                }
+                is ExpansionResult.Ended.Raised -> when (val kind = ended.error.kind) {
+                    null -> "raised an exception that isn't known"
+                    else -> "raised ${if (ErrorKinds.isCompileError(kind, level)) "Elixir.CompileError" else kind}"
+                }
+                else -> ending(result)
+            }
+        }
+
+        assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
+    }
+
     private fun file(corpus: PhoenixCorpus, compiled: Compiled, path: String): ElixirFile =
         corpus.psi(File(compiled.project, path)) ?: error("no Elixir file at $path")
 
@@ -170,6 +224,17 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
 
         fun names(nameArities: List<NameArity>): String =
             nameArities.sortedWith(compareBy({ it.name }, { it.arity })).joinToString(", ") { "${it.name}/${it.arity}" }
+
+        /** The route structs of the list [term], each field but `warn_location` in name order. */
+        fun routes(term: OtpErlangObject): String =
+            (term as OtpErlangList).elements().joinToString(", ", "[", "]") { route ->
+                val map = route as OtpErlangMap
+
+                map.keys().filter { it != OtpErlangAtom("warn_location") }
+                    .map { inspect(it) to inspect(map.get(it)) }
+                    .sortedBy { it.first }
+                    .joinToString(", ", "%{", "}") { "${it.first} => ${it.second}" }
+            }
 
         fun described(expanded: MacroExpanded): String =
             when (expanded) {

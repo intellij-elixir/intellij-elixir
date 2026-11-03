@@ -5,9 +5,9 @@ import java.io.ByteArrayOutputStream
 import java.util.Arrays
 
 /**
- * `filename`'s functions of a binary, and `binary:split/3`, ported from OTP's `filename.erl`, which reads `os:type/0`
- * for the syntax a path has: [OS.Windows] is its `win32`, every other OS its unix. Names are bytes, as the binaries they
- * answer are.
+ * `filename`'s functions of a binary, ported from OTP's `filename.erl`, which reads `os:type/0` for the syntax a path
+ * has: [OS.Windows] is its `win32`, every other OS its unix. Names are bytes, as the binaries they answer are. Also
+ * `binary:split/3`, `match/2` and `matches/2`.
  */
 internal object Filename {
     private const val SLASH = '/'.code.toByte()
@@ -87,33 +87,44 @@ internal object Filename {
         return name.copyOfRange(start, start + length)
     }
 
-    /**
-     * `binary:split/3` of [subject] at [patterns], none of them empty: at its leftmost match, the longest of those
-     * starting there, and then, when [global], again after it.
-     */
+    /** `binary:split/3` of [subject] at [patterns], none of them empty: around each of [binaryMatches]' matches. */
     fun binarySplit(subject: ByteArray, patterns: List<ByteArray>, global: Boolean): List<ByteArray> {
         val parts = mutableListOf<ByteArray>()
         var from = 0
-        var at = 0
 
-        while (at < subject.size) {
-            val length = patterns.filter { matches(subject, at, it) }.maxOfOrNull { it.size }
-
-            if (length == null) {
-                at++
-                continue
-            }
-
+        for ((at, length) in binaryMatches(subject, patterns, global)) {
             parts.add(subject.copyOfRange(from, at))
-            at += length
-            from = at
-
-            if (!global) break
+            from = at + length
         }
 
         parts.add(subject.copyOfRange(from, subject.size))
 
         return parts
+    }
+
+    /**
+     * `binary:matches/2` of [subject] at [patterns], none of them empty, each match as its position and length: the
+     * leftmost, the longest of those starting there, and then, when [global], the next after it.
+     */
+    fun binaryMatches(subject: ByteArray, patterns: List<ByteArray>, global: Boolean): List<Pair<Int, Int>> {
+        val found = mutableListOf<Pair<Int, Int>>()
+        var at = 0
+
+        while (at < subject.size) {
+            val length = patterns.maxOfOrNull { if (matches(subject, at, it)) it.size else 0 } ?: 0
+
+            if (length == 0) {
+                at++
+                continue
+            }
+
+            found.add(at to length)
+            at += length
+
+            if (!global) break
+        }
+
+        return found
     }
 
     private fun separators(windows: Boolean) = if (windows) WINDOWS_SEPARATORS else UNIX_SEPARATORS
