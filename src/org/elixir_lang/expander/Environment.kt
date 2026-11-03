@@ -43,7 +43,7 @@ internal fun expandEnv(node: ElixirAst, state: ExState, env: Env, run: Run): Exp
 
 /** The leg's `Macro.Env` at [line] where [env] and [state] hold, each field as [envField] gives it. */
 internal fun macroEnv(env: Env, state: ExState, line: Int, escaped: Boolean, run: Run): OtpErlangObject =
-    mapOf((listOf("__struct__") + envFields(run.level)).map { atom(it) to envField(it, env, state, line, escaped, run) }, run.level)
+    mapOf(envFields(run.level).map { atom(it) to envField(it, env, state, line, escaped, run) }, run.level)
 
 /**
  * [node]'s value, [term], recorded as the code it expanded to, since no [Term] holds all of it; built only where the
@@ -64,7 +64,7 @@ internal fun expandEnvField(node: ElixirAst.Call, state: ExState, env: Env, run:
 
     val name = (field as ElixirAst.Literal.Atom).name
 
-    if (name != "__struct__" && name !in envFields(run.level)) return Expansion.Expanded(state, env, NODE, run.ast { node })
+    if (name !in envFields(run.level)) return Expansion.Expanded(state, env, NODE, run.ast { node })
 
     val term = envField(name, env, state, lineOf(environment.meta), true, run)
     val value = termOf(term)
@@ -88,9 +88,9 @@ private fun holds(term: Term): Boolean =
         else -> false
     }
 
-/** The fields of the leg's `Macro.Env`, `__struct__` apart. */
+/** The fields of the leg's `Macro.Env`. */
 private fun envFields(level: ElixirLanguageLevel): List<String> =
-    COMMON_FIELDS + if (MACRO_ENV_VERSIONED_VARS.isSufficient(level)) listOf("versioned_vars") else BEFORE_VERSIONED_VARS
+    if (MACRO_ENV_VERSIONED_VARS.isSufficient(level)) VERSIONED_VARS_FIELDS else BEFORE_VERSIONED_VARS_FIELDS
 
 /**
  * The file [env] is compiled in: `E`'s ([envFile]), `null` where that isn't known and inside a definition that took an
@@ -117,7 +117,7 @@ internal fun dirOf(run: Run, env: Env): ByteArray? {
 }
 
 /**
- * The [field], `__struct__` or one of [envFields], of the env at [line] where [env] and [state] hold, on [run]'s leg.
+ * The [field], one of [envFields], of the env at [line] where [env] and [state] hold, on [run]'s leg.
  * [escaped] is `__ENV__`, which `elixir_expand:escape_env_entries` builds; otherwise it is `__CALLER__`, the
  * env itself before [MACRO_ENV_VERSIONED_VARS] and `elixir_env:to_caller/1`'s from it. What the plugin doesn't hold is
  * [ModuleUnknown]: the compiler's process state, the lexical tracker and tracers but `__ENV__`'s in a function, and
@@ -195,11 +195,15 @@ private fun macroAlias(counter: Env.Counter): OtpErlangObject =
         is Env.Counter.Unique -> integer(counter.n)
     }
 
-/** The fields of `Macro.Env` on every leg, `__struct__` apart. */
+/** The fields of `Macro.Env` on every leg. */
 private val COMMON_FIELDS = listOf(
-    "aliases", "context", "context_modules", "file", "function", "functions", "lexical_tracker", "line",
+    "__struct__", "aliases", "context", "context_modules", "file", "function", "functions", "lexical_tracker", "line",
     "macro_aliases", "macros", "module", "requires", "tracers",
 )
 
-/** The variables' fields of `Macro.Env` before [MACRO_ENV_VERSIONED_VARS]. */
-private val BEFORE_VERSIONED_VARS = listOf("contextual_vars", "current_vars", "prematch_vars", "unused_vars", "vars")
+/** The fields of `Macro.Env` from [MACRO_ENV_VERSIONED_VARS]. */
+private val VERSIONED_VARS_FIELDS = COMMON_FIELDS + "versioned_vars"
+
+/** The fields of `Macro.Env` before [MACRO_ENV_VERSIONED_VARS], with its variables' fields. */
+private val BEFORE_VERSIONED_VARS_FIELDS =
+    COMMON_FIELDS + listOf("contextual_vars", "current_vars", "prematch_vars", "unused_vars", "vars")
