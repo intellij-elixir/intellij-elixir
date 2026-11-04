@@ -343,11 +343,8 @@ private fun keystore(keys: List<Meta.Key>, name: String, value: Meta.Value): Lis
 }
 
 /** `lists:keydelete/3`: [keys] without the first entry named [name]. */
-private fun keydelete(keys: List<Meta.Key>, name: String): List<Meta.Key> {
-    val index = keys.indexOfFirst { it is Meta.Key.Entry && it.name == name }
-
-    return if (index < 0) keys else keys.toMutableList().apply { removeAt(index) }
-}
+private fun keydelete(keys: List<Meta.Key>, name: String): List<Meta.Key> =
+    keydelete(keys, name) { (it as? Meta.Key.Entry)?.name }
 
 /** `elixir_quote`'s `?lexical/1`. */
 internal val LEXICAL = setOf("import", "alias", "require")

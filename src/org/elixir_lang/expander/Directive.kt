@@ -468,12 +468,6 @@ private inline fun <T> keystore(list: List<T>, element: T, key: (T) -> String): 
     return if (index < 0) list + element else list.toMutableList().apply { set(index, element) }
 }
 
-private inline fun <T> keydelete(list: List<T>, name: String, key: (T) -> String): List<T> {
-    val index = list.indexOfFirst { key(it) == name }
-
-    return if (index < 0) list else list.toMutableList().apply { removeAt(index) }
-}
-
 /** `expand_require/5`: [module] added to the requires, then aliased only as [opts]' `as:` says. */
 private inline fun expandRequire(
     call: ElixirAst.Call,
