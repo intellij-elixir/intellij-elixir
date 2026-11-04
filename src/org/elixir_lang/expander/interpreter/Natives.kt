@@ -1726,20 +1726,19 @@ internal class Natives(private val evaluation: Evaluation) {
      * directory is (`Run.workingDirectory`).
      */
     private fun stacktrace(env: OtpErlangMap): OtpErlangObject {
-        val field = { name: String -> env.get(atom(name))?.let(::seen) ?: decline("a Macro.Env without %s", atom(name)) }
-        val file = utf8(field("file")) ?: decline("Macro.Env.stacktrace/1 of a file that isn't UTF-8 text")
+        val file = utf8(macroEnvField(env, "file")) ?: decline("Macro.Env.stacktrace/1 of a file that isn't UTF-8 text")
         val os = evaluation.run.os ?: decline("Path.relative_to_cwd/1 of a file whose SDK's OS isn't known")
         val relative = evaluation.run.relativeToCwd(file, os)
         val location = list(
             listOf(
                 tuple(atom("file"), relative?.let { list(it.codePoints().toArray().map { point -> integer(point.toLong()) }) } ?: Unknown),
-                tuple(atom("line"), field("line")),
+                tuple(atom("line"), macroEnvField(env, "line")),
             ),
         )
-        val module = field("module")
+        val module = macroEnvField(env, "module")
         val frame = when {
             module == NIL -> tuple(atom("elixir_compiler"), atom("__FILE__"), integer(1), location)
-            else -> when (val function = field("function")) {
+            else -> when (val function = macroEnvField(env, "function")) {
                 NIL -> tuple(module, atom("__MODULE__"), integer(0), location)
                 else -> {
                     val (name, arity) = (function as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elements()
