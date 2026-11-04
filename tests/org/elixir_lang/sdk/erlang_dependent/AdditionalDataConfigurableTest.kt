@@ -212,21 +212,6 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         assertEquals(second.name, liveErlangName(page.elixirSdk))
     }
 
-    fun testARenamedErlangWritesNoPairing() {
-        val first = erlang("Combo rename first Erlang", "27", "27.3.4")
-        val second = erlang("Combo rename second Erlang", "26", "26.2.5")
-        // Listed in order, so refilling the combo puts an Erlang SDK other than the paired one first.
-        val model = ListedSdkModel(first, second, paired("Combo rename", second.name, second.homePath!!))
-        val page = open(model, "Combo rename")
-
-        model.multicaster.sdkChanged(first, "Combo rename first Erlang before")
-
-        assertSame("the combo still shows the pairing", second, page.combo.selectedItem)
-        assertFalse(page.configurable.isModified)
-        page.configurable.apply()
-        assertEquals(second.name, liveErlangName(page.elixirSdk))
-    }
-
     private class Page(
         val configurable: AdditionalDataConfigurable,
         val elixirSdk: Sdk,

@@ -8,6 +8,7 @@ import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.ValidatableSdkAdditionalData
 import com.intellij.openapi.util.InvalidDataException
 import com.intellij.openapi.util.WriteExternalException
+import org.elixir_lang.sdk.wsl.wslCompat
 import org.jdom.Element
 
 /**
@@ -39,8 +40,6 @@ class SdkAdditionalData :
     ValidatableSdkAdditionalData,
     Cloneable {
     private val elixirSdk: Sdk
-
-    // @Volatile: renaming an Erlang SDK in the settings dialog writes these in place, outside the write lock.
 
     // Primary stable identity - survives SDK renames.
     @Volatile
@@ -160,6 +159,10 @@ class SdkAdditionalData :
         erlangSdkHomePath = sdk?.homePath
         cachedErlangSdk = sdk
     }
+
+    /** Whether [sdk] has both the stored name and the stored home: the pick the user made among the SDKs at that home. */
+    internal fun names(sdk: Sdk?): Boolean =
+        sdk != null && sdk.name == erlangSdkName && wslCompat.pathsEqualWslAware(sdk.homePath, erlangSdkHomePath)
 
     internal fun getCachedErlangSdk(): Sdk? = cachedErlangSdk
 

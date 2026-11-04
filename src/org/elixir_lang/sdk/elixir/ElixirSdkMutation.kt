@@ -40,12 +40,19 @@ object ElixirSdkMutation {
         elixirSdk.putUserData(ErlangDependentType.ERLANG_SDK_KEY, erlangSdk)
     }
 
-    /** Pairs the Elixir SDKs in [sdks] that store [previousName] as their Erlang SDK's name with [renamed], under its new name. */
+    /**
+     * Pairs the Elixir SDKs in [sdks] that store [previousName] as their Erlang SDK's name with [renamed], under its new
+     * name. A pairing that names another SDK in [sdks] by its name and its home is that SDK's, as when another Erlang SDK
+     * took the old name and an earlier repair paired its Elixir SDKs under it, and is left.
+     */
     @RequiresWriteLock
     fun repairRenamedPairings(sdks: Iterable<Sdk>, renamed: Sdk, previousName: String) {
         ThreadingAssertions.assertWriteAccess()
         for (elixirSdk in sdks) {
-            if (elixirSdk.sdkType is Type && elixirSdk.elixirAdditionalData?.getErlangSdkName() == previousName) {
+            val data = elixirSdk.elixirAdditionalData ?: continue
+            if (elixirSdk.sdkType is Type && data.getErlangSdkName() == previousName &&
+                sdks.none { it !== renamed && data.names(it) }
+            ) {
                 applyDependencySelection(elixirSdk, renamed)
             }
         }

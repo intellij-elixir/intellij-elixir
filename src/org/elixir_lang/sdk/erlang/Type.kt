@@ -4,6 +4,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.project.Project
 import org.elixir_lang.util.runWithEdtGuard
+import com.intellij.openapi.projectRoots.AdditionalDataConfigurable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.SdkModificator
@@ -23,7 +24,6 @@ import org.elixir_lang.sdk.SdkHomeKey
 import org.elixir_lang.sdk.SdkHomePaths
 import org.elixir_lang.sdk.SdkHomeScan
 import org.elixir_lang.sdk.SdkHomeChooser
-import org.elixir_lang.sdk.erlang_dependent.AdditionalDataConfigurable
 import org.jdom.Element
 import java.io.File
 import java.nio.file.Path
@@ -292,7 +292,7 @@ internal class Type : SdkType(ErlangSdkTypeId.ERLANG_SDK_TYPE_ID) {
     override fun createAdditionalDataConfigurable(
         sdkModel: SdkModel,
         sdkModificator: SdkModificator,
-    ): AdditionalDataConfigurable? = null
+    ): AdditionalDataConfigurable = PairingsConfigurable(sdkModel)
 
     override fun getPresentableName(): String = name
 

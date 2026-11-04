@@ -42,7 +42,6 @@ import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.event.ItemEvent
 import javax.swing.*
-import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 
 class AdditionalDataConfigurable(
     private val sdkModel: SdkModel,
@@ -105,15 +104,6 @@ class AdditionalDataConfigurable(
                 override fun beforeSdkRemove(sdk: Sdk) {
                     if (Type.staticIsValidDependency(sdk)) {
                         removeErlangSdk(sdk)
-                    }
-                }
-
-                override fun sdkChanged(
-                    sdk: Sdk,
-                    previousName: String,
-                ) {
-                    if (Type.staticIsValidDependency(sdk)) {
-                        updateErlangSdkList(sdk, previousName)
                     }
                 }
             }
@@ -416,35 +406,6 @@ class AdditionalDataConfigurable(
             block()
         } finally {
             freeze = false
-        }
-    }
-
-    private fun updateErlangSdkList(
-        sdk: Sdk,
-        previousName: String,
-    ) {
-        LOG.debug("[updateErlangSdkList] Erlang SDK renamed: '$previousName' -> '${sdk.name}'")
-        val sdks = sdkModel.sdks
-
-        for (currentSdk in sdks) {
-            if (currentSdk.sdkType is ElixirSdkType) {
-                val sdkAdditionalData = currentSdk.sdkAdditionalData as? SdkAdditionalData
-                if (sdkAdditionalData == null) {
-                    LOG.debug("[updateErlangSdkList] Skipping ${currentSdk.name}: no SdkAdditionalData")
-                    continue
-                }
-                val erlangSdk = sdkAdditionalData.getErlangSdk(sdkModel)
-
-                if (erlangSdk != null && erlangSdk.name == previousName) {
-                    LOG.debug("[updateErlangSdkList] Updating ${currentSdk.name} to use renamed Erlang SDK")
-                    sdkAdditionalData.setErlangSdk(sdk)
-                }
-            }
-        }
-        val selected = internalErlangSdksComboBoxModel.selectedItem
-        frozen {
-            updateJdkList()
-            if (internalErlangSdksComboBoxModel.getIndexOf(selected) != -1) internalErlangSdksComboBoxModel.selectedItem = selected
         }
     }
 
