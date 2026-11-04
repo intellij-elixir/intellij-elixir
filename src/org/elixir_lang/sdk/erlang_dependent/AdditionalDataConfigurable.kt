@@ -329,49 +329,46 @@ class AdditionalDataConfigurable(
         val sdkName = sdk?.name ?: "null"
         LOG.debug("[$sdkName] reset() called")
 
-        freeze = true
-        updateJdkList()
-        LOG.debug("[$sdkName] Populated combo box with ${internalErlangSdksComboBoxModel.size} Erlang SDKs")
+        frozen {
+            updateJdkList()
+            LOG.debug("[$sdkName] Populated combo box with ${internalErlangSdksComboBoxModel.size} Erlang SDKs")
 
-        if (sdk == null) {
-            LOG.debug("[$sdkName] No Elixir SDK set, skipping Erlang SDK selection")
-            freeze = false
-            return
-        }
+            if (sdk == null) {
+                LOG.debug("[$sdkName] No Elixir SDK set, skipping Erlang SDK selection")
+                return
+            }
 
-        // The pairing as it resolves in sdkModel.
-        val additionalData = sdk.sdkAdditionalData as? SdkAdditionalData
-        val erlangSdk = additionalData?.getErlangSdk(sdkModel)
+            // The pairing as it resolves in sdkModel.
+            val additionalData = sdk.sdkAdditionalData as? SdkAdditionalData
+            val erlangSdk = additionalData?.getErlangSdk(sdkModel)
 
-        // Restore the suppress checkbox state from persisted additional data
-        suppressOtpMismatchWarningCheckBox.isSelected = additionalData?.isSuppressOtpMismatchWarning() ?: false
+            // Restore the suppress checkbox state from persisted additional data
+            suppressOtpMismatchWarningCheckBox.isSelected = additionalData?.isSuppressOtpMismatchWarning() ?: false
 
-        if (erlangSdk != null) {
-            LOG.debug("[$sdkName] Looking for Erlang SDK '${erlangSdk.name}' in combo box")
-            var found = false
-            for (i in 0 until internalErlangSdksComboBoxModel.size) {
-                val element = internalErlangSdksComboBoxModel.getElementAt(i)
-                if (Comparing.strEqual(element?.name, erlangSdk.name)) {
-                    LOG.debug("[$sdkName] Found Erlang SDK at index $i, selecting")
-                    internalErlangSdksComboBox.selectedIndex = i
-                    found = true
-                    break
+            if (erlangSdk != null) {
+                LOG.debug("[$sdkName] Looking for Erlang SDK '${erlangSdk.name}' in combo box")
+                var found = false
+                for (i in 0 until internalErlangSdksComboBoxModel.size) {
+                    val element = internalErlangSdksComboBoxModel.getElementAt(i)
+                    if (Comparing.strEqual(element?.name, erlangSdk.name)) {
+                        LOG.debug("[$sdkName] Found Erlang SDK at index $i, selecting")
+                        internalErlangSdksComboBox.selectedIndex = i
+                        found = true
+                        break
+                    }
                 }
-            }
-            if (!found) {
-                LOG.debug { ("[$sdkName] Erlang SDK '${erlangSdk.name}' not found in combo box (size=${internalErlangSdksComboBoxModel.size})") }
-            }
+                if (!found) {
+                    LOG.debug { ("[$sdkName] Erlang SDK '${erlangSdk.name}' not found in combo box (size=${internalErlangSdksComboBoxModel.size})") }
+                }
 
-            if (!hasErlangClasspathInRoots(sdkModificator.getRoots(OrderRootType.CLASSES), erlangSdk)) {
-                addNewCodePathsFromInternErlangSdk(sdk, erlangSdk, sdkModificator)
-                updateWarningLabel()
+                if (!hasErlangClasspathInRoots(sdkModificator.getRoots(OrderRootType.CLASSES), erlangSdk)) {
+                    addNewCodePathsFromInternErlangSdk(sdk, erlangSdk, sdkModificator)
+                    updateWarningLabel()
+                }
+            } else {
+                LOG.debug("[$sdkName] No Erlang SDK found to select")
             }
-        } else {
-            LOG.debug("[$sdkName] No Erlang SDK found to select")
         }
-
-        // Release freeze after setting selectedIndex to avoid triggering ItemListener during reset
-        freeze = false
 
         markStored()
         saveHintLabel.isVisible = false
@@ -401,7 +398,7 @@ class AdditionalDataConfigurable(
         internalErlangSdksComboBoxModel.indexOfName(sdk.name)?.let(internalErlangSdksComboBoxModel::removeElementAt)
     }
 
-    private fun frozen(block: () -> Unit) {
+    private inline fun frozen(block: () -> Unit) {
         freeze = true
         try {
             block()
