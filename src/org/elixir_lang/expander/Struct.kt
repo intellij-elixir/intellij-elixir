@@ -9,7 +9,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.STRUCT_OF_MODULE_BEI
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.Import.Term
 
-/** `elixir_map:expand_struct/5`, against the structs [Run.structs] gives. */
+/** `elixir_map:expand_struct/5`, against the structs [Run.structOf] gives. */
 internal fun expandStruct(node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
     val (left, right) = node.arguments!!
     if (!isMap(right)) return Expansion.Error("non_map_after_struct", node)

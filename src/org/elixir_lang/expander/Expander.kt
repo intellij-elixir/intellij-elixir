@@ -291,7 +291,7 @@ internal class Run(
     val level: ElixirLanguageLevel,
     val observer: ExpansionObserver,
     exports: Exports,
-    val structs: Structs,
+    private val structs: Structs,
     val appEnv: AppEnv,
     val counters: Counters = Counters(),
     /** The path of the file the run expands, `null` where it isn't known; read through here, never held. */
