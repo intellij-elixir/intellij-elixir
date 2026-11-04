@@ -77,7 +77,7 @@ internal object SdkFixtures {
 
     /**
      * The SDK table as a test found it. [restore] puts it back: the registration fills finish, the SDKs added since
-     * are removed, and the versions store is cleared.
+     * are removed, the events their removal queued run, and the versions store is cleared.
      */
     class TableSnapshot {
         private val before: Set<Sdk> = ProjectJdkTable.getInstance().allJdks.toSet()
@@ -91,6 +91,7 @@ internal object SdkFixtures {
                     table.allJdks.filterNot(before::contains).forEach(table::removeJdk)
                 }
             },
+            { settle() },
             { SdkVersionsStore.getInstance().clearForTests() },
         )
     }
@@ -114,6 +115,9 @@ internal object SdkFixtures {
     fun persistedElixirData(sdk: Sdk): ElixirSdkAdditionalData? =
         sdk.sdkModificator.sdkAdditionalData as? ElixirSdkAdditionalData
 
+    /** The Erlang SDK name [persistedElixirData] holds. */
+    fun storedErlangName(sdk: Sdk): String? = persistedElixirData(sdk)?.getErlangSdkName()
+
     /** [elixirSdk]'s pairing as its XML stores it: [erlangName], and [erlangHome] when given; nothing resolved. */
     fun storedPairing(elixirSdk: Sdk, erlangName: String, erlangHome: String? = null): ElixirSdkAdditionalData =
         ElixirSdkAdditionalData(elixirSdk).apply {
@@ -129,6 +133,10 @@ internal object SdkFixtures {
     @RequiresEdt
     fun commitPairing(elixirSdk: Sdk, erlangName: String, erlangHome: String? = null): Sdk =
         elixirSdk.also { commit(it, storedPairing(it, erlangName, erlangHome)) }
+
+    /** Runs the events queued on the EDT, as a closed dialog's `invokeLater`. */
+    @RequiresEdt
+    fun settle() = PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
     @RequiresEdt
     fun waitUntil(message: String, timeoutMillis: Long = 10_000, condition: () -> Boolean) {

@@ -219,6 +219,11 @@ class SdksService : Disposable {
         sdkModel?.addSdk(sdk)
     }
 
+    /** Drops [model] when its pages close with changes not applied, so Cancel leaves nothing for the next Apply. */
+    fun discardUnapplied(model: ProjectSdksModel) {
+        if (model === this.model && model.isModified) invalidate()
+    }
+
     fun <T> projectJdkImplList(clazz: Class<T>) =
         getModel().sdks.filter { clazz.isInstance(it.sdkType) }.map { it as ProjectJdkImpl }
 

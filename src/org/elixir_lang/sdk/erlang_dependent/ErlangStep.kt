@@ -101,6 +101,7 @@ class ErlangStep internal constructor(
             parent: Component?,
             state: ErlangStepState,
             browseFrom: String,
+            asking: Sdk?,
             chooseAnotherInstall: ChooseAnotherInstall?,
         ): ErlangStepAnswer
     }
@@ -135,7 +136,7 @@ class ErlangStep internal constructor(
         if (!scanned) return null
 
         val browseFrom = SdkHomeChooser.firstUnregistered(installs, sdkHomes) ?: elixirHome
-        val answer = dialog.show(parent, state(elixirHome, sdks, installs, asking, inEnvironment), browseFrom, chooseAnotherInstall)
+        val answer = dialog.show(parent, state(elixirHome, sdks, installs, asking, inEnvironment), browseFrom, asking, chooseAnotherInstall)
         return (answer as? ErlangStepAnswer.Picked)?.let { sdkFor(it.entry, sdkModel) }
     }
 
@@ -158,14 +159,18 @@ class ErlangStep internal constructor(
     companion object {
         fun getInstance(): ErlangStep = ApplicationManager.getApplication().service()
 
-        /** Asks for one of the [state]'s entries (see [ErlangStepDialog]). Browse opens at [browseFrom]. */
+        /**
+         * Asks for one of the [state]'s entries, or for the Elixir SDK [asking] being re-paired (see [ErlangStepDialog]).
+         * Browse opens at [browseFrom].
+         */
         private fun showDialog(
             parent: Component?,
             state: ErlangStepState,
             browseFrom: String,
+            asking: Sdk?,
             chooseAnotherInstall: ChooseAnotherInstall?,
         ): ErlangStepAnswer =
-            ErlangStepDialog(parent, state, chooseAnotherInstall) { browse(browseFrom) }.showAndPick()
+            ErlangStepDialog(parent, state, asking, chooseAnotherInstall) { browse(browseFrom) }.showAndPick()
 
         private fun browse(browseFrom: String): String? {
             var chosen: String? = null

@@ -1,6 +1,5 @@
 package org.elixir_lang.sdk.elixir
 
-import com.intellij.notification.NotificationAction
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
@@ -16,6 +15,7 @@ import org.elixir_lang.jps.shared.ElixirSdkTypeId
 import org.elixir_lang.jps.shared.cli.CliTool
 import org.elixir_lang.sdk.*
 import org.elixir_lang.sdk.erlang_dependent.AdditionalDataConfigurable
+import org.elixir_lang.sdk.erlang_dependent.ErlangDeletionAsk
 import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
 import org.elixir_lang.util.WriteActions
 import org.jdom.Element
@@ -286,9 +286,8 @@ ELIXIR_SDK_HOME
             val messageBus = ApplicationManager.getApplication().messageBus
             messageBus.connect().subscribe(ProjectJdkTable.JDK_TABLE_TOPIC, object : ProjectJdkTable.Listener {
                 override fun jdkRemoved(jdk: Sdk) {
-                    // When an Erlang SDK is removed, clean up any Elixir SDKs that reference it
                     if (staticIsValidDependency(jdk)) {
-                        cleanupOrphanedElixirSdkReferences(jdk)
+                        ErlangDeletionAsk.getInstance().erlangRemoved(jdk)
                     }
 
                     // When an Elixir SDK is removed, clean up project references
@@ -316,57 +315,6 @@ ELIXIR_SDK_HOME
                         LOG.info("Cleared removed Elixir SDK '${deletedSdk.name}' from project '${project.name}'")
                     }
                 }
-            }
-        }
-
-        private fun cleanupOrphanedElixirSdkReferences(deletedErlangSdk: Sdk) {
-            val deletedName = deletedErlangSdk.name
-            LOG.info("Erlang SDK '$deletedName' removed, checking for orphaned Elixir SDK references")
-
-            val projectJdkTable = ProjectJdkTable.getInstance()
-            val elixirSdks = projectJdkTable.allJdks.filter { it.sdkType is Type }
-
-            // Use getErlangSdkName() to check stored reference without triggering auto-discovery
-            val orphanedElixirSdks = elixirSdks.filter { elixirSdk ->
-                val additionalData = elixirSdk.sdkAdditionalData as? SdkAdditionalData
-                additionalData?.getErlangSdkName() == deletedName
-            }
-
-            if (orphanedElixirSdks.isEmpty()) {
-                return
-            }
-
-            LOG.info(
-                "Erlang SDK '$deletedName' was deleted and is referenced by Elixir SDK(s) " +
-                    orphanedElixirSdks.joinToString { "'${it.name}'" }
-            )
-
-            // Show warning notification instructing user to reconfigure
-            ApplicationManager.getApplication().invokeLater {
-                val notificationGroup = com.intellij.notification.NotificationGroupManager.getInstance()
-                    .getNotificationGroup("Elixir")
-
-                val dependentNames = orphanedElixirSdks.joinToString("<br>") { "  • <b>${it.name}</b>" }
-                val message = buildString {
-                    append("Erlang SDK '<b>$deletedName</b>' was deleted.<br><br>")
-                    append("The following Elixir SDKs reference it and must be reconfigured:<br>")
-                    append(dependentNames)
-                    append("<br><br>")
-                    val settingsTarget = SdkSettingsOpener.getInstance().targetName()
-                    append("Please configure the Elixir SDKs in $settingsTarget and select a different Erlang SDK<br>")
-                    append("for each of these Elixir SDKs.")
-                }
-
-                val notification = notificationGroup.createNotification(
-                    "Erlang SDK Deleted",
-                    message,
-                    com.intellij.notification.NotificationType.WARNING
-                )
-                notification.addAction(NotificationAction.create("Configure Elixir SDKs") { event, _ ->
-                    SdkSettingsOpener.getInstance().open(event)
-                })
-
-                notification.notify(null)
             }
         }
 

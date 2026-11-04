@@ -188,7 +188,7 @@ class ErlangStepTest : PlatformTestCase() {
         val oldest = install("26", "26.2.5")
         val listed = SdkFixtures.erlangSdk("Step browse Erlang", newest)
         var browseFrom: String? = null
-        val step = ErlangStep({ listOf(newest, middle, oldest) }) { _, _, from, _ -> browseFrom = from; ErlangStepAnswer.Cancelled }
+        val step = ErlangStep({ listOf(newest, middle, oldest) }) { _, _, from, _, _ -> browseFrom = from; ErlangStepAnswer.Cancelled }
 
         step.ask(null, elixirHome, model(listed))
 
@@ -199,7 +199,7 @@ class ErlangStepTest : PlatformTestCase() {
         val complete = install("28", "28.1")
         val incomplete = SdkFixtures.erlangHomeWithEbin("27", "27.3.4")
         var listed: List<String>? = null
-        val step = ErlangStep({ listOf(complete, incomplete) }) { _, state, _, _ ->
+        val step = ErlangStep({ listOf(complete, incomplete) }) { _, state, _, _, _ ->
             listed = state.entries.map { it.home }
             ErlangStepAnswer.Cancelled
         }

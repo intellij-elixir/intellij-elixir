@@ -8,7 +8,6 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.SdkType
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
-import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.libraries.Library
 import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar
@@ -57,6 +56,23 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
             editor.apply()
         }
         sdksService.apply(projectSdksModel)
+        removeLibraries()
+    }
+
+    /**
+     * The application libraries of the SDKs removed on this page, which go when the removal is applied, but for one an
+     * SDK added under the same name has taken back.
+     */
+    private val removedLibraries = mutableSetOf<Library>()
+
+    private fun removeLibraries() {
+        if (removedLibraries.isEmpty()) return
+        val libraryTable = LibraryTablesRegistrar.getInstance().libraryTable
+        val libraries = removedLibraries.intersect(libraryTable.libraries.toSet())
+        removedLibraries.clear()
+        if (libraries.isNotEmpty()) {
+            ApplicationManager.getApplication().runWriteAction { libraries.forEach(libraryTable::removeLibrary) }
+        }
     }
 
     override fun createComponent(): JComponent? {
@@ -121,20 +137,15 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
         val listener = object : SdkModel.Listener {
             override fun beforeSdkRemove(sdk: Sdk) {
                 LOG.debug("beforeSdkRemove(sdk.name='${sdk.name}')")
-                LibraryTablesRegistrar.getInstance().libraryTable.let { libraryTable ->
-                    libraryTable.getLibraryByName(sdk.name)?.let { library ->
-                        ApplicationManager.getApplication().runWriteAction {
-                            libraryTable.removeLibrary(library)
-                        }
-                    }
-                }
+                LibraryTablesRegistrar.getInstance().libraryTable.getLibraryByName(sdk.name)?.let(removedLibraries::add)
             }
 
             override fun sdkAdded(sdk: Sdk) {
                 LOG.debug("sdkAdded(sdk.name='${sdk.name}')")
                 LibraryTablesRegistrar.getInstance().libraryTable.let { libraryTable ->
                     ApplicationManager.getApplication().runWriteAction {
-                        val library = libraryTable.getLibraryByName(sdk.name) ?: libraryTable.createLibrary(sdk.name)
+                        val library = libraryTable.getLibraryByName(sdk.name)?.also(removedLibraries::remove)
+                            ?: libraryTable.createLibrary(sdk.name)
                         library.modifiableModel.apply {
                             replaceRoots(sdk)
                             commit()
@@ -188,6 +199,8 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
         sdkModelListener?.let { projectSdksModel.removeListener(it) }
         sdkModelListener = null
         editorByProjectJdkImpl.clear()
+        removedLibraries.clear()
+        sdksService.discardUnapplied(projectSdksModel)
     }
 
     private fun addSdk() {
@@ -200,16 +213,10 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     }
 
     /**
-     * Removes [selected] (the editable model clone shown in the list). Extracted for testing.
-     *
-     * `findSdk(clone)` returns the original table SDK, or null if the model no longer tracks it -
-     * guard rather than `!!`. `projectSdksModel.removeSdk(clone)` fires `beforeSdkRemove` so the
-     * combo model and module-library cleanup listeners run.
+     * Removes [selected] (the editable model clone shown in the list) from the model, which takes it out of the table
+     * when applied, after validating what is left, as IDEA's Project Structure does. Extracted for testing.
      */
     internal fun removeSelectedSdk(selected: ProjectJdkImpl) {
-        projectSdksModel.findSdk(selected)?.let { original ->
-            SdkConfigurationUtil.removeSdk(original)
-        }
         projectSdksModel.removeSdk(selected)
 
         editorByProjectJdkImpl[selected]?.let {

@@ -1,6 +1,7 @@
 package org.elixir_lang.sdk.erlang_dependent
 
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.SimpleColoredComponent
@@ -22,13 +23,15 @@ import javax.swing.JPanel
 import javax.swing.ListSelectionModel
 
 /**
- * Asks which Erlang an Elixir install runs on, from the [state]'s entries. OK is enabled once an entry is picked; a pick
- * built for another OTP is warned about. With [chooseAnotherInstall], the warning also offers to choose another Elixir
- * install, which closes the dialog and goes there.
+ * Asks which Erlang an Elixir install runs on, from the [state]'s entries, for a new Elixir SDK or for the Elixir SDK
+ * [asking] being re-paired. OK is enabled once an entry is picked; a pick built for another OTP is warned about. With
+ * [chooseAnotherInstall], the warning also offers to choose another Elixir install, which closes the dialog and goes
+ * there.
  */
 class ErlangStepDialog(
     parent: Component?,
     internal val state: ErlangStepState,
+    asking: Sdk?,
     private val chooseAnotherInstall: ChooseAnotherInstall?,
     private val browse: () -> String?,
 ) : DialogWrapper(null, parent, true, IdeModalityType.IDE) {
@@ -46,8 +49,12 @@ class ErlangStepDialog(
     }
 
     init {
-        title = "Erlang for Elixir SDK"
-        setOKButtonText("Create")
+        if (asking == null) {
+            title = "Erlang for Elixir SDK"
+            setOKButtonText("Create")
+        } else {
+            title = "Erlang for Elixir SDK '${asking.name}'"
+        }
         isOKActionEnabled = false
         init()
     }

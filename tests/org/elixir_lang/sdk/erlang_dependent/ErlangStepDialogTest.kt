@@ -1,5 +1,6 @@
 package org.elixir_lang.sdk.erlang_dependent
 
+import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.util.Disposer
 import com.intellij.testFramework.common.runAll
 import org.elixir_lang.PlatformTestCase
@@ -103,11 +104,19 @@ class ErlangStepDialogTest : PlatformTestCase() {
         assertTrue(row, row.endsWith("on another machine than the Elixir install"))
     }
 
+    fun testAnAskNamesTheElixirSdkItRepairs() {
+        val asking = SdkFixtures.elixirSdk("Dialog asked Elixir", elixirHome)
+        val dialog = dialog(ErlangStep.state(elixirHome, emptyList(), emptyList()), asking = asking)
+
+        assertEquals("Erlang for Elixir SDK 'Dialog asked Elixir'", dialog.title)
+    }
+
     private fun dialog(
         state: ErlangStepState,
+        asking: Sdk? = null,
         chooseAnotherInstall: ChooseAnotherInstall? = null,
         browse: () -> String? = { null },
     ): ErlangStepDialog =
-        ErlangStepDialog(null, state, chooseAnotherInstall, browse)
+        ErlangStepDialog(null, state, asking, chooseAnotherInstall, browse)
             .also { Disposer.register(testRootDisposable, it.disposable) }
 }

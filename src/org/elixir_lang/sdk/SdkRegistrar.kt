@@ -193,6 +193,8 @@ object SdkRegistrar {
         return findElixirSdkByVariant(ProjectJdkTable.getInstance().allJdks.asList(), homePath, erlangSdk?.homePath, erlangSdk?.name)
     }
 
+    internal fun sameErlangHome(sdk: Sdk, erlangSdk: Sdk?): Boolean = sameErlangHome(sdk, erlangSdk?.homePath, erlangSdk?.name)
+
     private fun sameErlangHome(sdk: Sdk, requestedHome: String?, requestedName: String?): Boolean {
         val additionalData = sdk.sdkAdditionalData as? SdkAdditionalData
         val persistedHome = additionalData?.getErlangSdkHomePath()

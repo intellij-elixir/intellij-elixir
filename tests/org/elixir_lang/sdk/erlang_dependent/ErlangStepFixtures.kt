@@ -93,7 +93,7 @@ internal class ScriptedErlangStep(
 
     /** Replaces the IDE's step, until [disposable] is disposed, with one built on this script. */
     fun install(disposable: Disposable): ScriptedErlangStep = also {
-        val step = ErlangStep({ installs }) { _, state, _, chooseAnotherInstall ->
+        val step = ErlangStep({ installs }) { _, state, _, _, chooseAnotherInstall ->
             asked.events += "erlang"
             offered += state.entries
             answers.removeFirst()(state.entries, chooseAnotherInstall)
