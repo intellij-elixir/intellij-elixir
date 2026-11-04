@@ -1,5 +1,7 @@
 package org.elixir_lang.sdk.elixir
 
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.diagnostic.debug
 import com.intellij.openapi.projectRoots.ProjectJdkTable
@@ -51,6 +53,21 @@ object ElixirSdkPathConfigurator {
             LOG.debug { "Committed SDK changes for ${sdk.name}" }
         }
         LOG.info("SDK paths configured for ${sdk.name} (Erlang SDK: ${erlangSdk.name})")
+    }
+
+    /**
+     * Sets up again the code paths of [elixirSdks], whose stored Erlang home a pairing write changed: an Elixir SDK's code
+     * paths include its Erlang SDK's. A write action still held, such as the table's around its listeners, is left
+     * first, by running at the next non-modal moment.
+     */
+    fun followErlangHome(elixirSdks: Collection<Sdk>, sdkModel: SdkModel? = null) {
+        if (elixirSdks.isEmpty()) return
+        val application = ApplicationManager.getApplication()
+        if (application.isWriteAccessAllowed) {
+            application.invokeLater({ elixirSdks.forEach { configure(it, sdkModel) } }, ModalityState.nonModal(), application.disposed)
+        } else {
+            elixirSdks.forEach { configure(it, sdkModel) }
+        }
     }
 
     private fun addSourcePaths(sdkModificator: SdkModificator) {

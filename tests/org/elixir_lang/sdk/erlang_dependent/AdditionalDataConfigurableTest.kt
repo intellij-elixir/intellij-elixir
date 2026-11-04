@@ -1,5 +1,6 @@
 package org.elixir_lang.sdk.erlang_dependent
 
+import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.options.ex.ConfigurableCardPanel
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
@@ -14,7 +15,11 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.facet.sdk.Editor
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkFixtures
+import org.elixir_lang.sdk.SdkFixtures.codePaths
+import org.elixir_lang.sdk.SdkFixtures.codePathsUnder
 import org.elixir_lang.sdk.SdkVersionsStore
+import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
+import org.elixir_lang.sdk.erlang.Type as ErlangType
 
 /** The Elixir SDK page's Erlang pairing combo, on both families' pages: it writes a pairing only after the user picks one. */
 class AdditionalDataConfigurableTest : PlatformTestCase() {
@@ -123,6 +128,45 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         page.configurable.apply()
 
         assertEquals(second.name, liveErlangName(page.elixirSdk))
+    }
+
+    /**
+     * A pick of the Erlang SDK the pairing names, when another Erlang SDK holds the stored home and so is shown: the pick
+     * writes the named SDK's home, and the code paths follow it.
+     */
+    fun testPickingTheNamedErlangAtAnotherHomeMovesTheCodePaths() {
+        val named = erlang("Combo named Erlang", "27", "27.3.4")
+        val atStoredHome = erlang("Combo stored home Erlang", "26", "26.2.5")
+        WriteAction.run<Throwable> { listOf(named, atStoredHome).forEach(ErlangType.instance::setupSdkPaths) }
+        val elixir = paired("Combo named pick", named.name, atStoredHome.homePath!!)
+        val model = model(named, atStoredHome, elixir)
+        ElixirSdkPathConfigurator.configure(elixir, model)
+        val page = open(model, elixir.name)
+        assertEquals("precondition: the stored home's SDK is shown", atStoredHome.name, (page.combo.selectedItem as Sdk?)?.name)
+        assertEquals("precondition: the stored home's code paths", codePaths(atStoredHome), codePathsUnder(elixir, atStoredHome.homePath!!))
+
+        page.combo.selectedItem = model.findSdk(named.name)
+        page.configurable.apply()
+
+        assertEquals(named.homePath, page.elixirSdk.elixirAdditionalData?.getErlangSdkHomePath())
+        assertEquals("the named SDK's code paths", codePaths(named), codePathsUnder(page.elixirSdk, named.homePath!!))
+        assertEquals("the stored home's code paths", emptyList<String>(), codePathsUnder(page.elixirSdk, atStoredHome.homePath!!))
+    }
+
+    /** A pick at another home of an Erlang SDK only the dialog's model holds keeps the suppress flag applied with it. */
+    fun testAPickOfAModelOnlyErlangAtAnotherHomeKeepsTheSuppressFlag() {
+        val picked = erlang("Combo model-only Erlang", "27", "27.3.4")
+        val stored = erlang("Combo model-only stored Erlang", "26", "26.2.5")
+        val model = model(picked, stored, paired("Combo model-only pick", stored.name, stored.homePath!!))
+        val page = open(model, "Combo model-only pick")
+
+        page.suppress.isSelected = true
+        page.combo.selectedItem = model.findSdk(picked.name)
+        page.configurable.apply()
+
+        val data = page.elixirSdk.sdkAdditionalData as SdkAdditionalData
+        assertEquals("precondition: the pick is written", picked.homePath, data.getErlangSdkHomePath())
+        assertTrue("the flag applied with the pick", data.isSuppressOtpMismatchWarning())
     }
 
     fun testTheSmallIdesEditorApplyWritesNoPairingUnasked() {

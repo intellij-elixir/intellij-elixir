@@ -8,9 +8,13 @@ import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.testFramework.registerOrReplaceServiceInstance
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.sdk.SdkFixtures
+import org.elixir_lang.sdk.SdkFixtures.codePaths
+import org.elixir_lang.sdk.SdkFixtures.codePathsUnder
 import org.elixir_lang.sdk.SdkFixtures.persistedElixirData
 import org.elixir_lang.sdk.SdkFixtures.storedErlangName
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
+import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
+import org.elixir_lang.sdk.erlang.Type as ErlangType
 import org.elixir_lang.sdk.wsl.MockWslCompatService
 import org.elixir_lang.sdk.wsl.WslCompatService
 import java.util.concurrent.Callable
@@ -101,6 +105,29 @@ class ErlangSdkResolverHealTest : PlatformTestCase() {
         SdkFixtures.settle()
 
         assertEquals("/fake/erlang/heal-moved-new", persistedElixirData(elixirSdk)?.getErlangSdkHomePath())
+    }
+
+    /**
+     * A pairing found by name whose stored home the Erlang SDK that gave the code paths held, and that has left the
+     * table: the heal stores the found SDK's home, and the code paths follow it.
+     */
+    @RequiresEdt
+    fun testAHealedHomeMovesTheCodePaths() {
+        val erlangSdk = register(SdkFixtures.erlangSdk("Heal rehomes Erlang", SdkFixtures.erlangHomeWithEbin("27", "27.3.4")))
+        val gone = SdkFixtures.erlangSdk("Heal rehomes gone Erlang", SdkFixtures.erlangHomeWithEbin("26", "26.2.5"))
+        WriteAction.run<Throwable> { listOf(erlangSdk, gone).forEach(ErlangType.instance::setupSdkPaths) }
+        val elixirSdk = register(SdkFixtures.elixirSdk("Heal rehomes Elixir", SdkFixtures.elixirHome("1.18.4")))
+        WriteAction.run<Throwable> { ElixirSdkMutation.applyDependencySelection(elixirSdk, gone) }
+        ElixirSdkPathConfigurator.configure(elixirSdk)
+        SdkFixtures.commitPairing(elixirSdk, erlangSdk.name, gone.homePath)
+        assertEquals("precondition: the gone SDK's code paths", codePaths(gone), codePathsUnder(elixirSdk, gone.homePath!!))
+
+        assertSame(erlangSdk, resolve(elixirSdk))
+        SdkFixtures.settle()
+
+        assertEquals(erlangSdk.homePath, persistedElixirData(elixirSdk)?.getErlangSdkHomePath())
+        assertEquals("the found SDK's code paths", codePaths(erlangSdk), codePathsUnder(elixirSdk, erlangSdk.homePath!!))
+        assertEquals("the gone SDK's code paths", emptyList<String>(), codePathsUnder(elixirSdk, gone.homePath!!))
     }
 
     @RequiresEdt

@@ -21,6 +21,7 @@ object ElixirSdkMutation {
      *
      * @param preserveExistingWhenRequestedNull when true and [erlangSdk] is null, preserves an
      * existing dependent SDK reference instead of clearing it.
+     * @return whether the stored Erlang home changed, so [ElixirSdkPathConfigurator.followErlangHome] is owed.
      */
     @RequiresWriteLock
     fun applyDependencySelection(
@@ -28,17 +29,22 @@ object ElixirSdkMutation {
         erlangSdk: Sdk?,
         suppressOtpMismatchWarning: Boolean? = null,
         preserveExistingWhenRequestedNull: Boolean = false,
-    ) {
+    ): Boolean {
         ThreadingAssertions.assertWriteAccess()
+        var rehomed = false
         mutateAdditionalData(elixirSdk) { data ->
             if (!preserveExistingWhenRequestedNull || erlangSdk != null || data.getErlangSdkName() == null) {
+                val storedHome = data.getErlangSdkHomePath()
                 data.setErlangSdk(erlangSdk)
+                val home = data.getErlangSdkHomePath()
+                rehomed = storedHome != home && !wslCompat.pathsEqualWslAware(storedHome, home)
             }
             if (suppressOtpMismatchWarning != null) {
                 data.setSuppressOtpMismatchWarning(suppressOtpMismatchWarning)
             }
         }
         elixirSdk.putUserData(ErlangDependentType.ERLANG_SDK_KEY, erlangSdk)
+        return rehomed
     }
 
     /**
@@ -59,11 +65,7 @@ object ElixirSdkMutation {
                 storedName == erlangSdk.name && wslCompat.pathsEqualWslAware(data.getErlangSdkHomePath(), previousHome)) &&
                 sdks.none { it !== erlangSdk && data.names(it) }
         }
-        val rehomed = stale.filterNot {
-            wslCompat.pathsEqualWslAware(it.elixirAdditionalData?.getErlangSdkHomePath(), erlangSdk.homePath)
-        }
-        stale.forEach { applyDependencySelection(it, erlangSdk) }
-        return rehomed
+        return stale.filter { applyDependencySelection(it, erlangSdk) }
     }
 
     /**

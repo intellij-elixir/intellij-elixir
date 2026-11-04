@@ -15,6 +15,7 @@ import org.elixir_lang.sdk.SdkEnvironment
 import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.erlang.Release
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
+import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
 import org.elixir_lang.sdk.elixir.knownOrNull
 import org.elixir_lang.sdk.wsl.wslCompat
 import java.util.concurrent.ConcurrentHashMap
@@ -247,7 +248,9 @@ internal object ErlangPairingHeal {
         application.invokeLater(
             {
                 try {
-                    WriteAction.run<RuntimeException> { heal(elixirSdk, erlangSdk) }
+                    if (WriteAction.compute<Boolean, RuntimeException> { heal(elixirSdk, erlangSdk) }) {
+                        ElixirSdkPathConfigurator.followErlangHome(listOf(elixirSdk))
+                    }
                 } finally {
                     pending.remove(elixirSdk)
                 }
@@ -262,21 +265,21 @@ internal object ErlangPairingHeal {
      * Stores the home of a pairing found by name. A pairing found by home under another name is left as it is: two
      * Erlang SDKs can share a home, and the name says which one was picked. A settings dialog's editable copies are not
      * in the table, and a commit to them would not persist. A pairing changed since the repair was scheduled, for
-     * example by the user, is left as it is.
+     * example by the user, is left as it is. Returns whether the stored home changed.
      */
     @RequiresWriteLock
-    private fun heal(elixirSdk: Sdk, erlangSdk: Sdk) {
+    private fun heal(elixirSdk: Sdk, erlangSdk: Sdk): Boolean {
         ThreadingAssertions.assertWriteAccess()
         val sdks = ProjectJdkTable.getInstance().allJdks
-        if (sdks.none { it === elixirSdk } || sdks.none { it === erlangSdk }) return
+        if (sdks.none { it === elixirSdk } || sdks.none { it === erlangSdk }) return false
 
-        val data = elixirSdk.elixirAdditionalData ?: return
+        val data = elixirSdk.elixirAdditionalData ?: return false
         val storedHomePath = data.getErlangSdkHomePath()
         val homeMatches = !storedHomePath.isNullOrBlank() &&
             wslCompat.pathsEqualWslAware(storedHomePath, erlangSdk.homePath)
-        if (data.getErlangSdkName() != erlangSdk.name || homeMatches) return
+        val stale = data.getErlangSdkName() == erlangSdk.name && !homeMatches
 
-        ElixirSdkMutation.applyDependencySelection(elixirSdk, erlangSdk)
+        return stale && ElixirSdkMutation.applyDependencySelection(elixirSdk, erlangSdk)
     }
 }
 

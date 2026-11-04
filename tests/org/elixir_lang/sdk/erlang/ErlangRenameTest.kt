@@ -5,13 +5,14 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkType
-import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.testFramework.common.runAll
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.facet.SdksService
 import org.elixir_lang.sdk.SdkFixtures
+import org.elixir_lang.sdk.SdkFixtures.codePaths
+import org.elixir_lang.sdk.SdkFixtures.codePathsUnder
 import org.elixir_lang.sdk.SdkFixtures.persistedElixirData
 import org.elixir_lang.sdk.SdkFixtures.register
 import org.elixir_lang.sdk.SdkFixtures.settle
@@ -110,25 +111,35 @@ class ErlangRenameTest : PlatformTestCase() {
      * paths follow.
      */
     fun testARenameThatPairsAtAnotherHomeMovesTheCodePaths() {
-        val elixir = pairedWithErlang("Rename rehomes")
-        val staleHome = SdkFixtures.erlangHomeWithEbin("26", "26.2.5")
-        val atStaleHome = register(SdkFixtures.erlangSdk("Rename rehomes Erlang at the stale home", staleHome))
-        WriteAction.run<Throwable> { Type.instance.setupSdkPaths(atStaleHome) }
-        SdkFixtures.commitPairing(elixir, atStaleHome)
-        ElixirSdkPathConfigurator.configure(elixir)
-        SdkFixtures.commitPairing(elixir, "Rename rehomes Erlang", staleHome)
-        assertEquals("precondition: the stale home's code paths", codePaths(atStaleHome), codePathsUnder(elixir, staleHome))
+        val (elixir, staleHome) = pairedAtAStaleHome("Rename rehomes")
         val model = ideaModel()
 
         Editor(model, "Rename rehomes Erlang").rename("Rename rehomes Erlang renamed")
         model.apply()
         settle()
 
-        val renamed = ProjectJdkTable.getInstance().findJdk("Rename rehomes Erlang renamed")!!
-        assertEquals("Rename rehomes Erlang renamed", storedErlangName(elixir))
-        assertEquals(renamed.homePath, persistedElixirData(elixir)?.getErlangSdkHomePath())
-        assertEquals("the renamed SDK's code paths", codePaths(renamed), codePathsUnder(elixir, renamed.homePath!!))
-        assertEquals("the stale home's code paths", emptyList<String>(), codePathsUnder(elixir, staleHome))
+        assertRehomed(elixir, "Rename rehomes Erlang renamed", staleHome)
+    }
+
+    /**
+     * The same rename made in the table outside any dialog's model: the table's listener repairs the pairing inside the
+     * table's write action, and the code paths follow once it ends.
+     */
+    fun testARenameInTheTableThatPairsAtAnotherHomeMovesTheCodePaths() {
+        val (elixir, staleHome) = pairedAtAStaleHome("Table rehomes")
+        val erlang = ProjectJdkTable.getInstance().findJdk("Table rehomes Erlang")!!
+        val clone = erlang.clone() as Sdk
+
+        WriteAction.run<Throwable> {
+            clone.sdkModificator.apply {
+                name = "Table rehomes Erlang renamed"
+                commitChanges()
+            }
+            ProjectJdkTable.getInstance().updateJdk(erlang, clone)
+        }
+        settle()
+
+        assertRehomed(elixir, "Table rehomes Erlang renamed", staleHome)
     }
 
     /**
@@ -226,12 +237,30 @@ class ErlangRenameTest : PlatformTestCase() {
         return elixir
     }
 
-    /** [erlang]'s one code path, its home's stdlib ebin. */
-    private fun codePaths(erlang: Sdk): List<String> = listOf(erlang.rootProvider.getFiles(OrderRootType.CLASSES).single().path)
+    /**
+     * [pairedWithErlang], then the Elixir SDK's pairing stores "<prefix> Erlang" with another home, which another Erlang
+     * SDK holds, and the code paths that SDK gives it. Returns the Elixir SDK and that home.
+     */
+    private fun pairedAtAStaleHome(prefix: String): Pair<Sdk, String> {
+        val elixir = pairedWithErlang(prefix)
+        val staleHome = SdkFixtures.erlangHomeWithEbin("26", "26.2.5")
+        val atStaleHome = register(SdkFixtures.erlangSdk("$prefix Erlang at the stale home", staleHome))
+        WriteAction.run<Throwable> { Type.instance.setupSdkPaths(atStaleHome) }
+        SdkFixtures.commitPairing(elixir, atStaleHome)
+        ElixirSdkPathConfigurator.configure(elixir)
+        SdkFixtures.commitPairing(elixir, "$prefix Erlang", staleHome)
+        assertEquals("precondition: the stale home's code paths", codePaths(atStaleHome), codePathsUnder(elixir, staleHome))
+        return elixir to staleHome
+    }
 
-    private fun codePathsUnder(sdk: Sdk, home: String): List<String> =
-        sdk.rootProvider.getFiles(OrderRootType.CLASSES).map { it.path }
-            .filter { FileUtil.isAncestor(FileUtil.toSystemIndependentName(home), it, false) }
+    /** [elixir] is paired with the Erlang SDK now named [renamedName], at its home, with its code paths and none of [staleHome]'s. */
+    private fun assertRehomed(elixir: Sdk, renamedName: String, staleHome: String) {
+        val renamed = ProjectJdkTable.getInstance().findJdk(renamedName)!!
+        assertEquals(renamedName, storedErlangName(elixir))
+        assertEquals(renamed.homePath, persistedElixirData(elixir)?.getErlangSdkHomePath())
+        assertEquals("the renamed SDK's code paths", codePaths(renamed), codePathsUnder(elixir, renamed.homePath!!))
+        assertEquals("the stale home's code paths", emptyList<String>(), codePathsUnder(elixir, staleHome))
+    }
 
     /**
      * Erlang SDKs "<prefix> second Erlang", then "<prefix> first Erlang", at two homes, each with its own Elixir SDK

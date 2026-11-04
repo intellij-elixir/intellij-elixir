@@ -52,7 +52,6 @@ internal class PairingsConfigurable(private val sdkModel: SdkModel) : Additional
         val rehomed = WriteAction.compute<List<Sdk>, Throwable> {
             ElixirSdkMutation.repairPairings(sdkModel.sdks.asList(), erlangSdk, renamedFrom, movedFrom)
         }
-        // Their code paths are their Erlang SDK's, so they follow its home.
-        rehomed.forEach { ElixirSdkPathConfigurator.configure(it, sdkModel) }
+        ElixirSdkPathConfigurator.followErlangHome(rehomed, sdkModel)
     }
 }

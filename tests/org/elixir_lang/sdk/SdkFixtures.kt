@@ -7,6 +7,7 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkAdditionalData
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
+import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.diagnostic.ThreadDumper
 import com.intellij.testFramework.PlatformTestUtil
@@ -51,6 +52,13 @@ internal object SdkFixtures {
     fun elixirSdk(name: String, homePath: String): Sdk = ProjectJdkImpl(name, ElixirSdkType.instance, homePath, "")
 
     fun erlangSdk(name: String, homePath: String): Sdk = ProjectJdkImpl(name, ErlangSdkType.instance, homePath, "")
+
+    /** [erlang]'s one code path, its [erlangHomeWithEbin]'s stdlib ebin. */
+    fun codePaths(erlang: Sdk): List<String> = listOf(erlang.rootProvider.getFiles(OrderRootType.CLASSES).single().path)
+
+    fun codePathsUnder(sdk: Sdk, home: String): List<String> =
+        sdk.rootProvider.getFiles(OrderRootType.CLASSES).map { it.path }
+            .filter { FileUtil.isAncestor(FileUtil.toSystemIndependentName(home), it, false) }
 
     @RequiresEdt
     fun register(sdk: Sdk, parentDisposable: Disposable): Sdk {

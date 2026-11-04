@@ -43,8 +43,9 @@ class ErlangDeletionAsk {
         val elixirHome = elixirSdk.homePath ?: return
         val erlangSdk = ErlangStep.getInstance().ask(null, elixirHome, null, asking = elixirSdk) ?: return
 
-        WriteAction.run<Throwable> { ElixirSdkMutation.applyDependencySelection(elixirSdk, erlangSdk) }
-        ElixirSdkPathConfigurator.configure(elixirSdk)
+        if (WriteAction.compute<Boolean, Throwable> { ElixirSdkMutation.applyDependencySelection(elixirSdk, erlangSdk) }) {
+            ElixirSdkPathConfigurator.followErlangHome(listOf(elixirSdk))
+        }
     }
 
     companion object {

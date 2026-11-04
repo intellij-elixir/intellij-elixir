@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
+import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
 import org.elixir_lang.sdk.erlang_dependent.ErlangDeletionAsk
 import org.elixir_lang.sdk.erlang_dependent.Type.Companion.staticIsValidDependency
 
@@ -24,7 +25,8 @@ internal class SdkTableListener : ProjectJdkTable.Listener {
         if (staticIsValidDependency(jdk)) {
             LOG.info("Erlang SDK renamed from '$previousName' to '${jdk.name}'")
             // The table's rename is applied in a write action, which this event fires inside.
-            ElixirSdkMutation.repairPairings(ProjectJdkTable.getInstance().allJdks.asList(), jdk, previousName, previousHome = null)
+            val rehomed = ElixirSdkMutation.repairPairings(ProjectJdkTable.getInstance().allJdks.asList(), jdk, previousName, previousHome = null)
+            ElixirSdkPathConfigurator.followErlangHome(rehomed)
         }
     }
 }

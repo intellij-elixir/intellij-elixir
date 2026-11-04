@@ -268,10 +268,7 @@ class AdditionalDataConfigurable(
     override fun apply() {
         val myElixirSdk = elixirSdk ?: return
         if (pairingPicked) {
-            val erlangSdkChanged = erlangSdkChanged(myElixirSdk)
-
-            writeInternalErlangSdk(myElixirSdk)
-            if (erlangSdkChanged) reconfigureSdkPaths(myElixirSdk)
+            if (writeInternalErlangSdk(myElixirSdk)) ElixirSdkPathConfigurator.followErlangHome(listOf(myElixirSdk), sdkModel)
         } else if (suppressionChanged) {
             WriteActions.runWriteAction {
                 ElixirSdkMutation.setOtpMismatchWarningSuppressed(myElixirSdk, suppressOtpMismatchWarningCheckBox.isSelected)
@@ -287,28 +284,20 @@ class AdditionalDataConfigurable(
         suppressedAsStored = suppressOtpMismatchWarningCheckBox.isSelected
     }
 
-    private fun erlangSdkChanged(myElixirSdk: Sdk): Boolean {
-        val selectedErlangSdk = internalErlangSdksComboBox.selectedItem as? Sdk
-        val existingAdditionalData = myElixirSdk.elixirAdditionalData
-        return existingAdditionalData?.getErlangSdkName() != selectedErlangSdk?.name
-    }
-
-    private fun reconfigureSdkPaths(myElixirSdk: Sdk) {
-        LOG.trace { "[${myElixirSdk.name}] Reconfiguring SDK paths after Erlang SDK update" }
-        ElixirSdkPathConfigurator.configure(myElixirSdk)
-    }
-
-    private fun writeInternalErlangSdk(myElixirSdk: Sdk) {
+    /** Returns whether the stored Erlang home changed. */
+    private fun writeInternalErlangSdk(myElixirSdk: Sdk): Boolean {
         val erlangSdk = internalErlangSdksComboBox.selectedItem as? Sdk
         LOG.trace { "[${myElixirSdk.name}] Persisting Erlang SDK dependency: ${erlangSdk?.name ?: "null"}" }
 
+        var rehomed = false
         WriteActions.runWriteAction {
-            ElixirSdkMutation.applyDependencySelection(
+            rehomed = ElixirSdkMutation.applyDependencySelection(
                 elixirSdk = myElixirSdk,
                 erlangSdk = erlangSdk,
                 suppressOtpMismatchWarning = suppressOtpMismatchWarningCheckBox.isSelected,
             )
         }
+        return rehomed
     }
 
     override fun reset() {
