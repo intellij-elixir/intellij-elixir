@@ -12,6 +12,7 @@ import com.intellij.diagnostic.ThreadDumper
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.common.runAll
 import com.intellij.util.concurrency.annotations.RequiresEdt
+import org.jdom.Element
 import java.io.File
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
@@ -112,6 +113,22 @@ internal object SdkFixtures {
     /** What the SDK entity's XML holds: a fresh modificator reloads the additional data from it. */
     fun persistedElixirData(sdk: Sdk): ElixirSdkAdditionalData? =
         sdk.sdkModificator.sdkAdditionalData as? ElixirSdkAdditionalData
+
+    /** [elixirSdk]'s pairing as its XML stores it: [erlangName], and [erlangHome] when given; nothing resolved. */
+    fun storedPairing(elixirSdk: Sdk, erlangName: String, erlangHome: String? = null): ElixirSdkAdditionalData =
+        ElixirSdkAdditionalData(elixirSdk).apply {
+            readExternal(
+                Element("additional").apply {
+                    setAttribute("erlang-sdk-name", erlangName)
+                    if (erlangHome != null) setAttribute("erlang-sdk-home-path", erlangHome)
+                },
+            )
+        }
+
+    /** Commits [storedPairing] to [elixirSdk]. */
+    @RequiresEdt
+    fun commitPairing(elixirSdk: Sdk, erlangName: String, erlangHome: String? = null): Sdk =
+        elixirSdk.also { commit(it, storedPairing(it, erlangName, erlangHome)) }
 
     @RequiresEdt
     fun waitUntil(message: String, timeoutMillis: Long = 10_000, condition: () -> Boolean) {

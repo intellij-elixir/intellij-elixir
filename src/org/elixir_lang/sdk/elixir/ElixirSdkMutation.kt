@@ -1,7 +1,6 @@
 package org.elixir_lang.sdk.elixir
 
 import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.projectRoots.SdkModificator
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresWriteLock
 import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
@@ -29,50 +28,40 @@ object ElixirSdkMutation {
         preserveExistingWhenRequestedNull: Boolean = false,
     ) {
         ThreadingAssertions.assertWriteAccess()
-        mutateAdditionalData(elixirSdk, createIfMissing = true) { data, modificator ->
+        mutateAdditionalData(elixirSdk) { data ->
             if (!preserveExistingWhenRequestedNull || erlangSdk != null || data.getErlangSdkName() == null) {
                 data.setErlangSdk(erlangSdk)
             }
             if (suppressOtpMismatchWarning != null) {
                 data.setSuppressOtpMismatchWarning(suppressOtpMismatchWarning)
             }
-            modificator.sdkAdditionalData = data
         }
         elixirSdk.putUserData(ErlangDependentType.ERLANG_SDK_KEY, erlangSdk)
     }
 
     /**
-     * Persists suppress/unsuppress choice for OTP mismatch warning without changing SDK pairing.
+     * Persists suppress/unsuppress choice for OTP mismatch warning without changing SDK pairing. An Elixir SDK with no
+     * additional data gets some, pairing no Erlang.
      */
     @RequiresWriteLock
     fun setOtpMismatchWarningSuppressed(elixirSdk: Sdk, suppressed: Boolean) {
         ThreadingAssertions.assertWriteAccess()
-        mutateAdditionalData(elixirSdk, createIfMissing = false) { data, modificator ->
+        mutateAdditionalData(elixirSdk) { data ->
             data.setSuppressOtpMismatchWarning(suppressed)
-            modificator.sdkAdditionalData = data
         }
     }
 
     @RequiresWriteLock
-    private fun mutateAdditionalData(
-        elixirSdk: Sdk,
-        createIfMissing: Boolean,
-        mutate: (SdkAdditionalData, SdkModificator) -> Unit,
-    ) {
+    private fun mutateAdditionalData(elixirSdk: Sdk, mutate: (SdkAdditionalData) -> Unit) {
         ThreadingAssertions.assertWriteAccess()
 
         val modificator = elixirSdk.sdkModificator
-        val existing = (modificator.sdkAdditionalData as? SdkAdditionalData)
+        val data = (modificator.sdkAdditionalData as? SdkAdditionalData)
             ?: (elixirSdk.sdkAdditionalData as? SdkAdditionalData)
+            ?: SdkAdditionalData(null, elixirSdk)
 
-        val data = existing
-            ?: if (createIfMissing) {
-                SdkAdditionalData(null, elixirSdk)
-            } else {
-                return
-            }
-
-        mutate(data, modificator)
+        mutate(data)
+        modificator.sdkAdditionalData = data
         modificator.commitChanges()
     }
 }

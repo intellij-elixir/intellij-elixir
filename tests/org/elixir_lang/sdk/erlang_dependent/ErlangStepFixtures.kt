@@ -11,6 +11,7 @@ import com.intellij.openapi.fileChooser.FileTextField
 import com.intellij.openapi.fileChooser.PathChooserDialog
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.Sdk
+import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.TestDialog
@@ -18,6 +19,7 @@ import com.intellij.openapi.ui.TestDialogManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.testFramework.replaceService
+import com.intellij.util.EventDispatcher
 import org.elixir_lang.cli.getExecutableFilepathWslSafe
 import org.elixir_lang.jps.shared.cli.CliTool
 import org.elixir_lang.sdk.SdkFixtures
@@ -45,6 +47,19 @@ internal fun elixirInstall(vsn: String, otpMajor: String): String =
 
 /** A dialog's model holding [sdks], as `reset` would from a table holding only them. */
 internal fun model(vararg sdks: Sdk): ProjectSdksModel = ProjectSdksModel().apply { sdks.forEach(::addSdk) }
+
+/** A model listing [sdks] in the order given, which `ProjectSdksModel`'s hash map does not. */
+internal class ListedSdkModel(vararg sdks: Sdk) : SdkModel {
+    private val sdks = sdks.toList()
+    private val listeners = EventDispatcher.create(SdkModel.Listener::class.java)
+
+    override fun getSdks(): Array<Sdk> = sdks.toTypedArray()
+    override fun findSdk(sdkName: String?): Sdk? = sdks.find { it.name == sdkName }
+    override fun addSdk(sdk: Sdk) = throw UnsupportedOperationException()
+    override fun addListener(listener: SdkModel.Listener) = listeners.addListener(listener)
+    override fun removeListener(listener: SdkModel.Listener) = listeners.removeListener(listener)
+    override fun getMulticaster(): SdkModel.Listener = listeners.multicaster
+}
 
 /**
  * What the add and the deletion ask asked, in order: `"home"` for a home chooser, `"erlang"` for the Erlang step,
