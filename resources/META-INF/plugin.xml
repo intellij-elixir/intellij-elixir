@@ -183,6 +183,8 @@
                              provider="org.elixir_lang.facet.configurable.Provider"/>
 
         <facetType implementation="org.elixir_lang.facet.Type"/>
+        <projectFacetListener facet-type="Elixir" implementation="org.elixir_lang.facet.FacetModels$FacetListener"/>
+        <additionalLibraryRootsProvider implementation="org.elixir_lang.facet.FacetModelLibraryProvider"/>
 
         <applicationService serviceInterface="org.elixir_lang.facet.configurable.TopLevelElixirConfigurableFactory"
                             serviceImplementation="org.elixir_lang.facet.configurable.SmallIdeTopLevelElixirConfigurableFactory"
@@ -565,6 +567,8 @@
                   topic="com.intellij.openapi.roots.ModuleRootListener"/>
         <listener class="org.elixir_lang.declaration.ExpanderPathListener"
                   topic="org.elixir_lang.settings.ElixirExperimentalSettingsListener"/>
+        <listener class="org.elixir_lang.facet.FacetModels$SdkListener"
+                  topic="com.intellij.openapi.projectRoots.ProjectJdkTable$Listener"/>
     </projectListeners>
 
     <actions>

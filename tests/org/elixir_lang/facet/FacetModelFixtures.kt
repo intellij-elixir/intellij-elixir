@@ -3,6 +3,8 @@ package org.elixir_lang.facet
 import com.intellij.facet.FacetManager
 import com.intellij.facet.FacetType
 import com.intellij.facet.impl.FacetUtil
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
@@ -10,18 +12,54 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.OrderRootType
+import com.intellij.openapi.roots.ProjectFileIndex
+import com.intellij.openapi.util.io.FileUtil
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.common.runAll
 import org.elixir_lang.Facet
 import org.elixir_lang.sdk.ProcessOutput
 import org.jdom.Element
+import java.io.File
+import java.util.concurrent.Callable
+import kotlin.io.path.createDirectories
+import kotlin.io.path.writeText
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 
 /** Elixir SDKs and facets naming them, set up the way the small IDEs store them. */
 internal class FacetModelFixtures {
     private val added = mutableListOf<Sdk>()
+
+    /** An SDK's `ebin` and `lib` roots: [beam] in the first, and [source], declaring [moduleName], in the second. */
+    class Roots(val ebin: VirtualFile, val lib: VirtualFile, val moduleName: String) {
+        val beam: VirtualFile get() = ebin.findChild(BEAM.name)!!
+        val source: VirtualFile get() = lib.findChild("${moduleName.lowercase()}.ex")!!
+    }
+
+    /**
+     * Roots in a directory of their own outside the project, as an install's are: under the light project's
+     * `temp://` content root a file is project source whatever the SDK is.
+     */
+    fun roots(moduleName: String, disposable: Disposable): Roots {
+        val directory = FileUtil.createTempDirectory("facet_model", null, true).toPath()
+        VfsRootAccess.allowRootAccess(disposable, directory.toString())
+        val ebin = directory.resolve("ebin").createDirectories()
+        BEAM.copyTo(ebin.resolve(BEAM.name).toFile())
+        val lib = directory.resolve("lib").createDirectories()
+        lib.resolve("${moduleName.lowercase()}.ex").writeText("defmodule $moduleName do\nend\n")
+        val fileSystem = LocalFileSystem.getInstance()
+
+        return Roots(
+            fileSystem.refreshAndFindFileByNioFile(ebin)!!.also { it.refresh(false, true) },
+            fileSystem.refreshAndFindFileByNioFile(lib)!!.also { it.refresh(false, true) },
+            moduleName,
+        )
+    }
+
+    fun register(name: String, roots: Roots): Sdk = register(name, listOf(roots.ebin), listOf(roots.lib))
 
     /** An Elixir SDK in the table with [classes] as its `CLASSES` roots and [sources] as its `SOURCES` roots. */
     fun register(name: String, classes: List<VirtualFile> = emptyList(), sources: List<VirtualFile> = emptyList()): Sdk {
@@ -67,10 +105,31 @@ internal class FacetModelFixtures {
     }
 
     companion object {
+        private val BEAM =
+            File("testData/org/elixir_lang/mockSdk-1.0.4/lib/elixir/ebin/Elixir.Kernel.beam").absoluteFile
+
         /** Lets the deferred roots change run, and the indexing it starts finish. */
         fun settle(project: Project) {
             PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
             IndexingTestUtil.waitUntilIndexesAreReady(project)
+        }
+
+        fun isInLibraryClasses(project: Project, file: VirtualFile): Boolean =
+            ReadAction.nonBlocking(Callable { ProjectFileIndex.getInstance(project).isInLibraryClasses(file) })
+                .executeSynchronously()
+
+        fun isInLibrarySource(project: Project, file: VirtualFile): Boolean =
+            ReadAction.nonBlocking(Callable { ProjectFileIndex.getInstance(project).isInLibrarySource(file) })
+                .executeSynchronously()
+
+        /** Adds [root] to [sdk]'s `CLASSES` roots, as Settings commits one. */
+        fun addClassesRoot(sdk: Sdk, root: VirtualFile) {
+            WriteAction.runAndWait<Throwable> {
+                sdk.sdkModificator.apply {
+                    addRoot(root, OrderRootType.CLASSES)
+                    commitChanges()
+                }
+            }
         }
 
         fun facet(module: Module): Facet =

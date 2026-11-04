@@ -13,6 +13,7 @@ import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.common.runAll
 import org.elixir_lang.mix.sync.MixSyncTestHelpers.runSuspendOnPooledThread
 import org.elixir_lang.Facet
@@ -157,6 +158,7 @@ class SdkLibraryReconcilerTest : PlatformTestCase() {
             FacetManager.getInstance(module).getFacetByType(Facet.ID)!!.sdk = sdk
         }
 
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
         val before = ProjectRootManager.getInstance(project).modificationCount
 
         runSuspendOnPooledThread { SdkLibraryReconciler.repair(project) }
@@ -181,6 +183,7 @@ class SdkLibraryReconcilerTest : PlatformTestCase() {
 
         assignSdkTheOldWay(sdk)
 
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
         val before = ProjectRootManager.getInstance(project).modificationCount
 
         runSuspendOnPooledThread { SdkLibraryReconciler.repair(project) }
