@@ -91,7 +91,7 @@ class ErlangRenameTest : PlatformTestCase() {
     fun testARenameInTheTableRepairsItsElixirSdks() {
         val elixir = pairedWithErlang("Rename table")
 
-        renameInTable("Rename table Erlang", "Rename table Erlang renamed")
+        SdkFixtures.renameInTable("Rename table Erlang", "Rename table Erlang renamed")
         settle()
 
         assertEquals("Rename table Erlang renamed", storedErlangName(elixir))
@@ -120,7 +120,7 @@ class ErlangRenameTest : PlatformTestCase() {
     fun testARenameInTheTableThatPairsAtAnotherHomeMovesTheCodePaths() {
         val (elixir, staleHome) = pairedAtAStaleHome("Table rehomes")
 
-        renameInTable("Table rehomes Erlang", "Table rehomes Erlang renamed")
+        SdkFixtures.renameInTable("Table rehomes Erlang", "Table rehomes Erlang renamed")
         settle()
 
         assertFollowed(elixir, "Table rehomes Erlang renamed", staleHome)
@@ -230,20 +230,6 @@ class ErlangRenameTest : PlatformTestCase() {
         SdkFixtures.commitPairing(elixir, "$prefix Erlang", staleHome)
         assertEquals("precondition: the stale home's code paths", codePaths(atStaleHome), codePathsUnder(elixir, staleHome))
         return elixir to staleHome
-    }
-
-    /** As the registrar's `updateJdk` renames one: a clone of the table's Erlang SDK [name], renamed [newName]. */
-    private fun renameInTable(name: String, newName: String) {
-        val erlang = ProjectJdkTable.getInstance().findJdk(name)!!
-        val clone = erlang.clone() as Sdk
-
-        WriteAction.run<Throwable> {
-            clone.sdkModificator.apply {
-                this.name = newName
-                commitChanges()
-            }
-            ProjectJdkTable.getInstance().updateJdk(erlang, clone)
-        }
     }
 
     /**

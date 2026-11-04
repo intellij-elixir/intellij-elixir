@@ -43,7 +43,8 @@ object ElixirSdkMutation {
                 data.setSuppressOtpMismatchWarning(suppressOtpMismatchWarning)
             }
         }
-        elixirSdk.putUserData(ErlangDependentType.ERLANG_SDK_KEY, erlangSdk)
+        // Read and cleared by the set-up that follows every write changing the home; a write keeping it has none.
+        if (rehomed) elixirSdk.putUserData(ErlangDependentType.ERLANG_SDK_KEY, erlangSdk)
         return rehomed
     }
 

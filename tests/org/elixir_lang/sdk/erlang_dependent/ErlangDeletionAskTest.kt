@@ -23,6 +23,7 @@ import org.elixir_lang.sdk.SdkFixtures.storedErlangName
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
 import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
 import org.elixir_lang.facet.sdks.erlang.Configurable as ErlangSdksConfigurable
+import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 
 /**
  * Deleting an Erlang SDK that Elixir SDKs are paired with asks, for each one left without its Erlang, which Erlang it
@@ -156,6 +157,22 @@ class ErlangDeletionAskTest : PlatformTestCase() {
 
         assertEquals(listOf("erlang"), asked.events)
         assertEquals(deleted.name, storedErlangName(elixirSdk))
+    }
+
+    /** A rename repair keeps the home, so nothing it writes is left for a later set-up to pair with once the SDK is gone. */
+    fun testARefreshAfterARenamedErlangIsDeletedAndTheAskCancelledDoesNotPairWithIt() {
+        val deleted = erlang("Ask key deleted Erlang", install("27", "27.3.4"))
+        val other = erlang("Ask key other Erlang", install("26", "26.2.5"))
+        val elixirSdk = paired("Ask key Elixir", elixirInstall("1.18.4", "26"), deleted)
+        val renamed = SdkFixtures.renameInTable(deleted.name, "Ask key deleted Erlang renamed")
+        assertEquals("precondition: the rename is repaired", renamed.name, storedErlangName(elixirSdk))
+        script(ScriptedErlangStep.cancel)
+
+        SdkConfigurationUtil.removeSdk(renamed)
+        settle()
+        ElixirSdkType.instance.setupSdkPaths(elixirSdk)
+
+        assertEquals(other.name, storedErlangName(elixirSdk))
     }
 
     fun testAnElixirSdkRepairedBeforeTheAskIsNotAsked() {

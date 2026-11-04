@@ -111,6 +111,24 @@ internal object SdkFixtures {
         )
     }
 
+    /**
+     * As the registrar's `updateJdk` renames one: a clone of the table's Erlang SDK [name], renamed [newName]. Returns the
+     * table's SDK [newName].
+     */
+    fun renameInTable(name: String, newName: String): Sdk {
+        val erlang = ProjectJdkTable.getInstance().findJdk(name)!!
+        val clone = erlang.clone() as Sdk
+
+        WriteAction.run<Throwable> {
+            clone.sdkModificator.apply {
+                this.name = newName
+                commitChanges()
+            }
+            ProjectJdkTable.getInstance().updateJdk(erlang, clone)
+        }
+        return ProjectJdkTable.getInstance().findJdk(newName)!!
+    }
+
     /** Commits [elixirSdk]'s pairing with [erlangSdk], as picking it does. */
     @RequiresEdt
     fun commitPairing(elixirSdk: Sdk, erlangSdk: Sdk): Sdk =
