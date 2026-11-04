@@ -1,11 +1,9 @@
 package org.elixir_lang.sdk.elixir
 
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.*
-import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.InvalidDataException
 import com.intellij.openapi.util.WriteExternalException
 import com.intellij.openapi.vfs.VirtualFile
@@ -15,9 +13,7 @@ import org.elixir_lang.jps.shared.ElixirSdkTypeId
 import org.elixir_lang.jps.shared.cli.CliTool
 import org.elixir_lang.sdk.*
 import org.elixir_lang.sdk.erlang_dependent.AdditionalDataConfigurable
-import org.elixir_lang.sdk.erlang_dependent.ErlangDeletionAsk
 import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
-import org.elixir_lang.util.WriteActions
 import org.jdom.Element
 import org.jetbrains.annotations.Unmodifiable
 import java.io.File
@@ -279,63 +275,6 @@ ELIXIR_SDK_HOME
             val otpMajor = store.elixirVersions(sdkHome)?.elixirOtpMajor?.knownOrNull
 
             return suggestSdkNameForHome(sdkHome, resolvedVersion, otpMajor, erlangHome?.let(store::otpVersion))
-        }
-
-        @JvmStatic
-        internal fun setupSdkTableListener() {
-            val messageBus = ApplicationManager.getApplication().messageBus
-            messageBus.connect().subscribe(ProjectJdkTable.JDK_TABLE_TOPIC, object : ProjectJdkTable.Listener {
-                override fun jdkRemoved(jdk: Sdk) {
-                    if (staticIsValidDependency(jdk)) {
-                        ErlangDeletionAsk.getInstance().erlangRemoved(jdk)
-                    }
-
-                    // When an Elixir SDK is removed, clean up project references
-                    if (jdk.sdkType is Type) {
-                        cleanupProjectReferences(jdk)
-                    }
-                }
-
-                override fun jdkNameChanged(jdk: Sdk, previousName: String) {
-                    // When an Erlang SDK is renamed, update any Elixir SDKs that reference the old name
-                    if (staticIsValidDependency(jdk)) {
-                        updateElixirSdkReferencesAfterRename(jdk, previousName)
-                    }
-                }
-            })
-        }
-
-        private fun cleanupProjectReferences(deletedSdk: Sdk) {
-            LOG.info("Elixir SDK removed: ${deletedSdk.name}, cleaning up project references")
-            com.intellij.openapi.project.ProjectManager.getInstance().openProjects.forEach { project ->
-                val projectRootManager = ProjectRootManager.getInstance(project)
-                if (projectRootManager.projectSdk == deletedSdk) {
-                    WriteActions.runWriteActionLater {
-                        projectRootManager.projectSdk = null
-                        LOG.info("Cleared removed Elixir SDK '${deletedSdk.name}' from project '${project.name}'")
-                    }
-                }
-            }
-        }
-
-        private fun updateElixirSdkReferencesAfterRename(renamedErlangSdk: Sdk, previousName: String) {
-            val newName = renamedErlangSdk.name
-            LOG.info("Erlang SDK renamed from '$previousName' to '$newName'")
-
-            val projectJdkTable = ProjectJdkTable.getInstance()
-            val elixirSdks = projectJdkTable.allJdks.filter { it.sdkType is Type }
-
-            for (elixirSdk in elixirSdks) {
-                val additionalData = elixirSdk.sdkAdditionalData as? SdkAdditionalData ?: continue
-
-                // Use getErlangSdkName() to check stored reference
-                if (additionalData.getErlangSdkName() != previousName) continue
-
-                LOG.info("Updating Elixir SDK '${elixirSdk.name}' reference from '$previousName' to '$newName'")
-                ApplicationManager.getApplication().runWriteAction {
-                    ElixirSdkMutation.applyDependencySelection(elixirSdk, renamedErlangSdk)
-                }
-            }
         }
 
         private fun getDefaultDocumentationUrl(version: String?): String? =

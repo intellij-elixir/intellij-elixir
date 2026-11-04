@@ -4,6 +4,7 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresWriteLock
 import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
+import org.elixir_lang.sdk.erlang_dependent.elixirAdditionalData
 import org.elixir_lang.sdk.erlang_dependent.Type as ErlangDependentType
 
 /**
@@ -37,6 +38,17 @@ object ElixirSdkMutation {
             }
         }
         elixirSdk.putUserData(ErlangDependentType.ERLANG_SDK_KEY, erlangSdk)
+    }
+
+    /** Pairs the Elixir SDKs in [sdks] that store [previousName] as their Erlang SDK's name with [renamed], under its new name. */
+    @RequiresWriteLock
+    fun repairRenamedPairings(sdks: Iterable<Sdk>, renamed: Sdk, previousName: String) {
+        ThreadingAssertions.assertWriteAccess()
+        for (elixirSdk in sdks) {
+            if (elixirSdk.sdkType is Type && elixirSdk.elixirAdditionalData?.getErlangSdkName() == previousName) {
+                applyDependencySelection(elixirSdk, renamed)
+            }
+        }
     }
 
     /**

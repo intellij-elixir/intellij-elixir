@@ -24,7 +24,7 @@ import org.jdom.Element
  *
  * 1. `erlangSdkHomePath` (stable, survives rename) - looked up by home path in ProjectJdkTable
  * 2. `erlangSdkName` (legacy fallback) - looked up by name; the resolver commits the resolved path back
- * 3. Both absent → NOT_CONFIGURED
+ * 3. Both absent -> NOT_CONFIGURED
  *
  * ## Cache Behavior
  *
@@ -34,14 +34,6 @@ import org.jdom.Element
  * - Cleared on [readExternal] to force re-resolution after loading from disk
  *
  * Cache resolution is performed by [ErlangSdkResolver].
- *
- * ## SDK Removal Handling
- *
- * When an Erlang SDK is removed from ProjectJdkTable, the [org.elixir_lang.sdk.elixir.Type]
- * table listener calls [getErlangSdkName] (not [getErlangSdk]) to find affected Elixir SDKs,
- * avoiding race conditions where the SDK is already removed from the table.
- *
- * @see org.elixir_lang.sdk.elixir.Type.setupSdkTableListener
  */
 class SdkAdditionalData :
     ValidatableSdkAdditionalData,
