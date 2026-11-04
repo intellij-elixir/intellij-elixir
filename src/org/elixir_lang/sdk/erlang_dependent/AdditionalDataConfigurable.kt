@@ -230,21 +230,17 @@ class AdditionalDataConfigurable(
                 val internalErlangSdk = itemEvent.item as Sdk
                 val myElixirSdk = elixirSdk ?: return@addItemListener
 
+                // Update UI path editors only. The actual SDK will be updated when the user
+                // clicks Apply, via Editor.apply() which calls pathEditor.apply(sdkModificator).
+                // The sdkModificator parameter is a UI-only wrapper that updates the path editors
+                // displayed in the dialog tabs.
                 if (stateChange == ItemEvent.DESELECTED) {
-                    // Update UI path editors only. The actual SDK will be updated when the user
-                    // clicks Apply, via Editor.apply() which calls pathEditor.apply(sdkModificator).
-                    // The sdkModificator parameter is a UI-only wrapper that updates the path editors
-                    // displayed in the dialog tabs.
                     removeCodePathsFromInternalErlangSdk(
                         myElixirSdk,
                         internalErlangSdk,
                         sdkModificator,
                     )
                 } else if (stateChange == ItemEvent.SELECTED) {
-                    // Update UI path editors only. The actual SDK will be updated when the user
-                    // clicks Apply, via Editor.apply() which calls pathEditor.apply(sdkModificator).
-                    // The sdkModificator parameter is a UI-only wrapper that updates the path editors
-                    // displayed in the dialog tabs.
                     addNewCodePathsFromInternErlangSdk(
                         myElixirSdk,
                         internalErlangSdk,
