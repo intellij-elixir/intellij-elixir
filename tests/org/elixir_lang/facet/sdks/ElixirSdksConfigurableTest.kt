@@ -5,6 +5,7 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.OrderRootType
+import com.intellij.openapi.roots.libraries.Library
 import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.ui.Splitter
@@ -36,21 +37,24 @@ import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
  */
 class ElixirSdksConfigurableTest : PlatformTestCase() {
 
-    private val added = mutableListOf<Sdk>()
+    private lateinit var table: SdkFixtures.TableSnapshot
+
+    /** The application libraries before the test: the page mirrors each SDK its model adds into one. */
+    private lateinit var librariesBefore: Set<Library>
 
     override fun setUp() {
         super.setUp()
+        table = SdkFixtures.TableSnapshot()
+        librariesBefore = libraryTable().libraries.toSet()
         service().resetForTests()
     }
 
     override fun tearDown() {
         runAll(
+            { table.restore() },
             {
-                WriteAction.run<Throwable> {
-                    val table = ProjectJdkTable.getInstance()
-                    added.filter { table.allJdks.contains(it) }.forEach { table.removeJdk(it) }
-                }
-                added.clear()
+                val libraryTable = libraryTable()
+                WriteAction.run<Throwable> { libraryTable.libraries.filterNot(librariesBefore::contains).forEach(libraryTable::removeLibrary) }
             },
             { service().resetForTests() },
             { super.tearDown() },
@@ -59,12 +63,9 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     private fun service() = SdksService.getInstance()!!
 
-    private fun addElixirSdkToTable(name: String): Sdk {
-        val sdk = ProjectJdkImpl(name, ElixirSdkType.instance)
-        WriteAction.run<Throwable> { ProjectJdkTable.getInstance().addJdk(sdk) }
-        added.add(sdk)
-        return sdk
-    }
+    private fun addElixirSdkToTable(name: String): Sdk = SdkFixtures.register(ProjectJdkImpl(name, ElixirSdkType.instance))
+
+    private fun libraryTable() = LibraryTablesRegistrar.getInstance().libraryTable
 
     private fun registerElixirSdk(name: String): Sdk {
         val sdk = addElixirSdkToTable(name)
@@ -129,7 +130,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
         service().apply(model)
 
-        ProjectJdkTable.getInstance().findJdk("Elixir Test Added By Its Own Apply")!!.also(added::add)
+        assertNotNull(ProjectJdkTable.getInstance().findJdk("Elixir Test Added By Its Own Apply"))
         assertSame("the dialog's own add must not drop the model pages opened later share", model, service().getModel())
     }
 
@@ -182,7 +183,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         val model = service().getModel()
         model.addSdk(ProjectJdkImpl("Elixir Test Added By Apply", ElixirSdkType.instance))
         service().apply(model)
-        val addedSdk = ProjectJdkTable.getInstance().findJdk("Elixir Test Added By Apply")!!.also(added::add)
+        val addedSdk = ProjectJdkTable.getInstance().findJdk("Elixir Test Added By Apply")!!
         val kept = service().getModel()
 
         WriteAction.run<Throwable> {
@@ -236,24 +237,18 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     }
 
     fun testAnSdkReAddedUnderTheRemovedNameKeepsItsLibrary() = removeOnThePage("Elixir Test Remove Readded") { configurable, name ->
-        val table = ProjectJdkTable.getInstance()
-        try {
-            service().getModel().addSdk(ProjectJdkImpl(name, ElixirSdkType.instance))
+        service().getModel().addSdk(ProjectJdkImpl(name, ElixirSdkType.instance))
 
-            configurable.apply()
+        configurable.apply()
 
-            assertTrue("the re-added SDK is in the table", inTable(name))
-            assertNotNull("its library stays", library(name))
-        } finally {
-            WriteAction.run<Throwable> { table.findJdk(name)?.let(table::removeJdk) }
-        }
+        assertTrue("the re-added SDK is in the table", inTable(name))
+        assertNotNull("its library stays", library(name))
     }
 
     /** An Elixir SDK with its application library, removed with the page's Remove; [check] gets the page and the name. */
     private fun removeOnThePage(name: String, check: (ElixirSdksConfigurable, String) -> Unit) {
-        val libraryTable = LibraryTablesRegistrar.getInstance().libraryTable
         registerElixirSdk(name)
-        WriteAction.run<Throwable> { libraryTable.createLibrary(name) }
+        WriteAction.run<Throwable> { libraryTable().createLibrary(name) }
         val configurable = ElixirSdksConfigurable()
         try {
             configurable.createComponent()
@@ -264,13 +259,12 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
             check(configurable, name)
         } finally {
             configurable.disposeUIResources()
-            WriteAction.run<Throwable> { library(name)?.let(libraryTable::removeLibrary) }
         }
     }
 
     private fun inTable(name: String): Boolean = ProjectJdkTable.getInstance().findJdk(name) != null
 
-    private fun library(name: String) = LibraryTablesRegistrar.getInstance().libraryTable.getLibraryByName(name)
+    private fun library(name: String) = libraryTable().getLibraryByName(name)
 
     fun testExternalSdkAdditionRefreshesCachedModel() {
         // Prime the cached model without the SDK.
@@ -290,32 +284,23 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         configurable.reset()
 
         val model = service().getModel()
-        val libraryTable = LibraryTablesRegistrar.getInstance().libraryTable
-        try {
-            // While the page is open, its SdkModel listener mirrors model additions into the
-            // application library table (that is its observable side effect).
-            model.addSdk(ProjectJdkImpl("Elixir Listener A", ElixirSdkType.instance))
-            assertNotNull(
-                "sanity: listener should mirror the SDK into the library table while the page is open",
-                libraryTable.getLibraryByName("Elixir Listener A"),
-            )
+        // While the page is open, its SdkModel listener mirrors model additions into the
+        // application library table (that is its observable side effect).
+        model.addSdk(ProjectJdkImpl("Elixir Listener A", ElixirSdkType.instance))
+        assertNotNull(
+            "sanity: listener should mirror the SDK into the library table while the page is open",
+            library("Elixir Listener A"),
+        )
 
-            configurable.disposeUIResources()
+        configurable.disposeUIResources()
 
-            // After disposal the listener must be removed from the shared, app-lifetime model -
-            // otherwise one listener accumulates per Settings open.
-            model.addSdk(ProjectJdkImpl("Elixir Listener B", ElixirSdkType.instance))
-            assertNull(
-                "listener must be removed on disposeUIResources",
-                libraryTable.getLibraryByName("Elixir Listener B"),
-            )
-        } finally {
-            WriteAction.run<Throwable> {
-                listOf("Elixir Listener A", "Elixir Listener B").forEach { name ->
-                    libraryTable.getLibraryByName(name)?.let { libraryTable.removeLibrary(it) }
-                }
-            }
-        }
+        // After disposal the listener must be removed from the shared, app-lifetime model -
+        // otherwise one listener accumulates per Settings open.
+        model.addSdk(ProjectJdkImpl("Elixir Listener B", ElixirSdkType.instance))
+        assertNull(
+            "listener must be removed on disposeUIResources",
+            library("Elixir Listener B"),
+        )
     }
 
     fun testSdkAddedReusesExistingApplicationLibrary() {
@@ -323,7 +308,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         configurable.createComponent()
         configurable.reset()
 
-        val libraryTable = LibraryTablesRegistrar.getInstance().libraryTable
+        val libraryTable = libraryTable()
         try {
             // An application library left over from an earlier add/remove cycle, carrying a root the
             // SDK about to be added does not have.
@@ -352,9 +337,6 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
             )
         } finally {
             configurable.disposeUIResources()
-            WriteAction.run<Throwable> {
-                libraryTable.getLibraryByName("Elixir Reused")?.let { libraryTable.removeLibrary(it) }
-            }
         }
     }
 
@@ -388,9 +370,6 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
      */
     private fun addThroughThePage(check: (List, ProjectSdksModel, String) -> Unit) {
         ProcessOutput.isSmallIdeOverride = true
-        val table = SdkFixtures.TableSnapshot()
-        val libraryTable = LibraryTablesRegistrar.getInstance().libraryTable
-        val librariesBefore = libraryTable.libraries.toSet()
         var configurable: ElixirSdksConfigurable? = null
         try {
             val asked = Asked()
@@ -409,9 +388,6 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         } finally {
             configurable?.disposeUIResources()
             ProcessOutput.isSmallIdeOverride = null
-            // The page mirrors each SDK its model adds into an application library.
-            WriteAction.run<Throwable> { libraryTable.libraries.filterNot(librariesBefore::contains).forEach(libraryTable::removeLibrary) }
-            table.restore()
         }
     }
 }
