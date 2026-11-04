@@ -891,9 +891,7 @@ internal class Evaluation(
         metaOf(term).mapNotNull(metaPlaces::get).minByOrNull { it.index }?.value ?: places[term]
 
     /** The metadata entries of [term], when it is a `{form, meta, args}` node. */
-    private fun metaOf(term: OtpErlangObject): List<OtpErlangObject> =
-        ((term as? OtpErlangTuple)?.takeIf { it.arity() == 3 }?.elementAt(1) as? OtpErlangList)?.elements()?.asList()
-            .orEmpty()
+    private fun metaOf(term: OtpErlangObject): List<OtpErlangObject> = nodeMeta(term)?.elements()?.asList().orEmpty()
 
     /** The values of the module body or the file's top level the code runs in, which the walk ran. */
     private val bodyValues get() = module?.let(run.compiling::get)?.values ?: run.fileValues
