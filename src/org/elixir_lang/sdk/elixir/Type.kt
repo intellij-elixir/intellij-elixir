@@ -141,8 +141,7 @@ ELIXIR_SDK_HOME
         sdkHome: String,
     ): String {
         SdkVersionsFiller.fillIfUnreadBlocking(sdkHome)
-        val otpMajor = SdkVersionsStore.getInstance().elixirVersions(sdkHome)?.elixirOtpMajor?.knownOrNull
-        return suggestSdkNameForHome(sdkHome, null, otpMajor, null)
+        return suggestSdkNameFromStore(sdkHome, null, null)
     }
 
     private fun validateSdkHomePath(virtualFile: VirtualFile) {
@@ -272,6 +271,14 @@ ELIXIR_SDK_HOME
                 }
             }
             return org.elixir_lang.sdk.Type.appendWslSuffix(base, sdkHome)
+        }
+
+        /** [suggestSdkNameForHome] for the Elixir install at [sdkHome] on the Erlang at [erlangHome], read from [SdkVersionsStore]. */
+        internal fun suggestSdkNameFromStore(sdkHome: String, resolvedVersion: String?, erlangHome: String?): String {
+            val store = SdkVersionsStore.getInstance()
+            val otpMajor = store.elixirVersions(sdkHome)?.elixirOtpMajor?.knownOrNull
+
+            return suggestSdkNameForHome(sdkHome, resolvedVersion, otpMajor, erlangHome?.let(store::otpVersion))
         }
 
         @JvmStatic

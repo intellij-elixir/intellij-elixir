@@ -11,7 +11,6 @@ import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresWriteLock
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
-import org.elixir_lang.sdk.elixir.knownOrNull
 import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
 import org.elixir_lang.sdk.erlang_dependent.resolveErlangSdkOrNullAndNotify
 import org.elixir_lang.sdk.wsl.wslCompat
@@ -69,7 +68,6 @@ object SdkRegistrar {
         SdkVersionsFiller.fillCanonical(canonicalHomePath)
 
         val versions = SdkVersionsStore.getInstance().elixirVersions(canonicalHomePath)
-        val otpMajor = versions?.elixirOtpMajor?.knownOrNull
         val elixirVersion = resolvedVersion ?: versions?.elixirVersion
 
         // Fast path: confirmed exact match - erlangSdkHomePath is persisted and Erlang home matches.
@@ -98,14 +96,11 @@ object SdkRegistrar {
         val existing = readAction { findElixirSdkByVariant(canonicalHomePath, erlangSdk) }
 
         // Compute version/name only when a write will be needed (new SDK or legacy update).
-        val erlangFullVersion = erlangSdk?.homePath?.let { erlangHome ->
-            SdkVersionsFiller.fillIfUnread(erlangHome)
-            SdkVersionsStore.getInstance().otpVersion(erlangHome)
-        }
+        val erlangHome = erlangSdk?.homePath
+        erlangHome?.let { SdkVersionsFiller.fillIfUnread(it) }
         val versionString =
                 ElixirSdkType.versionStringForHome(canonicalHomePath, elixirVersion, versions) ?: return null
-        val sdkName =
-                ElixirSdkType.suggestSdkNameForHome(canonicalHomePath, elixirVersion, otpMajor, erlangFullVersion)
+        val sdkName = ElixirSdkType.suggestSdkNameFromStore(canonicalHomePath, elixirVersion, erlangHome)
 
         // Perform SDK registration + Erlang attachment atomically so the SDK is never visible
         // in a half-configured state (added to table but Erlang dependency not yet attached).
