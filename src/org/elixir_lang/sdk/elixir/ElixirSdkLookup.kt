@@ -48,7 +48,7 @@ val ElixirSdkResolution.sdk: Sdk? get() = (this as? ElixirSdkResolution.Ready)?.
  * a platform-provided read action (e.g. background inspection threads) must acquire one
  * explicitly via [com.intellij.openapi.application.ReadAction.nonBlocking].
  *
- * Resolution order for [Module]: module SDK → project SDK; a small IDE reads only the Facet SDK.
+ * Resolution order for [Module]: module SDK -> project SDK; a small IDE reads only the Facet SDK.
  *
  * Use [resolveWithErlang] when the caller needs to verify the Erlang dependency as well.
  */
@@ -71,8 +71,8 @@ object ElixirSdkLookup {
         // Each IDE reads only what its settings can change: a small IDE has no module SDK settings, and IntelliJ IDEA
         // none for the facet, which a small IDE sharing the project leaves behind.
         if (isSmallIde) {
-            val facetSdk = FacetManager.getInstance(module).getFacetByType(Facet.ID)?.sdk
-            LOG.trace("ElixirSdkLookup.resolve(module='${module.name}'): small IDE, Facet → '${facetSdk?.name}'")
+            val facetSdk = facetSdk(module)
+            LOG.trace("ElixirSdkLookup.resolve(module='${module.name}'): small IDE, Facet -> '${facetSdk?.name}'")
             return facetSdk?.let(ElixirSdkResolution::Ready) ?: ElixirSdkResolution.MissingElixirSdk
         }
         if (hasMissingElixirModuleSdk(module)) {
@@ -82,14 +82,24 @@ object ElixirSdkLookup {
 
         val modSdk = moduleSdk(module)
         if (modSdk != null) {
-            LOG.trace("ElixirSdkLookup.resolve(module='${module.name}'): resolved from ModuleRootManager → '${modSdk.name}'")
+            LOG.trace(
+                "ElixirSdkLookup.resolve(module='${module.name}'): resolved from ModuleRootManager -> '${modSdk.name}'"
+            )
             return ElixirSdkResolution.Ready(modSdk)
         }
 
         val projResolution = resolve(module.project)
-        LOG.trace("ElixirSdkLookup.resolve(module='${module.name}'): fell through to project SDK → '${projResolution.sdk?.name}'")
+        LOG.trace(
+            "ElixirSdkLookup.resolve(module='${module.name}'): fell through to project SDK -> " +
+                "'${projResolution.sdk?.name}'"
+        )
         return projResolution
     }
+
+    /** The Elixir SDK [module]'s facet supplies: its facet's SDK on a small IDE, and null on IntelliJ IDEA. */
+    @RequiresReadLock
+    fun facetSdk(module: Module): Sdk? =
+        if (isSmallIde) FacetManager.getInstance(module).getFacetByType(Facet.ID)?.sdk else null
 
     /** Resolves to [ElixirSdkResolution.Ready] or [ElixirSdkResolution.MissingElixirSdk]. */
     @RequiresReadLock
