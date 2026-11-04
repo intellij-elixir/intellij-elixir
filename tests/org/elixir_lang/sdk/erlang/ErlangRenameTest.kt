@@ -1,10 +1,13 @@
 package org.elixir_lang.sdk.erlang
 
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkType
+import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
+import com.intellij.openapi.util.io.FileUtil
 import com.intellij.testFramework.common.runAll
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.facet.SdksService
@@ -13,11 +16,14 @@ import org.elixir_lang.sdk.SdkFixtures.persistedElixirData
 import org.elixir_lang.sdk.SdkFixtures.register
 import org.elixir_lang.sdk.SdkFixtures.settle
 import org.elixir_lang.sdk.SdkFixtures.storedErlangName
+import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
+import org.elixir_lang.sdk.erlang_dependent.getErlangSdk
 
 /**
- * Renaming an Erlang SDK in an SDK editor pairs the Elixir SDKs that stored its old name with its new one, though the
- * model's apply writes its copy of each Elixir SDK after the Erlang SDK's rename. Driven as the editors do: the copy
- * renamed and committed, then the Erlang type's additional-data configurable applied, then the model.
+ * Renaming an Erlang SDK in an SDK editor pairs the Elixir SDKs that stored its old name with its new one, and moving its
+ * home pairs those that stored its old home with its new one, though the model's apply writes its copy of each Elixir
+ * SDK after the Erlang SDK's change. Driven as the editors do: the copy changed and committed, then the Erlang type's
+ * additional-data configurable applied, then the model.
  */
 class ErlangRenameTest : PlatformTestCase() {
     private lateinit var table: SdkFixtures.TableSnapshot
@@ -36,8 +42,7 @@ class ErlangRenameTest : PlatformTestCase() {
     /** IntelliJ IDEA's Project Structure, whose model is the platform's own and is applied again by a second Apply. */
     fun testARenameInIdeasProjectStructureRepairsItsElixirSdks() {
         val elixir = pairedWithErlang("Rename IDEA")
-        val model = ProjectSdksModel()
-        model.reset(project)
+        val model = ideaModel()
 
         Editor(model, "Rename IDEA Erlang").rename("Rename IDEA Erlang renamed")
         model.apply()
@@ -55,12 +60,10 @@ class ErlangRenameTest : PlatformTestCase() {
     /** The small IDEs' SDKs pages, whose model is `SdksService`'s. */
     fun testARenameOnTheSmallIdesPagesRepairsItsElixirSdks() {
         val elixir = pairedWithErlang("Rename small")
-        val service = SdksService.getInstance()!!
-        service.resetForTests()
-        val model = service.getModel()
+        val model = smallIdesModel()
 
         Editor(model, "Rename small Erlang").rename("Rename small Erlang renamed")
-        service.apply(model)
+        SdksService.getInstance()!!.apply(model)
         settle()
 
         assertNotNull("precondition: the rename reached the table", ProjectJdkTable.getInstance().findJdk("Rename small Erlang renamed"))
@@ -70,8 +73,7 @@ class ErlangRenameTest : PlatformTestCase() {
     /** Two renames in one Project Structure dialog, through one editor: the second pairs the Elixir SDKs again. */
     fun testTwoRenamesInOneDialogRepairItsElixirSdks() {
         val elixir = pairedWithErlang("Rename twice")
-        val model = ProjectSdksModel()
-        model.reset(project)
+        val model = ideaModel()
         val editor = Editor(model, "Rename twice Erlang")
 
         editor.rename("Rename twice Erlang first")
@@ -103,6 +105,33 @@ class ErlangRenameTest : PlatformTestCase() {
     }
 
     /**
+     * A rename alone, on IntelliJ IDEA's Project Structure, of an Erlang SDK whose Elixir SDK stores its name with another
+     * home that another Erlang SDK still holds: the repair pairs the Elixir SDK at the renamed SDK's home, and its code
+     * paths follow.
+     */
+    fun testARenameThatPairsAtAnotherHomeMovesTheCodePaths() {
+        val elixir = pairedWithErlang("Rename rehomes")
+        val staleHome = SdkFixtures.erlangHomeWithEbin("26", "26.2.5")
+        val atStaleHome = register(SdkFixtures.erlangSdk("Rename rehomes Erlang at the stale home", staleHome))
+        WriteAction.run<Throwable> { Type.instance.setupSdkPaths(atStaleHome) }
+        SdkFixtures.commitPairing(elixir, atStaleHome)
+        ElixirSdkPathConfigurator.configure(elixir)
+        SdkFixtures.commitPairing(elixir, "Rename rehomes Erlang", staleHome)
+        assertEquals("precondition: the stale home's code paths", codePaths(atStaleHome), codePathsUnder(elixir, staleHome))
+        val model = ideaModel()
+
+        Editor(model, "Rename rehomes Erlang").rename("Rename rehomes Erlang renamed")
+        model.apply()
+        settle()
+
+        val renamed = ProjectJdkTable.getInstance().findJdk("Rename rehomes Erlang renamed")!!
+        assertEquals("Rename rehomes Erlang renamed", storedErlangName(elixir))
+        assertEquals(renamed.homePath, persistedElixirData(elixir)?.getErlangSdkHomePath())
+        assertEquals("the renamed SDK's code paths", codePaths(renamed), codePathsUnder(elixir, renamed.homePath!!))
+        assertEquals("the stale home's code paths", emptyList<String>(), codePathsUnder(elixir, staleHome))
+    }
+
+    /**
      * Two renames in one Project Structure Apply, where one Erlang SDK takes the other's old name and its editor applies
      * first: each Elixir SDK stays with its own Erlang SDK, though the first repair writes the name the second renames
      * away from. The giver is first in the table, so the model commits its rename first: a commit renaming an SDK to a
@@ -111,8 +140,7 @@ class ErlangRenameTest : PlatformTestCase() {
      */
     fun testRenamesInOneDialogThatReuseAnOldNameKeepEachPairing() {
         val (taker, giver) = twoPairs("Reuse")
-        val model = ProjectSdksModel()
-        model.reset(project)
+        val model = ideaModel()
         val takersEditor = Editor(model, "Reuse first Erlang")
         val giversEditor = Editor(model, "Reuse second Erlang")
 
@@ -125,11 +153,85 @@ class ErlangRenameTest : PlatformTestCase() {
         assertPairedAt(giver, "Reuse third Erlang")
     }
 
-    /** An Erlang SDK named "<prefix> Erlang", then an Elixir SDK paired with it, so after it in the table. */
+    /** IntelliJ IDEA's Project Structure. */
+    fun testAHomeMovedInIdeasProjectStructureIsFollowedByItsElixirSdks() =
+        assertMoveFollowed("Move IDEA", ::ideaModel) { it.apply() }
+
+    /** The small IDEs' SDKs pages. */
+    fun testAHomeMovedOnTheSmallIdesPagesIsFollowedByItsElixirSdks() =
+        assertMoveFollowed("Move small", ::smallIdesModel) { SdksService.getInstance()!!.apply(it) }
+
+    /** A rename and a move in one Apply, on IntelliJ IDEA's Project Structure. */
+    fun testAHomeMovedAndRenamedInOneApplyIsFollowedByItsElixirSdks() =
+        assertMoveFollowed("Move and rename", ::ideaModel, renameTo = "Move and rename Erlang renamed") { it.apply() }
+
+    /**
+     * The Erlang SDK's home moved, and the SDK renamed [renameTo] if given, in an editor on the model [model] gives, then
+     * [apply]: the Elixir SDK follows the home, so a later SDK at the old home doesn't take it, and its code paths are the
+     * new home's Erlang ones and none of the old home's. After the move, another Erlang SDK is registered at the old
+     * home, as the tool manager does.
+     */
+    private fun assertMoveFollowed(
+        prefix: String,
+        model: () -> ProjectSdksModel,
+        renameTo: String? = null,
+        apply: (ProjectSdksModel) -> Unit,
+    ) {
+        val elixir = pairedWithErlang(prefix)
+        val erlangName = "$prefix Erlang"
+        val newHome = SdkFixtures.erlangHomeWithEbin("26", "26.2.5")
+        val oldHome = ProjectJdkTable.getInstance().findJdk(erlangName)!!.homePath!!
+        val sdksModel = model()
+
+        Editor(sdksModel, erlangName).moveHome(newHome, renameTo)
+        apply(sdksModel)
+        settle()
+
+        val movedName = renameTo ?: erlangName
+        val moved = ProjectJdkTable.getInstance().findJdk(movedName)!!
+        assertEquals(
+            "precondition: the move reached the table",
+            FileUtil.toSystemIndependentName(newHome),
+            FileUtil.toSystemIndependentName(moved.homePath!!),
+        )
+        assertEquals(movedName, storedErlangName(elixir))
+        assertEquals(newHome, persistedElixirData(elixir)?.getErlangSdkHomePath())
+        assertEquals("the new home's code paths", codePaths(moved), codePathsUnder(elixir, newHome))
+        assertEquals("the old home's code paths", emptyList<String>(), codePathsUnder(elixir, oldHome))
+
+        register(SdkFixtures.erlangSdk("$movedName at the old home", oldHome))
+
+        assertSame(moved, ReadAction.computeBlocking<Sdk?, RuntimeException> { elixir.getErlangSdk() })
+    }
+
+    /** A Project Structure dialog's model, as IntelliJ IDEA's holds it. */
+    private fun ideaModel(): ProjectSdksModel = ProjectSdksModel().apply { reset(project) }
+
+    /** The small IDEs' SDKs pages' model, `SdksService`'s, built afresh from the table. */
+    private fun smallIdesModel(): ProjectSdksModel = SdksService.getInstance()!!.run {
+        resetForTests()
+        getModel()
+    }
+
+    /**
+     * An Erlang SDK named "<prefix> Erlang", then an Elixir SDK paired with it, so after it in the table, each with the
+     * code paths its type sets up.
+     */
     private fun pairedWithErlang(prefix: String): Sdk {
         val erlang = register(SdkFixtures.erlangSdk("$prefix Erlang", SdkFixtures.erlangHomeWithEbin("27", "27.3.4")))
-        return SdkFixtures.commitPairing(register(SdkFixtures.elixirSdk("$prefix Elixir", SdkFixtures.elixirHome("1.18.4"))), erlang)
+        WriteAction.run<Throwable> { Type.instance.setupSdkPaths(erlang) }
+        val elixir = SdkFixtures.commitPairing(register(SdkFixtures.elixirSdk("$prefix Elixir", SdkFixtures.elixirHome("1.18.4"))), erlang)
+        ElixirSdkPathConfigurator.configure(elixir)
+        assertEquals("precondition: the Erlang code paths", codePaths(erlang), codePathsUnder(elixir, erlang.homePath!!))
+        return elixir
     }
+
+    /** [erlang]'s one code path, its home's stdlib ebin. */
+    private fun codePaths(erlang: Sdk): List<String> = listOf(erlang.rootProvider.getFiles(OrderRootType.CLASSES).single().path)
+
+    private fun codePathsUnder(sdk: Sdk, home: String): List<String> =
+        sdk.rootProvider.getFiles(OrderRootType.CLASSES).map { it.path }
+            .filter { FileUtil.isAncestor(FileUtil.toSystemIndependentName(home), it, false) }
 
     /**
      * Erlang SDKs "<prefix> second Erlang", then "<prefix> first Erlang", at two homes, each with its own Elixir SDK
@@ -160,6 +262,23 @@ class ErlangRenameTest : PlatformTestCase() {
         private val configurable = (copy.sdkType as SdkType).createAdditionalDataConfigurable(model, copy.sdkModificator)?.apply {
             setSdk(copy)
             reset()
+        }
+
+        /**
+         * The new home and, as `SdkEditor` takes them from `setupSdkPaths`, its code paths in place of the old ones, with the
+         * new name [newName] if given.
+         */
+        fun moveHome(newHome: String, newName: String? = null) {
+            WriteAction.run<Throwable> {
+                copy.sdkModificator.apply {
+                    newName?.let { this.name = it }
+                    homePath = newHome
+                    removeAllRoots()
+                    commitChanges()
+                }
+                (copy.sdkType as SdkType).setupSdkPaths(copy)
+            }
+            configurable?.apply()
         }
 
         fun rename(newName: String) {

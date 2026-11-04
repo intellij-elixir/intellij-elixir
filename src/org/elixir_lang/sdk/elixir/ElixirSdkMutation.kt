@@ -6,6 +6,7 @@ import com.intellij.util.concurrency.annotations.RequiresWriteLock
 import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
 import org.elixir_lang.sdk.erlang_dependent.elixirAdditionalData
 import org.elixir_lang.sdk.erlang_dependent.Type as ErlangDependentType
+import org.elixir_lang.sdk.wsl.wslCompat
 
 /**
  * Write-side SDK mutation commands for Elixir SDK additional data.
@@ -41,21 +42,28 @@ object ElixirSdkMutation {
     }
 
     /**
-     * Pairs the Elixir SDKs in [sdks] that store [previousName] as their Erlang SDK's name with [renamed], under its new
-     * name. A pairing that names another SDK in [sdks] by its name and its home is that SDK's, as when another Erlang SDK
-     * took the old name and an earlier repair paired its Elixir SDKs under it, and is left.
+     * Pairs with [erlangSdk] the Elixir SDKs in [sdks] whose stored pairing names it as it was before an edit: by
+     * [previousName] when it was renamed, or by its name and [previousHome] when its home moved. The home is the pairing's
+     * identity, so a pairing left at the old home would go to whatever Erlang SDK is registered there. A pairing that
+     * names another SDK in [sdks] by its name and its home is that SDK's, as when another Erlang SDK took the old name
+     * and an earlier repair paired its Elixir SDKs under it, and is left. Every stored pairing is read before any is
+     * written. Returns those whose stored home this changes.
      */
     @RequiresWriteLock
-    fun repairRenamedPairings(sdks: Iterable<Sdk>, renamed: Sdk, previousName: String) {
+    fun repairPairings(sdks: Iterable<Sdk>, erlangSdk: Sdk, previousName: String?, previousHome: String?): List<Sdk> {
         ThreadingAssertions.assertWriteAccess()
-        for (elixirSdk in sdks) {
-            val data = elixirSdk.elixirAdditionalData ?: continue
-            if (elixirSdk.sdkType is Type && data.getErlangSdkName() == previousName &&
-                sdks.none { it !== renamed && data.names(it) }
-            ) {
-                applyDependencySelection(elixirSdk, renamed)
-            }
+        val stale = sdks.filter { elixirSdk ->
+            val data = elixirSdk.elixirAdditionalData ?: return@filter false
+            val storedName = data.getErlangSdkName()
+            (previousName != null && storedName == previousName ||
+                storedName == erlangSdk.name && wslCompat.pathsEqualWslAware(data.getErlangSdkHomePath(), previousHome)) &&
+                sdks.none { it !== erlangSdk && data.names(it) }
         }
+        val rehomed = stale.filterNot {
+            wslCompat.pathsEqualWslAware(it.elixirAdditionalData?.getErlangSdkHomePath(), erlangSdk.homePath)
+        }
+        stale.forEach { applyDependencySelection(it, erlangSdk) }
+        return rehomed
     }
 
     /**

@@ -24,7 +24,7 @@ internal class SdkTableListener : ProjectJdkTable.Listener {
         if (staticIsValidDependency(jdk)) {
             LOG.info("Erlang SDK renamed from '$previousName' to '${jdk.name}'")
             // The table's rename is applied in a write action, which this event fires inside.
-            ElixirSdkMutation.repairRenamedPairings(ProjectJdkTable.getInstance().allJdks.asList(), jdk, previousName)
+            ElixirSdkMutation.repairPairings(ProjectJdkTable.getInstance().allJdks.asList(), jdk, previousName, previousHome = null)
         }
     }
 }
