@@ -121,6 +121,12 @@ interface ErlangSdkResolver {
     }
 }
 
+/** The Erlang SDK a stored pairing's name names, in [sdkModel] first, then in the table. */
+@RequiresReadLock
+internal fun erlangSdkNamed(name: String, sdkModel: SdkModel?): Sdk? =
+    sdkModel?.sdks?.find { it.name == name && Type.staticIsValidDependency(it) }
+        ?: ProjectJdkTable.getInstance().findJdk(name)?.takeIf { Type.staticIsValidDependency(it) }
+
 /**
  * Default implementation.
  *
@@ -175,7 +181,7 @@ internal class DefaultErlangSdkResolver : ErlangSdkResolver {
             ?: return ErlangSdkResult.Missing(elixirSdk, MissingErlangSdkReason.NOT_CONFIGURED)
 
         logger.debug { "[$elixirName] Falling back to name lookup: $configuredName" }
-        val found = findErlangSdkByName(configuredName, sdkModel)
+        val found = erlangSdkNamed(configuredName, sdkModel)
         if (found != null) {
             logger.debug { "[$elixirName] Found Erlang SDK by name: $configuredName - scheduling a commit of its home path" }
             additionalData.setCachedErlangSdk(found)
@@ -217,12 +223,6 @@ internal class DefaultErlangSdkResolver : ErlangSdkResolver {
         return ProjectJdkTable.getInstance().allJdks.firstOrNull { sdk ->
             Type.staticIsValidDependency(sdk) && wslCompat.pathsEqualWslAware(sdk.homePath, homePath)
         }
-    }
-
-    private fun findErlangSdkByName(name: String, sdkModel: SdkModel?): Sdk? {
-        val jdkTable = ProjectJdkTable.getInstance()
-        return sdkModel?.sdks?.find { it.name == name && Type.staticIsValidDependency(it) }
-            ?: jdkTable.findJdk(name)?.takeIf { Type.staticIsValidDependency(it) }
     }
 
     companion object {

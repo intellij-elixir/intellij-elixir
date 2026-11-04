@@ -12,6 +12,7 @@ import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresWriteLock
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
 import org.elixir_lang.sdk.erlang_dependent.elixirAdditionalData
+import org.elixir_lang.sdk.erlang_dependent.erlangSdkNamed
 import org.elixir_lang.sdk.erlang_dependent.resolveErlangSdkOrNullAndNotify
 import org.elixir_lang.sdk.wsl.wslCompat
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
@@ -72,14 +73,16 @@ object SdkRegistrar {
 
         // Fast path: confirmed exact match - erlangSdkHomePath is persisted and Erlang home matches.
         // Capture whether erlangSdkName is stale in the same read action as the lookup, so a rename can be synced
-        // under a write action without an extra round-trip.
+        // under a write action without an extra round-trip. A name that names an Erlang SDK at the stored home is the
+        // pick the user made among the SDKs there, and is kept.
         // Both allJdks access and sdkAdditionalData reads require a read lock.
         val confirmedResult: Pair<Sdk, Boolean>? = readAction {
-            val sdk = findElixirSdkByVariant(canonicalHomePath, erlangSdk)?.takeIf {
-                it.elixirAdditionalData?.getErlangSdkHomePath() != null
-            } ?: return@readAction null
-            val data = sdk.elixirAdditionalData
-            sdk to (data?.getErlangSdkName() != erlangSdk?.name)
+            val sdk = findElixirSdkByVariant(canonicalHomePath, erlangSdk) ?: return@readAction null
+            val data = sdk.elixirAdditionalData ?: return@readAction null
+            if (data.getErlangSdkHomePath() == null) return@readAction null
+            val storedName = data.getErlangSdkName()
+            val nameIsStale = storedName != erlangSdk?.name && !data.names(storedName?.let { erlangSdkNamed(it, null) })
+            sdk to nameIsStale
         }
         if (confirmedResult != null) {
             val (confirmedExisting, nameIsStale) = confirmedResult
