@@ -44,6 +44,7 @@ import org.elixir_lang.expander.isCall
 import org.elixir_lang.expander.isListGenerator
 import org.elixir_lang.expander.isMap
 import org.elixir_lang.expander.isNamedCall
+import org.elixir_lang.expander.isTrueAt
 import org.elixir_lang.expander.isUnderscore
 import org.elixir_lang.expander.isVariable
 import org.elixir_lang.expander.isVariableNamed
@@ -1263,7 +1264,7 @@ internal class Evaluation(
             return remote(value, name, emptyList(), marks, tail)
         }
 
-        if ((metaValue(meta, "no_parens") as? Meta.Value.Atom)?.name != "true") return remote(value, name, emptyList(), marks, tail)
+        if (!isTrueAt(meta, "no_parens")) return remote(value, name, emptyList(), marks, tail)
 
         val badmap = FIELD_OF_NON_MAP_RAISES_BADMAP.isSufficient(run.level)
 

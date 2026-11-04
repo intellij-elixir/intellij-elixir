@@ -179,18 +179,15 @@ internal fun linifyWithContextCounter(
      * reads deleted, which stops the marking, as [node]'s metadata being one of [stopsAt] does, and [line] added, with
      * the mark before it from [Linify.readsStopGenerated] and after it before that.
      */
-    fun tupled(node: ElixirAst, meta: Meta, gen: Boolean): Pair<Meta, Boolean> {
-        val stops = linifier.readsStopGenerated && (metaValue(meta, "stop_generated") as? Meta.Value.Atom)?.name == "true"
-
-        return when {
+    fun tupled(node: ElixirAst, meta: Meta, gen: Boolean): Pair<Meta, Boolean> =
+        when {
             node.meta in stopsAt -> lined(meta) to false
-            stops -> lined(Meta(meta.origin, meta.start, meta.end, keydelete(meta.keys, "stop_generated"), meta.built)) to false
+            linifier.readsStopGenerated && isTrueAt(meta, "stop_generated") -> lined(meta.withKeys(keydelete(meta.keys, "stop_generated"))) to false
             !gen -> lined(meta) to false
             linifier.readsStopGenerated -> lined(generatedOnce(meta)) to true
             onceOnly -> generatedOnce(lined(meta)) to true
             else -> markedGenerated(lined(meta)) to true
         }
-    }
 
     fun linify(node: ElixirAst, gen: Boolean): ElixirAst {
         ProgressManager.checkCanceled()

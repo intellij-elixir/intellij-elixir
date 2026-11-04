@@ -841,7 +841,7 @@ internal fun variableOutcome(call: ElixirAst.Call, state: ExState, level: Elixir
             "apply" -> return VariableOutcome.LocalCall
             "raise" -> return VariableOutcome.Reported(ErrorSite.UNDEFINED_VAR)
         }
-    } else if (!isRead && (metaValue(call.meta, "var") as? Meta.Value.Atom)?.name == "true") {
+    } else if (!isRead && isTrueAt(call.meta, "var")) {
         return VariableOutcome.Error("undefined_var_bang")
     }
 
