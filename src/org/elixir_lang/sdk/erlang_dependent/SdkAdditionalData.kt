@@ -8,6 +8,7 @@ import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.ValidatableSdkAdditionalData
 import com.intellij.openapi.util.InvalidDataException
 import com.intellij.openapi.util.WriteExternalException
+import org.elixir_lang.sdk.wsl.wslCompat
 import org.jdom.Element
 
 /**
@@ -24,7 +25,7 @@ import org.jdom.Element
  *
  * 1. `erlangSdkHomePath` (stable, survives rename) - looked up by home path in ProjectJdkTable
  * 2. `erlangSdkName` (legacy fallback) - looked up by name; the resolver commits the resolved path back
- * 3. Both absent → NOT_CONFIGURED
+ * 3. Both absent -> NOT_CONFIGURED
  *
  * ## Cache Behavior
  *
@@ -34,21 +35,11 @@ import org.jdom.Element
  * - Cleared on [readExternal] to force re-resolution after loading from disk
  *
  * Cache resolution is performed by [ErlangSdkResolver].
- *
- * ## SDK Removal Handling
- *
- * When an Erlang SDK is removed from ProjectJdkTable, the [org.elixir_lang.sdk.elixir.Type]
- * table listener calls [getErlangSdkName] (not [getErlangSdk]) to find affected Elixir SDKs,
- * avoiding race conditions where the SDK is already removed from the table.
- *
- * @see org.elixir_lang.sdk.elixir.Type.setupSdkTableListener
  */
 class SdkAdditionalData :
     ValidatableSdkAdditionalData,
     Cloneable {
     private val elixirSdk: Sdk
-
-    // @Volatile: renaming an Erlang SDK in the settings dialog writes these in place, outside the write lock.
 
     // Primary stable identity - survives SDK renames.
     @Volatile
@@ -168,6 +159,10 @@ class SdkAdditionalData :
         erlangSdkHomePath = sdk?.homePath
         cachedErlangSdk = sdk
     }
+
+    /** Whether [sdk] has both the stored name and the stored home: the pick the user made among the SDKs at that home. */
+    internal fun names(sdk: Sdk?): Boolean =
+        sdk != null && sdk.name == erlangSdkName && wslCompat.pathsEqualWslAware(sdk.homePath, erlangSdkHomePath)
 
     internal fun getCachedErlangSdk(): Sdk? = cachedErlangSdk
 

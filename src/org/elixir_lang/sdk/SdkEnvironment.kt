@@ -70,21 +70,27 @@ object SdkEnvironment {
      * filtering that ProjectSdksModel.reset() applies for opened projects. Permissive when
      * either environment cannot be determined, so SDK validation stays the deciding factor.
      */
-    fun sdkVisibleFor(targetDescriptor: EelDescriptor?, sdk: Sdk): Boolean {
-        val targetMachine = targetDescriptor?.getResolvedEelMachine() ?: return true
-        val machine = sdkDescriptor(sdk)?.getResolvedEelMachine() ?: return true
-
-        return machine == targetMachine
-    }
+    fun sdkVisibleFor(targetDescriptor: EelDescriptor?, sdk: Sdk): Boolean = visibleInEnvironmentOf(targetDescriptor)(sdk)
 
     /**
      * Whether a candidate runs in the same environment as [target]; true when either cannot be determined. A predicate
      * so [target]'s Eel machine is resolved once per scan of the SDK table, not once per candidate.
      */
-    fun visibleFor(target: Sdk): (Sdk) -> Boolean {
-        val targetMachine = sdkDescriptor(target)?.getResolvedEelMachine() ?: return { true }
+    fun visibleFor(target: Sdk): (Sdk) -> Boolean = visibleInEnvironmentOf(sdkDescriptor(target))
 
-        return { candidate -> sdkDescriptor(candidate)?.getResolvedEelMachine()?.equals(targetMachine) ?: true }
+    /** As [visibleFor], for a candidate home and the environment of [home]. */
+    fun sameEnvironmentAs(home: String): (candidateHome: String) -> Boolean = homesInEnvironmentOf(eelDescriptor(home))
+
+    private fun visibleInEnvironmentOf(targetDescriptor: EelDescriptor?): (Sdk) -> Boolean {
+        val inEnvironment = homesInEnvironmentOf(targetDescriptor)
+
+        return { candidate -> candidate.homePath?.takeUnless(String::isBlank)?.let(inEnvironment) ?: true }
+    }
+
+    private fun homesInEnvironmentOf(targetDescriptor: EelDescriptor?): (String) -> Boolean {
+        val targetMachine = targetDescriptor?.getResolvedEelMachine() ?: return { true }
+
+        return { candidateHome -> eelDescriptor(candidateHome)?.getResolvedEelMachine()?.equals(targetMachine) ?: true }
     }
 
     /**

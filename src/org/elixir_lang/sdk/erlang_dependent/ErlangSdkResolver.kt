@@ -15,6 +15,7 @@ import org.elixir_lang.sdk.SdkEnvironment
 import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.erlang.Release
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
+import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
 import org.elixir_lang.sdk.elixir.knownOrNull
 import org.elixir_lang.sdk.wsl.wslCompat
 import java.util.concurrent.ConcurrentHashMap
@@ -121,6 +122,12 @@ interface ErlangSdkResolver {
     }
 }
 
+/** The Erlang SDK a stored pairing's name names, in [sdkModel] first, then in the table. */
+@RequiresReadLock
+internal fun erlangSdkNamed(name: String, sdkModel: SdkModel?): Sdk? =
+    sdkModel?.sdks?.find { it.name == name && Type.staticIsValidDependency(it) }
+        ?: ProjectJdkTable.getInstance().findJdk(name)?.takeIf { Type.staticIsValidDependency(it) }
+
 /**
  * Default implementation.
  *
@@ -128,7 +135,7 @@ interface ErlangSdkResolver {
  * 1. `erlangSdkHomePath` (stable; survives SDK renames) - WSL-aware path match in ProjectJdkTable
  * 2. `erlangSdkName` (legacy fallback for configs written before home-path was added) - name match;
  *    [ErlangPairingHeal] commits the resolved path to `erlangSdkHomePath` so future lookups use path
- * 3. Both absent → NOT_CONFIGURED
+ * 3. Both absent -> NOT_CONFIGURED
  */
 internal class DefaultErlangSdkResolver : ErlangSdkResolver {
     @RequiresReadLock
@@ -162,9 +169,6 @@ internal class DefaultErlangSdkResolver : ErlangSdkResolver {
             if (found != null) {
                 logger.debug { "[$elixirName] Found Erlang SDK by home path: ${found.name}" }
                 additionalData.setCachedErlangSdk(found)
-                if (additionalData.getErlangSdkName() != found.name) {
-                    ErlangPairingHeal.schedule(elixirSdk, found)
-                }
                 if (found.homePath.isNullOrBlank()) {
                     return ErlangSdkResult.Missing(elixirSdk, MissingErlangSdkReason.MISSING_HOME_PATH, found.name)
                 }
@@ -178,7 +182,7 @@ internal class DefaultErlangSdkResolver : ErlangSdkResolver {
             ?: return ErlangSdkResult.Missing(elixirSdk, MissingErlangSdkReason.NOT_CONFIGURED)
 
         logger.debug { "[$elixirName] Falling back to name lookup: $configuredName" }
-        val found = findErlangSdkByName(configuredName, sdkModel)
+        val found = erlangSdkNamed(configuredName, sdkModel)
         if (found != null) {
             logger.debug { "[$elixirName] Found Erlang SDK by name: $configuredName - scheduling a commit of its home path" }
             additionalData.setCachedErlangSdk(found)
@@ -222,12 +226,6 @@ internal class DefaultErlangSdkResolver : ErlangSdkResolver {
         }
     }
 
-    private fun findErlangSdkByName(name: String, sdkModel: SdkModel?): Sdk? {
-        val jdkTable = ProjectJdkTable.getInstance()
-        return sdkModel?.sdks?.find { it.name == name && Type.staticIsValidDependency(it) }
-            ?: jdkTable.findJdk(name)?.takeIf { Type.staticIsValidDependency(it) }
-    }
-
     companion object {
         private val logger = Logger.getInstance(DefaultErlangSdkResolver::class.java)
     }
@@ -250,7 +248,9 @@ internal object ErlangPairingHeal {
         application.invokeLater(
             {
                 try {
-                    WriteAction.run<RuntimeException> { heal(elixirSdk, erlangSdk) }
+                    if (WriteAction.compute<Boolean, RuntimeException> { heal(elixirSdk, erlangSdk) }) {
+                        ElixirSdkPathConfigurator.followErlangHome(listOf(elixirSdk))
+                    }
                 } finally {
                     pending.remove(elixirSdk)
                 }
@@ -262,25 +262,22 @@ internal object ErlangPairingHeal {
     }
 
     /**
-     * A settings dialog's editable copies are not in the table, and a commit to them would not persist. A pairing
-     * changed since the repair was scheduled, for example by the user, is left as it is.
+     * Stores the home of a pairing found by name. A pairing found by home under another name is left as it is: two
+     * Erlang SDKs can share a home, and the name says which one was picked. A settings dialog's editable copies are not
+     * in the table, and a commit to them would not persist. A pairing changed since the repair was scheduled, for
+     * example by the user, is left as it is. Returns whether the stored home changed.
      */
     @RequiresWriteLock
-    private fun heal(elixirSdk: Sdk, erlangSdk: Sdk) {
+    private fun heal(elixirSdk: Sdk, erlangSdk: Sdk): Boolean {
         ThreadingAssertions.assertWriteAccess()
         val sdks = ProjectJdkTable.getInstance().allJdks
-        if (sdks.none { it === elixirSdk } || sdks.none { it === erlangSdk }) return
+        if (sdks.none { it === elixirSdk } || sdks.none { it === erlangSdk }) return false
 
-        val data = elixirSdk.elixirAdditionalData ?: return
-        val storedHomePath = data.getErlangSdkHomePath()
-        val nameMatches = data.getErlangSdkName() == erlangSdk.name
-        val homeMatches = !storedHomePath.isNullOrBlank() &&
-            wslCompat.pathsEqualWslAware(storedHomePath, erlangSdk.homePath)
-        // Either identifier naming this SDK is the same pairing; both naming it leaves nothing to repair, and neither
-        // means the pairing changed after the repair was scheduled.
-        if (nameMatches == homeMatches) return
+        val data = elixirSdk.elixirAdditionalData ?: return false
+        val homeMatches = wslCompat.pathsEqualWslAware(data.getErlangSdkHomePath(), erlangSdk.homePath)
+        val stale = data.getErlangSdkName() == erlangSdk.name && !homeMatches
 
-        ElixirSdkMutation.applyDependencySelection(elixirSdk, erlangSdk)
+        return stale && ElixirSdkMutation.applyDependencySelection(elixirSdk, erlangSdk)
     }
 }
 

@@ -34,7 +34,7 @@
 
         <!--suppress PluginXmlValidity -->
         <filePropertyPusher implementation="org.elixir_lang.sdk.SdkVersionsPusher"/>
-        <postStartupActivity implementation="org.elixir_lang.sdk.SdkTableListenerStartupActivity"/>
+        <postStartupActivity implementation="org.elixir_lang.sdk.SdkVersionsStartupActivity"/>
         <postStartupActivity implementation="org.elixir_lang.mix.DepsCheckerStartupActivity"/>
         <postStartupActivity implementation="org.elixir_lang.mix.sync.MixLibraryReconcileStartupActivity"/>
         <postStartupActivity implementation="org.elixir_lang.facet.SdkLibraryReconcileStartupActivity"/>
@@ -552,6 +552,11 @@
 
         <search.optionContributor implementation="org.elixir_lang.settings.ElixirSearchableOptionContributor"/>
     </extensions>
+
+    <applicationListeners>
+        <listener class="org.elixir_lang.sdk.SdkTableListener"
+                  topic="com.intellij.openapi.projectRoots.ProjectJdkTable$Listener"/>
+    </applicationListeners>
 
     <projectListeners>
         <listener class="org.elixir_lang.mix.sync.MixDepsBulkFileListener" topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"/>

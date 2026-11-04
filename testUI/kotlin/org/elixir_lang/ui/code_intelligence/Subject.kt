@@ -6,7 +6,8 @@ import com.intellij.driver.sdk.ui.components.common.welcomeScreen
 import com.intellij.driver.sdk.waitForIndicators
 import com.intellij.ide.starter.ide.IDETestContext
 import org.elixir_lang.ui.framework.core.IdeTestContext
-import org.elixir_lang.ui.framework.core.addSdkFromDisk
+import org.elixir_lang.ui.framework.core.addElixirSdkFromDisk
+import org.elixir_lang.ui.framework.core.addErlangSdkFromDisk
 import org.elixir_lang.ui.framework.core.assignElixirSdk
 import org.elixir_lang.ui.framework.core.ensureIdeInForeground
 import org.elixir_lang.ui.framework.core.ensureWelcomeScreenInForeground
@@ -35,16 +36,12 @@ fun IDETestContext.withDeclarationSource(source: DeclarationSource): IDETestCont
     DeclarationSource.EXPANDER -> applyVMOptionsPatch { addSystemProperty("org.elixir_lang.declaration.source", "expander") }
 }
 
-/** From the welcome screen, which `addSdkFromDisk` needs, so before [openSubject]. */
+/** From the welcome screen, which `addErlangSdkFromDisk` and `addElixirSdkFromDisk` need, so before [openSubject]. */
 fun Driver.addSdks() = step("Add the Erlang and Elixir SDKs") {
     ensureWelcomeScreenInForeground()
     welcomeScreen {
-        addSdkFromDisk(
-            "Add Erlang SDK for Elixir SDK from disk",
-            IdeTestContext.erlangSdkPath,
-            "Select Home Directory for Erlang SDK for Elixir SDK",
-        )
-        addSdkFromDisk("Add Elixir SDK from disk", IdeTestContext.elixirSdkPath, "Select Home Directory for Elixir SDK")
+        val erlang = addErlangSdkFromDisk(IdeTestContext.erlangSdkPath)
+        addElixirSdkFromDisk(IdeTestContext.elixirSdkPath, erlang)
     }
 }
 

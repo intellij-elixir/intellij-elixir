@@ -15,9 +15,8 @@ class SdkHomeBrowseTest {
         val rows = Rows()
         launchPyCharm("SdkHomeBrowseTest") { homes ->
             closeInternalErrors("setup")
-            // Erlang first, so the Elixir Model pairs with the only Erlang Model and nothing asks which.
-            val erlang = addOnPage(SdkPage.ERLANG, homes.erlang.a)
-            val elixir = addOnPage(SdkPage.ELIXIR, homes.elixir.a)
+            val erlang = addErlangOnPage(homes.erlang.a)
+            val elixir = addElixirOnPage(homes.elixir.a, erlang).name
             browseRow(rows, SdkPage.ERLANG, erlang, homes.erlang)
             browseRow(rows, SdkPage.ELIXIR, elixir, homes.elixir)
         }
@@ -37,7 +36,7 @@ class SdkHomeBrowseTest {
                 val browsed = driver.errorsDuring("$page-browsed") { browseHome(model, sdkPage.chooserTitle, homeB) }
                 rows.check(page, "the IDE reported no error on Browse: $browsed", browsed.isEmpty())
                 val applied = driver.errorsDuring("$page-applied") {
-                    clickButtonText("Apply")
+                    clickApply()
                     Thread.sleep(1_000)
                 }
                 rows.check(page, "the IDE reported no error on Apply: $applied", applied.isEmpty())

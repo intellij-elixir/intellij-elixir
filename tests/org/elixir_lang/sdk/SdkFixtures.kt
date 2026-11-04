@@ -6,10 +6,16 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkAdditionalData
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
+import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
+import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.util.io.FileUtil
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.diagnostic.ThreadDumper
 import com.intellij.testFramework.PlatformTestUtil
+import com.intellij.testFramework.common.runAll
 import com.intellij.util.concurrency.annotations.RequiresEdt
+import junit.framework.TestCase
+import org.jdom.Element
 import java.io.File
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
@@ -49,11 +55,30 @@ internal object SdkFixtures {
 
     fun erlangSdk(name: String, homePath: String): Sdk = ProjectJdkImpl(name, ErlangSdkType.instance, homePath, "")
 
+    /** [erlang]'s one code path, its [erlangHomeWithEbin]'s stdlib ebin. */
+    fun codePaths(erlang: Sdk): List<String> = listOf(erlang.rootProvider.getFiles(OrderRootType.CLASSES).single().path)
+
+    fun codePathsUnder(sdk: Sdk, home: String): List<String> = pathsUnder(sdk.rootProvider.getFiles(OrderRootType.CLASSES), home)
+
+    /** [elixir]'s code paths include [erlang]'s, at its home, and none under [oldHome]. */
+    fun assertCodePathsFollowed(elixir: Sdk, erlang: Sdk, oldHome: String) {
+        TestCase.assertEquals("the new home's code paths", codePaths(erlang), codePathsUnder(elixir, erlang.homePath!!))
+        TestCase.assertEquals("the old home's code paths", emptyList<String>(), codePathsUnder(elixir, oldHome))
+    }
+
+    /** The paths of [roots] under [home]. */
+    fun pathsUnder(roots: Array<out VirtualFile>, home: String): List<String> =
+        roots.map { it.path }.filter { FileUtil.isAncestor(FileUtil.toSystemIndependentName(home), it, false) }
+
     @RequiresEdt
     fun register(sdk: Sdk, parentDisposable: Disposable): Sdk {
         WriteAction.run<Throwable> { ProjectJdkTable.getInstance().addJdk(sdk, parentDisposable) }
         return sdk
     }
+
+    /** Adds [sdk] to the table for a test that removes it itself, as [TableSnapshot.restore] does. */
+    @RequiresEdt
+    fun register(sdk: Sdk): Sdk = sdk.also(SdkConfigurationUtil::addSdk)
 
     /** [register], then [waitForRegistrationFills]. */
     @RequiresEdt
@@ -68,6 +93,50 @@ internal object SdkFixtures {
     fun waitForRegistrationFills() =
         waitUntil("the registration fill finishes") { SdkVersionWatchService.isIdleForTests() }
 
+    /**
+     * The SDK table as a test found it. [restore] puts it back: the registration fills finish, the SDKs added since
+     * are removed, the events their removal queued run, and the versions store is cleared.
+     */
+    class TableSnapshot {
+        private val before: Set<Sdk> = ProjectJdkTable.getInstance().allJdks.toSet()
+
+        @RequiresEdt
+        fun restore() = runAll(
+            { waitForRegistrationFills() },
+            {
+                WriteAction.run<Throwable> {
+                    val table = ProjectJdkTable.getInstance()
+                    table.allJdks.filterNot(before::contains).forEach(table::removeJdk)
+                }
+            },
+            { settle() },
+            { SdkVersionsStore.getInstance().clearForTests() },
+        )
+    }
+
+    /**
+     * As the registrar's `updateJdk` renames one: a clone of the table's SDK [name], renamed [newName]. Returns the
+     * table's SDK [newName].
+     */
+    fun renameInTable(name: String, newName: String): Sdk {
+        val sdk = ProjectJdkTable.getInstance().findJdk(name)!!
+        val clone = sdk.clone() as Sdk
+
+        WriteAction.run<Throwable> {
+            clone.sdkModificator.apply {
+                this.name = newName
+                commitChanges()
+            }
+            ProjectJdkTable.getInstance().updateJdk(sdk, clone)
+        }
+        return ProjectJdkTable.getInstance().findJdk(newName)!!
+    }
+
+    /** Commits [elixirSdk]'s pairing with [erlangSdk], as picking it does. */
+    @RequiresEdt
+    fun commitPairing(elixirSdk: Sdk, erlangSdk: Sdk): Sdk =
+        elixirSdk.also { commit(it, ElixirSdkAdditionalData(erlangSdk, it)) }
+
     @RequiresEdt
     fun commit(sdk: Sdk, data: SdkAdditionalData?) {
         WriteAction.run<Throwable> {
@@ -81,6 +150,36 @@ internal object SdkFixtures {
     /** What the SDK entity's XML holds: a fresh modificator reloads the additional data from it. */
     fun persistedElixirData(sdk: Sdk): ElixirSdkAdditionalData? =
         sdk.sdkModificator.sdkAdditionalData as? ElixirSdkAdditionalData
+
+    /** The Erlang SDK name [persistedElixirData] holds. */
+    fun storedErlangName(sdk: Sdk): String? = persistedElixirData(sdk)?.getErlangSdkName()
+
+    /** The Erlang SDK home [persistedElixirData] holds. */
+    fun storedErlangHome(sdk: Sdk): String? = persistedElixirData(sdk)?.getErlangSdkHomePath()
+
+    /** [erlangSdk] with the code paths its type sets up: its home's stdlib ebin. */
+    @RequiresEdt
+    fun withCodePaths(erlangSdk: Sdk): Sdk = erlangSdk.also(ErlangSdkType.instance::setupSdkPaths)
+
+    /** [elixirSdk]'s pairing as its XML stores it: [erlangName], and [erlangHome] when given; nothing resolved. */
+    fun storedPairing(elixirSdk: Sdk, erlangName: String, erlangHome: String? = null): ElixirSdkAdditionalData =
+        ElixirSdkAdditionalData(elixirSdk).apply {
+            readExternal(
+                Element("additional").apply {
+                    setAttribute("erlang-sdk-name", erlangName)
+                    if (erlangHome != null) setAttribute("erlang-sdk-home-path", erlangHome)
+                },
+            )
+        }
+
+    /** Commits [storedPairing] to [elixirSdk]. */
+    @RequiresEdt
+    fun commitPairing(elixirSdk: Sdk, erlangName: String, erlangHome: String? = null): Sdk =
+        elixirSdk.also { commit(it, storedPairing(it, erlangName, erlangHome)) }
+
+    /** Runs the events queued on the EDT, as a closed dialog's `invokeLater`. */
+    @RequiresEdt
+    fun settle() = PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
     @RequiresEdt
     fun waitUntil(message: String, timeoutMillis: Long = 10_000, condition: () -> Boolean) {

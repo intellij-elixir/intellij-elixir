@@ -29,7 +29,6 @@ import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.sdk.SdkFixtures.fakeHome
 import org.elixir_lang.sdk.elixir.ElixirVersions
 import org.elixir_lang.sdk.elixir.OtpMajor
-import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
 import java.io.File
 import java.util.concurrent.Callable
 
@@ -658,7 +657,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
             SdkFixtures.elixirSdk("$name Elixir", elixirHome),
             testRootDisposable,
         )
-        SdkFixtures.commit(elixirSdk, SdkAdditionalData(erlangSdk, elixirSdk))
+        SdkFixtures.commitPairing(elixirSdk, erlangSdk)
         return elixirSdk
     }
 

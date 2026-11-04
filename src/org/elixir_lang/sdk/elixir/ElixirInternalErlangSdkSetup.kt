@@ -17,6 +17,7 @@ import org.elixir_lang.sdk.SdkHomePaths
 import org.elixir_lang.sdk.SdkRegistrar
 import org.elixir_lang.sdk.SdkVersionsFiller
 import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResolver
+import org.elixir_lang.sdk.erlang_dependent.elixirAdditionalData
 import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
 import org.elixir_lang.sdk.erlang_dependent.Type.Companion.ERLANG_SDK_KEY
 import org.elixir_lang.util.ReadActions
@@ -39,7 +40,7 @@ object ElixirInternalErlangSdkSetup {
      * Finds or prompts for an Erlang SDK and links it to the given Elixir SDK.
      *
      * Resolution order:
-     * 1. Explicit SDK stored in UserData (set by the wizard when creating Erlang + Elixir together)
+     * 1. Explicit SDK stored in UserData
      * 2. Already-linked SDK from existing SdkAdditionalData, looked up in [sdkModel] before
      *    ProjectJdkTable so a dependency chosen in the same dialog resolves before it is committed
      * 3. The Erlang SDK in [sdkModel], or failing a model ProjectJdkTable, that best runs the Elixir build
@@ -50,7 +51,7 @@ object ElixirInternalErlangSdkSetup {
         elixirSdkModificator: SdkModificator,
         sdkModel: SdkModel? = null,
     ): Sdk? {
-        val existingAdditionalData = elixirSdk.sdkAdditionalData as? SdkAdditionalData
+        val existingAdditionalData = elixirSdk.elixirAdditionalData
         val existingErlangSdk = existingAdditionalData?.let { data -> ReadActions.compute { data.getErlangSdk(sdkModel) } }
         val explicitErlangSdk = elixirSdk.getUserData(ERLANG_SDK_KEY)
 
@@ -95,7 +96,7 @@ object ElixirInternalErlangSdkSetup {
      * For mise Elixir SDKs only: finds mise-installed Erlang SDK homes, presents a chooser dialog, and registers the
      * selected one.
      *
-     * This is normally called from within `setupSdkPaths`, which IntelliJ runs inside its own "Configuring SDK…" modal
+     * This is normally called from within `setupSdkPaths`, which IntelliJ runs inside its own "Configuring SDK..." modal
      * (see `ProjectSdksModel.doAdd`). In that context the EDT loop is pumping at the modal modality level.
      *
      * When on a background thread we capture [ModalityState.defaultModalityState] - which, from a `ProgressManager`
@@ -151,7 +152,7 @@ object ElixirInternalErlangSdkSetup {
             // Can't use runBlocking on EDT - fall back to modal-aware invokeAndWait + runWriteAction.
             registerErlangSdk(selectedHome)
         } else {
-            // Capture the current ProgressManager modality (the "Configuring SDK…" modal) so that
+            // Capture the current ProgressManager modality (the "Configuring SDK..." modal) so that
             // edtWriteAction inside SdkRegistrar dispatches at the correct modality level.
             //
             // Safety invariant: ErlangSdkType.setupSdkPaths (called inside registerOrUpdateErlangSdk)

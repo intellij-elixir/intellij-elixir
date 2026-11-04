@@ -4,11 +4,11 @@ import com.intellij.driver.sdk.step
 import com.intellij.driver.sdk.ui.components.common.ideFrame
 import com.intellij.driver.sdk.ui.components.common.runToolWindow
 import com.intellij.driver.sdk.ui.components.common.toolwindows.projectView
-import com.intellij.driver.sdk.ui.components.common.welcomeScreen
 import com.intellij.driver.sdk.ui.components.elements.balloon
 import com.intellij.driver.sdk.ui.components.elements.popupMenu
 import com.intellij.ide.starter.driver.engine.runIdeWithDriver
 import org.elixir_lang.notification.setup_sdk.Notifier.MIX_DEPS_OUTDATED_TITLE
+import org.elixir_lang.ui.code_intelligence.addSdks
 import org.elixir_lang.ui.framework.core.*
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -33,21 +33,7 @@ class UltimateProjectImportTest {
             val ctx = IdeTestContext.setupTestContext("UltimateProjectImportTest")
 
             ctx.runIdeWithDriver().useDriverAndCloseIde {
-                    ensureWelcomeScreenInForeground()
-
-                    welcomeScreen {
-                        addSdkFromDisk(
-                            "Add Erlang SDK for Elixir SDK from disk",
-                            IdeTestContext.erlangSdkPath,
-                            "Select Home Directory for Erlang SDK for Elixir SDK"
-                        )
-
-                        addSdkFromDisk(
-                            "Add Elixir SDK from disk",
-                            IdeTestContext.elixirSdkPath,
-                            "Select Home Directory for Elixir SDK"
-                        )
-                    }
+                    addSdks()
                     openProjectAt(IdeTestContext.projectPath)
                     ensureIdeInForeground()
                     assignElixirSdk()

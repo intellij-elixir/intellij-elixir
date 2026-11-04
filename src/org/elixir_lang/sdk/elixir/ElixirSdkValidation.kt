@@ -10,9 +10,23 @@ import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.sdk.SdkVersionsStore
-import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
+import org.elixir_lang.sdk.erlang_dependent.elixirAdditionalData
 import java.util.concurrent.Callable
 import org.elixir_lang.sdk.wsl.wslCompat
+
+/** An Elixir build against an Erlang install's OTP release: [Unknown] when either side's major isn't known. */
+sealed interface OtpMatch {
+    data object Match : OtpMatch
+
+    /** The OTP major the build was compiled for, and the Erlang's. */
+    data class Mismatch(val elixirOtpMajor: String, val erlangOtpMajor: String) : OtpMatch {
+        /** The warning the SDK page and the Erlang step show. */
+        val warning: String
+            get() = "Elixir SDK was compiled for OTP $elixirOtpMajor but is paired with OTP $erlangOtpMajor"
+    }
+
+    data object Unknown : OtpMatch
+}
 
 /**
  * Validation and health-check queries for Elixir SDK pairings.
@@ -46,7 +60,7 @@ object ElixirSdkValidation {
     @RequiresReadLock
     private fun otpMismatchOf(sdk: Sdk): Pair<String, String>? {
         ThreadingAssertions.assertReadAccess()
-        val additionalData = sdk.sdkAdditionalData as? SdkAdditionalData ?: return null
+        val additionalData = sdk.elixirAdditionalData ?: return null
         if (additionalData.isSuppressOtpMismatchWarning()) return null
         val erlangSdk = additionalData.getErlangSdk() ?: return null
 
@@ -57,12 +71,16 @@ object ElixirSdkValidation {
      * For homes read on the EDT from a settings dialog's editable copies, which `SdkEditor` commits to inside a write
      * action. Reads only [SdkVersionsStore].
      */
-    fun detectOtpMismatch(elixirHome: String, erlangHome: String): Pair<String, String>? {
-        val store = SdkVersionsStore.getInstance()
-        val elixirOtpMajor = store.elixirVersions(elixirHome)?.elixirOtpMajor?.knownOrNull ?: return null
-        val erlangOtpMajor = store.otpRelease(erlangHome)?.otpMajor ?: return null
+    fun detectOtpMismatch(elixirHome: String, erlangHome: String): Pair<String, String>? =
+        (otpMatch(elixirHome, erlangHome) as? OtpMatch.Mismatch)?.let { it.elixirOtpMajor to it.erlangOtpMajor }
 
-        return if (elixirOtpMajor != erlangOtpMajor) elixirOtpMajor to erlangOtpMajor else null
+    /** As [detectOtpMismatch] for two homes, telling a match from a side not known. */
+    fun otpMatch(elixirHome: String, erlangHome: String): OtpMatch {
+        val store = SdkVersionsStore.getInstance()
+        val elixirOtpMajor = store.elixirVersions(elixirHome)?.elixirOtpMajor?.knownOrNull ?: return OtpMatch.Unknown
+        val erlangOtpMajor = store.otpRelease(erlangHome)?.otpMajor ?: return OtpMatch.Unknown
+
+        return if (elixirOtpMajor == erlangOtpMajor) OtpMatch.Match else OtpMatch.Mismatch(elixirOtpMajor, erlangOtpMajor)
     }
 
     // -------------------------------------------------------------------------
