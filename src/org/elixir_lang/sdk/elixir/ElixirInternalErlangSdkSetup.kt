@@ -40,7 +40,7 @@ object ElixirInternalErlangSdkSetup {
      * Finds or prompts for an Erlang SDK and links it to the given Elixir SDK.
      *
      * Resolution order:
-     * 1. Explicit SDK stored in UserData (set by the wizard when creating Erlang + Elixir together)
+     * 1. Explicit SDK stored in UserData
      * 2. Already-linked SDK from existing SdkAdditionalData, looked up in [sdkModel] before
      *    ProjectJdkTable so a dependency chosen in the same dialog resolves before it is committed
      * 3. The Erlang SDK in [sdkModel], or failing a model ProjectJdkTable, that best runs the Elixir build
