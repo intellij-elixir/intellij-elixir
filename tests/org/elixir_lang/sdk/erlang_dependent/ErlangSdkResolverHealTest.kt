@@ -51,7 +51,7 @@ class ErlangSdkResolverHealTest : PlatformTestCase() {
     }
 
     @RequiresEdt
-    fun testRenamedErlangSdkNameIsCommitted() {
+    fun testAPairingFoundOnlyByHomeIsNotRewritten() {
         val erlangSdk = register(SdkFixtures.erlangSdk("Heal renamed Erlang", "/fake/erlang/heal-renamed"))
         val elixirSdk = register(SdkFixtures.elixirSdk("Heal renamed Elixir", "/fake/elixir/heal-renamed"))
         SdkFixtures.commit(
@@ -62,16 +62,41 @@ class ErlangSdkResolverHealTest : PlatformTestCase() {
         )
 
         assertSame(erlangSdk, resolve(elixirSdk))
-
-        assertEquals(
-            "resolving under a read lock must not write the name into the live additional data",
-            "Name before rename",
-            elixirSdk.elixirAdditionalData?.getErlangSdkName(),
-        )
-
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
-        assertEquals("Heal renamed Erlang", persistedElixirData(elixirSdk)?.getErlangSdkName())
+        assertEquals("Name before rename", persistedElixirData(elixirSdk)?.getErlangSdkName())
+    }
+
+    @RequiresEdt
+    fun testTwoErlangSdksAtOneHomeKeepTheNamedOne() {
+        val other = register(SdkFixtures.erlangSdk("Heal shared home other Erlang", "/fake/erlang/heal-shared"))
+        val named = register(SdkFixtures.erlangSdk("Heal shared home named Erlang", "/fake/erlang/heal-shared"))
+        val elixirSdk = register(SdkFixtures.elixirSdk("Heal shared home Elixir", "/fake/elixir/heal-shared"))
+        SdkFixtures.commit(
+            elixirSdk,
+            SdkAdditionalData(elixirSdk).apply { readExternal(pairing(name = named.name, homePath = "/fake/erlang/heal-shared")) },
+        )
+
+        // Listing the other SDK first, so the home lookup finds it rather than the named one.
+        resolve(elixirSdk, sdkModel(other, named))
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        assertEquals(named.name, persistedElixirData(elixirSdk)?.getErlangSdkName())
+    }
+
+    @RequiresEdt
+    fun testARepairQueuedBeforeAPickAtTheSameHomeIsDropped() {
+        val erlangSdk = register(SdkFixtures.erlangSdk("Heal same home Erlang", "/fake/erlang/heal-same-home"))
+        val chosenErlangSdk = register(SdkFixtures.erlangSdk("Heal same home chosen Erlang", "/fake/erlang/heal-same-home"))
+        val elixirSdk = register(SdkFixtures.elixirSdk("Heal same home Elixir", "/fake/elixir/heal-same-home"))
+        SdkFixtures.commit(elixirSdk, SdkAdditionalData(elixirSdk).apply { readExternal(pairing(name = erlangSdk.name)) })
+        assertSame(erlangSdk, resolve(elixirSdk))
+
+        // The user picks the other SDK at the same home before the queued repair runs.
+        WriteAction.run<Throwable> { ElixirSdkMutation.applyDependencySelection(elixirSdk, chosenErlangSdk) }
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+
+        assertEquals(chosenErlangSdk.name, persistedElixirData(elixirSdk)?.getErlangSdkName())
     }
 
     @RequiresEdt
