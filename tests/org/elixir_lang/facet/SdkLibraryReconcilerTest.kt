@@ -108,6 +108,7 @@ class SdkLibraryReconcilerTest : PlatformTestCase() {
             modifiableModel.moduleLibraryTable.createLibrary(sdk.name)
             modifiableModel.commit()
         }
+        FacetModelFixtures.nameFacet(module, sdk.name)
     }
 
     private fun facetLibraryEntry(name: String): LibraryOrderEntry? =

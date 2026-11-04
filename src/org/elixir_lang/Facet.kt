@@ -1,5 +1,6 @@
 package org.elixir_lang
 
+import com.intellij.facet.FacetManager
 import com.intellij.facet.FacetType
 import com.intellij.facet.FacetTypeId
 import com.intellij.openapi.module.Module
@@ -8,6 +9,7 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.libraries.LibraryTable
+import com.intellij.util.concurrency.annotations.RequiresWriteLock
 import org.elixir_lang.facet.Configuration
 
 class Facet(
@@ -16,10 +18,14 @@ class Facet(
     name: String,
     configuration: Configuration,
     underlyingFacet: com.intellij.facet.Facet<*>?
-) : com.intellij.facet.Facet<Configuration?>(facetType, module, name, configuration, underlyingFacet) {
+) : com.intellij.facet.Facet<Configuration>(facetType, module, name, configuration, underlyingFacet) {
     var sdk: Sdk?
-        get() = sdk(module)
+        get() = configuration.sdkName?.let(::sdkNamed)
+        @RequiresWriteLock
         set(value) {
+            configuration.sdkName = value?.name
+            FacetManager.getInstance(module).facetConfigurationChanged(this)
+
             val modifiableModuleRootManger = module.rootManager.modifiableModel
             val libraryTable = modifiableModuleRootManger.moduleLibraryTable
             removeElixirSDKs(libraryTable)
@@ -33,20 +39,8 @@ class Facet(
 
     companion object {
         val ID = FacetTypeId<Facet>("elixir")
-        fun sdk(module: Module): Sdk? {
-            var sdk: Sdk? = null
-            val sdkByName = sdkByName()
 
-            if (sdkByName.isNotEmpty()) {
-                module.rootManager.orderEntries().forEachLibrary { library ->
-                    sdk = sdkByName[library.name]
-
-                    sdk == null
-                }
-            }
-
-            return sdk
-        }
+        fun sdk(module: Module): Sdk? = FacetManager.getInstance(module).getFacetByType(ID)?.sdk
 
         private fun removeElixirSDKs(moduleLibraryTable: LibraryTable) {
             sdks()
@@ -85,6 +79,6 @@ class Facet(
                 .getInstance()
                 .getSdksOfType(org.elixir_lang.sdk.elixir.Type.instance)
 
-        private fun sdkByName(): Map<String, Sdk> = sdks().associateBy { it.name }
+        private fun sdkNamed(name: String): Sdk? = sdks().firstOrNull { it.name == name }
     }
 }

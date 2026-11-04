@@ -1,6 +1,7 @@
 package org.elixir_lang.junit
 
 import com.intellij.facet.FacetManager
+import com.intellij.facet.impl.FacetUtil
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.module.Module
@@ -12,6 +13,7 @@ import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.OrderEntry
 import com.intellij.openapi.roots.SourceFolder
 import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar
+import com.intellij.openapi.util.JDOMUtil
 import com.intellij.testFramework.IndexingTestUtil
 import org.jetbrains.jps.model.java.JavaResourceRootProperties
 import org.jetbrains.jps.model.java.JavaResourceRootType
@@ -162,7 +164,14 @@ internal data class SharedModuleState(
             return of(module)
         }
 
-        private fun facetKey(facet: com.intellij.facet.Facet<*>): String = "${facet.type.stringId}: ${facet.name}"
+        /**
+         * A facet's type, name and saved configuration, so a stored setting a test leaves on a kept facet is a
+         * difference.
+         */
+        private fun facetKey(facet: com.intellij.facet.Facet<*>): String {
+            val configuration = FacetUtil.saveFacetConfiguration(facet.configuration)?.let(JDOMUtil::write)
+            return "${facet.type.stringId}: ${facet.name} $configuration"
+        }
 
         private fun orderEntryKey(entry: OrderEntry): String = when (entry) {
             is LibraryOrderEntry -> "library (${entry.libraryLevel}): ${entry.libraryName}"

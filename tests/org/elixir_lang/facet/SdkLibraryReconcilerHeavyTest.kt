@@ -90,6 +90,7 @@ class SdkLibraryReconcilerHeavyTest : HeavyTestCase() {
             modifiableModel.moduleLibraryTable.createLibrary(sdk.name)
             modifiableModel.commit()
         }
+        FacetModelFixtures.nameFacet(module, sdk.name)
 
         assertEquals(
             "Precondition: the Facet SDK resolves, so the repair has something to act on",
