@@ -10,7 +10,7 @@ import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.sdk.SdkVersionsStore
-import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
+import org.elixir_lang.sdk.erlang_dependent.elixirAdditionalData
 import java.util.concurrent.Callable
 import org.elixir_lang.sdk.wsl.wslCompat
 
@@ -60,7 +60,7 @@ object ElixirSdkValidation {
     @RequiresReadLock
     private fun otpMismatchOf(sdk: Sdk): Pair<String, String>? {
         ThreadingAssertions.assertReadAccess()
-        val additionalData = sdk.sdkAdditionalData as? SdkAdditionalData ?: return null
+        val additionalData = sdk.elixirAdditionalData ?: return null
         if (additionalData.isSuppressOtpMismatchWarning()) return null
         val erlangSdk = additionalData.getErlangSdk() ?: return null
 

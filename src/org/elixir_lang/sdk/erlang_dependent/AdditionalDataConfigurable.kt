@@ -301,7 +301,7 @@ class AdditionalDataConfigurable(
 
     private fun erlangSdkChanged(myElixirSdk: Sdk): Boolean {
         val selectedErlangSdk = internalErlangSdksComboBox.selectedItem as? Sdk
-        val existingAdditionalData = myElixirSdk.sdkAdditionalData as? SdkAdditionalData
+        val existingAdditionalData = myElixirSdk.elixirAdditionalData
         return existingAdditionalData?.getErlangSdkName() != selectedErlangSdk?.name
     }
 
@@ -338,7 +338,7 @@ class AdditionalDataConfigurable(
             }
 
             // The pairing as it resolves in sdkModel.
-            val additionalData = sdk.sdkAdditionalData as? SdkAdditionalData
+            val additionalData = sdk.elixirAdditionalData
             val erlangSdk = additionalData?.getErlangSdk(sdkModel)
 
             // Restore the suppress checkbox state from persisted additional data

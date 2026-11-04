@@ -11,7 +11,7 @@ import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresWriteLock
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
-import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
+import org.elixir_lang.sdk.erlang_dependent.elixirAdditionalData
 import org.elixir_lang.sdk.erlang_dependent.resolveErlangSdkOrNullAndNotify
 import org.elixir_lang.sdk.wsl.wslCompat
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
@@ -76,9 +76,9 @@ object SdkRegistrar {
         // Both allJdks access and sdkAdditionalData reads require a read lock.
         val confirmedResult: Pair<Sdk, Boolean>? = readAction {
             val sdk = findElixirSdkByVariant(canonicalHomePath, erlangSdk)?.takeIf {
-                (it.sdkAdditionalData as? SdkAdditionalData)?.getErlangSdkHomePath() != null
+                it.elixirAdditionalData?.getErlangSdkHomePath() != null
             } ?: return@readAction null
-            val data = sdk.sdkAdditionalData as? SdkAdditionalData
+            val data = sdk.elixirAdditionalData
             sdk to (data?.getErlangSdkName() != erlangSdk?.name)
         }
         if (confirmedResult != null) {
@@ -196,7 +196,7 @@ object SdkRegistrar {
     internal fun sameErlangHome(sdk: Sdk, erlangSdk: Sdk?): Boolean = sameErlangHome(sdk, erlangSdk?.homePath, erlangSdk?.name)
 
     private fun sameErlangHome(sdk: Sdk, requestedHome: String?, requestedName: String?): Boolean {
-        val additionalData = sdk.sdkAdditionalData as? SdkAdditionalData
+        val additionalData = sdk.elixirAdditionalData
         val persistedHome = additionalData?.getErlangSdkHomePath()
         return when {
             persistedHome == null && requestedHome == null -> true

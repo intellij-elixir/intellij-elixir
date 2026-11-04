@@ -3,13 +3,13 @@ package org.elixir_lang.sdk.elixir
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
 import org.elixir_lang.sdk.SdkVersionsStore
-import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
+import org.elixir_lang.sdk.erlang_dependent.elixirAdditionalData
 import org.elixir_lang.util.ReadActions
 
 /**
  * Shared classification of a module's Elixir SDK, so the status text shown by the status-bar
  * widget ([org.elixir_lang.status_bar_widget.ElixirEditorBasedSdkWidget]) and by the
- * Settings → Elixir per-module SDK page ([org.elixir_lang.facet.Configurable]) is defined in one
+ * Settings -> Elixir per-module SDK page ([org.elixir_lang.facet.Configurable]) is defined in one
  * place rather than duplicated.
  */
 sealed interface ModuleSdkStatus {
@@ -35,7 +35,7 @@ sealed interface ModuleSdkStatus {
                 val homePath = knownHomePath ?: elixirSdk.homePath ?: return@compute Invalid(elixirSdk)
                 // A recorded version is what makes the home an installation; nothing here touches the filesystem.
                 if (SdkVersionsStore.getInstance().elixirVersions(homePath) == null) return@compute Invalid(elixirSdk)
-                val erlangSdk = (elixirSdk.sdkAdditionalData as? SdkAdditionalData)?.getErlangSdk(sdkModel)
+                val erlangSdk = elixirSdk.elixirAdditionalData?.getErlangSdk(sdkModel)
                     ?: return@compute MissingErlang(elixirSdk)
                 Ready(elixirSdk, erlangSdk)
             }

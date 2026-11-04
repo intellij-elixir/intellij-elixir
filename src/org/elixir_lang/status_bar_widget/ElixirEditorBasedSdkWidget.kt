@@ -35,6 +35,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.debounce
+import org.elixir_lang.Elixir
 import org.elixir_lang.Facet
 import org.elixir_lang.Icons
 import org.elixir_lang.isElixirModule
@@ -557,7 +558,7 @@ class ElixirEditorBasedSdkWidget(
         val elixirVersion = elixirSdk?.versionString?.let {
             org.elixir_lang.sdk.Type.appendWslSuffix(it, elixirSdk.homePath)
         }
-        val erlangSdk = elixirSdk?.let { getErlangSdk(it) }
+        val erlangSdk = elixirSdk?.let(Elixir::elixirSdkToErlangSdk)
 
         return ProjectSdkSnapshot(
             elixirSdk = elixirSdk,
@@ -997,9 +998,6 @@ class ElixirEditorBasedSdkWidget(
             issues.add("Erlang SDK classpath entries missing - reopen SDK settings to fix")
         return issues
     }
-
-    private fun getErlangSdk(elixirSdk: Sdk): Sdk? =
-        (elixirSdk.sdkAdditionalData as? SdkAdditionalData)?.getErlangSdk()
 
     private fun hasEbinPathIssues(elixirSdk: Sdk): Boolean {
         val homePath = elixirSdk.homePath ?: return true

@@ -11,9 +11,9 @@ import com.intellij.platform.ide.progress.ModalTaskOwner
 import com.intellij.platform.ide.progress.runWithModalProgressBlocking
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.Elixir
 import org.elixir_lang.notification.setup_sdk.Notifier
 import org.elixir_lang.sdk.SdkVersionsFiller
-import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
@@ -111,8 +111,7 @@ class RefreshActiveElixirSdkAction : AnAction() {
         val activeSdks = mutableSetOf<Sdk>()
         for (elixirSdk in elixirSdks) {
             ProgressManager.checkCanceled()
-            val additionalData = elixirSdk.sdkAdditionalData as? SdkAdditionalData
-            val erlangSdk = additionalData?.getErlangSdk()
+            val erlangSdk = Elixir.elixirSdkToErlangSdk(elixirSdk)
             if (erlangSdk != null) activeSdks.add(erlangSdk)
         }
         return activeSdks

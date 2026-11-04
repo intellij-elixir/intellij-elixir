@@ -84,7 +84,7 @@ object ElixirSdkMutation {
 
         val modificator = elixirSdk.sdkModificator
         val data = (modificator.sdkAdditionalData as? SdkAdditionalData)
-            ?: (elixirSdk.sdkAdditionalData as? SdkAdditionalData)
+            ?: elixirSdk.elixirAdditionalData
             ?: SdkAdditionalData(null, elixirSdk)
 
         mutate(data)
