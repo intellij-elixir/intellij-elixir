@@ -355,7 +355,6 @@ class AdditionalDataConfigurable(
 
                 if (!hasErlangClasspathInRoots(sdkModificator.getRoots(OrderRootType.CLASSES), erlangSdk)) {
                     addNewCodePathsFromInternErlangSdk(sdk, erlangSdk, sdkModificator)
-                    updateWarningLabel()
                 }
             } else {
                 LOG.debug("[$sdkName] No Erlang SDK found to select")
