@@ -274,9 +274,7 @@ internal object ErlangPairingHeal {
         if (sdks.none { it === elixirSdk } || sdks.none { it === erlangSdk }) return false
 
         val data = elixirSdk.elixirAdditionalData ?: return false
-        val storedHomePath = data.getErlangSdkHomePath()
-        val homeMatches = !storedHomePath.isNullOrBlank() &&
-            wslCompat.pathsEqualWslAware(storedHomePath, erlangSdk.homePath)
+        val homeMatches = wslCompat.pathsEqualWslAware(data.getErlangSdkHomePath(), erlangSdk.homePath)
         val stale = data.getErlangSdkName() == erlangSdk.name && !homeMatches
 
         return stale && ElixirSdkMutation.applyDependencySelection(elixirSdk, erlangSdk)
