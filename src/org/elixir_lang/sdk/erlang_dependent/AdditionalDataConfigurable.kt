@@ -111,15 +111,7 @@ class AdditionalDataConfigurable(
 
     private fun updateJdkList() {
         internalErlangSdksComboBoxModel.removeAllElements()
-
-        val validErlangSdks = mutableListOf<String>()
-        for (sdk in sdkModel.sdks) {
-            if (Type.staticIsValidDependency(sdk)) {
-                internalErlangSdksComboBoxModel.addElement(sdk)
-                validErlangSdks.add(sdk.name)
-            }
-        }
-        LOG.debug("[updateJdkList] Found ${validErlangSdks.size} valid Erlang SDKs: $validErlangSdks")
+        sdkModel.sdks.filter { Type.staticIsValidDependency(it) }.forEach(internalErlangSdksComboBoxModel::addElement)
     }
 
     override fun setSdk(sdk: Sdk) {
