@@ -141,13 +141,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         val done = AtomicBoolean()
         sdk.rootProvider.addRootSetChangedListener({
             if (done.compareAndSet(false, true)) {
-                // How SdkRegistrar renames an SDK: a modified copy applied over the saved one.
-                val modified = (renamed as ProjectJdkImpl).clone()
-                modified.sdkModificator.apply {
-                    name = "Elixir Test Renamed During Apply (new)"
-                    commitChanges()
-                }
-                ProjectJdkTable.getInstance().updateJdk(renamed, modified)
+                SdkFixtures.renameInTable(renamed.name, "Elixir Test Renamed During Apply (new)")
             }
         }, testRootDisposable)
 

@@ -115,19 +115,19 @@ internal object SdkFixtures {
     }
 
     /**
-     * As the registrar's `updateJdk` renames one: a clone of the table's Erlang SDK [name], renamed [newName]. Returns the
+     * As the registrar's `updateJdk` renames one: a clone of the table's SDK [name], renamed [newName]. Returns the
      * table's SDK [newName].
      */
     fun renameInTable(name: String, newName: String): Sdk {
-        val erlang = ProjectJdkTable.getInstance().findJdk(name)!!
-        val clone = erlang.clone() as Sdk
+        val sdk = ProjectJdkTable.getInstance().findJdk(name)!!
+        val clone = sdk.clone() as Sdk
 
         WriteAction.run<Throwable> {
             clone.sdkModificator.apply {
                 this.name = newName
                 commitChanges()
             }
-            ProjectJdkTable.getInstance().updateJdk(erlang, clone)
+            ProjectJdkTable.getInstance().updateJdk(sdk, clone)
         }
         return ProjectJdkTable.getInstance().findJdk(newName)!!
     }
