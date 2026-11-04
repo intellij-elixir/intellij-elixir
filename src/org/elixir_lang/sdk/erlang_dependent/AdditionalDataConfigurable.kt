@@ -247,10 +247,7 @@ class AdditionalDataConfigurable(
                         sdkModificator,
                     )
                     pairingPicked = true
-                    // Show hint to save and reopen
-                    saveHintLabel.isVisible = true
-                    updateWarningLabel()
-                    updateOtpMismatchWarning()
+                    updateLabels(saveHint = true)
                 }
             }
         }
@@ -321,7 +318,12 @@ class AdditionalDataConfigurable(
         }
 
         markStored()
-        saveHintLabel.isVisible = false
+        updateLabels(saveHint = false)
+    }
+
+    /** Shows or hides the hint to save and reopen, and refreshes both warnings. */
+    private fun updateLabels(saveHint: Boolean) {
+        saveHintLabel.isVisible = saveHint
         updateWarningLabel()
         updateOtpMismatchWarning()
     }
@@ -377,9 +379,7 @@ class AdditionalDataConfigurable(
         pairingPicked = false
         removeCodePathsFromInternalErlangSdk(myElixirSdk, picked, sdkModificator)
         frozen { showStoredPairing(myElixirSdk) }
-        saveHintLabel.isVisible = false
-        updateWarningLabel()
-        updateOtpMismatchWarning()
+        updateLabels(saveHint = false)
     }
 
     private inline fun frozen(block: () -> Unit) {
