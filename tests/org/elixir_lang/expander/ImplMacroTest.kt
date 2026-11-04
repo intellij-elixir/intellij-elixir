@@ -172,7 +172,7 @@ class ImplMacroTest : ExpanderTestCase() {
         assertLevels(code, LEVELS) { version ->
             val ended = when {
                 isBefore(version, IMPL_TARGET_REMOVED) -> "compiled | def __impl__/1 line 4 clauses 3"
-                isBefore(version, "1.19.0-rc.0") -> "compiled | def __impl__/1 line 4 clauses 2"
+                !requiresProtocol(version) -> "compiled | def __impl__/1 line 4 clauses 2"
                 else -> "stopped `$implementation`"
             }
 
