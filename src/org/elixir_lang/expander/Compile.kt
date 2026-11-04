@@ -420,7 +420,7 @@ internal class BodyValues(
      * ([runsOnce]), or, where the walk runs none, it is a macro's body, which runs once as the body expands, where the
      * body's `defmodule`, and each around it, is a statement ([placed]).
      */
-    fun certainHere(): Boolean = if (stepping.isEmpty()) placed else runsOnce
+    fun certainHere(): Boolean = if (runningSite == null) placed else runsOnce
 
     /**
      * [node], code of the body, run where the body runs it, from [bindings], the body's unless a statement's run has its
