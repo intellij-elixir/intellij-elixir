@@ -11,7 +11,6 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.PIPE_ONE_OPERAND
 import org.elixir_lang.language_level.ElixirLanguageFeature.PIPE_RIGHT_UNPIPED
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
-import org.elixir_lang.lowering.Meta
 
 /** `Kernel.|>/2`: `Macro.pipe/3` folded over `Macro.unpipe/1`. */
 internal val PIPE = object : Summary.Rewrite() {
@@ -85,7 +84,7 @@ private fun pipeCall(expr: ElixirAst, call: ElixirAst.Call, level: ElixirLanguag
         FROM_BRACKETS_ON_BRACKETED_EXPRESSION.isSufficient(level) && isAccessGet(call) -> {
             val dot = call.callee as ElixirAst.Call
 
-            if (dot.meta.keys.any(::isFromBrackets)) {
+            if (dot.meta.keys.any { it.isTrue("from_brackets") }) {
                 Summary.Output.Raised("pipe_from_brackets")
             } else {
                 // `{op, meta, ...}`, where `op` is the `.`'s arguments, as Elixir builds it.
@@ -106,9 +105,6 @@ private fun isAccessGet(call: ElixirAst.Call): Boolean {
     return call.arguments?.size == 2 &&
         dotArguments.map { (it as? ElixirAst.Literal.Atom)?.name } == listOf("Elixir.Access", "get")
 }
-
-private fun isFromBrackets(key: Meta.Key): Boolean =
-    key is Meta.Key.Entry && key.name == "from_brackets" && (key.value as? Meta.Value.Atom)?.name == "true"
 
 /** `Macro.operator?/2` at either arity. */
 internal fun operator(name: String): Boolean = name in UNARY_OPERATORS || name in BINARY_OPERATORS

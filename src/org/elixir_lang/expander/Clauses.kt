@@ -10,7 +10,6 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.PARALLEL_MATCH
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED_AS_MACRO
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
-import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
 
 /** The heads of `elixir_clauses`' functions that expand `->` clauses, which aren't clauses of `expand`. */
@@ -84,9 +83,7 @@ internal fun expandCase(node: ElixirAst.Call, state: ExState, env: Env, run: Run
 
 /** Whether [node]'s metadata has `{optimize_boolean, true}`, which `Kernel` gives the `case` of `if` and `!`. */
 private fun isOptimizeBoolean(node: ElixirAst.Call): Boolean =
-    node.meta.keys.any {
-        it is Meta.Key.Entry && it.name == "optimize_boolean" && (it.value as? Meta.Value.Atom)?.name == "true"
-    }
+    node.meta.keys.any { it.isTrue("optimize_boolean") }
 
 /** The value of a `case` or `cond` whose options gave [options], the values of their clauses' bodies. */
 private fun clausesValueOf(options: Term): Term =
