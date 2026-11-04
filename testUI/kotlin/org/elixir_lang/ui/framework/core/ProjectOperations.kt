@@ -181,22 +181,42 @@ fun Driver.assignElixirSdk() = step("Assign the Elixir SDK") {
     getModules().forEach { utility(ModuleSdk::class).setModuleSdk(it, sdk) }
 }
 
+/** The Erlang step's title for an Elixir SDK add; the deletion ask's adds the name of the Elixir SDK it asks for. */
+const val ERLANG_STEP_TITLE = "Erlang for Elixir SDK"
+
+/** What the Erlang step showed before the pick: its entries, the selected ones, and whether its confirm button was enabled. */
+class ErlangStepShown(val entries: List<String>, val selected: List<String>, val confirmEnabled: Boolean) {
+    fun lists(name: String): Boolean = entryIndex(entries, name) >= 0
+}
+
+/** An Elixir SDK an add made, and what its Erlang step showed before the pick. */
+class AddedSdk(val name: String, val shown: ErlangStepShown)
+
 /**
- * In the Erlang step of an Elixir SDK add, picks the entry named [erlang] (an Erlang SDK's name, or an install's home)
- * and clicks Create.
+ * In the Erlang step titled [title], picks the entry named [erlang] (an Erlang SDK's name, or an install's home) and
+ * clicks [confirm]: "Create" for an Elixir SDK add, "OK" for the deletion ask.
  */
-fun Driver.pickInErlangStep(erlang: String) =
-    step("Erlang step: pick $erlang") {
-        ui.dialog(xQuery { byTitle("Erlang for Elixir SDK") }) {
+fun Driver.pickInErlangStep(erlang: String, title: String = ERLANG_STEP_TITLE, confirm: String = "Create"): ErlangStepShown =
+    step("Erlang step '$title': pick $erlang") {
+        lateinit var shown: ErlangStepShown
+        ui.dialog(xQuery { byTitle(title) }) {
             waitUntilReady()
             val list = jBlist()
             val entries = list.items
+            shown = ErlangStepShown(entries, list.selectedItems, x { byAccessibleName(confirm) }.isEnabled())
             val index = entryIndex(entries, erlang)
             check(index >= 0) { "no entry '$erlang' in the Erlang step: $entries" }
             list.clickItemAtIndex(index)
-            clickButtonText("Create")
+            clickButtonText(confirm)
         }
+        shown
     }
+
+/** Cancels an Erlang step a failed row left open. */
+fun Driver.cancelErlangStep() {
+    val step = ui.x("//div[starts-with(@title, '$ERLANG_STEP_TITLE')]")
+    if (step.present()) step.clickButtonText("Cancel")
+}
 
 /** The index of the Erlang step's entry named [name]: its row starts with the name. */
 private fun entryIndex(entries: List<String>, name: String): Int = entries.indexOfFirst { it == name || it.startsWith("$name ") }

@@ -18,7 +18,7 @@ class SettingsTabSaveTest {
             closeInternalErrors("$row-start")
             runCatching {
                 val erlangA = addErlangOnPage(homes.erlang.a)
-                val elixir = addElixirOnPage(homes.elixir.a, erlangA)
+                val elixir = addElixirOnPage(homes.elixir.a, erlangA).name
                 val erlangB = addErlangOnPage(homes.erlang.b)
                 rows.check(row, "'$elixir' starts paired with '$erlangA'", stored(elixir).pairedErlang == erlangA)
 

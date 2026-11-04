@@ -16,7 +16,7 @@ class SdkHomeBrowseTest {
         launchPyCharm("SdkHomeBrowseTest") { homes ->
             closeInternalErrors("setup")
             val erlang = addErlangOnPage(homes.erlang.a)
-            val elixir = addElixirOnPage(homes.elixir.a, erlang)
+            val elixir = addElixirOnPage(homes.elixir.a, erlang).name
             browseRow(rows, SdkPage.ERLANG, erlang, homes.erlang)
             browseRow(rows, SdkPage.ELIXIR, elixir, homes.elixir)
         }
