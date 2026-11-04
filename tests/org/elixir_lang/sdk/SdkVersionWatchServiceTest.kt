@@ -16,7 +16,6 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.mix.sync.MixSyncTestHelpers.runSuspendOnPooledThread
 import org.elixir_lang.sdk.SdkFixtures.elixirHome
 import org.elixir_lang.sdk.SdkFixtures.erlangHome
-import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
 import org.elixir_lang.sdk.wsl.MockWslCompatService
 import org.elixir_lang.sdk.wsl.WslCompatService
 import java.io.File
@@ -120,7 +119,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
             SdkFixtures.elixirSdk("Watching Elixir", elixirHome("1.20.5")),
             testRootDisposable,
         )
-        SdkFixtures.commit(elixirSdk, SdkAdditionalData(erlangSdk, elixirSdk))
+        SdkFixtures.commitPairing(elixirSdk, erlangSdk)
         ModuleRootModificationUtil.setModuleSdk(module, elixirSdk)
         SdkVersionWatchService.install(testRootDisposable)
 
@@ -150,7 +149,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
             SdkFixtures.elixirSdk("Watching Elixir", elixirHome("1.20.5")),
             testRootDisposable,
         )
-        SdkFixtures.commit(elixirSdk, SdkAdditionalData(erlangSdk, elixirSdk))
+        SdkFixtures.commitPairing(elixirSdk, erlangSdk)
         ModuleRootModificationUtil.setModuleSdk(module, elixirSdk)
         SdkVersionWatchService.install(testRootDisposable)
         // Driven rather than awaited: `install` starts the first watch on a coroutine, and a file rewritten before
@@ -386,7 +385,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
             testRootDisposable,
         )
         timeline += snapshot("Elixir SDK registered", home)
-        SdkFixtures.commit(elixirSdk, SdkAdditionalData(erlangSdk, elixirSdk))
+        SdkFixtures.commitPairing(elixirSdk, erlangSdk)
         // Registering reads the home once startup has installed the SDK table listeners, and `install` would then
         // watch it.
         SdkVersionsStore.getInstance().clearForTests()

@@ -25,7 +25,6 @@ import java.io.File
 import java.util.concurrent.Callable
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
-import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData as ElixirSdkAdditionalData
 import java.util.concurrent.TimeUnit
 import kotlin.system.measureTimeMillis
 
@@ -140,7 +139,7 @@ class SdkVersionsFillerTest : PlatformTestCase() {
             SdkFixtures.elixirSdk("Filler Elixir", elixirHome("1.18.4")),
             testRootDisposable,
         )
-        SdkFixtures.commit(elixirSdk, ElixirSdkAdditionalData(erlangSdk, elixirSdk))
+        SdkFixtures.commitPairing(elixirSdk, erlangSdk)
         ModuleRootModificationUtil.setModuleSdk(module, elixirSdk)
 
         runSuspendOnPooledThread { SdkVersionsFiller.fillUsedBy(project) }
@@ -165,7 +164,7 @@ class SdkVersionsFillerTest : PlatformTestCase() {
             SdkFixtures.elixirSdk("Filler read once Elixir", elixirHomePath),
             testRootDisposable,
         )
-        SdkFixtures.commit(elixirSdk, ElixirSdkAdditionalData(erlangSdk, elixirSdk))
+        SdkFixtures.commitPairing(elixirSdk, erlangSdk)
         ModuleRootModificationUtil.setModuleSdk(module, elixirSdk)
         runSuspendOnPooledThread { SdkVersionsFiller.fillUsedBy(project) }
         val used = setOf(erlangHomePath, elixirHomePath).mapTo(HashSet(), FileUtil::toSystemIndependentName)

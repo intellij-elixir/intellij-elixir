@@ -19,7 +19,6 @@ import org.elixir_lang.sdk.wsl.WslCompatService
 import org.elixir_lang.sdk.wsl.wslCompat
 import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
-import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData as ElixirSdkAdditionalData
 import com.intellij.util.concurrency.annotations.RequiresEdt
 
 class SdkRegistrarVersionsTest : PlatformTestCase() {
@@ -161,7 +160,7 @@ class SdkRegistrarVersionsTest : PlatformTestCase() {
         val elixirHome = elixirHome("1.19.5")
         val elixirSdk = registerElixir(elixirHome, erlangSdk)
         // As saved before the versions were recorded: the pairing alone, and nothing in the store.
-        SdkFixtures.commit(elixirSdk, ElixirSdkAdditionalData(erlangSdk, elixirSdk))
+        SdkFixtures.commitPairing(elixirSdk, erlangSdk)
         store.clearForTests()
         assertNotNull(
             "precondition: a confirmed pairing takes the fast path",
