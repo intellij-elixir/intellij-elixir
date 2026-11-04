@@ -1191,10 +1191,7 @@ private fun defaultClauses(
         val synthetic = Synthetic(default.meta)
         // `default_var/1`.
         val variable = { version: Int ->
-            val keys = listOf(
-                Meta.Key.Entry("generated", Meta.Value.Atom("true")),
-                versionEntry(version),
-            )
+            val keys = GENERATED + versionEntry(version)
 
             synthetic.variable("x$version", "elixir_def", keys).also { dispatches.putVersion(it, version) }
         }
