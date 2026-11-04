@@ -40,6 +40,7 @@ import org.elixir_lang.expander.Shape
 import org.elixir_lang.expander.TermEscapeBuilder
 import org.elixir_lang.expander.TermEscapeView
 import org.elixir_lang.expander.annotation
+import org.elixir_lang.expander.decodeUtf8
 import org.elixir_lang.expander.defines
 import org.elixir_lang.expander.keystore
 import org.elixir_lang.expander.specialFormArity
@@ -73,7 +74,6 @@ import java.io.ByteArrayOutputStream
 import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
-import java.nio.charset.CharacterCodingException
 import java.security.MessageDigest
 import java.util.IdentityHashMap
 import kotlin.math.abs
@@ -2848,15 +2848,8 @@ internal class Natives(private val evaluation: Evaluation) {
     }
 
     /** The text of the binary [term], `null` where it isn't a binary of UTF-8. */
-    fun utf8(term: OtpErlangObject): String? {
-        if (!isBinary(term)) return null
-
-        return try {
-            Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap((seen(term) as OtpErlangBitstr).binaryValue())).toString()
-        } catch (_: CharacterCodingException) {
-            null
-        }
-    }
+    fun utf8(term: OtpErlangObject): String? =
+        if (isBinary(term)) decodeUtf8((seen(term) as OtpErlangBitstr).binaryValue()) else null
 
     /**
      * `unicode:characters_to_binary/1` (`unicode.erl:305-311`) and `characters_to_list/1` (`:289-295`): chardata as a
@@ -2900,7 +2893,7 @@ internal class Natives(private val evaluation: Evaluation) {
         if (!chardata) notChardata()
         if (!codePoints) decline("$function/1 of %s, which holds no code point", args[0])
 
-        return bytes.toByteArray().takeIf { utf8(OtpErlangBinary(it)) != null }
+        return bytes.toByteArray().takeIf { decodeUtf8(it) != null }
             ?: decline("$function/1 of %s, which isn't UTF-8", args[0])
     }
 

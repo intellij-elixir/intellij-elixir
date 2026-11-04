@@ -7,6 +7,7 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.expander.GUARD_OPERATORS
 import org.elixir_lang.expander.ModuleClauses
+import org.elixir_lang.expander.decodeUtf8
 import org.elixir_lang.expander.expandedShape
 import org.elixir_lang.expander.isCall
 import org.elixir_lang.expander.isVariable
@@ -16,8 +17,6 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.BIT_GENERATOR_SKIP_K
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.unicode_util.isScalarValue
 import java.math.BigInteger
-import java.nio.ByteBuffer
-import java.nio.charset.CharacterCodingException
 import kotlin.math.abs
 import kotlin.math.round
 
@@ -583,15 +582,8 @@ internal class Bits(private val evaluation: Evaluation) {
         size.bigIntegerValue().takeIf { it.signum() >= 0 }?.multiply(BigInteger.valueOf(unit(spec).toLong()))
 
     /** A literal string's characters, as a utf segment writes or matches one segment per character. */
-    private fun codePoints(literal: ElixirAst.Literal.Binary): IntArray {
-        val text = try {
-            Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(literal.bytes)).toString()
-        } catch (_: CharacterCodingException) {
-            decline("a utf segment's literal that isn't UTF-8")
-        }
-
-        return text.codePoints().toArray()
-    }
+    private fun codePoints(literal: ElixirAst.Literal.Binary): IntArray =
+        (decodeUtf8(literal.bytes) ?: decline("a utf segment's literal that isn't UTF-8")).codePoints().toArray()
 
     private class Writer {
         private var bytes = ByteArray(16)
