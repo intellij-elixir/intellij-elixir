@@ -92,6 +92,14 @@ class FacetModels(private val project: Project) : Disposable {
         )
     }
 
+    /** Stores [sdk]'s new name in every facet that named it by [previousName], so they go on supplying it. */
+    @RequiresWriteLock
+    private fun sdkRenamed(sdk: Sdk, previousName: String) {
+        for (facet in ProjectFacetManager.getInstance(project).getFacets(Facet.ID)) {
+            if (ElixirSdkLookup.facetSdkName(facet.module) == previousName) facet.sdk = sdk
+        }
+    }
+
     /** Schedules a roots change for an Elixir SDK added, removed or renamed that is or was named. */
     @RequiresWriteLock
     private fun sdkChanged(sdk: Sdk) {
@@ -128,7 +136,10 @@ class FacetModels(private val project: Project) : Disposable {
 
         override fun jdkRemoved(jdk: Sdk) = ifElixir(jdk) { sdkChanged(jdk) }
 
-        override fun jdkNameChanged(jdk: Sdk, previousName: String) = ifElixir(jdk) { sdkChanged(jdk) }
+        override fun jdkNameChanged(jdk: Sdk, previousName: String) = ifElixir(jdk) {
+            sdkRenamed(jdk, previousName)
+            sdkChanged(jdk)
+        }
 
         private inline fun ifElixir(jdk: Sdk, block: FacetModels.() -> Unit) {
             if (jdk.sdkType === ElixirSdkType.instance) getInstance(project).block()

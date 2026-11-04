@@ -34,6 +34,7 @@ class Facet(
                 .getInstance()
                 .getSdksOfType(org.elixir_lang.sdk.elixir.Type.instance)
 
-        private fun sdkNamed(name: String): Sdk? = sdks().firstOrNull { it.name == name }
+        /** The registered Elixir SDK named [name]. */
+        fun sdkNamed(name: String): Sdk? = sdks().firstOrNull { it.name == name }
     }
 }

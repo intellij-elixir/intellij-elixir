@@ -101,8 +101,15 @@ object ElixirSdkLookup {
 
     /** The Elixir SDK [module]'s facet supplies: its facet's SDK on a small IDE, and null on IntelliJ IDEA. */
     @RequiresReadLock
-    fun facetSdk(module: Module): Sdk? =
-        if (isSmallIde) FacetManager.getInstance(module).getFacetByType(Facet.ID)?.sdk else null
+    fun facetSdk(module: Module): Sdk? = facet(module)?.sdk
+
+    /** The name [module]'s facet stores for the SDK it supplies, read as [facetSdk] is. */
+    @RequiresReadLock
+    fun facetSdkName(module: Module): String? = facet(module)?.configuration?.sdkName
+
+    /** [module]'s Elixir facet on a small IDE, the only IDE that reads it. */
+    private fun facet(module: Module): Facet? =
+        if (isSmallIde) FacetManager.getInstance(module).getFacetByType(Facet.ID) else null
 
     /** Resolves to [ElixirSdkResolution.Ready] or [ElixirSdkResolution.MissingElixirSdk]. */
     @RequiresReadLock
