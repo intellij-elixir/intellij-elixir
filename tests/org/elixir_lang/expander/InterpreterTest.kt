@@ -10901,6 +10901,28 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro("native:min", "defmacro m, do: [:erlang.min(1, 2), :erlang.min(2, 1), :erlang.min(1, 1.0), :erlang.min(1.0, 1), :erlang.min(:a, 1)]"),
             macro("native:max", "defmacro m, do: [:erlang.max(1, 2), :erlang.max(2, 1), :erlang.max(1, 1.0), :erlang.max(1.0, 1), :erlang.max(:a, 1)]"),
             macro(
+                "native:integer-to-binary",
+                """
+                defmacro m do
+                  [
+                    :erlang.integer_to_binary(0),
+                    :erlang.integer_to_binary(-123),
+                    :erlang.integer_to_binary(1${"0".repeat(30)}),
+                    :erlang.integer_to_binary(255, 16),
+                    :erlang.integer_to_binary(-255, 2),
+                    :erlang.integer_to_binary(35, 36),
+                    Integer.to_string(7),
+                    Integer.to_string(-10, 16)
+                  ]
+                end
+                """,
+            ),
+            macro("native:integer-to-binary-float", "defmacro m, do: :erlang.integer_to_binary(1.0)"),
+            macro("native:integer-to-binary-float-base", "defmacro m, do: :erlang.integer_to_binary(1.0, 10)"),
+            macro("native:integer-to-binary-base-37", "defmacro m, do: :erlang.integer_to_binary(1, 37)"),
+            macro("native:integer-to-binary-base-1", "defmacro m, do: :erlang.integer_to_binary(1, 1)"),
+            macro("native:integer-to-binary-base-atom", "defmacro m, do: :erlang.integer_to_binary(1, :a)"),
+            macro(
                 "native:to-string-chardata",
                 "defmacro m, do: [to_string(~c\"abc\"), to_string([?a, \"b\", [?c]]), to_string([]), to_string([233, 128512])]",
             ),

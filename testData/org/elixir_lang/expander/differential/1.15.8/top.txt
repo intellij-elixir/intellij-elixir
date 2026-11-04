@@ -677,10 +677,10 @@ top__match_in_map_update__right_of_match.exs	match
 top__match_in_pipe__after_rebinding.exs	match
 top__match_in_pipe__bare.exs	match
 top__match_in_pipe__call_argument.exs	match
-top__match_in_pipe__in_anonymous_call.exs	unported =/2
+top__match_in_pipe__in_anonymous_call.exs	match
 top__match_in_pipe__in_binary_op.exs	match
 top__match_in_pipe__in_bracket.exs	match
-top__match_in_pipe__in_capture.exs	unported remote or anonymous call
+top__match_in_pipe__in_capture.exs	match
 top__match_in_pipe__in_case_body.exs	match
 top__match_in_pipe__in_case_guard.exs	match
 top__match_in_pipe__in_case_pin.exs	match
@@ -695,7 +695,7 @@ top__match_in_pipe__in_list.exs	match
 top__match_in_pipe__in_map.exs	match
 top__match_in_pipe__in_map_update.exs	match
 top__match_in_pipe__in_pipe.exs	match
-top__match_in_pipe__in_string_concat.exs	unported =/2
+top__match_in_pipe__in_string_concat.exs	match
 top__match_in_pipe__in_tuple.exs	match
 top__match_in_pipe__in_with_body.exs	match
 top__match_in_pipe__pin_match.exs	match

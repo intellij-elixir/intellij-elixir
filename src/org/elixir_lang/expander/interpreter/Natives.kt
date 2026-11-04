@@ -507,6 +507,12 @@ internal class Natives(private val evaluation: Evaluation) {
                     null -> badarg()
                 }
             }
+            "integer_to_binary/1", "integer_to_binary/2" -> {
+                val integer = seen(args[0]) as? OtpErlangLong ?: badarg()
+                val base = if (args.size == 1) 10 else smallInt(seen(args[1]))?.takeIf { it in 2..36 } ?: badarg()
+
+                binary(integer.bigIntegerValue().toString(base).uppercase())
+            }
             "atom_to_list/1" ->
                 list((seen(args[0]) as? OtpErlangAtom ?: badarg()).atomValue().codePoints().toArray().map { integer(it.toLong()) })
             "md5/1" -> OtpErlangBinary(MessageDigest.getInstance("MD5").digest(iodataBytes(args[0], badarg)))
