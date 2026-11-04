@@ -1977,7 +1977,7 @@ internal class Natives(private val evaluation: Evaluation) {
         if (envFirst) {
             when {
                 env is UnknownValue -> evaluation.assumeNoRaise()
-                (env as? OtpErlangMap)?.get(atom("__struct__"))?.let(::seen) != atom("Elixir.Macro.Env") ->
+                (env as? OtpErlangMap)?.let(::macroEnvOf) == null ->
                     functionClause("Elixir.Application", key.substringBefore('/'), args)
             }
         }
