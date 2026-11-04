@@ -22,6 +22,7 @@ import com.intellij.driver.sdk.waitNotNull
 import com.intellij.ide.starter.driver.engine.runIdeWithDriver
 import com.intellij.ide.starter.ide.IDETestContext
 import com.intellij.ide.starter.ide.IdeProductProvider
+import com.intellij.ide.starter.models.IdeInfo
 import org.elixir_lang.ui.framework.core.AddedSdk
 import org.elixir_lang.ui.framework.core.IdeTestContext
 import org.elixir_lang.ui.framework.core.NoScreen
@@ -58,12 +59,12 @@ enum class SdkPage(val label: String, val chooserTitle: String) {
     ELIXIR("SDKs", "Select Home Directory for Elixir SDK"),
 }
 
-/** An SDK page's own Add, not the roots tab's Add in the editor beside it. */
-internal const val LIST_ADD =
-    "//div[@class='ActionButton' and (@accessiblename='Add' or @tooltiptext='Add' or @myicon='add.svg') and not(ancestor::div[@class='JBEditorTabs'])]"
-/** An SDK page's own Remove. */
-private const val LIST_REMOVE =
-    "//div[@class='ActionButton' and (@accessiblename='Remove' or @tooltiptext='Remove' or @myicon='remove.svg') and not(ancestor::div[@class='JBEditorTabs'])]"
+/** An SDK page's own action named [name], not the roots tab's in the editor beside it. */
+private fun listAction(name: String): String =
+    "//div[@class='ActionButton' and (@accessiblename='$name' or @tooltiptext='$name' or @myicon='${name.lowercase()}.svg') and not(ancestor::div[@class='JBEditorTabs'])]"
+
+private val LIST_ADD = listAction("Add")
+internal val LIST_REMOVE = listAction("Remove")
 /** The Elixir SDK editor's Erlang chooser (`AdditionalDataConfigurable`), the only plain `ComboBox` on an SDK page. */
 private const val ERLANG_COMBO = "//div[@class='ComboBox']"
 private const val SETTINGS_TREE = "//div[@accessiblename='Settings categories']"
@@ -75,9 +76,14 @@ private const val INTERNAL_ERRORS_CLOSE =
  * One PyCharm launch under the guard. The rows' homes: A, the installs the build resolves, and B, copies of them in the
  * private home whose version files name another version.
  */
-fun launchPyCharm(name: String, body: Driver.(Homes) -> Unit) {
+fun launchPyCharm(name: String, body: Driver.(Homes) -> Unit) = launch(name, IdeProductProvider.PY, body)
+
+/** One IntelliJ IDEA launch under the guard, with the homes of [launchPyCharm]. */
+fun launchIdea(name: String, body: Driver.(Homes) -> Unit) = launch(name, IdeProductProvider.IU, body)
+
+private fun launch(name: String, product: IdeInfo, body: Driver.(Homes) -> Unit) {
     val homes = Homes.stage()
-    val context = IdeTestContext.setupTestContext(name, IdeProductProvider.PY).applyVMOptionsPatch {
+    val context = IdeTestContext.setupTestContext(name, product).applyVMOptionsPatch {
         // The private home sits under the real one, so mise's config walk would reach the real home's configs.
         withEnv("MISE_CEILING_PATHS", NoScreen.privateHome.toString())
         // The logger mutes an exception's repeats, so a second row's identical throw would reach no error check.

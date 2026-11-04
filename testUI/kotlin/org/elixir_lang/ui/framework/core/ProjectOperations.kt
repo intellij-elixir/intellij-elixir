@@ -14,6 +14,7 @@ import com.intellij.driver.sdk.ui.components.elements.WindowUiComponent
 import com.intellij.driver.sdk.ui.components.elements.comboBox
 import com.intellij.driver.sdk.ui.components.elements.dialog
 import com.intellij.driver.sdk.ui.components.elements.jBlist
+import com.intellij.driver.sdk.ui.components.idea.ProjectStructureUI
 import com.intellij.driver.sdk.waitFor
 import org.elixir_lang.jps.shared.ElixirSdkTypeId.ELIXIR_SDK_TYPE_ID
 import java.nio.file.Path
@@ -104,15 +105,26 @@ fun Driver.choosePath(title: String, path: String) {
 }
 
 /** Adds an Erlang SDK at [sdkPath] with Project Structure > SDKs, and returns its name. */
-fun WindowUiComponent.addErlangSdkFromDisk(sdkPath: String): String {
-    val before = driver.sdksAt(sdkPath)
-    addSdkFromDisk("Add Erlang SDK for Elixir SDK from disk", sdkPath, "Select Home Directory for Erlang SDK for Elixir SDK") {}
-    return (driver.sdksAt(sdkPath) - before).single()
-}
+fun WindowUiComponent.addErlangSdkFromDisk(sdkPath: String): String = addedAt(sdkPath) { newErlangSdk(sdkPath) }.first
 
-/** Adds an Elixir SDK at [sdkPath] with Project Structure > SDKs, picking the Erlang SDK named [erlang] in the Erlang step. */
-fun WindowUiComponent.addElixirSdkFromDisk(sdkPath: String, erlang: String) =
-    addSdkFromDisk("Add Elixir SDK from disk", sdkPath, "Select Home Directory for Elixir SDK") { driver.pickInErlangStep(erlang) }
+/**
+ * Adds an Elixir SDK at [sdkPath] with Project Structure > SDKs, picking the entry named [erlang] (an Erlang SDK's name,
+ * or an install's home) in the Erlang step.
+ */
+fun WindowUiComponent.addElixirSdkFromDisk(sdkPath: String, erlang: String): AddedSdk =
+    addedAt(sdkPath) { newElixirSdk(sdkPath, erlang) }.let { (name, shown) -> AddedSdk(name, shown) }
+
+/** Project Structure > SDKs with [add] run, then its OK: the name of the SDK it added at [sdkPath], and what [add] returned. */
+private fun <T> WindowUiComponent.addedAt(sdkPath: String, add: ProjectStructureUI.() -> T): Pair<String, T> {
+    val before = driver.sdksAt(sdkPath)
+    val added = mutableListOf<T>()
+    inProjectStructureSdks {
+        added += add()
+        clickButtonText("OK")
+    }
+    waitUntilReady()
+    return (driver.sdksAt(sdkPath) - before).single() to added.single()
+}
 
 /**
  * The names of the SDKs in the table whose home is [home]. By home, as IntelliJ IDEA registers a JDK it detects while a
@@ -125,46 +137,41 @@ fun Driver.sdksAt(home: String): List<String> = withReadAction {
 }
 
 /**
- * Adds a new SDK from disk using the Project Structure settings dialog.
- *
- * This method opens Project Structure, navigates to the SDKs section, and adds
- * a new SDK by selecting its type and specifying the installation path.
- *
- * @receiver WindowUiComponent The window component (typically welcomeScreen)
- * @param sdkType The type of SDK to add (e.g., "Add Erlang SDK", "Add Elixir SDK")
- * @param sdkPath The absolute file system path to the SDK installation directory
- * @param dialogTitle The expected title of the SDK home directory selection dialog
- * @param afterHome What the add asks after the home, answered
- * @throws Exception if the SDK cannot be added or UI components are not found
+ * Project Structure opened from this window on its SDKs page, with [body] inside; the body closes the dialog. Opened by
+ * its action, not its shortcut: under Xvfb the welcome screen doesn't answer one. Not `now`, as the dialog is modal.
  */
-private fun WindowUiComponent.addSdkFromDisk(sdkType: String, sdkPath: String, dialogTitle: String, afterHome: () -> Unit) =
-    step("Add SDK: $sdkType from $sdkPath") {
-        // Not by its shortcut: under Xvfb the welcome screen doesn't answer one. Not `now`, as the dialog is modal.
-        driver.invokeAction("ShowProjectStructureSettings", now = false, component = component)
-        projectStructure {
-            waitUntilReady()
-            if (NoScreen.onScreen) {
-                // On a real display a click right after the dialog opens can leave its first page showing.
-                waitFor("the SDKs page", 30.seconds, 1.seconds) {
-                    driver.selectItemByAccessibleName("Project structure categories", "SDKs")
-                    x("//div[@visible_text='Add New SDK' or @accessiblename='Add New SDK']").present()
-                }
-            } else {
-                driver.selectItemByAccessibleName("Project structure categories", "SDKs")
-            }
-            clickButtonText("Add New SDK")
-        }
-
-        driver.selectItemFromList(sdkType)
-
-        driver.choosePath(dialogTitle, sdkPath)
-        afterHome()
-
-        projectStructure {
-            clickButtonText("OK")
-        }
+fun WindowUiComponent.inProjectStructureSdks(body: ProjectStructureUI.() -> Unit) = step("Project Structure > SDKs") {
+    driver.invokeAction("ShowProjectStructureSettings", now = false, component = component)
+    projectStructure {
         waitUntilReady()
+        if (NoScreen.onScreen) {
+            // On a real display a click right after the dialog opens can leave its first page showing.
+            waitFor("the SDKs page", 30.seconds, 1.seconds) {
+                driver.selectItemByAccessibleName("Project structure categories", "SDKs")
+                x("//div[@visible_text='Add New SDK' or @accessiblename='Add New SDK']").present()
+            }
+        } else {
+            driver.selectItemByAccessibleName("Project structure categories", "SDKs")
+        }
+        body()
     }
+}
+
+/** Add New SDK > Erlang, at [sdkPath]. */
+private fun ProjectStructureUI.newErlangSdk(sdkPath: String) =
+    newSdk("Add Erlang SDK for Elixir SDK from disk", sdkPath, "Select Home Directory for Erlang SDK for Elixir SDK")
+
+/** Add New SDK > Elixir, at [sdkPath], with [erlang] picked in the Erlang step. */
+private fun ProjectStructureUI.newElixirSdk(sdkPath: String, erlang: String): ErlangStepShown {
+    newSdk("Add Elixir SDK from disk", sdkPath, "Select Home Directory for Elixir SDK")
+    return driver.pickInErlangStep(erlang)
+}
+
+private fun ProjectStructureUI.newSdk(sdkType: String, sdkPath: String, dialogTitle: String) = step("Add SDK: $sdkType from $sdkPath") {
+    clickButtonText("Add New SDK")
+    driver.selectItemFromList(sdkType)
+    driver.choosePath(dialogTitle, sdkPath)
+}
 
 @Remote("com.intellij.openapi.roots.ModuleRootModificationUtil")
 private interface ModuleSdk {
