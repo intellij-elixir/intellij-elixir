@@ -396,8 +396,9 @@ class AdditionalDataConfigurable(
         internalErlangSdksComboBoxModel.addElement(sdk)
     }
 
+    /** By name: `ProjectSdksModel.removeSdk` fires with the table's SDK, while the combo lists the model's copies. */
     private fun removeErlangSdk(sdk: Sdk) = frozen {
-        internalErlangSdksComboBoxModel.removeElement(sdk)
+        internalErlangSdksComboBoxModel.indexOfName(sdk.name)?.let(internalErlangSdksComboBoxModel::removeElementAt)
     }
 
     private fun frozen(block: () -> Unit) {
@@ -484,9 +485,19 @@ class AdditionalDataConfigurable(
         classpathWarningLabel.isVisible = !hasErlangClasspathInRoots(classRoots, erlangSdk)
     }
 
-    /** `DefaultComboBoxModel` selects the first element added to an empty model, which would show a pairing nobody picked. */
+    /**
+     * `DefaultComboBoxModel` selects the first element added to an empty model, and a neighbour of a selected element
+     * removed, either of which would show a pairing nobody picked.
+     */
     private class PairingComboBoxModel : DefaultComboBoxModel<Sdk>() {
         override fun addElement(anObject: Sdk) = insertElementAt(anObject, size)
+
+        override fun removeElementAt(index: Int) {
+            if (selectedItem === getElementAt(index)) selectedItem = null
+            super.removeElementAt(index)
+        }
+
+        fun indexOfName(name: String): Int? = (0 until size).firstOrNull { getElementAt(it).name == name }
     }
 
     companion object {

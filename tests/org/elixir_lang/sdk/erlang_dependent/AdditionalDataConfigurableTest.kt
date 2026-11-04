@@ -175,6 +175,34 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         assertEquals("the small IDEs' page", deleted.name, liveErlangName(smallPage.elixirSdk))
     }
 
+    fun testADeletedErlangSdkLeavesTheList() {
+        val kept = erlang("Combo kept Erlang", "27", "27.3.4")
+        val removed = erlang("Combo removed Erlang", "26", "26.2.5")
+        val model = model(kept, removed, paired("Combo removal", kept.name, kept.homePath!!))
+        val page = open(model, "Combo removal")
+
+        model.removeSdk(model.findSdk(removed.name)!!)
+
+        assertEquals(listOf(kept.name), page.listedNames())
+        assertEquals(kept.name, (page.combo.selectedItem as Sdk?)?.name)
+        assertFalse(page.configurable.isModified)
+    }
+
+    fun testDeletingThePairedErlangSdkShowsNothingAndWritesNothing() {
+        val deleted = erlang("Combo paired deleted Erlang", "27", "27.3.4")
+        val neighbour = erlang("Combo neighbour Erlang", "26", "26.2.5")
+        val model = model(neighbour, deleted, paired("Combo paired removal", deleted.name, deleted.homePath!!))
+        val page = open(model, "Combo paired removal")
+
+        model.removeSdk(model.findSdk(deleted.name)!!)
+
+        assertEquals(listOf(neighbour.name), page.listedNames())
+        assertNull("the combo shows nothing for a pairing that no longer resolves", page.combo.selectedItem)
+        assertFalse(page.configurable.isModified)
+        page.configurable.apply()
+        assertEquals(deleted.name, liveErlangName(page.elixirSdk))
+    }
+
     fun testAnErlangAddedToTheModelIsNotWritten() {
         val gone = erlang("Combo gone Erlang", "25", "25.3.2")
         val model = model(paired("Combo empty combo", gone.name, gone.homePath!!))
@@ -217,7 +245,9 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val elixirSdk: Sdk,
         val combo: ComboBox<*>,
         val suppress: JBCheckBox,
-    )
+    ) {
+        fun listedNames(): List<String> = (0 until combo.itemCount).map { (combo.getItemAt(it) as Sdk).name }
+    }
 
     /** The page for the model's copy of the Elixir SDK named [elixirName], reset as the SDK editor shows it. */
     private fun open(model: SdkModel, elixirName: String): Page {
