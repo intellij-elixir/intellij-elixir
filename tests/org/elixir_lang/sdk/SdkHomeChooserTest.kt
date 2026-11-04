@@ -3,8 +3,17 @@ package org.elixir_lang.sdk
 import com.intellij.openapi.project.guessProjectDir
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.testFramework.PsiTestUtil
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.projectRoots.AdditionalDataConfigurable
+import com.intellij.openapi.projectRoots.SdkAdditionalData
+import com.intellij.openapi.projectRoots.SdkModel
+import com.intellij.openapi.projectRoots.SdkModificator
+import com.intellij.openapi.projectRoots.SdkType
 import org.elixir_lang.junit.HeavyTestCase
+import org.elixir_lang.sdk.erlang_dependent.Asked
+import org.elixir_lang.sdk.erlang_dependent.ScriptedFileChooserFactory
 import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
+import org.jdom.Element
 
 class SdkHomeChooserTest : HeavyTestCase() {
     fun testTheErlangSdkTypeCreatesThroughItsOwnDialog() {
@@ -111,6 +120,16 @@ class SdkHomeChooserTest : HeavyTestCase() {
         assertFalse(ErlangSdkType.instance.homeChooserDescriptor.isForcedToUseIdeaFileChooser)
     }
 
+    fun testCancellingTheHomeCheckChoosesNothing() {
+        val home = createTempDirectory().path
+        ScriptedFileChooserFactory(Asked(), home).install(testRootDisposable)
+        val chosen = mutableListOf<String>()
+
+        SdkHomeChooser.chooseSdkHome(CancellingHomeCheck(), null) { chosen += it }
+
+        assertEmpty(chosen)
+    }
+
     fun testTheBasePathIsTheOpenProject() {
         val root = tempDir.createVirtualDir()
         PsiTestUtil.addContentRoot(module, root)
@@ -119,4 +138,26 @@ class SdkHomeChooserTest : HeavyTestCase() {
     }
 
     private fun path(path: String): String = FileUtil.toSystemIndependentName(path)
+
+    /** Cancels the "Checking SDK home" progress from inside its check, as its Cancel button does. */
+    private class CancellingHomeCheck : SdkType("Cancelling home check") {
+        override fun isValidSdkHome(path: String): Boolean {
+            ProgressManager.getInstance().progressIndicator.cancel()
+            ProgressManager.checkCanceled()
+            return true
+        }
+
+        override fun suggestHomePath(): String? = null
+
+        override fun suggestSdkName(currentSdkName: String?, sdkHome: String): String = sdkHome
+
+        override fun createAdditionalDataConfigurable(
+            sdkModel: SdkModel,
+            sdkModificator: SdkModificator,
+        ): AdditionalDataConfigurable? = null
+
+        override fun saveAdditionalData(additionalData: SdkAdditionalData, additional: Element) {}
+
+        override fun getPresentableName(): String = "Cancelling home check"
+    }
 }

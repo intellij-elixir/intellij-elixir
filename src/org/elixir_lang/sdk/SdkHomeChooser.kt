@@ -90,10 +90,11 @@ object SdkHomeChooser {
             val chosenPath = chosen[0].path
             val adjustedPath = sdkType.adjustSelectedSdkHome(chosenPath)
             val adjustedPathValid = AtomicBoolean(false)
-            ProgressManager.getInstance().runProcessWithProgressSynchronously(
+            val checked = ProgressManager.getInstance().runProcessWithProgressSynchronously(
                 { adjustedPathValid.set(sdkType.isValidSdkHome(adjustedPath)) },
                 ProjectBundle.message("progress.title.checking.sdk.home"), true, null
             )
+            if (!checked) return@chooseFiles
             onHomeChosen(if (adjustedPathValid.get()) adjustedPath else chosenPath)
         }
     }
