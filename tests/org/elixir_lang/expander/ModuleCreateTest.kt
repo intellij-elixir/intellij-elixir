@@ -12,7 +12,8 @@ import org.elixir_lang.lowering.inspect
 
 /**
  * `Module.create/3` run as a module body, a function or the file's top level reaches it, against what Elixir's
- * `Code.compile_string/2` of the same file raises, loads and answers.
+ * `Code.compile_string/2` of the same file raises, loads and answers; and macro expansion's `generated: true`, which one
+ * Elixir change gave both.
  */
 class ModuleCreateTest : SdkProbeTestCase() {
     fun testAModuleBodysEnvCreatesAModule() =
@@ -1142,6 +1143,194 @@ class ModuleCreateTest : SdkProbeTestCase() {
             """,
             "Generated", "Generated.Made",
             readers = readersOf("Generated.Made", "gen"),
+        )
+
+    // `generated: true` on a macro's call cascades to its output from 1.14, the Elixir change that gave `Module.create/3`
+    // its `generated:` option.
+
+    /** A macro whose call is marked `generated: true` marks each node of its output so from 1.14. */
+    fun testAGeneratedCallMarksItsMacrosOutput() =
+        assertAsElixir(
+            """
+            defmodule Created.Cascade do
+              defmacro generated(x), do: Keyword.get(elem(x, 1), :generated, false)
+              defmacro wraps, do: quote(do: Created.Cascade.generated(y))
+              defmacro marked, do: quote(generated: true, do: Created.Cascade.wraps())
+            end
+
+            defmodule Created.Cascade.User do
+              require Created.Cascade
+              @gen Created.Cascade.marked()
+              def gen, do: @gen
+            end
+            """,
+            "Cascade", "Cascade.User",
+            readers = readersOf("Cascade.User", "gen"),
+        )
+
+    /** `Macro.expand_once/2` of an expression marked `generated: true` marks each node of the output so from 1.14. */
+    fun testExpandOnceOfAGeneratedExpressionMarksItsOutput() =
+        assertAsElixir(
+            """
+            defmodule Created.Once do
+              defmacro wraps, do: quote(do: Created.Once.pair(y))
+
+              defmacro generated do
+                {_, _, [y]} = Macro.expand_once(quote(generated: true, do: Created.Once.wraps()), __CALLER__)
+                Keyword.get(elem(y, 1), :generated, false)
+              end
+            end
+
+            defmodule Created.Once.User do
+              require Created.Once
+              @gen Created.Once.generated()
+              def gen, do: @gen
+            end
+            """,
+            "Once", "Once.User",
+            readers = readersOf("Once.User", "gen"),
+        )
+
+    /**
+     * `Macro.expand_once/2` of a summarised macro's call marked `generated: true`: from 1.14 its output is marked so, and
+     * from 1.20 not its argument, which `Macro.Env` gives it through `stop_generated/1`.
+     */
+    fun testExpandOnceOfAGeneratedIfStopsAtItsArgument() =
+        assertAsElixir(
+            """
+            defmodule Created.If do
+              defmacro generated do
+                condition = quote(do: z)
+                {:case, _, [given | _]} = Macro.expand_once(quote(generated: true, do: if(unquote(condition), do: :a)), __CALLER__)
+                Keyword.get(elem(given, 1), :generated, false)
+              end
+            end
+
+            defmodule Created.If.User do
+              require Created.If
+              @gen Created.If.generated()
+              def gen, do: @gen
+            end
+            """,
+            "If", "If.User",
+            readers = readersOf("If.User", "gen"),
+        )
+
+    /**
+     * `Macro.expand_once/2` of an `alias!` marked `generated: true`: the alias it rebuilds keeps its argument's
+     * `stop_generated/1` mark, so from 1.20 it isn't marked.
+     */
+    fun testExpandOnceOfAGeneratedAliasBangStopsAtItsArgument() =
+        assertAsElixir(
+            """
+            defmodule Created.Bang do
+              defmacro generated do
+                name = quote(do: Some.Name)
+                {:__aliases__, meta, _} = Macro.expand_once(quote(generated: true, do: alias!(unquote(name))), __CALLER__)
+                Keyword.get(meta, :generated, false)
+              end
+            end
+
+            defmodule Created.Bang.User do
+              require Created.Bang
+              @gen Created.Bang.generated()
+              def gen, do: @gen
+            end
+            """,
+            "Bang", "Bang.User",
+            readers = readersOf("Bang.User", "gen"),
+        )
+
+    /**
+     * An imported macro, called `generated: true`, that gives back its argument with the `stop_generated/1` mark
+     * deleted from its metadata: the mark is gone, so its output, that argument included, is marked from 1.14.
+     */
+    fun testAMacroThatDeletesItsArgumentsStopMarkHasItMarked() =
+        assertAsElixir(
+            """
+            defmodule Created.Strip do
+              defmacro read(x), do: Keyword.get(elem(x, 1), :generated, false)
+
+              defmacro strips({name, meta, args}) do
+                quote(do: Created.Strip.read(unquote({name, Keyword.delete(meta, :stop_generated), args})))
+              end
+
+              defmacro marked(arg), do: quote(generated: true, do: strips(unquote(arg)))
+            end
+
+            defmodule Created.Strip.User do
+              import Created.Strip
+              @gen marked(z)
+              def gen, do: @gen
+            end
+            """,
+            "Strip", "Strip.User",
+            readers = readersOf("Strip.User", "gen"),
+        )
+
+    /** A `@` marked `generated: true` marks the value it is given so from 1.14. */
+    fun testAGeneratedAttributeMarksItsValue() =
+        assertAsElixir(
+            """
+            defmodule Created.Attr do
+              defmacro generated(x), do: Keyword.get(elem(x, 1), :generated, false)
+
+              defmacro marked do
+                value = quote(do: Created.Attr.generated(y))
+                quote(generated: true, do: @gen(unquote(value)))
+              end
+            end
+
+            defmodule Created.Attr.User do
+              require Created.Attr
+              Created.Attr.marked()
+              def gen, do: @gen
+            end
+            """,
+            "Attr", "Attr.User",
+            readers = readersOf("Attr.User", "gen"),
+        )
+
+    /** A `def` marked `generated: true` marks its unquote fragment so from 1.14: here the fragment names the function. */
+    fun testAGeneratedDefinitionMarksItsFragment() =
+        assertAsElixir(
+            """
+            defmodule Created.Frag do
+              defmacro named(x), do: if(Keyword.get(elem(x, 1), :generated, false), do: :marked, else: :unmarked)
+
+              defmacro marked do
+                value = quote(do: Created.Frag.named(y))
+                {:def, [generated: true], [{{:unquote, [], [value]}, [], []}, [do: :ok]]}
+              end
+            end
+
+            defmodule Created.Frag.User do
+              require Created.Frag
+              Created.Frag.marked()
+            end
+            """,
+            "Frag", "Frag.User",
+        )
+
+    /** A `def` marked `generated: true` marks the expression it splices so from 1.14: here it gives the arguments. */
+    fun testAGeneratedDefinitionMarksWhatItSplices() =
+        assertAsElixir(
+            """
+            defmodule Created.Splice do
+              defmacro args(x), do: if(Keyword.get(elem(x, 1), :generated, false), do: [1, 2], else: [1])
+
+              defmacro marked do
+                value = quote(do: Created.Splice.args(y))
+                {:def, [generated: true], [{:f, [], [{:unquote_splicing, [], [value]}]}, [do: :ok]]}
+              end
+            end
+
+            defmodule Created.Splice.User do
+              require Created.Splice
+              Created.Splice.marked()
+            end
+            """,
+            "Splice", "Splice.User",
         )
 
     /** Elixir raises `KeyError` from the created body, which the expander has only as a kind. */

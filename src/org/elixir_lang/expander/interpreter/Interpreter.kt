@@ -60,6 +60,7 @@ import org.elixir_lang.expander.orGuards
 import org.elixir_lang.expander.rebuilt
 import org.elixir_lang.expander.rescueHead
 import org.elixir_lang.expander.splitOptions
+import org.elixir_lang.expander.stopGeneratedMarks
 import org.elixir_lang.expander.unfollowed
 import org.elixir_lang.expander.unlessTooDeep
 import org.elixir_lang.expander.unlessTooDeepToRun
@@ -69,7 +70,6 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.EVAL_ENV_KEEPS_CONTE
 import org.elixir_lang.language_level.ElixirLanguageFeature.FIELD_OF_NON_MAP_RAISES_BADKEY
 import org.elixir_lang.language_level.ElixirLanguageFeature.FN_CLAUSE_ERROR_IS_FUNCTION_CLAUSE
 import org.elixir_lang.language_level.ElixirLanguageFeature.GENERATOR_RIGHT_SIDE_SCOPED
-import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ARGUMENTS_STOP_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_UPDATE_RAISES_WHERE_DISCARDED
 import org.elixir_lang.language_level.ElixirLanguageFeature.FIELD_OF_NON_MAP_RAISES_BADMAP
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUED_ERROR_MESSAGE_FROM_ERROR_INFO
@@ -88,8 +88,6 @@ import java.util.IdentityHashMap
 internal object Interpreter {
     /**
      * The summary of [node], which dispatches as [dispatch], from its macro's clauses, or `null` where it declines.
-     *
-     * @param stopGenerated whether the macro is given its arguments through `stop_generated/1`
      */
     fun summary(
         dispatch: Dispatch,
@@ -97,12 +95,11 @@ internal object Interpreter {
         state: ExState,
         env: Env,
         run: Run,
-        stopGenerated: Boolean,
     ): Summary? {
         val output = declining(run) {
             try {
                 run.unlessTooDeepToRun({ return null }) {
-                    Evaluation(node, state, env, run).output(dispatch, node.arguments.orEmpty(), stopGenerated)
+                    Evaluation(node, state, env, run).output(dispatch, node.arguments.orEmpty())
                 }
             } catch (_: Declined) {
                 // The macro's code ran where the expander lost it.
@@ -463,21 +460,24 @@ internal class Evaluation(
     }
 
     /**
-     * The output of the call, which dispatches as [dispatch], given [arguments].
-     *
-     * @param stopGenerated whether the macro is given its arguments through `stop_generated/1`
+     * The output of the call, which dispatches as [dispatch], given [arguments], through `stop_generated/1` where the
+     * call is in [Run.stopsGenerated].
      */
-    fun output(dispatch: Dispatch, arguments: List<ElixirAst>, stopGenerated: Boolean): Summary.Output {
+    fun output(dispatch: Dispatch, arguments: List<ElixirAst>): Summary.Output {
         val module = run.clausesOf(dispatch.receiver, local = dispatch.kind == Dispatch.Kind.LOCAL_MACRO)
             ?: decline("no clauses of ${dispatch.receiver}")
         val definition = module.definitions[NameArity(dispatch.name, dispatch.arity)]
             ?.takeIf { it.kind.macro }
             ?: decline("${dispatch.receiver} has no macro ${dispatch.name}/${dispatch.arity}")
-        val marks = stopGenerated && MACRO_ARGUMENTS_STOP_GENERATED.isSufficient(run.level)
         run.origins.expanded(call)
+        val stops = call in run.stopsGenerated
         val args = arguments.map { arg ->
+            val marks = stops && stopGeneratedMarks(arg)
+
+            // A marked argument is found only by its marked term: an equal term without the mark is the macro's own.
             run.givenEnvs[arg]?.let(::envOf)
-                ?: termOf(arg) { each, term -> run.origins.record(each, term) }.let { if (marks) stopGenerated(it, arg) else it }
+                ?: termOf(arg) { each, term -> if (!marks || each !== arg) run.origins.record(each, term) }
+                    .let { if (marks) stopGenerated(it, arg) else it }
         }
         val function = ModuleExports.macroExport(NameArity(dispatch.name, args.size))
         val linifier = Linify(dispatch.receiver, run.level)
@@ -563,11 +563,11 @@ internal class Evaluation(
     private fun normalize(reason: OtpErlangObject, stacktrace: OtpErlangObject): OtpErlangObject =
         remote(atom("Elixir.Exception"), "normalize", listOf(atom("error"), reason, stacktrace))
 
-    /** `elixir_dispatch:stop_generated/1` of [term], [arg]'s: a call's meta gains `stop_generated: true`. */
+    /** `elixir_dispatch:stop_generated/1` of [term], [arg]'s, which it marks: its meta gains `stop_generated: true`. */
     private fun stopGenerated(term: OtpErlangObject, arg: ElixirAst): OtpErlangObject {
-        val meta = (term as? OtpErlangTuple)?.takeIf { it.arity() == 3 }?.elementAt(1) as? OtpErlangList ?: return term
+        val (left, meta, right) = (term as OtpErlangTuple).elements()
 
-        return tuple(term.elementAt(0), cons(listOf(tuple(atom("stop_generated"), TRUE)), meta), term.elementAt(2))
+        return tuple(left, cons(listOf(tuple(atom("stop_generated"), TRUE)), meta as OtpErlangList), right)
             .also {
                 nodes[it] = arg
                 run.origins.record(arg, it)
@@ -1074,8 +1074,15 @@ internal class Evaluation(
 
         reachingAnEffect()
 
-        val linified =
-            linifyWithContextCounter(created.line, name, run.counters.next(null), run.level, body, created.generated, inheriting(at, run))
+        val linified = linifyWithContextCounter(
+            created.line,
+            name,
+            run.counters.next(null),
+            run.level,
+            body,
+            created.generated,
+            onNode = inheriting(at, run),
+        )
 
         val result = createdModule(name, linified, created.env, at, run, bodyValues)
 

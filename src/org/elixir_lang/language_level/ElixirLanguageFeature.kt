@@ -1810,8 +1810,8 @@ enum class ElixirLanguageFeature(
      * `generated: true` it marks every node so: a macro's output from the call, `Macro.expand_once/2`'s from the
      * expression, and `Module.create/3`'s body from its options. Before it, it is given only a line.
      *
-     * `elixir-lang/elixir@7a90dbf9d` ("Automatically cascade generated: true on macro expansion", #11976), first
-     * released in v1.14.0-rc.0.
+     * `elixir-lang/elixir@824f81010` ("Automatically cascade generated: true on macro expansion", #11976), first
+     * released in v1.15.0-rc.0, and its backport `7a90dbf9d`, first released in v1.14.0-rc.0.
      */
     LINIFY_CASCADES_GENERATED(sinceElixir = "1.14.0-rc.0"),
 

@@ -92,7 +92,7 @@ internal fun expandQuoted(
     val inheriting = inheriting(call, run)
     val porting = ports || call in run.ported
     val arguments = if (porting) descendants(call.arguments.orEmpty()) else emptySet()
-    val linified = linifyWithContextCounter(lineOf(call.meta), receiver, counter, run.level, output) { original, linified ->
+    val linified = linifiedOutput(call, receiver, counter, output, run) { original, linified ->
         if (original === watched?.node) watching = linified
         if (porting && original !in arguments) run.ported += linified
 
@@ -151,7 +151,8 @@ internal fun inheriting(call: ElixirAst.Call, run: Run): (original: ElixirAst, l
  * `linify_with_context_counter/3`: [line] added to every node with metadata that has none, unless it is 0, [counter] to
  * a `quote` or a variable of [receiver]'s context, an alias, and an `alias`, `import` or `require` call, at the heads
  * [Linify] chooses, and with [generated], the caller's `generated: true`, from [LINIFY_CASCADES_GENERATED] each node
- * marked so but below a `stop_generated: true`, where [Linify.readsStopGenerated] reads one.
+ * marked so but at and below a `stop_generated: true`, where [Linify.readsStopGenerated] reads one, or a node whose
+ * metadata is one of [stopsAt], which `stop_generated/1` marked.
  */
 internal fun linifyWithContextCounter(
     line: Int,
@@ -160,6 +161,7 @@ internal fun linifyWithContextCounter(
     level: ElixirLanguageLevel,
     node: ElixirAst,
     generated: Boolean = false,
+    stopsAt: Set<Meta> = emptySet(),
     onNode: (original: ElixirAst, linified: ElixirAst) -> Unit = { _, _ -> },
 ): ElixirAst {
     val linifier = Linify(receiver, level)
@@ -173,14 +175,15 @@ internal fun linifyWithContextCounter(
         if (linifier.counted(clause) { (metaValue(meta, "context") as? Meta.Value.Atom)?.name == it }) keynew(meta, "counter", counterValue) else meta
 
     /**
-     * `do_tuple_linify/6`'s metadata and whether the nodes under it are marked: a `stop_generated: true` it reads
-     * deleted, which stops the marking, and [line] added, with the mark before it from [Linify.readsStopGenerated]
-     * and after it before that.
+     * `do_tuple_linify/6`'s metadata of [node] and whether the nodes under it are marked: a `stop_generated: true` it
+     * reads deleted, which stops the marking, as [node]'s metadata being one of [stopsAt] does, and [line] added, with
+     * the mark before it from [Linify.readsStopGenerated] and after it before that.
      */
-    fun tupled(meta: Meta, gen: Boolean): Pair<Meta, Boolean> {
+    fun tupled(node: ElixirAst, meta: Meta, gen: Boolean): Pair<Meta, Boolean> {
         val stops = linifier.readsStopGenerated && (metaValue(meta, "stop_generated") as? Meta.Value.Atom)?.name == "true"
 
         return when {
+            node.meta in stopsAt -> lined(meta) to false
             stops -> lined(Meta(meta.origin, meta.start, meta.end, keydelete(meta.keys, "stop_generated"), meta.built)) to false
             !gen -> lined(meta) to false
             linifier.readsStopGenerated -> lined(generatedOnce(meta)) to true
@@ -206,34 +209,61 @@ internal fun linifyWithContextCounter(
                     else -> LinifyRight.NonEmptyList
                 }
                 val clause = linifier.clause((node.callee as? ElixirAst.Literal.Atom)?.name, true, right)
-                val (meta, inner) = tupled(counted(node.meta, clause), gen)
+                val (meta, inner) = tupled(node, counted(node.meta, clause), gen)
 
                 ElixirAst.Call(meta, linify(node.callee, inner), arguments?.map { linify(it, inner) }, node.context)
             }
             is ElixirAst.Alias -> {
                 val right = if (node.segments.isEmpty()) LinifyRight.Other else LinifyRight.NonEmptyList
-                val (meta, inner) = tupled(counted(node.meta, linifier.clause("__aliases__", true, right)), gen)
+                val (meta, inner) = tupled(node, counted(node.meta, linifier.clause("__aliases__", true, right)), gen)
 
                 ElixirAst.Alias(meta, node.segments.map { linify(it, inner) })
             }
             is ElixirAst.Block -> {
-                val (meta, inner) = tupled(node.meta, gen)
+                val (meta, inner) = tupled(node, node.meta, gen)
 
                 ElixirAst.Block(meta, node.expressions.map { linify(it, inner) })
             }
             is ElixirAst.Tuple -> {
-                val (meta, inner) = if (node.hasMetadata()) tupled(node.meta, gen) else node.meta to gen
+                val (meta, inner) = if (node.hasMetadata()) tupled(node, node.meta, gen) else node.meta to gen
 
                 ElixirAst.Tuple(meta, node.elements.map { linify(it, inner) })
             }
             is ElixirAst.ListNode -> ElixirAst.ListNode(node.meta, node.elements.map { linify(it, gen) })
-            is ElixirAst.Placeholder -> ElixirAst.Placeholder(tupled(node.meta, gen).first, node.reason)
+            is ElixirAst.Placeholder -> ElixirAst.Placeholder(tupled(node, node.meta, gen).first, node.reason)
             is ElixirAst.Literal, is ElixirAst.Value -> node
         }.also { onNode(node, it) }
     }
 
     return linify(node, marks)
 }
+
+/**
+ * [linifyWithContextCounter] of [output], [call]'s macro's, at [line], with [call]'s `generated: true` stopped where
+ * `stop_generated/1` marked its arguments ([Run.stopsGenerated]).
+ */
+internal fun linifiedOutput(
+    call: ElixirAst.Call,
+    receiver: String,
+    counter: Env.Counter,
+    output: ElixirAst,
+    run: Run,
+    line: Int = lineOf(call.meta),
+    onNode: (original: ElixirAst, linified: ElixirAst) -> Unit = { _, _ -> },
+): ElixirAst =
+    linifyWithContextCounter(
+        line,
+        receiver,
+        counter,
+        run.level,
+        output,
+        isTrueAt(call.meta, "generated"),
+        run.stopsGenerated[call].orEmpty(),
+        onNode,
+    )
+
+/** Whether [meta]'s first [key] entry is `true`, as `lists:keyfind/3` finds it. */
+internal fun isTrueAt(meta: Meta, key: String): Boolean = metaValue(meta, key).isTrue()
 
 /** Whether this key is the entry `{name, true}`. */
 internal fun Meta.Key.isTrue(name: String): Boolean = this is Meta.Key.Entry && this.name == name && value.isTrue()
@@ -271,7 +301,7 @@ internal val VAR_BANG = object : Summary.Rewrite() {
         }
         val (key, value) = if (VAR_BANG_IF_UNDEFINED.isSufficient(run.level)) "if_undefined" to "raise" else "var" to "true"
         val keys = keystore(keydelete(variable.meta.keys, "counter"), key, Meta.Value.Atom(value))
-        val meta = Meta(variable.meta.origin, variable.meta.start, variable.meta.end, keys, variable.meta.built)
+        val meta = variable.meta.withKeys(keys).also { carry(node, variable.meta, it, run) }
         val variableContext =
             if (expandedContext == "nil") ElixirAst.VariableContext.Nil else ElixirAst.VariableContext.Atom(expandedContext)
 
@@ -287,11 +317,17 @@ internal val ALIAS_BANG = object : Summary.Rewrite() {
             is ElixirAst.Alias -> {
                 val meta = alias.meta
                 val keys = keydelete(meta.keys, "alias")
+                val rebuilt = meta.withKeys(keys).also { carry(node, meta, it, run) }
 
-                Summary.Output.Built(ElixirAst.Alias(Meta(meta.origin, meta.start, meta.end, keys, meta.built), alias.segments))
+                Summary.Output.Built(ElixirAst.Alias(rebuilt, alias.segments))
             }
             else -> Summary.Output.Raised("alias_bang_function_clause")
         }
+}
+
+/** [rebuilt], [original] with its keys changed, keeps the `stop_generated` mark [original] has at [call]. */
+private fun carry(call: ElixirAst.Call, original: Meta, rebuilt: Meta, run: Run) {
+    run.stopsGenerated[call]?.takeIf { original in it }?.add(rebuilt)
 }
 
 /** `keynew/3`: [meta] with [name] put first, unless it has one; a source location is a `line`. */

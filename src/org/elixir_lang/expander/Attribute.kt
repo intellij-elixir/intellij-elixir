@@ -31,7 +31,7 @@ internal val ATTRIBUTE = Summary { _, node, state, env, run ->
         is Returned.Code -> {
             val counter = run.counters.next(env.module)
             val compiling = run.compiling[env.module!!]
-            val linified = linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, run.level, returned.node) { original, copy ->
+            val linified = linifiedOutput(node, KERNEL, counter, returned.node, run) { original, copy ->
                 run.carrySupplied(original, copy)
                 compiling?.built(copy, original)
             }

@@ -146,8 +146,8 @@ internal fun define(
     }
     val values = pieces.map {
         when (it) {
-            is Piece.Fragment -> linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, run.level, it.call.arguments!!.single())
-            is Piece.Evaluated -> linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, run.level, it.expression)
+            is Piece.Fragment -> linifiedOutput(node, KERNEL, counter, it.call.arguments!!.single(), run)
+            is Piece.Evaluated -> linifiedOutput(node, KERNEL, counter, it.expression, run)
             is Piece.Quoted -> node
         }
     }

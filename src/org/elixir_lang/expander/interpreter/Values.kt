@@ -697,6 +697,10 @@ internal fun macroEnvEntry(env: OtpErlangMap, name: String): OtpErlangObject =
 internal fun smallInt(term: OtpErlangObject): Int? =
     (term as? OtpErlangLong)?.takeIf { it.bitLength() < Int.SIZE_BITS }?.intValue()
 
+/** The `Meta` of [term] where it is a `{form, Meta, args}` node, `Meta` a list; `null` where it is something else. */
+internal fun nodeMeta(term: OtpErlangObject): OtpErlangList? =
+    (term as? OtpErlangTuple)?.takeIf { it.arity() == 3 }?.elementAt(1) as? OtpErlangList
+
 /** Declines on [term], an unknown value, keeping it where it came from a module being compiled ([Declined.holds]). */
 private fun unknown(term: OtpErlangObject): Nothing =
     throw Declined("an unknown value").apply { if (term is Holding || term === ModuleUnknown) holds += term }

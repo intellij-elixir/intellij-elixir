@@ -9,7 +9,6 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.util.TextRange
 import org.elixir_lang.language_level.ElixirLanguageFeature.ANNOTATE_CASE
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_SORTED
-import org.elixir_lang.language_level.ElixirLanguageFeature.IN_RANGE_LITERAL_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ENV_VERSIONED_VARS
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.inspect
@@ -25,24 +24,27 @@ class ExpandedAstTest : SdkProbeTestCase() {
 
     fun testGuardsInACase() = assertEqual("case", GUARD_CASES.filter { it.args.isNotEmpty() })
 
-    /**
-     * `in` of a literal range: from 1.20 Elixir marks every node of its output `generated: true`, and the plugin's
-     * expansion keeps the mark on the `is_integer` call only. That meta is a deferred divergence: no answer reads it.
-     */
-    fun testAnInOfARangeDiffersOnlyInGenerated() {
-        val diverges = IN_RANGE_LITERAL_GENERATED.isSufficient(legLevel())
-
-        assertNoFailures(GUARD_CONTEXTS.mapNotNull { differsOnlyInGenerated(it, IN_RANGE, diverges) })
-    }
+    /** `in` of a literal range, whose `Kernel.and/2` is marked `generated: true` from 1.20, and so its output. */
+    fun testAnInOfARange() = GUARD_CONTEXTS.forEach { assertEqual(it, listOf(IN_RANGE)) }
 
     fun testBodies() = assertEqual("body", BODY_CASES)
+
+    /**
+     * A macro call marked `generated: true`, a summarised macro's (`|>`, `&&`, `var!`) and an interpreted one's: from
+     * 1.14 its output is marked so, and from 1.20 not its arguments, which `elixir_dispatch` gives it through
+     * `stop_generated/1`, nor what the macro rebuilds from one, keeping its metadata.
+     */
+    fun testAGeneratedMacroCallMarksItsOutputButNotItsArguments() = assertEqual("body", GENERATED_CALL_CASES)
+
+    /** `@` of an attribute holding a map, read in a function, from a call and from a call marked `generated: true`. */
+    fun testAnAttributeReadInAFunction() = assertEqual("body", ATTRIBUTE_READ_CASES)
 
     /**
      * `if` of a condition that returns a boolean: before 1.18 Elixir marks the `false` and `true` clauses it rewrites
      * the `case` to `generated: true`, and the plugin's clauses don't carry it. That meta is a deferred divergence.
      */
     fun testAnIfDiffersOnlyInItsClausesGenerated() =
-        assertNoFailures(listOfNotNull(differsOnlyInGenerated("body", IF, !ANNOTATE_CASE.isSufficient(legLevel()))))
+        assertNoFailures(listOfNotNull(ifDiffersOnlyInGenerated()))
 
     /** `__ENV__.versioned_vars`: Elixir's node is the field's map itself. */
     fun testAnEnvFieldHoldingAMap() {
@@ -154,16 +156,17 @@ class ExpandedAstTest : SdkProbeTestCase() {
         if (elixir == plugin) null else "$name\n  elixir=$elixir\n  plugin=$plugin"
 
     /**
-     * How [case] in [context] fails to be EQUAL to Elixir's node with each `generated` key dropped, and unequal if
-     * [diverges], or `null`.
+     * How [IF] in a body fails to be EQUAL to Elixir's node with each `generated` key dropped, and unequal before
+     * [ANNOTATE_CASE], or `null`.
      */
-    private fun differsOnlyInGenerated(context: String, case: Case, diverges: Boolean): String? {
-        val probed = probe(context, case)
-        val built = probed.built ?: return "$context: ${probed.plugin()}"
+    private fun ifDiffersOnlyInGenerated(): String? {
+        val diverges = !ANNOTATE_CASE.isSufficient(legLevel())
+        val probed = probe("body", IF)
+        val built = probed.built ?: return "body: ${probed.plugin()}"
         val plugin = stripped(built.toOtp())
 
-        return unequal(context, inspect(stripped(probed.elixir, GENERATED)), inspect(stripped(plugin, GENERATED)))
-            ?: "$context diverges: ${probed.elixir != plugin}".takeIf { (probed.elixir != plugin) != diverges }
+        return unequal("body", inspect(stripped(probed.elixir, GENERATED)), inspect(stripped(plugin, GENERATED)))
+            ?: "body diverges: ${probed.elixir != plugin}".takeIf { (probed.elixir != plugin) != diverges }
     }
 
     private fun probe(context: String, case: Case): Probed {
@@ -406,6 +409,46 @@ class ExpandedAstTest : SdkProbeTestCase() {
         private val IN_RANGE = Case("in_range", "x", "x in 1..10")
 
         private val IF = Case("if", "x", "if x > 1, do: x + 1, else: 0")
+
+        /** `generated: true` calls of macros given an argument: summarised (`|>`, `&&`, `var!`) and interpreted. */
+        private val GENERATED_CALL_CASES = listOf(
+            Case(
+                "generated_pipe",
+                "x",
+                "gen_pipe(x)",
+                setup = "  defmacro gen_pipe(c), do: quote(generated: true, do: unquote(c) |> elem(0))\n",
+            ),
+            Case(
+                "generated_and",
+                "x, y",
+                "gen_and(x, y)",
+                setup = "  defmacro gen_and(a, b), do: quote(generated: true, do: unquote(a) && unquote(b))\n",
+            ),
+            Case(
+                "generated_var_bang",
+                "x",
+                "gen_var(x)",
+                setup = "  defmacro gen_var(v), do: quote(generated: true, do: var!(unquote(v)))\n",
+            ),
+            Case(
+                "generated_interpreted",
+                "x",
+                "gen_wrap(x)",
+                setup = "  defmacro wrap(v), do: quote(do: elem({unquote(v)}, 0))\n" +
+                    "  defmacro gen_wrap(c), do: quote(generated: true, do: wrap(unquote(c)))\n",
+            ),
+        )
+
+        /** An attribute holding a map, read in a function, and read by a macro's output marked `generated: true`. */
+        private val ATTRIBUTE_READ_CASES = listOf(
+            Case("attribute_map", "", "@pair", setup = "  @pair %{a: 1}\n"),
+            Case(
+                "generated_attribute_map",
+                "",
+                "gen_pair()",
+                setup = "  @pair %{a: 1}\n  defmacro gen_pair, do: quote(generated: true, do: @pair)\n",
+            ),
+        )
 
         private val ENV_VERSIONED_VARS = Case("env_versioned_vars", "x, a", "{__ENV__.versioned_vars, x + a}")
 

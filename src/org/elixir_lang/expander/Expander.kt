@@ -468,6 +468,13 @@ internal class Run(
     val ported: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
 
     /**
+     * Each macro call given its arguments through `stop_generated/1`, by identity, to the metadata that carries the
+     * mark: the arguments it marks ([stopGeneratedMarks]), and what a summary rebuilt from them keeping their keys. The
+     * call's `generated: true` stops at a node of its output with one.
+     */
+    val stopsGenerated = IdentityHashMap<ElixirAst.Call, MutableSet<Meta>>()
+
+    /**
      * [copy], a node rebuilt from [original], stands where the original stands: a port built it where one built the
      * original ([ported]), and it has the original's place ([placedAt]).
      */
@@ -797,6 +804,9 @@ internal fun versionEntry(version: Int): Meta.Key.Entry = Meta.Key.Entry("versio
 
 /** This metadata with [key] ahead of its keys. */
 internal fun Meta.ahead(key: Meta.Key): Meta = Meta(origin, start, end, listOf(key) + keys, built)
+
+/** This metadata with its keys [keys]. */
+internal fun Meta.withKeys(keys: List<Meta.Key>): Meta = Meta(origin, start, end, keys, built)
 
 /** The node, or [source] where the run didn't build one. */
 internal fun ExpandedAst.or(source: ElixirAst): ElixirAst = (this as? ExpandedAst.Built)?.node ?: source

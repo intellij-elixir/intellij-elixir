@@ -14,6 +14,7 @@ import com.intellij.openapi.util.io.FileUtil
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.junit.HeavyTestCase
+import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ARGUMENTS_STOP_GENERATED
 import org.elixir_lang.lowering.ElixirAst
 import java.io.File
 import java.util.IdentityHashMap
@@ -93,9 +94,8 @@ class ExUnitBodyOriginsHeavyTest : HeavyTestCase() {
             // The pattern and its read are equal terms on one line, told apart only by `stop_generated` from 1.20.
             file.endsWith("equal_on_a_line_test.exs") ->
                 isBefore(version, "1.20.0") && variable.name == "context" && variable.line == 7 && variable.column == 11
-            // The same under a list, which no position aligns, so the read stays built on every leg.
-            file.endsWith("built_line_test.exs") ->
-                variable.name == "context" && (variable.column == 76 || isBefore(version, "1.20.0"))
+            // The same under a list, which no position aligns, so both stay built before 1.20.
+            file.endsWith("built_line_test.exs") -> !marksArguments && variable.name == "context"
             else -> false
         }
 
@@ -366,15 +366,22 @@ class ExUnitBodyOriginsHeavyTest : HeavyTestCase() {
         assertEquals(listOf("8:7", "9:33"), rows.filter { it.isSource && it.name == "a" }.map { "${it.line}:${it.column}" })
     }
 
-    /** `context` in the list is equal to the pattern on its line, and a list gives no position, so it has no origin. */
-    fun testAReadEqualToItsPatternUnderAListStaysBuilt() {
+    /**
+     * `context` in the list is equal to the pattern on its line before 1.20, and a list gives no position, so neither
+     * has an origin. From 1.20 `stop_generated` marks the pattern, so the read is the one term like it, and the caller's.
+     */
+    fun testAReadEqualToItsPatternUnderAListIsSourceOnceThePatternIsMarked() {
         val context = setups(project(), "test/origins/built_line_test.exs").filter { it.name == "context" && it.function != "-" }
+        val read = context.filter { it.isSource && it.column == 76 }.map { "${it.line}:${it.column}" }
 
-        assertEquals(emptyList<String>(), context.filter { it.isSource && it.column == 76 }.map(Row::toString))
-        assertEquals(if (isBefore(version, "1.20.0")) 2 else 1, context.count { it.built })
+        assertEquals(if (marksArguments) listOf("9:76") else emptyList(), read)
+        assertEquals(if (marksArguments) 0 else 2, context.count { it.built })
     }
 
     private val version: String get() = LegManifest.environment("ELIXIR_VERSION")
+
+    /** Whether a macro is given its arguments marked `stop_generated`, which tells a pattern from an equal read. */
+    private val marksArguments: Boolean get() = MACRO_ARGUMENTS_STOP_GENERATED.isSufficient(legLevel())
 
     private fun isDefinitionMade(function: String) = function.startsWith("test ") || function.startsWith("__ex_unit_setup")
 

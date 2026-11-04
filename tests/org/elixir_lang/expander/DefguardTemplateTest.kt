@@ -3,7 +3,6 @@ package org.elixir_lang.expander
 import com.ericsson.otp.erlang.OtpErlangObject
 import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFGUARD_UNQUOTE_NAMES
-import org.elixir_lang.language_level.ElixirLanguageFeature.IN_RANGE_LITERAL_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.inspect
@@ -21,32 +20,6 @@ class DefguardTemplateTest : SdkProbeTestCase() {
             val plugin = pluginTemplate(case, token)?.let { inspect(ExpandedAstTest.stripped(it.toOtp())) }
 
             if (elixir == plugin) null else "${case.name}\n  elixir=$elixir\n  plugin=$plugin"
-        }
-
-        assertTrue(failures.joinToString("\n"), failures.isEmpty())
-    }
-
-    /**
-     * An `in` of a range, literal or an attribute's: from 1.20 Elixir marks every node of its output
-     * `generated: true`, and the plugin's expansion keeps the mark on the `is_integer` call only. That meta is a
-     * deferred divergence: no answer reads it.
-     */
-    fun testAnInOfARangeDiffersOnlyInGenerated() {
-        val diverges = IN_RANGE_LITERAL_GENERATED.isSufficient(legLevel())
-
-        val failures = IN_RANGE_CASES.mapNotNull { case ->
-            val token = harness.token()
-            val elixir = elixirTemplate(case, token)
-            val plugin = pluginTemplate(case, token)?.let { ExpandedAstTest.stripped(it.toOtp()) }
-                ?: return@mapNotNull "${case.name}: no template"
-            val withoutElixir = inspect(withoutGenerated(elixir))
-            val withoutPlugin = inspect(withoutGenerated(plugin))
-
-            when {
-                withoutElixir != withoutPlugin -> "${case.name}\n  elixir=$withoutElixir\n  plugin=$withoutPlugin"
-                (elixir != plugin) != diverges -> "${case.name} diverges: ${elixir != plugin}"
-                else -> null
-            }
         }
 
         assertTrue(failures.joinToString("\n"), failures.isEmpty())
@@ -217,18 +190,20 @@ class DefguardTemplateTest : SdkProbeTestCase() {
         |""".trimMargin()
 
     companion object {
-        private fun withoutGenerated(term: OtpErlangObject) = ExpandedAstTest.stripped(term, ExpandedAstTest.GENERATED)
-
         /** Each case's `defguard` as a case module body, with a statement after it. */
         fun bodies(level: ElixirLanguageLevel): List<String> =
-            (CASES + IN_RANGE_CASES).filter { !it.quotedInUsing && it.appliesAt(level) }.map { case ->
+            CASES.filter { !it.quotedInUsing && it.appliesAt(level) }.map { case ->
                 listOfNotNull("import Bitwise", case.setup.trim().ifEmpty { null }, case.source, AFTER)
                     .joinToString("\n")
             }
 
         private const val AFTER = "def after_guard(y), do: y"
 
-        val IN_RANGE_CASES = listOf(
+        val CASES = listOf(
+            Case("integer_is_odd", "is_odd(integer)", "integer", "is_integer(integer) and (integer &&& 1) == 1"),
+            Case("integer_is_even_rem", "is_even(integer)", "integer", "is_integer(integer) and rem(integer, 2) == 0"),
+            Case("in_list", "is_kind(kind)", "kind", "kind in [:a, :b, :c]", kind = "defguardp"),
+            Case("in_charlist", "is_vowel(c)", "c", "c in 'aeiou'", kind = "defguardp"),
             Case("iso_is_hour", "is_hour(hour)", "hour", "hour in 0..23", kind = "defguardp"),
             Case(
                 "iso_is_microsecond",
@@ -238,13 +213,6 @@ class DefguardTemplateTest : SdkProbeTestCase() {
                 kind = "defguardp",
             ),
             Case("in_attribute_range", "is_small(x)", "x", "x in @r", setup = "  @r 1..3", kind = "defguardp"),
-        )
-
-        val CASES = listOf(
-            Case("integer_is_odd", "is_odd(integer)", "integer", "is_integer(integer) and (integer &&& 1) == 1"),
-            Case("integer_is_even_rem", "is_even(integer)", "integer", "is_integer(integer) and rem(integer, 2) == 0"),
-            Case("in_list", "is_kind(kind)", "kind", "kind in [:a, :b, :c]", kind = "defguardp"),
-            Case("in_charlist", "is_vowel(c)", "c", "c in 'aeiou'", kind = "defguardp"),
             Case("or_equal", "is_space(c)", "c", "c == ?\\s or c == ?\\t", kind = "defguardp"),
             Case(
                 "record_is_record_1",
