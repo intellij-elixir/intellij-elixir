@@ -393,7 +393,7 @@ private class Escape(private val run: Run, private val module: String?) {
             val capture = Meta.Key.Entry("capture", Meta.Value.Integer(position.toLong()))
                 .takeIf { CAPTURE_ARGUMENT_POSITION_META.isSufficient(run.level) }
             val keys = listOfNotNull(counter, capture) + node.meta.keys
-            val meta = node.meta.let { Meta(it.origin, it.start, it.end, keys, it.built) }
+            val meta = node.meta.withKeys(keys)
 
             if (CAPTURE_ARGUMENT_IN_ELIXIR_FN_CONTEXT.isSufficient(run.level)) {
                 val name = ElixirAst.Literal.Atom(node.meta, "_&")

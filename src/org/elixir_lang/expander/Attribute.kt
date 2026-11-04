@@ -226,7 +226,7 @@ private class Built(private val meta: Meta) {
     /** An alias `quote` builds: `alias: false`, so it isn't expanded through the caller's aliases. */
     fun alias(vararg segments: String) =
         ElixirAst.Alias(
-            Meta(meta.origin, meta.start, meta.end, meta.keys + entry("alias", "false"), meta.built),
+            meta.withKeys(meta.keys + entry("alias", "false")),
             segments.map(::atom),
         )
 

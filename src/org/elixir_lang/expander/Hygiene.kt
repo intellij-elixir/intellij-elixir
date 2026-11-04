@@ -331,7 +331,7 @@ private fun carry(call: ElixirAst.Call, original: Meta, rebuilt: Meta, run: Run)
 private fun keynew(meta: Meta, name: String, value: Meta.Value): Meta {
     val has = meta.keys.any { (it is Meta.Key.Location && name == "line") || (it is Meta.Key.Entry && it.name == name) }
 
-    return if (has) meta else Meta(meta.origin, meta.start, meta.end, listOf(Meta.Key.Entry(name, value)) + meta.keys, meta.built)
+    return if (has) meta else meta.ahead(Meta.Key.Entry(name, value))
 }
 
 /** `lists:keystore/4`: [keys] with [name]'s entry replaced in place, or added last. */

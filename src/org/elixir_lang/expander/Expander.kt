@@ -803,7 +803,7 @@ internal fun Run.versioned(node: ElixirAst, version: Int): ExpandedAst =
 internal fun versionEntry(version: Int): Meta.Key.Entry = Meta.Key.Entry("version", Meta.Value.Integer(version.toLong()))
 
 /** This metadata with [key] ahead of its keys. */
-internal fun Meta.ahead(key: Meta.Key): Meta = Meta(origin, start, end, listOf(key) + keys, built)
+internal fun Meta.ahead(key: Meta.Key): Meta = withKeys(listOf(key) + keys)
 
 /** This metadata with its keys [keys]. */
 internal fun Meta.withKeys(keys: List<Meta.Key>): Meta = Meta(origin, start, end, keys, built)
