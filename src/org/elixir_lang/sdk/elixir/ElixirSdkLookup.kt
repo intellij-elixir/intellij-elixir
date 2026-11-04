@@ -12,10 +12,13 @@ import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiFileSystemItem
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Facet
+import org.elixir_lang.facet.FacetModels
 import org.elixir_lang.sdk.ProcessOutput.isSmallIde
 import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResolver
 import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResult
@@ -108,8 +111,25 @@ object ElixirSdkLookup {
         val project = psiElement.project
         if (project.isDisposed) return ElixirSdkResolution.MissingElixirSdk
 
-        val module = ModuleUtilCore.findModuleForPsiElement(psiElement)
+        val module = moduleFor(psiElement)
         return if (module != null) resolve(module) else resolve(project)
+    }
+
+    /**
+     * [ModuleUtilCore.findModuleForPsiElement], or for a file or directory under the roots of an SDK a facet names,
+     * the module the platform would pick from those whose facet names it. Those roots come from no library entity,
+     * which the platform maps a library file to its modules by.
+     */
+    @RequiresReadLock
+    private fun moduleFor(element: PsiElement): Module? {
+        ModuleUtilCore.findModuleForPsiElement(element)?.let { return it }
+        if (element !is PsiFileSystemItem || (element is PsiFile && element.context != null)) return null
+
+        val file = element.virtualFile ?: return null
+        val project = element.project
+
+        return FacetModels.getInstance(project).modulesHolding(file)
+            .minWithOrNull(ModuleManager.getInstance(project).moduleDependencyComparator())
     }
 
     /** Resolves to [ElixirSdkResolution.Ready] or [ElixirSdkResolution.MissingElixirSdk]. */

@@ -185,6 +185,7 @@
         <facetType implementation="org.elixir_lang.facet.Type"/>
         <projectFacetListener facet-type="Elixir" implementation="org.elixir_lang.facet.FacetModels$FacetListener"/>
         <additionalLibraryRootsProvider implementation="org.elixir_lang.facet.FacetModelLibraryProvider"/>
+        <resolveScopeEnlarger implementation="org.elixir_lang.facet.FacetModelResolveScopeEnlarger"/>
 
         <applicationService serviceInterface="org.elixir_lang.facet.configurable.TopLevelElixirConfigurableFactory"
                             serviceImplementation="org.elixir_lang.facet.configurable.SmallIdeTopLevelElixirConfigurableFactory"

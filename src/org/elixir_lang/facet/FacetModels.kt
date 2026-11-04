@@ -9,13 +9,17 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.module.Module
+import com.intellij.openapi.module.impl.scopes.JdkScope
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.RootsChangeRescanningInfo
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
+import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ex.ProjectRootManagerEx
-import com.intellij.openapi.project.RootsChangeRescanningInfo
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.EmptyRunnable
+import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import com.intellij.util.concurrency.annotations.RequiresWriteLock
 import org.elixir_lang.Facet
@@ -38,6 +42,27 @@ class FacetModels(private val project: Project) : Disposable {
     /** The SDKs the project's facets name, one for each name. */
     @RequiresReadLock
     fun named(): List<Sdk> = facetModules().mapNotNull(ElixirSdkLookup::facetSdk).distinctBy { it.name }
+
+    /** The modules whose facet names an SDK with a root holding [file]. */
+    @RequiresReadLock
+    fun modulesHolding(file: VirtualFile): List<Module> =
+        facetModules()
+            .groupBy(ElixirSdkLookup::facetSdk)
+            .filterKeys { sdk -> sdk != null && sdkScope(sdk).contains(file) }
+            .values
+            .flatten()
+
+    /** The roots of the SDK [module]'s facet names, which none of its order entries carries. */
+    @RequiresReadLock
+    fun scope(module: Module): GlobalSearchScope? = ElixirSdkLookup.facetSdk(module)?.let { sdkScope(it) }
+
+    private fun sdkScope(sdk: Sdk): GlobalSearchScope =
+        JdkScope(
+            project,
+            sdk.rootProvider.getFiles(OrderRootType.CLASSES),
+            sdk.rootProvider.getFiles(OrderRootType.SOURCES),
+            sdk.name,
+        )
 
     private fun facetModules(): List<Module> = ProjectFacetManager.getInstance(project).getModulesWithFacet(Facet.ID)
 

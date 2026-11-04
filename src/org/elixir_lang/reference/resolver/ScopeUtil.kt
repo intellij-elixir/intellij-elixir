@@ -16,6 +16,7 @@ import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.facet.FacetModels
 import org.jetbrains.annotations.VisibleForTesting
 
 /**
@@ -68,6 +69,7 @@ private fun recoverLocalFile(file: VirtualFile): VirtualFile? {
  *   - SDK source roots via [LibraryScopeCache.getScopeForSdk] per [JdkOrderEntry]
  *   - Non-SDK library source roots via [JdkScope] over each [LibraryOrderEntry]'s
  *     [OrderRootType.SOURCES] roots (e.g. `deps/ecto/lib`)
+ *   - On a small IDE, the roots of the SDK the module's Elixir facet names ([FacetModels.scope])
  *
  * Using the module's own root model (not
  * [com.intellij.openapi.roots.ProjectFileIndex.getOrderEntriesForFile]) keeps the
@@ -107,5 +109,7 @@ fun narrowedScope(element: PsiElement, project: Project): GlobalSearchScope {
             else acc.uniteWith(JdkScope(project, emptyArray(), sourceRoots, entry.libraryName))
         }
 
-    return moduleScope.uniteWith(sdkSourceScope).uniteWith(librarySourceScope)
+    val facetSdkScope = FacetModels.getInstance(project).scope(module) ?: GlobalSearchScope.EMPTY_SCOPE
+
+    return moduleScope.uniteWith(sdkSourceScope).uniteWith(librarySourceScope).uniteWith(facetSdkScope)
 }

@@ -13,6 +13,7 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ProjectFileIndex
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
@@ -22,6 +23,7 @@ import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.common.runAll
 import org.elixir_lang.Facet
 import org.elixir_lang.sdk.ProcessOutput
+import org.elixir_lang.sdk.SdkFixtures
 import org.jdom.Element
 import java.io.File
 import java.util.concurrent.Callable
@@ -59,11 +61,21 @@ internal class FacetModelFixtures {
         )
     }
 
-    fun register(name: String, roots: Roots): Sdk = register(name, listOf(roots.ebin), listOf(roots.lib))
+    /** [register] with [roots]. */
+    fun register(name: String, roots: Roots, home: String? = null): Sdk =
+        register(name, listOf(roots.ebin), listOf(roots.lib), home)
 
-    /** An Elixir SDK in the table with [classes] as its `CLASSES` roots and [sources] as its `SOURCES` roots. */
-    fun register(name: String, classes: List<VirtualFile> = emptyList(), sources: List<VirtualFile> = emptyList()): Sdk {
-        val sdk = ProjectJdkImpl(name, ElixirSdkType.instance)
+    /**
+     * An Elixir SDK in the table with [classes] as its `CLASSES` roots and [sources] as its `SOURCES` roots; a [home]
+     * made by `SdkFixtures.elixirHome` is read by the versions store first.
+     */
+    fun register(
+        name: String,
+        classes: List<VirtualFile> = emptyList(),
+        sources: List<VirtualFile> = emptyList(),
+        home: String? = null,
+    ): Sdk {
+        val sdk = if (home == null) ProjectJdkImpl(name, ElixirSdkType.instance) else SdkFixtures.elixirSdk(name, home)
 
         WriteAction.run<Throwable> {
             sdk.sdkModificator.apply {
@@ -76,6 +88,7 @@ internal class FacetModelFixtures {
 
         added.add(sdk)
         SdksService.getInstance()!!.resetForTests()
+        if (home != null) SdkFixtures.waitForRegistrationFills()
 
         return sdk
     }
@@ -93,6 +106,12 @@ internal class FacetModelFixtures {
         }
         added.clear()
         SdksService.getInstance()!!.resetForTests()
+    }
+
+    /** Runs as a small IDE until [disposable] is disposed, then [leaveSmallIde]. */
+    fun onSmallIde(project: Project, disposable: Disposable) {
+        ProcessOutput.isSmallIdeOverride = true
+        Disposer.register(disposable) { leaveSmallIde(project) }
     }
 
     /** [removeAll], then lets the deferred roots change run while still a small IDE, then stops being one. */
