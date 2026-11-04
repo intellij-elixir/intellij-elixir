@@ -11,6 +11,8 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
+import com.intellij.openapi.roots.LibraryOrderEntry
+import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.util.Disposer
@@ -170,6 +172,13 @@ internal class FacetModelFixtures {
             FacetManager.getInstance(module).getFacetByType(Facet.ID)
                 ?.let { FacetUtil.saveFacetConfiguration(it.configuration) }
                 ?.getAttributeValue("sdkName")
+
+        /** The names of the libraries [module]'s order entries refer to. */
+        fun libraryNames(module: Module): List<String?> =
+            ReadAction.computeBlocking<List<String?>, Throwable> {
+                ModuleRootManager.getInstance(module).orderEntries.filterIsInstance<LibraryOrderEntry>()
+                    .map { it.libraryName }
+            }
 
         fun assign(module: Module, sdk: Sdk) {
             val facet = facet(module)

@@ -16,6 +16,15 @@ class FacetSdkHeavyTest : SmallIdeFacetHeavyTestCase() {
         assertTrue("the facet's configuration saved no sdkName:\n$saved", saved.contains("sdkName=\"${sdk.name}\""))
     }
 
+    fun testAssignmentSavesNoLibrary() {
+        val sdk = models.register("Facet Heavy Test C")
+
+        assign(module, sdk)
+
+        val saved = savedModuleFile()
+        assertFalse("assigning the SDK saved a module library:\n$saved", saved.contains("module-library"))
+    }
+
     fun testAProjectOpenedWithANameHasItsModelsRoots() {
         val roots = models.roots("FacetSdkHeavyTestB", testRootDisposable)
         val sdk = models.register("Facet Heavy Test B", roots)

@@ -17,6 +17,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.IndexingTestUtil
+import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.util.system.OS
 import org.elixir_lang.Facet
 import org.elixir_lang.PlatformTestCase
@@ -221,6 +222,7 @@ class LoadedCopyTest : PlatformTestCase() {
                 FacetUtil.addFacet(module, FacetType.findInstance(Type::class.java))
                 FacetManager.getInstance(module).getFacetByType(Facet.ID)!!.sdk = sdk
             }
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
             IndexingTestUtil.waitUntilIndexesAreReady(project)
 
             assertEquals(listOf("sdk/ebin/$ENUMERABLE_BEAM"), loaded(LIB_ASKER, ENUMERABLE))
@@ -234,6 +236,7 @@ class LoadedCopyTest : PlatformTestCase() {
                     }
                 }
             }
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
             ProcessOutput.isSmallIdeOverride = null
         }
     }

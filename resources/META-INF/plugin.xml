@@ -37,7 +37,6 @@
         <postStartupActivity implementation="org.elixir_lang.sdk.SdkVersionsStartupActivity"/>
         <postStartupActivity implementation="org.elixir_lang.mix.DepsCheckerStartupActivity"/>
         <postStartupActivity implementation="org.elixir_lang.mix.sync.MixLibraryReconcileStartupActivity"/>
-        <postStartupActivity implementation="org.elixir_lang.facet.SdkLibraryReconcileStartupActivity"/>
 
         <!--        <errorHandler implementation="org.elixir_lang.errorreport.Submitter"/>-->
         <errorHandler implementation="com.intellij.diagnostic.JetBrainsMarketplaceErrorReportSubmitter"/>

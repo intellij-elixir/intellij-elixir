@@ -41,7 +41,7 @@ class SharedModuleStateTest : PlatformTestCase() {
         assertEquals(emptyList<String>(), before.differences(SharedModuleState.of(module)))
     }
 
-    /** An Elixir facet's SDK library, a module SDK and a source folder on the fixture's own root are taken off too. */
+    /** A module SDK and a source folder on the fixture's own root are taken off too. */
     @RequiresEdt
     fun testRestoreRemovesAnSdkAndASourceFolder() {
         val before = SharedModuleState.of(module)

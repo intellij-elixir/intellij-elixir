@@ -18,6 +18,8 @@ import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
+import com.intellij.testFramework.IndexingTestUtil
+import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import com.intellij.testFramework.common.runAll
 import org.elixir_lang.ElixirLanguage
@@ -29,6 +31,7 @@ import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
 import org.elixir_lang.facet.SdksService
 import org.elixir_lang.facet.Type
+import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 import java.io.File
 
@@ -62,6 +65,8 @@ class LibraryDeclarationRenameTest : PlatformTestCase() {
         val declaration = outsideProject("facet_sdk/lib/elixir/lib", "sdk_lib.ex", LIBRARY_SOURCE)
         val sdk = registerSdk("Library Rename Test Facet SDK", declaration.parent)
 
+        ProcessOutput.isSmallIdeOverride = true
+        cleanups += { ProcessOutput.isSmallIdeOverride = null }
         if (FacetManager.getInstance(module).getFacetByType(Facet.ID) == null) {
             FacetUtil.addFacet(module, FacetType.findInstance(Type::class.java))
         }
@@ -69,8 +74,11 @@ class LibraryDeclarationRenameTest : PlatformTestCase() {
         WriteAction.runAndWait<Throwable> { FacetManager.getInstance(module).getFacetByType(Facet.ID)!!.sdk = sdk }
         cleanups += {
             WriteAction.runAndWait<Throwable> { FacetManager.getInstance(module).getFacetByType(Facet.ID)?.sdk = null }
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
             SdksService.getInstance()!!.resetForTests()
         }
+        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
 
         assertRenameRefused(declaration)
     }
