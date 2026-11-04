@@ -14,7 +14,6 @@ import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.SdkModificator
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.ui.ComboBox
-import com.intellij.openapi.util.Comparing
 import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.concurrency.ThreadingAssertions
@@ -346,18 +345,11 @@ class AdditionalDataConfigurable(
             suppressOtpMismatchWarningCheckBox.isSelected = additionalData?.isSuppressOtpMismatchWarning() ?: false
 
             if (erlangSdk != null) {
-                LOG.debug("[$sdkName] Looking for Erlang SDK '${erlangSdk.name}' in combo box")
-                var found = false
-                for (i in 0 until internalErlangSdksComboBoxModel.size) {
-                    val element = internalErlangSdksComboBoxModel.getElementAt(i)
-                    if (Comparing.strEqual(element?.name, erlangSdk.name)) {
-                        LOG.debug("[$sdkName] Found Erlang SDK at index $i, selecting")
-                        internalErlangSdksComboBox.selectedIndex = i
-                        found = true
-                        break
-                    }
-                }
-                if (!found) {
+                val index = internalErlangSdksComboBoxModel.indexOfName(erlangSdk.name)
+                if (index != null) {
+                    LOG.debug("[$sdkName] Found Erlang SDK '${erlangSdk.name}' at index $index, selecting")
+                    internalErlangSdksComboBox.selectedIndex = index
+                } else {
                     LOG.debug { ("[$sdkName] Erlang SDK '${erlangSdk.name}' not found in combo box (size=${internalErlangSdksComboBoxModel.size})") }
                 }
 
