@@ -3,6 +3,8 @@ package org.elixir_lang.sdk.erlang_dependent
 import com.intellij.openapi.options.ex.ConfigurableCardPanel
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
+import com.intellij.openapi.projectRoots.SdkModificator
+import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.testFramework.common.runAll
@@ -244,6 +246,34 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         assertEquals(deleted.name, liveErlangName(page.elixirSdk))
     }
 
+    fun testAPickRemovedFromTheModelBeforeApplyWritesNothing() {
+        val picked = erlang("Combo pick removed picked Erlang", "26", "26.2.5")
+        val model = model(picked, paired("Combo pick removed", "Combo pick removed gone Erlang", "/gone/erlang"))
+        val page = open(model, "Combo pick removed")
+
+        page.combo.selectedItem = model.findSdk(picked.name)
+        model.removeSdk(model.findSdk(picked.name)!!)
+        page.configurable.apply()
+
+        assertEquals("Combo pick removed gone Erlang", liveErlangName(page.elixirSdk))
+    }
+
+    fun testAPickRemovedFromTheModelShowsTheStoredPairingAgain() {
+        val stored = SdkFixtures.withCodePaths(erlang("Combo pick removed stored Erlang", "27", "27.3.4"))
+        val picked = SdkFixtures.withCodePaths(erlang("Combo pick removed shown Erlang", "26", "26.2.5"))
+        val model = model(stored, picked, paired("Combo pick removed paths", stored.name, stored.homePath!!))
+        val page = open(model, "Combo pick removed paths")
+        assertEquals("precondition: the stored pairing's code paths", codePaths(stored), page.codePathsUnder(stored.homePath!!))
+
+        page.combo.selectedItem = model.findSdk(picked.name)
+        model.removeSdk(model.findSdk(picked.name)!!)
+
+        assertEquals(stored.name, (page.combo.selectedItem as Sdk?)?.name)
+        assertEquals("the stored pairing's code paths", codePaths(stored), page.codePathsUnder(stored.homePath!!))
+        assertEquals("the removed pick's code paths", emptyList<String>(), page.codePathsUnder(picked.homePath!!))
+        assertFalse(page.configurable.isModified)
+    }
+
     fun testAnErlangAddedToTheModelIsNotWritten() {
         val gone = erlang("Combo gone Erlang", "25", "25.3.2")
         val model = model(paired("Combo empty combo", gone.name, gone.homePath!!))
@@ -286,14 +316,19 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val elixirSdk: Sdk,
         val combo: ComboBox<*>,
         val suppress: JBCheckBox,
+        private val modificator: SdkModificator,
     ) {
         fun listedNames(): List<String> = (0 until combo.itemCount).map { (combo.getItemAt(it) as Sdk).name }
+
+        /** The code paths under [home] the page's path editors hold, before any Apply. */
+        fun codePathsUnder(home: String): List<String> = SdkFixtures.pathsUnder(modificator.getRoots(OrderRootType.CLASSES), home)
     }
 
     /** The page for the model's copy of the Elixir SDK named [elixirName], reset as the SDK editor shows it. */
     private fun open(model: SdkModel, elixirName: String): Page {
         val elixirSdk = model.findSdk(elixirName)!!
-        val configurable = AdditionalDataConfigurable(model, elixirSdk.sdkModificator)
+        val modificator = elixirSdk.sdkModificator
+        val configurable = AdditionalDataConfigurable(model, modificator)
         configurable.setSdk(elixirSdk)
         val component = configurable.createComponent()
         configurable.reset()
@@ -304,6 +339,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
             elixirSdk,
             UIUtil.findComponentOfType(component, ComboBox::class.java)!!,
             UIUtil.findComponentOfType(component, JBCheckBox::class.java)!!,
+            modificator,
         )
     }
 

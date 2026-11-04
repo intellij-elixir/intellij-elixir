@@ -9,6 +9,7 @@ import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.util.io.FileUtil
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.diagnostic.ThreadDumper
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.common.runAll
@@ -57,15 +58,17 @@ internal object SdkFixtures {
     /** [erlang]'s one code path, its [erlangHomeWithEbin]'s stdlib ebin. */
     fun codePaths(erlang: Sdk): List<String> = listOf(erlang.rootProvider.getFiles(OrderRootType.CLASSES).single().path)
 
-    fun codePathsUnder(sdk: Sdk, home: String): List<String> =
-        sdk.rootProvider.getFiles(OrderRootType.CLASSES).map { it.path }
-            .filter { FileUtil.isAncestor(FileUtil.toSystemIndependentName(home), it, false) }
+    fun codePathsUnder(sdk: Sdk, home: String): List<String> = pathsUnder(sdk.rootProvider.getFiles(OrderRootType.CLASSES), home)
 
     /** [elixir]'s code paths include [erlang]'s, at its home, and none under [oldHome]. */
     fun assertCodePathsFollowed(elixir: Sdk, erlang: Sdk, oldHome: String) {
         TestCase.assertEquals("the new home's code paths", codePaths(erlang), codePathsUnder(elixir, erlang.homePath!!))
         TestCase.assertEquals("the old home's code paths", emptyList<String>(), codePathsUnder(elixir, oldHome))
     }
+
+    /** The paths of [roots] under [home]. */
+    fun pathsUnder(roots: Array<out VirtualFile>, home: String): List<String> =
+        roots.map { it.path }.filter { FileUtil.isAncestor(FileUtil.toSystemIndependentName(home), it, false) }
 
     @RequiresEdt
     fun register(sdk: Sdk, parentDisposable: Disposable): Sdk {

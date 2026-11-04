@@ -314,34 +314,37 @@ class AdditionalDataConfigurable(
                 return
             }
 
-            // The pairing as it resolves in sdkModel.
-            val additionalData = sdk.elixirAdditionalData
-            val erlangSdk = additionalData?.getErlangSdk(sdkModel)
-
             // Restore the suppress checkbox state from persisted additional data
-            suppressOtpMismatchWarningCheckBox.isSelected = additionalData?.isSuppressOtpMismatchWarning() ?: false
+            suppressOtpMismatchWarningCheckBox.isSelected = sdk.elixirAdditionalData?.isSuppressOtpMismatchWarning() ?: false
 
-            if (erlangSdk != null) {
-                val index = internalErlangSdksComboBoxModel.indexOfName(erlangSdk.name)
-                if (index != null) {
-                    LOG.debug("[$sdkName] Found Erlang SDK '${erlangSdk.name}' at index $index, selecting")
-                    internalErlangSdksComboBox.selectedIndex = index
-                } else {
-                    LOG.debug { ("[$sdkName] Erlang SDK '${erlangSdk.name}' not found in combo box (size=${internalErlangSdksComboBoxModel.size})") }
-                }
-
-                if (!hasErlangClasspathInRoots(sdkModificator.getRoots(OrderRootType.CLASSES), erlangSdk)) {
-                    addNewCodePathsFromInternErlangSdk(sdk, erlangSdk, sdkModificator)
-                }
-            } else {
-                LOG.debug("[$sdkName] No Erlang SDK found to select")
-            }
+            showStoredPairing(sdk)
         }
 
         markStored()
         saveHintLabel.isVisible = false
         updateWarningLabel()
         updateOtpMismatchWarning()
+    }
+
+    /** Selects the Erlang SDK [sdk]'s pairing resolves to in [sdkModel], and adds its code paths when they are missing. */
+    private fun showStoredPairing(sdk: Sdk) {
+        val erlangSdk = sdk.elixirAdditionalData?.getErlangSdk(sdkModel)
+        if (erlangSdk == null) {
+            LOG.debug("[${sdk.name}] No Erlang SDK found to select")
+            return
+        }
+
+        val index = internalErlangSdksComboBoxModel.indexOfName(erlangSdk.name)
+        if (index != null) {
+            LOG.debug("[${sdk.name}] Found Erlang SDK '${erlangSdk.name}' at index $index, selecting")
+            internalErlangSdksComboBox.selectedIndex = index
+        } else {
+            LOG.debug { ("[${sdk.name}] Erlang SDK '${erlangSdk.name}' not found in combo box (size=${internalErlangSdksComboBoxModel.size})") }
+        }
+
+        if (!hasErlangClasspathInRoots(sdkModificator.getRoots(OrderRootType.CLASSES), erlangSdk)) {
+            addNewCodePathsFromInternErlangSdk(sdk, erlangSdk, sdkModificator)
+        }
     }
 
     override fun disposeUIResources() {
@@ -361,9 +364,22 @@ class AdditionalDataConfigurable(
         internalErlangSdksComboBoxModel.addElement(sdk)
     }
 
-    /** By name: `ProjectSdksModel.removeSdk` fires with the table's SDK, while the combo lists the model's copies. */
-    private fun removeErlangSdk(sdk: Sdk) = frozen {
-        internalErlangSdksComboBoxModel.indexOfName(sdk.name)?.let(internalErlangSdksComboBoxModel::removeElementAt)
+    /**
+     * By name: `ProjectSdksModel.removeSdk` fires with the table's SDK, while the combo lists the model's copies. Removing
+     * the picked SDK voids the pick: the page shows the stored pairing again, with its code paths in place of the pick's.
+     */
+    private fun removeErlangSdk(sdk: Sdk) {
+        val picked = (internalErlangSdksComboBox.selectedItem as? Sdk)?.takeIf { pairingPicked && it.name == sdk.name }
+        frozen { internalErlangSdksComboBoxModel.indexOfName(sdk.name)?.let(internalErlangSdksComboBoxModel::removeElementAt) }
+        val myElixirSdk = elixirSdk
+        if (picked == null || myElixirSdk == null) return
+
+        pairingPicked = false
+        removeCodePathsFromInternalErlangSdk(myElixirSdk, picked, sdkModificator)
+        frozen { showStoredPairing(myElixirSdk) }
+        saveHintLabel.isVisible = false
+        updateWarningLabel()
+        updateOtpMismatchWarning()
     }
 
     private inline fun frozen(block: () -> Unit) {
