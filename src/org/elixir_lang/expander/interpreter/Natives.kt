@@ -41,6 +41,7 @@ import org.elixir_lang.expander.TermEscapeBuilder
 import org.elixir_lang.expander.TermEscapeView
 import org.elixir_lang.expander.annotation
 import org.elixir_lang.expander.defines
+import org.elixir_lang.expander.keystore
 import org.elixir_lang.expander.specialFormArity
 import org.elixir_lang.expander.write
 import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTES_EXPANDED_LAZILY
@@ -1357,12 +1358,13 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun storeContext(meta: OtpErlangObject, value: OtpErlangObject): OtpErlangObject {
         if (seen(value) == NIL) return meta
 
-        val key = atom("context")
         val elements = properElements(meta) ?: decline("metadata that isn't a list")
-        val index = elements.indexOfFirst { (seen(it) as? OtpErlangTuple)?.takeIf { pair -> pair.arity() >= 1 }?.elementAt(0)?.let(::seen) == key }
-        val entry = tuple(key, value)
 
-        return list(if (index < 0) elements + entry else elements.toMutableList().also { it[index] = entry })
+        return list(
+            keystore(elements, tuple(atom("context"), value)) {
+                (seen(it) as? OtpErlangTuple)?.takeIf { pair -> pair.arity() >= 1 }?.elementAt(0)?.let(::seen)
+            },
+        )
     }
 
     /** `lists:keydelete(counter, 1, Meta)`. */

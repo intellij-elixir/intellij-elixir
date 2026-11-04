@@ -462,12 +462,6 @@ private fun isElixirAlias(name: String): Boolean =
 private fun isSimpleAlias(name: String): Boolean =
     isElixirAlias(name) && name.removePrefix("Elixir.").split('.').count { it.isNotEmpty() } == 1
 
-private inline fun <T> keystore(list: List<T>, element: T, key: (T) -> String): List<T> {
-    val index = list.indexOfFirst { key(it) == key(element) }
-
-    return if (index < 0) list + element else list.toMutableList().apply { set(index, element) }
-}
-
 /** `expand_require/5`: [module] added to the requires, then aliased only as [opts]' `as:` says. */
 private inline fun expandRequire(
     call: ElixirAst.Call,

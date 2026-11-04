@@ -240,12 +240,20 @@ internal fun <I> definitionHead(view: EscapeView<I>, head: I, level: ElixirLangu
 
 private val DEFINITIONS = setOf("def", "defp", "defmacro", "defmacrop", "@")
 
-/** `lists:keystore/4`, as `elixir_quote`'s `keystore/3` calls it with a value that isn't `nil`. */
-internal fun <O> keystore(meta: Keywords<O>, key: String, value: O): Keywords<O> {
-    val index = meta.indexOfFirst { it.first == key }
+/**
+ * `lists:keystore/4`: [list] with its first element whose key, as [keyOf] reads it, is [element]'s replaced by
+ * [element], or else [element] added last.
+ */
+internal inline fun <T, K> keystore(list: List<T>, element: T, keyOf: (T) -> K?): List<T> {
+    val key = keyOf(element)
+    val index = list.indexOfFirst { keyOf(it) == key }
 
-    return if (index < 0) meta + (key to value) else meta.toMutableList().apply { set(index, key to value) }
+    return if (index < 0) list + element else list.toMutableList().apply { set(index, element) }
 }
+
+/** `lists:keystore/4`, as `elixir_quote`'s `keystore/3` calls it with a value that isn't `nil`. */
+internal fun <O> keystore(meta: Keywords<O>, key: String, value: O): Keywords<O> =
+    keystore(meta, key to value) { it.first }
 
 /** `lists:keydelete/3`: [meta] without its first element whose key, as [keyOf] reads it, is [key]. */
 internal fun <T> keydelete(meta: List<T>, key: String, keyOf: (T) -> String?): List<T> {

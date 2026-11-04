@@ -335,12 +335,8 @@ private fun keynew(meta: Meta, name: String, value: Meta.Value): Meta {
 }
 
 /** `lists:keystore/4`: [keys] with [name]'s entry replaced in place, or added last. */
-private fun keystore(keys: List<Meta.Key>, name: String, value: Meta.Value): List<Meta.Key> {
-    val index = keys.indexOfFirst { it is Meta.Key.Entry && it.name == name }
-    val entry = Meta.Key.Entry(name, value)
-
-    return if (index < 0) keys + entry else keys.toMutableList().apply { set(index, entry) }
-}
+private fun keystore(keys: List<Meta.Key>, name: String, value: Meta.Value): List<Meta.Key> =
+    keystore(keys, Meta.Key.Entry(name, value)) { (it as? Meta.Key.Entry)?.name }
 
 /** `lists:keydelete/3`: [keys] without the first entry named [name]. */
 private fun keydelete(keys: List<Meta.Key>, name: String): List<Meta.Key> =
