@@ -431,10 +431,11 @@ internal fun <R> expandRequire(
 
 /**
  * `elixir_dispatch:is_macro/4`, or before 1.13 `get_macros/2`: whether [name]/[arity] is a macro of [receiver], or
- * `null` where its exports can't be read. From 1.13 an unrequired [receiver]'s macros aren't read.
+ * `null` where its exports can't be read. From 1.13 an unrequired [receiver]'s macros aren't read, and `:erlang`'s never
+ * are, as it has none.
  */
 internal fun isMacro(receiver: String, name: String, arity: Int, required: Boolean, run: Run): Boolean? =
-    if (required || !UNREQUIRED_MACRO_CALLED_AS_FUNCTION.isSufficient(run.level)) {
+    if (receiver != ERLANG && (required || !UNREQUIRED_MACRO_CALLED_AS_FUNCTION.isSufficient(run.level))) {
         when (val exports = run.exports.of(receiver)) {
             ModuleExports.Absent -> false
             ModuleExports.Unreadable -> null
