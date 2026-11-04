@@ -532,8 +532,8 @@ class LoadedModulesTest : ProbeTestCase() {
                 for m <- [${modules.joinToString(", ")}] do
                   answer = if function_exported?(m, :behaviour_info, 1), do: m.behaviour_info(:callbacks), else: :none
                   IntellijElixir.Quoter.Probe.send(__ENV__, answer)
-                  :code.purge(m)
                   :code.delete(m)
+                  :code.purge(m)
                 end
                 """.trimIndent(),
         )
