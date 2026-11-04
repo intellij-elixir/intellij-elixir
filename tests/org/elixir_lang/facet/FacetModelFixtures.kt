@@ -13,6 +13,7 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.LibraryOrderEntry
 import com.intellij.openapi.roots.ModuleRootManager
+import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.util.Disposer
@@ -95,6 +96,22 @@ internal class FacetModelFixtures {
         return sdk
     }
 
+    /**
+     * An SDK registered as [name] with roots of its own, and the module library an earlier version wrote in [module] in
+     * place of its facet's SDK: named like it, carrying its `CLASSES` and `SOURCES` roots.
+     */
+    fun standIn(module: Module, name: String, disposable: Disposable): Sdk {
+        val sdk = register(name, roots(name.replace(" ", ""), disposable))
+        facet(module)
+        ModuleRootModificationUtil.addModuleLibrary(
+            module,
+            name,
+            sdk.rootProvider.getUrls(OrderRootType.CLASSES).toList(),
+            sdk.rootProvider.getUrls(OrderRootType.SOURCES).toList(),
+        )
+        return sdk
+    }
+
     fun remove(sdk: Sdk) {
         WriteAction.run<Throwable> { ProjectJdkTable.getInstance().removeJdk(sdk) }
         SdksService.getInstance()!!.resetForTests()
@@ -172,6 +189,11 @@ internal class FacetModelFixtures {
             FacetManager.getInstance(module).getFacetByType(Facet.ID)
                 ?.let { FacetUtil.saveFacetConfiguration(it.configuration) }
                 ?.getAttributeValue("sdkName")
+
+        /** A module library named [name] in [module], with no roots. */
+        fun moduleLibrary(module: Module, name: String) {
+            ModuleRootModificationUtil.addModuleLibrary(module, name, emptyList(), emptyList())
+        }
 
         /** The names of the libraries [module]'s order entries refer to. */
         fun libraryNames(module: Module): List<String?> =

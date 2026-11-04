@@ -132,13 +132,17 @@ class FacetModels(private val project: Project) : Disposable {
 
     /** An Elixir SDK added, removed or renamed. */
     internal class SdkListener(private val project: Project) : ProjectJdkTable.Listener {
-        override fun jdkAdded(jdk: Sdk) = ifElixir(jdk) { sdkChanged(jdk) }
+        override fun jdkAdded(jdk: Sdk) = ifElixir(jdk) {
+            sdkChanged(jdk)
+            StandInMigration.rerun(project)
+        }
 
         override fun jdkRemoved(jdk: Sdk) = ifElixir(jdk) { sdkChanged(jdk) }
 
         override fun jdkNameChanged(jdk: Sdk, previousName: String) = ifElixir(jdk) {
             sdkRenamed(jdk, previousName)
             sdkChanged(jdk)
+            StandInMigration.rerun(project)
         }
 
         private inline fun ifElixir(jdk: Sdk, block: FacetModels.() -> Unit) {
