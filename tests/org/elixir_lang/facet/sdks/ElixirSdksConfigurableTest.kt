@@ -34,8 +34,6 @@ import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
  *  - removing an SDK throws an NPE, and
  *  - a removed SDK "ghosts" in the chooser.
  */
-private const val UNRESOLVABLE_ROOT_URL = "jar:///fake/elixir/unresolvable-root/lib.jar!/"
-
 class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     private val added = mutableListOf<Sdk>()
@@ -125,54 +123,6 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         assertSame("the open page's list and editors hold these copies", copy, model.findSdk("Elixir Test Copy Identity"))
     }
 
-    fun testAnSdkCommittedWhileApplyingIsRefreshedInTheModel() {
-        val sdk = registerElixirSdk("Elixir Test Committed While Applying")
-        val model = service().getModel()
-        val committed = AtomicBoolean()
-
-        // What renaming an Erlang SDK does: the table listener commits every Elixir SDK paired with it, from inside
-        // the apply's own write action.
-        sdk.rootProvider.addRootSetChangedListener({
-            if (committed.compareAndSet(false, true)) {
-                sdk.sdkModificator.apply {
-                    homePath = "/fake/elixir/committed-while-applying"
-                    commitChanges()
-                }
-            }
-        }, testRootDisposable)
-
-        service().apply(model)
-
-        assertTrue("precondition: the commit ran while the model was being applied", committed.get())
-        assertEquals("precondition: the saved SDK carries the commit", "/fake/elixir/committed-while-applying", sdk.homePath)
-        assertEquals(
-            "a copy that would revert the commit must not survive the apply",
-            "/fake/elixir/committed-while-applying",
-            model.findSdk("Elixir Test Committed While Applying")?.homePath,
-        )
-        assertSame("the page applying keeps its model", model, service().getModel())
-    }
-
-    fun testRefreshingACopyKeepsTheObjectTheOpenPageHolds() {
-        val sdk = registerElixirSdk("Elixir Test Copy Refreshed In Place")
-        val model = service().getModel()
-        val copy = model.findSdk("Elixir Test Copy Refreshed In Place")
-        val committed = AtomicBoolean()
-        sdk.rootProvider.addRootSetChangedListener({
-            if (committed.compareAndSet(false, true)) {
-                sdk.sdkModificator.apply {
-                    homePath = "/fake/elixir/refreshed-in-place"
-                    commitChanges()
-                }
-            }
-        }, testRootDisposable)
-
-        service().apply(model)
-
-        assertSame("replacing the copy orphans the editor the page still writes into", copy, model.findSdk("Elixir Test Copy Refreshed In Place"))
-        assertEquals("/fake/elixir/refreshed-in-place", copy?.homePath)
-    }
-
     fun testApplyingAModelThatAddsAnSdkKeepsIt() {
         val model = service().getModel()
         model.addSdk(ProjectJdkImpl("Elixir Test Added By Its Own Apply", ElixirSdkType.instance))
@@ -182,41 +132,6 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         ProjectJdkTable.getInstance().findJdk("Elixir Test Added By Its Own Apply")!!.also(added::add)
         assertSame("the dialog's own add must not drop the model pages opened later share", model, service().getModel())
     }
-
-    fun testRefreshingACopyKeepsARootThatDoesNotResolve() {
-        val sdk = registerElixirSdk("Elixir Test Unresolvable Root") as ProjectJdkImpl
-        val model = service().getModel()
-        val copy = model.findSdk("Elixir Test Unresolvable Root")
-        WriteAction.run<Throwable> { sdk.readExternal(sdkElementWithUnresolvableRoot(sdk)) }
-        assertEquals(
-            "precondition: the SDK carries a root URL the VFS cannot resolve",
-            listOf(UNRESOLVABLE_ROOT_URL),
-            sdk.rootProvider.getUrls(OrderRootType.CLASSES).toList(),
-        )
-
-        service().copyInto(sdk, copy!! as ProjectJdkImpl)
-
-        assertEquals(
-            "a root the VFS cannot resolve must not be dropped from the copy, which is applied back over the SDK",
-            listOf(UNRESOLVABLE_ROOT_URL),
-            copy.rootProvider.getUrls(OrderRootType.CLASSES).toList(),
-        )
-    }
-
-    /** What loading `jdk.table.xml` produces for an SDK whose root is a jar that is not there. */
-    private fun sdkElementWithUnresolvableRoot(sdk: ProjectJdkImpl): org.jdom.Element =
-        org.jdom.Element("sdk").also { element ->
-            sdk.writeExternal(element)
-            element.getChild("roots")
-                ?.getChild("classPath")
-                ?.getChild("root")
-                ?.addContent(
-                    org.jdom.Element("root").apply {
-                        setAttribute("type", "simple")
-                        setAttribute("url", UNRESOLVABLE_ROOT_URL)
-                    }
-                )
-        }
 
     fun testAnSdkRenamedByAnotherWriterWhileApplyingDropsTheCachedModel() {
         val sdk = registerElixirSdk("Elixir Test Apply Trigger For Rename")

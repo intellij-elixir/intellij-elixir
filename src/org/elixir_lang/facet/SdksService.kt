@@ -2,7 +2,6 @@ package org.elixir_lang.facet
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.application.WriteIntentReadAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.ProjectManager
@@ -11,13 +10,11 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
+import com.intellij.openapi.roots.RootProvider
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.util.JDOMUtil
 import com.intellij.util.concurrency.annotations.RequiresEdt
-import org.jdom.Element
 import org.jetbrains.annotations.TestOnly
-import java.util.concurrent.ConcurrentHashMap
 
 @Service
 class SdksService : Disposable {
@@ -31,8 +28,6 @@ class SdksService : Disposable {
 
     @Volatile
     private var applying: ProjectSdksModel? = null
-
-    private val committedWhileApplying: MutableSet<Sdk> = ConcurrentHashMap.newKeySet()
 
     @Volatile
     private var tableChangedWhileApplying = false
@@ -69,8 +64,9 @@ class SdksService : Disposable {
      */
     private fun invalidateOnCommit(model: ProjectSdksModel) {
         val listeners = Disposer.newDisposable(this, "SdksService model commits")
+        val onCommit = RootProvider.RootSetChangedListener { invalidate() }
         for (sdk in model.projectSdks.keys) {
-            sdk.rootProvider.addRootSetChangedListener({ onCommitted(sdk) }, listeners)
+            sdk.rootProvider.addRootSetChangedListener(onCommit, listeners)
         }
         // An SDK created on the SDKs page goes through `ProjectSdksModel.doAdd`, which publishes it while it is still
         // absent from the table, so no `jdkAdded` follows and the loop above cannot have seen it.
@@ -80,7 +76,7 @@ class SdksService : Disposable {
                 // copy while the commit that has to drop the cache fires on the original's root provider. `findSdk`
                 // maps the copy back to the key the loop above would have registered.
                 val original = model.findSdk(sdk) ?: sdk
-                original.rootProvider.addRootSetChangedListener({ onCommitted(original) }, listeners)
+                original.rootProvider.addRootSetChangedListener(onCommit, listeners)
             }
 
             override fun beforeSdkRemove(sdk: Sdk) {}
@@ -90,11 +86,6 @@ class SdksService : Disposable {
         model.addListener(added)
         Disposer.register(listeners) { model.removeListener(added) }
         modelCommitListeners = listeners
-    }
-
-    private fun onCommitted(sdk: Sdk) {
-        if (applying != null && applying === model) committedWhileApplying.add(sdk)
-        invalidate()
     }
 
     private enum class Change { ADDED, REMOVED, RENAMED }
@@ -121,41 +112,6 @@ class SdksService : Disposable {
         }
         invalidate()
     }
-
-    /**
-     * Applying commits every SDK in the model, and a listener can commit another one while it does: renaming an Erlang
-     * SDK fires `jdkNameChanged` from inside the apply's own write action, and the SDK table listener commits every
-     * Elixir SDK paired with it. That commit is in the table but not in the copies the model holds, and applying them
-     * again would revert it.
-     */
-    private fun refreshCommittedWhileApplying(model: ProjectSdksModel) {
-        val stale = committedWhileApplying.mapNotNull { original ->
-            val editable = model.projectSdks[original]
-            if (original !is ProjectJdkImpl || editable !is ProjectJdkImpl || sameState(original, editable)) {
-                null
-            } else {
-                original to editable
-            }
-        }
-        if (stale.isEmpty()) return
-
-        WriteAction.run<Throwable> { stale.forEach { (original, editable) -> copyInto(original, editable) } }
-    }
-
-    /**
-     * The open page keys its editors and its list selection by the copy, so the copy's state is replaced, not the copy
-     * itself. Through the serialized form, because `SdkModificator.addRoot` takes a `VirtualFile` and so drops a root
-     * whose URL does not resolve - a WSL distro that is down, or a jar the VFS has not refreshed - and this copy is
-     * what the page's next apply writes back over the SDK.
-     */
-    internal fun copyInto(original: ProjectJdkImpl, editable: ProjectJdkImpl) {
-        editable.readExternal(serialized(original))
-    }
-
-    private fun sameState(original: ProjectJdkImpl, editable: ProjectJdkImpl): Boolean =
-        JDOMUtil.areElementsEqual(serialized(original), serialized(editable))
-
-    private fun serialized(sdk: ProjectJdkImpl): Element = Element("sdk").also(sdk::writeExternal)
 
     override fun dispose() {}
 
@@ -184,14 +140,12 @@ class SdksService : Disposable {
      */
     @Suppress("UnstableApiUsage")
     fun apply(model: ProjectSdksModel) = WriteIntentReadAction.run {
-        committedWhileApplying.clear()
         applying = model
         try {
             model.apply()
         } finally {
             applying = null
             if (model === this.model) {
-                refreshCommittedWhileApplying(model)
                 if (tableChangedWhileApplying) {
                     invalidate()
                 } else {
@@ -199,7 +153,6 @@ class SdksService : Disposable {
                     invalidateOnCommit(model)
                 }
             }
-            committedWhileApplying.clear()
             tableChangedWhileApplying = false
         }
     }
