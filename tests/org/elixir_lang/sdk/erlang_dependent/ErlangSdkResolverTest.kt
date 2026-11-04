@@ -95,13 +95,15 @@ class ErlangSdkResolverTest : PlatformTestCase() {
 
     fun testResolveByHomePath_success() {
         val erlangHomePath = "/fake/erlang/26.0"
-        val erlangSdk = SdkFixtures.erlangSdk("Erlang 26", erlangHomePath)
+        val erlangSdk = SdkFixtures.erlangSdk("Erlang 26 at the home", erlangHomePath)
+        // The stored name names an SDK at another home: the home comes first.
+        val namedElsewhere = SdkFixtures.erlangSdk("Erlang 26", "/fake/erlang/27.0")
 
         val elixirSdk = createElixirSdk { sdk ->
             SdkFixtures.storedPairing(sdk, "Erlang 26", erlangHomePath)
         }
 
-        val result = resolver.resolveErlangSdkResult(elixirSdk, ListedSdkModel(erlangSdk))
+        val result = resolver.resolveErlangSdkResult(elixirSdk, ListedSdkModel(namedElsewhere, erlangSdk))
 
         assertTrue("Should resolve successfully by home path", result is ErlangSdkResult.Success)
         assertEquals(erlangSdk, (result as ErlangSdkResult.Success).sdk)
@@ -131,8 +133,9 @@ class ErlangSdkResolverTest : PlatformTestCase() {
         val modernHomePath = "\\\\wsl.localhost\\IntellijElixirWSLDistribution\\home\\testuser\\.asdf\\installs\\erlang\\26.0"
         val erlangSdk = SdkFixtures.erlangSdk("Erlang 26", legacyHomePath)
 
+        // A stored name that names nothing, so only the home can find it.
         val elixirSdk = createElixirSdk { sdk ->
-            SdkFixtures.storedPairing(sdk, "Erlang 26", modernHomePath)
+            SdkFixtures.storedPairing(sdk, "Erlang 26 before rename", modernHomePath)
         }
 
         val result = resolver.resolveErlangSdkResult(elixirSdk, ListedSdkModel(erlangSdk))
