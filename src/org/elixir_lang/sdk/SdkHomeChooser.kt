@@ -98,22 +98,34 @@ object SdkHomeChooser {
         homesNewestFirst: (Path) -> List<String>,
         registeredHomes: Collection<String>,
     ): VirtualFile? {
-        // Scanning a WSL distro goes through its connection, so it is waited for rather than cut off, but on another
-        // thread: the scan never checks for cancellation, and an unresponsive distro must not hold the dialog open.
-        val scan = ApplicationManager.getApplication().executeOnPooledThread<String?> {
-            firstUnregistered(homesNewestFirst(basePath), registeredHomes)
-        }
         var home: String? = null
-        ProgressManager.getInstance().runProcessWithProgressSynchronously(
-            { home = awaitCancellably(scan) },
+        scanUnderProgress(
             "Looking for installed ${presentableName}s",
-            true,
-            null,
-        )
-        scan.cancel(true)
+            { firstUnregistered(homesNewestFirst(basePath), registeredHomes) },
+        ) { awaitScan -> home = awaitScan() }
 
         return home?.let { wslCompat.findFileByPath(it, refresh = true) }
             ?: wslCompat.findFileByPath(FileUtil.toSystemIndependentName(basePath.toString()), refresh = true)
+    }
+
+    /**
+     * Runs [scan] on a pooled thread and [body] under modal progress titled [title]; [body] waits for the scan's result
+     * through the function it is given. False when cancelled. Scanning a WSL distro goes through its connection, so it
+     * is waited for rather than cut off, but on another thread: the scan never checks for cancellation, and an
+     * unresponsive distro must not hold the progress open.
+     */
+    internal fun <T> scanUnderProgress(title: String, scan: () -> T, body: (awaitScan: () -> T) -> Unit): Boolean {
+        val future = ApplicationManager.getApplication().executeOnPooledThread<T> { scan() }
+        try {
+            return ProgressManager.getInstance().runProcessWithProgressSynchronously(
+                { body { awaitCancellably(future) } },
+                title,
+                true,
+                null,
+            )
+        } finally {
+            future.cancel(true)
+        }
     }
 
     @VisibleForTesting
