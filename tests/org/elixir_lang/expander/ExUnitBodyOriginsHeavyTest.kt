@@ -4,7 +4,6 @@ import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangBinary
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
-import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
@@ -93,7 +92,7 @@ class ExUnitBodyOriginsHeavyTest : HeavyTestCase() {
             file == "test/doctest_then_tests_test.exs" -> isBefore(version, "1.14.0")
             // The pattern and its read are equal terms on one line, told apart only by `stop_generated` from 1.20.
             file.endsWith("equal_on_a_line_test.exs") ->
-                isBefore(version, "1.20.0") && variable.name == "context" && variable.line == 7 && variable.column == 11
+                !marksArguments && variable.name == "context" && variable.line == 7 && variable.column == 11
             // The same under a list, which no position aligns, so both stay built before 1.20.
             file.endsWith("built_line_test.exs") -> !marksArguments && variable.name == "context"
             else -> false
@@ -299,7 +298,7 @@ class ExUnitBodyOriginsHeavyTest : HeavyTestCase() {
 
         assertEquals(1, rows.count { it.isSource && it.name == "x" && it.line == 7 && it.column == 43 })
         assertEquals(
-            if (isBefore(version, "1.20.0")) "built" else "source",
+            if (marksArguments) "source" else "built",
             if (rows.any { it.name == "context" && it.built }) "built" else "source",
         )
     }
