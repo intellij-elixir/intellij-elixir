@@ -13,6 +13,7 @@ import com.intellij.diagnostic.ThreadDumper
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.common.runAll
 import com.intellij.util.concurrency.annotations.RequiresEdt
+import junit.framework.TestCase
 import org.jdom.Element
 import java.io.File
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
@@ -59,6 +60,12 @@ internal object SdkFixtures {
     fun codePathsUnder(sdk: Sdk, home: String): List<String> =
         sdk.rootProvider.getFiles(OrderRootType.CLASSES).map { it.path }
             .filter { FileUtil.isAncestor(FileUtil.toSystemIndependentName(home), it, false) }
+
+    /** [elixir]'s code paths include [erlang]'s, at its home, and none under [oldHome]. */
+    fun assertCodePathsFollowed(elixir: Sdk, erlang: Sdk, oldHome: String) {
+        TestCase.assertEquals("the new home's code paths", codePaths(erlang), codePathsUnder(elixir, erlang.homePath!!))
+        TestCase.assertEquals("the old home's code paths", emptyList<String>(), codePathsUnder(elixir, oldHome))
+    }
 
     @RequiresEdt
     fun register(sdk: Sdk, parentDisposable: Disposable): Sdk {
@@ -125,6 +132,13 @@ internal object SdkFixtures {
 
     /** The Erlang SDK name [persistedElixirData] holds. */
     fun storedErlangName(sdk: Sdk): String? = persistedElixirData(sdk)?.getErlangSdkName()
+
+    /** The Erlang SDK home [persistedElixirData] holds. */
+    fun storedErlangHome(sdk: Sdk): String? = persistedElixirData(sdk)?.getErlangSdkHomePath()
+
+    /** [erlangSdk] with the code paths its type sets up: its home's stdlib ebin. */
+    @RequiresEdt
+    fun withCodePaths(erlangSdk: Sdk): Sdk = erlangSdk.also(ErlangSdkType.instance::setupSdkPaths)
 
     /** [elixirSdk]'s pairing as its XML stores it: [erlangName], and [erlangHome] when given; nothing resolved. */
     fun storedPairing(elixirSdk: Sdk, erlangName: String, erlangHome: String? = null): ElixirSdkAdditionalData =

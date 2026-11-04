@@ -1,6 +1,5 @@
 package org.elixir_lang.sdk.erlang_dependent
 
-import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.options.ex.ConfigurableCardPanel
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
@@ -19,7 +18,6 @@ import org.elixir_lang.sdk.SdkFixtures.codePaths
 import org.elixir_lang.sdk.SdkFixtures.codePathsUnder
 import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
-import org.elixir_lang.sdk.erlang.Type as ErlangType
 
 /** The Elixir SDK page's Erlang pairing combo, on both families' pages: it writes a pairing only after the user picks one. */
 class AdditionalDataConfigurableTest : PlatformTestCase() {
@@ -135,9 +133,8 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
      * writes the named SDK's home, and the code paths follow it.
      */
     fun testPickingTheNamedErlangAtAnotherHomeMovesTheCodePaths() {
-        val named = erlang("Combo named Erlang", "27", "27.3.4")
-        val atStoredHome = erlang("Combo stored home Erlang", "26", "26.2.5")
-        WriteAction.run<Throwable> { listOf(named, atStoredHome).forEach(ErlangType.instance::setupSdkPaths) }
+        val named = SdkFixtures.withCodePaths(erlang("Combo named Erlang", "27", "27.3.4"))
+        val atStoredHome = SdkFixtures.withCodePaths(erlang("Combo stored home Erlang", "26", "26.2.5"))
         val elixir = paired("Combo named pick", named.name, atStoredHome.homePath!!)
         val model = model(named, atStoredHome, elixir)
         ElixirSdkPathConfigurator.configure(elixir, model)

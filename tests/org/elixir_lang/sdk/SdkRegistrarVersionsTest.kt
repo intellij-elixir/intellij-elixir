@@ -52,7 +52,7 @@ class SdkRegistrarVersionsTest : PlatformTestCase() {
         assertEquals("1.20.0-rc.0", store.elixirVersions(elixirSdk.homePath)?.elixirVersion)
         assertNotNull(
             "the pairing stays in the SDK, which is what JPS reads",
-            SdkFixtures.persistedElixirData(elixirSdk)?.getErlangSdkHomePath(),
+            SdkFixtures.storedErlangHome(elixirSdk),
         )
     }
 
@@ -164,7 +164,7 @@ class SdkRegistrarVersionsTest : PlatformTestCase() {
         store.clearForTests()
         assertNotNull(
             "precondition: a confirmed pairing takes the fast path",
-            SdkFixtures.persistedElixirData(elixirSdk)?.getErlangSdkHomePath(),
+            SdkFixtures.storedErlangHome(elixirSdk),
         )
 
         val again = registerElixir(elixirHome, erlangSdk)

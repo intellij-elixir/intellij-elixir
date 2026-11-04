@@ -9,20 +9,20 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
-import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.testFramework.common.runAll
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.facet.SdksService
 import org.elixir_lang.sdk.SdkFixtures
-import org.elixir_lang.sdk.SdkFixtures.persistedElixirData
+import org.elixir_lang.sdk.SdkFixtures.codePaths
+import org.elixir_lang.sdk.SdkFixtures.codePathsUnder
 import org.elixir_lang.sdk.SdkFixtures.register
 import org.elixir_lang.sdk.SdkFixtures.settle
+import org.elixir_lang.sdk.SdkFixtures.storedErlangHome
 import org.elixir_lang.sdk.SdkFixtures.storedErlangName
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
 import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
 import org.elixir_lang.facet.sdks.erlang.Configurable as ErlangSdksConfigurable
-import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
 
 /**
  * Deleting an Erlang SDK that Elixir SDKs are paired with asks, for each one left without its Erlang, which Erlang it
@@ -128,23 +128,21 @@ class ErlangDeletionAskTest : PlatformTestCase() {
         settle()
 
         assertEquals(other.name, storedErlangName(elixirSdk))
-        assertEquals(other.homePath, persistedElixirData(elixirSdk)?.getErlangSdkHomePath())
+        assertEquals(other.homePath, storedErlangHome(elixirSdk))
     }
 
     fun testAPickSetsUpTheElixirSdksCodePathsFromIt() {
-        val deleted = withEbinRoot(erlang("Ask roots deleted Erlang", install("27", "27.3.4")))
-        val other = withEbinRoot(erlang("Ask roots other Erlang", install("26", "26.2.5")))
+        val deleted = SdkFixtures.withCodePaths(erlang("Ask roots deleted Erlang", install("27", "27.3.4")))
+        val other = SdkFixtures.withCodePaths(erlang("Ask roots other Erlang", install("26", "26.2.5")))
         val elixirSdk = paired("Ask roots Elixir", SdkFixtures.elixirHome("1.18.4"), deleted)
         ElixirSdkPathConfigurator.configure(elixirSdk)
-        assertTrue("precondition: the deleted Erlang's ebin is a root", ebinUrl(deleted) in classes(elixirSdk))
+        assertEquals("precondition: the deleted Erlang's code paths", codePaths(deleted), codePathsUnder(elixirSdk, deleted.homePath!!))
         script(ScriptedErlangStep.pick(other.name))
 
         SdkConfigurationUtil.removeSdk(deleted)
         settle()
 
-        val roots = classes(elixirSdk)
-        assertTrue("the picked Erlang's ebin is a root: $roots", ebinUrl(other) in roots)
-        assertFalse("the deleted Erlang's is not: $roots", ebinUrl(deleted) in roots)
+        SdkFixtures.assertCodePathsFollowed(elixirSdk, other, deleted.homePath!!)
     }
 
     fun testCancelWritesNothing() {
@@ -228,28 +226,21 @@ class ErlangDeletionAskTest : PlatformTestCase() {
     }
 
     fun testTheAskedSdksOwnHomeCanBePicked() {
-        // IDEA: the paired SDK removed through Project Structure, another SDK left at its home.
-        val ideaHome = install("27", "27.3.4")
-        val ideaDeleted = erlang("Ask own home IDEA deleted Erlang", ideaHome)
-        val ideaTwin = erlang("Ask own home IDEA twin Erlang", ideaHome)
-        paired("Ask own home IDEA Elixir", SdkFixtures.elixirHome("1.18.4"), ideaDeleted)
-        val ideaStep = script(ScriptedErlangStep.cancel)
+        assertOwnHomeCanBePicked("Ask own home IDEA", install("27", "27.3.4"), SdkFixtures.elixirHome("1.18.4"), ::removeInIdea)
+        assertOwnHomeCanBePicked("Ask own home small", install("26", "26.2.5"), SdkFixtures.elixirHome("1.17.3"), SdkConfigurationUtil::removeSdk)
+    }
 
-        removeInIdea(ideaDeleted)
+    /** With another Erlang SDK left at the home of the paired one [remove] deletes, the ask offers that SDK to pick. */
+    private fun assertOwnHomeCanBePicked(prefix: String, erlangHome: String, elixirHome: String, remove: (Sdk) -> Unit) {
+        val deleted = erlang("$prefix deleted Erlang", erlangHome)
+        val twin = erlang("$prefix twin Erlang", erlangHome)
+        paired("$prefix Elixir", elixirHome, deleted)
+        val step = script(ScriptedErlangStep.cancel)
+
+        remove(deleted)
         settle()
 
-        assertTrue("IDEA's step", ideaStep.offered.single().single { it.sdk?.name == ideaTwin.name }.pickable)
-
-        val smallHome = install("26", "26.2.5")
-        val smallDeleted = erlang("Ask own home small deleted Erlang", smallHome)
-        val smallTwin = erlang("Ask own home small twin Erlang", smallHome)
-        paired("Ask own home small Elixir", SdkFixtures.elixirHome("1.17.3"), smallDeleted)
-        val smallStep = script(ScriptedErlangStep.cancel)
-
-        SdkConfigurationUtil.removeSdk(smallDeleted)
-        settle()
-
-        assertTrue("the small IDEs' step", smallStep.offered.single().single { it.sdk?.name == smallTwin.name }.pickable)
+        assertTrue("$prefix: the step", step.offered.single().single { it.sdk?.name == twin.name }.pickable)
     }
 
     /** As IDEA's Project Structure does: removed from the dialog's model, then the model applied on OK. */
@@ -271,11 +262,4 @@ class ErlangDeletionAskTest : PlatformTestCase() {
 
     private fun paired(name: String, elixirHome: String, erlangName: String, erlangHome: String?): Sdk =
         SdkFixtures.commitPairing(register(SdkFixtures.elixirSdk(name, elixirHome)), erlangName, erlangHome)
-
-    /** [sdk] with its paths set up, so its home's stdlib ebin is its code path. */
-    private fun withEbinRoot(sdk: Sdk): Sdk = sdk.also { ErlangSdkType.instance.setupSdkPaths(it) }
-
-    private fun ebinUrl(erlangSdk: Sdk): String = erlangSdk.rootProvider.getUrls(OrderRootType.CLASSES).single()
-
-    private fun classes(sdk: Sdk): List<String> = sdk.rootProvider.getUrls(OrderRootType.CLASSES).toList()
 }

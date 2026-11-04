@@ -10,11 +10,10 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.codePaths
 import org.elixir_lang.sdk.SdkFixtures.codePathsUnder
-import org.elixir_lang.sdk.SdkFixtures.persistedElixirData
+import org.elixir_lang.sdk.SdkFixtures.storedErlangHome
 import org.elixir_lang.sdk.SdkFixtures.storedErlangName
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
 import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
-import org.elixir_lang.sdk.erlang.Type as ErlangType
 import org.elixir_lang.sdk.wsl.MockWslCompatService
 import org.elixir_lang.sdk.wsl.WslCompatService
 import java.util.concurrent.Callable
@@ -50,7 +49,7 @@ class ErlangSdkResolverHealTest : PlatformTestCase() {
 
         SdkFixtures.settle()
 
-        assertEquals("/fake/erlang/heal-by-name", persistedElixirData(elixirSdk)?.getErlangSdkHomePath())
+        assertEquals("/fake/erlang/heal-by-name", storedErlangHome(elixirSdk))
     }
 
     @RequiresEdt
@@ -104,7 +103,7 @@ class ErlangSdkResolverHealTest : PlatformTestCase() {
 
         SdkFixtures.settle()
 
-        assertEquals("/fake/erlang/heal-moved-new", persistedElixirData(elixirSdk)?.getErlangSdkHomePath())
+        assertEquals("/fake/erlang/heal-moved-new", storedErlangHome(elixirSdk))
     }
 
     /**
@@ -113,9 +112,8 @@ class ErlangSdkResolverHealTest : PlatformTestCase() {
      */
     @RequiresEdt
     fun testAHealedHomeMovesTheCodePaths() {
-        val erlangSdk = register(SdkFixtures.erlangSdk("Heal rehomes Erlang", SdkFixtures.erlangHomeWithEbin("27", "27.3.4")))
-        val gone = SdkFixtures.erlangSdk("Heal rehomes gone Erlang", SdkFixtures.erlangHomeWithEbin("26", "26.2.5"))
-        WriteAction.run<Throwable> { listOf(erlangSdk, gone).forEach(ErlangType.instance::setupSdkPaths) }
+        val erlangSdk = SdkFixtures.withCodePaths(register(SdkFixtures.erlangSdk("Heal rehomes Erlang", SdkFixtures.erlangHomeWithEbin("27", "27.3.4"))))
+        val gone = SdkFixtures.withCodePaths(SdkFixtures.erlangSdk("Heal rehomes gone Erlang", SdkFixtures.erlangHomeWithEbin("26", "26.2.5")))
         val elixirSdk = register(SdkFixtures.elixirSdk("Heal rehomes Elixir", SdkFixtures.elixirHome("1.18.4")))
         WriteAction.run<Throwable> { ElixirSdkMutation.applyDependencySelection(elixirSdk, gone) }
         ElixirSdkPathConfigurator.configure(elixirSdk)
@@ -125,9 +123,8 @@ class ErlangSdkResolverHealTest : PlatformTestCase() {
         assertSame(erlangSdk, resolve(elixirSdk))
         SdkFixtures.settle()
 
-        assertEquals(erlangSdk.homePath, persistedElixirData(elixirSdk)?.getErlangSdkHomePath())
-        assertEquals("the found SDK's code paths", codePaths(erlangSdk), codePathsUnder(elixirSdk, erlangSdk.homePath!!))
-        assertEquals("the gone SDK's code paths", emptyList<String>(), codePathsUnder(elixirSdk, gone.homePath!!))
+        assertEquals(erlangSdk.homePath, storedErlangHome(elixirSdk))
+        SdkFixtures.assertCodePathsFollowed(elixirSdk, erlangSdk, gone.homePath!!)
     }
 
     @RequiresEdt
@@ -187,7 +184,7 @@ class ErlangSdkResolverHealTest : PlatformTestCase() {
         SdkFixtures.settle()
 
         assertNull(elixirSdk.elixirAdditionalData?.getErlangSdkHomePath())
-        assertNull(persistedElixirData(elixirSdk)?.getErlangSdkHomePath())
+        assertNull(storedErlangHome(elixirSdk))
     }
 
     private fun register(sdk: Sdk): Sdk = SdkFixtures.register(sdk, testRootDisposable)
