@@ -36,7 +36,7 @@ class SdkHomeBrowseTest {
                 val browsed = driver.errorsDuring("$page-browsed") { browseHome(model, sdkPage.chooserTitle, homeB) }
                 rows.check(page, "the IDE reported no error on Browse: $browsed", browsed.isEmpty())
                 val applied = driver.errorsDuring("$page-applied") {
-                    clickButtonText("Apply")
+                    clickApply()
                     Thread.sleep(1_000)
                 }
                 rows.check(page, "the IDE reported no error on Apply: $applied", applied.isEmpty())
