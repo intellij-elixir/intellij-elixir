@@ -70,7 +70,8 @@ object ElixirSdkPathConfigurator {
         }
     }
 
-    private fun addSourcePaths(sdkModificator: SdkModificator) {
+    /** Each `lib` beside an `ebin` under [sdkModificator]'s home, as a SOURCES root. */
+    internal fun addSourcePaths(sdkModificator: SdkModificator) {
         val homePath = sdkModificator.homePath ?: return
         SdkEbinPaths.eachEbinPath(
             homePath,

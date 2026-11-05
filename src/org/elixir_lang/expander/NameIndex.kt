@@ -1,16 +1,35 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.ModificationTracker
+import com.intellij.psi.PsiElement
+import com.intellij.psi.ResolveState
+import com.intellij.psi.search.GlobalSearchScope
+import com.intellij.psi.stubs.StubIndex
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import com.intellij.util.containers.CollectionFactory
 import org.elixir_lang.NameArity
 import org.elixir_lang.beam.psi.CallDefinition
+import org.elixir_lang.declaration.Declaration
+import org.elixir_lang.declaration.Form
 import org.elixir_lang.expander.ExpanderSource.Probe
+import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.ElixirFile
+import org.elixir_lang.psi.NamedElement
+import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.scope.call_definition_clause.Declarations
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
+import org.elixir_lang.psi.stub.index.ModularName
 import java.util.TreeMap
+import java.util.concurrent.ConcurrentHashMap
 import org.elixir_lang.beam.psi.Module as BeamModule
+
+/** A declaration a source file writes, the call that declares it, and its head as [DeclaringForm.head] finds it. */
+internal class WrittenHead(val declaration: Declaration, val call: Call, val written: PsiElement?)
 
 /** [T]s by name, held in name order. */
 internal class NameIndex<T> private constructor(byName: Map<String, List<T>>) {
@@ -49,6 +68,7 @@ internal class NameIndex<T> private constructor(byName: Map<String, List<T>>) {
         private val imports = CollectionFactory.createConcurrentWeakIdentityMap<Env.Imports, NameIndex<NameArity>>()
         private val exports = CollectionFactory.createConcurrentWeakIdentityMap<ModuleExports.Present, NameIndex<NameArity>>()
         private val definitions = Key.create<CachedValue<NameIndex<CallDefinition>>>("org.elixir_lang.expander.NameIndex.definitions")
+        private val heads = Key.create<CachedValue<ConcurrentHashMap<String, NameIndex<WrittenHead>>>>("org.elixir_lang.expander.NameIndex.heads")
 
         /**
          * [table]'s named definitions, leaving out an entry a definition's defaults added while a definition of its name
@@ -80,6 +100,35 @@ internal class NameIndex<T> private constructor(byName: Map<String, List<T>>) {
                     ModificationTracker.NEVER_CHANGED,
                 )
             }, false)
+
+        /**
+         * The heads [file] writes for [module], an index name, as the walk declares them, where [file] defines [module]
+         * once; none otherwise. Held on [file] until it changes.
+         */
+        @RequiresReadLock
+        fun of(file: ElixirFile, module: String): NameIndex<WrittenHead> {
+            val byModule = CachedValuesManager.getCachedValue(file, heads) {
+                CachedValueProvider.Result.create(ConcurrentHashMap<String, NameIndex<WrittenHead>>(), file)
+            }
+
+            return byModule.getOrPut(module) { of(writtenHeads(file, module)) { it.declaration.name } }
+        }
+
+        private fun writtenHeads(file: ElixirFile, module: String): List<WrittenHead> {
+            val modular = StubIndex.getElements(ModularName.KEY, module, file.project, GlobalSearchScope.fileScope(file), NamedElement::class.java)
+                .singleOrNull() as? Call
+                ?: return emptyList()
+
+            return CallDefinitionClause.modularChildCalls(modular).flatMap { call ->
+                ProgressManager.checkCanceled()
+                // A `@callback` declares nothing a module defines.
+                val form = DeclaringForm.shapedForm(call)?.takeUnless { it == Form.CALLBACK } ?: return@flatMap emptyList()
+
+                Declarations.of(form, call, ResolveState.initial()).mapNotNull { spelled ->
+                    spelled.declaration?.let { WrittenHead(it, call, DeclaringForm.head(call, form, it.name, it.arity)) }
+                }
+            }
+        }
 
         private fun <T> of(items: Collection<T>, name: (T) -> String): NameIndex<T> {
             Probe.count(Probe.Counter.INDEXED, items.size)
