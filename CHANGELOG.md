@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4638](https://github.com/intellij-elixir/intellij-elixir/pull/4638) [@sh41](https://github.com/sh41)
+  - **On the Elixir SDKs and Internal Erlang SDKs settings pages of IDEs other than IntelliJ IDEA, an SDK can be renamed, and the pages keep up with SDKs added, removed or changed elsewhere, such as by "Configure from mise", instead of an Apply undoing those changes.** Refs [#4087](https://github.com/intellij-elixir/intellij-elixir/issues/4087).
+
 - [#4630](https://github.com/intellij-elixir/intellij-elixir/pull/4630) [@sh41](https://github.com/sh41)
   - **With "Run the expander" on, a module that macro code creates with `Module.create/3`, such as the one an Ecto inline embedded schema defines, is known with its functions.** Refs [#4597](https://github.com/intellij-elixir/intellij-elixir/issues/4597).
 
