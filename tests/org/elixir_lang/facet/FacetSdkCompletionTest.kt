@@ -1,25 +1,11 @@
 package org.elixir_lang.facet
 
-import com.intellij.facet.FacetManager
-import com.intellij.facet.FacetType
-import com.intellij.facet.impl.FacetUtil
-import com.intellij.openapi.application.WriteAction
-import com.intellij.openapi.projectRoots.ProjectJdkTable
-import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
-import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
-import com.intellij.testFramework.IndexingTestUtil
-import com.intellij.testFramework.PlatformTestUtil
-import com.intellij.testFramework.common.runAll
 import org.elixir_lang.Facet
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryTestCase.Companion.ERLANG_STDLIB_EBIN
 import org.elixir_lang.code_insight.completionStringsAtCaret
-import org.elixir_lang.sdk.ProcessOutput
-import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 import java.io.File
 
 /**
@@ -33,45 +19,10 @@ import java.io.File
  * the other: `CLASSES` holds the compiled `ebin` directories, while an Elixir SDK's `defmodule`
  * declarations are stubbed from the `.ex` files under `SOURCES`.
  */
-class FacetSdkCompletionTest : PlatformTestCase() {
-
-    private val added = mutableListOf<Sdk>()
-
+class FacetSdkCompletionTest : SmallIdeFacetTestCase() {
     override fun setUp() {
         super.setUp()
-        ProcessOutput.isSmallIdeOverride = true
-        SdksService.getInstance()!!.resetForTests()
-        ensureElixirFacet()
         assignSdk()
-    }
-
-    override fun tearDown() {
-        runAll(
-            {
-                WriteAction.run<Throwable> {
-                    FacetManager.getInstance(module).getFacetByType(Facet.ID)?.let { it.sdk = null }
-                }
-            },
-            {
-                WriteAction.run<Throwable> {
-                    val table = ProjectJdkTable.getInstance()
-                    added.filter { table.allJdks.contains(it) }.forEach { table.removeJdk(it) }
-                }
-                added.clear()
-            },
-            { SdksService.getInstance()!!.resetForTests() },
-            { PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue() },
-            { ProcessOutput.isSmallIdeOverride = null },
-            { super.tearDown() },
-        )
-    }
-
-    private fun ensureElixirFacet() {
-        val facetManager = FacetManager.getInstance(module)
-
-        if (facetManager.getFacetByType(Facet.ID) == null) {
-            FacetUtil.addFacet(module, FacetType.findInstance(Type::class.java))
-        }
     }
 
     /**
@@ -79,28 +30,9 @@ class FacetSdkCompletionTest : PlatformTestCase() {
      * `facet.configurable.Project`'s per-module page does.
      */
     private fun assignSdk() {
-        val classesRoot = beamFixtureRoot()
-        val sourcesRoot = stdlibSourceRoot()
-
-        val sdk = ProjectJdkImpl("Elixir Facet Completion Test", ElixirSdkType.instance)
-
-        WriteAction.run<Throwable> {
-            sdk.sdkModificator.apply {
-                addRoot(classesRoot, OrderRootType.CLASSES)
-                addRoot(sourcesRoot, OrderRootType.SOURCES)
-                commitChanges()
-            }
-            ProjectJdkTable.getInstance().addJdk(sdk)
-        }
-
-        added.add(sdk)
-        SdksService.getInstance()!!.resetForTests()
-
-        WriteAction.run<Throwable> {
-            FacetManager.getInstance(module).getFacetByType(Facet.ID)!!.sdk = sdk
-        }
-        PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
-        IndexingTestUtil.waitUntilIndexesAreReady(project)
+        val sdk = models.register("Elixir Facet Completion Test", listOf(beamFixtureRoot()), listOf(stdlibSourceRoot()))
+        FacetModelFixtures.assign(module, sdk)
+        settle()
     }
 
     /** The real `math.beam` directory, standing in for an SDK `ebin` CLASSES root. */
