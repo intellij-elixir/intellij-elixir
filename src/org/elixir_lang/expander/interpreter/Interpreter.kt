@@ -297,9 +297,21 @@ internal class Frame(
      * is [Unknown], which came from no module being compiled.
      */
     fun bindEach(pattern: ElixirAst, value: UnknownValue) {
-        if (value === Unknown) return
+        if (value !== Unknown) bindUnknown(listOf(pattern), value)
+    }
 
-        val pending = ArrayDeque(listOf(pattern))
+    /**
+     * Binds each variable [patterns] bind, but those already bound, to [value], a value that isn't known, [Unknown]
+     * included, as an arm that may be taken reads them.
+     */
+    private fun bindUnknown(patterns: List<ElixirAst>, value: UnknownValue) = eachBinding(patterns) { vars.putIfAbsent(it, value) }
+
+    /** Unbinds each variable [patterns] bind, as a construct that binds them afresh does before it binds them. */
+    fun unbind(patterns: List<ElixirAst>) = eachBinding(patterns) { vars.remove(it) }
+
+    /** [action] on the binding of each variable [patterns] bind. */
+    private inline fun eachBinding(patterns: List<ElixirAst>, action: (Binding) -> Unit) {
+        val pending = ArrayDeque(patterns)
 
         while (pending.isNotEmpty()) {
             ProgressManager.checkCanceled()
@@ -307,12 +319,17 @@ internal class Frame(
             val node = pending.removeLast()
 
             when {
-                isVariable(node) -> if (!isUnderscore(node)) binding(node)?.let { vars.putIfAbsent(it, value) }
+                isVariable(node) -> if (!isUnderscore(node)) binding(node)?.let(action)
                 isCall(node, "^", 1) -> {}
+                // A segment's type and size bind nothing.
+                isCall(node, "::", 2) -> pending.add((node as ElixirAst.Call).arguments!!.first())
                 else -> pending.addAll(children(node))
             }
         }
     }
+
+    /** Binds each variable [patterns] bind, but those already bound, to what isn't known of [value] ([unknownOf]). */
+    fun bindUnknownOf(patterns: List<ElixirAst>, value: OtpErlangObject) = bindUnknown(patterns, unknownOf(listOf(value)))
 
     /**
      * [node] in the form `translate/3` receives it: from source, a macro's output in place of its call, and a literal
@@ -395,6 +412,9 @@ internal class Evaluation(
 
     /** The atoms the evaluation has seen, which `binary_to_existing_atom` finds. */
     val atoms = HashSet<String>()
+
+    /** The atoms made in code that may not run ([Run.mayNotRun]), which may not exist past it. */
+    val atomsThatMayExist = HashSet<String>()
 
     val natives = Natives(this)
 
@@ -728,7 +748,7 @@ internal class Evaluation(
 
         stack.addFirst(frame(module.module, function, integer(arity.toLong())))
         try {
-            val arms = Arms { soleArm(clauses.filter { it.args.size == args.size }.map { it.body }, Frame(module)) }
+            val arms = Arms(values = args) { soleArm(clauses.filter { it.args.size == args.size }.map { it.body }, Frame(module)) }
 
             for (clause in clauses) {
                 if (clause.args.size != args.size) continue
@@ -737,7 +757,7 @@ internal class Evaluation(
 
                 val body = clause.body
 
-                if (arms.tested(body, frame) { matches(clause.args, args, frame) && guards(clause.guards, frame) }) {
+                if (arms.tested(body, frame, clause.args, clause.guards) { matches(clause.args, args, frame) && guards(clause.guards, frame) }) {
                     // A function's result is read, as the compiler sees its body, wherever it is called.
                     return using(ValueUse.READ) {
                         arms.taken(body ?: decline("$function/${args.size} matches a clause that stopped expanding"), frame, tail = true)
@@ -745,7 +765,7 @@ internal class Evaluation(
                 }
             }
 
-            arms.none()
+            arms.none()?.let { return it }
         } finally {
             stack.removeFirst()
         }
@@ -785,9 +805,10 @@ internal class Evaluation(
     /**
      * An effect no decline's marks name, a created module or a drawn counter, is applied: where the evaluator went on
      * past code that declined to reach it ([wentOnPastDecline]), Elixir may have left before it, which is taken not to
-     * happen ([assumeNoRaise]).
+     * happen ([assumeNoRaise]). In an arm that may not run ([Run.mayNotRun]), it declines, as nothing joins it.
      */
     fun reachingAnEffect() {
+        run.unjoined("an effect")
         if (wentOnPastDecline) assumeNoRaise()
     }
 
@@ -1516,20 +1537,38 @@ internal class Evaluation(
         return update(value, pairsOf(parts(pairNodes, frame, before = listOf(name, value))))
     }
 
+    /**
+     * A `cond` of [arrows]. Where a test's value isn't known, its arm may be taken, and so may the rest of the `cond`, the
+     * later tests' code included, as arms that may not run ([joined]).
+     */
     private fun cond(arrows: List<ElixirAst>, frame: Frame, tail: Boolean): OtpErlangObject {
         val arms = Arms { soleArm(arrows.map { arrowParts(it).second }, frame) }
 
         for ((index, arrow) in arrows.withIndex()) {
             val (head, body) = arrowParts(arrow)
             val scope = frame.copy()
-            val rest = listOf(body) + arrows.subList(index + 1, arrows.size)
+            val later = arrows.subList(index + 1, arrows.size)
+            val rest = listOf(body) + later
 
-            val test = { selecting(rest, emptyList(), emptyList(), scope) { truthy(eval(head.single(), scope)) } }
+            val test = {
+                val value = selecting(rest, emptyList(), emptyList(), scope) {
+                    try {
+                        eval(head.single(), scope)
+                    } catch (declined: Declined) {
+                        // The test's own code declined, which isn't a test of a value already evaluated.
+                        declined.onValue = false
+                        throw declined
+                    }
+                }
 
-            if (arms.tested(body, scope, test)) return arms.taken(body, scope, tail)
+                truthy(value)
+            }
+
+            if (arms.tested(body, scope, test = test)) return arms.taken(body, scope, tail)
+            if (arms.uncertain) return arms.taken(MaybeArm({ marks(later, frame) }) { cond(later, frame, false) })
         }
 
-        arms.none()
+        arms.none()?.let { return it }
         error(atom("cond_clause"))
     }
 
@@ -1551,18 +1590,23 @@ internal class Evaluation(
 
     /**
      * [select]'s value, which picks which of [branches] run. Where it declines, any of them may: the calls in them were
-     * given what they hold ([marks]), each variable of [patterns] holding what [values] and the decline do.
+     * given what they hold ([marks]), each variable of [patterns] holding what [values] and the decline do. Where it
+     * [tests] a value and declines on one not known ([Declined.onValue]), the arms decide.
      */
     private inline fun <T> selecting(
         branches: List<ElixirAst>,
         patterns: List<ElixirAst>,
         values: List<OtpErlangObject>,
         frame: Frame,
+        tests: Boolean = false,
         select: () -> T,
     ): T =
         try {
             select()
         } catch (declined: Declined) {
+            // A test of a value not known: its arm may be taken ([Arms.tested]).
+            if (tests && declined.onValue) throw declined
+
             val scope = frame.copy()
             val value = unknownOf(values + declined.holds)
 
@@ -2022,8 +2066,10 @@ internal class Evaluation(
      */
     private fun native(module: String, function: String, args: List<OtpErlangObject>, marks: Boolean, tail: Boolean): OtpErlangObject? =
         marking({ declined -> nativeGave(declined, module, function, args, marks) }) {
-            if (!marks && natives.writes(module, function, args).isNotEmpty()) {
-                decline("$module:$function/${args.size}'s effect is applied by the walk")
+            if ((!marks || run.mayNotRun) && natives.writes(module, function, args).isNotEmpty()) {
+                if (!marks) decline("$module:$function/${args.size}'s effect is applied by the walk")
+
+                run.unjoined("$module:$function/${args.size} writes a module")
             }
 
             natives.call(module, function, args, tail)
@@ -2670,7 +2716,7 @@ internal class Evaluation(
         subject: Declined? = null,
         tail: Boolean = false,
     ): OtpErlangObject? {
-        val arms = Arms(subject) { soleArm(arrows.map { arrowParts(it).second }, frame) }
+        val arms = Arms(subject, values) { soleArm(arrows.map { arrowParts(it).second }, frame) }
 
         for ((index, arrow) in arrows.withIndex()) {
             val (head, body) = arrowParts(arrow)
@@ -2681,15 +2727,13 @@ internal class Evaluation(
             val scope = frame.copy()
             val rest = arrows.subList(index, arrows.size)
             val test = {
-                selecting(rest, heads(rest), values, frame) { matches(patterns, values, scope, fresh) && guards(guards, scope) }
+                selecting(rest, heads(rest), values, frame, tests = true) { matches(patterns, values, scope, fresh) && guards(guards, scope) }
             }
 
-            if (arms.tested(body, scope, test)) return arms.taken(body, scope, tail)
+            if (arms.tested(body, scope, patterns, guards, test)) return arms.taken(body, scope, tail)
         }
 
-        arms.none()
-
-        return null
+        return arms.none()
     }
 
     /**
@@ -2698,19 +2742,48 @@ internal class Evaluation(
      * next arm is tried, and one taken after it assumes the raise away. Where every other arm only raises, whichever
      * order they come in, [sole] is the one left: it is taken, on the same assumption, where its test or a [passable]
      * [subject] declines. Where [subject], the decline that gave the values the arms test, is set, only an arm after one
-     * passed over, or [sole], is taken; otherwise the loop declines as [subject] did.
+     * passed over, or [sole], is taken; otherwise the loop declines as [subject] did. Where [subject] isn't set and a test
+     * declines on one of [values] that isn't known ([Declined.onValue]), its arm may be taken: it and the arm taken, or
+     * where none is, the others that may be, run as arms that may not run, and they join ([joined]).
      */
-    private inner class Arms(private val subject: Declined? = null, sole: () -> ElixirAst? = { null }) {
+    private inner class Arms(
+        private val subject: Declined? = null,
+        private val values: List<OtpErlangObject> = emptyList(),
+        sole: () -> ElixirAst? = { null },
+    ) {
         private val sole by lazy(LazyThreadSafetyMode.NONE, sole)
 
         /** The decline of the first arm passed over. */
         private var passed: Declined? = null
 
-        /** What [test], of the arm whose value is [body], gives: `false` where it declines and the arm is passed over. */
-        fun tested(body: ElixirAst?, frame: Frame, test: () -> Boolean): Boolean =
+        /** The arms that may be taken, whose tests declined on a value not known; made at the first. */
+        private var maybe: ArrayList<MaybeArm>? = null
+
+        /** Whether an arm tested before may have been taken. */
+        val uncertain get() = maybe != null
+
+        /**
+         * What [test], of the arm whose value is [body], whose [patterns] bind [frame] and whose [guards] it checks,
+         * gives: `false` where it declines and the arm is passed over, or may be taken unless its guards can't hold.
+         */
+        fun tested(
+            body: ElixirAst?,
+            frame: Frame,
+            patterns: List<ElixirAst> = emptyList(),
+            guards: List<ElixirAst> = emptyList(),
+            test: () -> Boolean,
+        ): Boolean =
             try {
                 test()
             } catch (declined: Declined) {
+                if (subject == null && declined.onValue) {
+                    if (mayBind(patterns, guards, frame)) {
+                        (maybe ?: ArrayList<MaybeArm>().also { maybe = it }) += armOf(body, frame)
+                    }
+
+                    return false
+                }
+
                 val left = body != null && body === sole
 
                 if (subject?.let(::passable) == false || !passable(declined) || !left && !onlyRaises(body, frame)) {
@@ -2722,22 +2795,165 @@ internal class Evaluation(
                 left
             }
 
+        /**
+         * Whether the arm whose test declined on a value not known may be taken, binding [patterns] in [frame] as it
+         * reads them: each pattern is matched against its value, and none may fail to match where the parts it reads are
+         * known; the variables a match left unbound are bound to what their own value may hold ([Frame.bindUnknownOf]);
+         * and one of [guards] may hold there ([mayHold]).
+         */
+        private fun mayBind(patterns: List<ElixirAst>, guards: List<ElixirAst>, frame: Frame): Boolean {
+            val pending = PatternBindings(fresh = false)
+            val pairs = patterns.zip(values)
+            val noneFails = pairs.all { (pattern, value) ->
+                try {
+                    match(pattern, value, frame, pending)
+                } catch (_: Declined) {
+                    true
+                }
+            }
+
+            if (!noneFails) return false
+
+            frame.vars.putAll(pending.vars)
+            pairs.forEach { (pattern, value) -> frame.bindUnknownOf(listOf(pattern), value) }
+
+            return mayHold(guards, frame)
+        }
+
         /** [body], of the arm taken, evaluated in [frame], in [tail] position or not. */
         fun taken(body: ElixirAst, frame: Frame, tail: Boolean): OtpErlangObject {
             if (passed == null && subject != null && passable(subject) && body === sole) {
                 run.unfollowedCodeRan()
                 passed = subject
             }
-            if (passed == null) subject?.let { throw it } else assumeNoRaise()
+            if (uncertain) return taken(armOf(body, frame))
+            pastPassedOver()
 
             return eval(body, frame, tail)
         }
 
-        /** No arm is taken: where one was passed over, or the values weren't known, the loop declines. */
-        fun none() {
+        /** [arm], which may be taken where none of the arms that may be is, joined with them. */
+        fun taken(arm: MaybeArm): OtpErlangObject {
+            pastPassedOver()
+
+            return joined(maybe.orEmpty() + arm)
+        }
+
+        /** Where an arm before was passed over, Elixir may have raised there ([assumeNoRaise]); else [subject] declines. */
+        private fun pastPassedOver() {
+            if (passed == null) subject?.let { throw it } else assumeNoRaise()
+        }
+
+        /**
+         * No arm is known to be taken: where some may be, their join, as no clause may match; where one was passed over,
+         * or the values weren't known, the loop declines; else `null`.
+         */
+        fun none(): OtpErlangObject? {
+            maybe?.let {
+                raiseMayBeCaught()
+
+                return joined(it)
+            }
             (subject ?: passed)?.let { throw it }
+
+            return null
         }
     }
+
+    /** An arm that may not be taken: what it is given ([marks]), whether it only [raises], and its value once [run]. */
+    private class MaybeArm(val marks: () -> List<OtpErlangObject>, val raises: () -> Boolean = { false }, val run: () -> OtpErlangObject)
+
+    /** The arm whose value is [body], evaluated in [frame]. */
+    private fun armOf(body: ElixirAst?, frame: Frame) =
+        MaybeArm({ marks(listOfNotNull(body), frame) }, { onlyRaises(body, frame) }) {
+            eval(body ?: decline("an arm that stopped expanding"), frame)
+        }
+
+    /**
+     * What [arms], any of which may be the one Elixir takes, give: each runs from the config the read had before them,
+     * as code that may not run ([Run.mayNotRun]), and their values and configs join. A value they all give alike is
+     * known, else unknown; a key of the config the same in each keeps its value ([joinedConfig]). Where an arm raises,
+     * the code around them may have raised ([raiseMayBeCaught]); where one declines, every arm was given what it holds.
+     */
+    private fun joined(arms: List<MaybeArm>): OtpErlangObject {
+        val read = run.config
+        val before = read?.config
+        val values = ArrayList<OtpErlangObject>()
+        val configs = ArrayList<OtpErlangObject>()
+        val raised = ArrayList<Thrown>()
+        var raises = false
+
+        run.speculating++
+        try {
+            for (arm in arms) {
+                if (arm.raises()) {
+                    raises = true
+                    continue
+                }
+                before?.let { read.config = it }
+                try {
+                    values += arm.run()
+                    read?.let { configs += it.config }
+                } catch (thrown: Thrown) {
+                    raised += thrown
+                }
+            }
+        } catch (declined: Declined) {
+            before?.let { read.config = it }
+            throw gave(declined) { add(arms.flatMap { it.marks() }, run.compiling.keys) }
+        } finally {
+            run.speculating--
+        }
+
+        if (values.isEmpty()) {
+            // Every arm raises.
+            before?.let { read.config = it }
+            val first = raised.firstOrNull()
+
+            if (!raises && first != null && raised.all { it.kind == first.kind } && oneKnownTerm(raised.map { it.reason })) throw first
+
+            return unlessRaised(Unknown)
+        }
+        if (raised.isNotEmpty() || raises) raiseMayBeCaught()
+        read?.config = configs.reduce(::joinedConfig)
+
+        return if (values.all { sameKnownTerm(it, values.first()) }) values.first() else unknownOf(values)
+    }
+
+    /**
+     * [left] and [right], two configs a read may have, joined per app and key: a key the same term in both keeps it, and
+     * one they set apart, or only one sets, is unknown. An app only one wrote holds nothing in the other.
+     */
+    private fun joinedConfig(left: OtpErlangObject, right: OtpErlangObject): OtpErlangObject =
+        joinedPerKey(left, right) { app, otherApp ->
+            joinedPerKey(app ?: OtpErlangList(), otherApp ?: OtpErlangList()) { value, other ->
+                if (value != null && other != null && sameKnownTerm(value, other)) value else Unknown
+            }
+        }
+
+    /** [left] and [right], keyword lists, each key's first value in either joined by [joined]; else one term, or unknown. */
+    private fun joinedPerKey(
+        left: OtpErlangObject,
+        right: OtpErlangObject,
+        joined: (OtpErlangObject?, OtpErlangObject?) -> OtpErlangObject,
+    ): OtpErlangObject {
+        if (isUnknown(left) || isUnknown(right) || !isKeyword(left) || !isKeyword(right)) return if (sameKnownTerm(left, right)) left else Unknown
+
+        val lefts = firstPairs(left)
+        val rights = firstPairs(right)
+
+        return list((lefts.keys + rights.keys).map { key -> tuple(key, joined(lefts[key], rights[key])) })
+    }
+
+    /** [keywords]' first value under each key. */
+    private fun firstPairs(keywords: OtpErlangObject): Map<OtpErlangObject, OtpErlangObject> =
+        LinkedHashMap<OtpErlangObject, OtpErlangObject>().apply {
+            for (pair in properElements(keywords).orEmpty()) {
+                val (key, value) = (pair as OtpErlangTuple).elements()
+
+                putIfAbsent(key, value)
+            }
+        }
 
     /** Whether [body] only raises: it is a call of a native that never returns ([Natives.neverReturns]). */
     private fun onlyRaises(body: ElixirAst?, frame: Frame): Boolean {
@@ -2766,8 +2982,9 @@ internal class Evaluation(
     }
 
     /**
-     * Whether each of [patterns] matches its value, binding their variables in [frame] where all do: afresh where
-     * [fresh], as a fun head and a generator bind them.
+     * Whether each of [patterns] matches its value, binding their variables in [frame] where all do, or, where it
+     * declines on a value not known ([Declined.onValue]), those that matched: afresh where [fresh], as a fun
+     * head and a generator bind them, the others then unbound.
      */
     private fun matches(
         patterns: List<ElixirAst>,
@@ -2776,8 +2993,18 @@ internal class Evaluation(
         fresh: Boolean = false,
     ): Boolean {
         val pending = PatternBindings(fresh)
+        val matched = try {
+            patterns.indices.all { match(patterns[it], values[it], frame, pending) }
+        } catch (declined: Declined) {
+            if (declined.onValue) {
+                if (fresh) frame.unbind(patterns)
+                frame.vars.putAll(pending.vars)
+            }
 
-        if (!patterns.indices.all { match(patterns[it], values[it], frame, pending) }) return false
+            throw declined
+        }
+
+        if (!matched) return false
 
         frame.vars.putAll(pending.vars)
 
@@ -2816,7 +3043,33 @@ internal class Evaluation(
         pending: PatternBindings,
     ): Boolean =
         value is OtpErlangTuple && value.arity() == patterns.size &&
-            patterns.indices.all { match(patterns[it], value.elementAt(it), frame, pending) }
+            allMatch(patterns.size) { match(patterns[it], value.elementAt(it), frame, pending) }
+
+    /**
+     * Whether each of [count] parts of a pattern matches ([part]), which a pattern needs all of: where one declines on a
+     * value not known ([Declined.onValue]), the rest are matched still, as one that doesn't match fails the pattern
+     * whatever that value is, and where none fails, the first such decline is thrown.
+     */
+    private inline fun allMatch(count: Int, part: (Int) -> Boolean): Boolean {
+        var declined: Declined? = null
+
+        for (index in 0 until count) {
+            val matched = try {
+                part(index)
+            } catch (decline: Declined) {
+                if (!decline.onValue) throw decline
+
+                declined = declined ?: decline
+                continue
+            }
+
+            if (!matched) return false
+        }
+
+        declined?.let { throw it }
+
+        return true
+    }
 
     private fun matchList(
         patterns: List<ElixirAst>,
@@ -2831,14 +3084,14 @@ internal class Evaluation(
             val (head, tailPattern) = (last as ElixirAst.Call).arguments!!
             val heads = patterns.dropLast(1) + head
 
-            if (elements.size < heads.size) return false
-            if (!heads.indices.all { match(heads[it], elements[it], frame, pending) }) return false
-
-            return match(tailPattern, cons(elements.drop(heads.size), tail ?: EMPTY), frame, pending)
+            return elements.size >= heads.size && allMatch(heads.size + 1) {
+                if (it < heads.size) match(heads[it], elements[it], frame, pending)
+                else match(tailPattern, cons(elements.drop(heads.size), tail ?: EMPTY), frame, pending)
+            }
         }
 
         return tail == null && elements.size == patterns.size &&
-            patterns.indices.all { match(patterns[it], elements[it], frame, pending) }
+            allMatch(patterns.size) { match(patterns[it], elements[it], frame, pending) }
     }
 
     private fun matchCall(
@@ -2855,17 +3108,22 @@ internal class Evaluation(
 
                 equal(frame.binding(pinned)?.let(frame.vars::get) ?: decline("a pin of an unbound variable"), value, true, run.level)
             }
-            "=" -> args.all { match(it, value, frame, pending) }
+            "=" -> allMatch(args.size) { match(args[it], value, frame, pending) }
             "{}" -> matchTuple(args, value, frame, pending)
             "%{}" -> matchMap(args, value, frame, pending)
             "%" -> {
                 val (name, fields) = args
-                val struct = (value as? OtpErlangMap)?.get(STRUCT)?.let(::seen) ?: return false
+                val struct = (value as? OtpErlangMap)?.get(STRUCT) ?: return false
 
-                if (isVariable(name) && struct !is OtpErlangAtom) return false
+                allMatch(2) {
+                    if (it == 0) {
+                        val module = seen(struct)
 
-                match(name, struct, frame, pending) &&
-                    matchMap((fields as? ElixirAst.Call)?.arguments ?: decline("a struct pattern's fields"), value, frame, pending)
+                        !(isVariable(name) && module !is OtpErlangAtom) && match(name, module, frame, pending)
+                    } else {
+                        matchMap((fields as? ElixirAst.Call)?.arguments ?: decline("a struct pattern's fields"), value, frame, pending)
+                    }
+                }
             }
             "<<>>" -> bits.match(args, value, frame, pending)
             else ->
@@ -2886,8 +3144,10 @@ internal class Evaluation(
     ): Boolean {
         val map = value as? OtpErlangMap ?: return false
 
-        return args.flatMap { arg -> (arg as? ElixirAst.ListNode)?.elements ?: listOf(arg) }.all { pair ->
-            val (key, valuePattern) = (pair as? ElixirAst.Tuple)?.elements?.takeIf { it.size == 2 } ?: decline("a map pattern pair")
+        val pairs = args.flatMap { arg -> (arg as? ElixirAst.ListNode)?.elements ?: listOf(arg) }
+
+        return allMatch(pairs.size) { index ->
+            val (key, valuePattern) = (pairs[index] as? ElixirAst.Tuple)?.elements?.takeIf { it.size == 2 } ?: decline("a map pattern pair")
             val keyValue = if (isCall(key, "^", 1)) {
                 frame.binding((key as ElixirAst.Call).arguments!!.single())?.let(frame.vars::get)
                     ?: decline("a pin of an unbound variable")
@@ -2908,6 +3168,17 @@ internal class Evaluation(
             seen(value)
 
             value == TRUE
+        }
+
+    /**
+     * Whether any of [guards] may hold in [frame], which binds what a value not known holds: unless each gives a known
+     * value other than `true`, or raises ([guards]).
+     */
+    private fun mayHold(guards: List<ElixirAst>, frame: Frame): Boolean =
+        try {
+            guards(guards, frame)
+        } catch (_: Declined) {
+            true
         }
 
     /**

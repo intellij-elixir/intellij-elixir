@@ -10469,8 +10469,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 ends = { "stopped at `$ROW.m()`" },
             ),
             // A raising arm whose test the evaluator can't decide is passed over, as Elixir is taken to compile, and the
-            // next arm is tried. `Process.whereis/1` declines in `nillify/1`, so its arm's test does; `:erlang.whereis/1`
-            // is an unknown value, so a clause given it is tried.
+            // next arm is tried.
             macro(
                 "branch:raising-arm-unless",
                 """
@@ -10601,6 +10600,24 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 end
                 """,
             ),
+            // A `cond` test passed over may have raised, and the `try` around it caught it.
+            macro(
+                "branch:cond-test-passed-over-in-try",
+                """
+                defmacro m do
+                  try do
+                    cond do
+                      :file.set_cwd(".") == :ok -> raise "no"
+                      Process.whereis(:init) -> :ok
+                      true -> :ok
+                    end
+                  rescue
+                    _ -> :rescued
+                  end
+                end
+                """,
+                pins = DECLINED,
+            ),
             macro(
                 "branch:raising-arm-after-try",
                 """
@@ -10614,12 +10631,13 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 """,
             ),
             // A later arm whose test is unknown, no raising arm, an operand chosen by no arm, and a declined argument
-            // still decline.
+            // still decline. `Process.info/2` declines, as `:erlang.process_info/2` has no row, where a value that isn't
+            // known would be joined.
             macro(
                 "branch:two-arms-left",
                 """
                 defmacro m do
-                  case Process.whereis(:init) do
+                  case Process.info(self(), :status) do
                     nil -> raise "no init"
                     :a -> :a
                     _ -> :ok
@@ -10628,14 +10646,14 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 """,
                 pins = DECLINED,
             ),
-            macro("branch:no-raising-arm-single-clause", "defmacro m, do: if(Process.whereis(:init), do: :ok)", pins = DECLINED),
+            macro("branch:no-raising-arm-single-clause", "defmacro m, do: if(Process.info(self(), :status), do: :ok)", pins = DECLINED),
             macro("branch:andalso-unknown-left", "defmacro m, do: Process.whereis(:init) == nil and raise(\"no init\")"),
             macro(
                 "branch:raising-arm-call-argument",
                 """
                 defp check(nil), do: raise("no init")
                 defp check(_), do: :ok
-                defmacro m, do: check(Process.whereis(:init))
+                defmacro m, do: check(Process.info(self(), :status))
                 """,
                 pins = DECLINED,
             ),
@@ -10644,7 +10662,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "branch:raising-arm-subject-ended",
                 """
-                defp f, do: Process.whereis(:init)
+                defp f, do: Process.info(self(), :status)
 
                 defmacro m do
                   case {f(), Map.fetch!(%{}, :k)} do
@@ -10663,7 +10681,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 .map { (id, choice) ->
                     Row(
                         "branch:raising-arm-$id",
-                        "defp g(module) do\n  text = inspect(Process.whereis(:init))\n  Module.put_attribute(module, :a, 2)\n  text\nend\n\ndefmacro w do\n  $choice\nend\n\ndefmacro m, do: Module.get_attribute(__CALLER__.module, :a)",
+                        "defp g(module) do\n  text = inspect(Process.info(self(), :status))\n  Module.put_attribute(module, :a, 2)\n  text\nend\n\ndefmacro w do\n  $choice\nend\n\ndefmacro m, do: Module.get_attribute(__CALLER__.module, :a)",
                         "$ROW.m()",
                         "require $ROW\n$ROW.w()\n_ = $ROW.m()",
                         "$ROW.w()",
@@ -10681,7 +10699,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 "branch:raising-arm-reraise",
                 """
                 defmacro m do
-                  case Process.whereis(:init) do
+                  case Process.info(self(), :status) do
                     nil -> :erlang.raise(:error, :no_init, [])
                     _ -> :ok
                   end

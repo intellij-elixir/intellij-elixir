@@ -586,15 +586,17 @@ internal class Natives(private val evaluation: Evaluation) {
 
                 if (!fitsAnAtom(text)) evaluation.error(atom("system_limit"))
 
-                atom(text).also { evaluation.atoms += text }
+                atom(text).also { (if (evaluation.run.mayNotRun) evaluation.atomsThatMayExist else evaluation.atoms) += text }
             }
             "binary_to_existing_atom/1", "binary_to_existing_atom/2" -> {
                 val atom = atom(atomText(args) ?: badarg())
 
-                // Every atom the VM has loaded exists, where the evaluation knows only those it has seen.
-                if (atom.atomValue() !in evaluation.atoms) decline("whether the atom %s exists", atom)
-
-                atom
+                when (atom.atomValue()) {
+                    in evaluation.atoms -> atom
+                    in evaluation.atomsThatMayExist -> evaluation.unlessRaised(atom)
+                    // Every atom the VM has loaded exists, where the evaluation knows only those it has seen.
+                    else -> decline("whether the atom %s exists", atom)
+                }
             }
             "list_to_tuple/1" -> OtpErlangTuple((properElements(args[0]) ?: badarg()).toTypedArray())
             "tuple_to_list/1" -> list((seen(args[0]) as? OtpErlangTuple ?: badarg()).elements().asList())
@@ -2710,6 +2712,7 @@ internal class Natives(private val evaluation: Evaluation) {
             true -> {}
         }
         if (text in read.imports) argumentError()
+        if (evaluation.run.mayNotRun) decline("Config.__import__!/1 of %s in an arm that may not run", path)
 
         read.imports.add(0, text)
 

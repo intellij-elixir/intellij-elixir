@@ -1310,6 +1310,8 @@ private fun reaching(
         val site = unit.site
 
         callbacks[unit] = { bindings ->
+            // In a config read compiling no module, a unit runs: the read joins the config it writes.
+            if (run.config == null || run.compiling.isNotEmpty()) run.unjoined("a unit")
             reached += unit
             values.reachedAfter(run.continuedDeclines, run.assumptions)
             // The unit's own node is evaluated inside its run, not reached again.
@@ -1318,7 +1320,11 @@ private fun reaching(
             try {
                 val stepped = step(if (statement) unit.asStatement() else unit, bindings, stopsAt)
 
-                if (stepped.ends) throw RunEnded(values)
+                // In code that may not run, the unit ends the code holding it ([Run.unjoined]), not the body's run.
+                if (stepped.ends) {
+                    run.unjoined("a raise", ends = true)
+                    throw RunEnded(values)
+                }
                 // The evaluator ends the loop or block holding the unit, as it does where it ran the raise itself.
                 stepped.endedDecline?.let { throw it }
                 // A match on the statement path whose value code takes declines that code, as one the walk ran before it
@@ -1516,6 +1522,8 @@ private fun compile(
     bindings: HashMap<Binding, OtpErlangObject>,
     reached: Boolean,
 ): ExpansionResult {
+    run.unjoined("a module defined")
+
     val name = module.name
     val statement = module.isStatement(enclosing.statements)
     val placed = statement && module.placed

@@ -101,6 +101,9 @@ abstract class ConfigHeavyTestCase : HeavyTestCase() {
     /** What [keys] answers for `k` and `k1` once the config sets `k` to [value] beside `k1: 1`. */
     protected fun keyBeside(value: String): String = keys("config :app, k: $value, k1: 1\n", "k", "k1")
 
+    /** What [keys] answers for `k` and `k1` once [statements] bind `k`, which the config sets beside `k1: 1`. */
+    protected fun keyBound(statements: String): String = keys(statements + "config :app, k: k, k1: 1\n", "k", "k1")
+
     private fun answer(table: ConfigTable, key: String): String {
         val app = key.substringBefore(':', "app")
         val path = key.substringAfter(':').split('/')
@@ -124,7 +127,17 @@ abstract class ConfigHeavyTestCase : HeavyTestCase() {
         }
     }
 
+    /** [before], then a `try` around a second import of `config/o.exs`, which may raise, so the read declines. */
+    protected fun assertImportedAgainDeclines(before: String) =
+        assertEquals("declined", keys(before + IMPORT_IN_A_TRY, "k", "k1", extra = arrayOf(EMPTY_O_EXS)))
+
     protected companion object {
+        /** A `try` around an import of `config/o.exs`: `k` is 1 where it raised, else 0, beside `k1: 1`. */
+        const val IMPORT_IN_A_TRY = "k = try do\n  import_config \"o.exs\"\n  0\nrescue\n  _ -> 1\nend\nconfig :app, k: k, k1: 1\n"
+
+        /** A `config/o.exs` that sets nothing. */
+        val EMPTY_O_EXS = "config/o.exs" to "import Config\n"
+
         const val MIX_EXS = "defmodule App.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :app, version: \"0.1.0\"]\nend\n"
         const val READER = "defmodule Reader do\nend\n"
         const val CONFIG = "config/config.exs"

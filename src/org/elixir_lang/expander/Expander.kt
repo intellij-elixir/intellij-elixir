@@ -8,6 +8,7 @@ import com.intellij.openapi.util.io.OSAgnosticPathUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.util.system.OS
 import org.elixir_lang.expander.interpreter.Binding
+import org.elixir_lang.expander.interpreter.Declined
 import org.elixir_lang.expander.interpreter.Evaluated
 import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.Given
@@ -354,6 +355,23 @@ internal class Run(
 
     /** Whether the value of the unit the evaluator runs where it reaches it ([reached]) is read, `null` outside one. */
     var reachedUse: ValueUse? = null
+
+    /** How many arms that may not be taken are running ([mayNotRun]). */
+    var speculating = 0
+
+    /**
+     * Whether the code running may not run in Elixir: an arm taken over a value that isn't known. Only the config such
+     * code writes is joined.
+     */
+    val mayNotRun get() = speculating > 0
+
+    /**
+     * Declines on [what], a unit, a module, an effect or a unit's raise, where the code running may not run
+     * ([mayNotRun]): nothing joins it. Where it [ends] that code, as a raise does, so does the decline.
+     */
+    fun unjoined(what: String, ends: Boolean = false) {
+        if (mayNotRun) throw Declined("$what in code that may not run").apply { if (ends) end(null) }
+    }
 
     /**
      * Whether code the expander doesn't follow ran, which may have changed the directory the compile runs in
