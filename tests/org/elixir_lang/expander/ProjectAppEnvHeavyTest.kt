@@ -324,13 +324,13 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
         assertEquals("Elixir.Dep compiled different/0 equal/0\nElixir.Other compiled equal/0", "${ended(dep)}\n${ended(other)}")
     }
 
-    /** A value from the system, which the read declines, so every answer is the settings index's. */
-    fun testAReadThatDeclinedAnswersAsMainDoes() {
+    /** A value from the system is unknown, and leaves the keys beside it known. */
+    fun testASystemReadLeavesTheKeysBesideItKnown() {
         val (dep, other) = readers(
             "import Config\n\nconfig :dep, :key, :other\nconfig :other, port: String.to_integer(System.get_env(\"PORT\") || \"4000\")\n",
         )
 
-        assertEquals("Elixir.Dep compiled different/0 equal/0\nElixir.Other compiled equal/0", "${ended(dep)}\n${ended(other)}")
+        assertEquals("Elixir.Dep compiled different/0\nElixir.Other compiled equal/0", "${ended(dep)}\n${ended(other)}")
     }
 
     /**

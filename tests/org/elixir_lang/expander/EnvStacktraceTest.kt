@@ -50,12 +50,12 @@ class EnvStacktraceTest {
     }
 
     @Test
-    fun `an unknown file is no binary and no list, as Elixir's is a charlist`() {
+    fun `an unknown file's type isn't known`() {
         val frame = (call(env(file = "$ROOT/lib/foo.ex"), CompileDirectories.UNKNOWN) as OtpErlangList).elementAt(0) as OtpErlangTuple
         val file = ((frame.elementAt(3) as OtpErlangList).elementAt(0) as OtpErlangTuple).elementAt(1)
 
         for (test in listOf("is_binary", "is_list")) {
-            assertThrows(test, Declined::class.java) { type(test, file) }
+            assertEquals(test, Unknown, type(test, file))
         }
     }
 

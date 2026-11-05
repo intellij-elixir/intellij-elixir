@@ -40,6 +40,8 @@ class ConfigTryHeavyTest : ConfigHeavyTestCase() {
 
     fun testAStrictAndThatMayRaise() = assertRescued("_ = (System.get_env(\"X\") || false) and true; :ok", rescued = ":err")
 
+    fun testAForThatMayRaise() = assertRescued("_ = (for {\"X\", v} <- System.get_env(), do: String.to_integer(v)); :ok", rescued = ":err")
+
     /** A generator over a value not known, the env's map or a binary, raises where that isn't enumerable. */
     fun testAForOverAValueNotKnownThatMayRaise() =
         assertRescued(
@@ -182,6 +184,30 @@ class ConfigTryHeavyTest : ConfigHeavyTestCase() {
             keyBound("k =\n  try do\n    _ = :erlang.system_time(:fortnight)\n    :ok\n  rescue\n    _ -> :err\n  end\n\n"),
         )
 
+    /** `:erlang.error/3` raises whatever its options are, but it declines on options not known. */
+    fun testAnErrorOfOptionsNotKnownDeclines() =
+        assertEquals(
+            "declined",
+            keyBeside("(try do :erlang.error(:x, [], [System.get_env(\"X\")]) catch _, _ -> :c end)"),
+        )
+
+    /** `:erlang.error/2` in a function raises whatever its arguments are. */
+    fun testAnErrorOverArgumentsNotKnownRaises() =
+        assertEquals(
+            "k=:r k1=1",
+            keyBound(
+                "defmodule H do\n  def f(a), do: :erlang.error(:x, a)\nend\n\n" +
+                    "k =\n  try do\n    H.f(System.get_env(\"X\"))\n    :returned\n  rescue\n    _ -> :r\n  end\n\n",
+            ),
+        )
+
+    /**
+     * `traverse_env/2` down a path past a value not known may raise in `Access.fetch/2`, and the `try` may rescue it, a
+     * default holding a function included.
+     */
+    fun testARescueOfACompileEnvPastAValueNotKnown() =
+        assertRescued(legCompileEnv(":dep", "[:k, :sub]", "[fn -> 1 end]"))
+
     /** A binary generator over a binary not known takes whole bytes, so it can't raise. */
     fun testABinaryGeneratorOverABinaryNotKnown() =
         assertEquals(
@@ -236,6 +262,12 @@ class ConfigTryHeavyTest : ConfigHeavyTestCase() {
             ),
         )
 
+    fun testARescueOfAnIntegerThatMayRaise() = assertRescued("String.to_integer(System.get_env(\"X\"))", rescued = "0")
+
+    fun testAnElseAfterARescueOfAnInteger() = assertElseAfterARescue("String.to_integer(System.get_env(\"X\"))")
+
+    fun testAConfigPastARaiseOfAnInteger() = assertConfigPastARaise("String.to_integer(System.get_env(\"X\"))")
+
     /** A `for` over a binary not known, into a map, of a result that is no pair, raises where it runs at all. */
     fun testAConfigPastAForIntoAMapOfAResultThatIsNoPair() =
         assertConfigPastARaise("for <<_ <- System.get_env(\"X\", \"a\")>>, into: %{}, do: :bad")
@@ -268,6 +300,17 @@ class ConfigTryHeavyTest : ConfigHeavyTestCase() {
     fun testAConfigPastAForIntoAListOfAResultThatIsNoPair() =
         assertEquals("j=2 k1=1", configPast("for <<_ <- System.get_env(\"X\", \"a\")>>, into: [], do: :bad"))
 
+    fun testAnElseWithNoClauseThatMatchesOfAnInteger() =
+        assertConfiguredBeside(
+            "(try do String.to_integer(System.get_env(\"X\")) rescue ArgumentError -> 0; TryClauseError -> 1 else :never -> 2 end)",
+        )
+
+    fun testARescueThatMayRaiseOfAnInteger() = assertRescueThatMayRaise("String.to_integer(System.get_env(\"X\"))")
+
+    fun testAnElseThatMayRaiseOfAnInteger() = assertElseThatMayRaise("String.to_integer(System.get_env(\"X\"))")
+
+    fun testAnImportOfAFileThatMayRaiseOfAnInteger() = assertImportOfAFileThatMayRaise("String.to_integer(System.get_env(\"X\"))")
+
     /** A call repeating one running over a value not known may raise as that one may, and the `try` may rescue it. */
     fun testARescueOfACountdownFromAnUnknown() =
         assertEquals(
@@ -291,6 +334,48 @@ class ConfigTryHeavyTest : ConfigHeavyTestCase() {
             keys(
                 "try do\n  raise \"outer\"\nrescue\n  _ ->\n    config :app, k: __STACKTRACE__\n\n" +
                     "    try do\n      System.fetch_env!(\"X\")\n    rescue\n      _ -> config :app, k: __STACKTRACE__\n    end\nend\n\n" +
+                    "config :app, k1: 1\n",
+                "k",
+                "k1",
+            ),
+        )
+
+    /** What a rescue binds where a raise may come may be an exception of a module the file defines. */
+    fun testARescueOfAnExceptionOfAModuleTheFileDefinesThatMayBeRaisedDeclines() =
+        assertStructDeclines(
+            "defmodule E do\n  defexception [:message]\nend\n\ndefimpl String.Chars, for: E do\n  def to_string(_) do\n$WRITES",
+            "try do\n  if System.get_env(\"X\"), do: raise(E, \"m\")\n  :ok\nrescue\n  e -> config(:app, j: to_string(e))\nend\n\n" +
+                "config :app, k1: 1\n",
+            struct = "",
+        )
+
+    /** The stacktrace of a raise that may come may hold the arguments of the call that raised. */
+    fun testARescueOfAStacktraceThatMayHoldAStructOfAModuleTheFileDefinesDeclines() =
+        assertStructDeclines(
+            CHARS + "defmodule F do\n  def f(:x), do: :ok\nend\n\n",
+            "try do\n  F.f(max(System.get_env(\"X\"), struct(S)))\nrescue\n" +
+                "  _ -> config(:app, j: to_string(hd(elem(hd(__STACKTRACE__), 2))))\nend\n\n" +
+                "config :app, k1: 1\n",
+        )
+
+    /** `:erlang.error/2`'s arguments, in the stacktrace, may hold the struct an argument not known may be. */
+    fun testARescueOfTheArgumentsOfAnErrorThatMayHoldAStructOfAModuleTheFileDefinesDeclines() =
+        assertStructDeclines(
+            CHARS + "defmodule F do\n  def f(a), do: :erlang.error(:x, a)\nend\n\n",
+            "a = max(System.get_env(\"X\"), [struct(S)])\n\n" +
+                "try do\n  F.f(a)\nrescue\n" +
+                "  _ ->\n    {_, _, s, _} = hd(__STACKTRACE__)\n    config(:app, j: to_string(hd(s)))\nend\n\n" +
+                "config :app, k1: 1\n",
+        )
+
+    /** `:erlang.error/2` given a binary not known, which isn't a list, puts the raising function's arity in its frame. */
+    fun testARescueOfAnErrorGivenABinaryNotKnownReadsTheArity() =
+        assertEquals(
+            "k=true k1=1",
+            keys(
+                "defmodule F do\n  def f(a), do: :erlang.error(:x, a)\nend\n\nconfig :app, k: 0\n\n" +
+                    "try do\n  F.f(System.otp_release())\nrescue\n" +
+                    "  _ ->\n    {_, _, s, _} = hd(__STACKTRACE__)\n    config(:app, k: is_integer(s))\nend\n\n" +
                     "config :app, k1: 1\n",
                 "k",
                 "k1",
@@ -508,6 +593,45 @@ class ConfigTryHeavyTest : ConfigHeavyTestCase() {
                 "k1",
             ),
         )
+
+    /** A generator's guard runs for each element, as a filter does, so it may raise past an earlier element's write. */
+    fun testAGeneratorGuardThatMayRaisePastAnEarlierIterationsWrite() =
+        assertEquals(
+            "k=Configured k1=1",
+            afterBefore("  for {_, v} when binary_part(v, 0, 1) == \"a\" <- System.get_env(),\n    do: config(:app, k: 1)\n"),
+        )
+
+    /** A generator's guard that can't raise, as `==` can't, marks no raise, so the write past the `for` runs. */
+    fun testAGeneratorGuardThatCantRaiseLetsTheWritePastItRun() =
+        assertEquals("k=0 k1=1", afterBefore("  for {_, v} when v == \"a\" <- System.get_env(),\n    do: config(:app, k: 1)\n"))
+
+    /**
+     * An `and` in a generator's guard, over a type test of a value not known, marks a raise, as its left isn't known to
+     * be a boolean. Elixir gives `k=0 k1=1`, as `is_binary/1` gives one.
+     */
+    fun testAnAndInAGeneratorGuardOverATypeTestMarksARaise() =
+        assertEquals(
+            "k=Configured k1=1",
+            afterBefore("  for {_, v} when is_binary(v) and v != \"\" <- System.get_env(),\n    do: config(:app, k: 1)\n"),
+        )
+
+    /** A comparison of a value not known can't raise. */
+    fun testAComparisonOfAValueNotKnownCantRaise() = assertCantRaise("System.get_env(\"X\") == \"a\"")
+
+    /** Nor can an order of one. */
+    fun testAnOrderOfAValueNotKnownCantRaise() = assertCantRaise("System.get_env(\"X\") < \"a\"")
+
+    /** Nor can a type test of one. */
+    fun testATypeTestOfAValueNotKnownCantRaise() = assertCantRaise("is_binary(System.get_env(\"X\"))")
+
+    /** Nor can `max/2` of one. */
+    fun testAMaxOfAValueNotKnownCantRaise() = assertCantRaise("max(System.get_env(\"X\"), \"a\")")
+
+    /** Nor can `Keyword.keyword?/1` of one. */
+    fun testAKeywordTestOfAValueNotKnownCantRaise() = assertCantRaise("Keyword.keyword?(System.get_env(\"X\"))")
+
+    /** `k: 5`, then [expression], in a `try` that writes `k: 0` past it: `k` is `0` where [expression] can't raise. */
+    private fun assertCantRaise(expression: String) = assertEquals("k=0 k1=1", afterBefore("  config :app, k: 5\n  _ = $expression\n"))
 
     /** `k: 0`, then a `try` that rescues a raise of [inner], then writes `k: 0` past it, with the [extra] files beside the config. */
     private fun afterBefore(inner: String, extra: Array<Pair<String, String>> = emptyArray()) =

@@ -438,6 +438,12 @@ internal class Evaluation(
      */
     private var wentOnPastDecline = false
 
+    /**
+     * How many calls of code the evaluator has made: each function body it entered ([invoked]), and each call of a
+     * receiver not known ([received]), which may be any module's code.
+     */
+    private var entered = 0L
+
     /** The evaluator goes on past code that declined ([wentOnPastDecline]), whose effects aren't known. */
     private fun goingOnPastDecline() {
         run.declinedCodeRan()
@@ -753,6 +759,7 @@ internal class Evaluation(
         arity: Int,
     ): OtpErlangObject {
         ProgressManager.checkCanceled()
+        entered++
 
         val clauses = definition.clauses ?: decline("${module.module}.$function/${args.size}'s clauses aren't known")
         // In an arm that may not run, a call over a value not known that repeats one running, from the same state, gives
@@ -845,9 +852,9 @@ internal class Evaluation(
         throw Thrown("error", reason, list(listOfNotNull(top) + stack))
 
     /**
-     * Raises [reason] as `error/2` and `error/3` do: the raising function's frame takes [args] in place of its arity,
-     * where they are a list, and [errorInfo] at the end of its location (`erts_build_mfa_item`). Raised from a module
-     * body, whose frame is the compiler's, the frame is [Unknown].
+     * Raises [reason] as `error/2` and `error/3` do: the raising function's frame takes [args] in place of its arity
+     * where they are or may be a list, and [errorInfo] at the end of its location (`erts_build_mfa_item`). Raised
+     * from a module body, whose frame is the compiler's, the frame is [Unknown].
      */
     fun error(reason: OtpErlangObject, args: OtpErlangObject, errorInfo: OtpErlangMap?): Nothing {
         val (module, function, arity, location) = stack.firstOrNull()?.elements()
@@ -856,7 +863,7 @@ internal class Evaluation(
             arrayOf(
                 module,
                 function,
-                if (isList(seen(args))) args else arity,
+                if (args is UnknownValue || isList(args)) args else arity,
                 errorInfo?.let { list((location as OtpErlangList).elements().toList() + tuple(atom("error_info"), it)) }
                     ?: location,
             ),
@@ -1366,7 +1373,7 @@ internal class Evaluation(
             return if ((value == TRUE) == (name == "andalso")) eval(args[1], frame, tail) else value
         }
 
-        return remote(receiver, name, operands(args, frame, marks, before = listOf(receiver)), marks, tail)
+        return remote(receiver, name, operands(args, frame, marks, before = listOf(receiver)), marks, tail, frame.guard)
     }
 
     /**
@@ -1632,9 +1639,15 @@ internal class Evaluation(
 
             if (!frame.source) return mapOf(listOf(STRUCT to name) + given, run.level)
 
-            val struct = built(listOf(name) + given.flatMap { it.toList() }) {
+            val held = listOf(name) + given.flatMap { it.toList() }
+            val result = built(held) {
                 remote(name, "__struct__", listOf(list(given.map { (key, value) -> tuple(key, value) })))
-            } as? OtpErlangMap ?: decline("a struct whose __struct__/1 isn't a map")
+            }
+
+            // Before `DEFSTRUCT_ESCAPES_STRUCT`, `__struct__/1` builds on an attribute that isn't known, and may raise on a key.
+            if (isUnknown(result)) return unlessRaised(unknownOf(held + result))
+
+            val struct = result as? OtpErlangMap ?: decline("a struct whose __struct__/1 isn't a map")
             val defaults = entries(struct).filter { (key, _) -> key != STRUCT && given.none { equal(it.first, key, true, run.level) } }
 
             return mapOf(
@@ -2142,6 +2155,7 @@ internal class Evaluation(
      * `receiver:function(args)`: a native, else a public function of a module whose clauses can be read. A decline in
      * it [marks] what [args] give it ([calling]). A native's unknown result came from a module being compiled where an
      * argument it may return ([Natives.returnable]) gives one. In [tail] position, the call is made, not run ([called]).
+     * In a [guard], a native given a value not known isn't taken to maybe raise ([givenUnknown]).
      */
     fun remote(
         receiver: OtpErlangObject,
@@ -2149,13 +2163,14 @@ internal class Evaluation(
         args: List<OtpErlangObject>,
         marks: Boolean = true,
         tail: Boolean = false,
+        guard: Boolean = false,
     ): OtpErlangObject {
         received(receiver, args, marks)
 
         val module = (receiver as? OtpErlangAtom)?.atomValue()
             ?: error(atom("badarg"), frame("erlang", "apply", list(listOf(receiver, atom(function), list(args)))))
 
-        nativeResult(module, function, args, marks, tail)?.let { return it }
+        nativeResult(module, function, args, marks, tail, guard)?.let { return it }
 
         return if (marks) callingDefined(module, function, args, tail) else defined(module, function, args, tail)
     }
@@ -2170,8 +2185,9 @@ internal class Evaluation(
         args: List<OtpErlangObject>,
         marks: Boolean,
         tail: Boolean,
+        guard: Boolean = false,
     ): OtpErlangObject? =
-        native(module, function, args, marks, tail)?.let { result ->
+        native(module, function, args, marks, tail, guard)?.let { result ->
             if (result === Unknown) unknownOf(natives.returnable(module, function, args)) else result
         }
 
@@ -2179,17 +2195,29 @@ internal class Evaluation(
      * [receiver], a remote call's given [args]: one that isn't known may be any module's code, and where the call [marks]
      * what it is given, that code is given it and [args] ([calling]).
      */
-    private fun received(receiver: OtpErlangObject, args: List<OtpErlangObject>, marks: Boolean): OtpErlangObject =
+    private fun received(receiver: OtpErlangObject, args: List<OtpErlangObject>, marks: Boolean) {
+        if (isUnknown(receiver)) entered++
+
         // As `calling` does, but `args + receiver` is built only where the receiver declines.
         if (marks) marking({ calledGave(it, args + receiver) }) { seen(receiver) } else seen(receiver)
+    }
 
     /**
-     * [module]`.`[function]`(`[args]`)` where it is a native, else `null`. Where it declines, what it didn't return may
-     * hold the arguments it can return ([Natives.returnable]), and where it [marks] what it is given, it may have
-     * written what those it runs give it ([Natives.runs]) and the module it writes ([Natives.writes]). A write whose
-     * effect the walk applies declines, as its row applies it.
+     * [module]`.`[function]`(`[args]`)` where it is a native, else `null`. Given a struct whose implementation it may
+     * call ([givenAStruct]), it may call code. Where it declines on a value not known, having called no code ([entered])
+     * and been given no struct, it may give what [givenUnknown] says. Where it declines, what it didn't return may hold
+     * the arguments it can return ([Natives.returnable]), and where it [marks] what it is given, it may have written
+     * what those it runs give it ([Natives.runs]) and the module it writes ([Natives.writes]). A write whose effect the
+     * walk applies declines, as its row applies it.
      */
-    private fun native(module: String, function: String, args: List<OtpErlangObject>, marks: Boolean, tail: Boolean): OtpErlangObject? =
+    private fun native(
+        module: String,
+        function: String,
+        args: List<OtpErlangObject>,
+        marks: Boolean,
+        tail: Boolean,
+        guard: Boolean,
+    ): OtpErlangObject? =
         marking({ declined -> nativeGave(declined, module, function, args, marks) }) {
             if ((!marks || run.mayNotRun) && natives.writes(module, function, args).isNotEmpty()) {
                 if (!marks) decline("$module:$function/${args.size}'s effect is applied by the walk")
@@ -2197,8 +2225,79 @@ internal class Evaluation(
                 run.unjoined("$module:$function/${args.size} writes a module")
             }
 
-            natives.call(module, function, args, tail)
+            val struct = natives.dispatches(module, function, args.size)?.let { givenAStruct(it, args, marks) } == true
+            val before = entered
+
+            try {
+                natives.call(module, function, args, tail)
+            } catch (declined: Declined) {
+                // Past a struct, it may have declined on the implementation it calls.
+                if (entered != before || struct) throw declined
+
+                givenUnknown(module, function, args, guard) ?: throw declined
+            }
         }
+
+    /**
+     * What the native [module]`.`[function] gives where it declined on [args] that hold a value not known: Elixir gives
+     * a value not known, which [nativeResult] builds from those it may return, or raises ([raiseMayBeCaught]). A
+     * function given it directly isn't run, and a call of what it gives, which may be that function, declines. `null`,
+     * as it declines, where the native may write what the run holds ([Natives.writesTheRun]), may run a function its
+     * arguments name, which may write ([Natives.runsAFunction], as `inspect/2` may on options not known), never returns
+     * ([Natives.neverReturns]), or is given a function inside another argument, which it may run. The native is taken
+     * to have declined on the value not known: where it declined on a known shape Elixir always raises on, what follows
+     * reads as if the raise may not happen. In a [guard], a raise fails the guard, which the clause's test takes as one
+     * not known, so nothing may have raised.
+     */
+    private fun givenUnknown(module: String, function: String, args: List<OtpErlangObject>, guard: Boolean): OtpErlangObject? {
+        if (natives.writesTheRun(module, function, args.size) || natives.runsAFunction(module, function, args)) return null
+        if (natives.neverReturns(module, function, args.size)) return null
+        if (!anyHeld(args, visit = ::isUnknown)) return null
+        if (holdsAFunction(args.filterNot(::isFunction))) return null
+
+        return if (guard) Unknown else unlessRaised(Unknown)
+    }
+
+    /**
+     * Whether the native [dispatch] describes is given a struct in [args], or a term that may be of a type whose
+     * protocol Elixir doesn't implement ([Natives.unimplementedTypes]), whose module's code it may call
+     * ([Natives.runsCodeOf]). That code may write, and where the struct isn't known, or the native doesn't run the code
+     * itself ([StructCode.Protocol]), the native declines as a call of it would ([received]).
+     */
+    private fun givenAStruct(dispatch: StructDispatch, args: List<OtpErlangObject>, marks: Boolean): Boolean {
+        val code = dispatch.code
+        val runs = HashMap<String, Boolean>()
+        val visit = { term: OtpErlangObject ->
+            val struct = (term as? OtpErlangMap)?.get(STRUCT)
+
+            unknownStruct(term, struct)?.let { received(it, args, marks) }
+
+            val modules = (struct as? OtpErlangAtom)?.atomValue()?.let(::listOf) ?: natives.unimplementedTypes(code, term)
+
+            for (module in modules) {
+                if (runs.getOrPut(module) { natives.runsCodeOf(code, module) } && code is StructCode.Protocol) {
+                    val refuse = { decline("${code.protocol} of %s", term) }
+
+                    if (marks) calling(args, refuse) else refuse()
+                }
+            }
+            false
+        }
+
+        for (index in dispatch.arguments) {
+            if (dispatch.nested) anyHeld(listOf(args[index]), visit = visit) else visit(args[index])
+        }
+
+        // Whether it may run any module's code; a protocol's has declined above.
+        return true in runs.values
+    }
+
+    /**
+     * What names [term]'s struct where that isn't known: [term] itself where it may be a struct of a module being
+     * compiled, its [struct], a map's `__struct__`, where that isn't known; else `null`.
+     */
+    private fun unknownStruct(term: OtpErlangObject, struct: OtpErlangObject?): OtpErlangObject? =
+        if (fromCompiling(term)) term else struct?.takeIf(::isUnknown)
 
     /** [declined], escaping the native [module]`.`[function]`(`[args]`)`, holding and giving what [native] says. */
     private fun nativeGave(declined: Declined, module: String, function: String, args: List<OtpErlangObject>, marks: Boolean): Declined {
@@ -2378,7 +2477,8 @@ internal class Evaluation(
                     rescues.mapNotNull { arrow ->
                         val (head, arm) = arrowParts(arrow)
                         val (patterns, guards) = clauseHead(head)
-                        mayMatch(patterns, guards, Unknown, frame.copy(Unknown))?.let { armOf(arm, it) }
+                        // What was raised, and the arguments its stacktrace may hold, may be of a module being compiled.
+                        mayMatch(patterns, guards, ModuleUnknown, frame.copy(ModuleUnknown))?.let { armOf(arm, it) }
                     },
                     skipped = ended,
                 )
@@ -2675,9 +2775,6 @@ internal class Evaluation(
         return RESCUE_EXCEPTION_KEY_PRESENT.isSufficient(run.level) || seen(exception) == TRUE
     }
 
-    private fun isRecord(term: OtpErlangObject, size: Int, name: String): Boolean =
-        term is OtpErlangTuple && term.arity() == size && seen(term.elementAt(0)) == atom(name)
-
     private fun evalFor(args: List<ElixirAst>, frame: Frame): OtpErlangObject {
         // As `elixir_expand` merges a source `for`'s options with its `do` block's.
         val (cases, elements) = forOptions(args)
@@ -2816,7 +2913,7 @@ internal class Evaluation(
         return when (intoForm) {
             IntoForm.LIST -> Collection({}, ::list)
             // `maps:from_list/1` raises only on an element that isn't a pair.
-            IntoForm.MAP -> Collection({}, fromList) { !isPair(it) }
+            IntoForm.MAP -> Collection({}, fromList) { pairKey(it) == null }
             // `build_inline_each/7`.
             IntoForm.BINARY ->
                 Collection({ if (seen(it) !is OtpErlangBitstr) error(tuple(atom("badarg"), it)) }, bits::concat)
@@ -2824,7 +2921,7 @@ internal class Evaluation(
             IntoForm.COLLECTABLE -> when (into) {
                 is OtpErlangList if into.arity() == 0 -> Collection({}, ::list)
                 is OtpErlangMap if into.arity() == 0 ->
-                    Collection({ if (!isPair(seen(it))) decline("for into a map: %s", it) }, fromList)
+                    Collection({ if (pairKey(seen(it)) == null) decline("for into a map: %s", it) }, fromList)
                 is OtpErlangBinary if into.size() == 0 ->
                     Collection({ if (seen(it) !is OtpErlangBitstr) decline("for into a binary: %s", it) }, bits::concat)
                 // `Collectable.into/1` is given it.
@@ -2832,9 +2929,6 @@ internal class Evaluation(
             }
         }
     }
-
-    /** Whether [term] is a pair, as a map takes an entry. */
-    private fun isPair(term: OtpErlangObject): Boolean = term is OtpErlangTuple && term.arity() == 2
 
     /**
      * How `elixir_erl_for` translates a `for`: as an Erlang comprehension or not, and the scope the `for` starts in; and
@@ -2948,6 +3042,11 @@ internal class Evaluation(
             val value = comprehended.qualifying(rest, heads, emptyList(), frame) { eval(enumerable, frame) }
 
             if (isUnknown(value)) {
+                // The generator calls its `Enumerable` implementation, which may be a module being compiled's or the project's.
+                comprehended.qualifying(rest, heads, listOf(value), frame) {
+                    if (givenAStruct(ENUMERABLE, listOf(value), marks = true)) decline("Enumerable of %s", value)
+                }
+
                 raiseMayBeCaught()
                 return overUnknown(value, patterns, rest, frame, comprehended, guards = guards, continuing = ::next)
             }

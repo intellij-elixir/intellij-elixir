@@ -11,11 +11,15 @@ class ConfigSystemReadsHeavyTest : ConfigHeavyTestCase() {
 
     fun testAFetchedEnvVariable() = assertConfigured("System.fetch_env(\"X\")")
 
+    fun testTheWholeEnv() = assertConfigured("System.get_env() |> map_size()")
+
     fun testTheProcess() = assertConfigured("System.get_pid()")
 
     fun testTheSchedulers() = assertConfigured("System.schedulers()")
 
     fun testTheSchedulersOnline() = assertConfigured("System.schedulers_online()")
+
+    fun testArithmeticOnTheSchedulersOnline() = assertConfiguredBeside("System.schedulers_online() * 2")
 
     fun testTheOtpRelease() = assertConfigured("System.otp_release()")
 
@@ -42,4 +46,9 @@ class ConfigSystemReadsHeavyTest : ConfigHeavyTestCase() {
     fun testRandomBytes() = assertConfigured(":crypto.strong_rand_bytes(8)")
 
     fun testTheNode() = assertConfigured("Node.self()")
+
+    /** Two reads of one variable are two reads, which another process may answer apart. */
+    fun testTwoReadsOfAVariableCompared() = assertConfigured("System.get_env(\"X\") == System.get_env(\"X\")")
+
+    fun testTwoReadsOfAVariableComparedApart() = assertConfigured("System.get_env(\"X\") != System.get_env(\"X\")")
 }

@@ -11,6 +11,7 @@ import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangPid
+import com.ericsson.otp.erlang.OtpErlangPort
 import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
@@ -22,6 +23,7 @@ import org.elixir_lang.expander.Annotation
 import org.elixir_lang.expander.AppEnvValue
 import org.elixir_lang.expander.AttributeTable
 import org.elixir_lang.expander.AttributeValue
+import org.elixir_lang.expander.BUILT_IN
 import org.elixir_lang.expander.Compiling
 import org.elixir_lang.expander.ConfigRead
 import org.elixir_lang.expander.DEFINITION_ARITIES
@@ -36,6 +38,7 @@ import org.elixir_lang.expander.ModuleAttributes
 import org.elixir_lang.expander.ModuleEffects
 import org.elixir_lang.expander.ModuleExports
 import org.elixir_lang.expander.QuoteEscape
+import org.elixir_lang.expander.implementationName
 import org.elixir_lang.expander.Shape
 import org.elixir_lang.expander.TermEscapeBuilder
 import org.elixir_lang.expander.TermEscapeView
@@ -45,6 +48,7 @@ import org.elixir_lang.expander.defines
 import org.elixir_lang.expander.keystore
 import org.elixir_lang.expander.specialFormArity
 import org.elixir_lang.expander.write
+import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTES_EXPANDED_LAZILY
 import org.elixir_lang.language_level.ElixirLanguageFeature.BINARY_PART_REJECTS_BITSTRINGS
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
@@ -54,9 +58,13 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.GET_ATTRIBUTE_DEFAUL
 import org.elixir_lang.language_level.ElixirLanguageFeature.GET_ATTRIBUTE_DEFAULT_ONLY_UNSET
 import org.elixir_lang.language_level.ElixirLanguageFeature.GRAPHEME_CLUSTER_KEEPS_EMPTY_TAIL
 import org.elixir_lang.language_level.ElixirLanguageFeature.INTEGERS_UP_TO_4_MBIT
+import org.elixir_lang.language_level.ElixirLanguageFeature.IO_WARN_OPTIONS_TAKE_A_COLUMN
+import org.elixir_lang.language_level.ElixirLanguageFeature.IO_WARN_READS_THE_MESSAGE_FIRST
+import org.elixir_lang.language_level.ElixirLanguageFeature.IO_WARN_TAKES_AN_ENV_OR_OPTIONS
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_SORT_KEEPS_EQUAL_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.RAISE_FRAME_TAKES_A_CAPTURE
+import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_ESCAPED_IN_FIXED_FIELD_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_ATTRIBUTES_IN
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_GET_LAST_ATTRIBUTE
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_OVERRIDABLES_IN
@@ -85,14 +93,42 @@ private const val BACKTRACE_DEPTH = 8
  * Each native that can return, or return a part of, fewer than all its arguments, by receiver, name and arity, to the
  * indices of those it can; any other can return any of them. An app-env read returns the environment's value, which
  * came from no module, or a default: `get_env/3`'s and `compile_env/4`'s where the key isn't set (`App:724`, `:595` at
- * v1.20.4), and `__compile_env__/4`'s before it (`App:516` at v1.11.4). `Module`'s attribute reads, and
- * `delete_attribute/2`, return a value of the module their first argument names, or the default they are given; its
- * predicates and other writers a boolean or `:ok`, and its listings names. `IO.warn/1,2` returns `:ok`, as do
- * `application`'s env writers. `binary:split/3` and `filename:basename/2` return parts of their first argument alone.
- * A read of the machine or the run given an argument, such as `System.get_env/1` or a clock given its unit, returns
- * what it read.
+ * v1.20.4), and `__compile_env__/4`'s before it (`App:516` at v1.11.4). `Access.fetch/2` and `get/2,3` return a part of
+ * their first argument, or `get/3`'s default, where they call no struct's `fetch/2`. The other readers of a container
+ * by a key, in `Keyword`, `maps`, `lists` and `erlang`, return parts of their container, or the default they are given,
+ * and their predicates a boolean, never the key, as the tests of membership in `lists`, `ordsets` and `Enum` do.
+ * `Module`'s attribute reads, and `delete_attribute/2`, return a value of the module their first argument names, or the
+ * default they are given; its predicates and other writers a boolean or `:ok`, and its listings names. `IO.warn/1,2`
+ * returns `:ok`, as do `application`'s env writers. `binary:split/3` and `filename:basename/2` return parts of their
+ * first argument alone. A read of the machine or the run given an argument, such as `System.get_env/1` or a clock given
+ * its unit, returns what it read.
  */
 private val RETURNABLE = mapOf(
+    Triple("Elixir.Access", "fetch", 2) to listOf(0),
+    Triple("Elixir.Access", "get", 2) to listOf(0),
+    Triple("Elixir.Access", "get", 3) to listOf(0, 2),
+    Triple("Elixir.Keyword", "get", 2) to listOf(0),
+    Triple("Elixir.Keyword", "get", 3) to listOf(0, 2),
+    Triple("Elixir.Keyword", "fetch", 2) to listOf(0),
+    Triple("Elixir.Keyword", "fetch!", 2) to listOf(0),
+    Triple("Elixir.Keyword", "pop", 2) to listOf(0),
+    Triple("Elixir.Keyword", "pop", 3) to listOf(0, 2),
+    Triple("Elixir.Keyword", "has_key?", 2) to emptyList(),
+    Triple("Elixir.Keyword", "delete", 2) to listOf(0),
+    Triple("Elixir.Keyword", "take", 2) to listOf(0),
+    Triple("Elixir.Keyword", "drop", 2) to listOf(0),
+    Triple("maps", "get", 2) to listOf(1),
+    Triple("maps", "get", 3) to listOf(1, 2),
+    Triple("maps", "find", 2) to listOf(1),
+    Triple("maps", "is_key", 2) to emptyList(),
+    Triple("lists", "keyfind", 3) to listOf(2),
+    Triple("lists", "keymember", 3) to emptyList(),
+    Triple("lists", "member", 2) to emptyList(),
+    Triple("ordsets", "is_element", 2) to emptyList(),
+    Triple("Elixir.Enum", "member?", 2) to emptyList(),
+    Triple("lists", "keydelete", 3) to listOf(2),
+    Triple("erlang", "map_get", 2) to listOf(1),
+    Triple("erlang", "is_map_key", 2) to emptyList(),
     Triple("Elixir.Application", "get_env", 2) to emptyList(),
     Triple("Elixir.Application", "get_env", 3) to listOf(2),
     Triple("Elixir.Application", "fetch_env", 2) to emptyList(),
@@ -189,6 +225,99 @@ private val RUNS = mapOf(
     Triple("Elixir.Enum", "all?", 2) to listOf(1),
 )
 
+/**
+ * Each native that runs a function one of its options names, by receiver, name and arity, to the index of its options and
+ * that option: `inspect/2`'s `:inspect_fun`.
+ */
+private val RUNS_AN_OPTION = mapOf(Triple("Elixir.Kernel", "inspect", 2) to (1 to atom("inspect_fun")))
+
+/**
+ * How a native calls the [code] of a struct's module, for the arguments at [arguments]: for each struct one holds where
+ * it is [nested], as `inspect/1` does, else for the argument itself. A native that calls it only from a version does so
+ * from [since] on.
+ */
+internal class StructDispatch(
+    val arguments: List<Int>,
+    val code: StructCode,
+    val nested: Boolean = false,
+    val since: ElixirLanguageFeature? = null,
+)
+
+/** Where `IO.warn`'s second argument says its warning is. */
+private sealed interface WarnedAt {
+    /** Nowhere: the warning's stacktrace is [stacktrace], `null` for the caller's. */
+    class Nowhere(val stacktrace: OtpErlangObject?) : WarnedAt
+
+    /** At a place, which declines once the message is made. */
+    object Place : WarnedAt
+}
+
+/** The code of a struct's module a native calls ([Natives.runsCodeOf]). */
+internal sealed interface StructCode {
+    /**
+     * The types, by the module `defimpl ... for:` names, Elixir implements this code's protocol for none of, where it is
+     * one: a project may implement it for a term of one ([Natives.unimplementedTypes]).
+     */
+    val unimplemented: Set<String> get() = emptySet()
+
+    /** `fetch/2`, which `Access` calls for every struct. */
+    data object Fetch : StructCode
+
+    /** The `Enumerable` implementation, which `Enum` calls for a struct it doesn't enumerate itself. */
+    data object Enumerable : StructCode {
+        override val unimplemented = builtInTypesBut("List", "Map", "Function")
+    }
+
+    /** `__escape__/1`, where the module exports it. */
+    data object Escape : StructCode
+
+    /**
+     * [protocol]'s implementation for the struct, where one may exist. The native answers without running it, so a call
+     * of it declines.
+     */
+    class Protocol(val protocol: String, override val unimplemented: Set<String> = emptySet()) : StructCode
+}
+
+/**
+ * The types `defprotocol` tells apart ([BUILT_IN]) but [implemented], the ones Elixir implements a protocol for, by the
+ * module `defimpl ... for:` names.
+ */
+private fun builtInTypesBut(vararg implemented: String): Set<String> =
+    BUILT_IN.map { (type, _) -> type }.filterNot(implemented::contains).mapTo(LinkedHashSet()) { "Elixir.$it" }
+
+private val STRING_CHARS = StructCode.Protocol("String.Chars", builtInTypesBut("Atom", "BitString", "Integer", "Float", "List"))
+private val FETCH = StructDispatch(listOf(0), StructCode.Fetch)
+private val TO_STRING = StructDispatch(listOf(0), STRING_CHARS)
+private val ESCAPE = StructDispatch(listOf(0), StructCode.Escape, nested = true, since = REGEX_ESCAPED_IN_FIXED_FIELD_ORDER)
+private val INSPECT = StructDispatch(listOf(0), StructCode.Protocol("Inspect"), nested = true)
+internal val ENUMERABLE = StructDispatch(listOf(0), StructCode.Enumerable)
+
+/** Each native that calls a struct's implementation, by receiver, name and arity, to how ([Natives.dispatches]). */
+private val DISPATCHES = mapOf(
+    Triple("Elixir.Access", "fetch", 2) to FETCH,
+    Triple("Elixir.Access", "get", 2) to FETCH,
+    Triple("Elixir.Access", "get", 3) to FETCH,
+    Triple("Elixir.String.Chars", "to_string", 1) to TO_STRING,
+    Triple("Elixir.IO", "warn", 1) to TO_STRING,
+    Triple("Elixir.IO", "warn", 2) to TO_STRING,
+    Triple("Elixir.Macro", "escape", 1) to ESCAPE,
+    Triple("Elixir.Macro", "escape", 2) to ESCAPE,
+    Triple("Elixir.Kernel", "inspect", 1) to INSPECT,
+    Triple("Elixir.Kernel", "inspect", 2) to INSPECT,
+    Triple("Elixir.Enum", "map", 2) to ENUMERABLE,
+    Triple("Elixir.Enum", "flat_map", 2) to ENUMERABLE,
+    Triple("Elixir.Enum", "filter", 2) to ENUMERABLE,
+    Triple("Elixir.Enum", "reject", 2) to ENUMERABLE,
+    Triple("Elixir.Enum", "reduce", 3) to ENUMERABLE,
+    Triple("Elixir.Enum", "any?", 1) to ENUMERABLE,
+    Triple("Elixir.Enum", "all?", 1) to ENUMERABLE,
+    Triple("Elixir.Enum", "any?", 2) to ENUMERABLE,
+    Triple("Elixir.Enum", "all?", 2) to ENUMERABLE,
+    Triple("Elixir.Enum", "member?", 2) to ENUMERABLE,
+    Triple("Elixir.Enum", "concat", 2) to StructDispatch(listOf(0, 1), StructCode.Enumerable),
+    Triple("Elixir.Enum", "reverse", 1) to ENUMERABLE,
+)
+
 /** The functions a macro body calls that are answered as their clauses would answer, without reading them. */
 internal class Natives(private val evaluation: Evaluation) {
     companion object {
@@ -200,7 +329,91 @@ internal class Natives(private val evaluation: Evaluation) {
          * ([write]). Another's writer, `Kernel.Typespec.deftypespec/6`, runs from its clauses.
          */
         val WRITES_BY_ROW = setOf("Elixir.Module", "elixir_def")
+
+        /** The [Row.writes] of a row none of whose functions writes what later code reads. */
+        private val READS: Natives.(function: String, arity: Int) -> Boolean = { _, _ -> false }
+
+        /** Each module whose functions are answered here, to its [Row]. */
+        private val ROWS = mapOf(
+            "erlang" to Row(READS) { key, args, tail -> erlang(key, args, tail) },
+            "lists" to reading(Natives::lists),
+            "maps" to reading(Natives::maps),
+            "elixir_quote" to reading(Natives::quote),
+            "elixir_module" to writing(Natives::elixirModule),
+            "code" to reading(Natives::code),
+            "application" to writing(Natives::envWrite),
+            "unicode" to reading(Natives::unicode),
+            "unicode_util" to reading { key, args -> if (key == "gc/1") gc(seen(args[0])) else null },
+            "logger" to reading { key, args -> if (key == "compare_levels/2") compareLevels(args) else null },
+            "Elixir.Keyword" to reading(Natives::keyword),
+            "Elixir.Enum" to reading(Natives::enum),
+            "Elixir.Access" to reading(Natives::access),
+            "Elixir.Macro.Env" to reading(Natives::env),
+            "Elixir.IO" to reading(Natives::io),
+            "Elixir.Module" to Row({ function, arity -> !onlyReads("Elixir.Module", function, arity) }) { key, args, _ ->
+                module(key, args)
+            },
+            "Elixir.Application" to reading(Natives::application),
+            "Elixir.Code" to reading { key, _ -> if (key == "can_await_module_compilation?/0") canAwaitModuleCompilation() else null },
+            "Elixir.Atom" to reading { key, args -> if (key == "to_string/1") erlang("atom_to_binary/1", args) else null },
+            "Elixir.String" to reading(Natives::string),
+            "Elixir.String.Chars" to reading { key, args -> if (key == "to_string/1") toString(args[0]) else null },
+            "Elixir.Kernel" to reading(Natives::kernel),
+            // An expansion runs macros, which may write.
+            "Elixir.Macro" to Row({ function, _ -> function == "expand" || function == "expand_once" }) { key, args, _ ->
+                macro(key, args)
+            },
+            "ordsets" to reading { key, args -> if (key == "is_element/2") isElement(args[0], args[1]) else null },
+            "binary" to reading(Natives::binaries),
+            "os" to reading(Natives::os),
+            "Elixir.System" to reading(Natives::system),
+            // More reads of the machine or the run, as `system`'s are, each where its argument is one Erlang takes.
+            "rand" to reading { key, args ->
+                when (key) {
+                    "uniform/0", "uniform_real/0", "normal/0" -> Unknown
+                    "uniform/1" -> Unknown.takeIf { small(args[0])?.let { it > 0 } == true }
+                    else -> null
+                }
+            },
+            "crypto" to reading { key, args ->
+                if (key == "strong_rand_bytes/1") UnknownBinary.takeIf { small(args[0])?.let { it >= 0 } == true } else null
+            },
+            "inet" to reading { key, _ -> if (key == "gethostname/0") Unknown else null },
+            "init" to reading { key, args ->
+                when (key) {
+                    "get_argument/1" -> Unknown.takeIf { isAtom(args[0]) }
+                    "get_arguments/0" -> Unknown
+                    else -> null
+                }
+            },
+            "file" to reading { key, _ -> if (key == "get_cwd/0") workingDirectory() else null },
+            "filename" to reading(Natives::filename),
+            "elixir_config" to Row({ function, _ -> function == "static" }) { key, args, _ -> config(key, args) },
+            "Elixir.Mix" to reading { key, _ -> mix(key) },
+            "Elixir.Config" to writing(Natives::configure),
+            "Elixir.Mix.Config" to writing { key, args -> if (key == "__import__!/2") mixConfigImport(args[0], args[1]) else null },
+            "Elixir.File" to reading { key, args -> if (key == "exists?/1" || key == "exists?/2") fileExists(args[0]) else null },
+            "elixir_import" to reading { key, args -> if (key == "special_form/2") isSpecialForm(args[0], args[1]) else null },
+        )
+
+        /** A row none of whose functions writes what later code reads. */
+        private fun reading(answer: Natives.(key: String, args: List<OtpErlangObject>) -> OtpErlangObject?) =
+            Row(READS) { key, args, _ -> answer(key, args) }
+
+        /** A row whose functions may write what later code reads. */
+        private fun writing(answer: Natives.(key: String, args: List<OtpErlangObject>) -> OtpErlangObject?) =
+            Row { key, args, _ -> answer(key, args) }
     }
+
+    /**
+     * A module whose functions are answered here: its [answer] for a function's `name/arity` key and arguments, `null`
+     * where it has none, in tail position or not ([call]), and whether a function of it [writes] what later code reads:
+     * a module's counter or tables, the app env, the read's config, or Elixir's static options.
+     */
+    private class Row(
+        val writes: Natives.(function: String, arity: Int) -> Boolean = { _, _ -> true },
+        val answer: Natives.(key: String, args: List<OtpErlangObject>, tail: Boolean) -> OtpErlangObject?,
+    )
 
     private val level get() = evaluation.run.level
 
@@ -213,57 +426,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
         if (key == "__info__/1") info(module, args[0])?.let { return it }
 
-        return when (module) {
-            "erlang" -> erlang(key, args, tail)
-            "lists" -> lists(key, args)
-            "maps" -> maps(key, args)
-            "elixir_quote" -> quote(key, args)
-            "elixir_module" -> elixirModule(key, args)
-            "code" -> code(key, args)
-            "application" -> envWrite(key, args)
-            "unicode" -> unicode(key, args)
-            "unicode_util" -> if (key == "gc/1") gc(seen(args[0])) else null
-            "logger" -> if (key == "compare_levels/2") compareLevels(args) else null
-            "Elixir.Keyword" -> keyword(key, args)
-            "Elixir.Enum" -> enum(key, args)
-            "Elixir.Access" -> access(key, args)
-            "Elixir.Macro.Env" -> env(key, args)
-            "Elixir.IO" -> io(key, args)
-            "Elixir.Module" -> module(key, args)
-            "Elixir.Application" -> application(key, args)
-            "Elixir.Code" -> if (key == "can_await_module_compilation?/0") canAwaitModuleCompilation() else null
-            "Elixir.Atom" -> if (key == "to_string/1") erlang("atom_to_binary/1", args) else null
-            "Elixir.String" -> string(key, args)
-            "Elixir.String.Chars" -> if (key == "to_string/1") toString(args[0]) else null
-            "Elixir.Kernel" -> kernel(key, args)
-            "Elixir.Macro" -> macro(key, args)
-            "ordsets" -> if (key == "is_element/2") isElement(args[0], args[1]) else null
-            "binary" -> binaries(key, args)
-            "os" -> os(key, args)
-            "Elixir.System" -> system(key, args)
-            // More reads of the machine or the run, as `system`'s are, each where its argument is one Erlang takes.
-            "rand" -> when (key) {
-                "uniform/0", "uniform_real/0", "normal/0" -> Unknown
-                "uniform/1" -> Unknown.takeIf { small(args[0])?.let { it > 0 } == true }
-                else -> null
-            }
-            "crypto" -> if (key == "strong_rand_bytes/1") UnknownBinary.takeIf { small(args[0])?.let { it >= 0 } == true } else null
-            "inet" -> if (key == "gethostname/0") Unknown else null
-            "init" -> when (key) {
-                "get_argument/1" -> Unknown.takeIf { isAtom(args[0]) }
-                "get_arguments/0" -> Unknown
-                else -> null
-            }
-            "file" -> if (key == "get_cwd/0") workingDirectory() else null
-            "filename" -> filename(key, args)
-            "elixir_config" -> config(key, args)
-            "Elixir.Mix" -> mix(key)
-            "Elixir.Config" -> configure(key, args)
-            "Elixir.Mix.Config" -> if (key == "__import__!/2") mixConfigImport(args[0], args[1]) else null
-            "Elixir.File" -> if (key == "exists?/1" || key == "exists?/2") fileExists(args[0]) else null
-            "elixir_import" -> if (key == "special_form/2") isSpecialForm(args[0], args[1]) else null
-            else -> null
-        } ?: if (module in WRITES_BY_ROW) write(module, key, args) else null
+        return ROWS[module]?.answer?.invoke(this, key, args, tail) ?: if (module in WRITES_BY_ROW) write(module, key, args) else null
     }
 
     /**
@@ -276,14 +439,82 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /**
      * What [module]'s [function], given [args], runs, given what: every argument where it runs a function its arguments
-     * name ([RUNS]), known or not, or where a function is held in any ([holdsAFunction]), which the others may flow into,
-     * and none otherwise.
+     * name or may ([runsAFunction]), known or not, or where a function is held in any ([holdsAFunction]), which the
+     * others may flow into, and none otherwise.
      */
     fun runs(module: String, function: String, args: List<OtpErlangObject>): List<OtpErlangObject> =
-        args.takeIf { runsAFunction(module, function, args.size) || holdsAFunction(it) }.orEmpty()
+        args.takeIf { runsAFunction(module, function, args) || holdsAFunction(it) }.orEmpty()
+
+    /** How [module]'s [function] of [arity] calls a struct's implementation, where it does ([DISPATCHES]). */
+    fun dispatches(module: String, function: String, arity: Int): StructDispatch? =
+        DISPATCHES[Triple(module, function, arity)]?.takeIf { it.since?.isSufficient(level) != false }
+
+    /**
+     * Whether a native that calls [code] ([StructDispatch.code]) may call it for a struct of [module], or for a term of
+     * the type [module] names ([unimplementedType]).
+     */
+    fun runsCodeOf(code: StructCode, module: String): Boolean =
+        when (code) {
+            StructCode.Fetch -> true
+            StructCode.Enumerable -> if (module in code.unimplemented) mayImplement("Enumerable", module) else enumeratesItself(atom(module))
+            StructCode.Escape -> QuoteEscape.escapesItself(evaluation.run.exports.of(module))
+            is StructCode.Protocol -> mayImplement(code.protocol, module)
+        }
+
+    /** Whether [protocol] may have an implementation for [module]: the module that implementation is may exist. */
+    private fun mayImplement(protocol: String, module: String): Boolean =
+        implementationName(level, "Elixir.$protocol", module)?.let { evaluation.run.exports.of(it) != ModuleExports.Absent } == true
+
+    /**
+     * [term]'s type, by the module `defimpl ... for:` names, where it is one [code]'s protocol has no implementation in
+     * Elixir for ([StructCode.unimplemented]); else `null`.
+     */
+    private fun unimplementedType(code: StructCode, term: OtpErlangObject): String? {
+        val type = when (term) {
+            is OtpErlangAtom -> "Elixir.Atom"
+            is OtpErlangBitstr -> "Elixir.BitString"
+            is OtpErlangDouble -> "Elixir.Float"
+            is OtpErlangFun, is OtpErlangExternalFun -> "Elixir.Function"
+            is OtpErlangLong -> "Elixir.Integer"
+            is OtpErlangMap -> "Elixir.Map".takeIf { term.get(STRUCT) == null }
+            is OtpErlangPid -> "Elixir.PID"
+            is OtpErlangPort -> "Elixir.Port"
+            is OtpErlangRef -> "Elixir.Reference"
+            is OtpErlangTuple -> "Elixir.Tuple"
+            else -> null
+        }
+
+        return type?.takeIf(code.unimplemented::contains)
+    }
+
+    /**
+     * The types [term] may be of, by the module `defimpl ... for:` names, that [code]'s protocol has no implementation in
+     * Elixir for: a known term's ([unimplementedType]), and each of them for a value not known that came from no module,
+     * `BitString` only for a binary.
+     */
+    fun unimplementedTypes(code: StructCode, term: OtpErlangObject): Collection<String> =
+        if (term === Unknown || code.unimplemented.isEmpty()) code.unimplemented
+        else listOfNotNull(unimplementedType(code, if (term === UnknownBinary) SOME_BINARY else term))
 
     /** Whether [module]'s [function] of [arity] runs a function it is given ([RUNS]). */
     fun runsAFunction(module: String, function: String, arity: Int): Boolean = Triple(module, function, arity) in RUNS
+
+    /**
+     * Whether [module]'s [function], given [args], runs a function they name ([RUNS]), or options that may name one
+     * ([RUNS_AN_OPTION]): options not known, or holding that option, an element or a key not known. A tail not known,
+     * which [cons] leaves only where it is a binary, is taken as one too: Elixir raises on it, and the native declines.
+     */
+    fun runsAFunction(module: String, function: String, args: List<OtpErlangObject>): Boolean {
+        val key = Triple(module, function, args.size)
+        val (index, option) = RUNS_AN_OPTION[key] ?: return runsAFunction(module, function, args.size)
+        val options = args[index]
+        if (isUnknown(options)) return true
+        val (elements, tail) = cells(options) ?: return false
+
+        return tail?.let(::isUnknown) == true || elements.any { element ->
+            isUnknown(element) || pairKey(element)?.let { isUnknown(it) || it == option } == true
+        }
+    }
 
     /**
      * The argument of [module]'s [function], given [args], that names the module it writes: the one its [ModuleEffects]
@@ -291,6 +522,13 @@ internal class Natives(private val evaluation: Evaluation) {
      */
     fun writes(module: String, function: String, args: List<OtpErlangObject>): List<OtpErlangObject> =
         listOfNotNull(ModuleEffects.target(module, function, args.size, level)?.let(args::get))
+
+    /**
+     * Whether [module]'s [function] of [arity] may write what later code reads ([Row.writes]), as one that isn't answered
+     * here may.
+     */
+    fun writesTheRun(module: String, function: String, arity: Int): Boolean =
+        ROWS[module]?.writes?.invoke(this, function, arity) ?: true
 
     /** Whether [module]'s [function] of [arity] is a `Module` native that only reads its tables. */
     fun onlyReads(module: String, function: String, arity: Int): Boolean =
@@ -400,6 +638,12 @@ internal class Natives(private val evaluation: Evaluation) {
             else -> null
         }
 
+    /**
+     * [answer], which Elixir gives for any terms without raising: one not known where it reads a value not known
+     * ([Declined.onValue]), as it can't raise there either.
+     */
+    private inline fun forAnyTerm(answer: () -> OtpErlangObject): OtpErlangObject = orOnUnknown(Unknown, answer)
+
     private fun erlang(key: String, args: List<OtpErlangObject>, tail: Boolean = false): OtpErlangObject? {
         val badarg = { evaluation.error(atom("badarg"), frame("erlang", key.substringBefore('/'), list(args))) }
 
@@ -418,10 +662,10 @@ internal class Natives(private val evaluation: Evaluation) {
 
                 list(left)
             }
-            "==/2" -> bool(equal(args[0], args[1], false, level))
-            "/=/2" -> bool(!equal(args[0], args[1], false, level))
-            "=:=/2" -> bool(equal(args[0], args[1], true, level))
-            "=/=/2" -> bool(!equal(args[0], args[1], true, level))
+            "==/2" -> forAnyTerm { bool(equal(args[0], args[1], false, level)) }
+            "/=/2" -> forAnyTerm { bool(!equal(args[0], args[1], false, level)) }
+            "=:=/2" -> forAnyTerm { bool(equal(args[0], args[1], true, level)) }
+            "=/=/2" -> forAnyTerm { bool(!equal(args[0], args[1], true, level)) }
             "self/0" -> SELF
             // The processes the build runs, which aren't known.
             "whereis/1" -> if (isAtom(args[0])) Unknown else badarg()
@@ -433,28 +677,28 @@ internal class Natives(private val evaluation: Evaluation) {
             "unique_integer/1" -> readGiven(args[0], { isListOf(it, UNIQUE_MODIFIERS) }, badarg)
             "nodes/1" -> readGiven(args[0], { isOneOf(it, NODE_TYPES) || isListOf(it, NODE_TYPES) }, badarg)
             "make_ref/0" -> OtpErlangRef(LOCAL_NODE, intArrayOf(evaluation.run.nextRef(), 0, 0), 0)
-            "</2" -> bool(compare(args[0], args[1], level) < 0)
-            ">/2" -> bool(compare(args[0], args[1], level) > 0)
-            "=</2" -> bool(compare(args[0], args[1], level) <= 0)
-            ">=/2" -> bool(compare(args[0], args[1], level) >= 0)
-            "min/2" -> if (compare(args[0], args[1], level) > 0) args[1] else args[0]
-            "max/2" -> if (compare(args[0], args[1], level) < 0) args[1] else args[0]
+            "</2" -> forAnyTerm { bool(compare(args[0], args[1], level) < 0) }
+            ">/2" -> forAnyTerm { bool(compare(args[0], args[1], level) > 0) }
+            "=</2" -> forAnyTerm { bool(compare(args[0], args[1], level) <= 0) }
+            ">=/2" -> forAnyTerm { bool(compare(args[0], args[1], level) >= 0) }
+            "min/2" -> forAnyTerm { if (compare(args[0], args[1], level) > 0) args[1] else args[0] }
+            "max/2" -> forAnyTerm { if (compare(args[0], args[1], level) < 0) args[1] else args[0] }
             "not/1" -> bool(!(boolean(args[0]) ?: badarg()))
             "and/2" -> bool((boolean(args[0]) ?: badarg()) and (boolean(args[1]) ?: badarg()))
             "or/2" -> bool((boolean(args[0]) ?: badarg()) or (boolean(args[1]) ?: badarg()))
             "xor/2" -> bool((boolean(args[0]) ?: badarg()) xor (boolean(args[1]) ?: badarg()))
-            "is_atom/1" -> bool(isAtom(args[0]))
-            "is_list/1" -> bool(isList(args[0]))
-            "is_binary/1" -> bool(isBinary(args[0]))
-            "is_bitstring/1" -> bool(typed(args[0]) is OtpErlangBitstr)
-            "is_integer/1" -> bool(typed(args[0]) is OtpErlangLong)
-            "is_float/1" -> bool(typed(args[0]) is OtpErlangDouble)
-            "is_number/1" -> bool(isNumber(typed(args[0])))
-            "is_tuple/1" -> bool(typed(args[0]) is OtpErlangTuple)
-            "is_map/1" -> bool(typed(args[0]) is OtpErlangMap)
-            "is_boolean/1" -> bool(boolean(args[0]) != null)
-            "is_pid/1" -> bool(typed(args[0]) is OtpErlangPid)
-            "is_function/1" -> bool(arity(args[0]) != null)
+            "is_atom/1" -> forAnyTerm { bool(isAtom(args[0])) }
+            "is_list/1" -> forAnyTerm { bool(isList(args[0])) }
+            "is_binary/1" -> forAnyTerm { bool(isBinary(args[0])) }
+            "is_bitstring/1" -> forAnyTerm { bool(typed(args[0]) is OtpErlangBitstr) }
+            "is_integer/1" -> forAnyTerm { bool(typed(args[0]) is OtpErlangLong) }
+            "is_float/1" -> forAnyTerm { bool(typed(args[0]) is OtpErlangDouble) }
+            "is_number/1" -> forAnyTerm { bool(isNumber(typed(args[0]))) }
+            "is_tuple/1" -> forAnyTerm { bool(typed(args[0]) is OtpErlangTuple) }
+            "is_map/1" -> forAnyTerm { bool(typed(args[0]) is OtpErlangMap) }
+            "is_boolean/1" -> forAnyTerm { bool(boolean(args[0]) != null) }
+            "is_pid/1" -> forAnyTerm { bool(typed(args[0]) is OtpErlangPid) }
+            "is_function/1" -> forAnyTerm { bool(arity(args[0]) != null) }
             "is_function/2" -> {
                 val arity = (seen(args[1]) as? OtpErlangLong)?.takeIf { it.signum() >= 0 } ?: badarg()
 
@@ -1488,7 +1732,7 @@ internal class Natives(private val evaluation: Evaluation) {
         }
 
         return when (key) {
-            "keyword?/1" -> bool(isKeyword(args[0]))
+            "keyword?/1" -> forAnyTerm { bool(isKeyword(args[0])) }
             "get/3" -> found("get") ?: args[2]
             "fetch/2" -> found("fetch")?.let { tuple(atom("ok"), it) } ?: atom("error")
             "fetch!/2" -> found("fetch!") ?: evaluation.raise("Elixir.KeyError", "key" to args[1], "term" to args[0])
@@ -1661,8 +1905,10 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** Whether [term] is a struct or a function, which enumerates through its own implementation, called by `Enum`'s clauses. */
     private fun hasOwnImplementation(term: OtpErlangObject): Boolean =
-        term is Closure || term is OtpErlangExternalFun ||
-            term is OtpErlangMap && term.get(atom("__struct__")) != null && range(term) == null
+        isFunction(term) || term is OtpErlangMap && term.get(STRUCT)?.let(::enumeratesItself) == true
+
+    /** Whether a struct of [module] enumerates through its own implementation: any but a `Range`, which `Enum` enumerates. */
+    private fun enumeratesItself(module: OtpErlangObject): Boolean = module != RANGE
 
     /** [term] where it is a `Range`. */
     private fun range(term: OtpErlangObject): Range? {
@@ -1700,39 +1946,40 @@ internal class Natives(private val evaluation: Evaluation) {
         private fun holds(value: BigInteger) = if (step.signum() > 0) value in first..last else value in last..first
     }
 
+    /**
+     * `Access.fetch/2` and `get/2,3` (`Access:247–371` at v1.20.4): `fetch/2` gives what a struct's `fetch/2` gives,
+     * else `{:ok, value}` or `:error` for a map's or a keyword list's key; `get` gives the value, or its default.
+     */
     private fun access(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
-        if (key != "get/2" && key != "get/3") return null
+        // `get/2` is `get/3` with its `nil` default, as a `FunctionClauseError` names it.
+        if (key == "get/2") return access("get/3", args + NIL)
+
+        val fetch = key == "fetch/2"
+        if (!fetch && key != "get/3") return null
 
         val (container, accessKey) = args
-        val default = args.getOrElse(2) { NIL }
 
-        return when (val value = seen(container)) {
+        val fetched = when (val value = seen(container)) {
             is OtpErlangMap -> {
-                val struct = value.get(atom("__struct__"))?.let(::seen) as? OtpErlangAtom
+                val struct = value.get(STRUCT) as? OtpErlangAtom
 
                 if (struct != null) {
-                    when (val fetched = evaluation.remote(struct, "fetch", listOf(container, accessKey))) {
-                        is OtpErlangTuple if fetched.arity() == 2 && seen(fetched.elementAt(0)) == atom("ok") ->
-                            fetched.elementAt(1)
-                        atom("error") -> default
-                        else -> evaluation.error(tuple(atom("try_clause"), seen(fetched)))
-                    }
+                    evaluation.remote(struct, "fetch", listOf(container, accessKey))
                 } else {
-                    valueAt(value, accessKey, level) ?: default
+                    maps("find/2", listOf(accessKey, value))!!
                 }
             }
             is OtpErlangList, is OtpErlangString ->
-                if (isAtom(accessKey)) {
-                    when (val found = lists("keyfind/3", listOf(accessKey, integer(1), container))) {
-                        FALSE -> default
-                        else -> (found as OtpErlangTuple).takeIf { it.arity() == 2 }?.elementAt(1)
-                            ?: evaluation.error(tuple(atom("case_clause"), found))
-                    }
-                } else {
-                    argumentError()
-                }
-            NIL -> default
-            else -> evaluation.error(atom("function_clause"), frame("Elixir.Access", "get", list(listOf(container, accessKey, default))))
+                if (isAtom(accessKey)) keyword("fetch/2", listOf(container, accessKey))!! else argumentError()
+            NIL -> atom("error")
+            else -> functionClause("Elixir.Access", key.substringBefore('/'), args)
+        }
+
+        return when {
+            fetch -> fetched
+            isRecord(fetched, 2, "ok") -> (fetched as OtpErlangTuple).elementAt(1)
+            fetched == atom("error") -> args[2]
+            else -> evaluation.error(tuple(atom("try_clause"), seen(fetched)))
         }
     }
 
@@ -1751,29 +1998,86 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /**
      * `IO.warn/1,2` (`io.ex`), recorded as the macro call's warning, with its stacktrace as given: `IO.warn/1`'s is the
-     * caller's, which isn't known. A message that isn't a binary of UTF-8, and the location an env or options give,
-     * decline; a second argument that is none of those, `[]` or a stacktrace raises `function_clause`.
+     * caller's, which isn't known. The second argument is read first, as far as Elixir reads it before the message
+     * ([located]). A message that isn't a list is then made a string as `to_string/1` makes one, and a list, or one that
+     * isn't a binary of UTF-8, declines. A warning at a place declines.
      */
     private fun io(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
         if (key != "warn/1" && key != "warn/2") return null
 
-        val message = utf8(args[0]) ?: decline("IO.warn/${args.size} of %s", args[0])
-        val stacktrace = args.getOrNull(1)?.also { given ->
-            if (macroEnvOf(given) != null) decline("IO.warn/2 at a Macro.Env")
+        val at = located(args)
+        val message = args[0].takeUnless(::isList)?.let { utf8(toString(it)) } ?: decline("IO.warn/${args.size} of %s", args[0])
 
-            val (elements, _) = cells(seen(given)) ?: functionClause("Elixir.IO", "warn", args)
-
-            when ((elements.firstOrNull()?.let(::seen) as? OtpErlangTuple)?.arity()) {
-                null -> if (elements.isNotEmpty()) functionClause("Elixir.IO", "warn", args)
-                4 -> {}
-                2 -> decline("IO.warn/2 with options %s", given)
-                else -> functionClause("Elixir.IO", "warn", args)
-            }
+        when (at) {
+            WarnedAt.Place -> decline("IO.warn/2 at %s", args[1])
+            is WarnedAt.Nowhere -> evaluation.warn(message, at.stacktrace)
         }
 
-        evaluation.warn(message, stacktrace)
-
         return atom("ok")
+    }
+
+    /**
+     * Where the second of [args], `IO.warn`'s, says the warning is, read as far as Elixir reads it before the message:
+     * nowhere where it is absent, `[]` or a stacktrace, and at a place where an env ([placedAt]) or options
+     * ([optionsAt]) say. One that is none of them raises `function_clause`, as an env or options does before
+     * `IO.warn/2` takes them ([IO_WARN_TAKES_AN_ENV_OR_OPTIONS]).
+     */
+    private fun located(args: List<OtpErlangObject>): WarnedAt {
+        val given = args.getOrNull(1) ?: return WarnedAt.Nowhere(null)
+        val noClause = { functionClause("Elixir.IO", "warn", args) }
+        val takes = IO_WARN_TAKES_AN_ENV_OR_OPTIONS.isSufficient(level)
+
+        macroEnvOf(given)?.let { return if (takes) placedAt(it, noClause) else noClause() }
+
+        val (elements, _) = cells(seen(given)) ?: noClause()
+
+        return when ((elements.firstOrNull()?.let(::seen) as? OtpErlangTuple)?.arity()) {
+            null -> if (elements.isEmpty()) WarnedAt.Nowhere(given) else noClause()
+            4 -> WarnedAt.Nowhere(given)
+            2 -> if (takes) optionsAt(given, noClause) else noClause()
+            else -> noClause()
+        }
+    }
+
+    /**
+     * The place at [env], as `IO.warn/2` takes it: before [IO_WARN_READS_THE_MESSAGE_FIRST] any env, whose stacktrace
+     * is made before the message; from it, only one with a `:line` and a `:file`, and another raises `function_clause`
+     * ([noClause]).
+     */
+    private fun placedAt(env: OtpErlangMap, noClause: () -> Nothing): WarnedAt.Place {
+        when {
+            !IO_WARN_READS_THE_MESSAGE_FIRST.isSufficient(level) -> stacktrace(env)
+            env.get(atom("line")) == null || env.get(atom("file")) == null -> noClause()
+        }
+
+        return WarnedAt.Place
+    }
+
+    /**
+     * Where [options], `IO.warn/2`'s, say a warning is: nowhere, as `[]` says, where they name no file (`:file` absent,
+     * `nil` or `false`), else at a place. From [IO_WARN_OPTIONS_TAKE_A_COLUMN] their `:line` and `:column` are read
+     * before the message; before it, their `:module`, `:function` and `:line` are read into the env `IO.warn/2` then
+     * takes ([placedAt]).
+     */
+    private fun optionsAt(options: OtpErlangObject, noClause: () -> Nothing): WarnedAt {
+        fun option(name: String) = access("get/2", listOf(options, atom(name)))!!
+
+        val file = seen(option("file"))
+
+        if (!truthy(file)) return WarnedAt.Nowhere(EMPTY)
+
+        if (!IO_WARN_OPTIONS_TAKE_A_COLUMN.isSufficient(level)) {
+            val fields = listOf("module", "function", "line").map { atom(it) to option(it) }
+
+            val env = mapOf(listOf(STRUCT to MACRO_ENV, atom("file") to file) + fields, level)
+
+            return placedAt(env, noClause)
+        }
+
+        option("line")
+        option("column")
+
+        return WarnedAt.Place
     }
 
     /**
@@ -1996,21 +2300,23 @@ internal class Natives(private val evaluation: Evaluation) {
     /**
      * `Application.compile_env/4` and `compile_env!/3` from [COMPILE_ENV_TAKES_ENV_FIRST] (`App:595–646` at v1.20.4),
      * `__compile_env__/4` and `__compile_env__!/3` before it (`App:516–552` at v1.11.4): their env match, then
-     * `fetch_compile_env`'s key and `fetch_env/2`'s app guards, then the application's environment as a default build
-     * sees it ([fetched]), and `traverse_env/2` down the rest of the path through `Access.fetch/2`. Where it isn't
-     * known, nor is whether `compile_env!` finds it, and its raise is assumed away. An env that isn't known is taken to
-     * be one, which assumes away the raise where it isn't; before [COMPILE_ENV_TAKES_ENV_FIRST] it is read only for its
-     * tracers, after the guards, where a binary raises. A tracer the env names records the read, and writes no module.
-     * `get_env/2,3`, `fetch_env/2` and `fetch_env!/2` (`App:724–783` at v1.20.4, `App:620–668` at v1.11.4) read the
-     * same environment after their `is_atom(app)` guard; `get_env/2` is `get_env/3`'s default.
+     * `fetch_compile_env`'s key and `fetch_env/2`'s app guards ([clauseGuard]), then the application's environment as a
+     * default build sees it ([fetched]), and `traverse_env/2` down the rest of the path through `Access.fetch/2`, a rest
+     * not known included. Where it isn't known, nor is whether `compile_env!` finds it, and its raise is assumed away.
+     * An env that isn't known is taken to be one, which assumes away the raise where it isn't; before
+     * [COMPILE_ENV_TAKES_ENV_FIRST] it is read only for its tracers, after the traversal, where a binary raises. A tracer
+     * the env names records the read, and writes no module. `get_env/2,3`, `fetch_env/2` and `fetch_env!/2`
+     * (`App:724–783` at v1.20.4, `App:620–668` at v1.11.4) read the same environment after their `is_atom(app)` guard;
+     * `get_env/2` is `get_env/3`'s default.
      */
     private fun application(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        // `get_env/2` is `get_env/3` with its `nil` default, as a `FunctionClauseError` names it.
+        if (key == "get_env/2") return application("get_env/3", args + NIL)
+
         val envFirst = COMPILE_ENV_TAKES_ENV_FIRST.isSufficient(level)
 
         when (key) {
-            "get_env/2" -> if (!isAtom(args[0])) functionClause("Elixir.Application", "get_env", args + NIL)
-            "get_env/3", "fetch_env/2", "fetch_env!/2" ->
-                if (!isAtom(args[0])) functionClause("Elixir.Application", key.substringBefore('/'), args)
+            "get_env/3", "fetch_env/2", "fetch_env!/2" -> clauseGuard(args[0], key.substringBefore('/'), args)
             "compile_env/4", "compile_env!/3" -> if (!envFirst) return null
             "__compile_env__/4", "__compile_env__!/3" -> if (envFirst) return null
             else -> return null
@@ -2023,8 +2329,9 @@ internal class Natives(private val evaluation: Evaluation) {
             return when (key) {
                 "fetch_env/2" -> fetched
                 "fetch_env!/2" -> value.also { if (it == null) evaluation.assumeNoRaise() }
-                else -> if (fetched == atom("error")) args.getOrElse(2) { NIL } else value
-            } ?: Unknown
+                    ?: unfetched((args[0] as? OtpErlangAtom)?.atomValue())
+                else -> if (fetched == atom("error")) args[2] else value ?: fetched
+            }
         }
 
         val env = if (envFirst) args[0] else args.last()
@@ -2038,18 +2345,30 @@ internal class Natives(private val evaluation: Evaluation) {
             }
         }
 
-        val keys = seen(path)
-        val (elements, tail) =
-            if (keys is OtpErlangAtom) listOf(keys) to null
-            else cells(keys) ?: (emptyList<OtpErlangObject>() to null)
-        val first = elements.firstOrNull()?.let(::seen)
+        // A path not known is a key not known, and a rest not known.
+        val (elements, tail) = when (val keys = path.takeUnless(::isUnknown)) {
+            null -> listOf(path) to path
+            is OtpErlangAtom -> listOf(keys) to null
+            else -> cells(keys) ?: (emptyList<OtpErlangObject>() to null)
+        }
+        // An empty path, or one that is no list, fails the first key's guard.
+        val first = elements.firstOrNull() ?: path
         val rest = elements.drop(1)
 
-        if (first !is OtpErlangAtom) {
-            functionClause("Elixir.Application", "fetch_compile_env", listOf(app, path, env))
-        }
+        clauseGuard(first, "fetch_compile_env", listOf(app, path, env))
+        clauseGuard(app, "fetch_env", listOf(app, first))
 
-        if (!isAtom(app)) functionClause("Elixir.Application", "fetch_env", listOf(app, first))
+        // `{:ok, value}`, `:error`, or a value not known that may be either.
+        var traversed = fetched(app, first)
+        // A tail not known may hold more keys.
+        for (next in rest + listOfNotNull(tail?.takeIf(::isUnknown))) {
+            val value = (traversed as? OtpErlangTuple)?.elementAt(1) ?: traversed.takeIf(::isUnknown) ?: break
+            traversed = evaluation.remote(atom("Elixir.Access"), "fetch", listOf(value, next))
+        }
+        // `traverse_env/2` takes the path's tail as a list: one that isn't raises where a value was fetched before it.
+        if (tail != null && !isUnknown(tail) && traversed is OtpErlangTuple) {
+            functionClause("Elixir.Application", "traverse_env", listOf(traversed, tail))
+        }
 
         if (!envFirst) {
             when {
@@ -2057,21 +2376,6 @@ internal class Natives(private val evaluation: Evaluation) {
                 typed(env) is OtpErlangBinary -> argumentError()
                 (env as? OtpErlangMap)?.get(atom("tracers")) == null -> decline("reads the tracers of %s", env)
             }
-        }
-
-        var traversed = fetched(app, first)
-        for (next in rest) {
-            val value = (traversed as? OtpErlangTuple)?.elementAt(1) ?: break
-            traversed = if (isUnknown(value) || isUnknown(next)) {
-                null
-            } else {
-                evaluation.remote(atom("Elixir.Access"), "fetch", listOf(value, next))
-            }
-        }
-        // `traverse_env/2` takes the path's tail as a list: one that isn't raises where a value was fetched before it.
-        if (tail != null && traversed is OtpErlangTuple) {
-            traversed = if (isUnknown(tail)) null
-            else functionClause("Elixir.Application", "traverse_env", listOf(traversed, tail))
         }
         val default = when {
             key.endsWith("!/3") -> null
@@ -2083,32 +2387,50 @@ internal class Natives(private val evaluation: Evaluation) {
             is OtpErlangTuple if seen(traversed.elementAt(0)) == atom("ok") -> traversed.elementAt(1)
             atom("error") if default != null -> default
             else -> {
-                // `traverse_env/2` fetches each key after the first from the value before it, which may not be a
-                // container.
-                if (default == null || traversed == null && (rest.isNotEmpty() || tail != null)) {
-                    evaluation.assumeNoRaise()
-                }
-                Unknown
+                if (default == null || tail != null) evaluation.assumeNoRaise()
+                unfetched((app as? OtpErlangAtom)?.atomValue())
             }
         }
     }
 
     /**
-     * `fetch_env/2`'s answer for [app]'s [key] in the environment a default build sees, the run's `appEnv`:
-     * `{:ok, value}` where the `.app` declares it, `:error` where nothing sets it, and unknown where a config file may
-     * set it, its `.app` can't be read, the run wrote the app's env
-     * ([Run.wroteEnvOf][org.elixir_lang.expander.Run.wroteEnvOf]) or [key] isn't an atom. Each answer it knows is an
-     * assumption: the environment may change before the read.
+     * `Application`'s [function]`(`[args]`)`'s guard on [term], `is_atom` unless [passes] says otherwise: one that fails
+     * it raises `FunctionClauseError`, and one not known may ([Evaluation.raiseMayBeCaught]).
      */
-    private fun fetched(app: OtpErlangObject, key: OtpErlangObject): OtpErlangObject? {
-        if (key !is OtpErlangAtom) return null
-        val name = (seen(app) as OtpErlangAtom).atomValue()
-        if (evaluation.run.wroteEnvOf(name)) return null
+    private fun clauseGuard(
+        term: OtpErlangObject,
+        function: String,
+        args: List<OtpErlangObject>,
+        passes: (OtpErlangObject) -> Boolean = ::isAtom,
+    ) {
+        when {
+            term is UnknownValue -> evaluation.raiseMayBeCaught()
+            !passes(term) -> functionClause("Elixir.Application", function, args)
+        }
+    }
+
+    /**
+     * What the env of the app named [app], or, `null`, of an app not known, holds where [fetched] doesn't know it: where
+     * the run wrote it, a value that may be or hold one of the modules being compiled ([ModuleUnknown]), as what the run
+     * wrote may.
+     */
+    private fun unfetched(app: String?): UnknownValue = if (evaluation.run.wroteEnvOf(app)) ModuleUnknown else Unknown
+
+    /**
+     * `fetch_env/2`'s answer for [app]'s [key] in the environment a default build sees, the run's `appEnv`:
+     * `{:ok, value}` where the `.app` declares it, `:error` where nothing sets it, and unknown ([unfetched]) where a
+     * config file may set it, its `.app` can't be read, the run wrote the app's env
+     * ([Run.wroteEnvOf][org.elixir_lang.expander.Run.wroteEnvOf]), or [app] or [key] isn't an atom. Each answer it
+     * knows is an assumption: the environment may change before the read.
+     */
+    private fun fetched(app: OtpErlangObject, key: OtpErlangObject): OtpErlangObject {
+        val name = (app as? OtpErlangAtom)?.atomValue()
+        if (name == null || key !is OtpErlangAtom || evaluation.run.wroteEnvOf(name)) return unfetched(name)
 
         val answer = when (val value = evaluation.run.appEnv.of(name, key)) {
             is AppEnvValue.Declared -> tuple(atom("ok"), value.term)
             AppEnvValue.Unset -> atom("error")
-            AppEnvValue.Configured, AppEnvValue.Unreadable -> return null
+            AppEnvValue.Configured, AppEnvValue.Unreadable -> return unfetched(name)
         }
         evaluation.assume()
 
@@ -2335,7 +2657,10 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /**
      * `String.Chars.to_string/1` by its `BitString`, `Atom`, `Integer` and `List` implementations; the others aren't
-     * read. A list that `List.to_string/1` raises on declines, as its exceptions aren't `unicode`'s `badarg`.
+     * read. A list that `List.to_string/1` raises on declines, as its exceptions aren't `unicode`'s `badarg`. A function,
+     * a map that isn't a struct, a pid, a port, a reference or a tuple raises `Protocol.UndefinedError`, as Elixir
+     * implements the protocol for none of them ([unimplementedType]) and it has no fallback. Where the project may
+     * implement it for that type, the call declined before it got here ([Evaluation.givenAStruct]).
      */
     private fun toString(term: OtpErlangObject): OtpErlangObject =
         when {
@@ -2345,6 +2670,8 @@ internal class Natives(private val evaluation: Evaluation) {
             term is OtpErlangLong -> binary(term.bigIntegerValue().toString())
             isList(term) ->
                 OtpErlangBinary(chardataBytes("characters_to_binary", listOf(term)) { decline("List.to_string/1 of %s, which is no chardata", term) })
+            unimplementedType(STRING_CHARS, term) != null ->
+                evaluation.raise("Elixir.Protocol.UndefinedError", "protocol" to atom("Elixir.${STRING_CHARS.protocol}"), "value" to term)
             else -> decline("String.Chars of %s", term)
         }
 
@@ -2794,21 +3121,33 @@ internal class Natives(private val evaluation: Evaluation) {
         }
     }
 
-    /** `Config.deep_merge/3`: two keyword lists merged, keys by key, else the later value; each pair of parts merged once, in [merged]. */
+    /**
+     * `Config.deep_merge/3`: two keyword lists merged, keys by key, else the later value, or a value not known built from
+     * both where either isn't known and both may be keyword lists; each pair of parts merged once, in [merged].
+     */
     private fun deepMerge(
         value1: OtpErlangObject,
         value2: OtpErlangObject,
         merged: IdentityHashMap<OtpErlangObject, IdentityHashMap<OtpErlangObject, OtpErlangObject>>,
     ): OtpErlangObject =
-        when {
-            isUnknown(value2) -> Unknown
-            isUnknown(value1) -> if (isKeyword(value2)) Unknown else value2
+        merged[value1]?.get(value2) ?: when {
+            !mayBeKeyword(value1) || !mayBeKeyword(value2) -> value2
+            isUnknown(value1) || isUnknown(value2) -> unknownOf(listOf(value1, value2))
             isKeyword(value1) && isKeyword(value2) ->
-                merged.getOrPut(value1) { IdentityHashMap() }.getOrPut(value2) {
-                    keywordMerge(value1, value2) { part1, part2 -> deepMerge(part1, part2, merged) }
-                }
+                keywordMerge(value1, value2) { part1, part2 -> deepMerge(part1, part2, merged) }
+                    .also { merged.getOrPut(value1) { IdentityHashMap() }[value2] = it }
             else -> value2
         }
+
+    /**
+     * Whether [term] is or may be a keyword list, without declining: an unknown other than a binary, or a proper list
+     * whose elements each are or may be `{atom, _}` pairs.
+     */
+    private fun mayBeKeyword(term: OtpErlangObject): Boolean {
+        return term is UnknownValue || properElements(term)?.all { element ->
+            element is UnknownValue || pairKey(element).let { it is OtpErlangAtom || it is UnknownValue }
+        } == true
+    }
 
     /**
      * `Keyword.merge/3`: [keywords1] without the keys of [keywords2], then [keywords2]'s pairs in turn, each merged by
@@ -2819,7 +3158,7 @@ internal class Natives(private val evaluation: Evaluation) {
         keywords2: OtpErlangObject,
         merge: (OtpErlangObject, OtpErlangObject) -> OtpErlangObject,
     ): OtpErlangObject {
-        if (isUnknown(keywords1) || isUnknown(keywords2)) return Unknown
+        if (isUnknown(keywords1) || isUnknown(keywords2)) return unknownOf(listOf(keywords1, keywords2))
         if (!isList(keywords1) || !isList(keywords2)) functionClause("Elixir.Keyword", "merge", listOf(keywords1, keywords2))
         if (!isKeyword(keywords1)) argumentError()
 

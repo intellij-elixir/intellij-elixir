@@ -200,9 +200,11 @@ internal inline fun anyHeld(
     return false
 }
 
+/** Whether [term] is a function: a [Closure] or an external fun. */
+internal fun isFunction(term: OtpErlangObject): Boolean = term is Closure || term is OtpErlangExternalFun
+
 /** Whether a function is held in any of [terms] ([anyHeld]). */
-internal fun holdsAFunction(terms: List<OtpErlangObject>): Boolean =
-    anyHeld(terms) { it is Closure || it is OtpErlangExternalFun }
+internal fun holdsAFunction(terms: List<OtpErlangObject>): Boolean = anyHeld(terms, visit = ::isFunction)
 
 /** Declines for [reason], each `%s` in which names the next of [terms]. */
 internal fun decline(reason: String, vararg terms: OtpErlangObject): Nothing =
@@ -368,13 +370,21 @@ private fun builtFrom(
     return leaves
 }
 
-/** A value the evaluator doesn't know, built from [parts]: it came from a module being compiled where one of them did. */
-internal fun unknownOf(parts: List<OtpErlangObject>): UnknownValue =
-    when {
-        parts.any { it === ModuleUnknown } -> ModuleUnknown
-        parts.all { it === Unknown || it === UnknownBinary } -> Unknown
-        else -> Holding(parts)
+/**
+ * A value the evaluator doesn't know, built from [parts]: it came from a module being compiled where one of them did. A
+ * number or a binary holds no module, so a value built from one and an unknown is that unknown, and a call given it
+ * again is the same call ([RunningCall]); a value built from one [Holding] alone is that [Holding].
+ */
+internal fun unknownOf(parts: List<OtpErlangObject>): UnknownValue {
+    val adding = ArrayList<OtpErlangObject>()
+
+    for (part in parts) {
+        if (part === ModuleUnknown) return ModuleUnknown
+        if (!holdsNoModule(part)) adding += part
     }
+
+    return if (adding.isEmpty()) Unknown else adding.singleOrNull() as? Holding ?: Holding(adding)
+}
 
 /**
  * A binary whose bytes the evaluator doesn't know, such as a message built by `inspect`: a binary segment takes it, as
@@ -698,7 +708,10 @@ private fun holds(term: OtpErlangObject, matches: (OtpErlangObject) -> Boolean):
     return holds(term)
 }
 
-/** An attribute's [value], as the escaped value `@` gives in a function evaluates to; [seen] is told each atom in it. */
+/**
+ * An attribute's [value], as the escaped value `@` gives in a function evaluates to; [seen] is told each atom in it. A
+ * part the term doesn't know, other than a float, came from the module being compiled that holds it ([ModuleUnknown]).
+ */
 internal fun otpOf(value: Term, seen: (String) -> Unit = {}): OtpErlangObject {
     ProgressManager.checkCanceled()
 
@@ -711,7 +724,8 @@ internal fun otpOf(value: Term, seen: (String) -> Unit = {}): OtpErlangObject {
         is Term.List -> cons(value.elements.map(part), value.tail?.let(part) ?: EMPTY)
         is Term.Pair -> tuple(part(value.first), part(value.second))
         is Term.Tuple -> OtpErlangTuple(value.elements.map(part).toTypedArray())
-        else -> Unknown
+        Term.NonTuple -> Unknown
+        is Term.Node, Term.Unexpanded -> ModuleUnknown
     }
 }
 
@@ -736,6 +750,10 @@ internal fun isKeyword(term: OtpErlangObject): Boolean {
         (seen(element) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elementAt(0)?.let(::seen) is OtpErlangAtom
     }
 }
+
+/** The key of [term] where it is a pair, as a keyword list or a map's entries hold one, else `null`. */
+internal fun pairKey(term: OtpErlangObject): OtpErlangObject? =
+    (term as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elementAt(0)
 
 /** `lists:keyfind/3`'s walk: the first tuple of [elements], each read by [read], whose element [n] [matches]. */
 internal inline fun keyFound(
@@ -789,6 +807,10 @@ private inline fun <T> ordered(left: OtpErlangObject, right: OtpErlangObject, sa
 
 /** [term], declining where it is unknown ([isUnknown]), before its type or value is tested. */
 internal fun seen(term: OtpErlangObject): OtpErlangObject = if (isUnknown(term)) unknown(term) else term
+
+/** Whether [term] is a tuple of [size] elements tagged [name], as Erlang's `is_record/3` tests. */
+internal fun isRecord(term: OtpErlangObject, size: Int, name: String): Boolean =
+    term is OtpErlangTuple && term.arity() == size && seen(term.elementAt(0)) == atom(name)
 
 /** [term] where it is a `%Macro.Env{}`, `null` where it is something else. */
 internal fun macroEnvOf(term: OtpErlangObject): OtpErlangMap? =

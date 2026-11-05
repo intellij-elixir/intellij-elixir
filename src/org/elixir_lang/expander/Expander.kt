@@ -384,8 +384,10 @@ internal class Run(
         return RunState(joined, written)
     }
 
-    /** Whether an evaluation in the run wrote [app]'s env, so its value isn't [appEnv]'s. */
-    fun wroteEnvOf(app: String): Boolean = written?.contains(app) != false
+    /**
+     * Whether an evaluation in the run wrote [app]'s env, or, `null`, that of any app, so its value isn't [appEnv]'s.
+     */
+    fun wroteEnvOf(app: String?): Boolean = written?.let { if (app == null) it.isNotEmpty() else app in it } != false
 
     /**
      * The modules being compiled that calls declined in the module-body code or macro being run were given, any of

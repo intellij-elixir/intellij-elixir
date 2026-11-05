@@ -91,6 +91,30 @@ class ConfigImportsInArmsHeavyTest : ConfigHeavyTestCase() {
             ),
         )
 
+    /** Where the arms set an app's settings in another order, which comes first isn't known. */
+    fun testArmsSettingAnAppsSettingsInAnotherOrder() =
+        assertRead(
+            "other:h=Configured other:k1=1",
+            keys(
+                "if System.get_env(\"X\") do\n  config :app, a: 1, b: 1\nelse\n  config :app, b: 2, a: 1\nend\n\n" +
+                    "config :other, h: elem(hd(Config.read_config(:app)), 0), k1: 1\n",
+                "other:h",
+                "other:k1",
+            ),
+        )
+
+    /** Where one arm adds a setting, how many the app has isn't known. */
+    fun testAnArmAddingASettingToAnApp() =
+        assertRead(
+            "other:n=Configured other:k1=1",
+            keys(
+                "if System.get_env(\"X\") do\n  config :app, a: 1, b: 1\nelse\n  config :app, a: 1\nend\n\n" +
+                    "config :other, n: length(Config.read_config(:app)), k1: 1\n",
+                "other:n",
+                "other:k1",
+            ),
+        )
+
     /** Where the arms set the same settings in the same order, values apart, how many there are is known. */
     fun testArmsSettingAnAppsSettingsApart() =
         assertRead(
@@ -99,6 +123,99 @@ class ConfigImportsInArmsHeavyTest : ConfigHeavyTestCase() {
                 "if System.get_env(\"X\") do\n  config :app, a: 1, b: 1\nelse\n  config :app, a: 1, b: 2\nend\n\n" +
                     "config :other, n: length(Config.read_config(:app)), k1: 1\n",
                 "other:n",
+                "other:k1",
+            ),
+        )
+
+    /** Where only one arm sets an app, whether it has settings isn't known. */
+    fun testAnArmSettingAnAppTheOtherDoesnt() =
+        assertRead(
+            "other:n=Configured other:k1=1",
+            keys(
+                "if System.get_env(\"X\"), do: config(:app, k: 1)\nconfig :other, n: is_list(Config.read_config(:app)), k1: 1\n",
+                "other:n",
+                "other:k1",
+            ),
+        )
+
+    /** `config/2` gives back the config before it, which one arm may have left empty. */
+    fun testTheConfigAConfigCallGivesBackWhereAnArmMayHaveLeftItEmpty() =
+        assertEquals(
+            "other:len=Configured other:k1=1",
+            keys(
+                "if System.get_env(\"X\"), do: config(:app, k: 1)\nbefore = config(:other, n: 1)\n" +
+                    "config :other, len: length(before), k1: 1\n",
+                "other:len",
+                "other:k1",
+            ),
+        )
+
+    /** `config/2` gives back the config before it, in which how many settings an app the arms set apart has isn't known. */
+    fun testTheConfigAConfigCallGivesBackWithAnAppTheArmsSetApart() =
+        assertEquals(
+            "other:len=Configured other:k1=1",
+            keys(
+                CONFIG_BEFORE.format("config(:app, b: 1)", "config(:app, a: 2)"),
+                "other:len",
+                "other:k1",
+            ),
+        )
+
+    /** Where the arms leave an app's settings alike in their keys, the config `config/2` gives back keeps how many. */
+    fun testTheConfigAConfigCallGivesBackWithAnAppTheArmsSetAlike() =
+        assertEquals(
+            "other:len=1 other:k1=1",
+            keys(
+                CONFIG_BEFORE.format("config(:app, a: 2)", "config(:app, a: 3)"),
+                "other:len",
+                "other:k1",
+            ),
+        )
+
+    /** An app one arm sets to no settings may not be in the config `config/2` gives back. */
+    fun testTheConfigAConfigCallGivesBackWithAnAppOneArmSetsToNoSettings() =
+        assertEquals(
+            "other:n=Configured other:k1=1",
+            keys(
+                "config :other, x: 1\nif System.get_env(\"X\"), do: config(:app, [])\n" +
+                    "config :other, n: is_list(Keyword.get(config(:z, k: 1), :app)), k1: 1\n",
+                "other:n",
+                "other:k1",
+            ),
+        )
+
+    /** Where one arm adds an app, how many apps the config `config/2` gives back holds isn't known. */
+    fun testTheConfigAConfigCallGivesBackWithAnAppOneArmAdds() =
+        assertEquals(
+            "other:len=Configured other:k1=1",
+            keys(
+                "config :other, x: 1\nif System.get_env(\"X\"), do: config(:app, k: 1)\nbefore = config(:y, z: 1)\n" +
+                    "config :other, len: length(before), k1: 1\n",
+                "other:len",
+                "other:k1",
+            ),
+        )
+
+    /** Where the arms set apps in another order, which comes first in the config `config/2` gives back isn't known. */
+    fun testTheConfigAConfigCallGivesBackWithAppsTheArmsSetInAnotherOrder() =
+        assertEquals(
+            "other:h=Configured other:k1=1",
+            keys(
+                "if System.get_env(\"X\") do\n  config :a, k: 1\n  config :b, k: 1\nelse\n  config :b, k: 1\n  config :a, k: 1\nend\n\n" +
+                    "before = config(:y, z: 1)\nconfig :other, h: elem(hd(before), 0), k1: 1\n",
+                "other:h",
+                "other:k1",
+            ),
+        )
+
+    /** Where the arms set the same apps in the same order, how many apps the config `config/2` gives back holds is known. */
+    fun testTheConfigAConfigCallGivesBackWithAppsTheArmsSetAlike() =
+        assertEquals(
+            "other:len=2 other:k1=1",
+            keys(
+                "config :other, x: 1\nif System.get_env(\"X\"), do: config(:a, k: 1), else: config(:a, k: 2)\n" +
+                    "before = config(:y, z: 1)\nconfig :other, len: length(before), k1: 1\n",
+                "other:len",
                 "other:k1",
             ),
         )
@@ -146,7 +263,18 @@ class ConfigImportsInArmsHeavyTest : ConfigHeavyTestCase() {
             ),
         )
 
+    /** A loop's iterations that each set a setting to the element join to the same config again. */
+    fun testALoopSettingASettingToTheElement() =
+        assertEquals(
+            "k=Configured k1=1",
+            keys("config :app, k: :x\nfor y <- System.get_env(), do: config(:app, k: y)\nconfig :app, k1: 1\n", "k", "k1"),
+        )
+
     private companion object {
+        /** `:app` set, then set again in each of two arms, before `config/2` gives back the config. */
+        const val CONFIG_BEFORE =
+            "config :app, a: 1\nif System.get_env(\"X\"), do: %s, else: %s\nbefore = config(:other, n: 1)\n" +
+                "config :other, len: length(Keyword.get(before, :app)), k1: 1\n"
         const val IMPORTED_IN_ONE_ARM = "if System.get_env(\"X\") do\n  import_config \"o.exs\"\nend\nconfig :app, k1: 1\n"
         val O_EXS = "config/o.exs" to "import Config\nconfig :app, o: 1\n"
     }
