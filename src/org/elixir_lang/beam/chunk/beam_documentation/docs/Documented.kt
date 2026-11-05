@@ -16,6 +16,8 @@ data class Documented(val kind: String,
     /** How many of the trailing arities below [arity] this entry's default arguments cover. */
     fun defaults(): Int = (metadatumByName["defaults"] as? OtpErlangLong)?.intValue() ?: 0
 
+    fun isGuard(): Boolean = (metadatumByName["guard"] as? OtpErlangAtom)?.atomValue() == "true"
+
     companion object {
         private val logger = Logger.getInstance(Documented::class.java)
 

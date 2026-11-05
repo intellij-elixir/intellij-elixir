@@ -100,6 +100,13 @@ internal object DefaultArgumentClause {
             ?.let { arguments to it }
     }
 
+    /** The full-arity definition [definition] calls `super` on when it is a default clause, else [definition]. */
+    fun target(definition: Definition): Definition? {
+        val (_, superArguments) = defaultClause(definition) ?: return definition
+
+        return namesake(definition, superArguments.arity())
+    }
+
     /** [generated] of [definition]'s one clause. */
     private fun defaultClause(definition: Definition): Pair<OtpErlangList, OtpErlangList>? =
         (definition.clausesTerm as? OtpErlangList)?.singleOrNull()?.let(::generated)
@@ -112,10 +119,16 @@ internal object DefaultArgumentClause {
             ?.takeIf { it is OtpErlangList || it is OtpErlangString }
             ?.toOtpErlangList()
 
-    private fun targetArguments(definition: Definition, arity: Int): OtpErlangList? {
+    /** The definition with [definition]'s macro and name at [arity]. */
+    private fun namesake(definition: Definition, arity: Int): Definition? {
         val macro = definition.macro ?: return null
         val name = definition.name ?: return null
-        val target = definition.debugInfo.definitions?.get(MacroNameArity(macro, name, arity)) ?: return null
+
+        return definition.debugInfo.definitions?.get(MacroNameArity(macro, name, arity))
+    }
+
+    private fun targetArguments(definition: Definition, arity: Int): OtpErlangList? {
+        val target = namesake(definition, arity) ?: return null
 
         return (target.clausesTerm as? OtpErlangList)
             ?.firstOrNull()
