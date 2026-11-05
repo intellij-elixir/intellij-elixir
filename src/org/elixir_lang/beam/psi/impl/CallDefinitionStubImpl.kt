@@ -33,7 +33,7 @@ class CallDefinitionStubImpl<T : CallDefinition> : StubbicBase<T>, CallDefinitio
 
         assert(deserialized.resolvedFinalArity == RESOLVED_FINAL_ARITY)
 
-        assert(deserialized.hasDoBlockOrKeyword == StubbicBase.HAS_DO_BLOCK_OR_KEYWORD)
+        assert(deserialized.hasDoBlockOrKeyword)
 
         val canonicalNameSet = deserialized.canonicalNameSet
         assert(canonicalNameSet.size == 1)
