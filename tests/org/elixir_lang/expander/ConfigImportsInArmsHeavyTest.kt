@@ -107,6 +107,45 @@ class ConfigImportsInArmsHeavyTest : ConfigHeavyTestCase() {
     fun testAnArmLeavingTheConfigEmptyBeforeAKeywordResultDeclines() =
         assertEquals("declined", keys("if System.get_env(\"X\"), do: config(:app, k: 1)\n[app: [j: 1]]\n", "k", "j"))
 
+    /** A loop's iterations, whose arms set apps apart, join to the same config again, so the loop ends. */
+    fun testALoopWhoseArmsSetAppsApart() =
+        assertEquals(
+            "other:enabled=Configured step=Configured k1=1",
+            keys(
+                "config :app, step: 0\n\nfor <<_ <- System.get_env(\"X\", \"ab\")>> do\n" +
+                    "  if System.get_env(\"Y\"), do: config(:app, step: 1), else: config(:other, enabled: true)\nend\n\n" +
+                    "config :app, k1: 1\n",
+                "other:enabled",
+                "step",
+                "k1",
+            ),
+        )
+
+    /** A loop's iterations whose arms set a setting to known values apart join to the same config again, so the loop ends. */
+    fun testALoopWhoseArmsSetASettingToKnownValuesApart() =
+        assertEquals(
+            "level=Configured k1=1",
+            keys(
+                "config :app, level: :info\n\nfor <<_ <- System.get_env(\"XS\", \"ab\")>> do\n" +
+                    "  if System.get_env(\"X\"), do: config(:app, level: :debug), else: config(:app, level: :warn)\nend\n\n" +
+                    "config :app, k1: 1\n",
+                "level",
+                "k1",
+            ),
+        )
+
+    /** A loop's iterations that each set a setting to a new value holding a value not known join to the same config again. */
+    fun testALoopSettingANewValueHoldingAValueNotKnown() =
+        assertEquals(
+            "k=Configured k1=1",
+            keys(
+                "config :app, k: []\nfor <<_ <- System.get_env(\"XS\", \"ab\")>>, do: config(:app, k: {System.get_env(\"X\")})\n" +
+                    "config :app, k1: 1\n",
+                "k",
+                "k1",
+            ),
+        )
+
     private companion object {
         const val IMPORTED_IN_ONE_ARM = "if System.get_env(\"X\") do\n  import_config \"o.exs\"\nend\nconfig :app, k1: 1\n"
         val O_EXS = "config/o.exs" to "import Config\nconfig :app, o: 1\n"

@@ -1,5 +1,7 @@
 package org.elixir_lang.expander
 
+import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
+
 /**
  * A value from the environment, unknown to the plugin, passing through code that tests it. Each arm that may be taken runs
  * from the state before the test, and the arms join: a key the arms set alike keeps its value, one they set apart is
@@ -373,6 +375,266 @@ class ConfigArmsHeavyTest : ConfigHeavyTestCase() {
                 "k",
                 "k1",
             ),
+        )
+
+    fun testAWith() =
+        assertEquals(
+            "k=Configured k1=1",
+            keyBound("k = with {:ok, v} <- System.fetch_env(\"X\"), do: v\n"),
+        )
+
+    fun testAWithElse() =
+        assertEquals(
+            "k=Configured k1=1",
+            keyBound("k =\n  with {:ok, v} <- System.fetch_env(\"X\") do\n    v\n  else\n    :error -> \"e\"\n  end\n\n"),
+        )
+
+    fun testAWithClauseWhoseGuardCantHold() =
+        assertEquals(
+            "k=0 k1=1",
+            keyBound("limit = 0\n\nk =\n  with \"1\" when limit > 0 <- System.get_env(\"X\") do\n    1\n  else\n    _ -> 0\n  end\n\n"),
+        )
+
+    /** A variable the clause matched to a known part keeps it, so a guard on it can't hold, though the rest isn't known. */
+    fun testAWithClauseWhoseGuardCantHoldOnAPartMatched() =
+        assertEquals(
+            "k=0 k1=1",
+            keyBound(
+                "k =\n  with {env, nil} when env == :prod <- {config_env(), System.get_env(\"X\")} do\n    1\n  else\n    _ -> 0\n  end\n\n",
+            ),
+        )
+
+    fun testAWithWritingInItsDo() =
+        assertEquals(
+            "k=Configured k1=1",
+            keys("config :app, k: 1\nwith {:ok, _} <- System.fetch_env(\"X\"), do: config(:app, k: 2)\nconfig :app, k1: 1\n", "k", "k1"),
+        )
+
+    fun testAMatch() = assertEquals("k=Configured k1=1", keyBound("{:ok, k} = System.fetch_env(\"X\")\n"))
+
+    /** A variable a match that may raise matched to a known part keeps it. */
+    fun testAMatchThatMayRaiseKeepsAPartMatched() =
+        assertEquals("k=:dev k1=1", keyBound("{k, nil} = {config_env(), System.get_env(\"X\")}\n"))
+
+    fun testAFor() =
+        assertConfiguredBeside("(for {\"X\", v} <- System.get_env(), do: v)")
+
+    fun testABitstringFor() =
+        assertConfiguredBeside("(for <<c <- System.get_env(\"X\", \"\")>>, do: c)")
+
+    /** A generator whose guard can't hold skips every element of a value not known. */
+    fun testAGeneratorWhoseGuardCantHold() =
+        assertEquals(
+            "k=0 k1=1",
+            keys("config :app, k: 0\nlimit = 0\nfor _ when limit > 0 <- System.get_env(), do: config(:app, k: 1)\nconfig :app, k1: 1\n", "k", "k1"),
+        )
+
+    /** A `reduce:` whose generator's guard keeps no element runs no iteration, so its accumulator stays where it started. */
+    fun testAReduceWhoseGeneratorGuardCantHoldKeepsItsAccumulator() =
+        assertEquals(
+            "k=0 k1=1",
+            keyBound("limit = 0\nk = for _ when limit > 0 <- System.get_env(), reduce: 0 do\n  acc -> acc + 1\nend\n"),
+        )
+
+    /** Nor does a `for` whose generator's guard keeps no element, so it gives `[]`. */
+    fun testAForWhoseGeneratorGuardCantHoldGivesNothing() =
+        assertEquals("k=[] k1=1", keyBound("limit = 0\nk = for _ when limit > 0 <- System.get_env(), do: 1\n"))
+
+    /** Nor does one whose filter keeps no element. */
+    fun testAForWhoseFilterCantHoldGivesNothing() =
+        assertEquals("k=[] k1=1", keyBound("limit = 0\nk = for _ <- System.get_env(), limit > 0, do: 1\n"))
+
+    /** Nor does a `reduce:` whose filter keeps no element, which keeps its accumulator. */
+    fun testAReduceWhoseFilterCantHoldKeepsItsAccumulator() =
+        assertEquals(
+            "k=0 k1=1",
+            keyBound("limit = 0\nk = for _ <- System.get_env(), limit > 0, reduce: 0 do\n  acc -> acc + 1\nend\n"),
+        )
+
+    /** Nor does one whose later generator's guard keeps no element. */
+    fun testAForWhoseLaterGeneratorGuardCantHoldGivesNothing() =
+        assertEquals(
+            "k=[] k1=1",
+            keyBound("limit = 0\nk = for _ <- System.get_env(), _ when limit > 0 <- System.get_env(), do: 1\n"),
+        )
+
+    /** Nor does a `for` over a bitstring whose filter keeps no byte. */
+    fun testABitstringForWhoseFilterCantHoldGivesNothing() =
+        assertEquals("k=[] k1=1", keyBound("limit = 0\nk = for <<_ <- System.get_env(\"X\", \"\")>>, limit > 0, do: 1\n"))
+
+    /**
+     * A generator binds its variables afresh, so its guard reads the element, not a variable of the same version the
+     * clause around it bound, as a default argument's variables may be before Elixir 1.14.
+     */
+    fun testAGeneratorGuardInADefaultArgumentReadsTheElement() =
+        assertEquals(
+            "enabled=Configured k1=1",
+            keys(
+                "defmodule H do\n" +
+                    "  def f(a, b \\\\ (for y when y != 0 <- System.get_env(), do: Config.config(:app, enabled: true))), do: {a, b}\nend\n\n" +
+                    "config :app, enabled: false\nH.f(0)\nconfig :app, k1: 1\n",
+                "enabled",
+                "k1",
+            ),
+        )
+
+    /** The generator's body reads the element too. */
+    fun testAGeneratorBodyInADefaultArgumentReadsTheElement() =
+        assertEquals(
+            "k=Configured k1=1",
+            keys(
+                "defmodule H do\n" +
+                    "  def f(a, b \\\\ (for y <- System.get_env(), do: Config.config(:app, k: y))), do: {a, b}\nend\n\n" +
+                    "config :app, k: 0\nH.f(0)\nconfig :app, k1: 1\n",
+                "k",
+                "k1",
+            ),
+        )
+
+    /** A segment's size in a generator over a binary not known reads the variable bound before it. */
+    fun testASegmentSizeInAGeneratorOverABinaryNotKnownReadsTheVariableBoundBefore() =
+        assertEquals(
+            "k=8 k1=1",
+            keys("n = 8\nconfig :app, k: 8\nfor <<_::size(n) <- System.get_env(\"XS\", \"ab\")>>, do: config(:app, k: n)\nconfig :app, k1: 1\n", "k", "k1"),
+        )
+
+    /** A generator whose segments can't match any binary runs no iteration over a binary not known. */
+    fun testAGeneratorWhoseSegmentsCantMatchSkipsABinaryNotKnown() =
+        assertEquals("k=0 k1=1", sizedBefore("-1", "for <<_::size(n) <- System.get_env(\"X\", \"ab\")>>, do: config(:app, k: 1)\n"))
+
+    /** A size that is known and isn't an integer matches no binary, so the generator runs no iteration. */
+    fun testAGeneratorWhoseSizeIsntAnIntegerSkipsABinaryNotKnown() =
+        assertEquals("k=0 k1=1", sizedBefore(":a", "for <<_::size(n) <- System.get_env(\"X\", \"ab\")>>, do: config(:app, k: 1)\n"))
+
+    /** A size that reads an earlier segment's variable may match, as that variable isn't known. */
+    fun testAGeneratorWhoseSizeReadsAnEarlierSegmentMayMatchABinaryNotKnown() =
+        assertEquals(
+            "k=Configured k1=1",
+            keys("config :app, k: 0\nfor <<len, _::size(len) <- System.get_env(\"X\", \"ab\")>>, do: config(:app, k: 1)\nconfig :app, k1: 1\n", "k", "k1"),
+        )
+
+    /** A size that fails as a guard matches no binary, where a size is one ([BITSTRING_SIZE_EXPANDED_AS_GUARD]); on 1.11.4 such a size doesn't compile. */
+    fun testAGeneratorWhoseSizeFailsAsAGuardSkipsABinaryNotKnown() {
+        if (!BITSTRING_SIZE_EXPANDED_AS_GUARD.isSufficient(legLevel())) return
+
+        assertEquals("k=0 k1=1", sizedBefore(":a", "for <<_::size(n * 8) <- System.get_env(\"X\", \"ab\")>>, do: config(:app, k: 1)\n"))
+    }
+
+    /** A segment whose spec the evaluator can't read, such as a `native` one, may match a binary not known. */
+    fun testAGeneratorWhoseSegmentSpecIsntReadMayMatchABinaryNotKnown() =
+        assertEquals(
+            "k=Configured k1=1",
+            keys("config :app, k: 0\nfor <<_::size(16)-native <- System.get_env(\"X\", \"ab\")>>, do: config(:app, k: 1)\nconfig :app, k1: 1\n", "k", "k1"),
+        )
+
+    /** A list generator whose pattern holds a bitstring that can't match runs no iteration over a value not known. */
+    fun testAListGeneratorWhosePatternsBitstringCantMatchSkipsAValueNotKnown() =
+        assertEquals("k=0 k1=1", sizedBefore("-1", "for {_, <<_::size(n)>>} <- System.get_env(), do: config(:app, k: 1)\n"))
+
+    /** A known size that isn't an integer fails a list generator's pattern too. */
+    fun testAListGeneratorWhosePatternsSizeIsntAnIntegerSkipsAValueNotKnown() =
+        assertEquals("k=0 k1=1", sizedBefore(":a", "for {_, <<_::size(n)>>} <- System.get_env(), do: config(:app, k: 1)\n"))
+
+    /** A `case` clause whose bitstring can't match isn't taken over a value not known. */
+    fun testACaseClauseWhoseBitstringCantMatchIsntTakenOverAValueNotKnown() =
+        assertEquals(
+            "k=0 k1=1",
+            sizedBefore("-1", "case System.get_env(\"X\", \"\") do\n  <<_::size(n)>> -> config(:app, k: 1)\n  _ -> :ok\nend\n"),
+        )
+
+    /** A `with` clause whose bitstring can't match goes to what the `with` gives where it doesn't match. */
+    fun testAWithClauseWhoseBitstringCantMatchDoesntRunItsBodyOverAValueNotKnown() =
+        assertEquals("k=0 k1=1", sizedBefore("-1", "with <<_::size(n)>> <- System.get_env(\"X\", \"\") do\n  config(:app, k: 1)\nend\n"))
+
+    /** A match whose bitstring can't match raises over a value not known, so the code past it doesn't run. */
+    fun testAMatchWhoseBitstringCantMatchRaisesOverAValueNotKnown() =
+        assertEquals(
+            "k=0 k1=1",
+            sizedBefore("-1", "try do\n  <<_::size(n)>> = System.get_env(\"X\", \"\")\n  config(:app, k: 1)\nrescue\n  _ -> :ok\nend\n"),
+        )
+
+    /**
+     * A size in a `fn` head over a value not known reads the variable its own earlier segment binds, not an argument
+     * of the function around it, which has the same version on 1.11.4.
+     */
+    fun testAFnHeadsSizeReadsItsOwnSegmentNotAnOuterArgumentOverAValueNotKnown() =
+        assertEquals(
+            "k=Configured k1=1",
+            keys(
+                "defmodule H do\n" +
+                    "  def f(a, b \\\\ (fn\n    <<len, _::size(len)>> -> Config.config(:app, k: 1)\n    _ -> :ok\n" +
+                    "  end).(System.get_env(\"X\", <<8, 65>>))), do: {a, b}\nend\n\n" +
+                    "config :app, k: 0\nH.f(-1)\nconfig :app, k1: 1\n",
+                "k",
+                "k1",
+            ),
+        )
+
+    /** What `k` and `k1` answer where `k` is `0`, `n` is [size], then [statements] run, then `k1` is `1`. */
+    private fun sizedBefore(size: String, statements: String) =
+        keys("config :app, k: 0\nn = $size\n${statements}config :app, k1: 1\n", "k", "k1")
+
+    fun testAForWritingInItsBody() =
+        assertEquals(
+            "k=Configured k1=1",
+            keys("config :app, k: 1\nfor {\"X\", _} <- System.get_env(), do: config(:app, k: 2)\nconfig :app, k1: 1\n", "k", "k1"),
+        )
+
+    /**
+     * A second iteration reads the step the first configured and takes the other arm. Before `Config.read_config/1`,
+     * its call raises where an iteration runs, which none does where `X` is empty.
+     */
+    fun testAForWhoseIterationsReadWhatTheOnesBeforeConfigured() =
+        assertEquals(
+            "declined",
+            keys(
+                "config :app, step: 0\n\nfor <<_ <- System.get_env(\"X\", \"ab\")>> do\n" +
+                    "  if Config.read_config(:app)[:step] == 0, do: config(:app, step: 1), else: config(:app, enabled: true)\nend\n\n" +
+                    "config :app, k1: 1\n",
+                "enabled",
+                "k1",
+            ),
+        )
+
+    /**
+     * A third iteration reads the accumulator the second gave and configures. Before `Config.read_config/1`, its call
+     * raises where an iteration runs.
+     */
+    fun testAReduceWhoseIterationsReadTheAccumulatorTheOnesBeforeGave() =
+        assertRead(
+            "other:enabled=Configured k1=1",
+            keys(
+                "config :app, step: 0\nconfig :other, enabled: false\n\nfor <<_ <- System.get_env(\"X\", \"abc\")>>, reduce: :x do\n" +
+                    "  acc ->\n" +
+                    "    case Config.read_config(:app)[:step] do\n" +
+                    "      0 ->\n        config(:app, step: 1)\n        :a\n\n" +
+                    "      _ ->\n        case acc do\n          :b -> config(:other, enabled: true)\n          _ -> :ok\n        end\n\n        :b\n" +
+                    "    end\nend\n\n" +
+                    "config :app, k1: 1\n",
+                "other:enabled",
+                "k1",
+            ),
+            before = "declined",
+        )
+
+    /** A second iteration imports the file again, which raises. */
+    fun testAForImportingAFileInEachIterationDeclines() =
+        assertEquals(
+            "declined",
+            keys(
+                "for <<_ <- System.get_env(\"X\", \"ab\")>>, do: import_config(\"o.exs\")\nconfig :app, k1: 1\n",
+                "k1",
+                extra = arrayOf(EMPTY_O_EXS),
+            ),
+        )
+
+    fun testABinarySegmentThatMayNotBeABinary() =
+        assertConfiguredBeside("<<System.get_env(\"X\")::binary>>")
+
+    /** A bitstring segment of a value not known may be a bitstring that isn't a binary. */
+    fun testABitstringSegmentThatMayNotBeABinary() =
+        assertConfiguredBeside(
+            "(case <<(if System.get_env(\"X\"), do: <<1::3>>, else: \"a\")::bitstring>> do\n  b when is_binary(b) -> :binary\n  _ -> :bits\nend)",
         )
 
     fun testArmsSettingValuesThatShareTheirPartsTwelveDeep() = assertSharedPartsJoin(12)

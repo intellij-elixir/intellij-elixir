@@ -816,6 +816,23 @@ private fun unknown(term: OtpErlangObject): Nothing =
 /** A decline on a value the evaluator doesn't know ([Declined.onValue]). */
 private fun onUnknown() = Declined("an unknown value").apply { onValue = true }
 
+/** What [block] gives, or [fallback] where it declines on a value not known ([Declined.onValue]). */
+internal inline fun <T> orOnUnknown(fallback: T, block: () -> T): T =
+    try {
+        block()
+    } catch (declined: Declined) {
+        if (!declined.onValue) throw declined
+        fallback
+    }
+
+/** What [block] gives, or [fallback] where it declines on anything, not only a value not known ([orOnUnknown]). */
+internal inline fun <T> orOnDecline(fallback: T, block: () -> T): T =
+    try {
+        block()
+    } catch (_: Declined) {
+        fallback
+    }
+
 internal fun truthy(term: OtpErlangObject): Boolean {
     if (term is UnknownValue) unknown(term)
 
