@@ -75,17 +75,12 @@ class CodeIntelligenceTest {
             Row(
                 "assign, navigation",
                 Answer.Is("deps/phoenix_live_view/lib/phoenix_component.ex: def assign(socket_or_assigns, key, value)"),
-                expander = Known(
-                    "#4610",
-                    Reading.Read("_build/dev/lib/phoenix_live_view/ebin/Elixir.Phoenix.Component.beam: def assign(%Phoenix.LiveView.Socket{} = socket, key, value) do"),
-                ),
             ) {
                 navigation(LIVE, "assign(socket, :live, true)", 1)
             },
             Row(
                 "assign, Quick Doc",
                 Answer.Includes("module Phoenix.Component", "assign(socket_or_assigns, key, value)"),
-                expander = Known("#4610", Reading.Read("assign(%Phoenix.LiveView.Socket{} = socket, key, value)")),
             ) {
                 quickDoc(LIVE, "assign(socket, :live, true)", 1)
             },
@@ -95,10 +90,6 @@ class CodeIntelligenceTest {
             Row(
                 "connected?, navigation",
                 Answer.Is("deps/phoenix_live_view/lib/phoenix_live_view.ex: def connected?(%Socket{transport_pid: transport_pid}), do: transport_pid != nil"),
-                expander = Known(
-                    "#4610",
-                    Reading.Read("_build/dev/lib/phoenix_live_view/ebin/Elixir.Phoenix.LiveView.beam: def connected?(%Phoenix.LiveView.Socket{transport_pid: transport_pid}) do"),
-                ),
             ) {
                 navigation(LIVE, "connected?(socket)", 1)
             },
@@ -106,7 +97,7 @@ class CodeIntelligenceTest {
                 "connected?, Quick Doc",
                 Answer.Includes("module Phoenix.LiveView", "connected?(socket)", "def connected?(%Socket{transport_pid: transport_pid})"),
                 walk = Known("#4609", Reading.Read("connected?(%Socket{transport_pid: transport_pid})")),
-                expander = Known("#4609, #4610", Reading.Read("connected?(%Phoenix.LiveView.Socket{transport_pid: transport_pid})")),
+                expander = Known("#4609", Reading.Read("connected?(%Socket{transport_pid: transport_pid})")),
             ) {
                 quickDoc(LIVE, "connected?(socket)", 1)
             },
@@ -117,19 +108,12 @@ class CodeIntelligenceTest {
                 "String.split, navigation",
                 Answer.Is("lib/elixir/lib/string.ex: def split(string, pattern, options \\\\ [])"),
                 walk = Known("the walk, replaced and not fixed", Reading.Read("a chooser of 5")),
-                expander = Known(
-                    "#4602",
-                    Reading.Read(
-                        "lib/elixir/ebin/Elixir.String.beam: def split(string, %Regex{} = pattern, options) when is_binary(string) and is_list(options) do"
-                    ),
-                ),
             ) {
                 navigation(WORDS, "String.split", 8)
             },
             Row(
                 "String.split, Quick Doc",
                 Answer.Includes("module String", "split(string, pattern, options \\\\ [])"),
-                expander = Known("#4603", Reading.Read("split(x0, x1)")),
             ) {
                 quickDoc(WORDS, "String.split", 8)
             },
