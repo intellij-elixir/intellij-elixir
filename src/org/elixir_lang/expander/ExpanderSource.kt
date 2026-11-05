@@ -41,6 +41,7 @@ import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.importedArities
 import org.elixir_lang.declaration.admits
 import org.elixir_lang.Module
+import org.elixir_lang.NameArity
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.psi.ArityInterval
@@ -330,6 +331,9 @@ internal object ExpanderSource : CandidateSource {
 
         /** Its module and name, which are one Elixir function among the definitions admitting one arity. */
         val key: Pair<String, String> get() = module to declaration.name
+
+        /** Its declaration and the PSI declaring it, which the exports or copies answered by one written head share. */
+        val declaredAt: Pair<PsiElement, Declaration> get() = element to declaration
     }
 
     /**
@@ -563,13 +567,17 @@ internal object ExpanderSource : CandidateSource {
             is ProjectModules.Located.Compiled -> compiled(at, located, name)
         }
 
-    /** Each of [several]'s copies' declarations of [name], each [Uncertain.SEVERAL], as which copy loads is unknown. */
+    /**
+     * Each of [several]'s copies' declarations of [name], each [Uncertain.SEVERAL], as which copy loads is unknown.
+     * Copies that answer from one source give it once.
+     */
     private fun everyCopy(at: At, several: ProjectModules.Located.Several, module: String, name: String?): List<Defined> {
         at.gap(Uncertain.SEVERAL)
 
-        return at.holder.locateEach(at.file, several, module, at.inputs).flatMap { copy ->
-            definedIn(at, copy, module, name).map { it.marked(Uncertain.SEVERAL) }
-        }
+        return at.holder.locateEach(at.file, several, module, at.inputs)
+            .flatMap { copy -> definedIn(at, copy, module, name) }
+            .distinctBy { it.declaredAt }
+            .map { it.marked(Uncertain.SEVERAL) }
     }
 
     /**
@@ -713,7 +721,10 @@ internal object ExpanderSource : CandidateSource {
             }
         }
 
-    /** [located]'s exports of [name], or of every name when it is `null`, each declared by its decompiled definition. */
+    /**
+     * [located]'s exports of [name], or of every name when it is `null`: each declared by the heads its attached source
+     * writes for it, each head once, or else by its decompiled definition.
+     */
     private fun compiled(at: At, located: ProjectModules.Located.Compiled, name: String?): List<Defined> {
         val exports = located.exports as? ModuleExports.Present ?: return at.gap(Uncertain.MODULE)
         val module = (PsiManager.getInstance(at.file.project).findFile(located.beam) as? PsiCompiledFile)
@@ -722,15 +733,18 @@ internal object ExpanderSource : CandidateSource {
             ?.singleOrNull()
             ?: return at.gap(Uncertain.MODULE)
         val indexName = indexName(module) ?: return at.gap(Uncertain.MODULE)
-        val definitions = NameIndex.of(module)
+        // Each is read only when needed: the decompiled definitions for an export no written head declares, and the
+        // source's heads once an export is named, so a name the module doesn't export parses no source.
+        val definitions by lazy(LazyThreadSafetyMode.NONE) { NameIndex.of(module) }
+        val heads by lazy(LazyThreadSafetyMode.NONE) { located.source?.let { NameIndex.of(it, indexName) } }
 
-        return NameIndex.of(exports).named(name).mapNotNull { nameArity ->
+        fun decompiled(nameArity: NameArity): Defined? {
             val definition = definitions.named(nameArity.name)
                 .firstOrNull { nameArity.arity in it.nameArityInterval.arityInterval }
-                ?: return@mapNotNull null
+                ?: return null
             val origin = CompiledOrigin(located.beam, module.name, nameArity.name, nameArity.arity)
 
-            Defined(
+            return Defined(
                 Declaration(nameArity.name, ArityKnowledge.Exact(nameArity.arity), definition.capabilities, Declared.Compiled(origin)),
                 definition,
                 definition,
@@ -738,6 +752,16 @@ internal object ExpanderSource : CandidateSource {
                 null,
             )
         }
+
+        return NameIndex.of(exports).named(name).flatMap { nameArity ->
+            val written = heads?.named(nameArity.name).orEmpty().filter { it.declaration.arity.admits(nameArity.arity) }
+
+            if (written.isEmpty()) {
+                listOfNotNull(decompiled(nameArity))
+            } else {
+                written.map { Defined(it.declaration, it.call, it.written, indexName, null) }
+            }
+        }.distinctBy { it.declaredAt }
     }
 
     /** The name the module index keys [module] under, from its stub. */

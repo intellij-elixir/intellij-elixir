@@ -451,12 +451,12 @@ class LoadedCopyTest : PlatformTestCase() {
         }
     }
 
-    fun testTwoCopiesInsideTheSdkAnswerEveryCopy() {
+    fun testTwoCopiesInsideTheSdkPairedWithOneSourceAnswerItOnce() {
         layout(*sdkAnd("sdk/ebin2"), CALLER to COUNT_CALLER)
 
         withSdk("sdk/ebin", "sdk/ebin2") {
             assertEquals(
-                listOf("sdk/ebin/$ENUMERABLE_BEAM\tSEVERAL", "sdk/ebin2/$ENUMERABLE_BEAM\tSEVERAL"),
+                listOf("sdk/lib/enum.ex\tSEVERAL"),
                 expanderAnswer("count"),
             )
         }
@@ -467,7 +467,7 @@ class LoadedCopyTest : PlatformTestCase() {
         staleLibrary("stale", "stale/ebin")
 
         withSdk(classes = "sdk/ebin") {
-            assertEquals(listOf("sdk/ebin/$ENUMERABLE_BEAM\tcertain"), expanderAnswer("count"))
+            assertEquals(listOf("sdk/lib/enum.ex\tcertain"), expanderAnswer("count"))
         }
     }
 
