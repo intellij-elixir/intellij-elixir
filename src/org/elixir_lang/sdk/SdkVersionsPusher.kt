@@ -57,8 +57,7 @@ internal class SdkVersionsPusher : FilePropertyPusher<String> {
     }
 
     @RequiresReadLock
-    override fun acceptsDirectory(file: VirtualFile, project: Project): Boolean =
-        ProjectFileIndex.getInstance(project).getModuleForFile(file, false)?.isElixirModule() == true
+    override fun acceptsDirectory(file: VirtualFile, project: Project): Boolean = holdsPushedVersions(project, file)
 
     override fun persistAttribute(project: Project, fileOrDir: VirtualFile, value: String) {
         if (PushedVersions.KEY.setPersistentValue(fileOrDir, value)) {
@@ -91,3 +90,12 @@ internal val PARSED_AS_ELIXIR: Array<FileType> = arrayOf(
 )
 
 internal fun isParsedAsElixir(file: VirtualFile): Boolean = file.fileType in PARSED_AS_ELIXIR
+
+/**
+ * Whether [directory] is in an Elixir module, the only directories [SdkVersionsPusher] pushes onto. The versions a
+ * directory kept from when its module was one are not cleared, since that would write to every directory of a module
+ * that is not, so they are read only while this holds.
+ */
+@RequiresReadLock
+internal fun holdsPushedVersions(project: Project, directory: VirtualFile): Boolean =
+    ProjectFileIndex.getInstance(project).getModuleForFile(directory, false)?.isElixirModule() == true
