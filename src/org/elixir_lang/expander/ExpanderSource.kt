@@ -613,17 +613,16 @@ internal object ExpanderSource : CandidateSource {
             },
             false,
         )
-        byName[name]?.let { return it }
 
-        Probe.count(Probe.Counter.INDEX_QUERIES, 1)
-        val defined = StubIndex.getElements(AllName.KEY, name, project, file.resolveScope, NamedElement::class.java)
-            .flatMap { element ->
-                ProgressManager.checkCanceled()
+        return byName.getOrPut(name) {
+            Probe.count(Probe.Counter.INDEX_QUERIES, 1)
+            StubIndex.getElements(AllName.KEY, name, project, file.resolveScope, NamedElement::class.java)
+                .flatMap { element ->
+                    ProgressManager.checkCanceled()
 
-                indexedDefined(element)
-            }
-
-        return byName.putIfAbsent(name, defined) ?: defined
+                    indexedDefined(element)
+                }
+        }
     }
 
     /**

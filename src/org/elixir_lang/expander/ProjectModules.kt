@@ -374,20 +374,20 @@ internal class ProjectModules(private val project: Project) {
             },
             false,
         )
-        byAtom[atom]?.let { return it }
 
-        val loadable = Module.resolveLoadable(asker, org.elixir_lang.Module.indexName(atom))
-        val chosen = Resolver.preferred(asker, false, loadable.loaded).mapNotNull { copy(it.element) }.distinctBy { it.virtualFile }
-        val chosenFiles = chosen.mapTo(HashSet()) { it.virtualFile }
-        val fallback = loadable.loaded.mapNotNull { copy(it.element) }
-            .filter { it.compiled && it.virtualFile !in chosenFiles && isDependencyOutput(it.virtualFile) }
-            .distinctBy { it.virtualFile }
-        val paired = { copy: HeldCopy ->
-            if (copy.compiled) HeldCopy(copy.virtualFile, true, loadable.sourceOf(copy.virtualFile)) else copy
+        return byAtom.getOrPut(atom) {
+            val loadable = Module.resolveLoadable(asker, org.elixir_lang.Module.indexName(atom))
+            val chosen = Resolver.preferred(asker, false, loadable.loaded).mapNotNull { copy(it.element) }.distinctBy { it.virtualFile }
+            val chosenFiles = chosen.mapTo(HashSet()) { it.virtualFile }
+            val fallback = loadable.loaded.mapNotNull { copy(it.element) }
+                .filter { it.compiled && it.virtualFile !in chosenFiles && isDependencyOutput(it.virtualFile) }
+                .distinctBy { it.virtualFile }
+            val paired = { copy: HeldCopy ->
+                if (copy.compiled) HeldCopy(copy.virtualFile, true, loadable.sourceOf(copy.virtualFile)) else copy
+            }
+
+            HeldCopies(chosen.map(paired), fallback.map(paired))
         }
-        val copies = HeldCopies(chosen.map(paired), fallback.map(paired))
-
-        return byAtom.putIfAbsent(atom, copies) ?: copies
     }
 
     private fun compiled(beam: VirtualFile): Answer {
