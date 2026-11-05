@@ -222,6 +222,8 @@
 
 ### Bug Fixes
 
+- [#4637](https://github.com/intellij-elixir/intellij-elixir/pull/4637) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, Go to Declaration, Quick Doc and Parameter Info on a function of a dependency or of Elixir itself, where the expander knows the calling module's imports and aliases, answer from its source, in `deps/` or the SDK's `lib`, rather than from its compiled `.beam`, so they land on and show the heads as written.** Refs [#4610](https://github.com/intellij-elixir/intellij-elixir/issues/4610), [#4602](https://github.com/intellij-elixir/intellij-elixir/issues/4602), [#4603](https://github.com/intellij-elixir/intellij-elixir/issues/4603).
 - [#4634](https://github.com/intellij-elixir/intellij-elixir/pull/4634) [@sh41](https://github.com/sh41)
   - **A Mix project set up on PyCharm or another IDE without module SDK settings no longer shows its Elixir SDK twice under External Libraries on IntelliJ IDEA, and on those IDEs the Elixir facet's SDK now reaches the project by name, live, rather than as a copy written into the module.** On IntelliJ IDEA, a module whose only Elixir SDK was that copy asks for one through the Setup SDK banner. Refs [#4628](https://github.com/intellij-elixir/intellij-elixir/issues/4628).
 - [#4629](https://github.com/intellij-elixir/intellij-elixir/pull/4629) [@sh41](https://github.com/sh41)
