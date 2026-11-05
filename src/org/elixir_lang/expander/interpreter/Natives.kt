@@ -2676,25 +2676,26 @@ internal class Natives(private val evaluation: Evaluation) {
             "read_config/1" -> {
                 if (!isAtom(args[0])) functionClause("Elixir.Config", "read_config", args)
 
-                keyword("get/2", listOf(read.config, args[0]))
+                keyword("get/2", listOf(read.config, args[0]))?.let { read.settingsAsRead(args[0], it) }
             }
             else -> configImport(read, args[0])
         }
     }
 
-    /** [config] merged into [read]'s, returning the config before, as `Process.put/2` does. */
+    /** [config] merged into [read]'s, returning the config before as code reads it, as `Process.put/2` does. */
     private fun configured(read: ConfigRead, config: OtpErlangObject): OtpErlangObject {
-        val before = read.config
+        val before = read.configAsRead()
 
-        read.config = configMerge(before, config)
+        read.configured(configMerge(read.config, config))
 
         return before
     }
 
     /**
      * `Config.__import__!/1`: the file at [path] read and evaluated in the same read, with its own `__DIR__`, an empty
-     * binding and a fresh env, after `import_config!/3`'s check that the read hasn't imported it already. A raise in the
-     * file raises here; where the file's run stopped, Elixir may have raised there, which is assumed not to happen.
+     * binding and a fresh env, after `import_config!/3`'s check that the read hasn't imported it already, which declines
+     * where only code that may not have run did. A raise in the file raises here; where the file's run stopped, Elixir
+     * may have raised there, which is assumed not to happen.
      */
     private fun configImport(read: ConfigRead, path: OtpErlangObject): OtpErlangObject {
         if (!isBinary(path)) functionClause("Elixir.Config", "__import__!", listOf(path))
@@ -2711,8 +2712,10 @@ internal class Natives(private val evaluation: Evaluation) {
             )
             true -> {}
         }
-        if (text in read.imports) argumentError()
-        if (evaluation.run.mayNotRun) decline("Config.__import__!/1 of %s in an arm that may not run", path)
+        if (text in read.imports) {
+            if (text in read.maybeImports) decline("Config.__import__!/1 of %s, which code that may not have run read", path)
+            argumentError()
+        }
 
         read.imports.add(0, text)
 

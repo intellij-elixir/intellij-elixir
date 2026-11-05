@@ -289,6 +289,15 @@ internal inline fun <T> Run.assuming(block: () -> T): Pair<T, Boolean> {
 /** What a unit the evaluator reached gives the code around it: its code's [value], and whether that code [declined]. */
 internal class UnitRun(val value: OtpErlangObject, val declined: Boolean)
 
+/**
+ * What of a [Run] the code run later reads, which the code running may change: its config [read] ([ConfigRead.snapshot])
+ * and the apps whose env it wrote ([written], [Run.wroteEnvOf]).
+ */
+internal class RunState(val read: ConfigRead.Snapshot?, val written: Set<String>?) {
+    /** Whether [other] is the same state: the same read ([sameRead]) and apps written. */
+    fun isAt(other: RunState) = written == other.written && sameRead(read, other.read)
+}
+
 /** What every recursive expansion of one [Expander.expand] call shares. */
 internal class Run(
     val level: ElixirLanguageLevel,
@@ -339,6 +348,41 @@ internal class Run(
         config?.wroteEnv(app)
     }
 
+    /** The run's state as the code run later reads it ([RunState]). */
+    fun state() = RunState(config?.snapshot(), written?.toSet())
+
+    /** Puts the run back to [state], as code run again from there starts. */
+    fun restore(state: RunState) {
+        state.read?.let { config?.restore(it) }
+        written = state.written?.toHashSet()
+    }
+
+    /** Where code run again from a state doesn't return, keeps the apps [ended] wrote written: code past it may read them. */
+    fun keepWritten(ended: List<RunState>) {
+        for (state in ended) {
+            val more = state.written
+
+            if (more == null) written = null else written?.addAll(more)
+        }
+    }
+
+    /**
+     * The states where code that started at [from] may have ended, joined: [returned], or [raised] where it raised. The
+     * read joins as [ConfigRead.joined] joins it, and the apps written are those any of them wrote.
+     */
+    fun joinedState(from: RunState, returned: List<RunState>, raised: List<RunState> = emptyList()): RunState {
+        val read = config
+        val first = returned.firstOrNull()?.read
+        val joined = if (read == null || raised.isEmpty() && first != null && returned.all { sameRead(it.read, first) }) {
+            first
+        } else {
+            read.joined(from.read!!, returned.map { it.read!! }, raised.map { it.read!! })
+        }
+        val written = (returned + raised).fold(from.written) { apps, state -> state.written?.let { apps?.plus(it) } }
+
+        return RunState(joined, written)
+    }
+
     /** Whether an evaluation in the run wrote [app]'s env, so its value isn't [appEnv]'s. */
     fun wroteEnvOf(app: String): Boolean = written?.contains(app) != false
 
@@ -367,8 +411,16 @@ internal class Run(
      */
     val mayNotRun get() = speculating > 0
 
-    /** How many arms that may not be taken the run has run: past [ARM_BUDGET], the next declines. */
-    var armsTaken = 0
+    /** The arms that may not be taken the run has run: under a [config], those its read's files have run. */
+    private val arms = config?.arms ?: ArmsTaken()
+
+    /**
+     * Counts an arm that may not be taken, declining past [ARM_BUDGET] arms across the run, or across a config read's
+     * files where it reads one.
+     */
+    fun takeArm() {
+        if (++arms.count > ARM_BUDGET) throw Declined("more arms over values not known than a run takes")
+    }
 
     /**
      * The calls running over a value that isn't known in code that may not run, innermost last: a call repeating one

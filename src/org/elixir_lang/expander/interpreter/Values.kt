@@ -319,8 +319,54 @@ internal class EffectWritten(val module: String, val names: Set<String>) : Unkno
 /** A value the evaluator doesn't know, built from [parts] it does, any of which may be or hold a module being compiled. */
 internal class Holding(val parts: List<OtpErlangObject>) : UnknownValue()
 
+/** Whether [term] holds no module being compiled: [Unknown], [UnknownBinary], a number or a binary. */
+internal fun holdsNoModule(term: OtpErlangObject): Boolean =
+    term === Unknown || term === UnknownBinary || isNumber(term) || term is OtpErlangBitstr
+
 /** Whether [term] is a value not known that may be or hold a module being compiled: a [Holding] or [ModuleUnknown]. */
 internal fun fromCompiling(term: OtpErlangObject): Boolean = term is Holding || term === ModuleUnknown
+
+/**
+ * Whether [unknown] is a [Holding] that holds [part] already, so [unknownOf] of both would hold nothing more: each term
+ * [part] is built from holds no module ([holdsNoModule]) or is one [unknown] is built from.
+ */
+internal fun holdsAlready(unknown: OtpErlangObject, part: OtpErlangObject?): Boolean {
+    if (unknown !is Holding) return false
+    if (part == null || part === unknown) return true
+
+    // A leaf [unknown] shares is found by identity, without a compare: no leaf of [part] is a [Holding] it walked.
+    val walked = Collections.newSetFromMap(IdentityHashMap<OtpErlangObject, Boolean>())
+    val held = builtFrom(unknown, walked)
+    // One memo across every pair of leaves, so a part they share is compared once.
+    val same = SameTerm(held = true)
+
+    return builtFrom(part).all { leaf -> holdsNoModule(leaf) || leaf in walked || held.any { same.same(it, leaf) } }
+}
+
+/**
+ * The terms [term] is built from through its [Holding]s, each part read once, every term the walk reaches gathered in
+ * [walked]: [term] itself where it is none.
+ */
+private fun builtFrom(
+    term: OtpErlangObject,
+    walked: MutableSet<OtpErlangObject> = Collections.newSetFromMap(IdentityHashMap()),
+): List<OtpErlangObject> {
+    if (term !is Holding) return listOf(term)
+
+    val leaves = ArrayList<OtpErlangObject>()
+    val pending = ArrayDeque<OtpErlangObject>(listOf(term))
+
+    while (pending.isNotEmpty()) {
+        ProgressManager.checkCanceled()
+
+        val next = pending.removeLast()
+
+        if (!walked.add(next)) continue
+        if (next is Holding) pending.addAll(next.parts) else leaves += next
+    }
+
+    return leaves
+}
 
 /** A value the evaluator doesn't know, built from [parts]: it came from a module being compiled where one of them did. */
 internal fun unknownOf(parts: List<OtpErlangObject>): UnknownValue =
