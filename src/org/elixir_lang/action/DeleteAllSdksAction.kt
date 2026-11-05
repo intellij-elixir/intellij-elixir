@@ -82,8 +82,6 @@ class DeleteAllSdksAction : AnAction() {
                         LOG.debug("Successfully removed SDK: ${sdk.name}")
                     } catch (ex: Exception) {
                         LOG.error("Failed to remove SDK: ${sdk.name}", ex)
-                        // Continue with other SDKs if one fails
-                        continue
                     }
                 }
                 LOG.info("Completed removal of $removedCount SDK(s)")

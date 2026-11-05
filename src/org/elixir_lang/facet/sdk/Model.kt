@@ -14,10 +14,6 @@ class Model :
         false
     ),
     ComboBoxModel<Sdk?> {
-    /**
-     * The [ProjectSdksModel] this instance subscribed to. Kept so [detach] unsubscribes from the
-     * same instance that [listener] was added to.
-     */
     private val subscribedSdksModel: ProjectSdksModel? = SdksService.getInstance()?.getModel()
 
     private val listener = object : SdkModel.Listener {

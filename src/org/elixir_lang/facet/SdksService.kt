@@ -36,8 +36,9 @@ class SdksService : Disposable {
     /** The model's listeners: on its adds and removes, and on each of its SDKs' commits. */
     private var following: Disposable? = null
 
+    /** The service's own [model] is being applied to the table. */
     @Volatile
-    private var applying: ProjectSdksModel? = null
+    private var applying = false
 
     /** The SDK [register] is adding to the table for this service's own model. */
     @Volatile
@@ -91,7 +92,7 @@ class SdksService : Disposable {
         fun followCommits(sdk: Sdk) {
             val listener = Disposer.newDisposable(following, "SdksService commits to ${sdk.name}")
             commitListeners.put(sdk, listener)?.let(Disposer::dispose)
-            sdk.rootProvider.addRootSetChangedListener({ if (applying !== model) record(sdk) }, listener)
+            sdk.rootProvider.addRootSetChangedListener({ if (!applying) record(sdk) }, listener)
         }
         model.projectSdks.keys.forEach(::followCommits)
         val listener = object : SdkModel.Listener {
@@ -117,9 +118,9 @@ class SdksService : Disposable {
      */
     private fun tableChanged(jdk: Sdk, change: Change) {
         if (change == Change.ADDED && jdk === registering) return
-        val applying = this.applying
-        if (applying != null && applying === model) {
-            val copy = applying.projectSdks[jdk]
+        val model = this.model
+        if (applying && model != null) {
+            val copy = model.projectSdks[jdk]
             val ownChange = when (change) {
                 // `ProjectSdksModel.doApply` adds the key and copies the editable clone's state in on the next line,
                 // so an SDK it has just added still carries the name it was cloned with.
@@ -294,13 +295,13 @@ class SdksService : Disposable {
     @Suppress("UnstableApiUsage")
     @Throws(ConfigurationException::class)
     internal fun apply(
-        model: ProjectSdksModel,
         from: Page? = null,
         removed: Collection<Sdk> = emptyList(),
         names: (Sdk) -> String = Sdk::getName,
         applyEditors: () -> Unit = {},
     ) = WriteIntentReadAction.run {
         pass()
+        val model = getModel()
         val sdks = model.projectSdks
         val table = tableSdks()
         val removedEntries = sdks.filterValues { copy -> removed.any { it === copy } }
@@ -386,11 +387,11 @@ class SdksService : Disposable {
         val sdks = model.projectSdks
         held.keys.forEach(sdks::remove)
         sdks.putAll(standIns)
-        applying = model
+        applying = true
         try {
             model.apply()
         } finally {
-            applying = null
+            applying = false
             sdks.putAll(held)
         }
     }

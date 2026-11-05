@@ -49,7 +49,7 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     override fun apply() {
         // Taken once the pending pass has run, so the clash check reads the names the editors write.
         val edited by lazy { editedEditors() }
-        sdksService.apply(projectSdksModel, page, removedCopies, { copy -> edited[copy]?.name ?: copy.name }) {
+        sdksService.apply(page, removedCopies, { copy -> edited[copy]?.name ?: copy.name }) {
             edited.values.forEach(Editor::apply)
         }
         edited.values.forEach(Editor::applied)
@@ -144,10 +144,6 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
             override fun sdkAdded(sdk: Sdk) {
                 LOG.debug("sdkAdded(sdk.name='${sdk.name}')")
                 sdkList.refresh()
-            }
-
-            override fun sdkHomeSelected(sdk: Sdk, newSdkHome: String) {
-                LOG.debug("sdkHomeSelected(sdk.name='${sdk.name}', newSdkHome='$newSdkHome')")
             }
         }
         projectSdksModel.addListener(listener)

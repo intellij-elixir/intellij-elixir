@@ -64,7 +64,7 @@ class ErlangRenameTest : PlatformTestCase() {
         val model = smallIdesModel()
 
         Editor(model, "Rename small Erlang").rename("Rename small Erlang renamed")
-        SdksService.getInstance()!!.apply(model)
+        SdksService.getInstance()!!.apply()
         settle()
 
         assertNotNull("precondition: the rename reached the table", ProjectJdkTable.getInstance().findJdk("Rename small Erlang renamed"))
@@ -154,7 +154,7 @@ class ErlangRenameTest : PlatformTestCase() {
 
     /** The small IDEs' SDKs pages. */
     fun testAHomeMovedOnTheSmallIdesPagesIsFollowedByItsElixirSdks() =
-        assertMoveFollowed("Move small", ::smallIdesModel) { SdksService.getInstance()!!.apply(it) }
+        assertMoveFollowed("Move small", ::smallIdesModel) { SdksService.getInstance()!!.apply() }
 
     /** A rename and a move in one Apply, on IntelliJ IDEA's Project Structure. */
     fun testAHomeMovedAndRenamedInOneApplyIsFollowedByItsElixirSdks() =

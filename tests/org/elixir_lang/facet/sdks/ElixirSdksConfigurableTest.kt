@@ -114,7 +114,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         registerElixirSdk("Elixir Test Applied")
         val model = service().getModel()
 
-        service().apply(model)
+        service().apply()
 
         assertSame("a page's own Apply must not leave pages opened later with a second model", model, service().getModel())
     }
@@ -124,7 +124,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         val model = service().getModel()
         val copy = model.findSdk("Elixir Test Copy Identity")
 
-        service().apply(model)
+        service().apply()
 
         assertSame("the open page's list and editors hold these copies", copy, model.findSdk("Elixir Test Copy Identity"))
     }
@@ -133,7 +133,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         val model = service().getModel()
         model.addSdk(ProjectJdkImpl("Elixir Test Added By Its Own Apply", ElixirSdkType.instance))
 
-        service().apply(model)
+        service().apply()
 
         assertNotNull(ProjectJdkTable.getInstance().findJdk("Elixir Test Added By Its Own Apply"))
         assertSame("the dialog's own add must not drop the model pages opened later share", model, service().getModel())
@@ -150,7 +150,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
             }
         }, testRootDisposable)
 
-        service().apply(model)
+        service().apply()
 
         assertTrue("precondition: the rename ran while the model was being applied", done.get())
         settle()
@@ -160,14 +160,14 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     fun testAnSdkAddedToTheTableWhileApplyingReachesTheModel() {
         val sdk = registerElixirSdk("Elixir Test Apply Trigger For Add")
-        val model = service().getModel()
+        service().getModel()
         val added = AtomicBoolean()
         // "Configure from mise" registering an SDK while the dialog applies.
         sdk.rootProvider.addRootSetChangedListener({
             if (added.compareAndSet(false, true)) addElixirSdkToTable("Elixir Test Added During Apply")
         }, testRootDisposable)
 
-        service().apply(model)
+        service().apply()
 
         assertTrue("precondition: the SDK was added while the model was being applied", added.get())
         settle()
@@ -180,7 +180,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     fun testAnSdkAddedByApplyingTheModelIsFollowed() {
         val model = service().getModel()
         model.addSdk(ProjectJdkImpl("Elixir Test Added By Apply", ElixirSdkType.instance))
-        service().apply(model)
+        service().apply()
         val addedSdk = ProjectJdkTable.getInstance().findJdk("Elixir Test Added By Apply")!!
 
         commitHome(addedSdk, "/fake/elixir/added-by-apply")
@@ -206,10 +206,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         assertTrue("the table keeps it until Apply", inTable("Elixir Test B"))
 
         page.apply()
-        assertFalse(
-            "SDK should be gone from the JDK table",
-            ProjectJdkTable.getInstance().allJdks.any { it.name == "Elixir Test B" },
-        )
+        assertFalse("SDK should be gone from the JDK table", inTable("Elixir Test B"))
     }
 
     fun testCancelAfterARemoveKeepsTheSdk() = removeOnThePage("Elixir Test Remove Cancelled") { page, name ->
@@ -217,7 +214,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
         assertTrue("the table keeps it", inTable(name))
         assertTrue("the next page lists it; got ${listedNames()}", name in listedNames())
-        service().apply(service().getModel())
+        service().apply()
         assertTrue("a later Apply keeps it", inTable(name))
     }
 

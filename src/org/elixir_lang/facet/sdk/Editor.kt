@@ -21,11 +21,13 @@ import com.intellij.ui.TabbedPaneWrapper
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.navigation.History
 import com.intellij.ui.navigation.Place
+import com.intellij.util.ui.GridBag
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
+import java.awt.Insets
 import java.io.File
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
@@ -43,6 +45,7 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
     private val componentByAdditionalDataConfigurable = HashMap<AdditionalDataConfigurable, JComponent?>()
     private val editedSdkModificator = this.EditedSdkModificator()
     private val disposable = Disposer.newDisposable()
+    private val rows = GridBag()
     private var _versionString: String? = null
     private var initialName: String = sdk.name
     private var initialPath: String? = sdk.homePath
@@ -108,70 +111,21 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
         addRow(homeFieldLabel, homeComponent)
 
         additionalDataPanel = JPanel(BorderLayout())
-        mainPanel.add(
-            additionalDataPanel, GridBagConstraints(
-                0,
-                GridBagConstraints.RELATIVE,
-                2,
-                1,
-                1.0,
-                0.0,
-                GridBagConstraints.CENTER,
-                GridBagConstraints.BOTH,
-                JBUI.insets(2, 10, 0, 10),
-                0,
-                0
-            )
-        )
+        addWideRow(additionalDataPanel, 0.0, JBUI.insets(2, 10, 0, 10))
+        addWideRow(tabbedPane.component, 1.0, JBUI.insetsTop(2))
+    }
 
+    /** A row spanning both columns. */
+    private fun addWideRow(component: JComponent, weighty: Double, insets: Insets) {
         mainPanel.add(
-            tabbedPane.component, GridBagConstraints(
-                0,
-                GridBagConstraints.RELATIVE,
-                2,
-                1,
-                1.0,
-                1.0,
-                GridBagConstraints.CENTER,
-                GridBagConstraints.BOTH,
-                JBUI.insetsTop(2),
-                0,
-                0
-            )
+            component,
+            rows.nextLine().next().coverLine().fillCell().weightx(1.0).weighty(weighty).insets(insets),
         )
     }
 
     private fun addRow(label: JLabel, field: JComponent) {
-        mainPanel.add(
-            label, GridBagConstraints(
-                0,
-                GridBagConstraints.RELATIVE,
-                1,
-                1,
-                0.0,
-                0.0,
-                GridBagConstraints.WEST,
-                GridBagConstraints.NONE,
-                JBUI.insets(2, 10, 2, 2),
-                0,
-                0
-            )
-        )
-        mainPanel.add(
-            field, GridBagConstraints(
-                1,
-                GridBagConstraints.RELATIVE,
-                1,
-                1,
-                1.0,
-                0.0,
-                GridBagConstraints.CENTER,
-                GridBagConstraints.HORIZONTAL,
-                JBUI.insets(2, 2, 2, 10),
-                0,
-                0
-            )
-        )
+        mainPanel.add(label, rows.nextLine().next().anchor(GridBagConstraints.WEST).insets(JBUI.insets(2, 10, 2, 2)))
+        mainPanel.add(field, rows.next().fillCellHorizontally().weightx(1.0).insets(JBUI.insets(2, 2, 2, 10)))
     }
 
     private fun createHomeComponent(): TextFieldWithBrowseButton = TextFieldWithBrowseButton { doSelectHomePath() }
