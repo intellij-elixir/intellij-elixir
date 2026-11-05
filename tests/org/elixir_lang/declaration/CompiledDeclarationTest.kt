@@ -18,7 +18,6 @@ import org.elixir_lang.psi.declaringCall
 import org.elixir_lang.structure_view.element.Timed
 import java.io.File
 
-/** A `defguard` compiles to a `MACRO-` export, so `Kernel.is_struct/1` has a macro's capabilities. */
 class CompiledDeclarationTest : PlatformTestCase() {
     override fun getTestDataPath(): String = EBIN.path
 
@@ -36,11 +35,11 @@ class CompiledDeclarationTest : PlatformTestCase() {
         )
     }
 
-    fun testGuardIsAMacro() {
+    fun testGuardIsAGuard() {
         val isStruct = definition("is_struct", Timed.Time.COMPILE)
 
         assertEquals(
-            Capabilities(quotesArguments = true, compileTime = true, usableInGuards = false, Visibility.PUBLIC),
+            Capabilities(quotesArguments = false, compileTime = true, usableInGuards = true, Visibility.PUBLIC),
             isStruct.capabilities
         )
     }
