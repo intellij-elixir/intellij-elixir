@@ -355,6 +355,15 @@ internal class Run(
     /** Whether the value of the unit the evaluator runs where it reaches it ([reached]) is read, `null` outside one. */
     var reachedUse: ValueUse? = null
 
+    /** How many arms that may not be taken are running ([mayNotRun]). */
+    var speculating = 0
+
+    /**
+     * Whether the code running may not run in Elixir: an arm taken over a value that isn't known. Only the config such
+     * code writes is joined, so a unit, a module or an effect in it declines.
+     */
+    val mayNotRun get() = speculating > 0
+
     /**
      * Whether code the expander doesn't follow ran, which may have changed the directory the compile runs in
      * ([workingDirectory]) and created modules with `Module.create/3` ([maybeCreated]); once set it stays.

@@ -2710,6 +2710,7 @@ internal class Natives(private val evaluation: Evaluation) {
             true -> {}
         }
         if (text in read.imports) argumentError()
+        if (evaluation.run.mayNotRun) decline("Config.__import__!/1 of %s in an arm that may not run", path)
 
         read.imports.add(0, text)
 

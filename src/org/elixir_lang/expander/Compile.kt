@@ -1516,6 +1516,8 @@ private fun compile(
     bindings: HashMap<Binding, OtpErlangObject>,
     reached: Boolean,
 ): ExpansionResult {
+    if (run.mayNotRun) throw Declined("a module defined in an arm that may not run")
+
     val name = module.name
     val statement = module.isStatement(enclosing.statements)
     val placed = statement && module.placed

@@ -368,13 +368,13 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
         assertEquals("Elixir.Dep compiled different/0 equal/0\nElixir.Other compiled different/0 equal/0", "${ended(dep)}\n${ended(other)}")
     }
 
-    /** A system read's decline writes nothing, but the arm that passes a decline over can't know which declines write. */
-    fun testACaseOfASystemReadPassedOverInAReadAnswersAsMainDoes() {
+    /** A `case` of a system read runs each arm that may be taken, and a raise in one leaves the read's keys known. */
+    fun testACaseOfASystemReadLeavesTheKeysAfterItKnown() {
         val (dep, other) = readers(
             "import Config\n\ncase System.get_env(\"X\") do\n  nil -> raise \"no\"\n  _ -> :ok\nend\n\nconfig :dep, :key, :other\n",
         )
 
-        assertEquals("Elixir.Dep compiled different/0 equal/0\nElixir.Other compiled equal/0", "${ended(dep)}\n${ended(other)}")
+        assertEquals("Elixir.Dep compiled different/0\nElixir.Other compiled equal/0", "${ended(dep)}\n${ended(other)}")
     }
 
     /**
@@ -439,6 +439,18 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
             "t = [a: t, b: t]\n",
         )
     }
+
+    fun testTwoSharedMapsSetInArmsAreJoinedInBoundedWork() {
+        assertSharedValueIsReadInBoundedWork(inArms("u = %{a: u, b: u}\n"), "t = %{a: t, b: t}\n")
+    }
+
+    fun testTwoSharedImproperListsSetInArmsAreJoinedInBoundedWork() {
+        assertSharedValueIsReadInBoundedWork(inArms("u = [u | {u}]\n"), "t = [t | {t}]\n")
+    }
+
+    /** `u`, doubled forty times by [doubling] as `t` is, and arms over a system read setting `:dep`'s `:key` to `t` or `u`. */
+    private fun inArms(doubling: String) =
+        "u = []\n${doubling.repeat(40)}if System.get_env(\"X\") do\n  config :dep, :key, t\nelse\n  config :dep, :key, u\nend\n"
 
     /** A config file that doubles `t` forty times by [doubling], then ends in [last], answers a module reading `:dep`'s `:key` in bounded work. */
     private fun assertSharedValueIsReadInBoundedWork(last: String, doubling: String = "t = {t, t}\n") {

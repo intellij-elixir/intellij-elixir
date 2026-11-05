@@ -565,29 +565,35 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
             )(),
         )
 
-    /** A map read by a key equal to the map's, built apart from it, is cancelled as the two keys are compared. */
-    fun testAMapReadIsCancelledAsItComparesKeys() =
-        assertCancelledIn(VALUES, "sameTerm", "defmacro m, do: (${tree("a")} ${tree("b")} :maps.get([b], %{[a] => :ok}))", LISTS / 2)
+    /** A map read by a key equal to the map's, built apart from it, compares the two keys in bounded work. */
+    fun testAMapReadComparesKeysInBoundedWork() =
+        // Comparing each part where it appears would check each of the keys' nodes.
+        assertChecksBelow(SAME_TERM, "same", LISTS / 2, "defmacro m, do: (${tree("a")} ${tree("b")} :maps.get([b], %{[a] => :ok}))")
 
-    /** A map built with two equal keys, built apart, is cancelled as the two keys are compared. */
-    fun testAMapBuiltWithEqualKeysIsCancelledAsItComparesThem() =
-        assertCancelledIn(VALUES, "sameTerm", "defmacro m, do: (${tree("a")} ${tree("b")} Macro.escape(%{[a] => 1, [b] => 2}))", LISTS / 2)
+    /** A map built with two equal keys, built apart, compares them in bounded work. */
+    fun testAMapBuiltWithEqualKeysComparesThemInBoundedWork() =
+        assertChecksBelow(SAME_TERM, "same", LISTS / 2, "defmacro m, do: (${tree("a")} ${tree("b")} Macro.escape(%{[a] => 1, [b] => 2}))")
 
     /** A map keyed by a list holding itself twice at every depth over a string hashes the key a part at a time. */
-    fun testAMapKeyHoldingASharedStringIsHashedInBoundedWork() {
-        val expanding = expanding(
+    fun testAMapKeyHoldingASharedStringIsHashedInBoundedWork() =
+        // Listing each part where it appears would check each of the key's leaves, and copy the string at each.
+        assertChecksBelow(
+            VALUES,
+            "listed",
+            (1 shl DOUBLINGS) / 2,
             "defmacro m, do: (t = \"k\"; ${"t = [t, t]; ".repeat(DOUBLINGS)} map_size(%{t => 1}))",
-            "A.m()",
-            "1.20.4",
         )
+
+    /** [walk], a method of [owner], makes at least one check and fewer than [bound] as `B`, calling `A`'s [macros], expands. */
+    private fun assertChecksBelow(owner: String, walk: String, bound: Int, macros: String) {
+        val expanding = expanding(macros, "A.m()", "1.20.4")
         val indicator = ChecksBy()
 
         whileCheckingIndicators(indicator) { expanding() }
 
-        val checks = indicator.count(VALUES, "listed")
+        val checks = indicator.count(owner, walk)
 
-        // Listing each part where it appears would check each of the key's leaves, and copy the string at each.
-        assertTrue("$checks checks", checks in 1 until (1 shl DOUBLINGS) / 2)
+        assertTrue("$checks checks", checks in 1 until bound)
     }
 
     /**
@@ -694,6 +700,7 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
         const val SHARED = 64
 
         const val VALUES = "${EXPANDER}interpreter.ValuesKt"
+        const val SAME_TERM = "${EXPANDER}interpreter.SameTerm"
 
         /** A body building `t`, a list that holds itself twice at every depth. */
         val TREE = tree("t")
