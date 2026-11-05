@@ -540,8 +540,8 @@ class LoadedCopyTest : PlatformTestCase() {
         IndexingTestUtil.waitUntilIndexesAreReady(project)
     }
 
-    /** An Elixir SDK in the table with [classes] as CLASSES roots, assigned to nothing. */
-    private fun registerSdk(name: String, home: String, vararg classes: String): Sdk {
+    /** An Elixir SDK in the table with [classes] as CLASSES roots and [sources] as its SOURCES root, assigned to nothing. */
+    private fun registerSdk(name: String, home: String, vararg classes: String, sources: String? = null): Sdk {
         val sdk = SdkFixtures.registerAndWaitForFill(
             SdkFixtures.elixirSdk(name, SdkFixtures.fakeHome("elixir/$home")),
             testRootDisposable,
@@ -549,6 +549,7 @@ class LoadedCopyTest : PlatformTestCase() {
         WriteAction.runAndWait<Throwable> {
             sdk.sdkModificator.apply {
                 classes.forEach { addRoot(file(it), OrderRootType.CLASSES) }
+                sources?.let { addRoot(file(it), OrderRootType.SOURCES) }
                 commitChanges()
             }
         }
@@ -561,13 +562,7 @@ class LoadedCopyTest : PlatformTestCase() {
      * [block] runs.
      */
     private fun withSdk(classes: String?, vararg more: String, block: () -> Unit) {
-        val sdk = registerSdk("Loaded copy", "loaded-copy", *listOfNotNull(classes).toTypedArray(), *more)
-        WriteAction.runAndWait<Throwable> {
-            sdk.sdkModificator.apply {
-                addRoot(file("sdk/lib"), OrderRootType.SOURCES)
-                commitChanges()
-            }
-        }
+        val sdk = registerSdk("Loaded copy", "loaded-copy", *listOfNotNull(classes).toTypedArray(), *more, sources = "sdk/lib")
         val previous = ModuleRootManager.getInstance(module).sdk
         ModuleRootModificationUtil.setModuleSdk(module, sdk)
         try {
