@@ -15,7 +15,6 @@ import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.util.io.FileUtil
 import org.elixir_lang.NameArity
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.admits
@@ -41,7 +40,9 @@ import org.elixir_lang.expander.Shape
 import org.elixir_lang.expander.TermEscapeBuilder
 import org.elixir_lang.expander.TermEscapeView
 import org.elixir_lang.expander.annotation
+import org.elixir_lang.expander.decodeUtf8
 import org.elixir_lang.expander.defines
+import org.elixir_lang.expander.keystore
 import org.elixir_lang.expander.specialFormArity
 import org.elixir_lang.expander.write
 import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTES_EXPANDED_LAZILY
@@ -73,7 +74,6 @@ import java.io.ByteArrayOutputStream
 import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
-import java.nio.charset.CharacterCodingException
 import java.security.MessageDigest
 import java.util.IdentityHashMap
 import kotlin.math.abs
@@ -325,14 +325,26 @@ internal class Natives(private val evaluation: Evaluation) {
     /**
      * `elixir_module:next_counter/1` (`elixir_module.erl:64-71`), from the [Counters][org.elixir_lang.expander.Counters]
      * the run's expansions take theirs from: `{Module, N}` for a module being compiled, whose table holds its counter, and
-     * a unique integer for `nil` or any other term, as Elixir's `catch` gives.
+     * a unique integer for `nil` or any other term, as Elixir's `catch` gives. Drawing one is an effect
+     * ([reachingAnEffect][Evaluation.reachingAnEffect]): where that declines, Elixir may or may not have drawn it, so the
+     * module's later counters aren't known. Code that declines whole is taken not to draw one.
      */
     private fun elixirModule(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
         when (key) {
             "next_counter/1" -> {
-                val module = (seen(args[0]) as? OtpErlangAtom)?.atomValue()?.takeIf { it in evaluation.run.compiling }
+                val name = (seen(args[0]) as? OtpErlangAtom)?.atomValue()
+                val compiling = name?.let(evaluation.run.compiling::get)
 
-                when (val counter = evaluation.run.counters.next(module)) {
+                if (compiling?.counterLost == true) decline("$name's counter isn't known")
+
+                try {
+                    evaluation.reachingAnEffect()
+                } catch (declined: Declined) {
+                    compiling?.counterLost = true
+                    throw declined
+                }
+
+                when (val counter = evaluation.run.counters.next(name.takeIf { compiling != null })) {
                     is Env.Counter.InModule -> tuple(atom(counter.module), integer(counter.n))
                     is Env.Counter.Unique -> integer(counter.n)
                 }
@@ -429,7 +441,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 // Before OTP 27 a bitstring's part is taken from its whole bytes.
                 val bytes = bitstring.binaryValue().copyOf(bitSize(bitstring) / Byte.SIZE_BITS)
                 val (start, length) = args.drop(1).map {
-                    (seen(it) as? OtpErlangLong)?.takeIf { long -> long.bitLength() < Int.SIZE_BITS }?.longValue() ?: badarg()
+                    smallInt(seen(it))?.toLong() ?: badarg()
                 }
                 val (from, to) = if (length < 0) start + length to start else start to start + length
 
@@ -507,6 +519,12 @@ internal class Natives(private val evaluation: Evaluation) {
                     Encoding.UTF8 -> binary(text)
                     null -> badarg()
                 }
+            }
+            "integer_to_binary/1", "integer_to_binary/2" -> {
+                val integer = seen(args[0]) as? OtpErlangLong ?: badarg()
+                val base = if (args.size == 1) 10 else smallInt(seen(args[1]))?.takeIf { it in 2..36 } ?: badarg()
+
+                binary(integer.bigIntegerValue().toString(base).uppercase())
             }
             "atom_to_list/1" ->
                 list((seen(args[0]) as? OtpErlangAtom ?: badarg()).atomValue().codePoints().toArray().map { integer(it.toLong()) })
@@ -1340,12 +1358,13 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun storeContext(meta: OtpErlangObject, value: OtpErlangObject): OtpErlangObject {
         if (seen(value) == NIL) return meta
 
-        val key = atom("context")
         val elements = properElements(meta) ?: decline("metadata that isn't a list")
-        val index = elements.indexOfFirst { (seen(it) as? OtpErlangTuple)?.takeIf { pair -> pair.arity() >= 1 }?.elementAt(0)?.let(::seen) == key }
-        val entry = tuple(key, value)
 
-        return list(if (index < 0) elements + entry else elements.toMutableList().also { it[index] = entry })
+        return list(
+            keystore(elements, tuple(atom("context"), value)) {
+                (seen(it) as? OtpErlangTuple)?.takeIf { pair -> pair.arity() >= 1 }?.elementAt(0)?.let(::seen)
+            },
+        )
     }
 
     /** `lists:keydelete(counter, 1, Meta)`. */
@@ -1667,10 +1686,10 @@ internal class Natives(private val evaluation: Evaluation) {
         val context = when (key) {
             "in_guard?/1" -> "guard"
             "in_match?/1" -> "match"
-            "stacktrace/1" -> return stacktrace(macroEnv(args[0]) ?: functionClause("Elixir.Macro.Env", "stacktrace", args))
+            "stacktrace/1" -> return stacktrace(macroEnvOf(args[0]) ?: functionClause("Elixir.Macro.Env", "stacktrace", args))
             else -> return null
         }
-        val env = macroEnv(args[0])?.get(atom("context"))
+        val env = macroEnvOf(args[0])?.get(atom("context"))
             ?: functionClause("Elixir.Macro.Env", key.substringBefore('/'), args)
 
         return bool(seen(env) == atom(context))
@@ -1686,7 +1705,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
         val message = utf8(args[0]) ?: decline("IO.warn/${args.size} of %s", args[0])
         val stacktrace = args.getOrNull(1)?.also { given ->
-            if (macroEnv(given) != null) decline("IO.warn/2 at a Macro.Env")
+            if (macroEnvOf(given) != null) decline("IO.warn/2 at a Macro.Env")
 
             val (elements, _) = cells(seen(given)) ?: functionClause("Elixir.IO", "warn", args)
 
@@ -1703,30 +1722,25 @@ internal class Natives(private val evaluation: Evaluation) {
         return atom("ok")
     }
 
-    /** [term] where it is a `%Macro.Env{}`, `null` where it is something else. */
-    private fun macroEnv(term: OtpErlangObject): OtpErlangMap? =
-        (seen(term) as? OtpErlangMap)?.takeIf { it.get(atom("__struct__"))?.let(::seen) == atom("Elixir.Macro.Env") }
-
     /**
      * `Macro.Env.stacktrace/1` (`env.ex`): [env]'s one frame, the compiler's outside a module and the module body's
      * outside a function, at its line and its file relative to where Elixir compiled it, which is unknown where that
      * directory is (`Run.workingDirectory`).
      */
     private fun stacktrace(env: OtpErlangMap): OtpErlangObject {
-        val field = { name: String -> env.get(atom(name))?.let(::seen) ?: decline("a Macro.Env without %s", atom(name)) }
-        val file = utf8(field("file")) ?: decline("Macro.Env.stacktrace/1 of a file that isn't UTF-8 text")
+        val file = utf8(macroEnvField(env, "file")) ?: decline("Macro.Env.stacktrace/1 of a file that isn't UTF-8 text")
         val os = evaluation.run.os ?: decline("Path.relative_to_cwd/1 of a file whose SDK's OS isn't known")
         val relative = evaluation.run.relativeToCwd(file, os)
         val location = list(
             listOf(
                 tuple(atom("file"), relative?.let { list(it.codePoints().toArray().map { point -> integer(point.toLong()) }) } ?: Unknown),
-                tuple(atom("line"), field("line")),
+                tuple(atom("line"), macroEnvField(env, "line")),
             ),
         )
-        val module = field("module")
+        val module = macroEnvField(env, "module")
         val frame = when {
             module == NIL -> tuple(atom("elixir_compiler"), atom("__FILE__"), integer(1), location)
-            else -> when (val function = field("function")) {
+            else -> when (val function = macroEnvField(env, "function")) {
                 NIL -> tuple(module, atom("__MODULE__"), integer(0), location)
                 else -> {
                     val (name, arity) = (function as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elements()
@@ -1771,6 +1785,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "overridable?/2" -> overridable(args)
             "overridables_in/1" -> if (MODULE_OVERRIDABLES_IN.isSufficient(level)) overridablesIn(args) else null
             "attributes_in/1" -> if (MODULE_ATTRIBUTES_IN.isSufficient(level)) attributesIn(args) else null
+            "create/3" -> evaluation.createModule(args)
             else -> null
         }
 
@@ -1964,7 +1979,7 @@ internal class Natives(private val evaluation: Evaluation) {
         if (envFirst) {
             when {
                 env is UnknownValue -> evaluation.assumeNoRaise()
-                (env as? OtpErlangMap)?.get(atom("__struct__"))?.let(::seen) != atom("Elixir.Macro.Env") ->
+                (env as? OtpErlangMap)?.let(::macroEnvOf) == null ->
                     functionClause("Elixir.Application", key.substringBefore('/'), args)
             }
         }
@@ -2453,7 +2468,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** [term] as a 1-based index of a tuple of [size] elements. */
     private fun index(term: OtpErlangObject, size: Int): Int? =
-        (seen(term) as? OtpErlangLong)?.takeIf { it.isLong }?.longValue()?.takeIf { it in 1..size }?.toInt()
+        smallInt(seen(term))?.takeIf { it in 1..size }
 
     private fun map(term: OtpErlangObject): OtpErlangMap =
         seen(term) as? OtpErlangMap ?: evaluation.error(tuple(atom("badmap"), term))
@@ -2603,14 +2618,12 @@ internal class Natives(private val evaluation: Evaluation) {
         val expansion = evaluation.run.files.imported(text, read) ?: decline("Config.__import__!/1 of %s, which can't be read", path)
 
         when (val top = expansion.top) {
-            is Expansion.Error -> when (val kind = top.kind) {
-                null -> decline("Config.__import__!/1 of %s, whose raise isn't known", path)
-                else -> {
-                    // Only its type is known, so a `rescue` can't read the rest.
-                    evaluation.mayRaise()
-                    // An expansion error, which `Code.eval_string/3` raises as a `CompileError`.
-                    evaluation.raise(if (kind.startsWith("Elixir.")) kind else "Elixir.CompileError")
-                }
+            is Expansion.Error -> {
+                val exception = Expansion.Error.exception(top.kind, level)
+                    ?: decline("Config.__import__!/1 of %s, whose raise isn't known", path)
+
+                evaluation.mayRaise()
+                evaluation.raiseFieldsUnknown(exception)
             }
             is Expansion.Expanded -> {}
             else -> {
@@ -2655,20 +2668,12 @@ internal class Natives(private val evaluation: Evaluation) {
         }
 
     /**
-     * `File.exists?/1,2`: whether a file or directory is at [path], relative to `Run.workingDirectory` where it is relative,
+     * `File.exists?/1,2`: whether a file or directory is at [path], made absolute as Elixir makes it (`Run.absolute`),
      * read through the run's files.
      */
     private fun fileExists(path: OtpErlangObject): OtpErlangObject {
         val text = String(nameBytes("File.exists?/1", path), Charsets.UTF_8)
-        val absolute =
-            if (FileUtil.isAbsolutePlatformIndependent(text)) {
-                text
-            } else {
-                val file = evaluation.run.file() ?: decline("File.exists?/1 of %s, relative to a file with no path", path)
-                val directory = evaluation.run.workingDirectory(file) ?: decline("File.exists?/1 of %s, relative to an unknown directory", path)
-
-                "$directory/$text"
-            }
+        val absolute = evaluation.run.absolute(text) ?: decline("File.exists?/1 of %s, whose absolute path isn't known", path)
 
         return bool(evaluation.run.files.exists(absolute) ?: decline("File.exists?/1 of %s isn't known", path))
     }
@@ -2783,7 +2788,7 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun byteAt(subject: OtpErlangObject, position: OtpErlangObject): OtpErlangObject {
         val badarg = { evaluation.error(atom("badarg"), frame("binary", "at", list(listOf(subject, position)))) }
         val bytes = (seen(subject) as? OtpErlangBitstr)?.takeIf(::isBinary)?.binaryValue() ?: badarg()
-        val index = (seen(position) as? OtpErlangLong)?.takeIf { it.bitLength() < Int.SIZE_BITS }?.intValue() ?: badarg()
+        val index = smallInt(seen(position)) ?: badarg()
 
         return integer((bytes.getOrNull(index) ?: badarg()).toLong() and 0xFF)
     }
@@ -2837,21 +2842,14 @@ internal class Natives(private val evaluation: Evaluation) {
 
         if (arities == ArityKnowledge.Open(0)) return TRUE
 
-        val int = (seen(arity) as? OtpErlangLong)?.takeIf { it.isLong }?.longValue()
+        val int = smallInt(seen(arity))
 
-        return bool(int != null && int in Int.MIN_VALUE..Int.MAX_VALUE && arities.admits(int.toInt()))
+        return bool(int != null && arities.admits(int))
     }
 
     /** The text of the binary [term], `null` where it isn't a binary of UTF-8. */
-    private fun utf8(term: OtpErlangObject): String? {
-        if (!isBinary(term)) return null
-
-        return try {
-            Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap((seen(term) as OtpErlangBitstr).binaryValue())).toString()
-        } catch (_: CharacterCodingException) {
-            null
-        }
-    }
+    fun utf8(term: OtpErlangObject): String? =
+        if (isBinary(term)) decodeUtf8((seen(term) as OtpErlangBitstr).binaryValue()) else null
 
     /**
      * `unicode:characters_to_binary/1` (`unicode.erl:305-311`) and `characters_to_list/1` (`:289-295`): chardata as a
@@ -2895,7 +2893,7 @@ internal class Natives(private val evaluation: Evaluation) {
         if (!chardata) notChardata()
         if (!codePoints) decline("$function/1 of %s, which holds no code point", args[0])
 
-        return bytes.toByteArray().takeIf { utf8(OtpErlangBinary(it)) != null }
+        return bytes.toByteArray().takeIf { decodeUtf8(it) != null }
             ?: decline("$function/1 of %s, which isn't UTF-8", args[0])
     }
 
@@ -2919,7 +2917,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** [term] where it is a Unicode code point, which a surrogate isn't, `null` where it is something else. */
     private fun codePoint(term: OtpErlangObject): Int? =
-        (term as? OtpErlangLong)?.takeIf { it.bitLength() < Int.SIZE_BITS }?.intValue()?.takeIf { isScalarValue(it.toLong()) }
+        smallInt(term)?.takeIf { isScalarValue(it.toLong()) }
 
     /**
      * `unicode_util:gc/1`: the first grapheme cluster of a binary or a flat list of code points, then the rest. Where

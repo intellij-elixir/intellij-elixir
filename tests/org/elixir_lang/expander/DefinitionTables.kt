@@ -45,7 +45,7 @@ internal object DefinitionTables {
 
         if (hooked.isEmpty()) return null
 
-        val expanded = modules(result).associateBy { it.module }
+        val expanded = result.withNested().associateBy { it.module }
         val elixir = mutableListOf<String>()
         val expander = mutableListOf<String>()
         val names = if (caseModule in hooked) hooked.keys + expanded.keys else hooked.keys
@@ -64,7 +64,7 @@ internal object DefinitionTables {
 
     /** [rows] under [heading], sorted. */
     fun render(heading: String, rows: List<String>) =
-        "== ${heading.replace("\n", "; ")}\n" + rows.sorted().joinToString("") { "  $it\n" }
+        "== ${oneLine(heading)}\n" + rows.sorted().joinToString("") { "  $it\n" }
 
     /**
      * Every module a compile defines is the module of a traced environment, but for one defined while a function the
@@ -84,8 +84,6 @@ internal object DefinitionTables {
     }
 
     private fun under(suffix: String, row: String) = if (suffix.isEmpty()) row else "$suffix $row"
-
-    private fun modules(result: ExpansionResult): List<ExpansionResult> = listOf(result) + result.nested.flatMap(::modules)
 
     /**
      * The expander's [table] read against the hook's rows by the may-be-present rule: Elixir's table holds

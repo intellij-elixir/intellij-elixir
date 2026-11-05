@@ -433,7 +433,7 @@ internal class ExpansionProbes(
     }
 
     private fun renderTraces(body: String, traces: List<String>) =
-        "== ${body.replace("\n", "; ")}\n" + traces.joinToString("") { "  $it\n" }
+        "== ${oneLine(body)}\n" + traces.joinToString("") { "  $it\n" }
 
     /** What [CaseExpansion]'s module, which went on past a `__deriving__` macro, did before the [macro] Elixir expands. */
     private class UpToDerive(val macro: String, val steps: List<Step>, val traces: List<String>, val before: (Tag) -> Boolean)
@@ -682,7 +682,7 @@ internal class ExpansionProbes(
             is Ended.Raised ->
                 if (ended.error.kind in FILE_ERROR_KINDS) {
                     FILE_NOT_COMPILED
-                } else if (ended.error.kind == NESTED_RAISED || ErrorKinds.isCompileError(ended.error.kind, level)) {
+                } else if (ErrorKinds.isCompileError(ended.error.kind, level)) {
                     "raise CompileError"
                 } else {
                     ended.error.kind?.let { "raise $it" } ?: RAISED
@@ -1515,7 +1515,7 @@ internal class ExpansionProbes(
 
         /** [result]'s units, then each nested module's. */
         fun units(result: ExpansionResult): List<ExpansionResult.Unit> =
-            result.units + result.nested.flatMap(::units)
+            result.withNested().flatMap { it.units }
 
         fun start(node: ElixirAst): Int = node.meta.origin.startOffset
 

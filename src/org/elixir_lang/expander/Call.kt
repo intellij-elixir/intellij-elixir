@@ -408,7 +408,7 @@ internal fun <R> expandRequire(
     stop: (Expansion) -> R,
 ): R {
     val arity = call.arguments!!.size
-    val required = receiver == env.module || isRequiredByMeta(call.meta) || receiver in env.requires
+    val required = receiver == env.module || isTrueAt(call.meta, "required") || receiver in env.requires
 
     return when (isMacro(receiver, name, arity, required, run)) {
         null -> stop(Expansion.Unported(call))
@@ -431,10 +431,11 @@ internal fun <R> expandRequire(
 
 /**
  * `elixir_dispatch:is_macro/4`, or before 1.13 `get_macros/2`: whether [name]/[arity] is a macro of [receiver], or
- * `null` where its exports can't be read. From 1.13 an unrequired [receiver]'s macros aren't read.
+ * `null` where its exports can't be read. From 1.13 an unrequired [receiver]'s macros aren't read, and `:erlang`'s never
+ * are, as it has none.
  */
 internal fun isMacro(receiver: String, name: String, arity: Int, required: Boolean, run: Run): Boolean? =
-    if (required || !UNREQUIRED_MACRO_CALLED_AS_FUNCTION.isSufficient(run.level)) {
+    if (receiver != ERLANG && (required || !UNREQUIRED_MACRO_CALLED_AS_FUNCTION.isSufficient(run.level))) {
         when (val exports = run.exports.of(receiver)) {
             ModuleExports.Absent -> false
             ModuleExports.Unreadable -> null
@@ -508,7 +509,7 @@ private fun expandRemote(
         }
 
         return when {
-            isNoParens(node.meta) -> Expansion.Expanded(after, env, NODE, ast)
+            isTrueAt(node.meta, "no_parens") -> Expansion.Expanded(after, env, NODE, ast)
             PARENS_MAP_LOOKUP_ATOM.isSufficient(level) ->
                 report(ErrorSite.PARENS_MAP_LOOKUP, node, env, run) { Expansion.Expanded(after, env, NODE, ast) }
             else -> Expansion.Error("parens_map_lookup_guard", node)
@@ -841,14 +842,6 @@ private fun hasClauses(args: List<ElixirAst>): Boolean {
 
     return false
 }
-
-/** Whether [meta] has `{key, true}`. */
-private fun isTrue(meta: Meta, key: String): Boolean =
-    meta.keys.any { it is Meta.Key.Entry && it.name == key && (it.value as? Meta.Value.Atom)?.name == "true" }
-
-private fun isNoParens(meta: Meta) = isTrue(meta, "no_parens")
-
-private fun isRequiredByMeta(meta: Meta) = isTrue(meta, "required")
 
 /** `elixir_rewrite:is_always_string/1`: a binary, or a remote call of a function that always gives one. */
 private fun isAlwaysString(node: ElixirAst): Boolean {

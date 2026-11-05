@@ -101,6 +101,14 @@ class EnvStacktraceTest {
     }
 
     @Test
+    fun `a file with a drive is outside its root off Windows`() {
+        assertEquals(
+            stacktrace(atom(MODULE), atom("bar"), 2, "c:/x/lib/foo.ex"),
+            call(env(file = "c:/x/lib/foo.ex"), CompileDirectories { ROOT }, OS.Linux),
+        )
+    }
+
+    @Test
     fun `a Windows file is found below its root whatever the drive's case`() {
         assertEquals(
             stacktrace(atom(MODULE), atom("bar"), 2, "lib/foo.ex"),

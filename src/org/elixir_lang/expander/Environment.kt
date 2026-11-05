@@ -35,9 +35,23 @@ internal fun expandEnv(node: ElixirAst, state: ExState, env: Env, run: Run): Exp
         ?: if (env.context == Env.Context.MATCH) {
             Expansion.Error("env_not_allowed", node)
         } else {
-            // Can't build: Elixir gives the escaped env, a map's AST of fields `Env` doesn't hold.
-            Expansion.Expanded(state, env, NODE, run.ast { node })
+            // Can't build: Elixir gives the escaped env, a map's AST of fields `Env` doesn't hold. Its term is recorded.
+            Expansion.Expanded(state, env, NODE, run.ast { node }).also {
+                recordTerm(node, env, run) { macroEnv(env, state, lineOf(node.meta), true, run) }
+            }
         }
+
+/** The leg's `Macro.Env` at [line] where [env] and [state] hold, each field as [envField] gives it. */
+internal fun macroEnv(env: Env, state: ExState, line: Int, escaped: Boolean, run: Run): OtpErlangObject =
+    mapOf(envFields(run.level).map { atom(it) to envField(it, env, state, line, escaped, run) }, run.level)
+
+/**
+ * [node]'s value, [term], recorded as the code it expanded to, since no [Term] holds all of it; built only where the
+ * run records [env]'s dispatches.
+ */
+private inline fun recordTerm(node: ElixirAst, env: Env, run: Run, term: () -> OtpErlangObject) {
+    run.dispatchesAt(env)?.put(node, ModuleClauses.Dispatched.Macro(ElixirAst.Value(node.meta, term())))
+}
 
 /**
  * `__ENV__.field`, with no arguments: the field of the escaped env ([envField]), recorded as its value; or, for a key it
@@ -48,15 +62,18 @@ internal fun expandEnvField(node: ElixirAst.Call, state: ExState, env: Env, run:
 
     if (COMPILER_VARIABLES_REFUSED_IN_PATTERN.isSufficient(run.level)) noMatchScope(environment, env)?.let { return it }
 
-    val term = envField((field as ElixirAst.Literal.Atom).name, env, state, lineOf(environment.meta), true, run)
-        ?: return Expansion.Expanded(state, env, NODE, run.ast { node })
+    val name = (field as ElixirAst.Literal.Atom).name
+
+    if (name !in envFields(run.level)) return Expansion.Expanded(state, env, NODE, run.ast { node })
+
+    val term = envField(name, env, state, lineOf(environment.meta), true, run)
     val value = termOf(term)
 
     if (holds(value)) {
         return recordingValue(node, env, run, Expansion.Expanded(state, env, value, run.ast { escaped(value, node, run) ?: node }))
     }
 
-    recordDispatch(node, ModuleClauses.Dispatched.Macro(ElixirAst.Value(node.meta, term)), env, run)
+    recordTerm(node, env, run) { term }
 
     return Expansion.Expanded(state, env, NODE, run.ast { escaped(TermEscapeView, term, node, run) { null } ?: node })
 }
@@ -71,16 +88,22 @@ private fun holds(term: Term): Boolean =
         else -> false
     }
 
-/** The fields of the leg's `Macro.Env`, `__struct__` apart. */
-internal fun envFields(level: ElixirLanguageLevel): List<String> =
-    COMMON_FIELDS + if (MACRO_ENV_VERSIONED_VARS.isSufficient(level)) listOf("versioned_vars") else BEFORE_VERSIONED_VARS
+/** The fields of the leg's `Macro.Env`. */
+private fun envFields(level: ElixirLanguageLevel): List<String> =
+    if (MACRO_ENV_VERSIONED_VARS.isSufficient(level)) VERSIONED_VARS_FIELDS else BEFORE_VERSIONED_VARS_FIELDS
 
 /**
- * The file [env] is compiled in: the run's, `null` where that isn't known and inside a definition that took an `@file`
- * or a `keep:` location, which `retrieve_location/2` compiles as in the file it names.
+ * The file [env] is compiled in: `E`'s ([envFile]), `null` where that isn't known and inside a definition that took an
+ * `@file` or a `keep:` location, which `retrieve_location/2` compiles as in the file it names.
  */
 internal fun fileOf(run: Run, env: Env): String? =
-    run.file()?.takeUnless { env.function != null && run.compiling[env.module]?.definitionMoved == true }
+    envFile(run, env)?.takeUnless { env.function != null && run.compiling[env.module]?.definitionMoved == true }
+
+/**
+ * `E`'s `file` in [env]: the one `Module.create/3` gave, as Elixir holds it, or else the run's, as [ownFile] gives it;
+ * `null` where that isn't known.
+ */
+internal fun envFile(run: Run, env: Env, ownFile: (String) -> String = { it }): String? = env.file ?: run.file()?.let(ownFile)
 
 /**
  * `__DIR__`: `filename:dirname/1` of [env]'s file, by the OS its SDK runs as; `null` where either is unknown, as
@@ -94,16 +117,14 @@ internal fun dirOf(run: Run, env: Env): ByteArray? {
 }
 
 /**
- * The [field] of the env at [line] where [env] and [state] hold, on [run]'s leg; `null` where its `Macro.Env` has no
- * such field. [escaped] is `__ENV__`, which `elixir_expand:escape_env_entries` builds; otherwise it is `__CALLER__`, the
+ * The [field], one of [envFields], of the env at [line] where [env] and [state] hold, on [run]'s leg.
+ * [escaped] is `__ENV__`, which `elixir_expand:escape_env_entries` builds; otherwise it is `__CALLER__`, the
  * env itself before [MACRO_ENV_VERSIONED_VARS] and `elixir_env:to_caller/1`'s from it. What the plugin doesn't hold is
  * [ModuleUnknown]: the compiler's process state, the lexical tracker and tracers but `__ENV__`'s in a function, and
  * before [MACRO_ENV_VERSIONED_VARS] `vars` and the unused variables, which `ExState` doesn't track.
  */
-internal fun envField(field: String, env: Env, state: ExState, line: Int, escaped: Boolean, run: Run): OtpErlangObject? {
-    if (field != "__struct__" && field !in envFields(run.level)) return null
-
-    return when (field) {
+private fun envField(field: String, env: Env, state: ExState, line: Int, escaped: Boolean, run: Run): OtpErlangObject =
+    when (field) {
         "__struct__" -> atom("Elixir.Macro.Env")
         "module" -> atom(env.module ?: "nil")
         "file" -> fileOf(run, env)?.let(::binary) ?: UnknownBinary
@@ -143,9 +164,8 @@ internal fun envField(field: String, env: Env, state: ExState, line: Int, escape
         "contextual_vars" ->
             list(List(state.stacktraces) { atom("__STACKTRACE__") } + listOfNotNull(atom("__CALLER__").takeIf { state.caller }))
         "vars" -> ModuleUnknown
-        else -> null
+        else -> error("$field isn't a field of Macro.Env")
     }
-}
 
 /** [read] as Elixir holds it: each `{name, context}` to its version. */
 private fun variables(read: Map<Variable, Int>, run: Run): OtpErlangObject =
@@ -175,11 +195,15 @@ private fun macroAlias(counter: Env.Counter): OtpErlangObject =
         is Env.Counter.Unique -> integer(counter.n)
     }
 
-/** The fields of `Macro.Env` on every leg, `__struct__` apart. */
+/** The fields of `Macro.Env` on every leg. */
 private val COMMON_FIELDS = listOf(
-    "aliases", "context", "context_modules", "file", "function", "functions", "lexical_tracker", "line",
+    "__struct__", "aliases", "context", "context_modules", "file", "function", "functions", "lexical_tracker", "line",
     "macro_aliases", "macros", "module", "requires", "tracers",
 )
 
-/** The variables' fields of `Macro.Env` before [MACRO_ENV_VERSIONED_VARS]. */
-private val BEFORE_VERSIONED_VARS = listOf("contextual_vars", "current_vars", "prematch_vars", "unused_vars", "vars")
+/** The fields of `Macro.Env` from [MACRO_ENV_VERSIONED_VARS]. */
+private val VERSIONED_VARS_FIELDS = COMMON_FIELDS + "versioned_vars"
+
+/** The fields of `Macro.Env` before [MACRO_ENV_VERSIONED_VARS], with its variables' fields. */
+private val BEFORE_VERSIONED_VARS_FIELDS =
+    COMMON_FIELDS + listOf("contextual_vars", "current_vars", "prematch_vars", "unused_vars", "vars")

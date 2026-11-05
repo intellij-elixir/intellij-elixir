@@ -6,7 +6,6 @@ import com.ericsson.otp.erlang.OtpErlangBitstr
 import com.ericsson.otp.erlang.OtpErlangDouble
 import com.ericsson.otp.erlang.OtpErlangExternalFun
 import com.ericsson.otp.erlang.OtpErlangList
-import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
@@ -20,6 +19,7 @@ import org.elixir_lang.expander.Dispatch
 import org.elixir_lang.expander.Effect
 import org.elixir_lang.expander.Env
 import org.elixir_lang.expander.ExState
+import org.elixir_lang.expander.Expansion
 import org.elixir_lang.expander.Linify
 import org.elixir_lang.expander.LinifyClause
 import org.elixir_lang.expander.LinifyRight
@@ -35,20 +35,23 @@ import org.elixir_lang.expander.Summary
 import org.elixir_lang.expander.Warning
 import org.elixir_lang.expander.children
 import org.elixir_lang.expander.compilingKnown
-import org.elixir_lang.expander.envField
-import org.elixir_lang.expander.envFields
+import org.elixir_lang.expander.createdModule
 import org.elixir_lang.expander.forOptions
+import org.elixir_lang.expander.inheriting
 import org.elixir_lang.expander.givenAt
 import org.elixir_lang.expander.isBitstringGenerator
 import org.elixir_lang.expander.isCall
 import org.elixir_lang.expander.isListGenerator
 import org.elixir_lang.expander.isMap
 import org.elixir_lang.expander.isNamedCall
+import org.elixir_lang.expander.isTrueAt
 import org.elixir_lang.expander.isUnderscore
 import org.elixir_lang.expander.isVariable
 import org.elixir_lang.expander.isVariableNamed
 import org.elixir_lang.expander.keyOf
 import org.elixir_lang.expander.lineOf
+import org.elixir_lang.expander.linifyWithContextCounter
+import org.elixir_lang.expander.macroEnv
 import org.elixir_lang.expander.literalOf
 import org.elixir_lang.expander.macroExpand
 import org.elixir_lang.expander.macroExpandOnce
@@ -57,15 +60,16 @@ import org.elixir_lang.expander.orGuards
 import org.elixir_lang.expander.rebuilt
 import org.elixir_lang.expander.rescueHead
 import org.elixir_lang.expander.splitOptions
+import org.elixir_lang.expander.stopGeneratedMarks
 import org.elixir_lang.expander.unfollowed
 import org.elixir_lang.expander.unlessTooDeep
 import org.elixir_lang.expander.unlessTooDeepToRun
 import org.elixir_lang.expander.whenArguments
 import org.elixir_lang.expander.withOptions
+import org.elixir_lang.language_level.ElixirLanguageFeature.EVAL_ENV_KEEPS_CONTEXT_MODULES
 import org.elixir_lang.language_level.ElixirLanguageFeature.FIELD_OF_NON_MAP_RAISES_BADKEY
 import org.elixir_lang.language_level.ElixirLanguageFeature.FN_CLAUSE_ERROR_IS_FUNCTION_CLAUSE
 import org.elixir_lang.language_level.ElixirLanguageFeature.GENERATOR_RIGHT_SIDE_SCOPED
-import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ARGUMENTS_STOP_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_UPDATE_RAISES_WHERE_DISCARDED
 import org.elixir_lang.language_level.ElixirLanguageFeature.FIELD_OF_NON_MAP_RAISES_BADMAP
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUED_ERROR_MESSAGE_FROM_ERROR_INFO
@@ -84,8 +88,6 @@ import java.util.IdentityHashMap
 internal object Interpreter {
     /**
      * The summary of [node], which dispatches as [dispatch], from its macro's clauses, or `null` where it declines.
-     *
-     * @param stopGenerated whether the macro is given its arguments through `stop_generated/1`
      */
     fun summary(
         dispatch: Dispatch,
@@ -93,12 +95,11 @@ internal object Interpreter {
         state: ExState,
         env: Env,
         run: Run,
-        stopGenerated: Boolean,
     ): Summary? {
         val output = declining(run) {
             try {
                 run.unlessTooDeepToRun({ return null }) {
-                    Evaluation(node, state, env, run).output(dispatch, node.arguments.orEmpty(), stopGenerated)
+                    Evaluation(node, state, env, run).output(dispatch, node.arguments.orEmpty())
                 }
             } catch (_: Declined) {
                 // The macro's code ran where the expander lost it.
@@ -209,7 +210,7 @@ internal object Interpreter {
             if (declinesTooDeep) {
                 // Where the stack overflows, which calls were given what isn't known.
                 unlessTooDeep({
-                    evaluation.run.directoryNoLongerKnown()
+                    evaluation.run.declinedCodeRan()
 
                     Evaluated.Declined(Given().apply { all() })
                 }) {
@@ -219,7 +220,7 @@ internal object Interpreter {
                 Evaluated.Value(value(evaluation))
             }
         } catch (declined: Declined) {
-            evaluation.run.directoryNoLongerKnown()
+            evaluation.run.declinedCodeRan()
 
             Evaluated.Declined(declined.given, declined.holds, declined)
         } catch (thrown: Thrown) {
@@ -400,6 +401,19 @@ internal class Evaluation(
     /** Whether the value of the code being evaluated is read. */
     private var use = ValueUse.READ
 
+    /**
+     * Whether the evaluator went on past code that declined, a part of a value, a check before its other parts or a
+     * loop's iteration, which Elixir may have left by a raise, throw or exit, so the code run after it may not run in
+     * Elixir.
+     */
+    private var wentOnPastDecline = false
+
+    /** The evaluator goes on past code that declined ([wentOnPastDecline]), whose effects aren't known. */
+    private fun goingOnPastDecline() {
+        run.declinedCodeRan()
+        wentOnPastDecline = true
+    }
+
     /** [block], evaluated as code whose value has [use]. */
     internal inline fun <T> using(use: ValueUse, block: () -> T): T {
         val outer = this.use
@@ -446,21 +460,24 @@ internal class Evaluation(
     }
 
     /**
-     * The output of the call, which dispatches as [dispatch], given [arguments].
-     *
-     * @param stopGenerated whether the macro is given its arguments through `stop_generated/1`
+     * The output of the call, which dispatches as [dispatch], given [arguments], through `stop_generated/1` where the
+     * call is in [Run.stopsGenerated].
      */
-    fun output(dispatch: Dispatch, arguments: List<ElixirAst>, stopGenerated: Boolean): Summary.Output {
+    fun output(dispatch: Dispatch, arguments: List<ElixirAst>): Summary.Output {
         val module = run.clausesOf(dispatch.receiver, local = dispatch.kind == Dispatch.Kind.LOCAL_MACRO)
             ?: decline("no clauses of ${dispatch.receiver}")
         val definition = module.definitions[NameArity(dispatch.name, dispatch.arity)]
             ?.takeIf { it.kind.macro }
             ?: decline("${dispatch.receiver} has no macro ${dispatch.name}/${dispatch.arity}")
-        val marks = stopGenerated && MACRO_ARGUMENTS_STOP_GENERATED.isSufficient(run.level)
         run.origins.expanded(call)
+        val stops = call in run.stopsGenerated
         val args = arguments.map { arg ->
+            val marks = stops && stopGeneratedMarks(arg)
+
+            // A marked argument is found only by its marked term: an equal term without the mark is the macro's own.
             run.givenEnvs[arg]?.let(::envOf)
-                ?: termOf(arg) { each, term -> run.origins.record(each, term) }.let { if (marks) stopGenerated(it, arg) else it }
+                ?: termOf(arg) { each, term -> if (!marks || each !== arg) run.origins.record(each, term) }
+                    .let { if (marks) stopGenerated(it, arg) else it }
         }
         val function = ModuleExports.macroExport(NameArity(dispatch.name, args.size))
         val linifier = Linify(dispatch.receiver, run.level)
@@ -472,13 +489,14 @@ internal class Evaluation(
             return Summary.Output.Raised(exceptionModule(thrown))
         }
 
-        return Summary.Output.Built(
-            rebuilt(result, call.meta.origin, run, built = false, known = nodes::get) { term, node ->
-                placeOf(term)?.let { run.placedAt[node] = it }
-            } ?: decline("the result isn't quoted or is too large to copy"),
-            injects = true,
-        )
+        return Summary.Output.Built(code(result) ?: decline("the result isn't quoted or is too large to copy"), injects = true)
     }
+
+    /** [term], evaluated at the call, as code ([rebuilt]), each node placed where its term was. */
+    private fun code(term: OtpErlangObject): ElixirAst? =
+        rebuilt(term, call.meta.origin, run, built = false, known = nodes::get) { each, node ->
+            placeOf(each)?.let { run.placedAt[node] = it }
+        }
 
     /**
      * Raises where `elixir_quote:linify_with_context_counter/3` raises on [term], the macro's result, before
@@ -545,11 +563,11 @@ internal class Evaluation(
     private fun normalize(reason: OtpErlangObject, stacktrace: OtpErlangObject): OtpErlangObject =
         remote(atom("Elixir.Exception"), "normalize", listOf(atom("error"), reason, stacktrace))
 
-    /** `elixir_dispatch:stop_generated/1` of [term], [arg]'s: a call's meta gains `stop_generated: true`. */
+    /** `elixir_dispatch:stop_generated/1` of [term], [arg]'s, which it marks: its meta gains `stop_generated: true`. */
     private fun stopGenerated(term: OtpErlangObject, arg: ElixirAst): OtpErlangObject {
-        val meta = (term as? OtpErlangTuple)?.takeIf { it.arity() == 3 }?.elementAt(1) as? OtpErlangList ?: return term
+        val (left, meta, right) = (term as OtpErlangTuple).elements()
 
-        return tuple(term.elementAt(0), cons(listOf(tuple(atom("stop_generated"), TRUE)), meta), term.elementAt(2))
+        return tuple(left, cons(listOf(tuple(atom("stop_generated"), TRUE)), meta as OtpErlangList), right)
             .also {
                 nodes[it] = arg
                 run.origins.record(arg, it)
@@ -598,9 +616,9 @@ internal class Evaluation(
             NIL -> null
             is OtpErlangTuple -> {
                 val name = (value.elementAt(0) as? OtpErlangAtom)?.takeIf { value.arity() == 2 } ?: return null
-                val arity = (seen(value.elementAt(1)) as? OtpErlangLong)?.takeIf { it.signum() >= 0 && it.bitLength() < 32 } ?: return null
+                val arity = smallInt(seen(value.elementAt(1)))?.takeIf { it >= 0 } ?: return null
 
-                NameArity(name.atomValue(), arity.intValue())
+                NameArity(name.atomValue(), arity)
             }
             else -> return null
         }
@@ -764,6 +782,15 @@ internal class Evaluation(
     fun raiseAs(kind: String, reason: OtpErlangObject, stacktrace: OtpErlangObject? = null): Nothing =
         throw Thrown(kind, reason, stacktrace ?: list(stack.toList()))
 
+    /**
+     * An effect no decline's marks name, a created module or a drawn counter, is applied: where the evaluator went on
+     * past code that declined to reach it ([wentOnPastDecline]), Elixir may have left before it, which is taken not to
+     * happen ([assumeNoRaise]).
+     */
+    fun reachingAnEffect() {
+        if (wentOnPastDecline) assumeNoRaise()
+    }
+
     /** A raise whose inputs aren't known is taken not to happen ([mayRaise]): Elixir may have raised there ([assume]). */
     fun assumeNoRaise() {
         mayRaise()
@@ -784,11 +811,12 @@ internal class Evaluation(
     }
 
     /** Raises [module]'s exception, its struct with [fields] put. */
-    fun raise(module: String, vararg fields: Pair<String, OtpErlangObject>): Nothing {
-        val struct = remote(atom(module), "__struct__", emptyList()) as? OtpErlangMap ?: decline("$module has no struct")
+    fun raise(module: String, vararg fields: Pair<String, OtpErlangObject>): Nothing =
+        error(mapOf(entries(exceptionStruct(module)) + fields.map { (key, value) -> atom(key) to value }, run.level))
 
-        error(mapOf(entries(struct) + fields.map { (key, value) -> atom(key) to value }, run.level))
-    }
+    /** [module]'s struct, which its exception is raised as. */
+    private fun exceptionStruct(module: String): OtpErlangMap =
+        remote(atom(module), "__struct__", emptyList()) as? OtpErlangMap ?: decline("$module has no struct")
 
     /**
      * [expr] read as a guard reads it in [frame], `null` where it raises, which fails its guard or its pattern: a raise
@@ -863,9 +891,7 @@ internal class Evaluation(
         metaOf(term).mapNotNull(metaPlaces::get).minByOrNull { it.index }?.value ?: places[term]
 
     /** The metadata entries of [term], when it is a `{form, meta, args}` node. */
-    private fun metaOf(term: OtpErlangObject): List<OtpErlangObject> =
-        ((term as? OtpErlangTuple)?.takeIf { it.arity() == 3 }?.elementAt(1) as? OtpErlangList)?.elements()?.asList()
-            .orEmpty()
+    private fun metaOf(term: OtpErlangObject): List<OtpErlangObject> = nodeMeta(term)?.elements()?.asList().orEmpty()
 
     /** The values of the module body or the file's top level the code runs in, which the walk ran. */
     private val bodyValues get() = module?.let(run.compiling::get)?.values ?: run.fileValues
@@ -910,6 +936,7 @@ internal class Evaluation(
             evaluate()
         } catch (declined: Declined) {
             declined.holds += held
+            if (rest.isNotEmpty()) goingOnPastDecline()
             holdRest(declined, rest) { part(it, frame) }
             throw declined
         }
@@ -934,6 +961,7 @@ internal class Evaluation(
         try {
             PartOutcome.Value(evaluate())
         } catch (declined: Declined) {
+            goingOnPastDecline()
             PartOutcome.Declines(declined)
         } catch (thrown: Thrown) {
             PartOutcome.Raises(thrown)
@@ -947,6 +975,7 @@ internal class Evaluation(
         try {
             iteration()
         } catch (declined: Declined) {
+            goingOnPastDecline()
             run.continuedDeclines++
             declines(declined)
             take(PartOutcome.Declines(declined))
@@ -993,17 +1022,17 @@ internal class Evaluation(
             "__STACKTRACE__" -> frame.stacktrace ?: decline("__STACKTRACE__ outside a rescue or catch")
             "__MODULE__" if frame.source -> atom(frame.module.module)
             "__DIR__" if frame.source -> value(node, frame)
-            // An env the expansion gave no term of is a `Macro.Env` whose fields may name any module being compiled.
-            "__ENV__" if frame.source -> givingAll { value(node, frame) }.let { if (it === Unknown) unknownEnv else it }
+            // The escaped env, whose fields may name any module being compiled where it isn't known.
+            "__ENV__" if frame.source -> givingAll { dispatched(name, emptyList(), node, frame, tail) }
             // Before 1.15, the local call its expansion made of it.
             else if frame.source && frame.module.dispatches.of(node) != null -> dispatched(name, emptyList(), node, frame, tail)
             else -> decline("reads $name, which isn't bound here")
         }
     }
 
-    /** [env] at the call, as `__CALLER__` reads it: each field of the leg's `Macro.Env` ([envField]). */
+    /** [env] at the call, as `__CALLER__` reads it: the leg's `Macro.Env` ([macroEnv]). */
     private fun envOf(env: Env): OtpErlangObject = envs.getOrPut(env) {
-        macroEnv { field -> envField(field, env, state, lineAt(env), false, run)!! }
+        macroEnv(env, state, lineAt(env), false, run)
     }
 
     /** The line the macro runs at in [env]: [Env.line], or the call's. */
@@ -1020,19 +1049,132 @@ internal class Evaluation(
 
         val matchEnv = env.copy(context = Env.Context.MATCH)
         val matchState = state.copy(prematch = ExState.Prematch.InMatch(state.read, state.version, emptyMap(), emptyList()))
-        val match = macroEnv { field -> envField(field, matchEnv, matchState, lineAt(matchEnv), false, run)!! }
+        val match = macroEnv(matchEnv, matchState, lineAt(matchEnv), false, run)
 
         return (matchEnv to matchState).takeIf { term == match }
     }
 
-    /** A `Macro.Env` whose every field is [ModuleUnknown]. */
-    private val unknownEnv: OtpErlangObject by lazy { macroEnv { ModuleUnknown } }
+    /**
+     * `Module.create/3`: [args]' module compiled here, through the compile `defmodule` reaches, from the env its third
+     * argument gives and no variables, once its quoted body is code. `null`, for its clauses to raise, where Elixir's
+     * guards refuse the arguments or `:file` is missing. Its `binary` and the value of its last expression aren't known.
+     * A body, a name or an env that isn't known declines, and so does a module that stops; one that raises raises its
+     * exception, whose fields aren't known. One that compiled where it may have raised isn't taken to have raised
+     * ([assumeNoRaise]), and neither is the code the evaluator went on past to reach the call ([reachingAnEffect]).
+     */
+    fun createModule(args: List<OtpErlangObject>): OtpErlangObject? {
+        val name = (seen(args[0]) as? OtpErlangAtom)?.atomValue() ?: return null
+        val created = macroEnvOf(args[2])?.let { createEnv(it) }
+            ?: createEnv(properElements(seen(args[2]))?.map(::seen) ?: return null)
+            ?: return null
+        val at = call as? ElixirAst.Call ?: decline("Module.create/3 outside a call")
+        val body = code(args[1]) ?: decline("Module.create/3 of a body that isn't code")
 
-    /** The leg's `Macro.Env`, each field [valueOf] it. */
-    private fun macroEnv(valueOf: (String) -> OtpErlangObject): OtpErlangObject =
-        mapOf(
-            listOf(atom("__struct__") to atom("Elixir.Macro.Env")) + envFields(run.level).map { atom(it) to valueOf(it) },
+        reachingAnEffect()
+
+        val linified = linifyWithContextCounter(
+            created.line,
+            name,
+            run.counters.next(null),
             run.level,
+            body,
+            created.generated,
+            onNode = inheriting(at, run),
+        )
+
+        val result = createdModule(name, linified, created.env, at, run, bodyValues)
+
+        return when (val outcome = result.ended.seenAt(at)) {
+            null -> {
+                if (!result.certain) assumeNoRaise()
+
+                tuple(atom("module"), atom(name), Unknown, Unknown)
+            }
+            is Expansion.Error -> raiseFieldsUnknown(
+                Expansion.Error.exception(outcome.kind, run.level) ?: decline("Module.create/3 of a body whose raise isn't known"),
+            )
+            else -> decline("Module.create/3 of a module that stopped")
+        }
+    }
+
+    /**
+     * The env `Module.create/3` compiles its module in, and the line and `generated: true` `linify_with_context_counter/3`
+     * reads from its metadata.
+     */
+    private data class CreateEnv(val env: Env, val line: Int, val generated: Boolean)
+
+    /**
+     * `elixir:env_for_eval/1` of a `%Macro.Env{}` [term] as `Module.create/3` gives it to `elixir_module:compile`, and
+     * the metadata it takes from it: the term's aliases, requires, imports and file, with no macro aliases, context or
+     * function, and its context modules from [EVAL_ENV_KEEPS_CONTEXT_MODULES]. An entry that isn't known, or isn't the
+     * shape `Macro.Env` holds, declines, but for a file that isn't known where the run's isn't either.
+     */
+    private fun createEnv(term: OtpErlangMap): CreateEnv {
+        fun field(name: String) = macroEnvField(term, name)
+        fun name(value: OtpErlangObject) = (seen(value) as? OtpErlangAtom)?.atomValue() ?: decline("a Macro.Env's name %s", value)
+        fun elements(value: OtpErlangObject) = properElements(seen(value)) ?: decline("a Macro.Env's list %s", value)
+        fun pair(value: OtpErlangObject) =
+            (seen(value) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elements() ?: decline("a Macro.Env's pair %s", value)
+        fun imports(value: OtpErlangObject) = elements(value).map { entry ->
+            val (module, names) = pair(entry)
+
+            Env.Imports(
+                name(module),
+                elements(names).map { nameArity ->
+                    val (function, arity) = pair(nameArity)
+
+                    NameArity(name(function), smallInt(arity) ?: decline("a Macro.Env's arity %s", arity))
+                },
+            )
+        }
+
+        val env = Env(
+            aliases = elements(field("aliases")).map { entry -> pair(entry).let { (alias, module) -> Env.Alias(name(alias), name(module)) } },
+            requires = elements(field("requires")).map(::name),
+            functions = imports(field("functions")),
+            macros = imports(field("macros")),
+            macroAliases = emptyList(),
+            context = Env.Context.NONE,
+            contextModules = if (EVAL_ENV_KEEPS_CONTEXT_MODULES.isSufficient(run.level)) elements(field("context_modules")).map(::name) else emptyList(),
+            module = null,
+            function = null,
+            file = macroEnvEntry(term, "file")
+                // The run's file not being known is why its env's isn't, as it is in the created module.
+                .takeUnless { isUnknown(it) && run.file() == null }
+                ?.let(::fileText),
+        )
+
+        return CreateEnv(env, field("line").let { smallInt(it) ?: decline("a Macro.Env's line %s", it) }, generated = false)
+    }
+
+    /**
+     * `elixir:env_for_eval/1` of [options], a keyword list, as `Module.create/3` gives it to `elixir_module:compile`, and
+     * the metadata it takes from them: `elixir_env:new()`'s env with the given `:file`, and the `:line` and
+     * `generated: true`. `null` without `:file`, for `Module.create/3`'s clause to raise. An option that sets the env
+     * otherwise declines.
+     */
+    private fun createEnv(options: List<OtpErlangObject>): CreateEnv? {
+        fun option(key: String) = keyValue(options) { seen(it) == atom(key) }
+
+        val file = option("file") ?: return null
+        ENV_OPTIONS.firstOrNull { option(it) != null }?.let { decline("Module.create/3 with the option $it") }
+        val newEnv = run.newEnv ?: decline("Module.create/3 with options outside a file's expansion")
+        val line = option("line")?.let { smallInt(seen(it)) ?: decline("Module.create/3 with the line %s", it) } ?: 0
+        val generated = option("generated")?.let(::seen) == TRUE
+
+        return CreateEnv(newEnv.copy(file = fileText(file)), line, generated)
+    }
+
+    /** [term], a file `elixir_utils:get_file/2` takes, as text; any other term declines. */
+    private fun fileText(term: OtpErlangObject): String = natives.utf8(term) ?: decline("a file that isn't UTF-8 text %s", term)
+
+    /** Raises [exception] with every field but those that make it an exception unknown, since Elixir's aren't known. */
+    fun raiseFieldsUnknown(exception: String): Nothing =
+        error(
+            mapOf(
+                entries(exceptionStruct(exception)).map { (key, value) -> key to if (key == STRUCT || key == EXCEPTION) value else Unknown },
+                run.level,
+            ),
         )
 
     /** `Left.right(args)`: a remote call, or a field of a map. */
@@ -1120,7 +1262,7 @@ internal class Evaluation(
             return remote(value, name, emptyList(), marks, tail)
         }
 
-        if ((metaValue(meta, "no_parens") as? Meta.Value.Atom)?.name != "true") return remote(value, name, emptyList(), marks, tail)
+        if (!isTrueAt(meta, "no_parens")) return remote(value, name, emptyList(), marks, tail)
 
         val badmap = FIELD_OF_NON_MAP_RAISES_BADMAP.isSufficient(run.level)
 
@@ -1989,6 +2131,7 @@ internal class Evaluation(
                 clauses(arrows(elses), listOf(value), frame, tail = armsTail) ?: error(tuple(atom("try_clause"), value))
             } ?: value
         } catch (body: Declined) {
+            run.declinedCodeRan()
             declined = body
             throw body
         } catch (thrown: Thrown) {
@@ -2016,6 +2159,8 @@ internal class Evaluation(
      * stays ended.
      */
     private fun rescuedAfter(raise: Thrown, declined: Declined, options: ElixirAst, frame: Frame) {
+        run.declinedCodeRan()
+
         try {
             rescued(raise, options, frame)?.let { value ->
                 declined.holds.add(value)
@@ -2803,6 +2948,9 @@ internal class Evaluation(
         val CONTEXT = atom("context")
         val ONE = integer(1)
         val BOOLEANS_AND_NIL = setOf("nil", "true", "false")
+
+        /** The options `elixir:env_for_eval/1` sets an env's field from, other than `:file` and `:line`. */
+        val ENV_OPTIONS = listOf("module", "function", "tracers", "aliases", "requires", "functions", "macros", "lexical_tracker")
         const val ERLANG_ERROR = "Elixir.ErlangError"
         val REQUIRES_STACKTRACE = listOf("Elixir.FunctionClauseError", "Elixir.UndefinedFunctionError", "Elixir.KeyError")
         val REQUIRES_STACKTRACE_FROM_ERROR_INFO = listOf("Elixir.ArgumentError", "Elixir.SystemLimitError")

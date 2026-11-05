@@ -1,7 +1,6 @@
 package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.util.io.OSAgnosticPathUtil
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.DefinitionTable.Injected
 import org.elixir_lang.expander.DefinitionTable.Kind
@@ -147,8 +146,8 @@ internal fun define(
     }
     val values = pieces.map {
         when (it) {
-            is Piece.Fragment -> linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, run.level, it.call.arguments!!.single())
-            is Piece.Evaluated -> linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, run.level, it.expression)
+            is Piece.Fragment -> linifiedOutput(node, KERNEL, counter, it.call.arguments!!.single(), run)
+            is Piece.Evaluated -> linifiedOutput(node, KERNEL, counter, it.expression, run)
             is Piece.Quoted -> node
         }
     }
@@ -912,20 +911,18 @@ internal fun orGuards(node: ElixirAst): List<ElixirAst> {
 /**
  * Whether `run_with_location_change/3` moves a definition into another file: whether the file of [file], the `@file` it
  * took, or else of the `keep:` that `elixir_utils:meta_keep/1` reads off [head]'s name and arguments, made absolute as
- * `filename:absname/1` makes it, isn't [run]'s. A file that can't be read moves it.
+ * `filename:absname/1` makes it, isn't [env]'s, the run's own made absolute the same way. A file that can't be read
+ * moves it.
  */
-private fun moved(file: AttributeValue?, head: ElixirAst, run: Run): Boolean {
+private fun moved(file: AttributeValue?, head: ElixirAst, env: Env, run: Run): Boolean {
     val path = when (file) {
         null -> keptFile(extractGuards(head).first.meta) ?: return false
         is AttributeValue.Held, AttributeValue.Unknown -> return true
         is AttributeValue.Known -> fileOf(file.term) ?: return true
     }
-    val joined = when {
-        OSAgnosticPathUtil.isAbsolute(path) -> path
-        else -> run.file()?.let(run::workingDirectory)?.let { "$it/$path" } ?: return true
-    }
+    val joined = run.absolute(path) ?: return true
 
-    return absname(joined) != run.file()?.let(::absname)
+    return absname(joined) != envFile(run, env, ::absname)
 }
 
 /**
@@ -1001,7 +998,7 @@ internal fun storeDefinition(
     }
 
     // `retrieve_location/2`, before the name is checked. Only `invalid_def` comes before it in Elixir, and it raises.
-    compiling.definitionMoved = moved(takeFile(definition, compiling), unquoted.head, run)
+    compiling.definitionMoved = moved(takeFile(definition, compiling), unquoted.head, definition.env, run)
 
     if (unnamedAt != null) {
         compiling.table.define(null, 0, kind, node, unquoted.head, 0, 0, definition.statement, definition.checksClauses)
@@ -1194,10 +1191,7 @@ private fun defaultClauses(
         val synthetic = Synthetic(default.meta)
         // `default_var/1`.
         val variable = { version: Int ->
-            val keys = listOf(
-                Meta.Key.Entry("generated", Meta.Value.Atom("true")),
-                versionEntry(version),
-            )
+            val keys = GENERATED + versionEntry(version)
 
             synthetic.variable("x$version", "elixir_def", keys).also { dispatches.putVersion(it, version) }
         }

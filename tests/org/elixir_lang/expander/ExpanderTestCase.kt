@@ -132,7 +132,7 @@ abstract class ExpanderTestCase : ParsingTestCase() {
     }
 
     private fun withKeys(meta: Meta, keys: List<Meta.Key>?): Meta =
-        keys?.let { Meta(meta.origin, meta.start, meta.end, it + meta.keys, meta.built) } ?: meta
+        keys?.let { meta.withKeys(it + meta.keys) } ?: meta
 
     protected fun entry(name: String, value: Meta.Value) = Meta.Key.Entry(name, value)
 

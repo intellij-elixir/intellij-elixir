@@ -75,6 +75,18 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
         )
     }
 
+    /**
+     * A path with a drive is relative off Windows, so `File.exists?` reads it from the project's directory. Windows,
+     * where it is absolute, can't make the `c:` directory the case needs.
+     */
+    fun testAPathWithADriveIsRelativeOffWindows() {
+        if (OS.CURRENT == OS.Windows) return
+
+        val root = project(CONFIG to "import Config\nconfig :app, k: File.exists?(\"c:/marker\")\n", "c:/marker" to "")
+
+        assertEquals("[{app,[{k,true}]}] [config/config.exs]", read(root))
+    }
+
     /** The same file read by two projects reads each one's directory, each with its own table. */
     fun testAConfigFileTwoProjectsReadIsReadFromEachProject() {
         val root = project(
@@ -102,7 +114,7 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
         assertEquals("[{app,[{k,1}]}] [config/dev.exs, config/config.exs]", read(root))
     }
 
-    /** Only the type of an imported file's raise is known, so a `rescue` above it can't read the rest. */
+    /** A `rescue` above an imported file's raise declines. */
     fun testARescuedErrorFromAnImportedFileIsDeclined() {
         val root = project(CONFIG to rescuing("dev.exs"), DEV to "import Config\nimport_config \"missing.exs\"\n")
 
@@ -115,6 +127,33 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
 
     fun testAMissingImportInAnImportedFileLeavesEveryKeyUnknown() {
         val root = project(CONFIG to "import Config\nimport_config \"dev.exs\"\n", DEV to "import Config\nimport_config \"missing.exs\"\n")
+
+        assertEquals("unknown", read(root))
+    }
+
+    /** Elixir raises `KeyError` for the unknown key, a raise whose fields the read doesn't hold. */
+    fun testAnImportedFilesUnknownStructKeyIsDeclined() {
+        val root = project(CONFIG to "import Config\nimport_config \"dev.exs\"\n", DEV to "import Config\n%URI{nope: 1}\n")
+
+        assertEquals("declined", read(root))
+    }
+
+    /** Elixir raises `CompileError` for the module's undefined variable, which ends the read. */
+    fun testAnImportedFilesTaintedModuleLeavesEveryKeyUnknown() {
+        val root = project(
+            CONFIG to "import Config\nimport_config \"dev.exs\"\n",
+            DEV to "import Config\ndefmodule T do\n  def f, do: x\nend\n",
+        )
+
+        assertEquals("unknown", read(root))
+    }
+
+    /** Elixir raises `CompileError` for the nested module's undefined variable, which ends the read. */
+    fun testAnImportedFilesTaintedNestedModuleLeavesEveryKeyUnknown() {
+        val root = project(
+            CONFIG to "import Config\nimport_config \"dev.exs\"\n",
+            DEV to "import Config\ndefmodule T do\n  defmodule U do\n    def f, do: x\n  end\nend\n",
+        )
 
         assertEquals("unknown", read(root))
     }

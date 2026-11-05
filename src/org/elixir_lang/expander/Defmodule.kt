@@ -89,13 +89,7 @@ internal val DEFMODULE = Summary { _, node, state, env, run ->
                     } else {
                         val defined = aliasDefmodule(nameNode, name.name, env.module)
                             ?: return@thenValue Expansion.Unported(nameNode)
-                        val directive = linifyWithContextCounter(
-                            lineOf(node.meta),
-                            KERNEL,
-                            counter,
-                            level,
-                            definingDirective(nameNode, defined, env, level),
-                        )
+                        val directive = linifiedOutput(node, KERNEL, counter, definingDirective(nameNode, defined, env, level), run)
 
                         Expander.expand(directive, state, env, run).then { s, e ->
                             queueModule(node, defined.full, true, body, s, e, run)

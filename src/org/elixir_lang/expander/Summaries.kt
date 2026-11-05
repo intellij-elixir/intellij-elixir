@@ -2,7 +2,11 @@ package org.elixir_lang.expander
 
 import org.elixir_lang.declaration.MacroKey
 import org.elixir_lang.expander.interpreter.Interpreter
+import org.elixir_lang.expander.interpreter.nodeMeta
+import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ARGUMENTS_STOP_GENERATED
 import org.elixir_lang.lowering.ElixirAst
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /** A macro whose expansion is modelled. */
 internal fun interface Summary {
@@ -172,7 +176,9 @@ internal fun macro(
 
 /**
  * [summarised] of [dispatch]'s summary, else of the one its macro's clauses give, or [opaque] of the
- * [Expansion.Opaque] a call [node] gives where neither does.
+ * [Expansion.Opaque] a call [node] gives where neither does. Whether the call's `generated: true` stops at its
+ * arguments is decided here, from [MACRO_ARGUMENTS_STOP_GENERATED], and kept in [Run.stopsGenerated] while its summary
+ * is found and runs, for the linify of its output.
  *
  * @param stopGenerated whether the macro is given its arguments through `stop_generated/1`
  */
@@ -185,8 +191,28 @@ internal inline fun <T> summarised(
     stopGenerated: Boolean,
     opaque: (Expansion.Opaque) -> T,
     summarised: (Summary) -> T,
-): T =
-    when (val summary = Summaries.of(dispatch) ?: Interpreter.summary(dispatch, node, state, env, run, stopGenerated)) {
-        null -> opaque(Expansion.Opaque(node, dispatch))
-        else -> summarised(summary)
+): T {
+    if (stopGenerated && MACRO_ARGUMENTS_STOP_GENERATED.isSufficient(run.level)) {
+        val marked = node.arguments.orEmpty().filter(::stopGeneratedMarks)
+
+        if (marked.isNotEmpty()) {
+            run.stopsGenerated[node] = marked.mapTo(Collections.newSetFromMap(IdentityHashMap(marked.size))) { it.meta }
+        }
+    }
+
+    return try {
+        when (val summary = Summaries.of(dispatch) ?: Interpreter.summary(dispatch, node, state, env, run)) {
+            null -> opaque(Expansion.Opaque(node, dispatch))
+            else -> summarised(summary)
+        }
+    } finally {
+        run.stopsGenerated.remove(node)
+    }
+}
+
+/** Whether `elixir_dispatch:stop_generated/1` marks [argument], a macro's: its term is `{_, Meta, _}`, `Meta` a list. */
+internal fun stopGeneratedMarks(argument: ElixirAst): Boolean =
+    when (argument) {
+        is ElixirAst.Value -> nodeMeta(argument.term) != null
+        else -> argument.hasMetadata()
     }

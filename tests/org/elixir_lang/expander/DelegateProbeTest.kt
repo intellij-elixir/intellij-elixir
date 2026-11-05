@@ -13,7 +13,7 @@ class DelegateProbeTest : SdkProbeTestCase(accounting = true) {
         assertEquals(
             "",
             expansions.filterValues { it.outcome is Expansion.Unported || it.outcome is Expansion.Opaque }
-                .map { (body, expansion) -> "${body.replace("\n", "; ")}: ${expansion.outcome}" }
+                .map { (body, expansion) -> "${oneLine(body)}: ${expansion.outcome}" }
                 .joinToString("\n"),
         )
         printed { probes.assertMatchesElixir(expansions) }
@@ -26,7 +26,7 @@ class DelegateProbeTest : SdkProbeTestCase(accounting = true) {
         assertEquals(
             "",
             expansions.filterValues { it.outcome !is Expansion.Unported }
-                .map { (body, expansion) -> "${body.replace("\n", "; ")}: ${expansion.outcome}" }
+                .map { (body, expansion) -> "${oneLine(body)}: ${expansion.outcome}" }
                 .joinToString("\n"),
         )
         printed { probes.assertMatchesElixir(expansions) }

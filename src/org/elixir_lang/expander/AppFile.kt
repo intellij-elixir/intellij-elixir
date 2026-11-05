@@ -11,6 +11,7 @@ import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.expander.interpreter.Declined
+import org.elixir_lang.expander.interpreter.keyValue
 import org.elixir_lang.expander.interpreter.mapOf
 import org.elixir_lang.language_level.ElixirLanguageFeature.ADJACENT_STRINGS_NEED_WHITE_SPACE
 import org.elixir_lang.language_level.ElixirLanguageFeature.APP_ENV_PARAMETERS_CHECKED
@@ -59,10 +60,7 @@ internal class AppFile(val name: String, val env: Map<OtpErlangObject, OtpErlang
 
         /** The value of the first `{key, Value}` in [options] (`lists:keyfind/3`), `null` where the first is no pair. */
         private fun option(options: List<OtpErlangObject>, key: String): OtpErlangObject? =
-            options.firstOrNull { it is OtpErlangTuple && it.arity() >= 1 && it.elementAt(0) == OtpErlangAtom(key) }
-                ?.let { it as OtpErlangTuple }
-                ?.takeIf { it.arity() == 2 }
-                ?.elementAt(1)
+            keyValue(options) { it == OtpErlangAtom(key) }
 
         /** Whether [mod] is a start spec `make_appl_i` takes: none, `[]`, or `{Module, Args}`. */
         private fun startSpec(mod: OtpErlangObject?): Boolean =

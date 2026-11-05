@@ -39,10 +39,7 @@ internal object DeprecationWarnings {
     }
 
     /** The warnings of each module [file] compiled, in its order. */
-    fun of(file: FileExpansion): List<String> = file.modules.flatMap(::warnings)
-
-    private fun warnings(result: ExpansionResult): List<String> =
-        result.warnings.map(::render) + result.nested.flatMap(::warnings)
+    fun of(file: FileExpansion): List<String> = file.modules.withNested().flatMap { it.warnings.map(::render) }
 
     private fun render(warning: Warning): String {
         val line = lineOf(warning.at.meta)

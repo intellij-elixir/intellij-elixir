@@ -295,8 +295,7 @@ internal enum class Clause(vararg val heads: Head) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
             isVariableNamed(node, "__ENV__")
 
-        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            recordingValue(node, env, run, expandEnv(node, state, env, run))
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = expandEnv(node, state, env, run)
     },
 
     ENV_FIELD(expandHead("{{'.',_,[{'__ENV__',_,V1},V2]},_,[]} when is_atom(V1), is_atom(V2)")) {
@@ -842,7 +841,7 @@ internal fun variableOutcome(call: ElixirAst.Call, state: ExState, level: Elixir
             "apply" -> return VariableOutcome.LocalCall
             "raise" -> return VariableOutcome.Reported(ErrorSite.UNDEFINED_VAR)
         }
-    } else if (!isRead && (metaValue(call.meta, "var") as? Meta.Value.Atom)?.name == "true") {
+    } else if (!isRead && isTrueAt(call.meta, "var")) {
         return VariableOutcome.Error("undefined_var_bang")
     }
 

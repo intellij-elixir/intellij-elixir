@@ -4,6 +4,7 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangPid
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.util.io.OSAgnosticPathUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.util.system.OS
 import org.elixir_lang.expander.interpreter.Binding
@@ -118,12 +119,12 @@ object Expander {
     ): FileExpansion =
         expandFile(
             forms,
-            env,
-            Run(level, observer, exports, structs, appEnv, counters, file, directories, clauses, virtualFile, os, buildTarget, config, files),
+            Run(level, observer, exports, structs, appEnv, counters, file, directories, clauses, virtualFile, os, buildTarget, config, files, env),
         )
 
-    /** A file's top-level [forms] expanded from [env] in [run], as the other `expandFile` expands them. */
-    internal fun expandFile(forms: ElixirAst, env: Env, run: Run): FileExpansion {
+    /** A file's top-level [forms] expanded from [run]'s [Run.newEnv], as the other `expandFile` expands them. */
+    internal fun expandFile(forms: ElixirAst, run: Run): FileExpansion {
+        val env = requireNotNull(run.newEnv) { "a file's run starts from its new env" }
         val level = run.level
         val state = ExState.empty(level)
 
@@ -147,7 +148,8 @@ object Expander {
 
         val top = expanded.certain(run.fileValues.expansionCertain)
 
-        if (expanded is Expansion.Error) return FileExpansion(top, emptyList(), endsRun = true)
+        // Nothing queued runs, but what a macro created as the file expanded stays: Elixir loaded it before the raise.
+        if (expanded is Expansion.Error) return FileExpansion(top, run.compiledInto, endsRun = true)
 
         val walked = compilePending(run)
 
@@ -166,7 +168,11 @@ object Expander {
             read.result = (value as? Evaluated.Value)?.value ?: Unknown
         }
 
-        return FileExpansion(if (top is Expansion.Expanded) walked.ended ?: top else top, walked.modules, walked.endsRun)
+        return FileExpansion(
+            if (top is Expansion.Expanded) walked.ended ?: top else top,
+            run.compiledInto,
+            walked.endsRun,
+        )
     }
 
     /**
@@ -196,7 +202,7 @@ object Expander {
 
         return FileExpansion(
             walked.ended ?: Expansion.Expanded(state, env, NODE, ExpandedAst.NotAsked),
-            walked.modules,
+            run.compiledInto,
             walked.endsRun,
         )
     }
@@ -285,7 +291,7 @@ internal class Run(
     val level: ElixirLanguageLevel,
     val observer: ExpansionObserver,
     exports: Exports,
-    val structs: Structs,
+    private val structs: Structs,
     val appEnv: AppEnv,
     val counters: Counters = Counters(),
     /** The path of the file the run expands, `null` where it isn't known; read through here, never held. */
@@ -302,6 +308,8 @@ internal class Run(
     val config: ConfigRead? = null,
     /** The project's files the run reaches by path. */
     val files: RunFiles = RunFiles.NONE,
+    /** The env the file's forms are expanded from, `elixir_env:new()`, `null` where the run expands no file. */
+    val newEnv: Env? = null,
 ) {
     /** Each macro argument's term and node. */
     val origins = Origins()
@@ -349,37 +357,60 @@ internal class Run(
 
     /**
      * Whether code the expander doesn't follow ran, which may have changed the directory the compile runs in
-     * ([workingDirectory]); once set it stays.
+     * ([workingDirectory]) and created modules with `Module.create/3` ([maybeCreated]); once set it stays.
      */
-    var directoryMayHaveChanged = false
-        private set
+    private var unfollowedRan = false
 
     /** Code the expander doesn't follow ran, or may have: a decline the walk went on past, a stop, a macro or callback it lost. */
     fun unfollowedCodeRan() {
-        directoryNoLongerKnown()
+        declinedCodeRan()
         config?.unitDeclined()
     }
 
     /**
-     * A unit declined, so what it ran isn't known. What that means for a read's table is for the unit's recording to say,
-     * as only that knows whether the unit is ported.
+     * Code declined, and the evaluation or the walk went on past it, so what it ran isn't known. What that means for a
+     * read's table is for the unit's recording to say, as only that knows whether the unit is ported.
      */
-    fun directoryNoLongerKnown() {
-        directoryMayHaveChanged = true
+    fun declinedCodeRan() {
+        unfollowedRan = true
     }
 
     /**
      * The directory Elixir compiles [file] in now, a config read's project's in a read, which `file:get_cwd/0`,
      * `Path.relative_to_cwd/1` and `filename:absname/1` read, `null` where it isn't known: where [directories] doesn't
-     * have it, or code the expander doesn't follow may have changed it ([directoryMayHaveChanged]). On Windows its drive
+     * have it, or code the expander doesn't follow may have changed it ([unfollowedRan]). On Windows its drive
      * letter is lowercase, as OTP gives it.
      */
     fun workingDirectory(file: String): String? {
-        if (directoryMayHaveChanged) return null
+        if (unfollowedRan) return null
 
         val directory = config?.directory ?: directories.of(file) ?: return null
 
         return if (os == OS.Windows) String(Filename.lowercaseDrive(directory.toByteArray())) else directory
+    }
+
+    /**
+     * [path] made absolute as `filename:absname/1` makes it on [os], before `join/1` tidies it: an absolute path as it
+     * is, and any other from the directory Elixir compiles the run's file in ([workingDirectory]), its volume alone for
+     * a root with no drive on Windows (`absname_vr/3`); `null` where that directory isn't known, or the path is relative
+     * to another drive's directory. Where [os] isn't known, a path absolute on either OS is taken as absolute.
+     */
+    fun absolute(path: String): String? {
+        val type = os?.let { Filename.pathtype(path.toByteArray(), it) }
+            ?: if (OSAgnosticPathUtil.isAbsolute(path)) Filename.PathType.ABSOLUTE else Filename.PathType.RELATIVE
+        if (type == Filename.PathType.ABSOLUTE) return path
+
+        val directory = file()?.let(::workingDirectory) ?: return null
+        if (type == Filename.PathType.RELATIVE) return "$directory/$path"
+
+        // Only Windows has a path relative to a volume.
+        val volume = String(Filename.split(directory.toByteArray(), OS.Windows).first())
+
+        return when {
+            path[0] == '/' || path[0] == '\\' -> volume + path.substring(1)
+            path[0].lowercaseChar() == volume[0] -> "$directory/${path.substring(2)}"
+            else -> null
+        }
     }
 
     /** `Path.relative_to_cwd/1` of [file], its SDK running as [os], where Elixir compiled it ([workingDirectory]); `null` where that isn't known. */
@@ -435,6 +466,13 @@ internal class Run(
      * such nodes doesn't mean Elixir may have raised there: the port says whether it does.
      */
     val ported: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
+
+    /**
+     * Each macro call given its arguments through `stop_generated/1`, by identity, to the metadata that carries the
+     * mark: the arguments it marks ([stopGeneratedMarks]), and what a summary rebuilt from them keeping their keys. The
+     * call's `generated: true` stops at a node of its output with one.
+     */
+    val stopsGenerated = IdentityHashMap<ElixirAst.Call, MutableSet<Meta>>()
 
     /**
      * [copy], a node rebuilt from [original], stands where the original stands: a port built it where one built the
@@ -506,16 +544,24 @@ internal class Run(
 
     /**
      * What each module exports: one the run compiled, what it defined; one it is compiling, nothing, as Elixir hasn't
-     * loaded it; any other, what [exports] gives.
+     * loaded it; any other, what [exports] gives, unless code the expander doesn't follow may have created it
+     * ([maybeCreated]).
      */
     val exports = Exports { module ->
         compiled[module] ?: if (module in compiling) {
             ModuleExports.Absent
         } else {
             consulted += module
-            exports.of(module)
+            maybeCreated(exports.of(module), ModuleExports.Absent, ModuleExports.Unreadable)
         }
     }
+
+    /**
+     * [answer], for a module the run neither compiled nor is compiling, or [unreadable] where it is [absent] and code the
+     * expander doesn't follow ran ([unfollowedRan]), which may have created it with `Module.create/3`. Such code is taken
+     * not to redefine or unload a module whose answer is already present.
+     */
+    private fun <T> maybeCreated(answer: T, absent: T, unreadable: T): T = if (answer == absent && unfollowedRan) unreadable else answer
 
     /**
      * `Module.open?/1` of [module]: whether it is being compiled, or `null` for one the run didn't compile, which another
@@ -534,10 +580,11 @@ internal class Run(
     /**
      * [module]'s struct: one the run is compiling, the record its `defstruct` made, or none before it, and unreadable
      * where the module defines `__struct__/1` itself, which Elixir calls; one it compiled, what it left; any other,
-     * what [structs] gives.
+     * what [structs] gives, unless code the expander doesn't follow may have created it ([maybeCreated]).
      */
     fun structOf(module: String): ModuleStruct {
-        val inProgress = compiling[module] ?: return compiledStructs[module] ?: structs.of(module)
+        val inProgress = compiling[module]
+            ?: return compiledStructs[module] ?: maybeCreated(structs.of(module), ModuleStruct.Absent, ModuleStruct.Unreadable)
 
         return LoadedModules.recorded(inProgress.struct, inProgress.table)
     }
@@ -593,10 +640,13 @@ internal class Run(
     /** What each bitstring expanded builds, by node, for the bitstring that nests it. */
     val bitstrings = IdentityHashMap<ElixirAst, BitstringParts>()
 
-    /** The errors Elixir reported and carried on after, in its order. No state restore takes them back. */
+    /**
+     * The errors Elixir reported and carried on after, in its order, while the module that reported them compiles: they
+     * leave with it, as its own. No state restore takes them back.
+     */
     val errors = mutableListOf<Reported>()
 
-    /** The warnings Elixir reported, in its order. No state restore takes them back. */
+    /** The warnings Elixir reported, in its order, as [errors] are kept. No state restore takes them back. */
     val warnings = mutableListOf<Warning>()
 
     /** How Elixir's own code raised after a reported error, if it did. */
@@ -604,6 +654,12 @@ internal class Run(
 
     /** Each module whose body or definitions are being expanded, by name. */
     val compiling = HashMap<String, Compiling>()
+
+    /**
+     * The modules of the module being compiled, or of the file's top level, in the order Elixir compiles them, where
+     * `Module.create/3` puts the module it compiles.
+     */
+    var compiledInto = mutableListOf<ExpansionResult>()
 
     /** The definitions and modules the body being expanded defines, in the order it reached them. */
     var pending = mutableListOf<Pending>()
@@ -747,7 +803,10 @@ internal fun Run.versioned(node: ElixirAst, version: Int): ExpandedAst =
 internal fun versionEntry(version: Int): Meta.Key.Entry = Meta.Key.Entry("version", Meta.Value.Integer(version.toLong()))
 
 /** This metadata with [key] ahead of its keys. */
-internal fun Meta.ahead(key: Meta.Key): Meta = Meta(origin, start, end, listOf(key) + keys, built)
+internal fun Meta.ahead(key: Meta.Key): Meta = withKeys(listOf(key) + keys)
+
+/** This metadata with its keys [keys]. */
+internal fun Meta.withKeys(keys: List<Meta.Key>): Meta = Meta(origin, start, end, keys, built)
 
 /** The node, or [source] where the run didn't build one. */
 internal fun ExpandedAst.or(source: ElixirAst): ElixirAst = (this as? ExpandedAst.Built)?.node ?: source

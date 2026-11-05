@@ -728,6 +728,14 @@ enum class ElixirLanguageFeature(
     FUNCTION_ERRORS_CONTINUE(sinceElixir = "1.15.0-rc.0"),
 
     /**
+     * A name `elixir_module:validate_module_name/1` refuses raises an `ArgumentError`. Before it, a `CompileError`.
+     *
+     * `elixir-lang/elixir@b24869687` ("Introduce mechanism to collect several errors in a module", #12275), first
+     * released in v1.15.0-rc.0.
+     */
+    INVALID_MODULE_NAME_IS_ARGUMENT_ERROR(sinceElixir = "1.15.0-rc.0"),
+
+    /**
      * `@` builds `Module.__put_attribute__/5` and `Module.__get_attribute__/4`, `@behavior` raises rather than warns,
      * and a doc attribute's `{line, list}` is metadata before the doc is checked, so `@doc []` is empty metadata, and
      * `Kernel` builds the `@` of the attributes it writes, such as `defguard`'s `@doc guard: true`, as `Elixir.Kernel.@`.
@@ -1796,6 +1804,31 @@ enum class ElixirLanguageFeature(
      * `elixir-lang/elixir@9fb7c9f9e` ("Do not allow slashes in module names"), first released in v1.13.0-rc.0.
      */
     MODULE_NAME_REJECTS_SLASHES(sinceElixir = "1.13.0-rc.0"),
+
+    /**
+     * `elixir_quote:linify_with_context_counter/3` is given its caller's metadata, and where that holds
+     * `generated: true` it marks every node so: a macro's output from the call, `Macro.expand_once/2`'s from the
+     * expression, and `Module.create/3`'s body from its options. Before it, it is given only a line.
+     *
+     * `elixir-lang/elixir@824f81010` ("Automatically cascade generated: true on macro expansion", #11976), first
+     * released in v1.15.0-rc.0, and its backport `7a90dbf9d`, first released in v1.14.0-rc.0.
+     */
+    LINIFY_CASCADES_GENERATED(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * `elixir_quote:linify_with_context_counter/3` marks a node `generated: true` only where its metadata doesn't
+     * start with that entry already. Before it, it adds the entry to every node.
+     *
+     * `elixir-lang/elixir@a7b208535` ("Avoid adding several generated annotations"), first released in v1.15.0-rc.0.
+     */
+    LINIFY_GENERATED_ONCE(sinceElixir = "1.15.0-rc.0"),
+
+    /**
+     * `elixir:env_for_eval/1` keeps a `Macro.Env`'s `context_modules`. Before it, it clears them.
+     *
+     * `elixir-lang/elixir@71441623c` ("Update CHANGELOG and TODOs"), first released in v1.18.0-rc.0.
+     */
+    EVAL_ENV_KEEPS_CONTEXT_MODULES(sinceElixir = "1.18.0-rc.0"),
 
     /**
      * A function's default arguments are expanded in turn, each seeing the variables the ones before it bound. Before

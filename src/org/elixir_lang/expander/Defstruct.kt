@@ -268,7 +268,7 @@ private fun defaultOf(part: FieldPart, nil: ElixirAst, literal: (FieldPart) -> E
 private fun unlocated(node: ElixirAst): ElixirAst {
     ProgressManager.checkCanceled()
 
-    fun meta(meta: Meta) = Meta(meta.origin, meta.start, meta.end, meta.keys.filterNot { it is Meta.Key.Location }, meta.built)
+    fun meta(meta: Meta) = meta.withKeys(meta.keys.filterNot { it is Meta.Key.Location })
 
     return when (node) {
         is ElixirAst.Call ->

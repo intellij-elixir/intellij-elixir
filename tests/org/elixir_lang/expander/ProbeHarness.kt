@@ -401,7 +401,8 @@ class ProbeHarness(private val parse: (String) -> ElixirFile, private val holdVa
     /**
      * The call to [probeModule]'s hook for each module [file] defines where a `quote` evaluates it or outside one: first
      * in a `do` block, which has `do` and `end` tokens, and around any other `do` value, such as a keyword `do:`'s or a
-     * tuple's, which the call and the value would otherwise not share.
+     * tuple's, which the call and the value would otherwise not share. A `Module.create/3` call's body is quoted with the
+     * call and a `require` of [probeModule] before it, since the body's env may not require it.
      */
     private fun hookCalls(probeModule: String, file: ElixirFile): Hooks {
         val statements = ReadAction.computeBlocking<List<ElixirAst>, Throwable> {
@@ -414,6 +415,16 @@ class ProbeHarness(private val parse: (String) -> ElixirFile, private val holdVa
         val wrapped = mutableListOf<TextRange>()
 
         statements.flatMap { modules(it) }.forEach { module ->
+            if (!isKernelCall(module, "defmodule")) {
+                val body = module.arguments!![1].meta.origin
+
+                insertions += Insertion(body.startOffset, -1, "quote(do: (require $probeModule; $call; unquote(")
+                insertions += Insertion(body.endOffset, 2, ")))")
+                wrapped += body
+
+                return@forEach
+            }
+
             val value = (module.arguments!!.last() as? ElixirAst.ListNode)?.elements
                 ?.firstOrNull { keyOf(it) == "do" }?.let(::valueOf)
 
@@ -437,7 +448,7 @@ class ProbeHarness(private val parse: (String) -> ElixirFile, private val holdVa
         return Hooks(insertions, wrapped)
     }
 
-    /** The hook calls to insert, and the keyword values they wrap in parentheses. */
+    /** The hook calls to insert, and the code they wrap. */
     private class Hooks(val insertions: List<Insertion>, val wrapped: List<TextRange>)
 
     /**
@@ -507,9 +518,9 @@ class ProbeHarness(private val parse: (String) -> ElixirFile, private val holdVa
             |""".trimMargin()
 
         /**
-         * The `defmodule` calls in [node], outermost first, outside the quoted code of any `quote` and any definition's
-         * head, where `defmodule` is a name being defined, except in what a head or a `quote` evaluates. `defmodule` and
-         * the definers are written local or as `Kernel.<name>`.
+         * The `defmodule` and `Module.create/3` calls in [node], outermost first, outside the quoted code of any `quote`
+         * and any definition's head, where `defmodule` is a name being defined, except in what a head or a `quote`
+         * evaluates. `defmodule` and the definers are written local or as `Kernel.<name>`.
          */
         fun modules(node: ElixirAst): List<ElixirAst.Call> {
             if (isNamedCall(node, "quote")) return evaluatedInQuote(node as ElixirAst.Call).flatMap { modules(it) }
@@ -520,7 +531,9 @@ class ProbeHarness(private val parse: (String) -> ElixirFile, private val holdVa
                 if (isDefiner(call)) parts.take(1).flatMap { unquoted(it) }.flatMap { modules(it) } + parts.drop(1).flatMap { modules(it) }
                 else parts.flatMap { modules(it) }
 
-            return listOfNotNull(call.takeIf { it.arguments?.size == 2 && isKernelCall(it, "defmodule") }) + inside
+            val defines = call.arguments?.size == 2 && isKernelCall(call, "defmodule") || call.arguments?.size == 3 && isRemoteCall(call, "Module", "create")
+
+            return listOfNotNull(call.takeIf { defines }) + inside
         }
 
         /** [hook]'s module body. */
@@ -757,14 +770,15 @@ internal class Diagnostic(val severity: String, val line: Int?, val column: Int?
 private val DEFINERS = setOf("def", "defp", "defmacro", "defmacrop")
 
 /** Whether [call] is written [name], or `Kernel.[name]`. */
-private fun isKernelCall(call: ElixirAst.Call, name: String): Boolean {
-    val remote = dotArguments(call.callee)?.takeIf { it.size == 2 }?.let { (receiver, function) ->
-        (receiver as? ElixirAst.Alias)?.segments?.map { (it as? ElixirAst.Literal.Atom)?.name } == listOf("Kernel") &&
-            (function as? ElixirAst.Literal.Atom)?.name == name
-    }
+private fun isKernelCall(call: ElixirAst.Call, name: String): Boolean =
+    isRemoteCall(call, "Kernel", name) || (call.callee as? ElixirAst.Literal.Atom)?.name == name
 
-    return remote == true || (call.callee as? ElixirAst.Literal.Atom)?.name == name
-}
+/** Whether [call] is written `[module].[name]`, [module] an alias of one segment. */
+private fun isRemoteCall(call: ElixirAst.Call, module: String, name: String): Boolean =
+    dotArguments(call.callee)?.takeIf { it.size == 2 }?.let { (receiver, function) ->
+        (receiver as? ElixirAst.Alias)?.segments?.map { (it as? ElixirAst.Literal.Atom)?.name } == listOf(module) &&
+            (function as? ElixirAst.Literal.Atom)?.name == name
+    } == true
 
 /** Whether [node] is a call of `def`, `defp`, `defmacro` or `defmacrop`, written local or as `Kernel.<name>`. */
 internal fun isDefiner(node: ElixirAst): Boolean = node is ElixirAst.Call && DEFINERS.any { isKernelCall(node, it) }
@@ -826,6 +840,9 @@ internal fun children(node: ElixirAst): List<ElixirAst> =
         is ElixirAst.Block -> node.expressions
         is ElixirAst.Alias, is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> emptyList()
     }
+
+/** [body] on one line, as a probe row names its case. */
+internal fun oneLine(body: String): String = body.replace("\n", "; ")
 
 internal fun utf8(term: OtpErlangObject): String =
     when (term) {

@@ -27,6 +27,12 @@ internal object ModuleRendering {
     }
 }
 
+/** This module and the modules it compiled inside it, outermost first. */
+internal fun ExpansionResult.withNested(): List<ExpansionResult> = listOf(this) + nested.withNested()
+
+/** These modules and the modules each compiled inside it, outermost first. */
+internal fun List<ExpansionResult>.withNested(): List<ExpansionResult> = flatMap { it.withNested() }
+
 /** How [result] ended: `compiled`, or a stop by its kind and the dispatch it stopped at. */
 internal fun ending(result: ExpansionResult): String =
     when (val ended = result.ended) {
@@ -46,8 +52,12 @@ internal fun stored(result: ExpansionResult): String {
 internal fun exported(exports: OtpErlangMap): String =
     exported(nameArities(exports.get(OtpErlangAtom("functions"))), nameArities(exports.get(OtpErlangAtom("macros"))))
 
-/** [exports]' functions and macros, as [exported] gives them. */
-internal fun exported(exports: ModuleExports.Present): String = exported(exports.functions, exports.macros)
+/** [module]'s entry in Elixir's map [info] of each module's `functions` and `macros`, as [exported] gives them. */
+internal fun exportsIn(info: OtpErlangMap, module: String): String = exported(info.get(OtpErlangAtom(module)) as OtpErlangMap)
+
+/** [exports]' functions and macros, as [exported] gives them, where it has them; otherwise which of the others it is. */
+internal fun exported(exports: ModuleExports): String =
+    if (exports is ModuleExports.Present) exported(exports.functions, exports.macros) else "$exports"
 
 /** [functions] and [macros], each list as [names] gives it. */
 internal fun exported(functions: Collection<NameArity>, macros: Collection<NameArity>): String =

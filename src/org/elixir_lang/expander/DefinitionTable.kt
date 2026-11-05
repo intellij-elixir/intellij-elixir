@@ -110,10 +110,9 @@ internal class DefinitionTable(private val level: ElixirLanguageLevel) {
     private fun storedDefault(stored: ElixirAst): ElixirAst {
         if (!DEFAULT_ARITY_STORED_WITH_CONTEXT.isSufficient(level) || stored !is ElixirAst.Call) return stored
 
-        val meta = stored.meta
         val context = Meta.Key.Entry("context", Meta.Value.Atom("elixir_def"))
 
-        return ElixirAst.Call(Meta(meta.origin, meta.start, meta.end, listOf(context) + meta.keys, meta.built), stored.callee, stored.arguments, stored.context)
+        return ElixirAst.Call(stored.meta.ahead(context), stored.callee, stored.arguments, stored.context)
     }
 
     /**

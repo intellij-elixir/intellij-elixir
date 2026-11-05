@@ -102,3 +102,6 @@ internal fun importKey(level: ElixirLanguageLevel, imports: List<Pair<Int, Strin
 
 /** `generated: true`. */
 internal val GENERATED: List<Meta.Key> = listOf(entry("generated", "true"))
+
+/** [meta] with `generated: true` put first. */
+internal fun markedGenerated(meta: Meta): Meta = meta.ahead(GENERATED.single())

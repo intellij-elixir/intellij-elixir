@@ -77,19 +77,17 @@ class ModuleExpanderTest : ExpanderTestCase() {
         }
 
     /** Before 1.14 each default is expanded from the state before the defaults, so `x` in the second is a call. */
-    fun testADefaultSeesTheVariablesOfAnEarlierOneFrom1_14() =
-        assertLevels(
-            """
+    fun testADefaultSeesTheVariablesOfAnEarlierOneFrom1_14() {
+        val code = """
             defmodule A do
               def f(a \\ (x = 1), b \\ x), do: {a, b}
             end
-            """.trimIndent(),
-            LEVELS + "1.14.0-rc.0",
-        ) { version ->
+        """.trimIndent()
+
+        assertLevels(code, LEVELS + "1.14.0-rc.0") { version ->
             val ended = if (isBefore(version, "1.14.0-rc.0")) "raised undefined_function `x`" else "compiled"
 
-            """
-            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            top(version, "Elixir.A", ended, code) + "\n" + """
             module Elixir.A $ended
               def f/2 line 2 clauses 1 defaults 2
               def f/0 line 2 clauses 1 default
@@ -98,20 +96,20 @@ class ModuleExpanderTest : ExpanderTestCase() {
               def f/2: expanded {a:0 b:1} next 2
             """.trimIndent()
         }
+    }
 
     /**
      * From 1.18 each default arity is checked as a definition of its own, which calls the full arity with the defaults
      * from its first missing argument on.
      */
-    fun testTheCallsInDefaults() =
-        assertLevels(
-            """
+    fun testTheCallsInDefaults() {
+        val code = """
             defmodule A do
               def f(a \\ u(), b \\ v()), do: w()
             end
-            """.trimIndent(),
-            LEVELS,
-        ) { version ->
+        """.trimIndent()
+
+        assertLevels(code, LEVELS) { version ->
             val definitions = """
                 def f/2 line 2 clauses 1 defaults 2
                 def f/0 line 2 clauses 1 default
@@ -121,7 +119,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """.trimIndent().prependIndent("  ")
 
             if (isBefore(version, "1.15.0-rc.0")) {
-                "top expanded {} next 0 context ${topContext(version, "Elixir.A")}\n" +
+                "top error undefined_function `u()`\n" +
                     "module Elixir.A raised undefined_function `u()`\n$definitions"
             } else {
                 val calls = when {
@@ -130,24 +128,24 @@ class ModuleExpanderTest : ExpanderTestCase() {
                     else -> "w u v v"
                 }
 
-                "top expanded {} next 0 context []\nmodule Elixir.A tainted\n$definitions\n" +
+                "top error compile_error `$code`\nmodule Elixir.A tainted\n$definitions\n" +
                     calls.split(" ").joinToString("\n") { "  reported undefined_function `$it()`" }
             }
         }
+    }
 
     /**
      * A macro's default clause calls the macro's own function, so that call is no `incorrect_dispatch`, and from 1.18
      * the macro is visited there as a function is.
      */
-    fun testTheCallsInTheDefaultsOfAMacro() =
-        assertLevels(
-            """
+    fun testTheCallsInTheDefaultsOfAMacro() {
+        val code = """
             defmodule A do
               defmacro m(a \\ u(), b \\ v()), do: w()
             end
-            """.trimIndent(),
-            LEVELS,
-        ) { version ->
+        """.trimIndent()
+
+        assertLevels(code, LEVELS) { version ->
             val definitions = """
                 defmacro m/2 line 2 clauses 1 defaults 2
                 defmacro m/0 line 2 clauses 1 default
@@ -157,7 +155,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """.trimIndent().prependIndent("  ")
 
             if (isBefore(version, "1.15.0-rc.0")) {
-                "top expanded {} next 0 context ${topContext(version, "Elixir.A")}\n" +
+                "top error undefined_function `u()`\n" +
                     "module Elixir.A raised undefined_function `u()`\n$definitions"
             } else {
                 val calls = when {
@@ -166,10 +164,11 @@ class ModuleExpanderTest : ExpanderTestCase() {
                     else -> "w u v v"
                 }
 
-                "top expanded {} next 0 context []\nmodule Elixir.A tainted\n$definitions\n" +
+                "top error compile_error `$code`\nmodule Elixir.A tainted\n$definitions\n" +
                     calls.split(" ").joinToString("\n") { "  reported undefined_function `$it()`" }
             }
         }
+    }
 
     /** Each argument that isn't a variable is an error at the `def`, and the head is stored with no clauses. */
     fun testABodilessHeadWithPatterns() =
@@ -184,14 +183,17 @@ class ModuleExpanderTest : ExpanderTestCase() {
         ) { version ->
             if (isBefore(version, "1.15.0-rc.0")) {
                 """
-                top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+                top error invalid_function_head `def f(1, 2)`
                 module Elixir.A raised invalid_function_head `def f(1, 2)`
                   body: expanded {} next 0 context [Elixir.A]
                   def f/2: error invalid_function_head `def f(1, 2)`
                 """.trimIndent()
             } else {
                 """
-                top expanded {} next 0 context []
+                top error compile_error `defmodule A do
+                  def f(1, 2)
+                  def f(a, b), do: {a, b}
+                end`
                 module Elixir.A tainted
                   def f/2 line 2 clauses 1
                   body: expanded {} next 0 context [Elixir.A]
@@ -216,14 +218,17 @@ class ModuleExpanderTest : ExpanderTestCase() {
         ) { version ->
             if (isBefore(version, "1.20.0-rc.2")) {
                 """
-                top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+                top error missing_option `def g(1) when true`
                 module Elixir.A raised missing_option `def g(1) when true`
                   body: expanded {} next 0 context [Elixir.A]
                   def g/1: error missing_option `def g(1) when true`
                 """.trimIndent()
             } else {
                 """
-                top expanded {} next 0 context []
+                top error compile_error `defmodule A do
+                  def g(1) when true
+                  def g(a), do: a
+                end`
                 module Elixir.A tainted
                   def g/1 line 2 clauses 1
                   body: expanded {} next 0 context [Elixir.A]
@@ -451,7 +456,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
     fun testAModuleInsideItself() =
         assertLevels("defmodule A do\n  defmodule Elixir.A, do: :ok\nend", LEVELS) { version ->
             """
-            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            top error module_in_definition `defmodule Elixir.A, do: :ok`
             module Elixir.A raised module_in_definition `defmodule Elixir.A, do: :ok`
               body: expanded {} next 0 context [Elixir.A, Elixir.A]
               module Elixir.A raised module_in_definition `defmodule Elixir.A, do: :ok`
@@ -462,7 +467,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
     fun testANestedModuleWhoseNameIsNotAnAtom() =
         assertLevels("defmodule A do\n  defmodule \"foo\", do: :ok\n  def f, do: 1\nend", LEVELS) { version ->
             """
-            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            top error invalid_module_name `defmodule "foo", do: :ok`
             module Elixir.A raised invalid_module_name `defmodule "foo", do: :ok`
               body: expanded {} next 0 context [Elixir.A]
               module "foo" raised invalid_module_name `defmodule "foo", do: :ok`
@@ -619,7 +624,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
     fun testAFileOfOnlyModulesNamedByTheModule() =
         assertLevels("defmodule __MODULE__, do: :ok", FAST_PATH_LEVELS) { version ->
             """
-            top expanded {} next 0 context ${topContext(version, "nil")}
+            top error invalid_module_name `defmodule __MODULE__, do: :ok`
             module nil raised invalid_module_name `defmodule __MODULE__, do: :ok`
             """.trimIndent()
         }
@@ -687,7 +692,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             LEVELS,
         ) { version ->
             """
-            top expanded {} next 0 context ${if (isBefore(version, "1.13.0-rc.0")) "[Elixir.A, Elixir.B]" else "[]"}
+            top error unloaded_module `require A`
             module Elixir.B raised unloaded_module `require A`
               body: error unloaded_module `require A`
             """.trimIndent()
@@ -717,19 +722,18 @@ class ModuleExpanderTest : ExpanderTestCase() {
         }
 
     /** A call to a macro the module defines only after it is a local function call, which fails once the body ran. */
-    fun testALocalMacroDefinedAfterTheCall() =
-        assertLevels(
-            """
+    fun testALocalMacroDefinedAfterTheCall() {
+        val code = """
             defmodule A do
               def f, do: m()
               defmacro m, do: :ok
             end
-            """.trimIndent(),
-            LEVELS,
-        ) { version ->
-            val start = """
-                top expanded {} next 0 context ${topContext(version, "Elixir.A")}
-                module Elixir.A ${if (isBefore(version, "1.15.0-rc.0")) "raised incorrect_dispatch `m()`" else "tainted"}
+        """.trimIndent()
+
+        assertLevels(code, LEVELS) { version ->
+            val ended = if (isBefore(version, "1.15.0-rc.0")) "raised incorrect_dispatch `m()`" else "tainted"
+            val start = top(version, "Elixir.A", ended, code) + "\n" + """
+                module Elixir.A $ended
                   def f/0 line 2 clauses 1
                   defmacro m/0 line 3 clauses 1
                   body: expanded {} next 0 context [Elixir.A]
@@ -739,6 +743,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
             if (isBefore(version, "1.15.0-rc.0")) start else "$start\n  reported incorrect_dispatch `m()`"
         }
+    }
 
     /** A module defined again expands its body with its own macros, not the ones the first definition loaded. */
     fun testARedefinedModulesLocalMacro() =
@@ -1045,7 +1050,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             LEVELS,
         ) { version ->
             """
-            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            top error macro_conflict `first(y)`
             module Elixir.A raised macro_conflict `first(y)`
               defmacro first/1 line 3 clauses 1
               body: expanded {} next 0 context [Elixir.A]
@@ -1286,14 +1291,19 @@ class ModuleExpanderTest : ExpanderTestCase() {
         ) { version ->
             if (isBefore(version, "1.15.0-rc.0")) {
                 """
-                top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+                top error undefined_bittype `x::foo()`
                 module Elixir.A raised undefined_bittype `x::foo()`
                   body: expanded {} next 0 context [Elixir.A]
                   def f/0: error undefined_bittype `x::foo()`
                 """.trimIndent()
             } else {
                 """
-                top expanded {} next 0 context []
+                top error compile_error `defmodule A do
+                  def f do
+                    <<x::foo()>> = <<1>>
+                    x
+                  end
+                end`
                 module Elixir.A tainted
                   def f/0 line 2 clauses 1
                   body: expanded {} next 0 context [Elixir.A]
@@ -1320,7 +1330,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             LEVELS,
         ) { version ->
             """
-            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            top error invalid_rescue_clause `foo() -> 1`
             module Elixir.A raised invalid_rescue_clause `foo() -> 1`
               body: expanded {} next 0 context [Elixir.A]
               def f/0: error invalid_rescue_clause `foo() -> 1`
@@ -1363,7 +1373,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
         ) { version ->
             if (isBefore(version, "1.15.0-rc.0")) {
                 """
-                top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+                top error definer_inside_function `def(a)`
                 module Elixir.A raised definer_inside_function `def(a)`
                   body: expanded {} next 0 context [Elixir.A]
                   def f/0: error definer_inside_function `def(a)`
@@ -1437,7 +1447,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
         ) { version ->
             if (isBefore(version, "1.15.0-rc.0")) {
                 """
-                top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+                top error undefined_function `h()`
                 module Elixir.A raised undefined_function `h()`
                   def f/0 line 2 clauses 1
                   body: expanded {} next 0 context [Elixir.A]
@@ -1445,7 +1455,9 @@ class ModuleExpanderTest : ExpanderTestCase() {
                 """.trimIndent()
             } else {
                 """
-                top expanded {} next 0 context []
+                top error compile_error `defmodule A do
+                  def f, do: h()
+                end`
                 module Elixir.A tainted
                   def f/0 line 2 clauses 1
                   body: expanded {} next 0 context [Elixir.A]
@@ -1494,7 +1506,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
             if (isBefore(version, "1.15.0-rc.0")) {
                 """
-                top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+                top error undefined_function `$at`
                 module Elixir.A raised undefined_function `$at`
                   def f/0 line 2 clauses 1
                   body: expanded {} next 0 context [Elixir.A]
@@ -1502,7 +1514,9 @@ class ModuleExpanderTest : ExpanderTestCase() {
                 """.trimIndent()
             } else {
                 """
-                top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+                top error compile_error `defmodule A do
+                  def f, do: &h/1
+                end`
                 module Elixir.A tainted
                   def f/0 line 2 clauses 1
                   body: expanded {} next 0 context [Elixir.A]
@@ -1523,8 +1537,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
         assertLevels(code, LEVELS) { version ->
             val at = if (isBefore(version, "1.14.0-rc.1")) "&m/1" else "m"
             val ended = if (isBefore(version, "1.15.0-rc.0")) "raised incorrect_dispatch `$at`" else "tainted"
-            val start = """
-                top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            val start = top(version, "Elixir.A", ended, code) + "\n" + """
                 module Elixir.A $ended
                   defmacro m/1 line 2 clauses 1
                   body: expanded {} next 0 context [Elixir.A]
@@ -1575,7 +1588,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
             if (isBefore(version, "1.15.0-rc.0")) {
                 """
-                top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+                top error undefined_function `$capture`
                 module Elixir.A raised undefined_function `$capture`
                   def f/0 line 2 clauses 1
                   body: expanded {} next 0 context [Elixir.A]
@@ -1588,7 +1601,9 @@ class ModuleExpanderTest : ExpanderTestCase() {
                 val errors = listOf("reported undefined_function `$capture`", "reported undefined_function `k(&h/1)`")
 
                 """
-                top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+                top error compile_error `defmodule A do
+                  def f, do: k(&h/1)
+                end`
                 module Elixir.A tainted
                   def f/0 line 2 clauses 1
                   body: expanded {} next 0 context [Elixir.A]
@@ -1611,14 +1626,17 @@ class ModuleExpanderTest : ExpanderTestCase() {
             when {
                 isBefore(version, "1.15.0-rc.0") ->
                     """
-                    top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+                    top error stacktrace_not_allowed `__STACKTRACE__`
                     module Elixir.A raised stacktrace_not_allowed `__STACKTRACE__`
                       body: expanded {} next 0 context [Elixir.A]
                       def f/0: error stacktrace_not_allowed `__STACKTRACE__`
                     """.trimIndent()
                 else ->
                     """
-                    top expanded {} next 0 context []
+                    top error compile_error `defmodule A do
+                      def f, do: __STACKTRACE__
+                      def g, do: h()
+                    end`
                     module Elixir.A tainted
                       def f/0 line 2 clauses 1
                       def g/0 line 3 clauses 1
@@ -1644,14 +1662,18 @@ class ModuleExpanderTest : ExpanderTestCase() {
         ) { version ->
             if (isBefore(version, "1.15.0-rc.0")) {
                 """
-                top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+                top error invalid_local_invocation `g(y)`
                 module Elixir.A raised invalid_local_invocation `g(y)`
                   body: expanded {} next 0 context [Elixir.A]
                   def f/1: error invalid_local_invocation `g(y)`
                 """.trimIndent()
             } else {
                 """
-                top expanded {} next 0 context []
+                top error compile_error `defmodule A do
+                  def f(x) do
+                    g(y) = x
+                  end
+                end`
                 module Elixir.A tainted
                   def f/1 line 2 clauses 1
                   body: expanded {} next 0 context [Elixir.A]
@@ -1672,14 +1694,16 @@ class ModuleExpanderTest : ExpanderTestCase() {
         ) { version ->
             if (isBefore(version, "1.15.0-rc.0")) {
                 """
-                top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+                top error invalid_local_invocation `g(x)`
                 module Elixir.A raised invalid_local_invocation `g(x)`
                   body: expanded {} next 0 context [Elixir.A]
                   def f/1: error invalid_local_invocation `g(x)`
                 """.trimIndent()
             } else {
                 """
-                top expanded {} next 0 context []
+                top error compile_error `defmodule A do
+                  def f(x) when g(x), do: x
+                end`
                 module Elixir.A tainted
                   def f/1 line 2 clauses 1
                   body: expanded {} next 0 context [Elixir.A]
@@ -1723,7 +1747,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             LEVELS,
         ) { version ->
             """
-            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            top error definer_inside_function `def g, do: 1`
             module Elixir.A raised definer_inside_function `def g, do: 1`
               body: expanded {} next 0 context [Elixir.A]
               def f/0: error definer_inside_function `def g, do: 1`
@@ -1740,7 +1764,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
                 """.trimIndent()
             } else {
                 """
-                top expanded {} next 0 context []
+                top error definer_in_match `def(f, do: 1)`
                 module Elixir.A raised definer_in_match `def(f, do: 1)`
                   body: error definer_in_match `def(f, do: 1)`
                 """.trimIndent()
@@ -1757,7 +1781,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
                 """.trimIndent()
             } else {
                 """
-                top expanded {} next 0 context []
+                top error definer_in_guard `def(f, do: 1)`
                 module Elixir.A raised definer_in_guard `def(f, do: 1)`
                   body: error definer_in_guard `def(f, do: 1)`
                 """.trimIndent()
@@ -1802,7 +1826,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
                 """.trimIndent()
             } else {
                 """
-                top expanded {} next 0 context []
+                top error invalid_module_name `defmodule :"a/b", do: :ok`
                 module a/b raised invalid_module_name `defmodule :"a/b", do: :ok`
                 """.trimIndent()
             }
@@ -1814,7 +1838,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
             assertLevels("defmodule $name, do: :ok", LEVELS) { version ->
                 """
-                top expanded {} next 0 context ${topContext(version, module)}
+                top error module_reserved `defmodule $name, do: :ok`
                 module $module raised module_reserved `defmodule $name, do: :ok`
                 """.trimIndent()
             }
@@ -1831,7 +1855,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
                 """.trimIndent()
             } else {
                 """
-                top expanded {} next 0 context []
+                top error module_reserved `defmodule True, do: :ok`
                 module Elixir.True raised module_reserved `defmodule True, do: :ok`
                 """.trimIndent()
             }
@@ -1842,7 +1866,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
         for (name in listOf("nil", "true", "false")) {
             assertLevels("defmodule $name, do: :ok", LEVELS) { version ->
                 """
-                top expanded {} next 0 context ${topContext(version, name)}
+                top error invalid_module_name `defmodule $name, do: :ok`
                 module $name raised invalid_module_name `defmodule $name, do: :ok`
                 """.trimIndent()
             }
@@ -1854,7 +1878,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
         for ((name, module) in listOf("\"foo\"" to "\"foo\"", "1" to "1")) {
             assertEvery(
                 "defmodule $name, do: :ok",
-                "top expanded {} next 0 context []\nmodule $module raised invalid_module_name `defmodule $name, do: :ok`",
+                "top error invalid_module_name `defmodule $name, do: :ok`\nmodule $module raised invalid_module_name `defmodule $name, do: :ok`",
             )
         }
     }
@@ -1869,7 +1893,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
                 """.trimIndent()
             } else {
                 """
-                top expanded {} next 0 context []
+                top error invalid_module_name `defmodule :"a\\b", do: :ok`
                 module a\b raised invalid_module_name `defmodule :"a\\b", do: :ok`
                 """.trimIndent()
             }
@@ -1896,7 +1920,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
                 """.trimIndent()
             } else {
                 """
-                top expanded {} next 0 context []
+                top error definer_in_guard `defmodule(B, do: 1)`
                 module Elixir.A raised definer_in_guard `defmodule(B, do: 1)`
                   body: error definer_in_guard `defmodule(B, do: 1)`
                 """.trimIndent()
@@ -1906,7 +1930,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
     fun testAnInvalidDefinition() =
         assertLevels("defmodule A do\n  def 1, do: 1\nend", LEVELS) { version ->
             """
-            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            top error invalid_def `def 1, do: 1`
             module Elixir.A raised invalid_def `def 1, do: 1`
               body: expanded {} next 0 context [Elixir.A]
               def unnamed: error invalid_def `def 1, do: 1`
@@ -1921,7 +1945,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
         )) {
             assertLevels("defmodule A do\n  $code\nend", LEVELS) { version ->
                 """
-                top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+                top error $kind `$code`
                 module Elixir.A raised $kind `$code`
                   body: expanded {} next 0 context [Elixir.A]
                   $owner: error $kind `$code`
@@ -1944,7 +1968,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
         ) { version ->
             if (isBefore(version, "1.15.0-rc.0")) {
                 """
-                top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+                top error caller_not_allowed `__CALLER__`
                 module Elixir.A raised caller_not_allowed `__CALLER__`
                   defmacro m/0 line 2 clauses 1
                   body: expanded {} next 0 context [Elixir.A]
@@ -1953,7 +1977,10 @@ class ModuleExpanderTest : ExpanderTestCase() {
                 """.trimIndent()
             } else {
                 """
-                top expanded {} next 0 context []
+                top error compile_error `defmodule A do
+                  defmacro m, do: __CALLER__
+                  def f, do: __CALLER__
+                end`
                 module Elixir.A tainted
                   defmacro m/0 line 2 clauses 1
                   def f/0 line 3 clauses 1
@@ -2008,7 +2035,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             listOf("1.20.4"),
         ) {
             """
-            top expanded {} next 0 context []
+            top error quote_in_pattern_with_unquote `quote(do: quote([], do: unquote(unquote(y))))`
             module Elixir.A compiled
               def f/1 line 2 clauses 1
               def g/1 line 3 clauses 1
@@ -2039,7 +2066,6 @@ class ModuleExpanderTest : ExpanderTestCase() {
         """.trimIndent()
 
         val compiled = """
-            top expanded {} next 0 context []
             module Elixir.Mac compiled
               defmacro m/0 line 2 clauses 1
               defmacro n/0 line 7 clauses 1
@@ -2049,14 +2075,14 @@ class ModuleExpanderTest : ExpanderTestCase() {
         """.trimIndent()
 
         assertLevels("$mac\n\ndefmodule A do\n  require Mac\n  Mac.m()\nend", listOf("1.20.4")) {
-            compiled + "\n" + """
+            "top error quote_in_pattern_with_unquote `Mac.m()`\n" + compiled + "\n" + """
                 module Elixir.A raised quote_in_pattern_with_unquote `Mac.m()`
                   body: expanded {} next 0 context [Elixir.A]
                   def f/1: error quote_in_pattern_with_unquote `Mac.m()`
             """.trimIndent()
         }
         assertLevels("$mac\n\ndefmodule A do\n  require Mac\n  Mac.n()\nend", listOf("1.20.4")) {
-            compiled + "\n" + """
+            "top error Elixir.FunctionClauseError `Mac.n()`\n" + compiled + "\n" + """
                 module Elixir.A raised Elixir.FunctionClauseError `Mac.n()`
                   body: error Elixir.FunctionClauseError `Mac.n()`
             """.trimIndent()
@@ -2111,7 +2137,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
     fun testAHeadFragmentThatIsNotACallRaises() =
         assertLevels("defmodule S do\n  h = :h\n  def unquote(h)\nend", LEVELS) { version ->
             """
-            top expanded {} next 0 context ${topContext(version, "Elixir.S")}
+            top error invalid_def `def unquote(h)`
             module Elixir.S raised invalid_def `def unquote(h)`
               body: expanded {h:0} next 1 context [Elixir.S]
               def unnamed: error invalid_def `def unquote(h)`
@@ -2231,7 +2257,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             LEVELS,
         ) { version ->
             """
-            top expanded {} next 0 context ${topContext(version, "Elixir.S, Elixir.M")}
+            top error invalid_quoted_expr `M.m()`
             module Elixir.M compiled
               defmacro m/0 line 2 clauses 1
               body: expanded {} next 0 context [Elixir.M]
@@ -2270,8 +2296,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             if (isBefore(version, "1.15.0-rc.0")) {
                 val ended = if (isBefore(version, "1.12.0-rc.1")) "compiled" else "raised function_head `def unquote_splicing(h)`"
 
-                """
-                top expanded {} next 0 context ${topContext(version, "Elixir.S")}
+                top(version, "Elixir.S", ended, "") + "\n" + """
                 module Elixir.S $ended
                   def spliced/2 line 5 clauses 1
                   def spliced_after/3 line 6 clauses 1
@@ -2519,7 +2544,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
                 """.trimIndent()
             } else {
                 """
-                top expanded {} next 0 context []
+                top error unquote_outside_quote `unquote(:a)`
                 module Elixir.A raised unquote_outside_quote `unquote(:a)`
                   body: expanded {} next 0 context [Elixir.A]
                   def f/0: error unquote_outside_quote `unquote(:a)`
@@ -2578,7 +2603,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
                 """.trimIndent()
             } else {
                 """
-                top expanded {} next 0 context []
+                top error unquote_outside_quote `unquote(:a)`
                 module Elixir.A raised unquote_outside_quote `unquote(:a)`
                   body: expanded {} next 0 context [Elixir.A]
                   def f/1: error unquote_outside_quote `unquote(:a)`
@@ -2748,7 +2773,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             LEVELS,
         ) { version ->
             """
-            top expanded {} next 0 context ${topContext(version, "Elixir.RD, Elixir.D")}
+            top error undefined_function `undefined()`
             module Elixir.D compiled
               defmacro d/2 line 2 clauses 1
               body: expanded {} next 0 context [Elixir.D]
@@ -3003,7 +3028,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             LEVELS,
         ) { version ->
             """
-            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            top error changed_kind `defp f, do: 2`
             module Elixir.A raised changed_kind `defp f, do: 2`
               def f/0 line 2 clauses 1
               body: expanded {} next ${if (CLAUSES_TAKE_VERSION.isSufficient(ElixirLanguageLevel.of(version))) 4 else 1} context [Elixir.A]
@@ -3393,6 +3418,18 @@ class ModuleExpanderTest : ExpanderTestCase() {
     /** The file's `context_modules` after only [module]: empty on the fast path from 1.13. */
     private fun topContext(version: String, module: String) =
         if (isBefore(version, "1.13.0-rc.0")) "[$module]" else "[]"
+
+    /**
+     * The top of [code], a file of only [module], which [ended] so: a raise is the file's, a tainted module raises a
+     * compile error at its `defmodule`, and a compiled module leaves the file expanded.
+     */
+    private fun top(version: String, module: String, ended: String, code: String) =
+        when {
+            ended.startsWith("raised ") -> "top error ${ended.removePrefix("raised ")}"
+            ended == "tainted" -> "top error compile_error `$code`"
+            ended == "compiled" -> "top expanded {} next 0 context ${topContext(version, module)}"
+            else -> error("no top modelled for a module that ended $ended")
+        }
 
     /** The dispatches [code]'s expansion reports, in order, at each of [versions]. */
     private fun assertEvents(code: String, versions: List<String>, expected: (String) -> String) =

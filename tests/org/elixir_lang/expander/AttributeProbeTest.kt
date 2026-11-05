@@ -370,9 +370,7 @@ class AttributeProbeTest : ProbeTestCase() {
             assertTrue("${case.body}: no reads from the case module", module in attempt.batch.reads)
 
             val hooked = attempt.batch.reads.keys.filter { it == module || it.startsWith("$module.") }.sorted()
-            val results = generateSequence(expansions.modules) { it.flatMap(ExpansionResult::nested).ifEmpty { null } }
-                .flatten()
-                .toList()
+            val results = expansions.modules.withNested()
 
             for (name in hooked) {
                 val result = results.firstOrNull { it.module == name }

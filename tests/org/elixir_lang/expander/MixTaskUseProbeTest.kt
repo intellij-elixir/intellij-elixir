@@ -23,7 +23,7 @@ class MixTaskUseProbeTest : SdkProbeTestCase(accounting = true) {
         assertEquals(
             "",
             expansions.filterValues { it.ended !is ExpansionResult.Ended.Compiled }
-                .map { (body, expansion) -> "${body.replace("\n", "; ")}: ${expansion.ended}" }
+                .map { (body, expansion) -> "${oneLine(body)}: ${expansion.ended}" }
                 .joinToString("\n"),
         )
         printed { probes.assertMatchesElixir(expansions) }

@@ -164,7 +164,9 @@ class DefinitionEffectTest : ExpanderTestCase() {
         run.fileStatements.add(forms)
         Expander.expand(forms, ExState.empty(level), Env.empty(level, kernel), run)
 
-        return Compiled(log, compilePending(run).modules.single())
+        compilePending(run)
+
+        return Compiled(log, run.compiledInto.single())
     }
 
     private companion object {

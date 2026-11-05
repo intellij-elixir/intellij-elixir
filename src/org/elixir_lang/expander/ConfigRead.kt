@@ -11,7 +11,7 @@ import org.elixir_lang.expander.interpreter.holdsClosure
 import org.elixir_lang.expander.interpreter.holdsUnknown
 import org.elixir_lang.expander.interpreter.isKeyword
 import org.elixir_lang.expander.interpreter.isUnknown
-import org.elixir_lang.expander.interpreter.keyFound
+import org.elixir_lang.expander.interpreter.keyValue
 import org.elixir_lang.expander.interpreter.properElements
 import org.elixir_lang.language_level.ElixirLanguageFeature.CONFIG_VALIDATES_EVERY_ENTRY
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -142,13 +142,11 @@ internal class ConfigTable(
         if (isUnknown(keywords)) return keywords
 
         val elements = properElements(keywords) ?: return Unknown
-        val pair = keyFound(elements, 1, { if (isUnknown(it)) return Unknown else it }) { first ->
+        return keyValue(elements, { if (isUnknown(it)) return Unknown else it }) { first ->
             if (isUnknown(first)) return Unknown
 
             first == key
         }
-
-        return pair?.takeIf { it.arity() == 2 }?.elementAt(1)
     }
 
     companion object {

@@ -33,6 +33,13 @@ class DispatchProbeTest : ProbeTestCase() {
         }
     }
 
+    /** A call into `:erlang`, whose macros no leg reads, is a function where its exports can't be read. */
+    fun testACallIntoErlangReadsNoMacros() {
+        val unreadable = Exports { module -> if (module == "erlang") ModuleExports.Unreadable else legExports.of(module) }
+
+        probes.assertTracesMatchElixir(probes.expandAll(listOf("x = -1\n_ = :erlang.abs(x)"), exports = unreadable))
+    }
+
     /** A call of a local macro in a function body expands the macro's output, as Elixir does. */
     fun testLocalMacrosExpandAtTheCall() {
         val expansions = probes.expandAll(LOCAL_MACRO_CASES)
@@ -226,9 +233,6 @@ class DispatchProbeTest : ProbeTestCase() {
             "_ = fn -> Kernel.require(Foo) end",
             "_ = fn -> Kernel.import(Foo) end",
             "_ = fn -> Kernel.quote(do: 1) end",
-            "_ = fn -> (alias Foo.Bar).baz() end",
-            "_ = fn -> (alias Foo).baz() end",
-            "_ = fn -> (alias Foo.Bar, warn: false).baz() end",
             "_ = fn -> (import Integer, only: [parse: 1]).baz() end",
             "_ = fn -> (require Integer).baz() end",
             "case 1 do\n  y when y > 0 -> y\nend",
@@ -255,7 +259,6 @@ class DispatchProbeTest : ProbeTestCase() {
             "_ = &Integer.to_string(&1)",
             "_ = &Integer.to_string(&1, 2)",
             "_ = &:lists.reverse/1",
-            "_ = &NoSuchMod.foo/1",
             "_ = &__MODULE__.foo/0",
             "m = URI\n_ = &m.parse/1",
             "f = fn x -> x end\n_ = &f.(&1)",

@@ -7,8 +7,8 @@ out = System.fetch_env!("ECTO_FIXTURE_ORACLE")
 schemas = [EctoFixture.Comment, EctoFixture.Post, EctoFixture.Tag, EctoFixture.Author, EctoFixture.Book]
 
 info =
-  for module <- [EctoFixture.Queries, EctoFixture.Repo | schemas], into: %{} do
-    {module, %{functions: Enum.sort(module.__info__(:functions)), macros: Enum.sort(module.__info__(:macros))}}
+  for module <- [EctoFixture.Queries, EctoFixture.Repo, EctoFixture.Inline, EctoFixture.Inline.Meta | schemas], into: %{} do
+    {module, %{functions: module.__info__(:functions), macros: module.__info__(:macros)}}
   end
 
 File.write!(Path.join(out, "info.etf"), :erlang.term_to_binary(info))

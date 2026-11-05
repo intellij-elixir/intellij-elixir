@@ -130,12 +130,7 @@ class EctoFixtureTest : HeavyTestCase() {
 
             "$module ${exportsIn(info, module)}"
         }
-        val actual = modules.map { module ->
-            when (val exports = exports(holder, probe, module)) {
-                is ModuleExports.Present -> "$module ${exported(exports)}"
-                else -> "$module $exports"
-            }
-        }
+        val actual = modules.map { module -> "$module ${exported(exports(holder, probe, module))}" }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }
@@ -192,12 +187,7 @@ class EctoFixtureTest : HeavyTestCase() {
         val expected = SCHEMAS.map { module ->
             if (compiled.afterCompile) "$module ${ModuleExports.Unreadable}" else "$module ${exportsIn(info, module)}"
         }
-        val actual = SCHEMAS.map { module ->
-            when (val exports = exports(holder, asker, module)) {
-                is ModuleExports.Present -> "$module ${exported(exports)}"
-                else -> "$module $exports"
-            }
-        }
+        val actual = SCHEMAS.map { module -> "$module ${exported(exports(holder, asker, module))}" }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }
@@ -250,17 +240,36 @@ class EctoFixtureTest : HeavyTestCase() {
         assertEquals(compared(expanded, compiled), called(compiled, listOf(call)).single())
     }
 
-    /** It pins that such a module is left unknown, not wrong, until `Module.create/3` is answered. */
-    fun testAnInlineEmbedStopsItsModule() {
+    /**
+     * An inline `embeds_one` creates its schema with `Module.create/3`: both modules compile, storing what Elixir's do,
+     * and the schema, where Ecto sets no `@after_compile`, exports what Elixir's does to another file. Where it sets one,
+     * the created module's callback is code the expander doesn't follow, run while the schema is open, so the schema's
+     * tables aren't known after it and its `defstruct` stops.
+     */
+    fun testAnInlineEmbedCreatesItsModule() {
         val compiled = compiled ?: return
         val corpus = corpus!!
+        val info = etf(File(compiled.oracle, "info.etf")) as OtpErlangMap
         val holder = ProjectModules(project)
-        val inline = file(corpus, compiled, "lib/inline.ex")
-        val result = expansion(holder, inline).modules.single()
-        val ended = result.ended as ExpansionResult.Ended.Stopped
+        val results = expansion(holder, file(corpus, compiled, "lib/inline.ex")).modules.withNested().associateBy { it.module }
+        val asker = file(corpus, compiled, ASKER)
 
-        assertEquals("embedded_schema do", inline.text.substring(ended.at.meta.origin.startOffset).substringBefore("\n"))
-        assertEquals(ModuleExports.Unreadable, exports(holder, file(corpus, compiled, ASKER), INLINE))
+        val expected = INLINES.map { module ->
+            val stops = module == INLINE && compiled.afterCompile
+
+            "$module " + if (stops) "stopped defstruct/1" else "compiled ${exportsIn(info, module)}"
+        } + "$INLINE ${if (compiled.afterCompile) ModuleExports.Unreadable else exportsIn(info, INLINE)}"
+        val actual = INLINES.map { module ->
+            val result = results[module]
+
+            "$module " + when {
+                result == null -> "absent"
+                result.ended == ExpansionResult.Ended.Compiled -> "compiled ${stored(result)}"
+                else -> ending(result)
+            }
+        } + "$INLINE ${exported(exports(holder, asker, INLINE))}"
+
+        assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }
 
     /** It pins that nothing tells the expander of a module a `__deriving__` macro defines, where Elixir has loaded it. */
@@ -336,6 +345,7 @@ class EctoFixtureTest : HeavyTestCase() {
         const val REPO = "Elixir.EctoFixture.Repo"
         const val PROBE = "Elixir.EctoFixture.Probe"
         const val INLINE = "Elixir.EctoFixture.Inline"
+        val INLINES = listOf(INLINE, "$INLINE.Meta")
         const val CALLED = "EctoFixture.Probe.called/3"
         const val HASH = ":hash"
 
@@ -395,8 +405,6 @@ class EctoFixtureTest : HeavyTestCase() {
             System.getProperty(name) ?: throw AssertionError("This test needs the system property $name, which Gradle's `test` sets.")
 
         fun etf(file: File): OtpErlangObject = binaryToTerm(file.readBytes(), 0).first
-
-        fun exportsIn(info: OtpErlangMap, module: String): String = exported(info.get(OtpErlangAtom(module)) as OtpErlangMap)
 
         fun described(expanded: MacroExpanded, compiled: Compiled): String =
             when (expanded) {

@@ -48,9 +48,18 @@ class DefinitionTableProbeTest : SdkProbeTestCase() {
         assertTrue("a row for M's f/1 in\n$rendered", rendered.contains(".M f/1 def"))
     }
 
+    /** A module `Module.create/3` makes under the case module is hooked as a `defmodule` is, and its table compared. */
+    fun testACreatedModuleIsHookedAndCompared() {
+        val rendered = assertTablesMatch(listOf("Module.create(__MODULE__.Made, quote(do: def(f, do: :ok)), __ENV__)")) { _, attempt, module ->
+            assertEquals(listOf(module, "$module.Made"), attempt.batch.hooks.keys.sorted())
+        }
+
+        assertTrue("a row for Made's f/0 in\n$rendered", rendered.contains(".Made f/0 def"))
+    }
+
     /** A module Elixir compiled under the case module that the hook never reached fails the comparison, naming it. */
     fun testAModuleTheHookMissedFailsTheComparison() {
-        val case = "Module.create(__MODULE__.Made, quote(do: def(f, do: :ok)), __ENV__)"
+        val case = "apply(Module, :create, [__MODULE__.Made, quote(do: def(f, do: :ok)), __ENV__])"
         val expansions = probes.expandAll(listOf(case), hook = ProbeHarness.Hook())
         val attempt = harness.attempt(expansions.layout)
         val module = expansions.layout.caseModule(0)

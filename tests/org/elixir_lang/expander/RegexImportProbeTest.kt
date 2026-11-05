@@ -25,7 +25,7 @@ class RegexImportProbeTest : SdkProbeTestCase(accounting = true) {
         assertEquals(
             "",
             expansions.filter { (_, expansion) -> stops(expansion) }
-                .map { (body, expansion) -> "${body.replace("\n", "; ")}: ${expansion.outcome} ${expansion.result.opaque}" }
+                .map { (body, expansion) -> "${oneLine(body)}: ${expansion.outcome} ${expansion.result.opaque}" }
                 .joinToString("\n"),
         )
         printed { probes.assertMatchesElixir(expansions) }
@@ -82,7 +82,7 @@ class RegexImportProbeTest : SdkProbeTestCase(accounting = true) {
         assertEquals(
             "",
             expansions.filter { (_, expansion) -> expansion.result.attributes.final["x"] is AttributeValue.Known }
-                .map { (body, expansion) -> "${body.replace("\n", "; ")}: ${expansion.result.attributes.final["x"]}" }
+                .map { (body, expansion) -> "${oneLine(body)}: ${expansion.result.attributes.final["x"]}" }
                 .joinToString("\n"),
         )
         printed { probes.assertMatchesElixir(expansions) }
