@@ -23,11 +23,7 @@ class Definition(
 
     // Only the decompiled source is renamed; the chunk viewer shows the clauses as the `.beam` stores them.
     private val namedClauses: List<Clause>? by lazy {
-        (clausesTerm as? OtpErlangList)
-            ?.let { DefaultArgumentClause.named(it, this) }
-            ?.takeIf { it !== clausesTerm }
-            ?.let { clauses(it, this) }
-            ?: this.clauses
+        DefaultArgumentClause.named(this)?.let { clauses(it, this) } ?: this.clauses
     }
     val macro: String? = macro(macro)
     val metdata: Keyword? = org.elixir_lang.beam.chunk.from(metadata)

@@ -17,25 +17,22 @@ import org.elixir_lang.toOtpErlangList
  * calls, when those are all plain variables.
  */
 internal object DefaultArgumentClause {
-    fun named(clauses: OtpErlangList, definition: Definition): OtpErlangList {
-        val clause = clauses.singleOrNull() as? OtpErlangTuple ?: return clauses
-        if (clause.arity() != Clause.EXPECTED_ARITY) return clauses
-
-        val arguments = clause.elementAt(1).toOtpErlangList()
-        if (arguments.arity() == 0 || !arguments.all { Clause.isGeneratedVariable(it) }) return clauses
-
-        val superArguments = superArguments(clause.elementAt(3)) ?: return clauses
-        val targetArguments = targetArguments(definition, superArguments.arity()) ?: return clauses
+    /** [definition]'s clauses with its default clause's arguments renamed, or `null` when there is none to rename. */
+    fun named(definition: Definition): OtpErlangList? {
+        val (arguments, superArguments) = defaultClause(definition)?.takeIf { (arguments, _) -> arguments.arity() > 0 }
+            ?: return null
+        val targetArguments = target(definition)?.let(::firstClauseArguments) ?: return null
 
         val nameByGenerated = arguments.associateWith { argument ->
             superArguments.indexOf(argument)
                 .takeIf { it >= 0 }
                 ?.let { targetArguments.elementAt(it) }
                 ?.takeIf { isNameable(it) }
-                ?: return clauses
+                ?: return null
         }
-        if (nameByGenerated.values.map(::variableName).distinct().size != nameByGenerated.size) return clauses
+        if (nameByGenerated.values.map(::variableName).distinct().size != nameByGenerated.size) return null
 
+        val clause = (definition.clausesTerm as OtpErlangList).elementAt(0) as OtpErlangTuple
         val renamed = OtpErlangTuple(
             arrayOf(
                 clause.elementAt(0),
@@ -54,21 +51,16 @@ internal object DefaultArgumentClause {
      * clause targets it. [definition] may be the full-arity one or any default clause.
      */
     fun head(definition: Definition): List<String>? {
-        val macro = definition.macro ?: return null
-        val name = definition.name ?: return null
-        val arity = definition.arity ?: return null
-        val definitions = definition.debugInfo.definitions ?: return null
-
-        val fullArity = defaultClause(definition)?.second?.arity() ?: arity
-        val parameters = definitions[MacroNameArity(macro, name, fullArity)]
-            ?.renderedClauses()
+        val target = target(definition) ?: return null
+        val fullArity = target.arity ?: return null
+        val parameters = target.renderedClauses()
             ?.firstOrNull()
             ?.parameters
             ?.takeIf { it.size == fullArity }
             ?: return null
 
         val (ownArguments, superArguments) = (0 until fullArity).firstNotNullOfOrNull { lowerArity ->
-            definitions[MacroNameArity(macro, name, lowerArity)]
+            namesake(definition, lowerArity)
                 ?.let(::defaultClause)
                 ?.takeIf { (_, superArguments) -> superArguments.arity() == fullArity }
         } ?: return null
@@ -127,16 +119,13 @@ internal object DefaultArgumentClause {
         return definition.debugInfo.definitions?.get(MacroNameArity(macro, name, arity))
     }
 
-    private fun targetArguments(definition: Definition, arity: Int): OtpErlangList? {
-        val target = namesake(definition, arity) ?: return null
-
-        return (target.clausesTerm as? OtpErlangList)
+    private fun firstClauseArguments(definition: Definition): OtpErlangList? =
+        (definition.clausesTerm as? OtpErlangList)
             ?.firstOrNull()
             ?.let { it as? OtpErlangTuple }
             ?.takeIf { it.arity() == Clause.EXPECTED_ARITY }
             ?.elementAt(1)
             ?.toOtpErlangList()
-    }
 
     private fun isNameable(term: OtpErlangObject): Boolean =
         Macro.isVariable(term) && !Clause.isGeneratedVariable(term) && variableName(term) != "_"
