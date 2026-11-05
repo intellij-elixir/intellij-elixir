@@ -433,7 +433,7 @@ internal class ExpansionProbes(
     }
 
     private fun renderTraces(body: String, traces: List<String>) =
-        "== ${body.replace("\n", "; ")}\n" + traces.joinToString("") { "  $it\n" }
+        "== ${oneLine(body)}\n" + traces.joinToString("") { "  $it\n" }
 
     /** What [CaseExpansion]'s module, which went on past a `__deriving__` macro, did before the [macro] Elixir expands. */
     private class UpToDerive(val macro: String, val steps: List<Step>, val traces: List<String>, val before: (Tag) -> Boolean)

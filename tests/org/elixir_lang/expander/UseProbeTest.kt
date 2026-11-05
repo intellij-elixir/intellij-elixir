@@ -16,15 +16,15 @@ class UseProbeTest : ProbeTestCase() {
     fun testEachCaseStopsAtTheUsingMacroOfItsFirstModule() {
         val stops = USING_CASES.map { body ->
             val expansion = probes.expand(body, PREAMBLE)
-            val opaque = expansion.outcome as? Expansion.Opaque ?: return@map "${body.replace("\n", "; ")}: ${expansion.outcome}"
+            val opaque = expansion.outcome as? Expansion.Opaque ?: return@map "${oneLine(body)}: ${expansion.outcome}"
 
-            "${body.replace("\n", "; ")}: ${opaque.dispatch.name}/${opaque.dispatch.arity} " +
+            "${oneLine(body)}: ${opaque.dispatch.name}/${opaque.dispatch.arity} " +
                 opaque.dispatch.receiver.replace(TOKENED, "{token}")
         }
 
         assertEquals(
             USING_CASES.joinToString("\n") {
-                "${it.replace("\n", "; ")}: __using__/1 ${FIRST.getValue(it)}"
+                "${oneLine(it)}: __using__/1 ${FIRST.getValue(it)}"
             },
             stops.joinToString("\n"),
         )

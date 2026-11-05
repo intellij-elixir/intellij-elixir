@@ -841,6 +841,9 @@ internal fun children(node: ElixirAst): List<ElixirAst> =
         is ElixirAst.Alias, is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> emptyList()
     }
 
+/** [body] on one line, as a probe row names its case. */
+internal fun oneLine(body: String): String = body.replace("\n", "; ")
+
 internal fun utf8(term: OtpErlangObject): String =
     when (term) {
         is com.ericsson.otp.erlang.OtpErlangBinary -> String(term.binaryValue(), Charsets.UTF_8)

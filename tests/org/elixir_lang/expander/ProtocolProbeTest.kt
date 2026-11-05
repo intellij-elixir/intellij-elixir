@@ -73,7 +73,7 @@ class ProtocolProbeTest : SdkProbeTestCase(accounting = true) {
             val others = setOf("$token.Proto", "$token.Probe", case, "$case.Host", "$case.Host.Q")
 
             assertEquals(
-                "case $index: ${body.replace("\n", "; ")}",
+                "case $index: ${oneLine(body)}",
                 expected.map { it.replace("{token}", token).replace("{case}", case) },
                 expansions.modules.withNested().map { it.module.removePrefix("Elixir.") }.filterNot { it in others },
             )
@@ -149,9 +149,6 @@ class ProtocolProbeTest : SdkProbeTestCase(accounting = true) {
         )
         printed { probes.assertMatchesElixir(expansions) }
     }
-
-    /** [body] on one line. */
-    private fun oneLine(body: String) = body.replace("\n", "; ")
 
     private companion object {
         /** A protocol of the file, which the implementations read as the exports of a module the run compiled. */

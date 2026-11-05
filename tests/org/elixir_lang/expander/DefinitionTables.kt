@@ -64,7 +64,7 @@ internal object DefinitionTables {
 
     /** [rows] under [heading], sorted. */
     fun render(heading: String, rows: List<String>) =
-        "== ${heading.replace("\n", "; ")}\n" + rows.sorted().joinToString("") { "  $it\n" }
+        "== ${oneLine(heading)}\n" + rows.sorted().joinToString("") { "  $it\n" }
 
     /**
      * Every module a compile defines is the module of a traced environment, but for one defined while a function the

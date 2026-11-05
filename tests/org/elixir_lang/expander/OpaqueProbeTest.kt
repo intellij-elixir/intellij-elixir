@@ -13,8 +13,8 @@ class OpaqueProbeTest : ProbeTestCase() {
 
     fun testEachCaseStopsAtItsMacro() {
         assertEquals(
-            CASES.joinToString("\n") { (body, site) -> "${body.replace("\n", "; ")}: $site" },
-            CASES.joinToString("\n") { (body, _) -> "${body.replace("\n", "; ")}: ${site(body)}" },
+            CASES.joinToString("\n") { (body, site) -> "${oneLine(body)}: $site" },
+            CASES.joinToString("\n") { (body, _) -> "${oneLine(body)}: ${site(body)}" },
         )
     }
 

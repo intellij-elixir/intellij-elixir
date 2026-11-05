@@ -23,7 +23,7 @@ class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
         assertEquals(
             "",
             expansions.filterValues { it.outcome is Expansion.Unported || it.outcome is Expansion.Opaque }
-                .map { (body, expansion) -> "${body.replace("\n", "; ")}: ${expansion.outcome}" }
+                .map { (body, expansion) -> "${oneLine(body)}: ${expansion.outcome}" }
                 .joinToString("\n"),
         )
         printed { probes.assertMatchesElixir(expansions) }
@@ -50,9 +50,9 @@ class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
 
         assertCompiled(going)
         assertEquals(
-            going.keys.joinToString("\n") { "${it.replace("\n", "; ")}: true" },
+            going.keys.joinToString("\n") { "${oneLine(it)}: true" },
             going.map { (body, expansion) ->
-                "${body.replace("\n", "; ")}: ${expansion.result.table.entries.keys.any { it.name == "after_struct" }}"
+                "${oneLine(body)}: ${expansion.result.table.entries.keys.any { it.name == "after_struct" }}"
             }.joinToString("\n"),
         )
         if (stops) {
@@ -69,9 +69,9 @@ class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
         val expansions = LATER_STOPS.associateWith { expand(it, DERIVE_PREAMBLE) }
 
         assertEquals(
-            LATER_STOPS.joinToString("\n") { "${it.replace("\n", "; ")}: unported" },
+            LATER_STOPS.joinToString("\n") { "${oneLine(it)}: unported" },
             expansions.map { (body, expansion) ->
-                "${body.replace("\n", "; ")}: ${if (expansion.outcome is Expansion.Unported) "unported" else expansion.outcome}"
+                "${oneLine(body)}: ${if (expansion.outcome is Expansion.Unported) "unported" else expansion.outcome}"
             }.joinToString("\n"),
         )
         printed { probes.assertMatchesElixirUpToMacro(expansions) }
@@ -197,8 +197,8 @@ class DefinitionMacroProbeTest : SdkProbeTestCase(accounting = true) {
     private fun either(): List<String> = EITHER
 
     private fun assertCompiled(expansions: Map<String, ExpansionProbes.CaseExpansion>) = assertEquals(
-        expansions.keys.joinToString("\n") { "${it.replace("\n", "; ")}: Compiled" },
-        expansions.map { (body, expansion) -> "${body.replace("\n", "; ")}: ${expansion.ended}" }.joinToString("\n"),
+        expansions.keys.joinToString("\n") { "${oneLine(it)}: Compiled" },
+        expansions.map { (body, expansion) -> "${oneLine(body)}: ${expansion.ended}" }.joinToString("\n"),
     )
 
     private fun guards(): List<String> =
