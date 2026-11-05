@@ -384,9 +384,8 @@ class LoadedCopyTest : PlatformTestCase() {
         inFile(asker) { askerFile ->
             val copies = Module.resolveLoadable(askerFile, name)
             val beam = Resolver.preferred(askerFile, false, copies.loaded).single().element.containingFile.originalFile.virtualFile
-            val base = FileUtil.toSystemIndependentName(top.path)
 
-            copies.sourceOf(beam)?.let { relative(base, it) } ?: "none"
+            copies.sourceOf(beam)?.let { relative(it) } ?: "none"
         }
 
     // The expander's answer where `locate` answers `Several`: every copy, each uncertain, as which one loads is unknown.
@@ -500,30 +499,29 @@ class LoadedCopyTest : PlatformTestCase() {
 
     /** The expander's candidates at the first call named [name] in [CALLER]: each one's file, and why it is uncertain or `certain`. */
     private fun expanderAnswer(name: String): List<String> =
-        expander(name) { use, inputs, base ->
+        expander(name) { use, inputs ->
             ExpanderSource.candidates(use, inputs).map { found ->
-                "${relative(base, found.element)}\t${found.uncertain ?: "certain"}"
+                "${relative(found.element)}\t${found.uncertain ?: "certain"}"
             }.sorted()
         }
 
     /** Why the expander's answer at the first `missing` call in [CALLER] may be missing what it reaches, or `certain`. */
     private fun expanderAbsence(): String =
-        expander("missing") { use, inputs, _ -> ExpanderSource.answer(use, inputs).absence?.name ?: "certain" }
+        expander("missing") { use, inputs -> ExpanderSource.answer(use, inputs).absence?.name ?: "certain" }
 
     /** The files of what the expander offers at the first `count` call in [CALLER] that [which] picks, from the stale copies. */
     private fun expanderVisible(which: (Call) -> Boolean): List<String> =
         inFile(CALLER) { file ->
             val call = PsiTreeUtil.findChildrenOfType(file, Call::class.java).first { it.functionName() == "count" && which(it) }
-            val base = FileUtil.toSystemIndependentName(top.path)
 
-            ExpanderSource.visible(call, inputs()).map { relative(base, it.element) }.filter { it.startsWith("stale") }.sorted()
+            ExpanderSource.visible(call, inputs()).map { relative(it.element) }.filter { it.startsWith("stale") }.sorted()
         }
 
-    private fun <T> expander(name: String, answer: (Use.OfCall, ProjectModules.Inputs, String) -> T): T =
+    private fun <T> expander(name: String, answer: (Use.OfCall, ProjectModules.Inputs) -> T): T =
         inFile(CALLER) { file ->
             val call = PsiTreeUtil.findChildrenOfType(file, Call::class.java).first { it.functionName() == name }
 
-            answer(Use.of(call) as Use.OfCall, inputs(), FileUtil.toSystemIndependentName(top.path))
+            answer(Use.of(call) as Use.OfCall, inputs())
         }
 
     /** [block] in a read action, on the file at [path] under the fixture. */
@@ -532,12 +530,14 @@ class LoadedCopyTest : PlatformTestCase() {
 
     private fun inputs(): ProjectModules.Inputs = ProjectModules.Inputs(legLevel(), legKernel, OS.CURRENT)
 
-    private fun relative(base: String, element: PsiElement): String = relative(base, element.containingFile.originalFile.virtualFile)
+    /** [element]'s file, relative to the fixture. */
+    private fun relative(element: PsiElement): String = relative(element.containingFile.originalFile.virtualFile)
 
-    private fun relative(base: String, file: VirtualFile): String {
+    /** [file], relative to the fixture. */
+    private fun relative(file: VirtualFile): String {
         val path = FileUtil.toSystemIndependentName(file.path)
 
-        return FileUtil.getRelativePath(base, path, '/') ?: path
+        return FileUtil.getRelativePath(FileUtil.toSystemIndependentName(top.path), path, '/') ?: path
     }
 
     private lateinit var top: File
@@ -663,21 +663,13 @@ class LoadedCopyTest : PlatformTestCase() {
     /** The files of the copies [asker] resolves [name] to, relative to the fixture. */
     private fun resolved(asker: String, name: String, loaded: Boolean): List<String> =
         inFile(asker) { askerFile ->
-            val base = FileUtil.toSystemIndependentName(top.path)
-
             val results = if (loaded) {
                 Resolver.preferred(askerFile, false, Module.resolveLoadable(askerFile, name).loaded)
             } else {
                 Module.resolvePreferred(askerFile, name, incompleteCode = false, inScope = false)
             }
 
-            results
-                .map { result ->
-                    val path = FileUtil.toSystemIndependentName(result.element.containingFile.originalFile.virtualFile.path)
-
-                    FileUtil.getRelativePath(base, path, '/') ?: path
-                }
-                .sorted()
+            results.map { relative(it.element) }.sorted()
         }
 
     private fun file(path: String): VirtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(File(top, path))!!
