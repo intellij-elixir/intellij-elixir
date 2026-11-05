@@ -14,6 +14,7 @@ import com.ericsson.otp.erlang.OtpOutputStream
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.Compiling
+import org.elixir_lang.expander.ConfigRead
 import org.elixir_lang.expander.DefinitionTable
 import org.elixir_lang.expander.Dispatch
 import org.elixir_lang.expander.Effect
@@ -2842,17 +2843,18 @@ internal class Evaluation(
         }
 
     /**
-     * What [arms], any of which may be the one Elixir takes, give: each runs from the config the read had before them,
-     * as code that may not run ([Run.mayNotRun]), and their values and configs join. A value they all give alike is
-     * known, else unknown; a key of the config the same in each keeps its value ([joinedConfig]). Where an arm raises,
-     * the code around them may have raised ([raiseMayBeCaught]); where one declines, every arm was given what it holds.
-     * Past the run's [ARM_BUDGET], or nested past the thread's stack, the arms decline at the outermost.
+     * What [arms], any of which may be the one Elixir takes, give: each runs from the config and files the read had
+     * before them, as code that may not run ([Run.mayNotRun]), and their values and the read join. A value they all give
+     * alike is known, else unknown; the read joins as [ConfigRead.join] says. Where an arm raises, the code around them
+     * may have raised ([raiseMayBeCaught]); where one declines, every arm was given what it holds. Past
+     * [ARM_BUDGET] ([Run.takesArm]), or nested past the thread's stack, the arms decline at the outermost.
      */
     private fun joined(arms: List<MaybeArm>): OtpErlangObject {
         val read = run.config
-        val before = read?.config
+        val before = read?.snapshot()
         val values = ArrayList<OtpErlangObject>()
-        val configs = ArrayList<OtpErlangObject>()
+        val returned = ArrayList<ConfigRead.Snapshot>()
+        val raisedIn = ArrayList<ConfigRead.Snapshot>()
         val raised = ArrayList<Thrown>()
         var raises = false
 
@@ -2862,32 +2864,33 @@ internal class Evaluation(
         try {
             fun runEach() {
                 for (arm in arms) {
-                    if (++run.armsTaken > ARM_BUDGET) decline("more arms over values not known than a run takes")
+                    if (!run.takesArm()) decline("more arms over values not known than a run takes")
                     if (arm.raises()) {
                         raises = true
                         continue
                     }
-                    before?.let { read.config = it }
+                    before?.let { read.restore(it) }
                     try {
                         values += arm.run()
-                        read?.let { configs += it.config }
+                        read?.let { returned += it.snapshot() }
                     } catch (thrown: Thrown) {
                         raised += thrown
+                        read?.let { raisedIn += it.snapshot() }
                     }
                 }
             }
 
             if (outermost) unlessTooDeep({ decline("arms over a value not known nested past the thread's stack") }) { runEach() } else runEach()
         } catch (declined: Declined) {
-            before?.let { read.config = it }
+            before?.let { read.restore(it) }
             throw gave(declined) { add(arms.flatMap { it.marks() }, run.compiling.keys) }
         } finally {
             run.speculating--
         }
 
+        before?.let { read.join(it, returned, raisedIn) }
         if (values.isEmpty()) {
             // Every arm raises.
-            before?.let { read.config = it }
             val first = raised.firstOrNull()
 
             if (!raises && first != null && raised.all { it.kind == first.kind && sameKnownTerm(it.reason, first.reason) }) throw first
@@ -2895,45 +2898,9 @@ internal class Evaluation(
             return unlessRaised(Unknown)
         }
         if (raised.isNotEmpty() || raises) raiseMayBeCaught()
-        read?.config = configs.reduce(::joinedConfig)
 
         return if (values.all { sameKnownTerm(it, values.first()) }) values.first() else unknownOf(values)
     }
-
-    /**
-     * [left] and [right], two configs a read may have, joined per app and key: a key the same term in both keeps it, and
-     * one they set apart, or only one sets, is unknown. An app only one wrote holds nothing in the other.
-     */
-    private fun joinedConfig(left: OtpErlangObject, right: OtpErlangObject): OtpErlangObject =
-        joinedPerKey(left, right) { app, otherApp ->
-            joinedPerKey(app ?: OtpErlangList(), otherApp ?: OtpErlangList()) { value, other ->
-                if (value != null && other != null && sameKnownTerm(value, other)) value else Unknown
-            }
-        }
-
-    /** [left] and [right], keyword lists, each key's first value in either joined by [joined]; else one term, or unknown. */
-    private fun joinedPerKey(
-        left: OtpErlangObject,
-        right: OtpErlangObject,
-        joined: (OtpErlangObject?, OtpErlangObject?) -> OtpErlangObject,
-    ): OtpErlangObject {
-        if (isUnknown(left) || isUnknown(right) || !isKeyword(left) || !isKeyword(right)) return if (sameKnownTerm(left, right)) left else Unknown
-
-        val lefts = firstPairs(left)
-        val rights = firstPairs(right)
-
-        return list((lefts.keys + rights.keys).map { key -> tuple(key, joined(lefts[key], rights[key])) })
-    }
-
-    /** [keywords]' first value under each key. */
-    private fun firstPairs(keywords: OtpErlangObject): Map<OtpErlangObject, OtpErlangObject> =
-        LinkedHashMap<OtpErlangObject, OtpErlangObject>().apply {
-            for (pair in properElements(keywords).orEmpty()) {
-                val (key, value) = (pair as OtpErlangTuple).elements()
-
-                putIfAbsent(key, value)
-            }
-        }
 
     /** Whether [body] only raises: it is a call of a native that never returns ([Natives.neverReturns]). */
     private fun onlyRaises(body: ElixirAst?, frame: Frame): Boolean {

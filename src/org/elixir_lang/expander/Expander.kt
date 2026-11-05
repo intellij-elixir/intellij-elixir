@@ -366,8 +366,14 @@ internal class Run(
      */
     val mayNotRun get() = speculating > 0
 
-    /** How many arms that may not be taken the run has run: past [ARM_BUDGET], the next declines. */
-    var armsTaken = 0
+    /** How many arms that may not be taken the run has run, where it reads no config ([ConfigRead.armsTaken]). */
+    private var armsTaken = 0
+
+    /**
+     * Counts an arm that may not be taken: whether the arms counted are within [ARM_BUDGET], across the run, or across a
+     * config read's files where it reads one.
+     */
+    fun takesArm(): Boolean = (config?.let { ++it.armsTaken } ?: ++armsTaken) <= ARM_BUDGET
 
     /**
      * The calls running over a value that isn't known in code that may not run, innermost last: a call repeating one

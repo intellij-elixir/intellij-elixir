@@ -12,7 +12,10 @@ import org.elixir_lang.expander.interpreter.holdsUnknown
 import org.elixir_lang.expander.interpreter.isKeyword
 import org.elixir_lang.expander.interpreter.isUnknown
 import org.elixir_lang.expander.interpreter.keyValue
+import org.elixir_lang.expander.interpreter.list
 import org.elixir_lang.expander.interpreter.properElements
+import org.elixir_lang.expander.interpreter.sameKnownTerm
+import org.elixir_lang.expander.interpreter.tuple
 import org.elixir_lang.language_level.ElixirLanguageFeature.CONFIG_VALIDATES_EVERY_ENTRY
 import org.elixir_lang.language_level.ElixirLanguageLevel
 
@@ -26,6 +29,12 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
 
     /** The files read, newest first, as `Config.Reader.read_imports!/2` lists them. */
     val imports = ArrayList<String>()
+
+    /** The files in [imports] that only code that may not have run read, so a later import of one may or may not raise. */
+    val maybeImports = HashSet<String>()
+
+    /** How many arms that may not be taken the read's files have run, every file it imports counted toward one bound. */
+    var armsTaken = 0
 
     /** The value of the last file evaluated's last expression: the top file's, as it finishes last. */
     var result: OtpErlangObject = Unknown
@@ -41,6 +50,33 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
     /** A unit of the read declined, or code it doesn't follow ran, so its table isn't what Elixir's is. */
     fun unitDeclined() {
         if (!muted) declined = true
+    }
+
+    /** What code that may not run can change of the read: its config and the files it read. */
+    class Snapshot(val config: OtpErlangObject, val imports: List<String>)
+
+    /** The read's config and files now, for code that may not run to start from and to be joined. */
+    fun snapshot() = Snapshot(config, imports.toList())
+
+    /** Puts the read back to [snapshot], as code that may not run starts from what the read held before it. */
+    fun restore(snapshot: Snapshot) {
+        config = snapshot.config
+        imports.clear()
+        imports += snapshot.imports
+    }
+
+    /**
+     * The read once code that may not have run, starting from [before], ended in one of [returned] or raised in one of
+     * [raised]: a key the same term in each of [returned] keeps it, and one they set apart, or only some set, is unknown,
+     * else [before]'s config stands where none returned; a file any of them read may have been read ([maybeImports]).
+     */
+    fun join(before: Snapshot, returned: List<Snapshot>, raised: List<Snapshot>) {
+        // Each started from before's files and added its own at the front.
+        val read = (returned + raised).flatMap { it.imports.subList(0, it.imports.size - before.imports.size) }.distinct()
+
+        val joined = returned.map(Snapshot::config).reduceOrNull(::joinedConfig) ?: before.config
+        restore(Snapshot(joined, read + before.imports))
+        maybeImports += read
     }
 
     /** Records that the read wrote [app]'s env, or, `null`, an app that isn't known. */
@@ -104,6 +140,41 @@ internal interface RunFiles {
         }
     }
 }
+
+/**
+ * [left] and [right], two configs a read may have, joined per app and key: a key the same term in both keeps it, and
+ * one they set apart, or only one sets, is unknown. An app only one wrote holds nothing in the other.
+ */
+private fun joinedConfig(left: OtpErlangObject, right: OtpErlangObject): OtpErlangObject =
+    joinedPerKey(left, right) { app, otherApp ->
+        joinedPerKey(app ?: OtpErlangList(), otherApp ?: OtpErlangList()) { value, other ->
+            if (value != null && other != null && sameKnownTerm(value, other)) value else Unknown
+        }
+    }
+
+/** [left] and [right], keyword lists, each key's first value in either joined by [joined]; else one term, or unknown. */
+private fun joinedPerKey(
+    left: OtpErlangObject,
+    right: OtpErlangObject,
+    joined: (OtpErlangObject?, OtpErlangObject?) -> OtpErlangObject,
+): OtpErlangObject {
+    if (isUnknown(left) || isUnknown(right) || !isKeyword(left) || !isKeyword(right)) return if (sameKnownTerm(left, right)) left else Unknown
+
+    val lefts = firstPairs(left)
+    val rights = firstPairs(right)
+
+    return list((lefts.keys + rights.keys).map { key -> tuple(key, joined(lefts[key], rights[key])) })
+}
+
+/** [keywords]' first value under each key. */
+private fun firstPairs(keywords: OtpErlangObject): Map<OtpErlangObject, OtpErlangObject> =
+    LinkedHashMap<OtpErlangObject, OtpErlangObject>().apply {
+        for (pair in properElements(keywords).orEmpty()) {
+            val (key, value) = (pair as OtpErlangTuple).elements()
+
+            putIfAbsent(key, value)
+        }
+    }
 
 /**
  * A config read's outcome: the merged [config] and the [files] it read, newest first. [unknown] where the read raised,

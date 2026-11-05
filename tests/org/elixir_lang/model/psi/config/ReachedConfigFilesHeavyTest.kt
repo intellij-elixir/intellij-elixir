@@ -97,11 +97,21 @@ class ReachedConfigFilesHeavyTest : ConfigHeavyTestCase() {
     /** What a declined statement might have imported isn't known to be reached. */
     fun testAnImportInsideADeclinedUnitDoesNotCount() {
         val root = project(
-            CONFIG to "import Config\n\nif System.get_env(\"HOME\") do\n  import_config \"prod/database.exs\"\nend\n",
+            CONFIG to "import Config\n\nif File.read!(\"flag\") == \"on\" do\n  import_config \"prod/database.exs\"\nend\n",
             "config/prod/database.exs" to "import Config\n",
         )
 
         assertEquals(listOf(CONFIG), counted(root))
+    }
+
+    /** An arm tested on the environment may be taken, so what it imports is reached. */
+    fun testAnImportInAnArmOnTheEnvCounts() {
+        val root = project(
+            CONFIG to "import Config\n\nif System.get_env(\"HOME\") do\n  import_config \"prod/database.exs\"\nend\n",
+            "config/prod/database.exs" to "import Config\n",
+        )
+
+        assertEquals(listOf(CONFIG, "config/prod/database.exs"), counted(root))
     }
 
     fun testNoSdkInputsCountsOnlyTheConfigFolder() {
