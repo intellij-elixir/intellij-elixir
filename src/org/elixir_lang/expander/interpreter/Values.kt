@@ -200,9 +200,11 @@ internal inline fun anyHeld(
     return false
 }
 
+/** Whether [term] is a function: a [Closure] or an external fun. */
+internal fun isFunction(term: OtpErlangObject): Boolean = term is Closure || term is OtpErlangExternalFun
+
 /** Whether a function is held in any of [terms] ([anyHeld]). */
-internal fun holdsAFunction(terms: List<OtpErlangObject>): Boolean =
-    anyHeld(terms) { it is Closure || it is OtpErlangExternalFun }
+internal fun holdsAFunction(terms: List<OtpErlangObject>): Boolean = anyHeld(terms, visit = ::isFunction)
 
 /** Declines for [reason], each `%s` in which names the next of [terms]. */
 internal fun decline(reason: String, vararg terms: OtpErlangObject): Nothing =
@@ -322,13 +324,18 @@ internal class Holding(val parts: List<OtpErlangObject>) : UnknownValue()
 /** Whether [term] is a value not known that may be or hold a module being compiled: a [Holding] or [ModuleUnknown]. */
 internal fun fromCompiling(term: OtpErlangObject): Boolean = term is Holding || term === ModuleUnknown
 
-/** A value the evaluator doesn't know, built from [parts]: it came from a module being compiled where one of them did. */
-internal fun unknownOf(parts: List<OtpErlangObject>): UnknownValue =
-    when {
-        parts.any { it === ModuleUnknown } -> ModuleUnknown
-        parts.all { it === Unknown || it === UnknownBinary } -> Unknown
-        else -> Holding(parts)
-    }
+/**
+ * A value the evaluator doesn't know, built from [parts]: it came from a module being compiled where one of them did. A
+ * number or a binary holds no module, so a value built from one and an unknown is that unknown, and a call given it
+ * again is the same call ([RunningCall]).
+ */
+internal fun unknownOf(parts: List<OtpErlangObject>): UnknownValue {
+    fun adds(part: OtpErlangObject) = !(part === Unknown || part === UnknownBinary || isNumber(part) || part is OtpErlangBitstr)
+
+    if (parts.any { it === ModuleUnknown }) return ModuleUnknown
+
+    return if (parts.none(::adds)) Unknown else Holding(parts.filter(::adds))
+}
 
 /**
  * A binary whose bytes the evaluator doesn't know, such as a message built by `inspect`: a binary segment takes it, as
@@ -641,7 +648,10 @@ private fun holds(term: OtpErlangObject, matches: (OtpErlangObject) -> Boolean):
     return holds(term)
 }
 
-/** An attribute's [value], as the escaped value `@` gives in a function evaluates to; [seen] is told each atom in it. */
+/**
+ * An attribute's [value], as the escaped value `@` gives in a function evaluates to; [seen] is told each atom in it. A
+ * part the term doesn't know, other than a float, came from the module being compiled that holds it ([ModuleUnknown]).
+ */
 internal fun otpOf(value: Term, seen: (String) -> Unit = {}): OtpErlangObject {
     ProgressManager.checkCanceled()
 
@@ -654,7 +664,8 @@ internal fun otpOf(value: Term, seen: (String) -> Unit = {}): OtpErlangObject {
         is Term.List -> cons(value.elements.map(part), value.tail?.let(part) ?: EMPTY)
         is Term.Pair -> tuple(part(value.first), part(value.second))
         is Term.Tuple -> OtpErlangTuple(value.elements.map(part).toTypedArray())
-        else -> Unknown
+        Term.NonTuple -> Unknown
+        is Term.Node, Term.Unexpanded -> ModuleUnknown
     }
 }
 

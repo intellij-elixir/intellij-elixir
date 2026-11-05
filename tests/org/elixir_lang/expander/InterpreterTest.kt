@@ -36,6 +36,8 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.GENERATED_HEADS_CHEC
 import org.elixir_lang.language_level.ElixirLanguageFeature.GENERATOR_RIGHT_SIDE_SCOPED
 import org.elixir_lang.language_level.ElixirLanguageFeature.INTEGERS_UP_TO_4_MBIT
 import org.elixir_lang.language_level.ElixirLanguageFeature.IN_REFUSES_UNESCAPED_RIGHT_SIDE
+import org.elixir_lang.language_level.ElixirLanguageFeature.IO_WARN_READS_THE_MESSAGE_FIRST
+import org.elixir_lang.language_level.ElixirLanguageFeature.IO_WARN_TAKES_AN_ENV_OR_OPTIONS
 import org.elixir_lang.language_level.ElixirLanguageFeature.KEY_ERROR_MESSAGE_INSPECTED_WITH_OPTIONS
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_SORT_KEEPS_EQUAL_ORDER
@@ -1765,10 +1767,18 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             "acc =\n    for _ <- String.to_charlist(inspect(self())), reduce: __MODULE__ do\n      _ -> :done\n    end\n\n  Callee.given(acc)",
         )
 
-    private fun assertGivenLaterMarksTheWholeModule(statements: String) =
+    /** Before 1.18, `__struct__/1` builds on an attribute the evaluator doesn't know: the struct holds what it was given. */
+    fun testAStructOnAnUnknownStructMarksTheModuleItHolds() =
+        assertGivenLaterMarksTheWholeModule(
+            "s = %S{module: __MODULE__}\n  Callee.given(s)",
+            "defmodule S do\n  defstruct [:module]\nend\n",
+            "\nmodule Elixir.S compiled [__struct__/0 def, __struct__/1 def]",
+        )
+
+    private fun assertGivenLaterMarksTheWholeModule(statements: String, before: String = "", beforeReport: String = "") =
         assertFile(
-            "$CALLEE\ndefmodule M do\n  @other :o\n  $statements\n  def unquote(@other)(), do: 1\nend",
-            "$CALLEE_REPORT\nmodule Elixir.M stopped `unquote(@other)` []",
+            "$CALLEE\n${before}defmodule M do\n  @other :o\n  $statements\n  def unquote(@other)(), do: 1\nend",
+            "$CALLEE_REPORT$beforeReport\nmodule Elixir.M stopped `unquote(@other)` []",
             tables = true,
         )
 
@@ -2777,6 +2787,19 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         val UNPINNED: (Source, ElixirLanguageLevel) -> String? = { _, _ -> null }
         val DECLINED: (Source, ElixirLanguageLevel) -> String? = { _, _ -> OPAQUE }
 
+        /** [DECLINED] where `IO.warn/2` takes an env or options naming a file, which say where the warning is; before, either raises. */
+        val DECLINED_ONCE_IO_WARN_IS_LOCATED: (Source, ElixirLanguageLevel) -> String? = { _, level ->
+            OPAQUE.takeIf { IO_WARN_TAKES_AN_ENV_OR_OPTIONS.isSufficient(level) }
+        }
+
+        /**
+         * [DECLINED] where `IO.warn/2` takes any `Macro.Env` map and makes its stacktrace before the message, which reads
+         * keys a hand-built one may lack; before, and from [IO_WARN_READS_THE_MESSAGE_FIRST], it raises.
+         */
+        val DECLINED_WHERE_AN_ENV_IS_TAKEN_WHOLE: (Source, ElixirLanguageLevel) -> String? = { _, level ->
+            OPAQUE.takeIf { IO_WARN_TAKES_AN_ENV_OR_OPTIONS.isSufficient(level) && !IO_WARN_READS_THE_MESSAGE_FIRST.isSufficient(level) }
+        }
+
         /** From source the expander declines where [OPAQUE] says; `Dbgi` holds what Elixir compiled. */
         val DECLINED_FROM_SOURCE: (Source, ElixirLanguageLevel) -> String? = { source, _ ->
             OPAQUE.takeIf { source == Source.SOURCE }
@@ -2881,7 +2904,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             ends,
         )
 
-        /** A row whose case body `use`s the row's module with [options]. */
+        /** A row whose case body `use`s [module], the row's by default, with [options], then holds [after]. */
         fun use(
             id: String,
             defs: String,
@@ -2890,11 +2913,14 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             stopsAfter: String? = null,
             legs: (ElixirLanguageLevel) -> Boolean = EVERY_LEG,
             ends: (ElixirLanguageLevel) -> String? = { null },
+            after: String = "",
+            module: String = ROW,
         ): Row {
-            val use = "use $ROW" + if (options.isEmpty()) "" else ", $options"
-            val call = "$ROW.__using__(${options.ifEmpty { "[]" }})"
+            val use = "use $module" + if (options.isEmpty()) "" else ", $options"
+            val call = "$module.__using__(${options.ifEmpty { "[]" }})"
+            val body = if (after.isEmpty()) use else "$use\n$after"
 
-            return Row(id, defs.trimIndent(), call, use, use, listOf(ROW), source, legs, UNPINNED, stopsAfter, ends = ends)
+            return Row(id, defs.trimIndent(), call, body, use, listOf(module), source, legs, UNPINNED, stopsAfter, ends = ends)
         }
 
         /** A row whose `use` runs [statements] in the case module once it requires `EEx`. */
@@ -2969,23 +2995,8 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         val UNVERSIONED_VARS_LEGS: (ElixirLanguageLevel) -> Boolean = { !MACRO_ENV_VERSIONED_VARS.isSufficient(it) }
 
         /** A row whose case body `use`s the leg's [module], then holds [after]. */
-        fun leg(module: String, options: String = "", after: String = "", stopsAfter: String? = null): Row {
-            val use = "use $module" + if (options.isEmpty()) "" else ", $options"
-            val call = "$module.__using__(${options.ifEmpty { "[]" }})"
-
-            return Row(
-                "use:leg-" + module.lowercase(),
-                "",
-                call,
-                if (after.isEmpty()) use else "$use\n$after",
-                use,
-                listOf(module),
-                SourceRun.NONE,
-                EVERY_LEG,
-                UNPINNED,
-                stopsAfter,
-            )
-        }
+        fun leg(module: String, options: String = "", after: String = ""): Row =
+            use("use:leg-" + module.lowercase(), "", options, SourceRun.NONE, after = after, module = module)
 
         /** A `for` the evaluator declines, which holds a `def` whose name isn't known. */
         val UNNAMED_IN_DECLINED_FOR = "for x <- String.to_charlist(inspect(self())) do\n    def unquote(x)(), do: 1\n  end"
@@ -3094,12 +3105,6 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
               end
             end
         """.trimIndent()
-
-        /**
-         * `GenServer.__before_compile__/1`, which warns through functions the evaluator doesn't port where the module
-         * doesn't define `init/1`.
-         */
-        const val GENSERVER_CALLBACK = "{{:., [], [GenServer, :__before_compile__]}"
 
         val ROWS: List<Row> = listOf(
             // `elixir_erl_pass:translate/3`
@@ -5508,7 +5513,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 """,
                 pins = DECLINED_FROM_SOURCE,
             ),
-            // `String.Chars`' implementations for a tuple aren't read.
+            // `String.Chars` has no implementation for a tuple, so a string of one raises.
             macro(
                 "pure:to-string-unknown",
                 """
@@ -5518,7 +5523,6 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                   :ok
                 end
                 """,
-                pins = DECLINED,
             ),
             macro("pure:append-lists", "defmacro m, do: [:lists.append([[1], [2]]), :lists.append([1], [2])]"),
             macro("pure:append-last-improper", "defmacro m, do: Macro.escape(:lists.append([[1], 2]))"),
@@ -5725,8 +5729,17 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             // The natives: warnings
             macro("native:io-warn-1", "defmacro m, do: IO.warn(\"w\")"),
             macro("native:io-warn-empty", "defmacro m, do: IO.warn(\"w\", [])"),
-            macro("native:io-warn-env", "defmacro m, do: IO.warn(\"w\", __CALLER__)", pins = DECLINED),
-            macro("native:io-warn-keyword", "defmacro m, do: IO.warn(\"w\", file: \"a.ex\", line: 1)", pins = DECLINED),
+            macro("native:io-warn-env", "defmacro m, do: IO.warn(\"w\", __CALLER__)", pins = DECLINED_ONCE_IO_WARN_IS_LOCATED),
+            macro("native:io-warn-keyword", "defmacro m, do: IO.warn(\"w\", file: \"a.ex\", line: 1)", pins = DECLINED_ONCE_IO_WARN_IS_LOCATED),
+            macro("native:io-warn-keyword-without-file", "defmacro m, do: IO.warn(\"w\", line: 1)"),
+            macro("native:io-warn-keyword-nil-file", "defmacro m, do: IO.warn(\"w\", file: nil, line: 1)"),
+            macro("native:io-warn-keyword-unreadable-column", "defmacro m, do: IO.warn({:t}, [{:file, \"a.ex\"}, {:column, 1, 2}])"),
+            macro("native:io-warn-keyword-unreadable-module", "defmacro m, do: IO.warn({:t}, [{:file, \"a.ex\"}, {:module, 1, 2}])"),
+            macro(
+                "native:io-warn-env-without-line-or-file",
+                "defmacro m, do: IO.warn(\"w\", %{__struct__: Macro.Env})",
+                pins = DECLINED_WHERE_AN_ENV_IS_TAKEN_WHOLE,
+            ),
             macro("native:io-warn-chardata", "defmacro m, do: IO.warn([?w], [])", pins = DECLINED),
             macro("native:io-warn-function-clause", "defmacro m, do: IO.warn(\"w\", :x)"),
 
@@ -6907,7 +6920,8 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 end
                 """,
                 "restart: :transient",
-                stopsAfter = GENSERVER_CALLBACK,
+                // The hook's table is the module's before `GenServer.__before_compile__/1` adds a missing `init/1`.
+                after = "def init(x), do: {:ok, x}",
             ),
             use(
                 "use:backend",
@@ -7666,7 +7680,6 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "before_compile:genserver-without-init",
                 "defmacro m, do: Macro.escape(function_exported?({row}.A, :init, 1))",
-                pins = DECLINED_FROM_SOURCE,
                 helper = """
                 defmodule {row}.A do
                   @before_compile GenServer

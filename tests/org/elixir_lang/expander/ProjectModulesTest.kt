@@ -498,7 +498,8 @@ class ProjectModulesTest : PlatformTestCase() {
                 "  def setb(m) do\n    set(m)\n    \"\"\n  end\n" +
                 "  def nb(_), do: receive(do: (x -> x), after: (0 -> \"\"))\n" +
                 "  def int(_), do: receive(do: (x -> x), after: (0 -> 1))\n" +
-                "  def set8(m) do\n    set(m)\n    8\n  end\nend\n" +
+                "  def set8(m) do\n    set(m)\n    8\n  end\n" +
+                "  def put(m, n), do: Module.put_attribute(m, n, :ok)\nend\n" +
                 "defmodule S do\n  defstruct [:module, :t]\nend\n" +
                 "defimpl Collectable, for: S do\n  def into(%S{module: m} = s) do\n    H.set(m)\n    {s, fn acc, _ -> acc end}\n  end\nend\n",
         )
@@ -619,6 +620,9 @@ class ProjectModulesTest : PlatformTestCase() {
                     "      H.set(A)\n    end\n  end",
                 "defmodule I do\n    {H.set(__MODULE__), (:ok = Module.get_attribute(__MODULE__, :x)), H.set(A)}\n  end",
                 "apply(H, :set, Application.get_env(:nope, :a, [__MODULE__]))",
+                "{f, m} = :erlang.setelement(Application.get_env(:nope, :i, 1), {__MODULE__, __MODULE__}, fn m -> H.set(m) end)\n  f.(m)",
+                "{f, m} = :erlang.setelement(Application.get_env(:nope, :i, 1), {__MODULE__, __MODULE__}, &H.set/1)\n  f.(m)",
+                "H.put(__MODULE__, Application.get_env(:nope, :n, :x))",
             ))
         }.mapNotNull { statement ->
             edit(project, a, "defmodule A do\n  @x :bad\n  $statement\n  def unquote(@x)(), do: 1\n  def g, do: 1\nend\n")
@@ -834,12 +838,16 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
-     * A declined call not given the module, and a `receive`, write nothing the expander reads: the module after them is
-     * read by another file as it defined itself.
+     * A declined call not given the module, a `receive`, and a read of the module's attribute whose name isn't known write
+     * nothing the expander reads: the module after them is read by another file as it defined itself.
      */
     fun testADeclineNotGivenTheModuleLeavesItLoaded() {
         addLegElixir()
-        add("h.ex", "defmodule H do\n  def noop(_), do: receive(do: (x -> x), after: (0 -> :ok))\nend\n")
+        add(
+            "h.ex",
+            "defmodule H do\n  def noop(_), do: receive(do: (x -> x), after: (0 -> :ok))\n" +
+                "  def get(m, n), do: Module.get_attribute(m, n)\nend\n",
+        )
         val a = add("a.ex", "")
         val b = add("b.ex", "defmodule B do\n  import A\n  def h, do: g()\nend\n")
 
@@ -849,6 +857,7 @@ class ProjectModulesTest : PlatformTestCase() {
             "H.noop(__ENV__.aliases)",
             "H.noop(\"#{inspect(__MODULE__)}\")",
             "receive(do: (x -> x), after: (0 -> :ok))",
+            "H.get(__MODULE__, Application.get_env(:nope, :n, :y))",
         ).mapNotNull { statement ->
             edit(project, a, "defmodule A do\n  @x :ok\n  $statement\n  def unquote(@x)(), do: 1\n  def g, do: 1\nend\n")
             val module = expansion(holder, a).modules.single { it.module == "Elixir.A" }

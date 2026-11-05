@@ -97,7 +97,7 @@ class EctoFixtureTest : HeavyTestCase() {
                 for (index in chain.indices) {
                     val step = "$form ${index + 1}"
 
-                    expected += "$step: " + (STOPS[step] ?: chain.getOrNull(index + 1)?.let { compared(it, compiled) } ?: UNEXPANDED)
+                    expected += "$step: " + (chain.getOrNull(index + 1)?.let { compared(it, compiled) } ?: UNEXPANDED)
                     actual += "$step: " +
                         if (reached == null) {
                             "not reached"
@@ -123,10 +123,9 @@ class EctoFixtureTest : HeavyTestCase() {
         val modules = listOf(QUERIES, REPO)
 
         val expected = modules.map { module ->
-            // `q_no_on`'s `join/4` stops at the `inspect/1` of its `:on` warning, and where Ecto sets `@after_compile
-            // Ecto.Schema` the schemas' exports are unknown, so its calls stop earlier: each leaves the exports unknown.
-            // [testQueriesStoresWhatElixirGives] reads what the module stored.
-            if (module == QUERIES) return@map "$module ${ModuleExports.Unreadable}"
+            // Where Ecto sets `@after_compile Ecto.Schema` the schemas' exports are unknown, so Queries' calls stop
+            // earlier and leave its exports unknown. [testQueriesStoresWhatElixirGives] reads what the module stored.
+            if (module == QUERIES && compiled.afterCompile) return@map "$module ${ModuleExports.Unreadable}"
 
             "$module ${exportsIn(info, module)}"
         }
@@ -485,12 +484,6 @@ class EctoFixtureTest : HeavyTestCase() {
                 is OtpErlangBinary -> if (FileUtil.pathsEqual(String(term.binaryValue()), path)) OtpErlangBinary(FILE.toByteArray()) else term
                 else -> term
             }
-
-        /**
-         * The steps the expander stops at where Elixir expands them. `join/4` without `:on` names its schema in a warning
-         * through `inspect/1`, whose text isn't known.
-         */
-        val STOPS = mapOf("q_no_on 1" to "opaque Ecto.Query.join/4")
 
         /** The `line` in [term]'s own metadata, a node's that has one. */
         fun lineIn(term: OtpErlangObject): Int =

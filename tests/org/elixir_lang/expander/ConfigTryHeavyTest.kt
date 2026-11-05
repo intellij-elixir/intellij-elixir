@@ -127,6 +127,26 @@ class ConfigTryHeavyTest : ConfigHeavyTestCase() {
             keys("k =\n  try do\n    _ = :erlang.system_time(:fortnight)\n    :ok\n  rescue\n    _ -> :err\n  end\n\nconfig :app, k: k, k1: 1\n", "k", "k1"),
         )
 
+    /** `:erlang.error/3` raises whatever its options are, but it declines on options not known. */
+    fun testAnErrorOfOptionsNotKnownDeclines() =
+        assertEquals(
+            "declined",
+            keyBeside("(try do :erlang.error(:x, [], [System.get_env(\"X\")]) catch _, _ -> :c end)"),
+        )
+
+    /** `:erlang.error/2` in a function raises whatever its arguments are. */
+    fun testAnErrorOverArgumentsNotKnownRaises() =
+        assertEquals(
+            "k=:r k1=1",
+            keys(
+                "defmodule H do\n  def f(a), do: :erlang.error(:x, a)\nend\n\n" +
+                    "k =\n  try do\n    H.f(System.get_env(\"X\"))\n    :returned\n  rescue\n    _ -> :r\n  end\n\n" +
+                    "config :app, k: k, k1: 1\n",
+                "k",
+                "k1",
+            ),
+        )
+
     /** A binary generator over a binary not known takes whole bytes, so it can't raise. */
     fun testABinaryGeneratorOverABinaryNotKnown() =
         assertEquals(
@@ -192,6 +212,24 @@ class ConfigTryHeavyTest : ConfigHeavyTestCase() {
                 "k1",
             ),
         )
+
+    fun testARescueOfAnIntegerThatMayRaise() = assertRescued("String.to_integer(System.get_env(\"X\"))", rescued = "0")
+
+    fun testAnElseAfterARescueOfAnInteger() = assertElseAfterARescue("String.to_integer(System.get_env(\"X\"))")
+
+    fun testAConfigPastARaiseOfAnInteger() = assertConfigPastARaise("String.to_integer(System.get_env(\"X\"))")
+
+    fun testAnElseWithNoClauseThatMatchesOfAnInteger() =
+        assertEquals(
+            "k=Configured k1=1",
+            keyBeside("(try do String.to_integer(System.get_env(\"X\")) rescue ArgumentError -> 0; TryClauseError -> 1 else :never -> 2 end)"),
+        )
+
+    fun testARescueThatMayRaiseOfAnInteger() = assertRescueThatMayRaise("String.to_integer(System.get_env(\"X\"))")
+
+    fun testAnElseThatMayRaiseOfAnInteger() = assertElseThatMayRaise("String.to_integer(System.get_env(\"X\"))")
+
+    fun testAnImportOfAFileThatMayRaiseOfAnInteger() = assertImportOfAFileThatMayRaise("String.to_integer(System.get_env(\"X\"))")
 
     /** A call repeating one running over a value not known may raise as that one may, and the `try` may rescue it. */
     fun testARescueOfACountdownFromAnUnknown() =

@@ -11,6 +11,7 @@ import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangPid
+import com.ericsson.otp.erlang.OtpErlangPort
 import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
@@ -22,6 +23,7 @@ import org.elixir_lang.expander.Annotation
 import org.elixir_lang.expander.AppEnvValue
 import org.elixir_lang.expander.AttributeTable
 import org.elixir_lang.expander.AttributeValue
+import org.elixir_lang.expander.BUILT_IN
 import org.elixir_lang.expander.Compiling
 import org.elixir_lang.expander.ConfigRead
 import org.elixir_lang.expander.DEFINITION_ARITIES
@@ -36,6 +38,7 @@ import org.elixir_lang.expander.ModuleAttributes
 import org.elixir_lang.expander.ModuleEffects
 import org.elixir_lang.expander.ModuleExports
 import org.elixir_lang.expander.QuoteEscape
+import org.elixir_lang.expander.implementationName
 import org.elixir_lang.expander.Shape
 import org.elixir_lang.expander.TermEscapeBuilder
 import org.elixir_lang.expander.TermEscapeView
@@ -45,6 +48,7 @@ import org.elixir_lang.expander.defines
 import org.elixir_lang.expander.keystore
 import org.elixir_lang.expander.specialFormArity
 import org.elixir_lang.expander.write
+import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTES_EXPANDED_LAZILY
 import org.elixir_lang.language_level.ElixirLanguageFeature.BINARY_PART_REJECTS_BITSTRINGS
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
@@ -54,9 +58,13 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.GET_ATTRIBUTE_DEFAUL
 import org.elixir_lang.language_level.ElixirLanguageFeature.GET_ATTRIBUTE_DEFAULT_ONLY_UNSET
 import org.elixir_lang.language_level.ElixirLanguageFeature.GRAPHEME_CLUSTER_KEEPS_EMPTY_TAIL
 import org.elixir_lang.language_level.ElixirLanguageFeature.INTEGERS_UP_TO_4_MBIT
+import org.elixir_lang.language_level.ElixirLanguageFeature.IO_WARN_OPTIONS_TAKE_A_COLUMN
+import org.elixir_lang.language_level.ElixirLanguageFeature.IO_WARN_READS_THE_MESSAGE_FIRST
+import org.elixir_lang.language_level.ElixirLanguageFeature.IO_WARN_TAKES_AN_ENV_OR_OPTIONS
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_SORT_KEEPS_EQUAL_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.RAISE_FRAME_TAKES_A_CAPTURE
+import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_ESCAPED_IN_FIXED_FIELD_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_ATTRIBUTES_IN
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_GET_LAST_ATTRIBUTE
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_OVERRIDABLES_IN
@@ -189,6 +197,92 @@ private val RUNS = mapOf(
     Triple("Elixir.Enum", "all?", 2) to listOf(1),
 )
 
+/**
+ * How a native calls the [code] of a struct's module, for the arguments at [arguments]: for each struct one holds where
+ * it is [nested], as `inspect/1` does, else for the argument itself. A native that calls it only from a version does so
+ * from [since] on.
+ */
+internal class StructDispatch(
+    val arguments: List<Int>,
+    val code: StructCode,
+    val nested: Boolean = false,
+    val since: ElixirLanguageFeature? = null,
+)
+
+/** Where `IO.warn`'s second argument says its warning is. */
+private sealed interface WarnedAt {
+    /** Nowhere: the warning's stacktrace is [stacktrace], `null` for the caller's. */
+    class Nowhere(val stacktrace: OtpErlangObject?) : WarnedAt
+
+    /** At a place, which declines once the message is made. */
+    object Place : WarnedAt
+}
+
+/** The code of a struct's module a native calls ([Natives.runsCodeOf]). */
+internal sealed interface StructCode {
+    /**
+     * The types, by the module `defimpl ... for:` names, Elixir implements this code's protocol for none of, where it is
+     * one: a project may implement it for a term of one ([Natives.unimplementedTypes]).
+     */
+    val unimplemented: Set<String> get() = emptySet()
+
+    /** `fetch/2`, which `Access` calls for every struct. */
+    data object Fetch : StructCode
+
+    /** The `Enumerable` implementation, which `Enum` calls for a struct it doesn't enumerate itself. */
+    data object Enumerable : StructCode {
+        override val unimplemented = builtInTypesBut("List", "Map", "Function")
+    }
+
+    /** `__escape__/1`, where the module exports it. */
+    data object Escape : StructCode
+
+    /**
+     * [protocol]'s implementation for the struct, where one may exist. The native answers without running it, so a call
+     * of it declines.
+     */
+    class Protocol(val protocol: String, override val unimplemented: Set<String> = emptySet()) : StructCode
+}
+
+/**
+ * The types `defprotocol` tells apart ([BUILT_IN]) but [implemented], the ones Elixir implements a protocol for, by the
+ * module `defimpl ... for:` names.
+ */
+private fun builtInTypesBut(vararg implemented: String): Set<String> =
+    BUILT_IN.map { (type, _) -> type }.filterNot(implemented::contains).mapTo(LinkedHashSet()) { "Elixir.$it" }
+
+private val STRING_CHARS = StructCode.Protocol("String.Chars", builtInTypesBut("Atom", "BitString", "Integer", "Float", "List"))
+private val FETCH = StructDispatch(listOf(0), StructCode.Fetch)
+private val TO_STRING = StructDispatch(listOf(0), STRING_CHARS)
+private val ESCAPE = StructDispatch(listOf(0), StructCode.Escape, nested = true, since = REGEX_ESCAPED_IN_FIXED_FIELD_ORDER)
+private val INSPECT = StructDispatch(listOf(0), StructCode.Protocol("Inspect"), nested = true)
+internal val ENUMERABLE = StructDispatch(listOf(0), StructCode.Enumerable)
+
+/** Each native that calls a struct's implementation, by receiver, name and arity, to how ([Natives.dispatches]). */
+private val DISPATCHES = mapOf(
+    Triple("Elixir.Access", "get", 2) to FETCH,
+    Triple("Elixir.Access", "get", 3) to FETCH,
+    Triple("Elixir.String.Chars", "to_string", 1) to TO_STRING,
+    Triple("Elixir.IO", "warn", 1) to TO_STRING,
+    Triple("Elixir.IO", "warn", 2) to TO_STRING,
+    Triple("Elixir.Macro", "escape", 1) to ESCAPE,
+    Triple("Elixir.Macro", "escape", 2) to ESCAPE,
+    Triple("Elixir.Kernel", "inspect", 1) to INSPECT,
+    Triple("Elixir.Kernel", "inspect", 2) to INSPECT,
+    Triple("Elixir.Enum", "map", 2) to ENUMERABLE,
+    Triple("Elixir.Enum", "flat_map", 2) to ENUMERABLE,
+    Triple("Elixir.Enum", "filter", 2) to ENUMERABLE,
+    Triple("Elixir.Enum", "reject", 2) to ENUMERABLE,
+    Triple("Elixir.Enum", "reduce", 3) to ENUMERABLE,
+    Triple("Elixir.Enum", "any?", 1) to ENUMERABLE,
+    Triple("Elixir.Enum", "all?", 1) to ENUMERABLE,
+    Triple("Elixir.Enum", "any?", 2) to ENUMERABLE,
+    Triple("Elixir.Enum", "all?", 2) to ENUMERABLE,
+    Triple("Elixir.Enum", "member?", 2) to ENUMERABLE,
+    Triple("Elixir.Enum", "concat", 2) to StructDispatch(listOf(0, 1), StructCode.Enumerable),
+    Triple("Elixir.Enum", "reverse", 1) to ENUMERABLE,
+)
+
 /** The functions a macro body calls that are answered as their clauses would answer, without reading them. */
 internal class Natives(private val evaluation: Evaluation) {
     companion object {
@@ -200,7 +294,91 @@ internal class Natives(private val evaluation: Evaluation) {
          * ([write]). Another's writer, `Kernel.Typespec.deftypespec/6`, runs from its clauses.
          */
         val WRITES_BY_ROW = setOf("Elixir.Module", "elixir_def")
+
+        /** The [Row.writes] of a row none of whose functions writes what later code reads. */
+        private val READS: Natives.(function: String, arity: Int) -> Boolean = { _, _ -> false }
+
+        /** Each module whose functions are answered here, to its [Row]. */
+        private val ROWS = mapOf(
+            "erlang" to Row(READS) { key, args, tail -> erlang(key, args, tail) },
+            "lists" to reading { key, args -> lists(key, args) },
+            "maps" to reading { key, args -> maps(key, args) },
+            "elixir_quote" to reading { key, args -> quote(key, args) },
+            "elixir_module" to writing { key, args -> elixirModule(key, args) },
+            "code" to reading { key, args -> code(key, args) },
+            "application" to writing { key, args -> envWrite(key, args) },
+            "unicode" to reading { key, args -> unicode(key, args) },
+            "unicode_util" to reading { key, args -> if (key == "gc/1") gc(seen(args[0])) else null },
+            "logger" to reading { key, args -> if (key == "compare_levels/2") compareLevels(args) else null },
+            "Elixir.Keyword" to reading { key, args -> keyword(key, args) },
+            "Elixir.Enum" to reading { key, args -> enum(key, args) },
+            "Elixir.Access" to reading { key, args -> access(key, args) },
+            "Elixir.Macro.Env" to reading { key, args -> env(key, args) },
+            "Elixir.IO" to reading { key, args -> io(key, args) },
+            "Elixir.Module" to Row({ function, arity -> !onlyReads("Elixir.Module", function, arity) }) { key, args, _ ->
+                module(key, args)
+            },
+            "Elixir.Application" to reading { key, args -> application(key, args) },
+            "Elixir.Code" to reading { key, _ -> if (key == "can_await_module_compilation?/0") canAwaitModuleCompilation() else null },
+            "Elixir.Atom" to reading { key, args -> if (key == "to_string/1") erlang("atom_to_binary/1", args) else null },
+            "Elixir.String" to reading { key, args -> string(key, args) },
+            "Elixir.String.Chars" to reading { key, args -> if (key == "to_string/1") toString(args[0]) else null },
+            "Elixir.Kernel" to reading { key, args -> kernel(key, args) },
+            // An expansion runs macros, which may write.
+            "Elixir.Macro" to Row({ function, _ -> function == "expand" || function == "expand_once" }) { key, args, _ ->
+                macro(key, args)
+            },
+            "ordsets" to reading { key, args -> if (key == "is_element/2") isElement(args[0], args[1]) else null },
+            "binary" to reading { key, args -> binaries(key, args) },
+            "os" to reading { key, args -> os(key, args) },
+            "Elixir.System" to reading { key, args -> system(key, args) },
+            // More reads of the machine or the run, as `system`'s are, each where its argument is one Erlang takes.
+            "rand" to reading { key, args ->
+                when (key) {
+                    "uniform/0", "uniform_real/0", "normal/0" -> Unknown
+                    "uniform/1" -> Unknown.takeIf { small(args[0])?.let { it > 0 } == true }
+                    else -> null
+                }
+            },
+            "crypto" to reading { key, args ->
+                if (key == "strong_rand_bytes/1") UnknownBinary.takeIf { small(args[0])?.let { it >= 0 } == true } else null
+            },
+            "inet" to reading { key, _ -> if (key == "gethostname/0") Unknown else null },
+            "init" to reading { key, args ->
+                when (key) {
+                    "get_argument/1" -> Unknown.takeIf { isAtom(args[0]) }
+                    "get_arguments/0" -> Unknown
+                    else -> null
+                }
+            },
+            "file" to reading { key, _ -> if (key == "get_cwd/0") workingDirectory() else null },
+            "filename" to reading { key, args -> filename(key, args) },
+            "elixir_config" to Row({ function, _ -> function == "static" }) { key, args, _ -> config(key, args) },
+            "Elixir.Mix" to reading { key, _ -> mix(key) },
+            "Elixir.Config" to writing { key, args -> configure(key, args) },
+            "Elixir.Mix.Config" to writing { key, args -> if (key == "__import__!/2") mixConfigImport(args[0], args[1]) else null },
+            "Elixir.File" to reading { key, args -> if (key == "exists?/1" || key == "exists?/2") fileExists(args[0]) else null },
+            "elixir_import" to reading { key, args -> if (key == "special_form/2") isSpecialForm(args[0], args[1]) else null },
+        )
+
+        /** A row none of whose functions writes what later code reads. */
+        private fun reading(answer: Natives.(key: String, args: List<OtpErlangObject>) -> OtpErlangObject?) =
+            Row(READS) { key, args, _ -> answer(key, args) }
+
+        /** A row whose functions may write what later code reads. */
+        private fun writing(answer: Natives.(key: String, args: List<OtpErlangObject>) -> OtpErlangObject?) =
+            Row { key, args, _ -> answer(key, args) }
     }
+
+    /**
+     * A module whose functions are answered here: its [answer] for a function's `name/arity` key and arguments, `null`
+     * where it has none, in tail position or not ([call]), and whether a function of it [writes] what later code reads:
+     * a module's counter or tables, the app env, the read's config, or Elixir's static options.
+     */
+    private class Row(
+        val writes: Natives.(function: String, arity: Int) -> Boolean = { _, _ -> true },
+        val answer: Natives.(key: String, args: List<OtpErlangObject>, tail: Boolean) -> OtpErlangObject?,
+    )
 
     private val level get() = evaluation.run.level
 
@@ -213,57 +391,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
         if (key == "__info__/1") info(module, args[0])?.let { return it }
 
-        return when (module) {
-            "erlang" -> erlang(key, args, tail)
-            "lists" -> lists(key, args)
-            "maps" -> maps(key, args)
-            "elixir_quote" -> quote(key, args)
-            "elixir_module" -> elixirModule(key, args)
-            "code" -> code(key, args)
-            "application" -> envWrite(key, args)
-            "unicode" -> unicode(key, args)
-            "unicode_util" -> if (key == "gc/1") gc(seen(args[0])) else null
-            "logger" -> if (key == "compare_levels/2") compareLevels(args) else null
-            "Elixir.Keyword" -> keyword(key, args)
-            "Elixir.Enum" -> enum(key, args)
-            "Elixir.Access" -> access(key, args)
-            "Elixir.Macro.Env" -> env(key, args)
-            "Elixir.IO" -> io(key, args)
-            "Elixir.Module" -> module(key, args)
-            "Elixir.Application" -> application(key, args)
-            "Elixir.Code" -> if (key == "can_await_module_compilation?/0") canAwaitModuleCompilation() else null
-            "Elixir.Atom" -> if (key == "to_string/1") erlang("atom_to_binary/1", args) else null
-            "Elixir.String" -> string(key, args)
-            "Elixir.String.Chars" -> if (key == "to_string/1") toString(args[0]) else null
-            "Elixir.Kernel" -> kernel(key, args)
-            "Elixir.Macro" -> macro(key, args)
-            "ordsets" -> if (key == "is_element/2") isElement(args[0], args[1]) else null
-            "binary" -> binaries(key, args)
-            "os" -> os(key, args)
-            "Elixir.System" -> system(key, args)
-            // More reads of the machine or the run, as `system`'s are, each where its argument is one Erlang takes.
-            "rand" -> when (key) {
-                "uniform/0", "uniform_real/0", "normal/0" -> Unknown
-                "uniform/1" -> Unknown.takeIf { small(args[0])?.let { it > 0 } == true }
-                else -> null
-            }
-            "crypto" -> if (key == "strong_rand_bytes/1") UnknownBinary.takeIf { small(args[0])?.let { it >= 0 } == true } else null
-            "inet" -> if (key == "gethostname/0") Unknown else null
-            "init" -> when (key) {
-                "get_argument/1" -> Unknown.takeIf { isAtom(args[0]) }
-                "get_arguments/0" -> Unknown
-                else -> null
-            }
-            "file" -> if (key == "get_cwd/0") workingDirectory() else null
-            "filename" -> filename(key, args)
-            "elixir_config" -> config(key, args)
-            "Elixir.Mix" -> mix(key)
-            "Elixir.Config" -> configure(key, args)
-            "Elixir.Mix.Config" -> if (key == "__import__!/2") mixConfigImport(args[0], args[1]) else null
-            "Elixir.File" -> if (key == "exists?/1" || key == "exists?/2") fileExists(args[0]) else null
-            "elixir_import" -> if (key == "special_form/2") isSpecialForm(args[0], args[1]) else null
-            else -> null
-        } ?: if (module in WRITES_BY_ROW) write(module, key, args) else null
+        return ROWS[module]?.answer?.invoke(this, key, args, tail) ?: if (module in WRITES_BY_ROW) write(module, key, args) else null
     }
 
     /**
@@ -282,6 +410,57 @@ internal class Natives(private val evaluation: Evaluation) {
     fun runs(module: String, function: String, args: List<OtpErlangObject>): List<OtpErlangObject> =
         args.takeIf { runsAFunction(module, function, args.size) || holdsAFunction(it) }.orEmpty()
 
+    /** How [module]'s [function] of [arity] calls a struct's implementation, where it does ([DISPATCHES]). */
+    fun dispatches(module: String, function: String, arity: Int): StructDispatch? =
+        DISPATCHES[Triple(module, function, arity)]?.takeIf { it.since?.isSufficient(level) != false }
+
+    /**
+     * Whether a native that calls [code] ([StructDispatch.code]) may call it for a struct of [module], or for a term of
+     * the type [module] names ([unimplementedType]).
+     */
+    fun runsCodeOf(code: StructCode, module: String): Boolean =
+        when (code) {
+            StructCode.Fetch -> true
+            StructCode.Enumerable -> if (module in code.unimplemented) mayImplement("Enumerable", module) else enumeratesItself(atom(module))
+            StructCode.Escape -> QuoteEscape.escapesItself(evaluation.run.exports.of(module))
+            is StructCode.Protocol -> mayImplement(code.protocol, module)
+        }
+
+    /** Whether [protocol] may have an implementation for [module]: the module that implementation is may exist. */
+    private fun mayImplement(protocol: String, module: String): Boolean =
+        implementationName(level, "Elixir.$protocol", module)?.let { evaluation.run.exports.of(it) != ModuleExports.Absent } == true
+
+    /**
+     * [term]'s type, by the module `defimpl ... for:` names, where it is one [code]'s protocol has no implementation in
+     * Elixir for ([StructCode.unimplemented]); else `null`.
+     */
+    private fun unimplementedType(code: StructCode, term: OtpErlangObject): String? {
+        val type = when (term) {
+            is OtpErlangAtom -> "Elixir.Atom"
+            is OtpErlangBitstr -> "Elixir.BitString"
+            is OtpErlangDouble -> "Elixir.Float"
+            is OtpErlangFun, is OtpErlangExternalFun -> "Elixir.Function"
+            is OtpErlangLong -> "Elixir.Integer"
+            is OtpErlangMap -> "Elixir.Map".takeIf { term.get(STRUCT) == null }
+            is OtpErlangPid -> "Elixir.PID"
+            is OtpErlangPort -> "Elixir.Port"
+            is OtpErlangRef -> "Elixir.Reference"
+            is OtpErlangTuple -> "Elixir.Tuple"
+            else -> null
+        }
+
+        return type?.takeIf(code.unimplemented::contains)
+    }
+
+    /**
+     * The types [term] may be of, by the module `defimpl ... for:` names, that [code]'s protocol has no implementation in
+     * Elixir for: a known term's ([unimplementedType]), and each of them for a value not known that came from no module,
+     * `BitString` only for a binary.
+     */
+    fun unimplementedTypes(code: StructCode, term: OtpErlangObject): Collection<String> =
+        if (term === Unknown || code.unimplemented.isEmpty()) code.unimplemented
+        else listOfNotNull(unimplementedType(code, if (term === UnknownBinary) SOME_BINARY else term))
+
     /** Whether [module]'s [function] of [arity] runs a function it is given ([RUNS]). */
     fun runsAFunction(module: String, function: String, arity: Int): Boolean = Triple(module, function, arity) in RUNS
 
@@ -291,6 +470,13 @@ internal class Natives(private val evaluation: Evaluation) {
      */
     fun writes(module: String, function: String, args: List<OtpErlangObject>): List<OtpErlangObject> =
         listOfNotNull(ModuleEffects.target(module, function, args.size, level)?.let(args::get))
+
+    /**
+     * Whether [module]'s [function] of [arity] may write what later code reads ([Row.writes]), as one that isn't answered
+     * here may.
+     */
+    fun writesTheRun(module: String, function: String, arity: Int): Boolean =
+        ROWS[module]?.writes?.invoke(this, function, arity) ?: true
 
     /** Whether [module]'s [function] of [arity] is a `Module` native that only reads its tables. */
     fun onlyReads(module: String, function: String, arity: Int): Boolean =
@@ -1659,8 +1845,10 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** Whether [term] is a struct or a function, which enumerates through its own implementation, called by `Enum`'s clauses. */
     private fun hasOwnImplementation(term: OtpErlangObject): Boolean =
-        term is Closure || term is OtpErlangExternalFun ||
-            term is OtpErlangMap && term.get(atom("__struct__")) != null && range(term) == null
+        isFunction(term) || term is OtpErlangMap && term.get(STRUCT)?.let(::enumeratesItself) == true
+
+    /** Whether a struct of [module] enumerates through its own implementation: any but a `Range`, which `Enum` enumerates. */
+    private fun enumeratesItself(module: OtpErlangObject): Boolean = module != RANGE
 
     /** [term] where it is a `Range`. */
     private fun range(term: OtpErlangObject): Range? {
@@ -1706,7 +1894,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
         return when (val value = seen(container)) {
             is OtpErlangMap -> {
-                val struct = value.get(atom("__struct__"))?.let(::seen) as? OtpErlangAtom
+                val struct = value.get(STRUCT) as? OtpErlangAtom
 
                 if (struct != null) {
                     when (val fetched = evaluation.remote(struct, "fetch", listOf(container, accessKey))) {
@@ -1749,29 +1937,86 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /**
      * `IO.warn/1,2` (`io.ex`), recorded as the macro call's warning, with its stacktrace as given: `IO.warn/1`'s is the
-     * caller's, which isn't known. A message that isn't a binary of UTF-8, and the location an env or options give,
-     * decline; a second argument that is none of those, `[]` or a stacktrace raises `function_clause`.
+     * caller's, which isn't known. The second argument is read first, as far as Elixir reads it before the message
+     * ([located]). A message that isn't a list is then made a string as `to_string/1` makes one, and a list, or one that
+     * isn't a binary of UTF-8, declines. A warning at a place declines.
      */
     private fun io(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
         if (key != "warn/1" && key != "warn/2") return null
 
-        val message = utf8(args[0]) ?: decline("IO.warn/${args.size} of %s", args[0])
-        val stacktrace = args.getOrNull(1)?.also { given ->
-            if (macroEnvOf(given) != null) decline("IO.warn/2 at a Macro.Env")
+        val at = located(args)
+        val message = args[0].takeUnless(::isList)?.let { utf8(toString(it)) } ?: decline("IO.warn/${args.size} of %s", args[0])
 
-            val (elements, _) = cells(seen(given)) ?: functionClause("Elixir.IO", "warn", args)
-
-            when ((elements.firstOrNull()?.let(::seen) as? OtpErlangTuple)?.arity()) {
-                null -> if (elements.isNotEmpty()) functionClause("Elixir.IO", "warn", args)
-                4 -> {}
-                2 -> decline("IO.warn/2 with options %s", given)
-                else -> functionClause("Elixir.IO", "warn", args)
-            }
+        when (at) {
+            WarnedAt.Place -> decline("IO.warn/2 at %s", args[1])
+            is WarnedAt.Nowhere -> evaluation.warn(message, at.stacktrace)
         }
 
-        evaluation.warn(message, stacktrace)
-
         return atom("ok")
+    }
+
+    /**
+     * Where the second of [args], `IO.warn`'s, says the warning is, read as far as Elixir reads it before the message:
+     * nowhere where it is absent, `[]` or a stacktrace, and at a place where an env ([placedAt]) or options
+     * ([optionsAt]) say. One that is none of them raises `function_clause`, as an env or options does before
+     * `IO.warn/2` takes them ([IO_WARN_TAKES_AN_ENV_OR_OPTIONS]).
+     */
+    private fun located(args: List<OtpErlangObject>): WarnedAt {
+        val given = args.getOrNull(1) ?: return WarnedAt.Nowhere(null)
+        val noClause = { functionClause("Elixir.IO", "warn", args) }
+        val takes = IO_WARN_TAKES_AN_ENV_OR_OPTIONS.isSufficient(level)
+
+        macroEnvOf(given)?.let { return if (takes) placedAt(it, noClause) else noClause() }
+
+        val (elements, _) = cells(seen(given)) ?: noClause()
+
+        return when ((elements.firstOrNull()?.let(::seen) as? OtpErlangTuple)?.arity()) {
+            null -> if (elements.isEmpty()) WarnedAt.Nowhere(given) else noClause()
+            4 -> WarnedAt.Nowhere(given)
+            2 -> if (takes) optionsAt(given, noClause) else noClause()
+            else -> noClause()
+        }
+    }
+
+    /**
+     * The place at [env], as `IO.warn/2` takes it: before [IO_WARN_READS_THE_MESSAGE_FIRST] any env, whose stacktrace
+     * is made before the message; from it, only one with a `:line` and a `:file`, and another raises `function_clause`
+     * ([noClause]).
+     */
+    private fun placedAt(env: OtpErlangMap, noClause: () -> Nothing): WarnedAt.Place {
+        when {
+            !IO_WARN_READS_THE_MESSAGE_FIRST.isSufficient(level) -> stacktrace(env)
+            env.get(atom("line")) == null || env.get(atom("file")) == null -> noClause()
+        }
+
+        return WarnedAt.Place
+    }
+
+    /**
+     * Where [options], `IO.warn/2`'s, say a warning is: nowhere, as `[]` says, where they name no file (`:file` absent,
+     * `nil` or `false`), else at a place. From [IO_WARN_OPTIONS_TAKE_A_COLUMN] their `:line` and `:column` are read
+     * before the message; before it, their `:module`, `:function` and `:line` are read into the env `IO.warn/2` then
+     * takes ([placedAt]).
+     */
+    private fun optionsAt(options: OtpErlangObject, noClause: () -> Nothing): WarnedAt {
+        fun option(name: String) = access("get/2", listOf(options, atom(name)))!!
+
+        val file = seen(option("file"))
+
+        if (!truthy(file)) return WarnedAt.Nowhere(EMPTY)
+
+        if (!IO_WARN_OPTIONS_TAKE_A_COLUMN.isSufficient(level)) {
+            val fields = listOf("module", "function", "line").map { atom(it) to option(it) }
+
+            val env = mapOf(listOf(STRUCT to atom("Elixir.Macro.Env"), atom("file") to file) + fields, level)
+
+            return placedAt(env, noClause)
+        }
+
+        option("line")
+        option("column")
+
+        return WarnedAt.Place
     }
 
     /**
@@ -2333,7 +2578,10 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /**
      * `String.Chars.to_string/1` by its `BitString`, `Atom`, `Integer` and `List` implementations; the others aren't
-     * read. A list that `List.to_string/1` raises on declines, as its exceptions aren't `unicode`'s `badarg`.
+     * read. A list that `List.to_string/1` raises on declines, as its exceptions aren't `unicode`'s `badarg`. A function,
+     * a map that isn't a struct, a pid, a port, a reference or a tuple raises `Protocol.UndefinedError`, as Elixir
+     * implements the protocol for none of them ([unimplementedType]) and it has no fallback. Where the project may
+     * implement it for that type, the call declined before it got here ([Evaluation.givenAStruct]).
      */
     private fun toString(term: OtpErlangObject): OtpErlangObject =
         when {
@@ -2343,6 +2591,8 @@ internal class Natives(private val evaluation: Evaluation) {
             term is OtpErlangLong -> binary(term.bigIntegerValue().toString())
             isList(term) ->
                 OtpErlangBinary(chardataBytes("characters_to_binary", listOf(term)) { decline("List.to_string/1 of %s, which is no chardata", term) })
+            unimplementedType(STRING_CHARS, term) != null ->
+                evaluation.raise("Elixir.Protocol.UndefinedError", "protocol" to atom("Elixir.String.Chars"), "value" to term)
             else -> decline("String.Chars of %s", term)
         }
 
