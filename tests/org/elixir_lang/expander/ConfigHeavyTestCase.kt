@@ -89,6 +89,12 @@ abstract class ConfigHeavyTestCase : HeavyTestCase() {
         }
     }
 
+    /** The config sets `k` alone to [value], which isn't known. */
+    protected fun assertConfigured(value: String) = assertEquals("k=Configured", keyAlone(value))
+
+    /** The config sets `k` to [value], which isn't known, beside `k1: 1`, which stays known. */
+    protected fun assertConfiguredBeside(value: String) = assertEquals("k=Configured k1=1", keyBeside(value))
+
     /** What [keys] answers for `k` once the config sets it alone to [value]. */
     protected fun keyAlone(value: String): String = keys("config :app, k: $value\n", "k")
 

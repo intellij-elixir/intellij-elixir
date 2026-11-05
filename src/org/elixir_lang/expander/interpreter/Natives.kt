@@ -89,6 +89,8 @@ private const val BACKTRACE_DEPTH = 8
  * `delete_attribute/2`, return a value of the module their first argument names, or the default they are given; its
  * predicates and other writers a boolean or `:ok`, and its listings names. `IO.warn/1,2` returns `:ok`, as do
  * `application`'s env writers. `binary:split/3` and `filename:basename/2` return parts of their first argument alone.
+ * A read of the machine or the run given an argument, such as `System.get_env/1` or a clock given its unit, returns
+ * what it read.
  */
 private val RETURNABLE = mapOf(
     Triple("Elixir.Application", "get_env", 2) to emptyList(),
@@ -125,6 +127,19 @@ private val RETURNABLE = mapOf(
     Triple("Elixir.IO", "warn", 1) to emptyList(),
     Triple("Elixir.IO", "warn", 2) to emptyList(),
     Triple("erlang", "whereis", 1) to emptyList(),
+    Triple("Elixir.System", "get_env", 1) to emptyList(),
+    Triple("Elixir.System", "get_env", 2) to emptyList(),
+    Triple("Elixir.System", "fetch_env", 1) to emptyList(),
+    Triple("Elixir.System", "fetch_env!", 1) to emptyList(),
+    Triple("erlang", "monotonic_time", 1) to emptyList(),
+    Triple("erlang", "system_time", 1) to emptyList(),
+    Triple("erlang", "time_offset", 1) to emptyList(),
+    Triple("erlang", "unique_integer", 1) to emptyList(),
+    Triple("erlang", "nodes", 1) to emptyList(),
+    Triple("os", "system_time", 1) to emptyList(),
+    Triple("rand", "uniform", 1) to emptyList(),
+    Triple("crypto", "strong_rand_bytes", 1) to emptyList(),
+    Triple("init", "get_argument", 1) to emptyList(),
     Triple("application", "set_env", 1) to emptyList(),
     Triple("application", "set_env", 2) to emptyList(),
     Triple("application", "set_env", 3) to emptyList(),
@@ -224,7 +239,21 @@ internal class Natives(private val evaluation: Evaluation) {
             "Elixir.Macro" -> macro(key, args)
             "ordsets" -> if (key == "is_element/2") isElement(args[0], args[1]) else null
             "binary" -> binaries(key, args)
-            "os" -> if (key == "type/0") osType() else null
+            "os" -> os(key, args)
+            "Elixir.System" -> system(key, args)
+            // More reads of the machine or the run, as `system`'s are, each where its argument is one Erlang takes.
+            "rand" -> when (key) {
+                "uniform/0", "uniform_real/0", "normal/0" -> Unknown
+                "uniform/1" -> Unknown.takeIf { small(args[0])?.let { it > 0 } == true }
+                else -> null
+            }
+            "crypto" -> if (key == "strong_rand_bytes/1") UnknownBinary.takeIf { small(args[0])?.let { it >= 0 } == true } else null
+            "inet" -> if (key == "gethostname/0") Unknown else null
+            "init" -> when (key) {
+                "get_argument/1" -> Unknown.takeIf { isAtom(args[0]) }
+                "get_arguments/0" -> Unknown
+                else -> null
+            }
             "file" -> if (key == "get_cwd/0") workingDirectory() else null
             "filename" -> filename(key, args)
             "elixir_config" -> config(key, args)
@@ -398,6 +427,11 @@ internal class Natives(private val evaluation: Evaluation) {
             "whereis/1" -> if (isAtom(args[0])) Unknown else badarg()
             // A hash the VM defines, which isn't computed here.
             "phash2/1" -> Unknown
+            // The clocks `System`'s inlined functions call, and the node the build runs as, as `system`'s reads are.
+            "monotonic_time/0", "system_time/0", "time_offset/0", "unique_integer/0", "node/0", "nodes/0", "is_alive/0" -> Unknown
+            "monotonic_time/1", "system_time/1", "time_offset/1" -> readGiven(args[0], ::isTimeUnit, badarg)
+            "unique_integer/1" -> readGiven(args[0], { isListOf(it, UNIQUE_MODIFIERS) }, badarg)
+            "nodes/1" -> readGiven(args[0], { isOneOf(it, NODE_TYPES) || isListOf(it, NODE_TYPES) }, badarg)
             "make_ref/0" -> OtpErlangRef(LOCAL_NODE, intArrayOf(evaluation.run.nextRef(), 0, 0), 0)
             "</2" -> bool(compare(args[0], args[1], level) < 0)
             ">/2" -> bool(compare(args[0], args[1], level) > 0)
@@ -2547,6 +2581,48 @@ internal class Natives(private val evaluation: Evaluation) {
         return tuple(atom(family), atom(name))
     }
 
+    /** `os`'s rows: `type/0` from the run's OS, and the clock `System.os_time/0,1` reads, as `system`'s reads are. */
+    private fun os(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
+        when (key) {
+            "type/0" -> osType()
+            "system_time/0" -> Unknown
+            "system_time/1" -> readGiven(args[0], ::isTimeUnit) { badargOf("os", "system_time", args) }
+            else -> null
+        }
+
+    /**
+     * A read of the machine given [arg], which it [refuses][refused] where it doesn't [take][takes] it: what it read, a
+     * raise, or, where [arg] isn't known, what it read unless it raised.
+     */
+    private fun readGiven(arg: OtpErlangObject, takes: (OtpErlangObject) -> Boolean, refused: () -> Nothing): OtpErlangObject =
+        when {
+            holdsUnknown(arg) -> evaluation.unlessRaised(Unknown)
+            takes(arg) -> Unknown
+            else -> refused()
+        }
+
+    /**
+     * `System`'s reads of the machine the build runs on, which another machine or run may answer differently: each is
+     * [Unknown], or [UnknownBinary] where its spec gives a binary, and none reads the machine. One whose `!` raises where
+     * the machine lacks what it reads says it may raise. Where a guard refuses the arguments there is no row, and the
+     * clauses raise as Elixir's do. The clocks are `erlang`'s and `os`'s rows, which `System`'s clauses reach.
+     */
+    private fun system(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
+        when (key) {
+            "get_env/0", "user_home/0", "tmp_dir/0", "schedulers/0", "schedulers_online/0", "endianness/0" -> Unknown
+            "get_pid/0", "pid/0", "otp_release/0" -> UnknownBinary
+            "user_home!/0", "tmp_dir!/0" -> evaluation.unlessRaised(UnknownBinary)
+            "get_env/1", "fetch_env/1" -> Unknown.takeIf { isBinary(args[0]) }
+            "get_env/2" -> when {
+                !isBinary(args[0]) -> null
+                isBinary(args[1]) -> UnknownBinary
+                typed(args[1]) == NIL -> Unknown
+                else -> null
+            }
+            "fetch_env!/1" -> if (isBinary(args[0])) evaluation.unlessRaised(UnknownBinary) else null
+            else -> null
+        }
+
     /**
      * `Mix.env/0` and `Mix.target/0`: the build the run's file is compiled in. Each answer is an assumption, as an app env
      * read's is: it is the default build's. In a config read it is no assumption: the read is of that env.
@@ -3127,6 +3203,36 @@ private val INTEGER_TEXT = Regex("[+-]?[0-9a-zA-Z]+")
  * `.` or a `,`, on every OS (`sys_chars_to_double`).
  */
 private val FLOAT_TEXT = Regex("[+-]?[0-9]+[.,][0-9]+([eE][+-]?[0-9]+)?")
+
+/** The time units the VM's clocks name, the ones before OTP 19 included. */
+private val TIME_UNITS = setOf(
+    "native",
+    "perf_counter",
+    "second",
+    "millisecond",
+    "microsecond",
+    "nanosecond",
+    "seconds",
+    "milli_seconds",
+    "micro_seconds",
+    "nano_seconds",
+)
+
+/** The modifiers `erlang:unique_integer/1` takes. */
+private val UNIQUE_MODIFIERS = setOf("positive", "monotonic")
+
+/** The node types `erlang:nodes/1` takes, alone or in a list. */
+private val NODE_TYPES = setOf("visible", "hidden", "connected", "this", "known")
+
+/** A unit the VM's clocks take: one of [TIME_UNITS], or a positive integer of parts per second. */
+private fun isTimeUnit(term: OtpErlangObject): Boolean =
+    isOneOf(term, TIME_UNITS) || (seen(term) as? OtpErlangLong)?.bigIntegerValue()?.signum() == 1
+
+/** Whether [term] is an atom, one of [names]. */
+private fun isOneOf(term: OtpErlangObject, names: Set<String>): Boolean = (seen(term) as? OtpErlangAtom)?.atomValue() in names
+
+/** Whether [term] is a proper list of atoms each one of [names]. */
+private fun isListOf(term: OtpErlangObject, names: Set<String>): Boolean = properElements(term)?.all { isOneOf(it, names) } == true
 
 /** The small integers of a 64-bit VM. */
 private val SMALL_INTEGERS = -(1L shl 59) until (1L shl 59)

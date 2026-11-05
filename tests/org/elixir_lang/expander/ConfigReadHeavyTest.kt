@@ -295,7 +295,7 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
     /** Elixir has the value here: the plugin doesn't read it, so nothing in the result is known. */
     fun testAKeywordListResultWithAnUnknownValueIsUnknown() {
         assertEquals("unknown", read(project(CONFIG to "[app: [k: Application.get_env(:app, :k)]]\n")))
-        assertEquals("a read that declined", "declined", read(project(CONFIG to "[app: [k: System.get_env(\"HOME\")]]\n")))
+        assertEquals("a system read", "unknown", read(project(CONFIG to "[app: [k: System.get_env(\"HOME\")]]\n")))
     }
 
     /** Elixir reads `[]`, as a `defmodule`'s value is no list; the plugin doesn't know that value, so the read is declined. */
