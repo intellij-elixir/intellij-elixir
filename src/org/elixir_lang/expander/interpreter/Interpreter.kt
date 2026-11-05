@@ -798,6 +798,17 @@ internal class Evaluation(
     }
 
     /**
+     * Elixir may raise here on what the evaluator doesn't know: a value it doesn't know, or what a read of the machine
+     * finds. The raise is taken not to happen ([assumeNoRaise]).
+     */
+    fun raiseMayBeCaught() {
+        assumeNoRaise()
+    }
+
+    /** [value], where Elixir may raise instead ([raiseMayBeCaught]). */
+    fun unlessRaised(value: OtpErlangObject): OtpErlangObject = value.also { raiseMayBeCaught() }
+
+    /**
      * Code that may raise ran. Under a `try` that may catch the raise ([catching]), the build goes on either way, so it
      * declines.
      */
