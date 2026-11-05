@@ -1,6 +1,7 @@
 package org.elixir_lang.sdk.erlang_dependent
 
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.testFramework.registerOrReplaceServiceInstance
 import org.elixir_lang.PlatformTestCase
@@ -103,10 +104,11 @@ class ErlangSdkResolverTest : PlatformTestCase() {
             SdkFixtures.storedPairing(sdk, "Erlang 26", erlangHomePath)
         }
 
-        val result = resolver.resolveErlangSdkResult(elixirSdk, ListedSdkModel(namedElsewhere, erlangSdk))
-
-        assertTrue("Should resolve successfully by home path", result is ErlangSdkResult.Success)
-        assertEquals(erlangSdk, (result as ErlangSdkResult.Success).sdk)
+        assertEquals(
+            "Should resolve successfully by home path",
+            erlangSdk,
+            resolver.resolveErlangSdk(elixirSdk, ListedSdkModel(namedElsewhere, erlangSdk)),
+        )
     }
 
     fun testResolveByHomePath_survivesRename() {
@@ -119,10 +121,11 @@ class ErlangSdkResolverTest : PlatformTestCase() {
             SdkFixtures.storedPairing(sdk, "Erlang 26", erlangHomePath)
         }
 
-        val result = resolver.resolveErlangSdkResult(elixirSdk, ListedSdkModel(erlangSdk))
-
-        assertTrue("Should resolve by path even after rename", result is ErlangSdkResult.Success)
-        assertEquals(erlangSdk, (result as ErlangSdkResult.Success).sdk)
+        assertEquals(
+            "Should resolve by path even after rename",
+            erlangSdk,
+            resolver.resolveErlangSdk(elixirSdk, ListedSdkModel(erlangSdk)),
+        )
     }
 
     fun testResolveByHomePath_matchesAcrossWslPrefixSpellings() {
@@ -138,10 +141,78 @@ class ErlangSdkResolverTest : PlatformTestCase() {
             SdkFixtures.storedPairing(sdk, "Erlang 26 before rename", modernHomePath)
         }
 
-        val result = resolver.resolveErlangSdkResult(elixirSdk, ListedSdkModel(erlangSdk))
+        assertEquals(
+            "Should resolve across WSL prefix spellings",
+            erlangSdk,
+            resolver.resolveErlangSdk(elixirSdk, ListedSdkModel(erlangSdk)),
+        )
+    }
 
-        assertTrue("Should resolve across WSL prefix spellings", result is ErlangSdkResult.Success)
-        assertEquals(erlangSdk, (result as ErlangSdkResult.Success).sdk)
+    fun testTheStoredNameBreaksASameHomeTieInTheModel() {
+        val home = "/fake/erlang/26.0"
+        val first = SdkFixtures.erlangSdk("Erlang 26", home)
+        val named = SdkFixtures.erlangSdk("Erlang 26 (2)", home)
+        val elixirSdk = createElixirSdk { sdk -> SdkFixtures.storedPairing(sdk, named.name, home) }
+
+        assertEquals(named, resolver.resolveErlangSdk(elixirSdk, ListedSdkModel(first, named)))
+    }
+
+    fun testTheStoredNameBreaksASameHomeTieInTheTable() {
+        val home = "/fake/erlang/26.0"
+        val first = SdkFixtures.register(SdkFixtures.erlangSdk("Erlang 26 tie", home), testRootDisposable)
+        val named = SdkFixtures.register(SdkFixtures.erlangSdk("Erlang 26 tie (2)", home), testRootDisposable)
+        assertEquals(
+            "the table lists the SDKs in the order they were added",
+            listOf(first, named),
+            ProjectJdkTable.getInstance().allJdks.filter { it.homePath == home },
+        )
+        val elixirSdk = createElixirSdk { sdk -> SdkFixtures.storedPairing(sdk, named.name, home) }
+
+        assertEquals(named, resolver.resolveErlangSdk(elixirSdk, null))
+    }
+
+    /** The SDK the stored name names, added at the home after a lookup answered another, wins without a restart. */
+    fun testTheNamedSdkAddedAfterALookupWins() {
+        val home = "/fake/erlang/26.0"
+        val first = SdkFixtures.register(SdkFixtures.erlangSdk("Erlang 26 looked up", home), testRootDisposable)
+        val elixirSdk = createElixirSdk { sdk -> SdkFixtures.storedPairing(sdk, "Erlang 26 re-added", home) }
+        assertEquals(
+            "precondition: with the named SDK absent, the one at the home answers",
+            first,
+            resolver.resolveErlangSdk(elixirSdk, null),
+        )
+
+        val named = SdkFixtures.register(SdkFixtures.erlangSdk("Erlang 26 re-added", home), testRootDisposable)
+
+        assertEquals(named, resolver.resolveErlangSdk(elixirSdk, null))
+    }
+
+    /** An SDK at the home renamed to the stored name, after a lookup answered another, wins without a restart. */
+    fun testAnSdkRenamedToTheStoredNameAfterALookupWins() {
+        val home = "/fake/erlang/26.0"
+        val first = SdkFixtures.register(SdkFixtures.erlangSdk("Erlang 26 first", home), testRootDisposable)
+        SdkFixtures.register(SdkFixtures.erlangSdk("Erlang 26 second", home), testRootDisposable)
+        val elixirSdk = createElixirSdk { sdk -> SdkFixtures.storedPairing(sdk, "Erlang 26 named", home) }
+        assertEquals(
+            "precondition: with no SDK of the stored name, the first at the home answers",
+            first,
+            resolver.resolveErlangSdk(elixirSdk, null),
+        )
+
+        val renamed = SdkFixtures.renameInTable("Erlang 26 second", "Erlang 26 named")
+
+        assertEquals(renamed, resolver.resolveErlangSdk(elixirSdk, null))
+    }
+
+    fun testWithNoNamedSdkAtTheHomeTheFirstWins() {
+        val home = "/fake/erlang/26.0"
+        val first = SdkFixtures.erlangSdk("Erlang 26", home)
+        val second = SdkFixtures.erlangSdk("Erlang 26 (2)", home)
+        // The stored name names an SDK at another home, which the home outranks.
+        val namedElsewhere = SdkFixtures.erlangSdk("Erlang 26 elsewhere", "/fake/erlang/27.0")
+        val elixirSdk = createElixirSdk { sdk -> SdkFixtures.storedPairing(sdk, namedElsewhere.name, home) }
+
+        assertEquals(first, resolver.resolveErlangSdk(elixirSdk, ListedSdkModel(namedElsewhere, first, second)))
     }
 
     fun testResolveByName_legacyFallback() {
@@ -153,10 +224,11 @@ class ErlangSdkResolverTest : PlatformTestCase() {
             SdkFixtures.storedPairing(sdk, configuredName)
         }
 
-        val result = resolver.resolveErlangSdkResult(elixirSdk, ListedSdkModel(erlangSdk))
-
-        assertTrue("Should resolve by name as legacy fallback", result is ErlangSdkResult.Success)
-        assertEquals(erlangSdk, (result as ErlangSdkResult.Success).sdk)
+        assertEquals(
+            "Should resolve by name as legacy fallback",
+            erlangSdk,
+            resolver.resolveErlangSdk(elixirSdk, ListedSdkModel(erlangSdk)),
+        )
     }
 
     /** An Elixir SDK with the additional data [additionalDataProvider] gives it committed, if any. */

@@ -116,11 +116,6 @@ object SdkHomePaths {
     }
 
     @JvmStatic
-    fun mergeMise(homePathByVersion: MutableMap<SdkHomeKey, String>, name: String) {
-        mergeMise(homePathByVersion, name, System.getProperty("user.home"))
-    }
-
-    @JvmStatic
     fun mergeMise(homePathByVersion: MutableMap<SdkHomeKey, String>, name: String, userHome: String) {
         listOf(SdkPaths.MISE_POSIX_PATH_FROM_HOME, SdkPaths.MISE_WINDOWS_PATH_FROM_HOME).forEach { misePath ->
             mergeNameSubdirectories(

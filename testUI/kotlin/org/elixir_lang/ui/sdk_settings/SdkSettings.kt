@@ -23,6 +23,7 @@ import com.intellij.ide.starter.driver.engine.runIdeWithDriver
 import com.intellij.ide.starter.ide.IDETestContext
 import com.intellij.ide.starter.ide.IdeProductProvider
 import com.intellij.ide.starter.models.IdeInfo
+import com.intellij.ide.starter.models.VMOptions
 import org.elixir_lang.ui.framework.core.AddedSdk
 import org.elixir_lang.ui.framework.core.IdeTestContext
 import org.elixir_lang.ui.framework.core.NoScreen
@@ -76,18 +77,20 @@ private const val INTERNAL_ERRORS_CLOSE =
  * One PyCharm launch under the guard. The rows' homes: A, the installs the build resolves, and B, copies of them in the
  * private home whose version files name another version.
  */
-fun launchPyCharm(name: String, body: Driver.(Homes) -> Unit) = launch(name, IdeProductProvider.PY, body)
+fun launchPyCharm(name: String, body: Driver.(Homes) -> Unit) = launch(name, IdeProductProvider.PY, {}, body)
 
-/** One IntelliJ IDEA launch under the guard, with the homes of [launchPyCharm]. */
-fun launchIdea(name: String, body: Driver.(Homes) -> Unit) = launch(name, IdeProductProvider.IU, body)
+/** One IntelliJ IDEA launch under the guard, with the homes of [launchPyCharm] and [vmOptions] applied. */
+fun launchIdea(name: String, vmOptions: VMOptions.() -> Unit = {}, body: Driver.(Homes) -> Unit) =
+    launch(name, IdeProductProvider.IU, vmOptions, body)
 
-private fun launch(name: String, product: IdeInfo, body: Driver.(Homes) -> Unit) {
+private fun launch(name: String, product: IdeInfo, vmOptions: VMOptions.() -> Unit, body: Driver.(Homes) -> Unit) {
     val homes = Homes.stage()
     val context = IdeTestContext.setupTestContext(name, product).applyVMOptionsPatch {
         // The private home sits under the real one, so mise's config walk would reach the real home's configs.
         withEnv("MISE_CEILING_PATHS", NoScreen.privateHome.toString())
         // The logger mutes an exception's repeats, so a second row's identical throw would reach no error check.
         addSystemProperty("idea.logger.exception.expiration.minutes", 0)
+        vmOptions()
     }
     try {
         context.runIdeWithDriver(runTimeout = 30.minutes).useDriverAndCloseIde { body(homes) }

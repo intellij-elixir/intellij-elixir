@@ -35,13 +35,14 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.ui.dsl.builder.*
 import com.intellij.ui.layout.ValidationInfoBuilder
+import com.intellij.util.concurrency.annotations.RequiresEdt
 import kotlinx.coroutines.CancellationException
-import org.elixir_lang.Elixir
 import org.elixir_lang.Mix
 import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.module.ElixirModuleBuilder
 import org.elixir_lang.sdk.SdkDetectionContext
 import org.elixir_lang.sdk.SdkEnvironment
+import org.elixir_lang.sdk.elixir.ElixirInternalErlangSdkSetup
 import org.elixir_lang.sdk.elixir.Type
 import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResolver
 import java.io.IOException
@@ -62,10 +63,7 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
     override val mixNewSupProperty = propertyGraph.property(false)
     override val mixNewUmbrellaProperty = propertyGraph.property(false)
 
-    // Stored in newSdkCallback so setupProject can ensure the Erlang SDK is in
-    // ProjectJdkTable at mix-command time, even if the workspace-model sync has
-    // already wiped it out (IJ 2026+). setupProject runs on the EDT so no sync
-    // can fire between addJdk and the resolver call.
+    // The selected SDK's Erlang SDK, when the combo's step paired it, for setupProject to add to the table.
     private var erlangSdkForSetup: Sdk? = null
 
     override var sdk by sdkProperty
@@ -145,13 +143,14 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
             // the EDT so no sync can interleave between addJdk and the resolver call.
             ApplicationManager.getApplication().runWriteAction {
                 val jdkTable = ProjectJdkTable.getInstance()
-                if (jdkTable.findJdk(sdk.name) == null) {
-                    jdkTable.addJdk(sdk)
-                }
+                // The Erlang SDK first: added after the Elixir SDK, its `jdkAdded` would set that SDK up again.
                 erlangSdkForSetup?.let { erlangSdk ->
                     if (jdkTable.findJdk(erlangSdk.name) == null) {
                         jdkTable.addJdk(erlangSdk)
                     }
+                }
+                if (jdkTable.findJdk(sdk.name) == null) {
+                    jdkTable.addJdk(sdk)
                 }
             }
             erlangSdkForSetup = null  // Clear after use; Step is wizard-scoped so no leak, but signals intent
@@ -253,7 +252,7 @@ fun Row.elixirSdkComboBox(
     context: WizardContext,
     sdkProperty: ObservableMutableProperty<Sdk?>,
     locationProperty: ObservableProperty<String>? = null,
-    onErlangSdkRegistered: (Sdk) -> Unit = {},
+    onErlangSdkForSetup: (Sdk?) -> Unit = {},
 ): Cell<JdkComboBox> {
     val sdksModel = ProjectSdksModel()
 
@@ -265,29 +264,15 @@ fun Row.elixirSdkComboBox(
     fun locationDirectory(): String? = locationProperty?.get()?.takeUnless(String::isBlank)
     fun targetDescriptor() = locationDirectory()?.let { SdkEnvironment.eelDescriptor(it) }
 
-    // After setupSdkPaths runs on a newly created Elixir SDK, verify it has a linked Erlang SDK.
-    // If not (e.g. user cancelled the Erlang SDK selection dialog), remove it from the staged model
-    // and clear the combo box selection so the wizard returns to "No SDK".
+    // A new Elixir SDK's Erlang SDK, asked for when it has none, goes to setupProject, which adds both to the table,
+    // while that SDK is the one selected.
+    val erlangSdkForSetup = mutableMapOf<Sdk, Sdk>()
     // comboBox is assigned after this lambda but will be initialised by the time the callback fires.
     lateinit var comboBox: JdkComboBox
     val newSdkCallback: (Sdk) -> Unit = { sdk ->
-        val erlangSdk = Elixir.elixirSdkToErlangSdk(sdk)
-        if (erlangSdk == null) {
-            sdksModel.removeSdk(sdk)
-            comboBox.reloadModel()
-            comboBox.selectedJdk = null
-        } else {
-            // The Erlang SDK was registered into ProjectJdkTable by registerErlangSdk /
-            // SdkRegistrar. Add the Elixir SDK to sdksModel (not yet in JdkTable) so that
-            // sdksModel.apply() on wizard commit can commit it cleanly.
-            // ErlangSdkResolver checks both sdksModel and ProjectJdkTable, so the Erlang
-            // SDK is found during validation without requiring a model reset.
-            // Note: this does NOT prevent the workspace-model sync from wiping the SDKs
-            // later - that is handled in setupProject via runWriteAction re-registration.
-            sdksModel.addSdk(sdk)
-            comboBox.reloadModel()
-            comboBox.selectedJdk = sdk
-            onErlangSdkRegistered(erlangSdk)
+        comboBox.erlangSdkOrAsk(sdksModel, sdk)?.let { erlangSdk ->
+            erlangSdkForSetup[sdk] = erlangSdk
+            onErlangSdkForSetup(erlangSdk)
         }
     }
 
@@ -313,10 +298,27 @@ fun Row.elixirSdkComboBox(
     }
     syncForLocation()
     locationProperty?.afterChange(context.disposable) { syncForLocation() }
+    sdkProperty.afterChange(context.disposable) { onErlangSdkForSetup(it?.let(erlangSdkForSetup::get)) }
 
     return cell(comboBox)
         .validationOnApply { validateElixirSdk(sdkProperty, sdksModel) }
 }
+
+/**
+ * [ElixirInternalErlangSdkSetup.erlangSdkOrAsk] for [sdk], a new SDK in this combo's [sdksModel], asked over this combo,
+ * which then selects [sdk], or nothing on Cancel.
+ */
+@RequiresEdt
+internal fun JdkComboBox.erlangSdkOrAsk(sdksModel: ProjectSdksModel, sdk: Sdk): Sdk? =
+    ElixirInternalErlangSdkSetup.erlangSdkOrAsk(sdksModel, sdk, this).also { erlangSdk ->
+        if (erlangSdk == null) {
+            // Selecting null doesn't reload the combo's list; selecting an SDK does.
+            reloadModel()
+            selectedJdk = null
+        } else {
+            selectedJdk = sdk
+        }
+    }
 
 fun ValidationInfoBuilder.validateElixirSdk(
     sdkProperty: ObservableProperty<Sdk?>,

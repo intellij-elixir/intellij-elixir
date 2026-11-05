@@ -6,12 +6,23 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
+import com.intellij.openapi.roots.ui.configuration.JdkComboBox
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.platform.eel.provider.getEelDescriptor
+import com.intellij.testFramework.common.runAll
 import com.intellij.testFramework.registerOrReplaceServiceInstance
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.new_project_wizard.pickDetected
 import org.elixir_lang.sdk.SdkDetectionContext
+import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.elixir.Type
+import org.elixir_lang.sdk.erlang_dependent.Asked
+import org.elixir_lang.sdk.erlang_dependent.ScriptedErlangStep
+import org.elixir_lang.sdk.erlang_dependent.StepAnswer
+import org.elixir_lang.sdk.erlang_dependent.elixirAdditionalData
+import org.elixir_lang.sdk.erlang_dependent.elixirInstall
+import org.elixir_lang.sdk.erlang_dependent.install
+import org.elixir_lang.sdk.wsl.wslCompat
 import org.elixir_lang.sdk.wsl.LEGACY_WSL_PREFIX
 import org.elixir_lang.sdk.wsl.MODERN_WSL_PREFIX
 import org.elixir_lang.sdk.wsl.MockWslCompatService
@@ -42,20 +53,57 @@ import java.nio.file.Path
  */
 @Suppress("UnstableApiUsage")
 class ElixirSdkForModuleStepTest : PlatformTestCase() {
+    private val asked = Asked()
+    private lateinit var table: SdkFixtures.TableSnapshot
 
     override fun setUp() {
         super.setUp()
+        table = SdkFixtures.TableSnapshot()
+        asked.recordMessages(testRootDisposable)
         installWslCompatService(MockWslCompatService())
     }
 
-    override fun tearDown() {
-        try {
-            // updateStep() publishes the import directory application-wide; don't leak it
-            SdkDetectionContext.clear()
-        } finally {
-            super.tearDown()
-        }
+    override fun tearDown() = runAll(
+        // updateStep() publishes the import directory application-wide; don't leak it
+        { SdkDetectionContext.clear() },
+        { table.restore() },
+        { super.tearDown() },
+    )
+
+    fun testADetectedPickAsksAndAPickPairsAndSelectsIt() {
+        val erlang = SdkFixtures.register(SdkFixtures.erlangSdk("Import picked Erlang", install("27", "27.3.4")))
+        script(ScriptedErlangStep.pick(erlang.name))
+        val step = step(localImportDirectory()).apply { updateStep() }
+        val combo = step.preferredFocusedComponent as JdkComboBox
+
+        combo.pickDetected(elixirInstall("1.18.4", "27"))
+
+        assertEquals(listOf("erlang"), asked.events)
+        val selected = combo.selectedJdk ?: throw AssertionError("the picked SDK is selected")
+        assertEquals(erlang.name, selected.elixirAdditionalData?.getErlangSdkName())
+        assertTrue("Next is enabled", step.validate())
     }
+
+    fun testCancelClearsAPriorPick() {
+        val erlang = SdkFixtures.register(SdkFixtures.erlangSdk("Import prior Erlang", install("27", "27.3.4")))
+        script(ScriptedErlangStep.pick(erlang.name), ScriptedErlangStep.cancel)
+        val step = step(localImportDirectory()).apply { updateStep() }
+        val combo = step.preferredFocusedComponent as JdkComboBox
+        combo.pickDetected(elixirInstall("1.18.4", "27"))
+        val home = elixirInstall("1.17.3", "27")
+
+        combo.pickDetected(home)
+
+        assertNull("the combo is empty", combo.selectedJdk)
+        assertFalse("Next is disabled", step.validate())
+        assertTrue(
+            "the cancelled SDK is out of the model, so no Apply commits it",
+            step.projectSdksModel.sdks.none { wslCompat.pathsEqualWslAware(it.homePath, home) },
+        )
+    }
+
+    private fun script(vararg answers: StepAnswer): ScriptedErlangStep =
+        ScriptedErlangStep(asked, *answers).install(testRootDisposable)
 
     private fun installWslCompatService(service: WslCompatService) {
         ApplicationManager.getApplication().registerOrReplaceServiceInstance(

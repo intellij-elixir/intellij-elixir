@@ -19,42 +19,25 @@ import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
 
 object SdkRegistrar {
-    /**
-     * Canonicalises [homePath], resolves the version string and SDK name, and builds an SDK
-     * template for registration. Returns null if the path or version cannot be resolved.
-     * Shared by both the suspend ([registerOrUpdateErlangSdk]) and synchronous
-     * ([org.elixir_lang.sdk.elixir.ElixirInternalErlangSdkSetup.registerErlangSdk]) registration paths.
-     */
-    internal fun prepareErlangSdk(
-        homePath: String,
-        resolvedVersion: String? = null,
-        alreadyCanonical: Boolean = false,
-    ): PreparedErlangSdk? {
-        val canonicalHomePath = if (alreadyCanonical) homePath else canonicalHomePath(homePath) ?: return null
-        val sdkType = ErlangSdkType.instance
-        // The suspend path has filled the store already; the synchronous one arrives with nothing read.
-        if (!alreadyCanonical) SdkVersionsFiller.fillIfUnreadBlocking(canonicalHomePath)
-        val release = SdkVersionsStore.getInstance().otpRelease(canonicalHomePath)
-        val versionString =
-            ErlangSdkType.versionStringForHome(canonicalHomePath, resolvedVersion, release) ?: return null
-        val sdkName = ErlangSdkType.suggestSdkNameForHome(canonicalHomePath, resolvedVersion, release)
-        return PreparedErlangSdk(ProjectJdkImpl(sdkName, sdkType, canonicalHomePath, versionString))
-    }
-
-    internal class PreparedErlangSdk(val template: ProjectJdkImpl)
-
+    /** Registers the Erlang SDK at [homePath], reusing the one already registered there. */
     suspend fun registerOrUpdateErlangSdk(
         homePath: String,
         resolvedVersion: String? = null,
     ): Sdk? {
         val canonicalHomePath = canonicalHomePath(homePath) ?: return null
+        val sdkType = ErlangSdkType.instance
         SdkVersionsFiller.fillCanonical(canonicalHomePath)
-        val prepared = prepareErlangSdk(canonicalHomePath, resolvedVersion, alreadyCanonical = true) ?: return null
-        val registeredSdk = edtWriteAction {
-            registerOrUpdatePreparedErlangSdk(prepared, ProjectJdkTable.getInstance())
+        val release = SdkVersionsStore.getInstance().otpRelease(canonicalHomePath)
+        val versionString =
+            ErlangSdkType.versionStringForHome(canonicalHomePath, resolvedVersion, release) ?: return null
+        val sdkName = ErlangSdkType.suggestSdkNameForHome(canonicalHomePath, resolvedVersion, release)
+        // Set up before it is added, so an Elixir SDK followed at `jdkAdded` gets its code paths.
+        val updatedSdk = ProjectJdkImpl(sdkName, sdkType, canonicalHomePath, versionString)
+        sdkType.setupSdkPaths(updatedSdk)
+        return edtWriteAction {
+            val table = ProjectJdkTable.getInstance()
+            registerOrUpdate(findSdkByHomePath(sdkType, canonicalHomePath, table), updatedSdk, table)
         }
-        ErlangSdkType.instance.setupSdkPaths(registeredSdk)
-        return registeredSdk
     }
 
     @RequiresBackgroundThread
@@ -139,17 +122,6 @@ object SdkRegistrar {
     }
 
     @RequiresWriteLock
-    internal fun registerOrUpdatePreparedErlangSdk(
-        prepared: PreparedErlangSdk,
-        table: ProjectJdkTable,
-    ): Sdk {
-        ThreadingAssertions.assertWriteAccess()
-        val template = prepared.template
-        val existing = template.homePath?.let { findSdkByHomePath(template.sdkType, it, table) }
-        return registerOrUpdate(existing, template, table)
-    }
-
-    @RequiresWriteLock
     private fun registerOrUpdate(
         existing: Sdk?,
         updatedSdk: Sdk,
@@ -186,6 +158,13 @@ object SdkRegistrar {
      */
     internal fun findElixirSdkByVariant(sdks: Iterable<Sdk>, homePath: String, erlangHome: String?, erlangName: String?): Sdk? =
         sdks.firstOrNull { sdk -> onInstall(sdk, homePath) && sameErlangHome(sdk, erlangHome, erlangName) }
+
+    /** The Elixir SDKs in the table on the install at [homePath], whichever Erlang SDK each is paired with. */
+    @RequiresBackgroundThread
+    suspend fun elixirSdksOnInstall(homePath: String): List<Sdk> {
+        val canonicalHomePath = canonicalHomePath(homePath) ?: return emptyList()
+        return readAction { ProjectJdkTable.getInstance().allJdks.filter { onInstall(it, canonicalHomePath) } }
+    }
 
     /** [sdk] is an Elixir SDK on the install at [homePath]: the variant rule's first half. */
     internal fun onInstall(sdk: Sdk, homePath: String): Boolean =
