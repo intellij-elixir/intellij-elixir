@@ -12,6 +12,9 @@ object LegManifest {
 
     fun ebin(): File = File(environment("ELIXIR_LANG_ELIXIR_PATH"), "lib/elixir/ebin")
 
+    /** The leg's file at [path] under `lib/elixir`, such as `lib/string.ex`. */
+    fun source(path: String): File = File(ebin().parentFile, path)
+
     /** Fails unless [body] matches the manifest [name] committed for the leg's Elixir version, which [test] regenerates. */
     fun assertMatchesLeg(test: KClass<*>, name: String, body: String) {
         val elixirVersion = environment("ELIXIR_VERSION")

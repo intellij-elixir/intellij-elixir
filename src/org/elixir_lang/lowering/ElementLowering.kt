@@ -71,7 +71,7 @@ object ElementLowering {
                 }
             }
 
-        return byLevel[languageLevel] ?: run {
+        return byLevel.getOrPut(languageLevel) {
             LoweringCounters.count(LoweringCounters.lineIndexes)
             val countsEveryNewline = NEWLINE_COUNTED_IN_CHARACTER.isSufficient(languageLevel) &&
                 ESCAPED_NEWLINE_COUNTED_IN_LITERAL_SIGIL_LINE.isSufficient(languageLevel)
@@ -81,9 +81,7 @@ object ElementLowering {
                 } else {
                     Tokenization.scan(root, text, languageLevel, newlines = true, columns = false).uncountedNewlines
                 }
-            val starts = Lines.starts(text, uncounted)
-
-            byLevel.putIfAbsent(languageLevel, starts) ?: starts
+            Lines.starts(text, uncounted)
         }
     }
 

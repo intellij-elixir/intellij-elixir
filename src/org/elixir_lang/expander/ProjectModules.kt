@@ -154,7 +154,8 @@ internal class ProjectModules(private val project: Project) {
             val copies: List<VirtualFile> get() = each.map { it.virtualFile }
         }
 
-        class Compiled(val beam: VirtualFile, val exports: ModuleExports) : Located
+        /** @property source the source [beam]'s library or SDK attaches, which writes its definitions, `null` where none */
+        class Compiled(val beam: VirtualFile, val exports: ModuleExports, val source: ElixirFile?) : Located
 
         /** @property result the module as [file]'s expansion compiled it, `null` where it didn't */
         class Source(val file: ElixirFile, val result: ExpansionResult?) : Located
@@ -179,7 +180,8 @@ internal class ProjectModules(private val project: Project) {
             is Choice.Several -> Located.Several(choice.copies)
             is Choice.One ->
                 when (val copy = choice.copy) {
-                    is Copy.Compiled -> Located.Compiled(copy.virtualFile, compiled(copy.virtualFile).exports)
+                    is Copy.Compiled ->
+                        Located.Compiled(copy.virtualFile, compiled(copy.virtualFile).exports, copy.source?.let { read(it) })
                     is Copy.Source -> {
                         val file = if (copy.virtualFile == fileOf(asker)) asker as? ElixirFile ?: copy.file else copy.file
                         val held = held(file, inputs)
@@ -344,14 +346,16 @@ internal class ProjectModules(private val project: Project) {
         val held = heldCopies(asker, atom)
         val chosen = held.chosen.mapNotNull { copy ->
             if (copy.compiled) {
-                Copy.Compiled(copy.virtualFile)
+                compiledCopy(copy)
             } else {
-                (PsiManager.getInstance(project).findFile(copy.virtualFile) as? ElixirFile)?.let { Copy.Source(it, copy.virtualFile) }
+                read(copy.virtualFile)?.let { Copy.Source(it, copy.virtualFile) }
             }
         }
 
-        return chosen to held.fallback.map { Copy.Compiled(it.virtualFile) }
+        return chosen to held.fallback.map(::compiledCopy)
     }
+
+    private fun compiledCopy(copy: HeldCopy): Copy.Compiled = Copy.Compiled(copy.virtualFile, copy.source)
 
     /** What moves the copies a file holds: a file added, moved or deleted, a module name defined or dropped, a root. */
     fun copyTrackers(): Array<Any> =
@@ -370,17 +374,20 @@ internal class ProjectModules(private val project: Project) {
             },
             false,
         )
-        byAtom[atom]?.let { return it }
 
-        val loadable = Module.resolveLoadable(asker, org.elixir_lang.Module.indexName(atom))
-        val chosen = Resolver.preferred(asker, false, loadable).mapNotNull { copy(it.element) }.distinctBy { it.virtualFile }
-        val chosenFiles = chosen.mapTo(HashSet()) { it.virtualFile }
-        val fallback = loadable.mapNotNull { copy(it.element) }
-            .filter { it.compiled && it.virtualFile !in chosenFiles && isDependencyOutput(it.virtualFile) }
-            .distinctBy { it.virtualFile }
-        val copies = HeldCopies(chosen, fallback)
+        return byAtom.getOrPut(atom) {
+            val loadable = Module.resolveLoadable(asker, org.elixir_lang.Module.indexName(atom))
+            val chosen = Resolver.preferred(asker, false, loadable.loaded).mapNotNull { copy(it.element) }.distinctBy { it.virtualFile }
+            val chosenFiles = chosen.mapTo(HashSet()) { it.virtualFile }
+            val fallback = loadable.loaded.mapNotNull { copy(it.element) }
+                .filter { it.compiled && it.virtualFile !in chosenFiles && isDependencyOutput(it.virtualFile) }
+                .distinctBy { it.virtualFile }
+            val paired = { copy: HeldCopy ->
+                if (copy.compiled) HeldCopy(copy.virtualFile, true, loadable.sourceOf(copy.virtualFile)) else copy
+            }
 
-        return byAtom.putIfAbsent(atom, copies) ?: copies
+            HeldCopies(chosen.map(paired), fallback.map(paired))
+        }
     }
 
     private fun compiled(beam: VirtualFile): Answer {
@@ -933,8 +940,11 @@ internal class ProjectModules(private val project: Project) {
     private fun compileDirectory(file: VirtualFile): String? =
         generateSequence(file.parent) { it.parent }.firstOrNull { it.findChild(MIX_EXS) != null }?.path
 
-    /** A [Copy] as held: its file, and whether it is a `.beam`. */
-    private class HeldCopy(val virtualFile: VirtualFile, val compiled: Boolean)
+    /**
+     * A [Copy] as held: its file, whether it is a `.beam`, and for a `.beam`, the source its library or SDK attaches
+     * ([Module.Loadable.sourceOf]).
+     */
+    private class HeldCopy(val virtualFile: VirtualFile, val compiled: Boolean, val source: VirtualFile? = null)
 
     /**
      * A name's copies as held: the [chosen], as [Resolver.preferred] orders them, and the [fallback], the `.beam`s of the
@@ -946,7 +956,8 @@ internal class ProjectModules(private val project: Project) {
     internal sealed interface Copy {
         val virtualFile: VirtualFile
 
-        data class Compiled(override val virtualFile: VirtualFile) : Copy
+        /** @property source the source its library or SDK attaches, as [Located.Compiled.source] */
+        data class Compiled(override val virtualFile: VirtualFile, val source: VirtualFile?) : Copy
         data class Source(val file: ElixirFile, override val virtualFile: VirtualFile) : Copy
     }
 

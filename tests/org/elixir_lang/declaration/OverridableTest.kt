@@ -2,6 +2,7 @@ package org.elixir_lang.declaration
 
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.model.psi.PsiSymbolReferenceService
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
@@ -302,6 +303,54 @@ class OverridableTest : PlatformTestCase() {
         )
 
         assertEquals(listOf("6 -> []", "7 -> []"), kept(incompleteCode = true))
+    }
+
+    /** A `defoverridable` written after a definition makes it overridable once the file changes. */
+    fun testADefoverridableAddedAfterADefinitionMakesItOverridable() {
+        configure(
+            """
+            defmodule M do
+              def f(original), do: original
+              def f(user), do: user
+
+              def run(y), do: f(y<caret>)
+            end
+            """
+        )
+        assertEquals(listOf("2 -> []", "3 -> []"), kept(incompleteCode = false))
+
+        val document = myFixture.editor.document
+        WriteCommandAction.runWriteCommandAction(project) {
+            document.insertString(document.getLineStartOffset(2), "  defoverridable f: 1\n")
+        }
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+
+        assertEquals(listOf("4 -> []"), kept(incompleteCode = false))
+    }
+
+    /** A `defoverridable` in another module's body, later in the file, doesn't follow the definition. */
+    fun testADefoverridableInALaterModuleLeavesTheDefinitionTheUsers() {
+        configure(
+            """
+            defmodule M do
+              def f(original), do: original
+
+              defoverridable f: 1
+
+              def f(user), do: user
+
+              def run(y), do: f(y<caret>)
+            end
+
+            defmodule N do
+              def f(x), do: x
+
+              defoverridable f: 1
+            end
+            """
+        )
+
+        assertEquals(listOf("6 -> []"), kept(incompleteCode = false))
     }
 
     private fun configure(text: String) {

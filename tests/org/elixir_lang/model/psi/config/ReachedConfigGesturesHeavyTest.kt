@@ -2,26 +2,17 @@ package org.elixir_lang.model.psi.config
 
 import com.intellij.codeInsight.lookup.Lookup
 import com.intellij.find.usages.api.PsiUsage
-import com.intellij.openapi.module.Module
-import com.intellij.openapi.util.io.FileUtil
+import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.testFramework.IndexingTestUtil
-import com.intellij.testFramework.TestApplicationManager
-import com.intellij.testFramework.UsefulTestCase
-import com.intellij.testFramework.builders.EmptyModuleFixtureBuilder
-import com.intellij.testFramework.fixtures.CodeInsightTestFixture
-import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
-import com.intellij.util.ThrowableRunnable
 import org.elixir_lang.code_insight.GtduNavigation
 import org.elixir_lang.code_insight.gtduNavigationAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
-import org.elixir_lang.declaration.SOURCE_PROPERTY
 import org.elixir_lang.declaration.enableExpander
-import org.elixir_lang.expander.LegSdk
+import org.elixir_lang.expander.LegSdkFixtureTestCase
 import org.elixir_lang.expander.ProjectModules
 import org.elixir_lang.expander.SdkInputs
 import org.elixir_lang.inspection.UnreadConfigKey
-import org.elixir_lang.junit.logs.UnexpectedLogs
 import org.elixir_lang.settings.ElixirExperimentalSettings
 
 /**
@@ -29,45 +20,9 @@ import org.elixir_lang.settings.ElixirExperimentalSettings
  * `import_config` reaches. On disk, like [ReachedConfigFilesHeavyTest], in a `CodeInsightTestFixture` whose files are
  * real ones.
  */
-class ReachedConfigGesturesHeavyTest : UsefulTestCase() {
-    private lateinit var myFixture: CodeInsightTestFixture
-    private lateinit var module: Module
-    private var savedProperty: String? = null
-
-    @Throws(Throwable::class)
-    override fun runBare(testRunnable: ThrowableRunnable<Throwable>) {
-        UnexpectedLogs.failOnUnexpectedLogs {
-            TestApplicationManager.getInstance()
-            super.runBare(testRunnable)
-        }
-    }
-
-    override fun setUp() {
-        savedProperty = System.getProperty(SOURCE_PROPERTY)
-        System.clearProperty(SOURCE_PROPERTY)
-        super.setUp()
-
-        val factory = IdeaTestFixtureFactory.getFixtureFactory()
-        val builder = factory.createFixtureBuilder("${javaClass.name}.$name")
-        myFixture = factory.createCodeInsightFixture(builder.fixture)
-        val moduleBuilder = builder.addModule(EmptyModuleFixtureBuilder::class.java)
-        moduleBuilder.addSourceContentRoot(myFixture.tempDirPath)
-        myFixture.setUp()
-        module = moduleBuilder.fixture.module
-        // The fixture's own disposable, which goes before the fixture's check for leaked SDKs.
-        disableMixDepsCheck(myFixture.testRootDisposable)
-        LegSdk.setUp(module, myFixture.testRootDisposable)
+class ReachedConfigGesturesHeavyTest : LegSdkFixtureTestCase() {
+    override fun setUpSdk(sdk: Sdk) {
         enableExpander(myFixture.testRootDisposable)
-    }
-
-    override fun tearDown() {
-        try {
-            LegSdk.tearDown(module)
-            myFixture.tearDown()
-        } finally {
-            savedProperty?.let { System.setProperty(SOURCE_PROPERTY, it) } ?: System.clearProperty(SOURCE_PROPERTY)
-            super.tearDown()
-        }
     }
 
     fun testReadGoesToASettingInAnImportedSubfolderFile() {
@@ -151,20 +106,9 @@ class ReachedConfigGesturesHeavyTest : UsefulTestCase() {
         IndexingTestUtil.waitUntilIndexesAreReady(this.project)
     }
 
-    private val project get() = myFixture.project
-
     private fun destinations(): List<String> =
         when (val navigation = myFixture.gtduNavigationAtCaret()) {
-            is GtduNavigation.GotoDeclaration -> navigation.targets.map { target ->
-                val destination = target.destination!!
-                val file = destination.containingFile
-                val line = StringUtil.offsetToLineNumber(file.text, destination.textRange.startOffset) + 1
-
-                val base = FileUtil.toSystemIndependentName(myFixture.tempDirPath)
-                val path = FileUtil.toSystemIndependentName(file.virtualFile.path)
-
-                "${FileUtil.getRelativePath(base, path, '/')}:$line"
-            }.sorted()
+            is GtduNavigation.GotoDeclaration -> navigation.targets.map { place(it.destination!!) }.sorted()
             GtduNavigation.None, is GtduNavigation.ShowUsages -> emptyList()
         }
 

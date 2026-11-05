@@ -1,19 +1,18 @@
 package org.elixir_lang.expander
 
 import com.intellij.openapi.util.io.FileUtil
-import com.intellij.openapi.util.text.StringUtil
-import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.testFramework.LightProjectDescriptor
 import com.intellij.util.system.OS
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.Signature
-import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Definer
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.declaration.preferred
+import org.elixir_lang.expander.ExpanderSourceRows.arity
+import org.elixir_lang.expander.ExpanderSourceRows.lineOf
 import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.WalkTestSupport
@@ -236,14 +235,7 @@ class ExpanderSourceUseTest : PlatformTestCase() {
     private fun found(file: PsiFile, call: String): List<Found> = ExpanderSource.candidates(Use.of(call(file, call))!!, inputs)
 
     /** The only call [call] in [file]. */
-    private fun call(file: PsiFile, call: String): Call {
-        val offset = file.text.indexOf(call)
-        assertTrue("`$call` once in the file", offset >= 0 && offset == file.text.lastIndexOf(call))
-
-        return generateSequence(file.findElementAt(offset)) { it.parent }
-            .filterIsInstance<Call>()
-            .first { it.textRange.startOffset == offset && it.text == call }
-    }
+    private fun call(file: PsiFile, call: String): Call = ExpanderSourceRows.call(file, call, call)
 
     private val inputs get() = ProjectModules.Inputs(legLevel(), legKernel, OS.CURRENT)
 
@@ -259,17 +251,6 @@ class ExpanderSourceUseTest : PlatformTestCase() {
             "${found.declaringModuleName()}.${declaration.name}/${arity(declaration.arity)} ${found.candidate.reach} " +
                 "${found.candidate.applicability} via [$via] ${found.element.containingFile.name} line " +
                 "${lineOf(found.element)} `${found.element.text.lines().first()}`"
-        }
-
-    private fun lineOf(element: PsiElement): Int =
-        StringUtil.offsetToLineNumber(element.containingFile.text, element.textRange.startOffset) + 1
-
-    private fun arity(arity: ArityKnowledge): String =
-        when (arity) {
-            is ArityKnowledge.Exact -> "${arity.arity}"
-            is ArityKnowledge.Range -> "${arity.minimum}..${arity.maximum}"
-            is ArityKnowledge.Open -> "${arity.minimum}+"
-            ArityKnowledge.Unknown -> "?"
         }
 
     private companion object {

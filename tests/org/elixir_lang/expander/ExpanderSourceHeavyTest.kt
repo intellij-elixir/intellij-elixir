@@ -1,15 +1,12 @@
 package org.elixir_lang.expander
 
 import com.intellij.codeInsight.lookup.LookupElement
-import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.util.io.FileUtil
-import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
-import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.PsiManager
@@ -22,21 +19,23 @@ import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.Signature
-import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.CandidateSource
-import org.elixir_lang.declaration.Declared
-import org.elixir_lang.declaration.EXPANDER
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Preferred
 import org.elixir_lang.declaration.Resolved
-import org.elixir_lang.declaration.SOURCE_PROPERTY
 import org.elixir_lang.declaration.Uncertain
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.declaration.preferred
 import org.elixir_lang.elixir_surface.LegManifest
+import org.elixir_lang.expander.ExpanderSourceRows.arity
+import org.elixir_lang.expander.ExpanderSourceRows.read
+import org.elixir_lang.expander.ExpanderSourceRows.render
+import org.elixir_lang.expander.ExpanderSourceRows.renderVisible
+import org.elixir_lang.expander.ExpanderSourceRows.use
+import org.elixir_lang.expander.ExpanderSourceRows.withExpanderSwitch
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
@@ -47,7 +46,6 @@ import org.elixir_lang.psi.scope.WalkTestSupport
 import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 import org.elixir_lang.reference.CaptureNameArity
 import java.io.File
-import java.util.concurrent.Callable
 
 /** What [ExpanderSource] answers a use with, in a project whose module has the leg's SDK. */
 class ExpanderSourceHeavyTest : HeavyTestCase() {
@@ -2495,39 +2493,6 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         return render(read { source.candidates(use, incompleteCode) })
     }
 
-    /** The use that is the call [call], found in the only occurrence of [context], or its last with [last]. */
-    private fun use(file: PsiFile, context: String, call: String, last: Boolean = false): Use.OfCall {
-        val text = file.text
-        val at = if (last) text.lastIndexOf(context) else text.indexOf(context)
-        assertTrue("`$context` in the file", at >= 0)
-        if (!last) assertEquals("`$context` once in the file", at, text.lastIndexOf(context))
-        val offset = text.indexOf(call, at)
-
-        return read {
-            val found = generateSequence(file.findElementAt(offset)) { it.parent }
-                .filterIsInstance<Call>()
-                .first { it.textRange.startOffset == offset && it.text == call }
-
-            Use.of(found)!!
-        }
-    }
-
-    private fun render(found: List<Found>): String =
-        read {
-            found.joinToString("\n") { found ->
-                val declaration = found.candidate.declaration
-                val arity = arity(declaration.arity)
-                val via = found.via.joinToString(" | ") { it.text.lines().first() }
-                val line = when (declaration.declared) {
-                    is Declared.Source -> " line ${lineOf(found.element)}"
-                    is Declared.Compiled -> ""
-                }
-
-                "${found.declaringModuleName()}.${declaration.name}/$arity ${found.candidate.reach} " +
-                    "${found.candidate.applicability} via [$via]$line${found.uncertain?.let { " $it" }.orEmpty()}"
-            }
-        }
-
     /** [preferred], each candidate then the targets it delegates to, indented, one per line. */
     private fun renderPreferred(preferred: List<Preferred>): String =
         preferred.joinToString("\n") { preferred ->
@@ -2544,41 +2509,5 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val position = use(file, context, call).entrance
 
         return read { ExpanderSource.visible(position) }
-    }
-
-    /** The 1-based line of [element] in its own file. */
-    private fun lineOf(element: PsiElement): Int =
-        StringUtil.offsetToLineNumber(element.containingFile.text, element.textRange.startOffset) + 1
-
-    /** [visible], one per line in name order, each with its arity and the line that declares it. */
-    private fun renderVisible(visible: List<Visible>): String =
-        read {
-            visible
-                .map { visible ->
-                    "${visible.lookupName}/${arity(visible.declaration!!.arity)} line ${lineOf(visible.element)}"
-                }
-                .sorted()
-                .joinToString("\n")
-        }
-
-    private fun arity(arity: ArityKnowledge): String =
-        when (arity) {
-            is ArityKnowledge.Exact -> "${arity.arity}"
-            is ArityKnowledge.Range -> "${arity.minimum}..${arity.maximum}"
-            is ArityKnowledge.Open -> "${arity.minimum}+"
-            ArityKnowledge.Unknown -> "?"
-        }
-
-    private fun <T> read(block: () -> T): T = ReadAction.nonBlocking(Callable { block() }).executeSynchronously()
-
-    /** [block] with the features answered by [ExpanderSource]. */
-    private fun <T> withExpanderSwitch(block: () -> T): T {
-        val switch = System.setProperty(SOURCE_PROPERTY, EXPANDER)
-
-        return try {
-            block()
-        } finally {
-            if (switch == null) System.clearProperty(SOURCE_PROPERTY) else System.setProperty(SOURCE_PROPERTY, switch)
-        }
     }
 }

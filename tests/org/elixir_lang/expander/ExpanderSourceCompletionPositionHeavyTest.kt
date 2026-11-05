@@ -1,9 +1,7 @@
 package org.elixir_lang.expander
 
 import com.intellij.codeInsight.completion.CompletionUtil
-import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.io.FileUtil
-import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.psi.PsiElement
@@ -14,16 +12,16 @@ import com.intellij.psi.impl.source.PsiFileImpl
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
-import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.CompletionPosition
 import org.elixir_lang.declaration.Use
+import org.elixir_lang.expander.ExpanderSourceRows.read
+import org.elixir_lang.expander.ExpanderSourceRows.renderVisible
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.reference.CaptureNameArity
 import java.io.File
-import java.util.concurrent.Callable
 
 /**
  * What [ExpanderSource] makes visible at the positions completion runs at that are not a call, in completion's copy of
@@ -172,26 +170,5 @@ class ExpanderSourceCompletionPositionHeavyTest : HeavyTestCase() {
     }
 
     /** What [ExpanderSource] makes visible at [position], in name order, each with its arity and the line that declares it. */
-    private fun render(position: CompletionPosition): String =
-        read {
-            ExpanderSource.visible(position)
-                .map { visible ->
-                    val declaration = visible.declaration!!
-                    val line = StringUtil.offsetToLineNumber(visible.element.containingFile.text, visible.element.textRange.startOffset) + 1
-
-                    "${visible.lookupName}/${arity(declaration.arity)} line $line"
-                }
-                .sorted()
-                .joinToString("\n")
-        }
-
-    private fun arity(arity: ArityKnowledge): String =
-        when (arity) {
-            is ArityKnowledge.Exact -> "${arity.arity}"
-            is ArityKnowledge.Range -> "${arity.minimum}..${arity.maximum}"
-            is ArityKnowledge.Open -> "${arity.minimum}+"
-            ArityKnowledge.Unknown -> "?"
-        }
-
-    private fun <T> read(block: () -> T): T = ReadAction.nonBlocking(Callable { block() }).executeSynchronously()
+    private fun render(position: CompletionPosition): String = renderVisible(read { ExpanderSource.visible(position) })
 }

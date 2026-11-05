@@ -2,7 +2,9 @@ package org.elixir_lang.reference.resolver
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.DumbService
+import com.intellij.openapi.roots.LibraryOrSdkOrderEntry
 import com.intellij.openapi.roots.LibraryOrderEntry
+import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.vfs.VfsUtilCore
@@ -16,6 +18,7 @@ import com.intellij.psi.impl.source.resolve.ResolveCache
 import com.intellij.psi.stubs.StubIndex
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.errorreport.Logger
+import org.elixir_lang.facet.FacetModels
 import org.elixir_lang.mix.buildEnv
 import org.elixir_lang.mix.defaultBuildEnv
 import org.elixir_lang.mix.sync.isConsolidatedLibraryName
@@ -103,11 +106,55 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
         org.elixir_lang.reference.Resolver.preferred(element, incompleteCode, resolveAll(element, name, incompleteCode, inScope))
 
     /**
-     * The modulars named [name], an index name as [resolvePreferred] takes it, that Elixir would load for [element]
-     * ([loadedCopies]), with no preference among them.
+     * The modulars named [name], an index name as [resolvePreferred] takes it, in [element]'s view, and those of them
+     * Elixir would load for [element] ([loadedCopies]), with no preference among them.
      */
-    fun resolveLoadable(element: PsiElement, name: String): List<VisitedElementSetResolveResult> =
-        loadedCopies(element, resolveAll(element, name, incompleteCode = false, inScope = false))
+    fun resolveLoadable(element: PsiElement, name: String): Loadable {
+        val all = resolveAll(element, name, incompleteCode = false, inScope = false)
+
+        return Loadable(element, loadedCopies(element, all), all)
+    }
+
+    /** @property loaded those of [all], the modulars named in [asker]'s view, Elixir would load */
+    class Loadable(
+        private val asker: PsiElement,
+        val loaded: List<VisitedElementSetResolveResult>,
+        private val all: List<VisitedElementSetResolveResult>,
+    ) {
+        /**
+         * The CLASSES and SOURCES roots of each library or SDK entry of [asker]'s IDE module and of the SDK its facet
+         * names, the roots [narrowedScope] searches.
+         */
+        private val entries: List<Pair<Set<VirtualFile>, Array<VirtualFile>>> by lazy(LazyThreadSafetyMode.NONE) {
+            val module = moduleOf(asker) ?: return@lazy emptyList()
+
+            val roots = ModuleRootManager.getInstance(module).orderEntries.filterIsInstance<LibraryOrSdkOrderEntry>().map {
+                it.getRootFiles(OrderRootType.CLASSES) to it.getRootFiles(OrderRootType.SOURCES)
+            } + listOfNotNull(FacetModels.getInstance(module.project).roots(module))
+
+            roots.map { (classes, sources) -> classes.toSet() to sources }
+        }
+
+        /** The files of [all]'s source copies, one per modular. */
+        private val sourceFiles: List<VirtualFile> by lazy(LazyThreadSafetyMode.NONE) {
+            all.filterNot { it.isBeam }.mapNotNull { it.file }
+        }
+
+        /**
+         * The file of the one copy of [all] the entry of [asker]'s IDE module that holds [beam] attaches as source;
+         * `null` when it attaches none or several, counted by modular.
+         */
+        @RequiresReadLock
+        fun sourceOf(beam: VirtualFile): VirtualFile? {
+            if (sourceFiles.isEmpty()) return null
+
+            val sources = entries.filter { (classes, _) -> VfsUtilCore.isUnder(beam, classes) }
+                .flatMapTo(HashSet()) { (_, sources) -> sources.asIterable() }
+            if (sources.isEmpty()) return null
+
+            return sourceFiles.singleOrNull { VfsUtilCore.isUnder(it, sources) }
+        }
+    }
 
     /**
      * Those of [candidates] Elixir would load for [asker]:
@@ -122,27 +169,25 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
         candidates: List<VisitedElementSetResolveResult>,
     ): List<VisitedElementSetResolveResult> {
         val index = ProjectFileIndex.getInstance(asker.project)
-        val file = { candidate: VisitedElementSetResolveResult -> candidate.element.containingFile?.originalFile?.virtualFile }
-        val beam = { candidate: VisitedElementSetResolveResult -> candidate.element.isDecompiled() }
 
-        val sourceRuled = if (candidates.any { beam(it) && file(it)?.let(index::isInLibraryClasses) == true }) {
-            candidates.filter { beam(it) || file(it)?.let(index::isInContent) == true }
+        val sourceRuled = if (candidates.any { it.isBeam && it.file?.let(index::isInLibraryClasses) == true }) {
+            candidates.filter { it.isBeam || it.file?.let(index::isInContent) == true }
         } else {
             candidates
         }
-        val loadable = sdkCopyOverStale(asker, index, sourceRuled, file, beam)
+        val loadable = sdkCopyOverStale(asker, index, sourceRuled)
         val consolidated = { candidate: VisitedElementSetResolveResult ->
-            beam(candidate) && isConsolidated(index, file(candidate))
+            candidate.isBeam && isConsolidated(index, candidate.file)
         }
-        val unconsolidated = if (loadable.any { beam(it) && !consolidated(it) }) {
+        val unconsolidated = if (loadable.any { it.isBeam && !consolidated(it) }) {
             loadable.filterNot(consolidated)
         } else {
             loadable
         }
         val env = defaultBuildEnv(asker.project, effectiveVirtualFile(asker))
 
-        return if (unconsolidated.any { buildEnv(file(it)) == env }) {
-            unconsolidated.filter { buildEnv(file(it)).let { built -> built == null || built == env } }
+        return if (unconsolidated.any { buildEnv(it.file) == env }) {
+            unconsolidated.filter { buildEnv(it.file).let { built -> built == null || built == env } }
         } else {
             unconsolidated
         }
@@ -157,19 +202,23 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
         asker: PsiElement,
         index: ProjectFileIndex,
         copies: List<VisitedElementSetResolveResult>,
-        file: (VisitedElementSetResolveResult) -> VirtualFile?,
-        beam: (VisitedElementSetResolveResult) -> Boolean,
     ): List<VisitedElementSetResolveResult> {
-        if (copies.count(beam) < 2) return copies
+        if (copies.count { it.isBeam } < 2) return copies
 
         val roots = ElixirSdkLookup.mostSpecificSdk(asker)?.rootProvider?.getFiles(OrderRootType.CLASSES)?.toSet()
             ?: return copies
-        val inSdk = { copy: VisitedElementSetResolveResult -> file(copy)?.let { VfsUtilCore.isUnder(it, roots) } == true }
+        val inSdk = { copy: VisitedElementSetResolveResult -> copy.file?.let { VfsUtilCore.isUnder(it, roots) } == true }
 
-        if (copies.none { beam(it) && inSdk(it) }) return copies
+        if (copies.none { it.isBeam && inSdk(it) }) return copies
 
-        return copies.filterNot { !inSdk(it) && file(it)?.let { f -> index.getContentRootForFile(f, false) } == null }
+        return copies.filterNot { !inSdk(it) && it.file?.let { f -> index.getContentRootForFile(f, false) } == null }
     }
+
+    /** The file of this copy's modular. */
+    private val VisitedElementSetResolveResult.file: VirtualFile? get() = element.containingFile?.originalFile?.virtualFile
+
+    /** Whether this copy is a `.beam`'s. */
+    private val VisitedElementSetResolveResult.isBeam: Boolean get() = element.isDecompiled()
 
     /** Whether [file] is in Mix sync's consolidated-protocols library. */
     private fun isConsolidated(index: ProjectFileIndex, file: VirtualFile?): Boolean =
