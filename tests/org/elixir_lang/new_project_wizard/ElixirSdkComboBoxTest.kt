@@ -34,7 +34,8 @@ import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 class ElixirSdkComboBoxTest : PlatformTestCase() {
     private val asked = Asked()
     private lateinit var table: SdkFixtures.TableSnapshot
-    private val registered = mutableListOf<Sdk>()
+    /** The Erlang SDK the combo last gave the wizard's `setupProject` to add to the table. */
+    private var forSetup: Sdk? = null
 
     override fun setUp() {
         super.setUp()
@@ -122,7 +123,25 @@ class ElixirSdkComboBoxTest : PlatformTestCase() {
 
         val selected = combo.selectedJdk ?: throw AssertionError("the picked SDK is selected")
         assertEquals(pending.name, selected.elixirAdditionalData?.getErlangSdkName())
-        assertEquals("the combo hands the wizard the pick for setupProject", listOf(pending.name), registered.map { it.name })
+        assertEquals("the combo hands the wizard the pick for setupProject", pending.name, forSetup?.name)
+    }
+
+    fun testAnExistingSdkPickedAfterADetectedOneLeavesSetupNoErlangSdk() {
+        val (combo, existing) = detectedPickBesideAnExistingSdk("Combo abandoned Erlang")
+
+        combo.setSelectedJdk(existing)
+
+        assertNull("the combo hands the wizard no Erlang SDK for setupProject", forSetup)
+    }
+
+    fun testTheDetectedPickReselectedGivesSetupItsErlangSdkAgain() {
+        val (combo, existing) = detectedPickBesideAnExistingSdk("Combo reselected Erlang")
+        val picked = combo.selectedJdk ?: throw AssertionError("the picked SDK is selected")
+        combo.setSelectedJdk(existing)
+
+        combo.setSelectedJdk(picked)
+
+        assertEquals("Combo reselected Erlang", forSetup?.name)
     }
 
     fun testCancelLeavesNoSdk() {
@@ -138,12 +157,30 @@ class ElixirSdkComboBoxTest : PlatformTestCase() {
     private fun script(vararg answers: StepAnswer): ScriptedErlangStep =
         ScriptedErlangStep(asked, *answers).install(testRootDisposable)
 
-    /** The New Project wizard's Elixir SDK combo, its Erlang SDKs for setupProject recorded in [registered]. */
+    /** A wizard combo with an existing Elixir SDK, then a detected pick paired with a new Erlang SDK, [erlangName]. */
+    private fun detectedPickBesideAnExistingSdk(erlangName: String): Pair<JdkComboBox, Sdk> {
+        val combo = wizardCombo()
+        val pending = SdkFixtures.erlangSdk(erlangName, install("27", "27.3.4"))
+        val existing = existingElixir(combo)
+        combo.sdksModel.addSdk(pending)
+        script(ScriptedErlangStep.pick(pending.name))
+        combo.pickDetected(elixirInstall("1.18.4", "27"))
+        return combo to existing
+    }
+
+    /** An Elixir SDK already in [combo]'s model, as one in the table is. */
+    private fun existingElixir(combo: JdkComboBox): Sdk =
+        SdkFixtures.elixirSdk("Combo existing Elixir", elixirInstall("1.17.3", "26")).also {
+            combo.sdksModel.addSdk(it)
+            combo.reloadModel()
+        }
+
+    /** The New Project wizard's Elixir SDK combo, its Erlang SDK for setupProject recorded in [forSetup]. */
     private fun wizardCombo(): JdkComboBox {
         val wizardContext = WizardContext(null, Disposer.newDisposable(testRootDisposable))
         val sdkProperty = PropertyGraph().property<Sdk?>(null)
         lateinit var combo: JdkComboBox
-        panel { row { combo = elixirSdkComboBox(wizardContext, sdkProperty) { registered += it }.component } }
+        panel { row { combo = elixirSdkComboBox(wizardContext, sdkProperty) { forSetup = it }.component } }
         return combo
     }
 }

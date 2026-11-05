@@ -63,10 +63,7 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
     override val mixNewSupProperty = propertyGraph.property(false)
     override val mixNewUmbrellaProperty = propertyGraph.property(false)
 
-    // Stored in newSdkCallback so setupProject can ensure the Erlang SDK is in
-    // ProjectJdkTable at mix-command time, even if the workspace-model sync has
-    // already wiped it out (IJ 2026+). setupProject runs on the EDT so no sync
-    // can fire between addJdk and the resolver call.
+    // The selected SDK's Erlang SDK, when the combo's step paired it, for setupProject to add to the table.
     private var erlangSdkForSetup: Sdk? = null
 
     override var sdk by sdkProperty
@@ -254,7 +251,7 @@ fun Row.elixirSdkComboBox(
     context: WizardContext,
     sdkProperty: ObservableMutableProperty<Sdk?>,
     locationProperty: ObservableProperty<String>? = null,
-    onErlangSdkRegistered: (Sdk) -> Unit = {},
+    onErlangSdkForSetup: (Sdk?) -> Unit = {},
 ): Cell<JdkComboBox> {
     val sdksModel = ProjectSdksModel()
 
@@ -266,11 +263,16 @@ fun Row.elixirSdkComboBox(
     fun locationDirectory(): String? = locationProperty?.get()?.takeUnless(String::isBlank)
     fun targetDescriptor() = locationDirectory()?.let { SdkEnvironment.eelDescriptor(it) }
 
-    // The new Elixir SDK's Erlang SDK, asked for when it has none, goes to setupProject, which adds both to the table.
+    // A new Elixir SDK's Erlang SDK, asked for when it has none, goes to setupProject, which adds both to the table,
+    // while that SDK is the one selected.
+    val erlangSdkForSetup = mutableMapOf<Sdk, Sdk>()
     // comboBox is assigned after this lambda but will be initialised by the time the callback fires.
     lateinit var comboBox: JdkComboBox
     val newSdkCallback: (Sdk) -> Unit = { sdk ->
-        comboBox.erlangSdkOrAsk(sdksModel, sdk)?.let(onErlangSdkRegistered)
+        comboBox.erlangSdkOrAsk(sdksModel, sdk)?.let { erlangSdk ->
+            erlangSdkForSetup[sdk] = erlangSdk
+            onErlangSdkForSetup(erlangSdk)
+        }
     }
 
     comboBox = createSdkComboBox(
@@ -295,6 +297,7 @@ fun Row.elixirSdkComboBox(
     }
     syncForLocation()
     locationProperty?.afterChange(context.disposable) { syncForLocation() }
+    sdkProperty.afterChange(context.disposable) { onErlangSdkForSetup(it?.let(erlangSdkForSetup::get)) }
 
     return cell(comboBox)
         .validationOnApply { validateElixirSdk(sdkProperty, sdksModel) }
