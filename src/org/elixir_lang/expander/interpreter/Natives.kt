@@ -15,7 +15,6 @@ import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.util.io.FileUtil
 import org.elixir_lang.NameArity
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.admits
@@ -2653,20 +2652,12 @@ internal class Natives(private val evaluation: Evaluation) {
         }
 
     /**
-     * `File.exists?/1,2`: whether a file or directory is at [path], relative to `Run.workingDirectory` where it is relative,
+     * `File.exists?/1,2`: whether a file or directory is at [path], made absolute as Elixir makes it (`Run.absolute`),
      * read through the run's files.
      */
     private fun fileExists(path: OtpErlangObject): OtpErlangObject {
         val text = String(nameBytes("File.exists?/1", path), Charsets.UTF_8)
-        val absolute =
-            if (FileUtil.isAbsolutePlatformIndependent(text)) {
-                text
-            } else {
-                val file = evaluation.run.file() ?: decline("File.exists?/1 of %s, relative to a file with no path", path)
-                val directory = evaluation.run.workingDirectory(file) ?: decline("File.exists?/1 of %s, relative to an unknown directory", path)
-
-                "$directory/$text"
-            }
+        val absolute = evaluation.run.absolute(text) ?: decline("File.exists?/1 of %s, whose absolute path isn't known", path)
 
         return bool(evaluation.run.files.exists(absolute) ?: decline("File.exists?/1 of %s isn't known", path))
     }

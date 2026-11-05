@@ -1,7 +1,6 @@
 package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.util.io.OSAgnosticPathUtil
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.DefinitionTable.Injected
 import org.elixir_lang.expander.DefinitionTable.Kind
@@ -920,10 +919,7 @@ private fun moved(file: AttributeValue?, head: ElixirAst, run: Run): Boolean {
         is AttributeValue.Held, AttributeValue.Unknown -> return true
         is AttributeValue.Known -> fileOf(file.term) ?: return true
     }
-    val joined = when {
-        OSAgnosticPathUtil.isAbsolute(path) -> path
-        else -> run.file()?.let(run::workingDirectory)?.let { "$it/$path" } ?: return true
-    }
+    val joined = run.absolute(path) ?: return true
 
     return absname(joined) != run.file()?.let(::absname)
 }

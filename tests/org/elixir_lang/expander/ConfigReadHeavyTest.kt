@@ -75,6 +75,18 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
         )
     }
 
+    /**
+     * A path with a drive is relative off Windows, so `File.exists?` reads it from the project's directory. Windows,
+     * where it is absolute, can't make the `c:` directory the case needs.
+     */
+    fun testAPathWithADriveIsRelativeOffWindows() {
+        if (OS.CURRENT == OS.Windows) return
+
+        val root = project(CONFIG to "import Config\nconfig :app, k: File.exists?(\"c:/marker\")\n", "c:/marker" to "")
+
+        assertEquals("[{app,[{k,true}]}] [config/config.exs]", read(root))
+    }
+
     /** The same file read by two projects reads each one's directory, each with its own table. */
     fun testAConfigFileTwoProjectsReadIsReadFromEachProject() {
         val root = project(

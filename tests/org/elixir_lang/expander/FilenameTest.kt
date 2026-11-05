@@ -122,6 +122,30 @@ class FilenameTest : TestCase() {
         assertEquals("b", basename(OS.Windows, "c:b.ex", ".ex"))
     }
 
+    fun testAPathtypeOnUnix() {
+        assertPathtype(OS.Linux, "/x", "absolute")
+        assertPathtype(OS.Linux, "c:/x", "relative")
+        assertPathtype(OS.Linux, "c:x", "relative")
+        assertPathtype(OS.Linux, "//host/x", "absolute")
+        assertPathtype(OS.Linux, "x", "relative")
+        assertPathtype(OS.Linux, "\\x", "relative")
+        assertPathtype(OS.Linux, "", "relative")
+    }
+
+    fun testAPathtypeOnWindows() {
+        assertPathtype(OS.Windows, "/x", "volumerelative")
+        assertPathtype(OS.Windows, "c:/x", "absolute")
+        assertPathtype(OS.Windows, "c:x", "volumerelative")
+        assertPathtype(OS.Windows, "//host/x", "absolute")
+        assertPathtype(OS.Windows, "x", "relative")
+        assertPathtype(OS.Windows, "\\x", "volumerelative")
+        assertPathtype(OS.Windows, "C:\\x", "absolute")
+        assertPathtype(OS.Windows, "\\\\host\\x", "absolute")
+        assertPathtype(OS.Windows, "/\\host", "absolute")
+        assertPathtype(OS.Windows, "c:", "volumerelative")
+        assertPathtype(OS.Windows, "", "relative")
+    }
+
     /** The drive letter `win32_splitb/1` lowercases is the only byte that changes. */
     fun testALowercasedDrive() {
         assertEquals("c:/Users/A.ex", text(Filename.lowercaseDrive(bytes("C:/Users/A.ex"))))
@@ -149,6 +173,9 @@ class FilenameTest : TestCase() {
     private fun assertSplit(os: OS, name: String, vararg parts: String) =
         assertEquals("$os $name", parts.toList(), Filename.split(bytes(name), os).map(::text))
 
+    private fun assertPathtype(os: OS, name: String, type: String) =
+        assertEquals("$os $name", type, Filename.pathtype(bytes(name), os).atom)
+
     private fun dirname(os: OS, name: String) = text(Filename.dirname(bytes(name), os))
 
     private fun basename(os: OS, name: String) = text(Filename.basename(bytes(name), os))
@@ -163,3 +190,6 @@ class FilenameTest : TestCase() {
 
     private fun text(bytes: ByteArray) = String(bytes, Charsets.ISO_8859_1)
 }
+
+/** The atom `filename:pathtype/1` gives for [Filename.PathType]. */
+internal val Filename.PathType.atom: String get() = name.lowercase().replace("_", "")

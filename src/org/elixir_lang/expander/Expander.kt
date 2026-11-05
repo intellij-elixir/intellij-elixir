@@ -4,6 +4,7 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangPid
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.util.io.OSAgnosticPathUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.util.system.OS
 import org.elixir_lang.expander.interpreter.Binding
@@ -380,6 +381,30 @@ internal class Run(
         val directory = config?.directory ?: directories.of(file) ?: return null
 
         return if (os == OS.Windows) String(Filename.lowercaseDrive(directory.toByteArray())) else directory
+    }
+
+    /**
+     * [path] made absolute as `filename:absname/1` makes it on [os], before `join/1` tidies it: an absolute path as it
+     * is, and any other from the directory Elixir compiles the run's file in ([workingDirectory]), its volume alone for
+     * a root with no drive on Windows (`absname_vr/3`); `null` where that directory isn't known, or the path is relative
+     * to another drive's directory. Where [os] isn't known, a path absolute on either OS is taken as absolute.
+     */
+    fun absolute(path: String): String? {
+        val type = os?.let { Filename.pathtype(path.toByteArray(), it) }
+            ?: if (OSAgnosticPathUtil.isAbsolute(path)) Filename.PathType.ABSOLUTE else Filename.PathType.RELATIVE
+        if (type == Filename.PathType.ABSOLUTE) return path
+
+        val directory = file()?.let(::workingDirectory) ?: return null
+        if (type == Filename.PathType.RELATIVE) return "$directory/$path"
+
+        // Only Windows has a path relative to a volume.
+        val volume = String(Filename.split(directory.toByteArray(), OS.Windows).first())
+
+        return when {
+            path[0] == '/' || path[0] == '\\' -> volume + path.substring(1)
+            path[0].lowercaseChar() == volume[0] -> "$directory/${path.substring(2)}"
+            else -> null
+        }
     }
 
     /** `Path.relative_to_cwd/1` of [file], its SDK running as [os], where Elixir compiled it ([workingDirectory]); `null` where that isn't known. */

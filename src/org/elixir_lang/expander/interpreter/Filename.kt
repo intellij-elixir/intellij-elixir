@@ -48,6 +48,23 @@ internal object Filename {
         }
     }
 
+    /** `filename:pathtype/1`'s answer. */
+    enum class PathType { ABSOLUTE, RELATIVE, VOLUME_RELATIVE }
+
+    /**
+     * `filename:pathtype/1` of a binary: `unix_pathtype/1`, or `win32_pathtype/1`, where a drive or a root alone is
+     * relative to a volume.
+     */
+    fun pathtype(name: ByteArray, os: OS): PathType =
+        when {
+            os != OS.Windows -> if (name.firstOrNull() == SLASH) PathType.ABSOLUTE else PathType.RELATIVE
+            name.size >= 2 && isSlash(name[0]) && isSlash(name[1]) -> PathType.ABSOLUTE
+            name.isNotEmpty() && isSlash(name[0]) -> PathType.VOLUME_RELATIVE
+            name.size >= 3 && name[1] == COLON && isSlash(name[2]) -> PathType.ABSOLUTE
+            name.size >= 2 && name[1] == COLON -> PathType.VOLUME_RELATIVE
+            else -> PathType.RELATIVE
+        }
+
     /** [name] with the drive letter `win32_splitb/1` lowercases, where it has one. */
     fun lowercaseDrive(name: ByteArray): ByteArray =
         if (hasDrive(name) && isUpper(name[0])) name.copyOf().also { it[0] = lower(it[0]) } else name
