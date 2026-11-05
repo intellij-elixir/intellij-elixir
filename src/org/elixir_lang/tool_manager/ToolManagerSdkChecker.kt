@@ -27,16 +27,16 @@ import org.elixir_lang.Facet
 import org.elixir_lang.isElixirModule
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkRegistrar
-import org.elixir_lang.facet.Type as ElixirFacetType
+import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 import org.elixir_lang.sdk.elixir.knownOrNull
 import org.elixir_lang.sdk.elixir.sdk
-import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.erlang_dependent.ErlangStep
 import org.elixir_lang.sdk.erlang_dependent.elixirAdditionalData
 import org.elixir_lang.sdk.wsl.wslCompat
 import org.jetbrains.annotations.VisibleForTesting
 import java.nio.file.Path
+import org.elixir_lang.facet.Type as ElixirFacetType
 
 private val LOG = logger<ToolManagerSdkChecker>()
 
