@@ -6,11 +6,8 @@ import com.intellij.ide.scratch.ScratchRootType
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.fileEditor.FileDocumentManager
-import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.ModuleRootModificationUtil
-import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -27,9 +24,7 @@ import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
 import org.elixir_lang.facet.FacetModelFixtures
-import org.elixir_lang.facet.SdksService
 import org.elixir_lang.sdk.ProcessOutput
-import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 import java.io.File
 
 /**
@@ -40,10 +35,12 @@ import java.io.File
 @Suppress("UnstableApiUsage")
 class LibraryDeclarationRenameTest : PlatformTestCase() {
     private val cleanups = mutableListOf<() -> Unit>()
+    private val models = FacetModelFixtures()
 
     override fun tearDown() {
         runAll(
             *cleanups.asReversed().map { cleanup -> { cleanup() } }.toTypedArray(),
+            { models.removeAll() },
             { super.tearDown() },
         )
     }
@@ -68,7 +65,6 @@ class LibraryDeclarationRenameTest : PlatformTestCase() {
         cleanups += {
             WriteAction.runAndWait<Throwable> { FacetManager.getInstance(module).getFacetByType(Facet.ID)?.sdk = null }
             PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
-            SdksService.getInstance()!!.resetForTests()
         }
         FacetModelFixtures.settle(project)
 
@@ -219,25 +215,8 @@ class LibraryDeclarationRenameTest : PlatformTestCase() {
         return LocalFileSystem.getInstance().refreshAndFindFileByIoFile(file)!!
     }
 
-    private fun registerSdk(name: String, sourcesRoot: VirtualFile): Sdk {
-        val sdk = ProjectJdkImpl(name, ElixirSdkType.instance)
-
-        WriteAction.runAndWait<Throwable> {
-            sdk.sdkModificator.apply {
-                addRoot(sourcesRoot, OrderRootType.SOURCES)
-                commitChanges()
-            }
-            ProjectJdkTable.getInstance().addJdk(sdk)
-        }
-        cleanups += {
-            WriteAction.runAndWait<Throwable> {
-                ProjectJdkTable.getInstance().takeIf { sdk in it.allJdks }?.removeJdk(sdk)
-            }
-        }
-        SdksService.getInstance()!!.resetForTests()
-
-        return sdk
-    }
+    private fun registerSdk(name: String, sourcesRoot: VirtualFile): Sdk =
+        models.register(name, sources = listOf(sourcesRoot))
 
     private fun addSourcesLibrary(sourcesRoot: VirtualFile) {
         BeamLibraryFixture.addLibrary(project, module, LIBRARY_NAME, emptyList(), listOf(sourcesRoot))
