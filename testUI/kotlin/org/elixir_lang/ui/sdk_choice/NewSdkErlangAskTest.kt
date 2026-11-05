@@ -12,8 +12,6 @@ import com.intellij.driver.sdk.ui.ui
 import com.intellij.driver.sdk.ui.xQuery
 import com.intellij.driver.sdk.waitFor
 import org.elixir_lang.ui.framework.core.ERLANG_STEP_TITLE
-import org.elixir_lang.ui.framework.core.IdeTestContext
-import org.elixir_lang.ui.framework.core.NoScreen
 import org.elixir_lang.ui.framework.core.addErlangSdkFromDisk
 import org.elixir_lang.ui.framework.core.cancelErlangStep
 import org.elixir_lang.ui.framework.core.ensureWelcomeScreenInForeground
@@ -29,11 +27,7 @@ import org.elixir_lang.ui.sdk_settings.launchIdea
 import org.elixir_lang.ui.sdk_settings.stored
 import org.junit.jupiter.api.Test
 import java.nio.file.Path
-import kotlin.io.path.ExperimentalPathApi
-import kotlin.io.path.copyToRecursively
-import kotlin.io.path.createDirectories
 import kotlin.io.path.exists
-import kotlin.io.path.readText
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -111,17 +105,4 @@ class NewSdkErlangAskTest {
 
     private fun NewProjectDialogUI.failed(rows: Rows, row: String, failure: Throwable) =
         driver.failedErlangStepRow(rows, row, failure) { if (dialogShown("New Project")) cancelButton.click() }
-
-    /**
-     * A copy of the Elixir install where mise keeps installs under the private home, so the wizard's combo detects it;
-     * its home. A copy, never a link: the guard empties the private home following links.
-     */
-    @OptIn(ExperimentalPathApi::class)
-    private fun stageElixirInstall(): String {
-        val elixir = Path.of(IdeTestContext.elixirSdkPath).normalize()
-        val app = elixir.resolve("lib/elixir/ebin/elixir.app").readText()
-        val version = Regex("""\{vsn,"([^"]+)"}""").find(app)!!.groupValues[1]
-        val installs = NoScreen.privateHome.resolve(".local/share/mise/installs/elixir").createDirectories()
-        return elixir.copyToRecursively(installs.resolve(version), followLinks = true, overwrite = false).toString()
-    }
 }

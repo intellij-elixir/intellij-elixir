@@ -159,6 +159,13 @@ object SdkRegistrar {
     internal fun findElixirSdkByVariant(sdks: Iterable<Sdk>, homePath: String, erlangHome: String?, erlangName: String?): Sdk? =
         sdks.firstOrNull { sdk -> onInstall(sdk, homePath) && sameErlangHome(sdk, erlangHome, erlangName) }
 
+    /** The Elixir SDKs in the table on the install at [homePath], whichever Erlang SDK each is paired with. */
+    @RequiresBackgroundThread
+    suspend fun elixirSdksOnInstall(homePath: String): List<Sdk> {
+        val canonicalHomePath = canonicalHomePath(homePath) ?: return emptyList()
+        return readAction { ProjectJdkTable.getInstance().allJdks.filter { onInstall(it, canonicalHomePath) } }
+    }
+
     /** [sdk] is an Elixir SDK on the install at [homePath]: the variant rule's first half. */
     internal fun onInstall(sdk: Sdk, homePath: String): Boolean =
         sdk.sdkType is ElixirSdkType && wslCompat.pathsEqualWslAware(sdk.homePath, homePath)

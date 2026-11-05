@@ -32,17 +32,6 @@ class ToolManagerSdkCheckerTest : PlatformTestCase() {
     // Test-local helpers
     // -------------------------------------------------------------------------
 
-    /** Minimal [ToolManagerVersions] backed by plain values (no platform needed). */
-    private fun versions(
-        toolManagerName: String = "mise",
-        elixir: ToolEntry? = null,
-        erlang: ToolEntry? = null,
-    ): ToolManagerVersions = object : ToolManagerVersions {
-        override val toolManagerName = toolManagerName
-        override val elixir = elixir
-        override val erlang = erlang
-    }
-
     private fun elixirEntry(
         version: String,
         installPath: String,
@@ -693,4 +682,15 @@ class ToolManagerSdkCheckerTest : PlatformTestCase() {
         assertNotNull("Table for mismatching module A", tables["modA"])
         assertFalse("No table for matching module B", tables.containsKey("modB"))
     }
+}
+
+/** Minimal [ToolManagerVersions] backed by plain values (no platform needed). */
+internal fun versions(
+    toolManagerName: String = "mise",
+    elixir: ToolEntry? = null,
+    erlang: ToolEntry? = null,
+): ToolManagerVersions = object : ToolManagerVersions {
+    override val toolManagerName = toolManagerName
+    override val elixir = elixir
+    override val erlang = erlang
 }

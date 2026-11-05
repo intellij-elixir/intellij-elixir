@@ -3,6 +3,7 @@ package org.elixir_lang.tool_manager
 import com.intellij.facet.FacetManager
 import com.intellij.facet.FacetType
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.edtWriteAction
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.module.Module
@@ -31,6 +32,7 @@ import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 import org.elixir_lang.sdk.elixir.knownOrNull
 import org.elixir_lang.sdk.elixir.sdk
 import org.elixir_lang.sdk.SdkVersionsStore
+import org.elixir_lang.sdk.erlang_dependent.ErlangStep
 import org.elixir_lang.sdk.erlang_dependent.elixirAdditionalData
 import org.elixir_lang.sdk.wsl.wslCompat
 import org.jetbrains.annotations.VisibleForTesting
@@ -365,7 +367,6 @@ internal class ToolManagerSdkChecker(
         for (data in moduleCheckData) {
             val contentRoot = data.contentRoot ?: continue
             val versions = (toolManagerResultsByRoot[contentRoot] as? ToolManagerResult.Success)?.versions ?: continue
-            // A pinned Erlang not installed yet would register the Elixir SDK with none.
             if (versions.elixir?.installed == true && versions.erlang?.installed != false) {
                 result[data.moduleName] = versions
             }
@@ -383,9 +384,9 @@ internal class ToolManagerSdkChecker(
      *
      * Performed in three ordered phases so that the global SDK table is durably persisted before
      * any module is pointed at a newly registered SDK:
-     * 1. SDK registration (and classpath root setup) for every unique install-path combination,
-     *    via [SdkRegistrar]. The VirtualFile lookups that `setupSdkPaths` needs are pre-gathered
-     *    on the background thread (off EDT) to avoid VFS refresh inside the write lock.
+     * 1. SDK registration (and classpath root setup) via [SdkRegistrar]. The VirtualFile lookups
+     *    that `setupSdkPaths` needs are pre-gathered on the background thread (off EDT) to avoid
+     *    VFS refresh inside the write lock.
      * 2. A `jdk.table.xml` flush on [Dispatchers.IO] (see the inline comment below) so that
      *    `DelayedProjectSynchronizer` Attempt 2 reads the newly registered SDKs from disk instead
      *    of removing them as stale - which would undo the module assignment.
@@ -403,22 +404,41 @@ internal class ToolManagerSdkChecker(
             ModalTaskOwner.project(project),
             "Configuring Elixir SDK from $toolName"
         ) {
-            // Register unique (erlang, elixir) install-path combinations once each.
-            // Deduplication key = elixir install path so that multiple modules sharing the same
-            // tool-manager config register the SDK only once.
             val elixirSdkByInstallPath = mutableMapOf<String, Sdk>()
 
-            for (versions in assignments.values) {
-                val elixirEntry = versions.elixir ?: continue
-                val elixirPath = elixirEntry.installPath
-                if (elixirPath in elixirSdkByInstallPath) continue
+            for ((installPath, sharing) in assignments.values.groupBy { it.elixir?.installPath }) {
+                val elixirPath = installPath ?: continue
 
-                // An entry the tool manager resolves but has not installed has no directory to register.
-                val erlangSdk = versions.erlang?.takeIf { it.installed }?.let { erlang ->
-                    LOG.trace("configureSdks: registering Erlang SDK at '${erlang.installPath}'")
-                    SdkRegistrar.registerOrUpdateErlangSdk(erlang.installPath)
+                // The first of the modules' pins on this install that registers: one module with none, or with one
+                // that fails, doesn't hide another's. An entry the tool manager resolves but has not installed has no
+                // directory to register.
+                val pinnedErlangSdk = sharing.firstNotNullOfOrNull { versions ->
+                    versions.erlang?.takeIf { it.installed }?.let { erlang ->
+                        LOG.trace("configureSdks: registering Erlang SDK at '${erlang.installPath}'")
+                        SdkRegistrar.registerOrUpdateErlangSdk(erlang.installPath)
+                    }
                 }
-                LOG.trace("configureSdks: registering Elixir SDK at '$elixirPath' erlang='${erlangSdk?.name}'")
+                val erlangSdk = pinnedErlangSdk ?: run {
+                    val onInstall = SdkRegistrar.elixirSdksOnInstall(elixirPath)
+                    when (onInstall.size) {
+                        0 -> {
+                            // The step registers its pick in a write action, which `Dispatchers.UI` refuses.
+                            @Suppress("ObsoleteDispatchersEdt")
+                            val picked = withContext(Dispatchers.EDT) { ErlangStep.getInstance().ask(null, elixirPath, null) }
+                            picked ?: continue
+                        }
+                        1 -> {
+                            elixirSdkByInstallPath[elixirPath] = onInstall.single()
+                            continue
+                        }
+                        // Which of several is meant can't be told.
+                        else -> {
+                            LOG.warn("configureSdks: ${onInstall.size} Elixir SDKs are on '$elixirPath'; none is assigned")
+                            continue
+                        }
+                    }
+                }
+                LOG.trace("configureSdks: registering Elixir SDK at '$elixirPath' erlang='${erlangSdk.name}'")
                 val elixirSdk = SdkRegistrar.registerOrUpdateElixirSdk(
                     homePath = elixirPath,
                     erlangSdk = erlangSdk,
@@ -432,7 +452,7 @@ internal class ToolManagerSdkChecker(
             }
 
             if (elixirSdkByInstallPath.isEmpty()) {
-                LOG.warn("configureSdks: no SDKs registered, skipping module assignment")
+                LOG.info("configureSdks: no SDKs registered, skipping module assignment")
                 return@runWithModalProgressBlocking
             }
 
