@@ -7,10 +7,12 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.io.OSAgnosticPathUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.util.system.OS
+import org.elixir_lang.expander.interpreter.ARM_BUDGET
 import org.elixir_lang.expander.interpreter.Binding
 import org.elixir_lang.expander.interpreter.Evaluated
 import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.Given
+import org.elixir_lang.expander.interpreter.RunningCall
 import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.expander.interpreter.ValueUse
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
@@ -363,6 +365,15 @@ internal class Run(
      * code writes is joined, so a unit, a module or an effect in it declines.
      */
     val mayNotRun get() = speculating > 0
+
+    /** How many arms that may not be taken the run has run: past [ARM_BUDGET], the next declines. */
+    var armsTaken = 0
+
+    /**
+     * The calls running over a value that isn't known in code that may not run, innermost last: a call repeating one
+     * answers unknown.
+     */
+    val runningOverUnknown = ArrayList<RunningCall>()
 
     /**
      * Whether code the expander doesn't follow ran, which may have changed the directory the compile runs in
