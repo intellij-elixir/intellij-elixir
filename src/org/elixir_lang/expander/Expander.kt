@@ -367,16 +367,17 @@ internal class Run(
     }
 
     /**
-     * The states where code that started at [from] may have ended, joined: [returned], or [raised] where it raised. The
-     * read joins as [ConfigRead.joined] joins it, and the apps written are those any of them wrote.
+     * The states where code that started at [from] may have ended, joined: [returned], or [raised] where it raised, which
+     * a `try` around it may have [caught]. The read joins as [ConfigRead.joined] joins it, and the apps written are those
+     * any of them wrote.
      */
-    fun joinedState(from: RunState, returned: List<RunState>, raised: List<RunState> = emptyList()): RunState {
+    fun joinedState(from: RunState, returned: List<RunState>, raised: List<RunState> = emptyList(), caught: Boolean = false): RunState {
         val read = config
         val first = returned.firstOrNull()?.read
         val joined = if (read == null || raised.isEmpty() && first != null && returned.all { sameRead(it.read, first) }) {
             first
         } else {
-            read.joined(from.read!!, returned.map { it.read!! }, raised.map { it.read!! })
+            read.joined(from.read!!, returned.map { it.read!! }, raised.map { it.read!! }, caught)
         }
         val written = (returned + raised).fold(from.written) { apps, state -> state.written?.let { apps?.plus(it) } }
 
@@ -395,9 +396,10 @@ internal class Run(
 
     /**
      * How many bodies of a `try` with `catch` or `rescue` are being evaluated around the unit the evaluator runs where it
-     * reaches it ([reached]), any of which may catch a raise in the unit's code.
+     * reaches it ([reached]), or around the import of this run's file ([ConfigRead.catching]), any of which may catch a
+     * raise in the unit's code.
      */
-    var catching = 0
+    var catching = config?.catching ?: 0
 
     /** Whether the value of the unit the evaluator runs where it reaches it ([reached]) is read, `null` outside one. */
     var reachedUse: ValueUse? = null
@@ -405,11 +407,17 @@ internal class Run(
     /** How many arms that may not be taken are running ([mayNotRun]). */
     var speculating = 0
 
+    /** Whether the body of the `try` being evaluated may have raised over a value that isn't known. */
+    var raisedOverUnknown = false
+
+    /** Whether an enclosing `try` body, or `else`, may have raised before the code now running. */
+    var pastRaise = false
+
     /**
-     * Whether the code running may not run in Elixir: an arm taken over a value that isn't known. Only the config such
-     * code writes is joined.
+     * Whether the code running may not run in Elixir: an arm taken over a value that isn't known, or code past a raise a
+     * `try` may catch. Only the config such code writes is joined.
      */
-    val mayNotRun get() = speculating > 0
+    val mayNotRun get() = speculating > 0 || raisedOverUnknown || pastRaise
 
     /** The arms that may not be taken the run has run: under a [config], those its read's files have run. */
     private val arms = config?.arms ?: ArmsTaken()

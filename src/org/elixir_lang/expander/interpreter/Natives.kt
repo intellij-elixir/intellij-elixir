@@ -2719,7 +2719,8 @@ internal class Natives(private val evaluation: Evaluation) {
 
         read.imports.add(0, text)
 
-        val expansion = evaluation.run.files.imported(text, read) ?: decline("Config.__import__!/1 of %s, which can't be read", path)
+        val expansion = evaluation.importing(read) { evaluation.run.files.imported(text, read) }
+            ?: decline("Config.__import__!/1 of %s, which can't be read", path)
 
         when (val top = expansion.top) {
             is Expansion.Error -> {

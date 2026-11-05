@@ -41,8 +41,23 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
     /** The files in [imports] that only code that may not have run read, so a later import of one may or may not raise. */
     val maybeImports = HashSet<String>()
 
+    /** How many answers the read's files assumed, across every file it imports (`Run.assumptions`). */
+    var assumed = 0
+
     /** The arms that may not be taken the read's files have run, every file it imports counted toward one bound. */
     val arms = ArmsTaken()
+
+    /**
+     * How many bodies of a `try` with `catch` or `rescue` are around the import being run, any of which may catch a raise
+     * in the file it imports.
+     */
+    var catching = 0
+
+    /**
+     * The read as it was where the body of the `try` being evaluated, in whichever of the read's files, may have raised,
+     * oldest first; `null` outside one.
+     */
+    var raisedAt: MutableList<Snapshot>? = null
 
     /** The value of the last file evaluated's last expression: the top file's, as it finishes last. */
     var result: OtpErlangObject = Unknown
@@ -95,6 +110,25 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
         imports += snapshot.imports
     }
 
+    /**
+     * What [block] gives from the read joined over [before] and [returned] ([join]), as code that may not run, the read
+     * then put back whole, the files it may have read included.
+     */
+    fun <T> aside(before: Snapshot, returned: List<Snapshot>, block: () -> T): T {
+        val read = snapshot()
+        val maybeRead = maybeImports.toSet()
+
+        join(before, returned)
+
+        try {
+            return block()
+        } finally {
+            restore(read)
+            maybeImports.clear()
+            maybeImports += maybeRead
+        }
+    }
+
     /** The read's config once a `config` call merged it, which it leaves not empty. */
     fun configured(config: OtpErlangObject) {
         this.config = config
@@ -124,16 +158,18 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
 
     /**
      * The read once code that may not have run, starting from [before], ended in one of [returned] or raised in one of
-     * [raised]: a key the same term in each of [returned] keeps it, and one they set apart, or only some set, is unknown,
-     * else [before]'s config stands where none returned; an app whose list they leave apart in its keys, or only some
-     * set, is [Shape.shapeless], the config's apps are [Shape.appsShapeless] where they leave them apart, and the config
-     * may be empty where one of them leaves it so; a file any of them read may have been read ([maybeImports]), unless
-     * each of [returned] read it. Of the read itself, only those files move.
+     * [raised], which a `try` around it may have [caught]: a key the same term in each that goes on keeps it, and one
+     * they set apart, or only some set, is unknown, else [before]'s config stands where none goes on; an app whose list
+     * they leave apart in its keys, or only some set, is [Shape.shapeless], the config's apps are [Shape.appsShapeless]
+     * where they leave them apart, and the config may be empty where one of them leaves it so; a file any of them read
+     * may have been read ([maybeImports]), unless each that goes on read it. Of the read itself, only those files move.
      */
-    fun joined(before: Snapshot, returned: List<Snapshot>, raised: List<Snapshot>): Snapshot {
+    fun joined(before: Snapshot, returned: List<Snapshot>, raised: List<Snapshot>, caught: Boolean): Snapshot {
+        val ended = returned + raised
+        val goesOn = if (caught) ended else returned
         // Each started from before's files and added its own at the front.
-        val read = (returned + raised).flatMap { it.imports.subList(0, it.imports.size - before.imports.size) }.distinct()
-        val configs = returned.ifEmpty { listOf(before) }
+        val read = ended.flatMap { it.imports.subList(0, it.imports.size - before.imports.size) }.distinct()
+        val configs = goesOn.ifEmpty { listOf(before) }
         val shapeless = configs.flatMapTo(HashSet()) { it.shape.shapeless }
         var appsShapeless = configs.any { it.shape.appsShapeless }
         val joined = configs.map(Snapshot::config).reduce { left, right ->
@@ -142,10 +178,14 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
         }
         val mayBeEmpty = configs.any { it.shape.mayBeEmpty || configs.size > 1 && properElements(it.config)?.isEmpty() == true }
 
-        maybeImports += read.filterNot { file -> returned.isNotEmpty() && returned.all { file in it.imports } }
+        maybeImports += if (goesOn.isEmpty()) read else read.filter { file -> goesOn.any { file !in it.imports } }
 
         return Snapshot(joined, read + before.imports, Shape(shapeless, appsShapeless, mayBeEmpty))
     }
+
+    /** Puts in place the read once code that may not have run, from [before], ended in one of [returned] ([joined]). */
+    fun join(before: Snapshot, returned: List<Snapshot>) =
+        restore(joined(before, returned, emptyList(), caught = false))
 
     /** Records that the read wrote [app]'s env, or, `null`, an app that isn't known. */
     fun wroteEnv(app: String?) {

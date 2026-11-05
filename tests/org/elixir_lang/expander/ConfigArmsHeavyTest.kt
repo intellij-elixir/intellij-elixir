@@ -643,13 +643,10 @@ class ConfigArmsHeavyTest : ConfigHeavyTestCase() {
 
     fun testArmsSettingValuesThatShareTheirPartsTwentyDeep() = assertSharedPartsJoin(20)
 
-    /**
-     * An atom made in an arm that may not be taken may not exist past it, so a lookup of it may raise: under a `try`,
-     * the read declines.
-     */
+    /** An atom made in an arm that may not be taken may not exist past it, so a lookup of it may raise. */
     fun testAnAtomMadeInAnArmThatMayNotBeTakenMayNotExistPastIt() =
         assertEquals(
-            "declined",
+            "k=Configured k1=1",
             keys(
                 "config :app, k: 0\n\ndefmodule H do\n  def f(name) do\n    if System.get_env(\"X\"), do: String.to_atom(name)\n" +
                     "    String.to_existing_atom(name)\n    Config.config(:app, k: 1)\n  end\nend\n\n" +
