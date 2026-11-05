@@ -19,41 +19,24 @@ import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
 
 object SdkRegistrar {
-    /**
-     * Canonicalises [homePath], resolves the version string and SDK name, and builds an SDK
-     * template for registration. Returns null if the path or version cannot be resolved.
-     * Shared by both the suspend ([registerOrUpdateErlangSdk]) and synchronous
-     * ([org.elixir_lang.sdk.elixir.ElixirInternalErlangSdkSetup.registerErlangSdk]) registration paths.
-     */
-    internal fun prepareErlangSdk(
-        homePath: String,
-        resolvedVersion: String? = null,
-        alreadyCanonical: Boolean = false,
-    ): PreparedErlangSdk? {
-        val canonicalHomePath = if (alreadyCanonical) homePath else canonicalHomePath(homePath) ?: return null
-        val sdkType = ErlangSdkType.instance
-        // The suspend path has filled the store already; the synchronous one arrives with nothing read.
-        if (!alreadyCanonical) SdkVersionsFiller.fillIfUnreadBlocking(canonicalHomePath)
-        val release = SdkVersionsStore.getInstance().otpRelease(canonicalHomePath)
-        val versionString =
-            ErlangSdkType.versionStringForHome(canonicalHomePath, resolvedVersion, release) ?: return null
-        val sdkName = ErlangSdkType.suggestSdkNameForHome(canonicalHomePath, resolvedVersion, release)
-        return PreparedErlangSdk(ProjectJdkImpl(sdkName, sdkType, canonicalHomePath, versionString))
-    }
-
-    internal class PreparedErlangSdk(val template: ProjectJdkImpl)
-
+    /** Registers the Erlang SDK at [homePath], reusing the one already registered there. */
     suspend fun registerOrUpdateErlangSdk(
         homePath: String,
         resolvedVersion: String? = null,
     ): Sdk? {
         val canonicalHomePath = canonicalHomePath(homePath) ?: return null
+        val sdkType = ErlangSdkType.instance
         SdkVersionsFiller.fillCanonical(canonicalHomePath)
-        val prepared = prepareErlangSdk(canonicalHomePath, resolvedVersion, alreadyCanonical = true) ?: return null
+        val release = SdkVersionsStore.getInstance().otpRelease(canonicalHomePath)
+        val versionString =
+            ErlangSdkType.versionStringForHome(canonicalHomePath, resolvedVersion, release) ?: return null
+        val sdkName = ErlangSdkType.suggestSdkNameForHome(canonicalHomePath, resolvedVersion, release)
         val registeredSdk = edtWriteAction {
-            registerOrUpdatePreparedErlangSdk(prepared, ProjectJdkTable.getInstance())
+            val table = ProjectJdkTable.getInstance()
+            val updatedSdk = ProjectJdkImpl(sdkName, sdkType, canonicalHomePath, versionString)
+            registerOrUpdate(findSdkByHomePath(sdkType, canonicalHomePath, table), updatedSdk, table)
         }
-        ErlangSdkType.instance.setupSdkPaths(registeredSdk)
+        sdkType.setupSdkPaths(registeredSdk)
         return registeredSdk
     }
 
@@ -136,17 +119,6 @@ object SdkRegistrar {
         return table.allJdks.firstOrNull { sdk ->
             sdk.sdkType == sdkType && wslCompat.pathsEqualWslAware(sdk.homePath, homePath)
         }
-    }
-
-    @RequiresWriteLock
-    internal fun registerOrUpdatePreparedErlangSdk(
-        prepared: PreparedErlangSdk,
-        table: ProjectJdkTable,
-    ): Sdk {
-        ThreadingAssertions.assertWriteAccess()
-        val template = prepared.template
-        val existing = template.homePath?.let { findSdkByHomePath(template.sdkType, it, table) }
-        return registerOrUpdate(existing, template, table)
     }
 
     @RequiresWriteLock

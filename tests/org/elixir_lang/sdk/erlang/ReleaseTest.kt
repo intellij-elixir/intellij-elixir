@@ -68,7 +68,7 @@ class ReleaseTest : PlatformTestCase() {
     }
 
     fun testOfOrdersAPackagedVersionByEveryNumberItStatesNotJustItsMajor() {
-        // A Debian/Ubuntu OTP_VERSION. Ordered by the major alone it would lose auto-pairing to any later 25.
+        // A Debian/Ubuntu OTP_VERSION.
         val packaged = Release.of("25.3.2.7-1") ?: throw AssertionError("a packaged OTP_VERSION must yield a release")
 
         assertTrue("25.3.2.7-1 is a later 25 than 25.1", packaged > release("25.1"))

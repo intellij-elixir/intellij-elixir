@@ -162,7 +162,7 @@ class ErlangDeletionAskTest : PlatformTestCase() {
     /** A rename repair keeps the home, so nothing it writes is left for a later set-up to pair with once the SDK is gone. */
     fun testARefreshAfterARenamedErlangIsDeletedAndTheAskCancelledDoesNotPairWithIt() {
         val deleted = erlang("Ask key deleted Erlang", install("27", "27.3.4"))
-        val other = erlang("Ask key other Erlang", install("26", "26.2.5"))
+        erlang("Ask key other Erlang", install("26", "26.2.5"))
         val elixirSdk = paired("Ask key Elixir", elixirInstall("1.18.4", "26"), deleted)
         val renamed = SdkFixtures.renameInTable(deleted.name, "Ask key deleted Erlang renamed")
         assertEquals("precondition: the rename is repaired", renamed.name, storedErlangName(elixirSdk))
@@ -172,7 +172,7 @@ class ErlangDeletionAskTest : PlatformTestCase() {
         settle()
         ElixirSdkType.instance.setupSdkPaths(elixirSdk)
 
-        assertEquals(other.name, storedErlangName(elixirSdk))
+        assertEquals("the set-up pairs nothing the user did not pick", renamed.name, storedErlangName(elixirSdk))
     }
 
     fun testAnElixirSdkRepairedBeforeTheAskIsNotAsked() {

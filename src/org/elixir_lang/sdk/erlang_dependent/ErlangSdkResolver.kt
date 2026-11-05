@@ -11,15 +11,10 @@ import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import com.intellij.util.concurrency.annotations.RequiresWriteLock
-import org.elixir_lang.sdk.SdkEnvironment
-import org.elixir_lang.sdk.SdkVersionsStore
-import org.elixir_lang.sdk.erlang.Release
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
 import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
-import org.elixir_lang.sdk.elixir.knownOrNull
 import org.elixir_lang.sdk.wsl.wslCompat
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.abs
 
 
 /**
@@ -41,84 +36,6 @@ interface ErlangSdkResolver {
     companion object {
         fun getInstance(): ErlangSdkResolver =
             ApplicationManager.getApplication().getService(ErlangSdkResolver::class.java)
-
-        /**
-         * The registered Erlang SDK in [elixirSdk]'s environment that best runs it, for when none has been paired. With
-         * [sdkModel], a settings dialog's, its SDKs are the candidates instead, as the dialog's Apply will leave them.
-         *
-         * Ordered by the OTP the Elixir build was compiled against: that major first, then higher majors, nearest
-         * first, then lower majors, nearest first - a newer OTP runs an older build, an older one may not. Within a
-         * major the newest release wins. An installation whose version has not been read yet sorts last, and when the
-         * Elixir build's own OTP major has not been read the first candidate with a home is taken.
-         */
-        @RequiresReadLock
-        fun bestRegisteredFor(
-            elixirSdk: Sdk,
-            sdkModel: SdkModel? = null,
-            visibleFor: (Sdk) -> (Sdk) -> Boolean = SdkEnvironment::visibleFor,
-        ): Sdk? {
-            ThreadingAssertions.assertReadAccess()
-            val store = SdkVersionsStore.getInstance()
-            val candidates = candidatesFor(elixirSdk, sdkModel, visibleFor)
-            val elixirOtpMajor = store.elixirVersions(elixirSdk.homePath)?.elixirOtpMajor?.knownOrNull?.toIntOrNull()
-                ?: return candidates.firstOrNull()
-
-            return candidates.minWithOrNull(preferredFor(elixirOtpMajor, store))
-        }
-
-        /** The registered Erlang SDKs [bestRegisteredFor] chooses between, so a caller can read their homes first. */
-        @RequiresReadLock
-        fun candidatesFor(
-            elixirSdk: Sdk,
-            sdkModel: SdkModel? = null,
-            visibleFor: (Sdk) -> (Sdk) -> Boolean = SdkEnvironment::visibleFor,
-        ): List<Sdk> {
-            ThreadingAssertions.assertReadAccess()
-            val inSameEnvironment = visibleFor(elixirSdk)
-            val erlangSdkType = org.elixir_lang.sdk.erlang.Type.instance
-            val erlangSdks = sdkModel?.sdks?.filter { it.sdkType == erlangSdkType }
-                ?: ProjectJdkTable.getInstance().getSdksOfType(erlangSdkType)
-
-            return erlangSdks.filter { it.homePath != null && inSameEnvironment(it) }
-        }
-
-        private fun preferredFor(elixirOtpMajor: Int, store: SdkVersionsStore): Comparator<Sdk> =
-            Comparator { one, other ->
-                val oneRelease = releaseOf(one, store)
-                val otherRelease = releaseOf(other, store)
-                val byMajor = compareValuesBy(
-                    oneRelease,
-                    otherRelease,
-                    { tier(it, elixirOtpMajor) },
-                    { distanceFrom(it, elixirOtpMajor) },
-                )
-                when {
-                    byMajor != 0 -> byMajor
-                    oneRelease == null || otherRelease == null -> 0
-                    else -> otherRelease.compareTo(oneRelease)
-                }
-            }
-
-        /** Every higher major outranks every lower one, whatever the gap: [distanceFrom] only orders within a tier. */
-        private fun tier(release: Release?, elixirOtpMajor: Int): Int {
-            val major = release?.otpMajor?.toIntOrNull() ?: return UNREAD
-
-            return if (major >= elixirOtpMajor) AT_OR_ABOVE else BELOW
-        }
-
-        /** How far a candidate's major is from the one asked for, either way; only ever compared within a [tier]. */
-        private fun distanceFrom(release: Release?, elixirOtpMajor: Int): Int {
-            val major = release?.otpMajor?.toIntOrNull() ?: return 0
-
-            return abs(major - elixirOtpMajor)
-        }
-
-        private const val AT_OR_ABOVE = 0
-        private const val BELOW = 1
-        private const val UNREAD = 2
-
-        private fun releaseOf(sdk: Sdk, store: SdkVersionsStore): Release? =
-            store.otpRelease(sdk.homePath)
     }
 }
 

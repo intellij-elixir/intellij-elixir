@@ -266,8 +266,7 @@ fun Row.elixirSdkComboBox(
     fun targetDescriptor() = locationDirectory()?.let { SdkEnvironment.eelDescriptor(it) }
 
     // After setupSdkPaths runs on a newly created Elixir SDK, verify it has a linked Erlang SDK.
-    // If not (e.g. user cancelled the Erlang SDK selection dialog), remove it from the staged model
-    // and clear the combo box selection so the wizard returns to "No SDK".
+    // If not, remove it from the staged model and clear the combo box selection so the wizard returns to "No SDK".
     // comboBox is assigned after this lambda but will be initialised by the time the callback fires.
     lateinit var comboBox: JdkComboBox
     val newSdkCallback: (Sdk) -> Unit = { sdk ->
@@ -277,8 +276,7 @@ fun Row.elixirSdkComboBox(
             comboBox.reloadModel()
             comboBox.selectedJdk = null
         } else {
-            // The Erlang SDK was registered into ProjectJdkTable by registerErlangSdk /
-            // SdkRegistrar. Add the Elixir SDK to sdksModel (not yet in JdkTable) so that
+            // Add the Elixir SDK to sdksModel (not yet in JdkTable) so that
             // sdksModel.apply() on wizard commit can commit it cleanly.
             // ErlangSdkResolver checks both sdksModel and ProjectJdkTable, so the Erlang
             // SDK is found during validation without requiring a model reset.
