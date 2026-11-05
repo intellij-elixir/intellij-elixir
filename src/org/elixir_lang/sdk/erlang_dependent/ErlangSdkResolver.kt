@@ -62,9 +62,11 @@ internal class DefaultErlangSdkResolver : ErlangSdkResolver {
         val additionalData = elixirSdk.elixirAdditionalData
             ?: return ErlangSdkResult.Missing(elixirSdk, MissingErlangSdkReason.NOT_CONFIGURED)
 
-        // Check cache first
+        // Check cache first. One at the stored home that the stored name doesn't name is looked up again: the named one
+        // may have been added or renamed there since.
         additionalData.getCachedErlangSdk()?.let { cached ->
-            if (isValidAndExists(cached, sdkModel)) {
+            val outranked = additionalData.getErlangSdkHomePath() != null && !additionalData.names(cached)
+            if (!outranked && isValidAndExists(cached, sdkModel)) {
                 if (cached.homePath.isNullOrBlank()) {
                     return ErlangSdkResult.Missing(
                         elixirSdk,
@@ -82,7 +84,7 @@ internal class DefaultErlangSdkResolver : ErlangSdkResolver {
         val configuredHomePath = additionalData.getErlangSdkHomePath()?.takeIf { it.isNotBlank() }
         if (configuredHomePath != null) {
             logger.debug { "[$elixirName] Looking up Erlang SDK by home path: $configuredHomePath" }
-            val found = findErlangSdkByHomePath(configuredHomePath, sdkModel)
+            val found = findErlangSdkByHomePath(configuredHomePath, additionalData, sdkModel)
             if (found != null) {
                 logger.debug { "[$elixirName] Found Erlang SDK by home path: ${found.name}" }
                 additionalData.setCachedErlangSdk(found)
@@ -131,16 +133,18 @@ internal class DefaultErlangSdkResolver : ErlangSdkResolver {
             || (jdkTable.findJdk(name) != null)
     }
 
+    /**
+     * The Erlang SDK at [homePath], in [sdkModel] first, then in the table. Of several there, the one [data] names,
+     * else the first.
+     */
     @RequiresReadLock
-    private fun findErlangSdkByHomePath(homePath: String, sdkModel: SdkModel?): Sdk? {
+    private fun findErlangSdkByHomePath(homePath: String, data: SdkAdditionalData, sdkModel: SdkModel?): Sdk? {
         ThreadingAssertions.assertReadAccess()
-        val fromModel = sdkModel?.sdks?.find { sdk ->
-            Type.staticIsValidDependency(sdk) && wslCompat.pathsEqualWslAware(sdk.homePath, homePath)
+        val atHome = { sdks: Array<out Sdk> ->
+            sdks.filter { Type.staticIsValidDependency(it) && wslCompat.pathsEqualWslAware(it.homePath, homePath) }
+                .let { found -> found.find(data::names) ?: found.firstOrNull() }
         }
-        if (fromModel != null) return fromModel
-        return ProjectJdkTable.getInstance().allJdks.firstOrNull { sdk ->
-            Type.staticIsValidDependency(sdk) && wslCompat.pathsEqualWslAware(sdk.homePath, homePath)
-        }
+        return sdkModel?.sdks?.let(atHome) ?: atHome(ProjectJdkTable.getInstance().allJdks)
     }
 
     companion object {
