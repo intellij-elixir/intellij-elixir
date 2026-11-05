@@ -1759,12 +1759,21 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
     fun testADeclinedCallGivenTheModuleInAMapMarksTheWholeModule() = assertDeclinedCallMarksTheWholeModule("%{module: __MODULE__}")
 
-    private fun assertDeclinedCallMarksTheWholeModule(other: String) =
+    /** A `for` over a value not known may run its body no times, so it gives the accumulator it started from too. */
+    fun testAnAccumulatorOfAForOverAnUnknownMarksTheModuleItHolds() =
+        assertGivenLaterMarksTheWholeModule(
+            "acc =\n    for _ <- String.to_charlist(inspect(self())), reduce: __MODULE__ do\n      _ -> :done\n    end\n\n  Callee.given(acc)",
+        )
+
+    private fun assertGivenLaterMarksTheWholeModule(statements: String) =
         assertFile(
-            "$CALLEE\ndefmodule M do\n  @other :o\n  Callee.runs(__MODULE__, :erlang.whereis(:foo), $other)\n  def unquote(@other)(), do: 1\nend",
+            "$CALLEE\ndefmodule M do\n  @other :o\n  $statements\n  def unquote(@other)(), do: 1\nend",
             "$CALLEE_REPORT\nmodule Elixir.M stopped `unquote(@other)` []",
             tables = true,
         )
+
+    private fun assertDeclinedCallMarksTheWholeModule(other: String) =
+        assertGivenLaterMarksTheWholeModule("Callee.runs(__MODULE__, :erlang.whereis(:foo), $other)")
 
     /** A recursion given the env, which holds what isn't known, ends on the attribute it pops, as in Elixir. */
     fun testARecursionOverTheEnvThatEndsOnAnAttribute() =

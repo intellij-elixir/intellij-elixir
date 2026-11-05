@@ -247,6 +247,59 @@ class ConfigArmsHeavyTest : ConfigHeavyTestCase() {
             ),
         )
 
+    fun testAWith() =
+        assertEquals(
+            "k=Configured k1=1",
+            keys("k = with {:ok, v} <- System.fetch_env(\"X\"), do: v\nconfig :app, k: k, k1: 1\n", "k", "k1"),
+        )
+
+    fun testAWithElse() =
+        assertEquals(
+            "k=Configured k1=1",
+            keys(
+                "k =\n  with {:ok, v} <- System.fetch_env(\"X\") do\n    v\n  else\n    :error -> \"e\"\n  end\n\nconfig :app, k: k, k1: 1\n",
+                "k",
+                "k1",
+            ),
+        )
+
+    fun testAWithWritingInItsDo() =
+        assertEquals(
+            "k=Configured k1=1",
+            keys("config :app, k: 1\nwith {:ok, _} <- System.fetch_env(\"X\"), do: config(:app, k: 2)\nconfig :app, k1: 1\n", "k", "k1"),
+        )
+
+    fun testAMatch() =
+        assertEquals("k=Configured k1=1", keys("{:ok, v} = System.fetch_env(\"X\")\nconfig :app, k: v, k1: 1\n", "k", "k1"))
+
+    fun testAFor() =
+        assertEquals(
+            "k=Configured k1=1",
+            keyBeside("(for {\"X\", v} <- System.get_env(), do: v)"),
+        )
+
+    fun testABitstringFor() =
+        assertEquals(
+            "k=Configured k1=1",
+            keyBeside("(for <<c <- System.get_env(\"X\", \"\")>>, do: c)"),
+        )
+
+    fun testAForWritingInItsBody() =
+        assertEquals(
+            "k=Configured k1=1",
+            keys("config :app, k: 1\nfor {\"X\", _} <- System.get_env(), do: config(:app, k: 2)\nconfig :app, k1: 1\n", "k", "k1"),
+        )
+
+    fun testABinarySegmentThatMayNotBeABinary() =
+        assertEquals("k=Configured k1=1", keyBeside("<<System.get_env(\"X\")::binary>>"))
+
+    /** A bitstring segment of a value not known may be a bitstring that isn't a binary. */
+    fun testABitstringSegmentThatMayNotBeABinary() =
+        assertEquals(
+            "k=Configured k1=1",
+            keyBeside("(case <<(if System.get_env(\"X\"), do: <<1::3>>, else: \"a\")::bitstring>> do\n  b when is_binary(b) -> :binary\n  _ -> :bits\nend)"),
+        )
+
     fun testArmsSettingValuesThatShareTheirPartsTwelveDeep() = assertSharedPartsJoin(12)
 
     fun testArmsSettingValuesThatShareTheirPartsSixteenDeep() = assertSharedPartsJoin(16)
