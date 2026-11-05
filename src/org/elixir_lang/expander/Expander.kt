@@ -360,11 +360,17 @@ internal class Run(
     /** How many arms that may not be taken are running ([mayNotRun]). */
     var speculating = 0
 
+    /** Whether the body of the `try` being evaluated may have raised over a value that isn't known. */
+    var raisedOverUnknown = false
+
+    /** Whether an enclosing `try` body, or `else`, may have raised before the code now running. */
+    var pastRaise = false
+
     /**
-     * Whether the code running may not run in Elixir: an arm taken over a value that isn't known. Only the config such
-     * code writes is joined, so a unit, a module or an effect in it declines.
+     * Whether the code running may not run in Elixir: an arm taken over a value that isn't known, or code past a raise a
+     * `try` may catch. Only the config such code writes is joined, so a unit, a module or an effect in it declines.
      */
-    val mayNotRun get() = speculating > 0
+    val mayNotRun get() = speculating > 0 || raisedOverUnknown || pastRaise
 
     /** How many arms that may not be taken the run has run, where it reads no config ([ConfigRead.armsTaken]). */
     private var armsTaken = 0

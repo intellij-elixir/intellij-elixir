@@ -817,10 +817,12 @@ internal class Evaluation(
 
     /**
      * Elixir may raise here on what the evaluator doesn't know: a value it doesn't know, or what a read of the machine
-     * finds. The raise is taken not to happen ([assumeNoRaise]).
+     * finds. The raise is taken not to happen ([assume]); under a `try` that may catch it ([catching]), the `try`'s
+     * rescues may run, and the code after it here may not ([Run.raisedOverUnknown]).
      */
     fun raiseMayBeCaught() {
-        assumeNoRaise()
+        if (catching > 0) run.raisedOverUnknown = true
+        assume()
     }
 
     /** [value], where Elixir may raise instead ([raiseMayBeCaught]). */
@@ -834,9 +836,10 @@ internal class Evaluation(
         if (catching > 0) decline("a raise a `try` may catch")
     }
 
-    /** An answer that holds only where what it reads stays as read (`Run.assumptions`). */
+    /** An answer that holds only where what it reads stays as read (`Run.assumptions`, [ConfigRead.assumed]). */
     fun assume() {
         run.assumptions++
+        run.config?.let { it.assumed++ }
     }
 
     /** Raises [module]'s exception, its struct with [fields] put. */
@@ -2177,20 +2180,41 @@ internal class Evaluation(
             add(args.filterNot { arg -> written.any { arg == atom(it.module) } }, run.compiling.keys)
         }
 
-    /** A `try` of [options]; in [tail] position, so are its arms' values, where it has no `after`. */
+    /**
+     * A `try` of [options]; in [tail] position, so are its arms' values, where it has no `after`. Where its body may have
+     * raised over a value that isn't known ([Run.raisedOverUnknown]), the code after that raise may not have run: the
+     * read joins with what it was before the body, and the rescues are arms that may be taken, beside `else`'s value,
+     * which `else` takes from the body ([joined]). What the rescues and `else` may raise is for the enclosing `try`, as is
+     * the body's raise, where no clause catches whatever is raised.
+     */
     private fun evalTry(options: ElixirAst, frame: Frame, tail: Boolean): OtpErlangObject {
         var declined: Declined? = null
         var raised: Thrown? = null
         val after = optionOrNull(options, "after")
         val armsTail = tail && after == null
+        val outerRaised = run.raisedOverUnknown
+        val outerPast = run.pastRaise
 
         try {
+            val rescueClauses = optionOrNull(options, "rescue")?.let(::arrows).orEmpty()
+            val catchClauses = optionOrNull(options, "catch")?.let(::arrows).orEmpty()
+            val rescues = rescueClauses + catchClauses
+            val elses = optionOrNull(options, "else")?.let(::arrows)
             // Where the body declines, it may have raised, thrown or exited, or not.
-            val branches = listOf("rescue", "catch", "else").flatMap { key -> optionOrNull(options, key)?.let(::arrows).orEmpty() }
-            val catches = listOf("rescue", "catch").any { optionOrNull(options, it) != null }
+            val branches = rescues + elses.orEmpty()
+            val catches = rescues.isNotEmpty()
+            val before = if (catches) run.config?.snapshot() else null
+
+            /** What `else` gives for the body's [value], in [inTail] position or not: [value] where there is no `else`. */
+            fun elsed(value: OtpErlangObject, inTail: Boolean): OtpErlangObject =
+                elses?.let { clauses(it, listOf(value), frame, tail = inTail) ?: error(tuple(atom("try_clause"), value)) } ?: value
+
+            if (outerRaised) run.pastRaise = true
+
             val value = try {
                 selecting(branches, heads(branches), emptyList(), frame) {
                     if (catches) catching++
+                    run.raisedOverUnknown = false
 
                     try {
                         eval(doOption(options), frame.copy())
@@ -2199,15 +2223,57 @@ internal class Evaluation(
                     }
                 }
             } catch (thrown: Thrown) {
-                return rescued(thrown, options, frame, armsTail) ?: throw thrown
+                val raisedBefore = run.raisedOverUnknown
+
+                run.raisedOverUnknown = outerRaised || !catches && raisedBefore
+                // Which raise a rescue sees depends on whether the one over a value not known came first.
+                if (catches && raisedBefore) decline("a raise in a `try` body past one that may have come first")
+
+                return rescued(thrown, rescueClauses, catchClauses, frame, armsTail) ?: throw thrown
             } catch (body: Declined) {
-                body.endedBy?.let { raise -> rescuedAfter(raise, body, options, frame) }
+                run.raisedOverUnknown = outerRaised
+                body.endedBy?.let { raise -> rescuedAfter(raise, body, rescueClauses, catchClauses, frame) }
                 throw body
             }
 
-            return optionOrNull(options, "else")?.let { elses ->
-                clauses(arrows(elses), listOf(value), frame, tail = armsTail) ?: error(tuple(atom("try_clause"), value))
-            } ?: value
+            if (run.raisedOverUnknown) {
+                if (catches) {
+                    run.raisedOverUnknown = false
+                    run.pastRaise = true
+                }
+
+                // `else` takes the body's value, never a rescue's.
+                val ended = try {
+                    elsed(value, false)
+                } catch (_: Thrown) {
+                    // This raise passes the `try`'s rescues, which give the value where the body raised instead.
+                    decline("a raise in `else`, where the body may have raised")
+                }
+
+                // The raise may have come before any of the body's writes.
+                run.config?.let { config -> before?.let { config.join(it, listOf(it, config.snapshot()), emptyList(), caught = false) } }
+
+                val joinedValue = joined(
+                    rescues.map { arrow ->
+                        val (head, arm) = arrowParts(arrow)
+                        val scope = frame.copy()
+
+                        scope.bindUnknown(clauseHead(head).first, Unknown)
+                        armOf(arm, scope)
+                    },
+                    listOf(ended),
+                    mayNotBeTaken = true,
+                )
+
+                run.raisedOverUnknown = outerRaised || run.raisedOverUnknown
+                // A raise no clause here may catch passes on.
+                if (catches && !catchesEverything(catchClauses)) raiseMayBeCaught()
+
+                return joinedValue
+            }
+            run.raisedOverUnknown = outerRaised
+
+            return elsed(value, armsTail)
         } catch (body: Declined) {
             run.declinedCodeRan()
             declined = body
@@ -2216,6 +2282,7 @@ internal class Evaluation(
             raised = thrown
             throw thrown
         } finally {
+            run.pastRaise = outerPast
             if (after != null) {
                 val body = declined
 
@@ -2236,11 +2303,17 @@ internal class Evaluation(
      * it and returns, the decline ends nothing and holds what it returns; where it raises, or none takes it, the decline
      * stays ended.
      */
-    private fun rescuedAfter(raise: Thrown, declined: Declined, options: ElixirAst, frame: Frame) {
+    private fun rescuedAfter(
+        raise: Thrown,
+        declined: Declined,
+        rescueClauses: List<ElixirAst>,
+        catchClauses: List<ElixirAst>,
+        frame: Frame,
+    ) {
         run.declinedCodeRan()
 
         try {
-            rescued(raise, options, frame)?.let { value ->
+            rescued(raise, rescueClauses, catchClauses, frame)?.let { value ->
                 declined.holds.add(value)
                 declined.caught()
             }
@@ -2280,18 +2353,24 @@ internal class Evaluation(
     }
 
     /**
-     * The body of the first `rescue` or `catch` clause [thrown] matches, evaluated, or `null` where none does; in [tail]
-     * position, a call in its tail position is made, not run ([called]).
+     * The body of the first of [rescueClauses] or [catchClauses] [thrown] matches, evaluated, or `null` where none does; in
+     * [tail] position, a call in its tail position is made, not run ([called]).
      */
-    private fun rescued(thrown: Thrown, options: ElixirAst, frame: Frame, tail: Boolean = false): OtpErlangObject? {
-        for (arrow in optionOrNull(options, "rescue")?.let(::arrows).orEmpty()) {
+    private fun rescued(
+        thrown: Thrown,
+        rescueClauses: List<ElixirAst>,
+        catchClauses: List<ElixirAst>,
+        frame: Frame,
+        tail: Boolean = false,
+    ): OtpErlangObject? {
+        for (arrow in rescueClauses) {
             val (head, body) = arrowParts(arrow)
             val scope = frame.copy(thrown.stacktrace)
 
             if (thrown.kind == "error" && rescue(head.single(), thrown, scope)) return eval(body, scope, tail)
         }
 
-        for (arrow in optionOrNull(options, "catch")?.let(::arrows).orEmpty()) {
+        for (arrow in catchClauses) {
             val (head, body) = arrowParts(arrow)
             val (patterns, guards) = clauseHead(head)
             val scope = frame.copy(thrown.stacktrace)
@@ -2801,11 +2880,18 @@ internal class Evaluation(
         return evalFrom(0, frame.copy(), tail)
     }
 
-    /** Whether [arrow]'s head is one variable, with no guard. */
-    private fun isVariableClause(arrow: ElixirAst): Boolean {
+    /**
+     * Whether one of a `try`'s [catchClauses] catches whatever is raised: two variables, with no guard. A `rescue`
+     * catches only errors, and a `catch` of one pattern only throws.
+     */
+    private fun catchesEverything(catchClauses: List<ElixirAst>): Boolean =
+        catchClauses.any { isVariableClause(it, arity = 2) }
+
+    /** Whether [arrow]'s head is [arity] variables, with no guard. */
+    private fun isVariableClause(arrow: ElixirAst, arity: Int = 1): Boolean {
         val (patterns, guards) = clauseHead(arrowParts(arrow).first)
 
-        return guards.isEmpty() && patterns.singleOrNull()?.let(::isVariable) == true
+        return guards.isEmpty() && patterns.size == arity && patterns.all(::isVariable)
     }
 
     /**
@@ -2964,7 +3050,7 @@ internal class Evaluation(
         val raised = ArrayList<Thrown>()
         var raises = false
 
-        val outermost = !run.mayNotRun
+        val outermost = run.speculating == 0
 
         run.speculating++
         try {
@@ -2994,7 +3080,7 @@ internal class Evaluation(
             run.speculating--
         }
 
-        before?.let { read.join(it, if (mayNotBeTaken) returned + it else returned, raisedIn) }
+        before?.let { read.join(it, if (mayNotBeTaken) returned + it else returned, raisedIn, caught = catching > 0) }
         if (values.isEmpty() && others.isEmpty() && !mayNotBeTaken) {
             // Every arm raises.
             val first = raised.firstOrNull()

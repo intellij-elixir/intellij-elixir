@@ -2717,7 +2717,11 @@ internal class Natives(private val evaluation: Evaluation) {
 
         read.imports.add(0, text)
 
+        val assumed = read.assumed
         val expansion = evaluation.run.files.imported(text, read) ?: decline("Config.__import__!/1 of %s, which can't be read", path)
+
+        // The file has its own run, so a `try` around this import sees what it may have raised only here.
+        if (read.assumed != assumed) evaluation.raiseMayBeCaught()
 
         when (val top = expansion.top) {
             is Expansion.Error -> {

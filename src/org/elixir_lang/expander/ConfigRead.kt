@@ -33,6 +33,9 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
     /** The files in [imports] that only code that may not have run read, so a later import of one may or may not raise. */
     val maybeImports = HashSet<String>()
 
+    /** How many answers the read's files assumed, across every file it imports (`Run.assumptions`). */
+    var assumed = 0
+
     /** How many arms that may not be taken the read's files have run, every file it imports counted toward one bound. */
     var armsTaken = 0
 
@@ -67,14 +70,16 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
 
     /**
      * The read once code that may not have run, starting from [before], ended in one of [returned] or raised in one of
-     * [raised]: a key the same term in each of [returned] keeps it, and one they set apart, or only some set, is unknown,
-     * else [before]'s config stands where none returned; a file any of them read may have been read ([maybeImports]).
+     * [raised], which a `try` around it may have [caught]: a key the same term in each that goes on keeps it, and one
+     * they set apart, or only some set, is unknown, else [before]'s config stands where none goes on; a file any of them
+     * read may have been read ([maybeImports]).
      */
-    fun join(before: Snapshot, returned: List<Snapshot>, raised: List<Snapshot>) {
+    fun join(before: Snapshot, returned: List<Snapshot>, raised: List<Snapshot>, caught: Boolean) {
+        val ended = returned + raised
         // Each started from before's files and added its own at the front.
-        val read = (returned + raised).flatMap { it.imports.subList(0, it.imports.size - before.imports.size) }.distinct()
+        val read = ended.flatMap { it.imports.subList(0, it.imports.size - before.imports.size) }.distinct()
 
-        val joined = returned.map(Snapshot::config).reduceOrNull(::joinedConfig) ?: before.config
+        val joined = (if (caught) ended else returned).map(Snapshot::config).reduceOrNull(::joinedConfig) ?: before.config
         restore(Snapshot(joined, read + before.imports))
         maybeImports += read
     }
