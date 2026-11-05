@@ -33,10 +33,9 @@ object ElixirInternalErlangSdkSetup {
     internal fun configureInternalErlangSdk(
         elixirSdk: Sdk,
         elixirSdkModificator: SdkModificator,
-        sdkModel: SdkModel? = null,
+        sdkModel: SdkModel?,
     ) {
-        val existingAdditionalData = elixirSdk.elixirAdditionalData
-        val existingErlangSdk = existingAdditionalData?.let { data -> ReadActions.compute { data.getErlangSdk(sdkModel) } }
+        val existingErlangSdk = elixirSdk.elixirAdditionalData?.let { data -> ReadActions.compute { data.getErlangSdk(sdkModel) } }
         val explicitErlangSdk = elixirSdk.getUserData(ERLANG_SDK_KEY)
 
         LOG.trace { "[${elixirSdk.name}] configureInternalErlangSdk: explicitErlangSdk=${explicitErlangSdk?.name}, existingErlangSdk=${existingErlangSdk?.name}" }
@@ -46,10 +45,8 @@ object ElixirInternalErlangSdkSetup {
         if (erlangSdk != null) {
             LOG.trace { "[${elixirSdk.name}] Using Erlang SDK '${erlangSdk.name}' (identity: ${System.identityHashCode(erlangSdk)})" }
 
-            if (existingAdditionalData == null || existingErlangSdk == null) {
-                val sdkAdditionData: com.intellij.openapi.projectRoots.SdkAdditionalData =
-                    SdkAdditionalData(erlangSdk, elixirSdk)
-                elixirSdkModificator.sdkAdditionalData = sdkAdditionData
+            if (existingErlangSdk == null) {
+                elixirSdkModificator.sdkAdditionalData = SdkAdditionalData(erlangSdk, elixirSdk)
             }
 
             ElixirErlangClasspath.addNewCodePathsFromInternErlangSdk(elixirSdk, erlangSdk, elixirSdkModificator)
