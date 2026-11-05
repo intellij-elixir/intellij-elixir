@@ -1766,6 +1766,16 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             tables = true,
         )
 
+    /** A recursion given the env, which holds what isn't known, ends on the attribute it pops, as in Elixir. */
+    fun testARecursionOverTheEnvThatEndsOnAnAttribute() =
+        assertFile(
+            "defmodule Q do\n  def drain(module, env) do\n    case Module.get_attribute(module, :pending) do\n      [] -> []\n\n" +
+                "      [h | t] ->\n        Module.put_attribute(module, :pending, t)\n        [h | drain(module, env)]\n    end\n  end\nend\n\n" +
+                "defmodule M do\n  @pending [:a, :b]\n  @names Q.drain(__MODULE__, __ENV__)\n  if @pending == [], do: def(done?, do: true)\nend\n",
+            "top expanded\nmodule Elixir.Q compiled [drain/2 def]\nmodule Elixir.M compiled [done?/0 def]",
+            tables = true,
+        )
+
     /** A delete of an attribute set to `nil` removes its row, which `Module.has_attribute?/2` reads. */
     fun testADeclinedForDeletingAStoredNilLeavesWhetherItIsThereUnknown() =
         assertFile(
@@ -10706,6 +10716,22 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 end
                 """,
                 pins = DECLINED,
+            ),
+            // Arms nested past the thread's stack, which the BEAM's holds, decline at the outermost, given only what the
+            // arms were: the test that holds them declines given nothing, so the raising arm is passed over.
+            macro(
+                "branch:arms-nested-past-the-stack",
+                """
+                defmacro m do
+                  cond do
+                    (if Process.whereis(:init), do: deep(100_000), else: 0) == :never -> raise "never"
+                    true -> :ok
+                  end
+                end
+
+                defp deep(0), do: 0
+                defp deep(n), do: 1 + deep(n - 1)
+                """,
             ),
             // `ExUnit.Case.__using__/1`'s check before its `quote`, up to v1.13.4.
             use(

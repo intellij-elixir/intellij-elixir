@@ -15,6 +15,7 @@ import org.elixir_lang.expander.interpreter.holdsUnknown
 import org.elixir_lang.expander.interpreter.keyValue
 import org.elixir_lang.expander.interpreter.properElements
 import org.elixir_lang.junit.HeavyTestCase
+import org.elixir_lang.language_level.ElixirLanguageFeature.CONFIG_READ_CONFIG
 import org.elixir_lang.lowering.inspect
 import java.io.File
 import java.util.concurrent.Callable
@@ -126,6 +127,10 @@ abstract class ConfigHeavyTestCase : HeavyTestCase() {
             else -> value.javaClass.simpleName
         }
     }
+
+    /** [expected], from `Config.read_config/1`; before it, where its call raises, [before]. */
+    protected fun assertRead(expected: String, actual: String, before: String = "raised") =
+        assertEquals(if (CONFIG_READ_CONFIG.isSufficient(legLevel())) expected else before, actual)
 
     /** [before], then a `try` around a second import of `config/o.exs`, which may raise, so the read declines. */
     protected fun assertImportedAgainDeclines(before: String) =

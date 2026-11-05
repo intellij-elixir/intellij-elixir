@@ -734,7 +734,7 @@ internal class Evaluation(
         return next
     }
 
-    /** [definition]'s clauses, run as [invoke] calls them; a call in the body's tail position is made, not run. */
+    /** [definition]'s clauses, run as [invoke] calls them ([clauseRun]). */
     private fun invoked(
         module: ModuleClauses,
         definition: ModuleClauses.Definition,
@@ -745,7 +745,55 @@ internal class Evaluation(
         ProgressManager.checkCanceled()
 
         val clauses = definition.clauses ?: decline("${module.module}.$function/${args.size}'s clauses aren't known")
+        // In an arm that may not run, a call over a value not known that repeats one running, from the same config, gives
+        // what that one does, which isn't known and may be anything its body builds, or raises as it may.
+        if (!run.mayNotRun || !anyHeld(args, visit = ::isUnknown)) return clauseRun(module, clauses, function, args, arity)
 
+        val running = RunningCall(module.module, function, args, run.config?.config)
+
+        run.runningOverUnknown.firstOrNull(running::repeats)?.let { matched ->
+            // It stands for Elixir's call inside, which ends where the one it repeats may: it leaves the config where
+            // that one's passes so far may have ended, or as it is before one has.
+            matched.repeated = true
+            matched.ended?.let { ended -> run.config?.config = ended }
+            return unlessRaised(ModuleUnknown)
+        }
+
+        run.runningOverUnknown.add(running)
+        try {
+            var value = clauseRun(module, clauses, function, args, arity)
+
+            // Once it has run to its end, its tail call included, a pass whose call repeating it gave in its place runs
+            // again from where the call started, the call repeating it now leaving the config where the passes before
+            // may have ended, until a pass ends where those before it may have or repeats no call.
+            while (running.repeated) {
+                value = looped(value)
+                val read = run.config ?: break
+                val before = running.ended
+                val ended = before?.let { joinedConfig(it, read.config) } ?: read.config
+                if (before != null && sameTerm(ended, before, held = true)) break
+
+                running.ended = ended
+                running.repeated = false
+                if (++run.armsTaken > ARM_BUDGET) decline("more arms over values not known than a run takes")
+                running.config?.let { read.config = it }
+                value = clauseRun(module, clauses, function, args, arity)
+            }
+
+            return value
+        } finally {
+            run.runningOverUnknown.removeAt(run.runningOverUnknown.lastIndex)
+        }
+    }
+
+    /** The clause of [clauses] that [args] match, run; a call in the body's tail position is made, not run. */
+    private fun clauseRun(
+        module: ModuleClauses,
+        clauses: List<ModuleClauses.Clause>,
+        function: String,
+        args: List<OtpErlangObject>,
+        arity: Int,
+    ): OtpErlangObject {
         stack.addFirst(frame(module.module, function, integer(arity.toLong())))
         try {
             val arms = Arms(values = args) { soleArm(clauses.filter { it.args.size == args.size }.map { it.body }, Frame(module)) }
@@ -2874,6 +2922,7 @@ internal class Evaluation(
      * as code that may not run ([Run.mayNotRun]), and their values and configs join. A value they all give alike is
      * known, else unknown; a key of the config the same in each keeps its value ([joinedConfig]). Where an arm raises,
      * the code around them may have raised ([raiseMayBeCaught]); where one declines, every arm was given what it holds.
+     * Past the run's [ARM_BUDGET], or nested past the thread's stack, the arms decline at the outermost.
      */
     private fun joined(arms: List<MaybeArm>): OtpErlangObject {
         val read = run.config
@@ -2883,21 +2932,28 @@ internal class Evaluation(
         val raised = ArrayList<Thrown>()
         var raises = false
 
+        val outermost = !run.mayNotRun
+
         run.speculating++
         try {
-            for (arm in arms) {
-                if (arm.raises()) {
-                    raises = true
-                    continue
-                }
-                before?.let { read.config = it }
-                try {
-                    values += arm.run()
-                    read?.let { configs += it.config }
-                } catch (thrown: Thrown) {
-                    raised += thrown
+            fun runEach() {
+                for (arm in arms) {
+                    if (++run.armsTaken > ARM_BUDGET) decline("more arms over values not known than a run takes")
+                    if (arm.raises()) {
+                        raises = true
+                        continue
+                    }
+                    before?.let { read.config = it }
+                    try {
+                        values += arm.run()
+                        read?.let { configs += it.config }
+                    } catch (thrown: Thrown) {
+                        raised += thrown
+                    }
                 }
             }
+
+            if (outermost) unlessTooDeep({ decline("arms over a value not known nested past the thread's stack") }) { runEach() } else runEach()
         } catch (declined: Declined) {
             before?.let { read.config = it }
             throw gave(declined) { add(arms.flatMap { it.marks() }, run.compiling.keys) }
@@ -3254,6 +3310,38 @@ internal fun shortCircuits(module: String, name: String, arity: Int): Boolean =
 
 /** The calls one tail loop runs before it is too deep to run, where the BEAM runs it until it ends. */
 private const val TAIL_CALLS = 1_000_000
+
+/** The arms that may not be taken one run runs, past which the next declines, as arms calling functions with arms double. */
+internal const val ARM_BUDGET = 4096
+
+/**
+ * A call of [module]'s [function] over [args], one of which isn't known, from a read's [config] as it was then.
+ */
+internal class RunningCall(
+    private val module: String,
+    private val function: String,
+    args: List<OtpErlangObject>,
+    val config: OtpErlangObject?,
+) {
+    private val terms = list(args)
+
+    /** Whether a call repeating this one ([repeats]) gave in its place. */
+    var repeated = false
+
+    /** Where the call's passes so far may have ended, `null` before one has: a call repeating it leaves the config there. */
+    var ended: OtpErlangObject? = null
+
+    /** Whether [other] calls the same function over the same terms ([sameTerm]) from the same config ([isAt]). */
+    fun repeats(other: RunningCall): Boolean =
+        module == other.module && function == other.function && sameTerm(terms, other.terms, held = true) && isAt(other.config)
+
+    /** Whether [other] is this call's config. */
+    private fun isAt(other: OtpErlangObject?): Boolean {
+        val config = config
+
+        return config === other || config != null && other != null && sameTerm(config, other, held = true)
+    }
+}
 
 /**
  * A call in tail position, made but not run: [Evaluation.looped] runs it by [evaluate], once its caller has returned,
