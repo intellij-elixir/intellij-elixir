@@ -1,6 +1,8 @@
 package org.elixir_lang.facet.sdks
 
 import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.options.ConfigurationException
+import com.intellij.openapi.options.ex.ConfigurableCardPanel
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
@@ -9,13 +11,16 @@ import com.intellij.openapi.ui.Splitter
 import com.intellij.testFramework.TestActionEvent
 import com.intellij.testFramework.common.runAll
 import com.intellij.ui.ToolbarDecorator
+import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.ui.UIUtil
 import java.util.concurrent.atomic.AtomicBoolean
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.facet.SdksService
+import org.elixir_lang.facet.sdk.Editor
 import org.elixir_lang.facet.sdk.Model
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkFixtures
+import org.elixir_lang.sdk.SdkFixtures.settle
 import org.elixir_lang.sdk.erlang_dependent.Asked
 import org.elixir_lang.sdk.erlang_dependent.ScriptedErlangStep
 import org.elixir_lang.sdk.erlang_dependent.ScriptedFileChooserFactory
@@ -23,7 +28,9 @@ import org.elixir_lang.sdk.erlang_dependent.elixirInstall
 import org.elixir_lang.sdk.erlang_dependent.install
 import org.elixir_lang.sdk.wsl.wslCompat
 import org.elixir_lang.facet.sdks.elixir.Configurable as ElixirSdksConfigurable
+import org.elixir_lang.facet.sdks.erlang.Configurable as ErlangSdksConfigurable
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
+import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
 
 /**
  * Tests for the Settings -> Elixir -> SDKs page ([org.elixir_lang.facet.sdks.Configurable]) and the
@@ -36,6 +43,8 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     private lateinit var table: SdkFixtures.TableSnapshot
 
+    private val pages = mutableListOf<Page>()
+
     override fun setUp() {
         super.setUp()
         table = SdkFixtures.TableSnapshot()
@@ -44,6 +53,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     override fun tearDown() {
         runAll(
+            { pages.toList().forEach(Page::cancel) },
             { table.restore() },
             { service().resetForTests() },
             { super.tearDown() },
@@ -52,11 +62,24 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     private fun service() = SdksService.getInstance()!!
 
-    private fun addElixirSdkToTable(name: String): Sdk = SdkFixtures.register(ProjectJdkImpl(name, ElixirSdkType.instance))
+    private fun addElixirSdkToTable(name: String, home: String? = null): Sdk =
+        SdkFixtures.register(home?.let { SdkFixtures.elixirSdk(name, it) } ?: ProjectJdkImpl(name, ElixirSdkType.instance))
 
-    private fun registerElixirSdk(name: String): Sdk {
-        val sdk = addElixirSdkToTable(name)
+    private fun registerElixirSdk(name: String, home: String? = null): Sdk {
+        val sdk = addElixirSdkToTable(name, home)
         service().resetForTests()   // rebuild the model so it reflects the new table entry
+        return sdk
+    }
+
+    /** An Elixir SDK paired with an Erlang SDK of its own and set up, so a browse to another home finds it. */
+    private fun registerPairedElixirSdk(name: String): Sdk =
+        SdkFixtures.pairedInTable(name).second.also { service().resetForTests() }
+
+    /** An Elixir SDK whose Erlang SDK resolves nowhere, so an Apply that validates it is refused. */
+    private fun registerElixirSdkPairedNowhere(name: String): Sdk {
+        val sdk = addElixirSdkToTable(name, "/fake/elixir/a")
+        SdkFixtures.commitPairing(sdk, "Nowhere Erlang", "/fake/erlang/nowhere")
+        service().resetForTests()
         return sdk
     }
 
@@ -179,29 +202,20 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     fun testRemoveDoesNotThrowAndRemovesSdk() {
         registerElixirSdk("Elixir Test B")
-
-        val configurable = ElixirSdksConfigurable()
-        configurable.createComponent()
-        configurable.reset()
+        val page = Page()
 
         // Regression: this used to NPE (findSdk(clone)!! returned null after model re-cloning).
-        configurable.removeSelectedSdk(modelClone("Elixir Test B"))
+        page.configurable.removeSelectedSdk(modelClone("Elixir Test B"))
 
-        assertFalse("model should no longer list it; got ${listedNames()}", "Elixir Test B" in listedNames())
+        assertFalse("the page should no longer list it; got ${page.listed()}", "Elixir Test B" in page.listed())
+        assertTrue("the model keeps it until Apply; got ${listedNames()}", "Elixir Test B" in listedNames())
+        assertTrue("the table keeps it until Apply", inTable("Elixir Test B"))
 
-        configurable.apply()
+        page.apply()
         assertFalse(
             "SDK should be gone from the JDK table",
             ProjectJdkTable.getInstance().allJdks.any { it.name == "Elixir Test B" },
         )
-    }
-
-    fun testARemoveReachesTheTableOnlyOnApply() = removeOnThePage("Elixir Test Remove Applied") { configurable, name ->
-        assertTrue("the table keeps it until Apply", inTable(name))
-
-        configurable.apply()
-
-        assertFalse("Apply removes it from the table", inTable(name))
     }
 
     fun testCancelAfterARemoveKeepsTheSdk() = removeOnThePage("Elixir Test Remove Cancelled") { configurable, name ->
@@ -214,12 +228,13 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         assertTrue("a later Apply keeps it", inTable(name))
     }
 
-    fun testAnSdkReAddedUnderTheRemovedNameIsKept() = removeOnThePage("Elixir Test Remove Readded") { configurable, name ->
+    fun testAnSdkReAddedUnderTheRemovedNameIsRefused() = removeOnThePage("Elixir Test Remove Readded") { configurable, name ->
+        val removed = tableSdk(name)
         service().getModel().addSdk(ProjectJdkImpl(name, ElixirSdkType.instance))
 
-        configurable.apply()
+        assertApplyRefused("Apply the removal first") { configurable.apply() }
 
-        assertTrue("the re-added SDK is in the table", inTable(name))
+        assertSame("the table keeps the removed SDK until its removal is applied", removed, tableSdk(name))
     }
 
     /** An Elixir SDK removed with the page's Remove; [check] gets the page and the name. */
@@ -239,6 +254,150 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     }
 
     private fun inTable(name: String): Boolean = ProjectJdkTable.getInstance().findJdk(name) != null
+
+    fun testARefusedApplyLeavesAnOptionItWroteModified() {
+        val a = registerElixirSdk("Elixir Refused Option A", "/fake/elixir/a")
+        val b = registerElixirSdk("Elixir Refused Option B", "/fake/elixir/b")
+        val c = registerElixirSdk("Elixir Refused Option C", "/fake/elixir/c")
+        val page = Page()
+        page.select(a)
+        UIUtil.findComponentsOfType(page.root, JBCheckBox::class.java)
+            .single { it.text == "Suppress OTP version mismatch warning" }
+            .doClick()
+        renameCopy(b, c.name)
+
+        assertApplyRefused { page.apply() }
+
+        assertTrue("the option is not applied while Apply is refused", page.isModified)
+    }
+
+    fun testAnAppliedHomeChangeLeavesThePageUnmodified() {
+        val sdk = registerPairedElixirSdk("Elixir Applied Home")
+        val page = Page()
+        page.select(sdk).doSetHomePath(SdkFixtures.elixirHome("1.19.5"), ElixirSdkType.instance)
+        assertTrue("precondition: browsing modifies the page", page.isModified)
+
+        page.apply()
+
+        assertFalse("an applied page has nothing left to apply", page.isModified)
+    }
+
+    fun testCancelAfterARemoveLeavesTheSharedModelWhole() {
+        val sdk = registerElixirSdk("Elixir Removed Then Cancelled", "/fake/elixir/a")
+        val removing = Page()
+        val other = Page()
+
+        removing.remove(sdk)
+        assertTrue("the other page still lists it; got ${other.listed()}", sdk.name in other.listed())
+        removing.cancel()
+        assertTrue("after the Cancel; got ${other.listed()}", sdk.name in other.listed())
+        other.apply()
+
+        assertTrue("the other page's Apply keeps it", inTable(sdk.name))
+        assertTrue("and lists it; got ${other.listed()}", sdk.name in other.listed())
+    }
+
+    fun testARemoveOfAnSdkThatFailsValidationIsAccepted() {
+        assertEmpty(
+            "precondition: no Erlang SDK is registered",
+            ProjectJdkTable.getInstance().allJdks.filter { it.sdkType is ErlangSdkType },
+        )
+        val sdk = registerElixirSdkPairedNowhere("Elixir Paired Nowhere")
+        val page = Page()
+
+        page.remove(sdk)
+        page.apply()
+
+        assertFalse("an SDK whose Erlang SDK resolves nowhere can still be removed", inTable(sdk.name))
+    }
+
+    fun testANameClashWithARecordedRemoveIsRefused() {
+        val a = registerElixirSdk("Elixir Clash A", "/fake/elixir/a")
+        val b = registerElixirSdk("Elixir Clash B", "/fake/elixir/b")
+        val page = Page()
+        page.remove(a)
+        page.select(b)
+        renameCopy(b, a.name)
+
+        assertApplyRefused("Apply the removal first") { page.apply() }
+
+        assertTableUnchanged(a to "Elixir Clash A", b to "Elixir Clash B")
+    }
+
+    fun testANameClashLeftByAnotherPagesRefusedApplyIsRefused() {
+        val a = registerElixirSdk("Elixir Clash Left A", "/fake/elixir/a")
+        val b = registerElixirSdk("Elixir Clash Left B", "/fake/elixir/b")
+        val removing = Page()
+        val renaming = Page()
+        renaming.select(b)
+        renameCopy(b, a.name)
+        assertApplyRefused { renaming.apply() }
+
+        removing.remove(a)
+
+        assertApplyRefused("Apply the removal first") { removing.apply() }
+        assertTableUnchanged(a to "Elixir Clash Left A", b to "Elixir Clash Left B")
+    }
+
+    fun testANameClashWithARemoveWhoseCopyWasRenamedIsRefused() {
+        val a = registerElixirSdk("Elixir Clash Renamed A", "/fake/elixir/a")
+        val b = registerElixirSdk("Elixir Clash Renamed B", "/fake/elixir/b")
+        val c = registerElixirSdk("Elixir Clash Renamed C", "/fake/elixir/c")
+        val removing = Page()
+        val renaming = Page()
+        renaming.select(a)
+        renameCopy(a, c.name)
+        assertApplyRefused { renaming.apply() }
+
+        removing.remove(a)
+        removing.select(b)
+        renameCopy(b, a.name)
+
+        assertApplyRefused("Apply the removal first") { removing.apply() }
+        assertTableUnchanged(a to "Elixir Clash Renamed A", b to "Elixir Clash Renamed B", c to "Elixir Clash Renamed C")
+    }
+
+    fun testCancelAfterAnAddAnotherPageAppliedKeepsTheSdk() = addThroughThePage { _, _, elixirHome ->
+        val adding = pages.single()
+        val other = Page()
+        other.apply()
+        adding.cancel()
+        settle()
+        other.apply()
+
+        assertTrue(
+            "the SDK the other page applied stays after a later Apply",
+            ProjectJdkTable.getInstance().allJdks.any {
+                it.sdkType is ElixirSdkType && wslCompat.pathsEqualWslAware(elixirHome, it.homePath)
+            },
+        )
+    }
+
+    fun testAnAddAnotherPageAppliedLeavesThePageUnmodified() = addThroughThePage { _, _, _ ->
+        val adding = pages.single()
+        assertTrue("the page reads modified while its Add is unapplied", adding.configurable.isModified)
+
+        Page().apply()
+
+        assertFalse("its Add is in the table now, so it has nothing to apply", adding.configurable.isModified)
+    }
+
+    fun testAViewedElixirEditorDoesNotUndoAnErlangRepair() {
+        val oldHome = SdkFixtures.erlangHomeWithEbin("27", "27.3.4")
+        val (erlang, elixir) = SdkFixtures.pairedInTable("Viewed Elixir", erlangHomePath = oldHome)
+        service().resetForTests()
+        val elixirPage = Page()
+        val erlangPage = Page(ErlangSdksConfigurable())
+        elixirPage.select(elixir)
+
+        erlangPage.select(erlang).doSetHomePath(SdkFixtures.erlangHomeWithEbin("26", "26.2.5"), ErlangSdkType.instance)
+        erlangPage.apply()
+        settle()
+        elixirPage.apply()
+        settle()
+
+        SdkFixtures.assertCodePathsFollowed(tableSdk(elixir.name), tableSdk(erlang.name), oldHome)
+    }
 
     fun testExternalSdkAdditionRefreshesCachedModel() {
         // Prime the cached model without the SDK.
@@ -295,28 +454,84 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     /**
      * Adds an Elixir SDK through the page's "+", picking an Erlang install in the step, then hands [check] the page's
-     * list, the model the page held before the add, and the Elixir install.
+     * list, the model the page held before the add, and the Elixir install. The page stays open for [check].
      */
     private fun addThroughThePage(check: (List, ProjectSdksModel, String) -> Unit) {
         ProcessOutput.isSmallIdeOverride = true
-        var configurable: ElixirSdksConfigurable? = null
         try {
             val asked = Asked()
             val elixirHome = elixirInstall("1.18.4", "28")
             val install = install("28", "28.1")
             ScriptedErlangStep(asked, ScriptedErlangStep.pickInstall(install), installs = listOf(install)).install(testRootDisposable)
             ScriptedFileChooserFactory(asked, elixirHome).install(testRootDisposable)
-            val page = ElixirSdksConfigurable().also { configurable = it }
-            val listPanel = (page.createComponent() as Splitter).firstComponent
-            page.reset()
+            val page = Page()
+            val listPanel = (page.root as Splitter).firstComponent
             val model = service().getModel()
 
             ToolbarDecorator.findAddButton(listPanel)!!.actionPerformed(TestActionEvent.createTestEvent())
 
             check(UIUtil.findComponentOfType(listPanel, List::class.java)!!, model, elixirHome)
         } finally {
-            configurable?.disposeUIResources()
             ProcessOutput.isSmallIdeOverride = null
+        }
+    }
+
+    /** One SDKs page, as a Settings tab: built and reset, then closed by [cancel] or at the end of the test. */
+    private inner class Page(val configurable: Configurable = ElixirSdksConfigurable()) {
+        val root = configurable.createComponent()!!
+
+        init {
+            configurable.reset()
+            pages += this
+        }
+
+        private val list: List get() = UIUtil.findComponentOfType(root, List::class.java)!!
+
+        fun listed(): kotlin.collections.List<String> = (0 until list.model.size).map { list.model.getElementAt(it).name }
+
+        /** Selects [sdk]'s copy, which builds and shows its editor, and returns that editor. */
+        fun select(sdk: Sdk): Editor {
+            list.setSelectedValue(copy(sdk), false)
+            return UIUtil.findComponentOfType(root, ConfigurableCardPanel::class.java)!!.key as Editor
+        }
+
+        fun remove(sdk: Sdk) = configurable.removeSelectedSdk(copy(sdk))
+
+        val isModified: Boolean get() = configurable.isModified
+
+        fun apply() = configurable.apply()
+
+        fun cancel() {
+            pages -= this
+            configurable.disposeUIResources()
+        }
+    }
+
+    /** [sdk]'s copy in the shared model, found by the table SDK it is keyed by. */
+    private fun copy(sdk: Sdk): ProjectJdkImpl = service().getModel().projectSdks[sdk] as ProjectJdkImpl
+
+    private fun tableSdk(name: String): Sdk = ProjectJdkTable.getInstance().findJdk(name)!!
+
+    /** Renames [sdk]'s copy in the shared model, as an editor does through the copy's modificator. */
+    private fun renameCopy(sdk: Sdk, name: String) = WriteAction.run<Throwable> {
+        copy(sdk).sdkModificator.apply {
+            this.name = name
+            commitChanges()
+        }
+    }
+
+    private fun assertApplyRefused(message: String? = null, apply: () -> Unit) =
+        assertThrows(ConfigurationException::class.java, message) { apply() }
+
+    /** Each table SDK still has its name, and no table SDK not given has it. */
+    private fun assertTableUnchanged(vararg named: Pair<Sdk, String>) {
+        val table = ProjectJdkTable.getInstance().allJdks
+        for ((sdk, name) in named) {
+            assertEquals("$name's name in the table", name, sdk.name)
+            assertTrue("$name is in the table", table.any { it === sdk })
+        }
+        for ((name, count) in named.groupingBy { it.second }.eachCount()) {
+            assertEquals("table SDKs named $name", count, table.count { it.name == name })
         }
     }
 }

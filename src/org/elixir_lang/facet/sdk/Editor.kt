@@ -46,6 +46,9 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
     private var initialName: String = sdk.name
     private var initialPath: String? = sdk.homePath
 
+    /** Applied to the copy, but not yet to the table: the copy's own baselines, such as the path editors', have moved. */
+    private var awaitingModelApply = false
+
     private val homeFieldLabelValue: String
         get() = (sdk.sdkType as SdkType).homeFieldLabel
 
@@ -167,7 +170,8 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
     private fun showTabForType(type: OrderRootType): Boolean = (sdk.sdkType as SdkType).isRootTypeApplicable(type)
 
     override fun isModified(): Boolean =
-        !Objects.equals(sdk.name, initialName) ||
+        awaitingModelApply ||
+                !Objects.equals(sdk.name, initialName) ||
                 !Objects.equals(
                     FileUtil.toSystemIndependentName(homeValue),
                     FileUtil.toSystemIndependentName(initialPath!!)
@@ -185,8 +189,6 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
             throw ConfigurationException(ProjectBundle.message("sdk.list.name.required.error"))
         }
 
-        initialName = sdk.name
-        initialPath = sdk.homePath
         val sdkModificator = sdk.sdkModificator
         if (!FileUtil.pathsEqual(homeValue, sdk.homePath ?: "")) {
             sdkModificator.versionString = _versionString
@@ -198,6 +200,14 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
         ApplicationManager.getApplication().runWriteAction { sdkModificator.commitChanges() }
 
         additionalDataConfigurable.forEach(AdditionalDataConfigurable::apply)
+        awaitingModelApply = true
+    }
+
+    /** The model holding the copy [apply] wrote has applied it to the table. */
+    fun applied() {
+        initialName = sdk.name
+        initialPath = sdk.homePath
+        awaitingModelApply = false
     }
 
     override fun reset() {

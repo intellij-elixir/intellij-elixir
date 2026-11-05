@@ -4,6 +4,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.WriteIntentReadAction
 import com.intellij.openapi.components.Service
+import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
@@ -137,9 +138,53 @@ class SdksService : Disposable {
      *
      * Validating the model reads the SDK table. A modal Settings dialog's Apply holds write-intent, a Settings tab's
      * Save Changes holds no lock, so the lock is taken here.
+     *
+     * [removed] are the copies one page removed. They leave the table only once the rest applies, so they are taken
+     * out of the model's map and left unvalidated while it does, and put back whatever happens: `removeSdk` would
+     * queue them for every later Apply, from any page.
+     *
+     * [applyEditors] write a page's edits to their copies.
      */
     @Suppress("UnstableApiUsage")
-    fun apply(model: ProjectSdksModel) = WriteIntentReadAction.run {
+    @Throws(ConfigurationException::class)
+    fun apply(
+        model: ProjectSdksModel,
+        removed: Collection<Sdk> = emptyList(),
+        applyEditors: () -> Unit = {},
+    ) = WriteIntentReadAction.run {
+        val sdks = model.projectSdks
+        val removedEntries = sdks.filterValues { copy -> removed.any { it === copy } }
+        refuseNameClash(sdks, removedEntries.keys)
+        applyEditors()
+        removedEntries.keys.forEach(sdks::remove)
+        try {
+            applyModel(model)
+        } finally {
+            sdks.putAll(removedEntries)
+        }
+        if (removedEntries.isNotEmpty()) {
+            removedEntries.values.forEach(model::removeSdk)
+            applyModel(model)
+        }
+    }
+
+    /** [sdk] is a table SDK itself, not a copy that shares its name. */
+    internal fun inTable(sdk: Sdk): Boolean = ProjectJdkTable.getInstance().allJdks.any { it === sdk }
+
+    /**
+     * An SDK applied under a removed SDK's table name would share it in the table until the removal, which runs
+     * second. Refused before anything is written to the copies, which every page shares.
+     */
+    private fun refuseNameClash(sdks: Map<Sdk, Sdk>, removedKeys: Collection<Sdk>) {
+        if (removedKeys.isEmpty()) return
+        val removedNames = removedKeys.map { it.name }.toSet()
+        val clash = sdks.any { (key, copy) ->
+            removedKeys.none { it === key } && copy.name in removedNames && !(key.name == copy.name && inTable(key))
+        }
+        if (clash) throw ConfigurationException("Apply the removal first")
+    }
+
+    private fun applyModel(model: ProjectSdksModel) {
         applying = model
         try {
             model.apply()

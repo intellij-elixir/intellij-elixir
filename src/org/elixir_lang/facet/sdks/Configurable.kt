@@ -22,10 +22,16 @@ import javax.swing.JPanel
 private val LOG = logger<Configurable>()
 
 abstract class Configurable: SearchableConfigurable, com.intellij.openapi.options.Configurable.NoScroll {
-    internal val sdksService by lazy { SdksService.getInstance()!! }
+    private val sdksService by lazy { SdksService.getInstance()!! }
     private val projectSdksModel by lazy { sdksService.getModel() }
     private lateinit var rootSplitter: Splitter
     private val editorByProjectJdkImpl: MutableMap<ProjectJdkImpl, Editor> = mutableMapOf()
+
+    /** Copies this page removed, hidden here and left in the shared model until its Apply. */
+    private val removedCopies = mutableSetOf<ProjectJdkImpl>()
+
+    /** Copies this page added, taken out of the shared model again by Cancel unless an Apply has put them in the table. */
+    private val addedCopies = mutableSetOf<ProjectJdkImpl>()
     private lateinit var sdkPanel: ConfigurableCardPanel
     private lateinit var sdkList: List
     private lateinit var sdkListPanel: JPanel
@@ -41,10 +47,15 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     })
 
     override fun apply() {
-        editorByProjectJdkImpl.forEach { (_, editor) ->
-            editor.apply()
+        var edited = emptyList<Editor>()
+        sdksService.apply(projectSdksModel, removedCopies) {
+            edited = editorByProjectJdkImpl.values.filter(Editor::isModified)
+            edited.forEach(Editor::apply)
         }
-        sdksService.apply(projectSdksModel)
+        edited.forEach(Editor::applied)
+        removedCopies.clear()
+        addedCopies.clear()
+        sdkList.refresh()
     }
 
     override fun createComponent(): JComponent? {
@@ -76,7 +87,15 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     override fun getHelpTopic(): String? = null
 
     override fun isModified(): Boolean =
-            projectSdksModel.isModified || editorByProjectJdkImpl.any { entry -> entry.value.isModified }
+        removedCopies.isNotEmpty() || unappliedAdds().isNotEmpty() || editorByProjectJdkImpl.values.any(Editor::isModified)
+
+    /** This page's adds the table does not hold yet: another page's Apply may have put them there. */
+    private fun unappliedAdds(): kotlin.collections.List<ProjectJdkImpl> =
+        addedCopies.filter { projectSdksModel.findSdk(it)?.let(sdksService::inTable) == false }
+
+    /** The shared model's SDKs of this page's type, but those this page removed. */
+    internal fun listedSdks(): kotlin.collections.List<ProjectJdkImpl> =
+        sdksService.projectJdkImplList(sdkType().javaClass).filter { it !in removedCopies }
 
     override fun reset() {
         // The shared model is populated once (SdksService.initModel) and kept in sync via the
@@ -90,6 +109,7 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     private fun addCreatedSdk(sdk: Sdk?) {
         sdk?.let {
             if (it.sdkType == sdkType()) {
+                addedCopies += it as ProjectJdkImpl
                 sdkList.apply {
                     refresh()
                     setSelectedValue(sdk, true)
@@ -128,6 +148,9 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     override fun disposeUIResources() {
         sdkModelListener?.let { projectSdksModel.removeListener(it) }
         sdkModelListener = null
+        unappliedAdds().forEach(projectSdksModel::removeSdk)
+        addedCopies.clear()
+        removedCopies.clear()
         editorByProjectJdkImpl.clear()
         sdksService.discardUnapplied(projectSdksModel)
     }
@@ -142,19 +165,12 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     }
 
     /**
-     * Removes [selected] (the editable model clone shown in the list) from the model, which takes it out of the table
-     * when applied, after validating what is left, as IDEA's Project Structure does. Extracted for testing.
+     * Removes [selected] (the editable model clone shown in the list) from this page; its Apply takes it out of the
+     * table. Extracted for testing.
      */
     internal fun removeSelectedSdk(selected: ProjectJdkImpl) {
-        projectSdksModel.removeSdk(selected)
-
-        editorByProjectJdkImpl[selected]?.let {
-            sdkPanel.getValue(sdkPanel.key, false).let { value ->
-                sdkPanel.remove(value)
-            }
-        }
-        editorByProjectJdkImpl.remove(selected)
-
+        removedCopies += selected
+        editorByProjectJdkImpl.remove(selected)?.let { editor -> sdkPanel.getValue(editor, false)?.let(sdkPanel::remove) }
         sdkList.refresh()
     }
 

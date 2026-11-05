@@ -17,6 +17,7 @@ import com.intellij.util.concurrency.annotations.RequiresEdt
 import junit.framework.TestCase
 import org.jdom.Element
 import java.io.File
+import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
 import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData as ElixirSdkAdditionalData
@@ -160,6 +161,23 @@ internal object SdkFixtures {
     /** [erlangSdk] with the code paths its type sets up: its home's stdlib ebin. */
     @RequiresEdt
     fun withCodePaths(erlangSdk: Sdk): Sdk = erlangSdk.also(ErlangSdkType.instance::setupSdkPaths)
+
+    /**
+     * An Erlang SDK [erlangName] at [erlangHomePath] with its code paths, then an Elixir SDK [name] paired with it and
+     * set up, both added to the table with [add].
+     */
+    @RequiresEdt
+    fun pairedInTable(
+        name: String,
+        erlangHomePath: String = erlangHomeWithEbin("27", "27.3.4"),
+        erlangName: String = "$name's Erlang",
+        add: (Sdk) -> Sdk = ::register,
+    ): Pair<Sdk, Sdk> {
+        val erlang = withCodePaths(add(erlangSdk(erlangName, erlangHomePath)))
+        val elixir = commitPairing(add(elixirSdk(name, elixirHome("1.18.4"))), erlang)
+        ElixirSdkPathConfigurator.configure(elixir)
+        return erlang to elixir
+    }
 
     /** [elixirSdk]'s pairing as its XML stores it: [erlangName], and [erlangHome] when given; nothing resolved. */
     fun storedPairing(elixirSdk: Sdk, erlangName: String, erlangHome: String? = null): ElixirSdkAdditionalData =
