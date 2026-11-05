@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangObject
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -9,7 +10,12 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
+import org.elixir_lang.expander.interpreter.atom
+import org.elixir_lang.expander.interpreter.holdsUnknown
+import org.elixir_lang.expander.interpreter.keyValue
+import org.elixir_lang.expander.interpreter.properElements
 import org.elixir_lang.junit.HeavyTestCase
+import org.elixir_lang.lowering.inspect
 import java.io.File
 import java.util.concurrent.Callable
 import org.elixir_lang.model.psi.config.disableMixDepsCheck
@@ -63,6 +69,49 @@ abstract class ConfigHeavyTestCase : HeavyTestCase() {
             table.unknown -> "unknown"
             table.declined -> "declined"
             else -> "${table.config} ${table.files.map { FileUtil.getRelativePath(root.path, it, '/') }}"
+        }
+    }
+
+    /**
+     * What `lib/reader.ex`'s `:dev` table answers for each of [keys] once `config/config.exs` is `import Config` then
+     * [config], with the files [extra] beside it: `declined` where a unit of the read declined, so every key answers as
+     * the settings index does, `raised` where the read raises, else each key as `key=answer`. A key is `:app`'s unless
+     * written `app:key`; `key/nested` reads a keyword inside the key's value.
+     */
+    protected fun keys(config: String, vararg keys: String, extra: Array<Pair<String, String>> = emptyArray()): String {
+        val root = project(CONFIG to "import Config\n\n$config", *extra)
+        val table = table(root.findFileByRelativePath("lib/reader.ex")!!) ?: return "no table"
+
+        return when {
+            table.declined -> "declined"
+            table.unknown -> "raised"
+            else -> keys.joinToString(" ") { key -> "$key=${answer(table, key)}" }
+        }
+    }
+
+    /** What [keys] answers for `k` and `k1` once the config sets `k` to [value] beside `k1: 1`. */
+    protected fun keyBeside(value: String): String = keys("config :app, k: $value, k1: 1\n", "k", "k1")
+
+    private fun answer(table: ConfigTable, key: String): String {
+        val app = key.substringBefore(':', "app")
+        val path = key.substringAfter(':').split('/')
+
+        if (path.size > 1) {
+            val term = (listOf(app) + path).fold<String, OtpErlangObject?>(table.config) { term, nested ->
+                term?.let(::properElements)?.let { elements -> keyValue(elements) { it == atom(nested) } }
+            }
+
+            return when {
+                term == null -> "absent"
+                holdsUnknown(term) -> "Configured"
+                else -> inspect(term)
+            }
+        }
+
+        return when (val value = table.of(app, atom(path.single()))) {
+            null -> "absent"
+            is AppEnvValue.Declared -> inspect(value.term)
+            else -> value.javaClass.simpleName
         }
     }
 
