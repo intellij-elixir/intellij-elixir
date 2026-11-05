@@ -207,23 +207,9 @@ class LoadedCopyTest : PlatformTestCase() {
     fun testASmallIdesSdkCopyWins() {
         layout(*sdkAnd("stale/ebin"))
         staleLibrary("Stale", "stale/ebin")
-        val sdk = registerSdk("Small IDE", "small-ide", "sdk/ebin")
-        WriteAction.runAndWait<Throwable> {
-            sdk.sdkModificator.apply {
-                addRoot(file("sdk/lib"), OrderRootType.SOURCES)
-                commitChanges()
-            }
-        }
-        ProcessOutput.isSmallIdeOverride = true
-        try {
-            FacetModelFixtures.assign(module, sdk)
-            FacetModelFixtures.settle(project)
 
+        onASmallIdesSdk {
             assertEquals(listOf("sdk/ebin/$ENUMERABLE_BEAM"), loaded(LIB_ASKER, ENUMERABLE))
-        } finally {
-            FacetManager.getInstance(module).getFacetByType(Facet.ID)?.let(FacetUtil::deleteFacet)
-            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
-            ProcessOutput.isSmallIdeOverride = null
         }
     }
 
@@ -321,6 +307,87 @@ class LoadedCopyTest : PlatformTestCase() {
             assertEquals(listOf("stale/ebin/$ENUMERABLE_BEAM"), loaded(LIB_ASKER, ENUMERABLE))
         }
     }
+
+    // The source paired with the `.beam` that loads: the one copy under a SOURCES root of the entry whose CLASSES hold it.
+
+    fun testTheSdksBeamPairsWithItsSource() {
+        layout(
+            "sdk/ebin/$STRING_BEAM" to legBeam(STRING_BEAM),
+            "sdk/lib/string.ex" to legSource("lib/string.ex"),
+        )
+
+        withSdk(classes = "sdk/ebin") {
+            assertEquals("sdk/lib/string.ex", paired(LIB_ASKER, "String"))
+        }
+    }
+
+    fun testASmallIdesSdkBeamPairsWithItsSource() {
+        layout(*sdkAnd())
+
+        onASmallIdesSdk {
+            assertEquals("sdk/lib/enum.ex", paired(LIB_ASKER, ENUMERABLE))
+        }
+    }
+
+    fun testADependencysBeamPairsWithItsSource() {
+        layout(*dependencyFiles(DEP_BEAM, "dev", "test"))
+        dependency("dev", "test")
+
+        assertEquals("app/deps/d/lib/loaded_copy.ex", paired(LIB_ASKER, DEP))
+        assertEquals("app/deps/d/lib/loaded_copy.ex", paired(TEST_ASKER, DEP))
+    }
+
+    fun testALibraryWithNoSourcesRootPairsWithNothing() {
+        layout(*copies("stale/ebin"))
+        staleLibrary("stale", "stale/ebin")
+
+        assertEquals("none", paired(LIB_ASKER, ENUMERABLE))
+    }
+
+    fun testASiblingLibrarysSourceIsNotPaired() {
+        layout(*copies("stale/ebin"), "sibling/lib/enum.ex" to enumerableSource())
+        staleLibrary("stale", "stale/ebin")
+        BeamLibraryFixture.addLibrary(project, module, "sibling", emptyList(), listOf(file("sibling/lib")))
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
+
+        assertEquals("none", paired(LIB_ASKER, ENUMERABLE))
+    }
+
+    fun testTwoCopiesUnderTheEntryPairWithNothing() {
+        layout(*dependencyFiles(DEP_BEAM, "dev"), "app/deps/d/lib/again.ex" to DEP_SOURCE.toByteArray())
+        dependency("dev")
+
+        assertEquals("none", paired(LIB_ASKER, DEP))
+    }
+
+    fun testAFileDefiningTheModuleTwicePairsWithNothing() {
+        layout(
+            "app/deps/d/lib/loaded_copy.ex" to "$DEP_SOURCE\n$DEP_SOURCE".toByteArray(),
+            "app/_build/dev/lib/d/ebin/$DEP_BEAM" to fixture(DEP_BEAM),
+        )
+        dependency("dev")
+
+        assertEquals("none", paired(LIB_ASKER, DEP))
+    }
+
+    fun testASourceInContentIsStillTheCopyLocated() {
+        layout(*dependencyFiles(DEP_BEAM, "dev"), "app/lib/dep.ex" to DEP_SOURCE.toByteArray())
+        dependency("dev")
+
+        val located = inFile(LIB_ASKER) { asker -> ProjectModules.getInstance(project).locate(asker, "Elixir.$DEP", inputs()) }
+
+        assertInstanceOf(located, ProjectModules.Located.Source::class.java)
+    }
+
+    /** The source [asker] pairs with the `.beam` of [name] it loads, relative to the fixture, or `none`. */
+    private fun paired(asker: String, name: String): String =
+        inFile(asker) { askerFile ->
+            val copies = Module.resolveLoadable(askerFile, name)
+            val beam = Resolver.preferred(askerFile, false, copies.loaded).single().element.containingFile.originalFile.virtualFile
+            val base = FileUtil.toSystemIndependentName(top.path)
+
+            copies.sourceOf(beam)?.let { relative(base, it) } ?: "none"
+        }
 
     // The expander's answer where `locate` answers `Several`: every copy, each uncertain, as which one loads is unknown.
 
@@ -465,8 +532,10 @@ class LoadedCopyTest : PlatformTestCase() {
 
     private fun inputs(): ProjectModules.Inputs = ProjectModules.Inputs(legLevel(), legKernel, OS.CURRENT)
 
-    private fun relative(base: String, element: PsiElement): String {
-        val path = FileUtil.toSystemIndependentName(element.containingFile.originalFile.virtualFile.path)
+    private fun relative(base: String, element: PsiElement): String = relative(base, element.containingFile.originalFile.virtualFile)
+
+    private fun relative(base: String, file: VirtualFile): String {
+        val path = FileUtil.toSystemIndependentName(file.path)
 
         return FileUtil.getRelativePath(base, path, '/') ?: path
     }
@@ -534,6 +603,22 @@ class LoadedCopyTest : PlatformTestCase() {
     private fun sdkAnd(vararg dirs: String): Array<Pair<String, ByteArray>> =
         arrayOf("sdk/ebin/$ENUMERABLE_BEAM" to enumerableBeam(), "sdk/lib/enum.ex" to enumerableSource()) + copies(*dirs)
 
+    /** [block] on a small IDE, where the module's facet names an SDK of `sdk/ebin` and `sdk/lib` that no order entry carries. */
+    private fun onASmallIdesSdk(block: () -> Unit) {
+        val sdk = registerSdk("Small IDE", "small-ide", "sdk/ebin", sources = "sdk/lib")
+        ProcessOutput.isSmallIdeOverride = true
+        try {
+            FacetModelFixtures.assign(module, sdk)
+            FacetModelFixtures.settle(project)
+
+            block()
+        } finally {
+            FacetManager.getInstance(module).getFacetByType(Facet.ID)?.let(FacetUtil::deleteFacet)
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+            ProcessOutput.isSmallIdeOverride = null
+        }
+    }
+
     /** A library named [name] with each of [classes] as a CLASSES root, in no content root unless [classes] sit in one. */
     private fun staleLibrary(name: String, vararg classes: String) {
         BeamLibraryFixture.addLibrary(project, module, name, classes.map(::file))
@@ -581,7 +666,7 @@ class LoadedCopyTest : PlatformTestCase() {
             val base = FileUtil.toSystemIndependentName(top.path)
 
             val results = if (loaded) {
-                Resolver.preferred(askerFile, false, Module.resolveLoadable(askerFile, name))
+                Resolver.preferred(askerFile, false, Module.resolveLoadable(askerFile, name).loaded)
             } else {
                 Module.resolvePreferred(askerFile, name, incompleteCode = false, inScope = false)
             }
@@ -620,11 +705,13 @@ class LoadedCopyTest : PlatformTestCase() {
         const val APP_BEAM = "Elixir.LoadedCopy.App.beam"
         const val DEP = "LoadedCopy.Dep"
         const val DEP_BEAM = "Elixir.LoadedCopy.Dep.beam"
+        const val DEP_SOURCE = "defmodule LoadedCopy.Dep do\nend\n"
         const val PROTOCOL = "LoadedCopy.Protocol"
         const val PROTOCOL_BEAM = "Elixir.LoadedCopy.Protocol.beam"
         const val ENUMERABLE = "Enumerable"
         const val ENUMERABLE_BEAM = "Elixir.Enumerable.beam"
         const val KERNEL_BEAM = "Elixir.Kernel.beam"
+        const val STRING_BEAM = "Elixir.String.beam"
         const val LISTS_BEAM = "lists.beam"
     }
 }

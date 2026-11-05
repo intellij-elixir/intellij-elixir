@@ -56,13 +56,14 @@ class FacetModels(private val project: Project) : Disposable {
     @RequiresReadLock
     fun scope(module: Module): GlobalSearchScope? = ElixirSdkLookup.facetSdk(module)?.let { sdkScope(it) }
 
-    private fun sdkScope(sdk: Sdk): GlobalSearchScope =
-        JdkScope(
-            project,
-            sdk.rootProvider.getFiles(OrderRootType.CLASSES),
-            sdk.rootProvider.getFiles(OrderRootType.SOURCES),
-            sdk.name,
-        )
+    /** [scope]'s roots, as its CLASSES and its SOURCES. */
+    @RequiresReadLock
+    fun roots(module: Module): Pair<Array<VirtualFile>, Array<VirtualFile>>? = ElixirSdkLookup.facetSdk(module)?.let { roots(it) }
+
+    private fun roots(sdk: Sdk): Pair<Array<VirtualFile>, Array<VirtualFile>> =
+        sdk.rootProvider.getFiles(OrderRootType.CLASSES) to sdk.rootProvider.getFiles(OrderRootType.SOURCES)
+
+    private fun sdkScope(sdk: Sdk): GlobalSearchScope = roots(sdk).let { (classes, sources) -> JdkScope(project, classes, sources, sdk.name) }
 
     private fun facetModules(): List<Module> = ProjectFacetManager.getInstance(project).getModulesWithFacet(Facet.ID)
 

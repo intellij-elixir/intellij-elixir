@@ -2,6 +2,7 @@ package org.elixir_lang.reference.resolver
 
 import com.intellij.codeInsight.daemon.SyntheticPsiFileSupport
 import com.intellij.lang.injection.InjectedLanguageManager
+import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleUtil
 import com.intellij.openapi.module.impl.scopes.JdkScope
 import com.intellij.openapi.project.Project
@@ -42,6 +43,12 @@ internal fun effectiveVirtualFile(element: PsiElement): VirtualFile? {
     return recoverLocalFile(backingFile) ?: backingFile
 }
 
+/** The IDE module of [element], or of [virtualFile], its [effectiveVirtualFile], where [element] itself is in none. */
+@RequiresReadLock
+internal fun moduleOf(element: PsiElement, virtualFile: VirtualFile? = effectiveVirtualFile(element)): Module? =
+    ModuleUtil.findModuleForPsiElement(element)
+        ?: virtualFile?.let { ModuleUtil.findModuleForFile(it, element.project) }
+
 /**
  * Maps a synthetic diff / VCS [file] back to its real on-disk [VirtualFile], or null when [file] is
  * already a real local file (or nothing can be recovered).
@@ -80,9 +87,7 @@ private fun recoverLocalFile(file: VirtualFile): VirtualFile? {
 fun narrowedScope(element: PsiElement, project: Project): GlobalSearchScope {
     val virtualFile = effectiveVirtualFile(element)
 
-    val module = ModuleUtil.findModuleForPsiElement(element)
-        ?: virtualFile?.let { ModuleUtil.findModuleForFile(it, project) }
-        ?: return GlobalSearchScope.allScope(project)
+    val module = moduleOf(element, virtualFile) ?: return GlobalSearchScope.allScope(project)
 
     val projectFileIndex = ProjectRootManager.getInstance(project).fileIndex
     val includeTests = virtualFile?.let { projectFileIndex.isInTestSourceContent(it) } ?: false
