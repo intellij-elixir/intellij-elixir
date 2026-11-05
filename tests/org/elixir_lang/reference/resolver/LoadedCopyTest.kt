@@ -2,7 +2,6 @@ package org.elixir_lang.reference.resolver
 
 import com.intellij.facet.FacetManager
 import com.intellij.facet.impl.FacetUtil
-import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
@@ -26,6 +25,7 @@ import org.elixir_lang.beam.SdkBeams
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.expander.ExpanderSource
+import org.elixir_lang.expander.ExpanderSourceRows.read
 import org.elixir_lang.expander.ProjectModules
 import org.elixir_lang.expander.legKernel
 import org.elixir_lang.expander.legLevel
@@ -39,7 +39,6 @@ import org.elixir_lang.reference.Resolver
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkFixtures
 import java.io.File
-import java.util.concurrent.Callable
 
 /**
  * The copy of a module Elixir loads, in a project laid out as Mix sync leaves it: a dependency's `.beam` built for the
@@ -462,7 +461,7 @@ class LoadedCopyTest : PlatformTestCase() {
 
     /** [block] in a read action, on the file at [path] under the fixture. */
     private fun <T> inFile(path: String, block: (PsiFile) -> T): T =
-        ReadAction.nonBlocking(Callable { block(PsiManager.getInstance(project).findFile(file(path))!!) }).executeSynchronously()
+        read { block(PsiManager.getInstance(project).findFile(file(path))!!) }
 
     private fun inputs(): ProjectModules.Inputs = ProjectModules.Inputs(legLevel(), legKernel, OS.CURRENT)
 

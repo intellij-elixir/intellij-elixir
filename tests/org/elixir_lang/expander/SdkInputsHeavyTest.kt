@@ -22,6 +22,7 @@ import com.intellij.util.system.OS
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.beam.ReadResult
 import org.elixir_lang.elixir_surface.LegManifest
+import org.elixir_lang.expander.ExpanderSourceRows.read
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.junit.logs.expectErrors
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -32,7 +33,6 @@ import org.elixir_lang.sdk.elixir.ElixirVersions
 import org.elixir_lang.sdk.elixir.OtpMajor
 import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
 import java.io.File
-import java.util.concurrent.Callable
 import org.elixir_lang.sdk.Type as SdkRoots
 
 class SdkInputsHeavyTest : HeavyTestCase() {
@@ -329,8 +329,6 @@ class SdkInputsHeavyTest : HeavyTestCase() {
 
     private fun psi(root: VirtualFile, path: String): PsiFile =
         PsiManager.getInstance(project).findFile(root.findFileByRelativePath(path)!!)!!
-
-    private fun <T> read(block: () -> T): T = ReadAction.nonBlocking(Callable { block() }).executeSynchronously()
 
     private companion object {
         val KERNEL: ByteArray by lazy { File(LegManifest.ebin(), "Elixir.Kernel.beam").readBytes() }
