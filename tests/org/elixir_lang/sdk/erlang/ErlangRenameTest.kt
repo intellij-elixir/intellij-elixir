@@ -210,9 +210,7 @@ class ErlangRenameTest : PlatformTestCase() {
      * code paths its type sets up.
      */
     private fun pairedWithErlang(prefix: String): Sdk {
-        val erlang = SdkFixtures.withCodePaths(register(SdkFixtures.erlangSdk("$prefix Erlang", SdkFixtures.erlangHomeWithEbin("27", "27.3.4"))))
-        val elixir = pairedElixir("$prefix Elixir", erlang)
-        ElixirSdkPathConfigurator.configure(elixir)
+        val (erlang, elixir) = SdkFixtures.pairedInTable("$prefix Elixir", erlangName = "$prefix Erlang")
         assertEquals("precondition: the Erlang code paths", codePaths(erlang), codePathsUnder(elixir, erlang.homePath!!))
         return elixir
     }

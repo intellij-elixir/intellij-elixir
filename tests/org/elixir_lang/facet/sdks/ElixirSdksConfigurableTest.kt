@@ -91,9 +91,6 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     private fun listedNames(): kotlin.collections.List<String> =
         service().projectJdkImplList(ElixirSdkType::class.java).map { it.name }
 
-    private fun modelClone(name: String): ProjectJdkImpl =
-        service().getModel().findSdk(name) as ProjectJdkImpl
-
     private fun comboNames(model: Model): kotlin.collections.List<String> =
         model.items.mapNotNull { it?.name }
 
@@ -215,9 +212,8 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         )
     }
 
-    fun testCancelAfterARemoveKeepsTheSdk() = removeOnThePage("Elixir Test Remove Cancelled") { configurable, name ->
-        // Cancel: the pages close without Apply.
-        configurable.disposeUIResources()
+    fun testCancelAfterARemoveKeepsTheSdk() = removeOnThePage("Elixir Test Remove Cancelled") { page, name ->
+        page.cancel()
 
         assertTrue("the table keeps it", inTable(name))
         assertTrue("the next page lists it; got ${listedNames()}", name in listedNames())
@@ -225,29 +221,21 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         assertTrue("a later Apply keeps it", inTable(name))
     }
 
-    fun testAnSdkReAddedUnderTheRemovedNameIsRefused() = removeOnThePage("Elixir Test Remove Readded") { configurable, name ->
+    fun testAnSdkReAddedUnderTheRemovedNameIsRefused() = removeOnThePage("Elixir Test Remove Readded") { page, name ->
         val removed = tableSdk(name)
         service().getModel().addSdk(ProjectJdkImpl(name, ElixirSdkType.instance))
 
-        assertApplyRefused("Apply the removal first") { configurable.apply() }
+        assertApplyRefused("Apply the removal first") { page.apply() }
 
         assertSame("the table keeps the removed SDK until its removal is applied", removed, tableSdk(name))
     }
 
     /** An Elixir SDK removed with the page's Remove; [check] gets the page and the name. */
-    private fun removeOnThePage(name: String, check: (ElixirSdksConfigurable, String) -> Unit) {
-        registerElixirSdk(name)
-        val configurable = ElixirSdksConfigurable()
-        try {
-            configurable.createComponent()
-            configurable.reset()
-
-            configurable.removeSelectedSdk(modelClone(name))
-
-            check(configurable, name)
-        } finally {
-            configurable.disposeUIResources()
-        }
+    private fun removeOnThePage(name: String, check: (SdksPage, String) -> Unit) {
+        val sdk = registerElixirSdk(name)
+        val page = openPage()
+        page.remove(sdk)
+        check(page, name)
     }
 
     private fun inTable(name: String): Boolean = ProjectJdkTable.getInstance().findJdk(name) != null
@@ -1007,12 +995,12 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     }
 
     fun testRemovedSdkDoesNotGhostInChooser() {
-        registerElixirSdk("Elixir Test C")
+        val sdk = registerElixirSdk("Elixir Test C")
 
         val model = Model()
         assertTrue("chooser should list it initially; got ${comboNames(model)}", "Elixir Test C" in comboNames(model))
 
-        service().getModel().removeSdk(modelClone("Elixir Test C"))
+        service().getModel().removeSdk(SdksPage.copy(sdk))
 
         assertFalse("removed SDK must not ghost in the chooser; got ${comboNames(model)}", "Elixir Test C" in comboNames(model))
     }

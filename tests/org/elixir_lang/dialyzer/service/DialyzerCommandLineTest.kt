@@ -8,7 +8,6 @@ import org.elixir_lang.junit.onPooledThread
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.wsl.MockWslCompatService
 import org.elixir_lang.sdk.wsl.WslCompatService
-import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData as ElixirSdkAdditionalData
 import com.intellij.util.concurrency.annotations.RequiresEdt
 
 /**
@@ -29,7 +28,7 @@ class DialyzerCommandLineTest : PlatformTestCase() {
     fun testBuildingTheCommandLineTakesItsOwnReadAction() {
         val erlangSdk = register(SdkFixtures.erlangSdk("Dialyzer Erlang", "/fake/erlang/dialyzer"))
         val elixirSdk = register(SdkFixtures.elixirSdk("Dialyzer Elixir", "/fake/elixir/dialyzer"))
-        SdkFixtures.commit(elixirSdk, ElixirSdkAdditionalData(erlangSdk, elixirSdk))
+        SdkFixtures.commitPairing(elixirSdk, erlangSdk)
 
         val failure = onPooledThread {
             runCatching { DialyzerServiceImpl().commandLine("/fake/project", elixirSdk, project) }.exceptionOrNull()

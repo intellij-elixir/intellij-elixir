@@ -33,7 +33,6 @@ import org.elixir_lang.sdk.wsl.MockWslCompatService
 import org.elixir_lang.sdk.wsl.WslCompatService
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
-import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData as ElixirSdkAdditionalData
 import org.elixir_lang.facet.sdks.elixir.Configurable as ElixirSdksConfigurable
 import org.elixir_lang.facet.sdks.erlang.Configurable as ErlangSdksConfigurable
 import kotlin.time.Duration.Companion.seconds
@@ -219,7 +218,7 @@ class EditorTest : PlatformTestCase() {
     ): ProjectJdkImpl {
         val erlangSdk = register(SdkFixtures.erlangSdk("$name Erlang", erlangHome))
         val elixirSdk = register(SdkFixtures.elixirSdk(name, elixirHome))
-        SdkFixtures.commit(elixirSdk, ElixirSdkAdditionalData(erlangSdk, elixirSdk))
+        SdkFixtures.commitPairing(elixirSdk, erlangSdk)
         SdksService.getInstance()!!.resetForTests()
 
         return model().findSdk(name) as ProjectJdkImpl

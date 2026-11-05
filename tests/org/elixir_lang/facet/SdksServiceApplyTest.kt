@@ -15,7 +15,6 @@ import org.elixir_lang.sdk.wsl.MockWslCompatService
 import org.elixir_lang.sdk.wsl.WslCompatService
 import org.elixir_lang.util.WriteActions
 import java.util.concurrent.Callable
-import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData as ElixirSdkAdditionalData
 
 class SdksServiceApplyTest : PlatformTestCase() {
     override fun runInDispatchThread(): Boolean = false
@@ -49,7 +48,7 @@ class SdksServiceApplyTest : PlatformTestCase() {
             val e1 = register(SdkFixtures.erlangSdk(E1, e1Home))
             register(SdkFixtures.erlangSdk(E2, e2Home))
             val x = register(SdkFixtures.elixirSdk(X, xHome))
-            SdkFixtures.commit(x, ElixirSdkAdditionalData(e1, x))
+            SdkFixtures.commitPairing(x, e1)
             SdksService.getInstance()!!.resetForTests()
             SdksService.getInstance()!!.getModel().also { model ->
                 // As the SDKs page's Erlang combo applies a new pairing to the model's copy.

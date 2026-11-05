@@ -7,7 +7,6 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.application.impl.LaterInvocator
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.util.io.FileUtil
@@ -23,6 +22,7 @@ import org.elixir_lang.sdk.SdkFixtures.storedErlangHome
 import org.elixir_lang.sdk.SdkFixtures.storedErlangName
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
 import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
+import org.elixir_lang.facet.sdks.SdksPage
 import org.elixir_lang.facet.sdks.erlang.Configurable as ErlangSdksConfigurable
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 
@@ -84,15 +84,13 @@ class ErlangDeletionAskTest : PlatformTestCase() {
         val elixir = paired("Ask page Elixir", SdkFixtures.elixirHome("1.18.4"), deleted)
         script(ScriptedErlangStep.pick(other.name))
         SdksService.getInstance()!!.resetForTests()
-        val page = ErlangSdksConfigurable()
+        val page = SdksPage(ErlangSdksConfigurable(), mutableListOf())
         try {
-            page.createComponent()
-            page.reset()
-            page.removeSelectedSdk(SdksService.getInstance()!!.getModel().findSdk(deleted.name) as ProjectJdkImpl)
+            page.remove(deleted)
 
             page.apply()
         } finally {
-            page.disposeUIResources()
+            page.cancel()
         }
         settle()
 
