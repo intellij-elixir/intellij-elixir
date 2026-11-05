@@ -1,6 +1,5 @@
 package org.elixir_lang.facet.sdks
 
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.options.SearchableConfigurable
 import com.intellij.openapi.options.ex.ConfigurableCardPanel
@@ -8,12 +7,8 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.SdkType
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
-import com.intellij.openapi.roots.OrderRootType
-import com.intellij.openapi.roots.libraries.Library
-import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar
 import com.intellij.openapi.ui.Splitter
 import com.intellij.openapi.util.ActionCallback
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.navigation.History
@@ -25,12 +20,6 @@ import javax.swing.JComponent
 import javax.swing.JPanel
 
 private val LOG = logger<Configurable>()
-
-fun Library.ModifiableModel.addRoots(sdk: Sdk) =
-        sdk
-                .rootProvider
-                .getFiles(OrderRootType.CLASSES)
-                .let { addRoots(it) }
 
 abstract class Configurable: SearchableConfigurable, com.intellij.openapi.options.Configurable.NoScroll {
     internal val sdksService by lazy { SdksService.getInstance()!! }
@@ -56,23 +45,6 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
             editor.apply()
         }
         sdksService.apply(projectSdksModel)
-        removeLibraries()
-    }
-
-    /**
-     * The application libraries of the SDKs removed on this page, which go when the removal is applied, but for one an
-     * SDK added under the same name has taken back.
-     */
-    private val removedLibraries = mutableSetOf<Library>()
-
-    private fun removeLibraries() {
-        if (removedLibraries.isEmpty()) return
-        val libraryTable = LibraryTablesRegistrar.getInstance().libraryTable
-        val libraries = removedLibraries.intersect(libraryTable.libraries.toSet())
-        removedLibraries.clear()
-        if (libraries.isNotEmpty()) {
-            ApplicationManager.getApplication().runWriteAction { libraries.forEach(libraryTable::removeLibrary) }
-        }
     }
 
     override fun createComponent(): JComponent? {
@@ -135,50 +107,8 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
 
     private fun addListeners() {
         val listener = object : SdkModel.Listener {
-            override fun beforeSdkRemove(sdk: Sdk) {
-                LOG.debug("beforeSdkRemove(sdk.name='${sdk.name}')")
-                LibraryTablesRegistrar.getInstance().libraryTable.getLibraryByName(sdk.name)?.let(removedLibraries::add)
-            }
-
             override fun sdkAdded(sdk: Sdk) {
                 LOG.debug("sdkAdded(sdk.name='${sdk.name}')")
-                LibraryTablesRegistrar.getInstance().libraryTable.let { libraryTable ->
-                    ApplicationManager.getApplication().runWriteAction {
-                        val library = libraryTable.getLibraryByName(sdk.name)?.also(removedLibraries::remove)
-                            ?: libraryTable.createLibrary(sdk.name)
-                        library.modifiableModel.apply {
-                            replaceRoots(sdk)
-                            commit()
-                        }
-                    }
-                }
-
-                sdkList.refresh()
-            }
-
-            override fun sdkChanged(sdk: Sdk, previousName: String) {
-                LOG.debug("sdkChanged(sdk.name='${sdk.name}', previousName='$previousName')")
-                if (sdk.name != previousName) {
-                    LibraryTablesRegistrar.getInstance().libraryTable.getLibraryByName(previousName)?.let { library ->
-                        ApplicationManager.getApplication().runWriteAction {
-                            library.modifiableModel.apply {
-                                name = sdk.name
-                                replaceRoots(sdk)
-                                commit()
-                            }
-                        }
-                    }
-                } else {
-                    LibraryTablesRegistrar.getInstance().libraryTable.getLibraryByName(sdk.name)?.let { library ->
-                        ApplicationManager.getApplication().runWriteAction {
-                            library.modifiableModel.apply {
-                                replaceRoots(sdk)
-                                commit()
-                            }
-                        }
-                    }
-                }
-
                 sdkList.refresh()
             }
 
@@ -199,7 +129,6 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
         sdkModelListener?.let { projectSdksModel.removeListener(it) }
         sdkModelListener = null
         editorByProjectJdkImpl.clear()
-        removedLibraries.clear()
         sdksService.discardUnapplied(projectSdksModel)
     }
 
@@ -236,20 +165,4 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
 
         sdkPanel.select(selectedEditor, true)
     }
-}
-
-private fun Library.ModifiableModel.addRoots(roots: Array<VirtualFile>) =
-        roots.forEach {
-            addRoot(it, OrderRootType.CLASSES)
-        }
-
-private fun Library.ModifiableModel.clearRoots() {
-    getUrls(OrderRootType.CLASSES).forEach {
-        removeRoot(it, OrderRootType.CLASSES)
-    }
-}
-
-private fun Library.ModifiableModel.replaceRoots(sdk: Sdk) {
-    clearRoots()
-    addRoots(sdk)
 }

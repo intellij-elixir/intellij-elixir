@@ -45,18 +45,6 @@ class Model :
                 add(sdk)
             }
         }
-
-        override fun sdkChanged(sdk: Sdk, previousName: String) {
-            val previousIndex = internalList.indexOfFirst { indexSdk ->
-                indexSdk?.name == previousName
-            }
-
-            if (previousIndex > 0) {
-                fireContentsChanged(this@Model, previousIndex, previousIndex)
-            }
-        }
-
-        override fun sdkHomeSelected(sdk: Sdk, newSdkHome: String) {}
     }
 
     init {

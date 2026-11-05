@@ -9,8 +9,6 @@ import com.intellij.openapi.application.edtWriteAction
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
-import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar
 import com.intellij.openapi.ui.Messages
 import com.intellij.platform.ide.progress.runWithModalProgressBlocking
 import org.elixir_lang.notification.setup_sdk.Notifier
@@ -69,32 +67,26 @@ class DeleteAllSdksAction : AnAction() {
             return
         }
 
-        // Remove SDKs and their associated libraries using modal progress with proper threading
         val sdksRemoved = runWithModalProgressBlocking(project, "Removing All Elixir/Erlang SDKs") {
             var removedCount = 0
 
             edtWriteAction {
-                LOG.info("Starting removal of ${allTargetSdks.size} SDK(s) and associated libraries")
+                LOG.info("Starting removal of ${allTargetSdks.size} SDK(s)")
 
                 for (sdk in allTargetSdks) {
                     try {
-                        LOG.debug("Removing SDK and library: ${sdk.name}")
-
-                        // First remove associated library (like the SDK listeners do)
-                        removeAssociatedLibrary(sdk)
-
-                        // Then remove the SDK itself
+                        LOG.debug("Removing SDK: ${sdk.name}")
                         projectJdkTable.removeJdk(sdk)
                         removedCount++
 
-                        LOG.debug("Successfully removed SDK and library: ${sdk.name}")
+                        LOG.debug("Successfully removed SDK: ${sdk.name}")
                     } catch (ex: Exception) {
                         LOG.error("Failed to remove SDK: ${sdk.name}", ex)
                         // Continue with other SDKs if one fails
                         continue
                     }
                 }
-                LOG.info("Completed removal of $removedCount SDK(s) and associated libraries")
+                LOG.info("Completed removal of $removedCount SDK(s)")
             }
 
             removedCount
@@ -121,25 +113,4 @@ class DeleteAllSdksAction : AnAction() {
     override fun isDumbAware(): Boolean = true
 
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
-
-    /**
-     * Removes the library associated with an SDK, following the same pattern as the SDK listeners
-     * in sdks/Configurable.kt
-     */
-    private fun removeAssociatedLibrary(sdk: Sdk) {
-        try {
-            val libraryTable = LibraryTablesRegistrar.getInstance().libraryTable
-            val library = libraryTable.getLibraryByName(sdk.name)
-
-            if (library != null) {
-                LOG.debug("Removing associated library: ${sdk.name}")
-                libraryTable.removeLibrary(library)
-            } else {
-                LOG.debug("No associated library found for SDK: ${sdk.name}")
-            }
-        } catch (ex: Exception) {
-            LOG.warn("Failed to remove associated library for SDK: ${sdk.name}", ex)
-            // Don't fail the whole operation if library removal fails
-        }
-    }
 }
