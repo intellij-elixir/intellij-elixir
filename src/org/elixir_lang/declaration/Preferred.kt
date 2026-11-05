@@ -1,5 +1,10 @@
 package org.elixir_lang.declaration
 
+import com.intellij.openapi.util.Key
+import com.intellij.psi.PsiElement
+import com.intellij.psi.util.CachedValue
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.FunctionArityKeywordPair
 import org.elixir_lang.psi.arityInterval
@@ -8,6 +13,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.reference.Resolver
 import org.elixir_lang.structure_view.element.Delegation
 import org.elixir_lang.structure_view.element.Overridable
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * A candidate [found] at a use, and, for a delegation, what it delegates to, preferred as [found] is: through any
@@ -98,15 +104,19 @@ internal fun <T> admitted(list: List<T>, incompleteCode: Boolean, bound: Boolean
  * with defaults keeps the arities no user replaces.
  */
 internal fun <T> overridden(list: List<T>, found: (T) -> Found): List<T> {
-    val users = list.map(found).filter { role(it) == Role.USER }
+    // One declaration can't be both the overridable and the user that replaces it.
+    if (list.size < 2) return list
 
-    return list.filterNot { element ->
-        val overridable = found(element)
+    val founds = list.map(found)
+    val roles = founds.map(::role)
+    val users = founds.filterIndexed { index, _ -> roles[index] == Role.USER }
+
+    return list.filterIndexed { index, _ ->
+        val overridable = founds[index]
         val declaration = overridable.candidate.declaration
         val interval = declaration.arity.arityInterval()
         val maximum = interval?.maximum
-
-        isOverridable(overridable) && interval != null && maximum != null &&
+        val replaced = roles[index] == Role.OVERRIDABLE && interval != null && maximum != null &&
             (interval.minimum..maximum).all { arity ->
                 users.any {
                     it.candidate.declaration.sameFunction(declaration.name, ArityKnowledge.Exact(arity)) ==
@@ -114,12 +124,10 @@ internal fun <T> overridden(list: List<T>, found: (T) -> Found): List<T> {
                         it.declaringModuleName() == overridable.declaringModuleName()
                 }
             }
+
+        !replaced
     }
 }
-
-/** Whether a later user definition in [found]'s module with its name and arity replaces it. */
-@RequiresReadLock
-fun isOverridable(found: Found): Boolean = role(found) == Role.OVERRIDABLE
 
 /** Whether [found] is a contract, not a body, as a `@callback` is: a candidate, but never what a use names. */
 @RequiresReadLock
@@ -155,11 +163,35 @@ private fun followedByItsDefoverridable(found: Found): Boolean {
     val uses = if (found.candidate.reach == Reach.USE) found.via.filter { UseCall.`is`(it) } else emptyList()
     val declaration = found.candidate.declaration
 
-    return (listOf(definition) + uses)
-        .asSequence()
-        .flatMap { position -> generateSequence(position.nextSibling) { it.nextSibling } }
+    return (listOf(definition) + uses).any { position ->
+        val start = position.textRange.startOffset
+
+        overridables(position.parent ?: return@any false).any {
+            it.offset > start && declaration.sameFunction(it.name, ArityKnowledge.Exact(it.arity)) == SameFunction.YES
+        }
+    }
+}
+
+/** A name and arity a `defoverridable` takes, at the offset of that `defoverridable`. */
+private class Overridden(val offset: Int, val name: String, val arity: Int)
+
+private val OVERRIDABLES =
+    Key.create<CachedValue<ConcurrentHashMap<PsiElement, List<Overridden>>>>("org.elixir_lang.declaration.Preferred.overridables")
+
+/** What the `defoverridable`s among [body]'s children take, held on its file until the file changes. */
+private fun overridables(body: PsiElement): List<Overridden> {
+    val file = body.containingFile ?: return overriddenIn(body)
+
+    return CachedValuesManager.getCachedValue(file, OVERRIDABLES) {
+        CachedValueProvider.Result.create(ConcurrentHashMap<PsiElement, List<Overridden>>(), file)
+    }.getOrPut(body) { overriddenIn(body) }
+}
+
+private fun overriddenIn(body: PsiElement): List<Overridden> =
+    generateSequence(body.firstChild) { it.nextSibling }
         .filterIsInstance<Call>()
         .filter { Overridable.`is`(it) }
-        .flatMap { FunctionArityKeywordPair.occurrencesIn(it) }
-        .any { declaration.sameFunction(it.name, ArityKnowledge.Exact(it.arity)) == SameFunction.YES }
-}
+        .flatMap { call ->
+            FunctionArityKeywordPair.occurrencesIn(call).map { Overridden(call.textRange.startOffset, it.name, it.arity) }
+        }
+        .toList()
