@@ -10,6 +10,7 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
+import com.intellij.openapi.util.io.FileUtil
 import com.intellij.testFramework.common.runAll
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.facet.SdksService
@@ -175,6 +176,24 @@ class ErlangDeletionAskTest : PlatformTestCase() {
         assertEquals("the set-up pairs nothing the user did not pick", renamed.name, storedErlangName(elixirSdk))
     }
 
+    /** A Refresh before the ask sets the Elixir SDK up with no Erlang code paths; a pick at the same home adds them back. */
+    fun testAnInstallPickedAtTheDeletedHomeAfterARefreshSetsUpItsCodePaths() {
+        val home = install("27", "27.3.4")
+        val deleted = SdkFixtures.withCodePaths(erlang("Ask same home deleted Erlang", home))
+        val elixirSdk = paired("Ask same home Elixir", SdkFixtures.elixirHome("1.18.4"), deleted)
+        ElixirSdkPathConfigurator.configure(elixirSdk)
+        script(ScriptedErlangStep.pickInstall(home), installs = listOf(home))
+
+        SdkConfigurationUtil.removeSdk(deleted)
+        ElixirSdkType.instance.setupSdkPaths(elixirSdk)
+        assertEmpty("precondition: the Refresh set it up with no Erlang code paths", codePathsUnder(elixirSdk, home))
+        settle()
+
+        val picked = ProjectJdkTable.getInstance().findJdk(storedErlangName(elixirSdk)!!) ?: throw AssertionError("the pick is registered")
+        assertEquals(FileUtil.toSystemIndependentName(home), picked.homePath)
+        assertEquals(codePaths(picked), codePathsUnder(elixirSdk, home))
+    }
+
     fun testAnElixirSdkRepairedBeforeTheAskIsNotAsked() {
         val deleted = erlang("Ask repaired deleted Erlang", install("27", "27.3.4"))
         val other = erlang("Ask repaired other Erlang", install("26", "26.2.5"))
@@ -268,9 +287,9 @@ class ErlangDeletionAskTest : PlatformTestCase() {
         model.apply()
     }
 
-    /** Replaces the IDE's Erlang step, for this test, with one that gives [answers] in turn. */
-    private fun script(vararg answers: StepAnswer): ScriptedErlangStep =
-        ScriptedErlangStep(asked, *answers).install(testRootDisposable)
+    /** Replaces the IDE's Erlang step, for this test, with one that gives [answers] in turn and finds [installs]. */
+    private fun script(vararg answers: StepAnswer, installs: List<String> = emptyList()): ScriptedErlangStep =
+        ScriptedErlangStep(asked, *answers, installs = installs).install(testRootDisposable)
 
     private fun erlang(name: String, home: String): Sdk = register(SdkFixtures.erlangSdk(name, home))
 

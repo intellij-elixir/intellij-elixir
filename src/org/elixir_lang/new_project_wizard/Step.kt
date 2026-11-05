@@ -143,13 +143,14 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
             // the EDT so no sync can interleave between addJdk and the resolver call.
             ApplicationManager.getApplication().runWriteAction {
                 val jdkTable = ProjectJdkTable.getInstance()
-                if (jdkTable.findJdk(sdk.name) == null) {
-                    jdkTable.addJdk(sdk)
-                }
+                // The Erlang SDK first: added after the Elixir SDK, its `jdkAdded` would set that SDK up again.
                 erlangSdkForSetup?.let { erlangSdk ->
                     if (jdkTable.findJdk(erlangSdk.name) == null) {
                         jdkTable.addJdk(erlangSdk)
                     }
+                }
+                if (jdkTable.findJdk(sdk.name) == null) {
+                    jdkTable.addJdk(sdk)
                 }
             }
             erlangSdkForSetup = null  // Clear after use; Step is wizard-scoped so no leak, but signals intent

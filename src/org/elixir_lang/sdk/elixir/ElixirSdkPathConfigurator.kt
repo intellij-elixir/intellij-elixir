@@ -42,9 +42,8 @@ object ElixirSdkPathConfigurator {
     }
 
     /**
-     * Sets up again the code paths of [elixirSdks], whose stored Erlang home a pairing write changed: an Elixir SDK's code
-     * paths include its Erlang SDK's. A write action still held, such as the table's around its listeners, is left
-     * first, by running at the next non-modal moment.
+     * Sets up again the code paths of [elixirSdks]: an Elixir SDK's code paths include its Erlang SDK's. A write action
+     * still held, such as the table's around its listeners, is left first, by running at the next non-modal moment.
      */
     fun followErlangHome(elixirSdks: Collection<Sdk>, sdkModel: SdkModel? = null) {
         if (elixirSdks.isEmpty()) return

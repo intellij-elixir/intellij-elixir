@@ -31,13 +31,13 @@ object SdkRegistrar {
         val versionString =
             ErlangSdkType.versionStringForHome(canonicalHomePath, resolvedVersion, release) ?: return null
         val sdkName = ErlangSdkType.suggestSdkNameForHome(canonicalHomePath, resolvedVersion, release)
-        val registeredSdk = edtWriteAction {
+        // Set up before it is added, so an Elixir SDK followed at `jdkAdded` gets its code paths.
+        val updatedSdk = ProjectJdkImpl(sdkName, sdkType, canonicalHomePath, versionString)
+        sdkType.setupSdkPaths(updatedSdk)
+        return edtWriteAction {
             val table = ProjectJdkTable.getInstance()
-            val updatedSdk = ProjectJdkImpl(sdkName, sdkType, canonicalHomePath, versionString)
             registerOrUpdate(findSdkByHomePath(sdkType, canonicalHomePath, table), updatedSdk, table)
         }
-        sdkType.setupSdkPaths(registeredSdk)
-        return registeredSdk
     }
 
     @RequiresBackgroundThread
