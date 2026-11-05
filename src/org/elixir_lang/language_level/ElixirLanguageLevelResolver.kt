@@ -17,6 +17,7 @@ import org.elixir_lang.sdk.PushedVersions
 import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 import org.elixir_lang.sdk.elixir.sdk
+import org.elixir_lang.sdk.holdsPushedVersions
 import org.jetbrains.annotations.TestOnly
 
 /**
@@ -89,8 +90,10 @@ object ElixirLanguageLevelResolver {
     private fun pushed(file: PsiFile): ElixirLanguageLevel? {
         val virtualFile = file.originalFile.viewProvider.virtualFile
         val original = (virtualFile as? LightVirtualFile)?.originalFile ?: virtualFile
+        val directory = original.parent ?: return null
+        if (!holdsPushedVersions(file.project, directory)) return null
 
-        return PushedVersions.decode(PushedVersions.KEY.getPersistentValue(original.parent))
+        return PushedVersions.decode(PushedVersions.KEY.getPersistentValue(directory))
     }
 
     /**

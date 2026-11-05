@@ -1,23 +1,19 @@
 package org.elixir_lang.model.psi
 
 import com.intellij.facet.FacetManager
-import com.intellij.facet.FacetType
-import com.intellij.facet.impl.FacetUtil
 import com.intellij.ide.scratch.ScratchFileService
 import com.intellij.ide.scratch.ScratchRootType
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.fileEditor.FileDocumentManager
-import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.ModuleRootModificationUtil
-import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
+import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import com.intellij.testFramework.common.runAll
 import org.elixir_lang.ElixirLanguage
@@ -27,9 +23,8 @@ import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
-import org.elixir_lang.facet.SdksService
-import org.elixir_lang.facet.Type
-import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
+import org.elixir_lang.facet.FacetModelFixtures
+import org.elixir_lang.sdk.ProcessOutput
 import java.io.File
 
 /**
@@ -40,10 +35,12 @@ import java.io.File
 @Suppress("UnstableApiUsage")
 class LibraryDeclarationRenameTest : PlatformTestCase() {
     private val cleanups = mutableListOf<() -> Unit>()
+    private val models = FacetModelFixtures()
 
     override fun tearDown() {
         runAll(
             *cleanups.asReversed().map { cleanup -> { cleanup() } }.toTypedArray(),
+            { models.removeAll() },
             { super.tearDown() },
         )
     }
@@ -62,15 +59,14 @@ class LibraryDeclarationRenameTest : PlatformTestCase() {
         val declaration = outsideProject("facet_sdk/lib/elixir/lib", "sdk_lib.ex", LIBRARY_SOURCE)
         val sdk = registerSdk("Library Rename Test Facet SDK", declaration.parent)
 
-        if (FacetManager.getInstance(module).getFacetByType(Facet.ID) == null) {
-            FacetUtil.addFacet(module, FacetType.findInstance(Type::class.java))
-        }
-        SdksService.getInstance()!!.resetForTests()
-        WriteAction.runAndWait<Throwable> { FacetManager.getInstance(module).getFacetByType(Facet.ID)!!.sdk = sdk }
+        ProcessOutput.isSmallIdeOverride = true
+        cleanups += { ProcessOutput.isSmallIdeOverride = null }
+        FacetModelFixtures.assign(module, sdk)
         cleanups += {
             WriteAction.runAndWait<Throwable> { FacetManager.getInstance(module).getFacetByType(Facet.ID)?.sdk = null }
-            SdksService.getInstance()!!.resetForTests()
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
         }
+        FacetModelFixtures.settle(project)
 
         assertRenameRefused(declaration)
     }
@@ -219,25 +215,8 @@ class LibraryDeclarationRenameTest : PlatformTestCase() {
         return LocalFileSystem.getInstance().refreshAndFindFileByIoFile(file)!!
     }
 
-    private fun registerSdk(name: String, sourcesRoot: VirtualFile): Sdk {
-        val sdk = ProjectJdkImpl(name, ElixirSdkType.instance)
-
-        WriteAction.runAndWait<Throwable> {
-            sdk.sdkModificator.apply {
-                addRoot(sourcesRoot, OrderRootType.SOURCES)
-                commitChanges()
-            }
-            ProjectJdkTable.getInstance().addJdk(sdk)
-        }
-        cleanups += {
-            WriteAction.runAndWait<Throwable> {
-                ProjectJdkTable.getInstance().takeIf { sdk in it.allJdks }?.removeJdk(sdk)
-            }
-        }
-        SdksService.getInstance()!!.resetForTests()
-
-        return sdk
-    }
+    private fun registerSdk(name: String, sourcesRoot: VirtualFile): Sdk =
+        models.register(name, sources = listOf(sourcesRoot))
 
     private fun addSourcesLibrary(sourcesRoot: VirtualFile) {
         BeamLibraryFixture.addLibrary(project, module, LIBRARY_NAME, emptyList(), listOf(sourcesRoot))

@@ -973,8 +973,6 @@ class ElixirEditorBasedSdkWidget(
             if (isSmallIde) {
                 val facet = FacetManager.getInstance(module).getFacetByType(Facet.ID)
                 if (facet != null && Facet.sdk(module) == null && Facet.sdks().isNotEmpty()) {
-                    // The module has an Elixir Facet and Elixir SDKs exist in the table, but the
-                    // Facet library entry doesn't match any current SDK name - stale/dangling reference.
                     issues.add(
                         ModuleSdkIssue(
                             module.name,

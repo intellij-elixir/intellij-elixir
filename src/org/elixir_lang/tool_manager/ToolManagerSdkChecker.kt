@@ -214,7 +214,7 @@ internal class ToolManagerSdkChecker(
      * @param toolManagerResultsByRoot           Collected in Phase 2.
      * @param canonicalPathByPath                From [canonicalPaths]; an absent path is compared as is.
      *
-     * @return Pair of (issues list, module-name → SdkVersionTable map).
+     * @return Pair of (issues list, module-name -> SdkVersionTable map).
      */
     fun detectMismatchIssues(
         moduleCheckData: List<ModuleCheckData>,
@@ -349,7 +349,7 @@ internal class ToolManagerSdkChecker(
     }
 
     /**
-     * Builds the map of module name → [ToolManagerVersions] for every Elixir module whose
+     * Builds the map of module name -> [ToolManagerVersions] for every Elixir module whose
      * content root has an *installed* tool-manager Elixir version, and its Erlang installed too if one is pinned.
      *
      * Only [ToolManagerResult.Success] entries are considered; [ToolManagerResult.Error] entries
@@ -394,7 +394,7 @@ internal class ToolManagerSdkChecker(
      * Uses [runWithModalProgressBlocking] internally, so this must be called from a blocking
      * context on the EDT (e.g. an `AnAction.actionPerformed` handler).
      *
-     * @param assignments  Module name → [ToolManagerVersions] as built by [buildAssignments].
+     * @param assignments  Module name -> [ToolManagerVersions] as built by [buildAssignments].
      */
     fun configureSdks(assignments: Map<String, ToolManagerVersions>) {
         val toolName = assignments.values.firstOrNull()?.toolManagerName ?: "tool manager"
@@ -438,13 +438,13 @@ internal class ToolManagerSdkChecker(
 
             // Force jdk.table.xml to disk before assigning module SDKs.
             //
-            // setupSdkPaths → commitChanges() causes workspace model changes that trigger
+            // setupSdkPaths -> commitChanges() causes workspace model changes that trigger
             // DelayedProjectSynchronizer to retry (Attempt 2). That retry reads jdk.table.xml
             // to decide which SDKs to keep in the global model. Without this flush the new SDK
             // is still only in memory, so Attempt 2 removes it - undoing the module assignment.
             //
             // Application.saveSettings() synchronously writes all dirty PersistentStateComponents
-            // (including ProjectJdkTable → jdk.table.xml) before this method returns, ensuring
+            // (including ProjectJdkTable -> jdk.table.xml) before this method returns, ensuring
             // Attempt 2 finds the newly registered SDK on disk.
             withContext(Dispatchers.IO) {
                 LOG.trace("configureSdks: flushing jdk.table.xml before module assignment")
@@ -471,7 +471,7 @@ internal class ToolManagerSdkChecker(
                     try {
                         assignElixirSdk(module, elixirSdk)
                     } catch (ex: Exception) {
-                        LOG.warn("configureSdks: failed to assign '${elixirSdk.name}' → '$moduleName'", ex)
+                        LOG.warn("configureSdks: failed to assign '${elixirSdk.name}' -> '$moduleName'", ex)
                     }
                 }
             }
@@ -484,13 +484,12 @@ internal class ToolManagerSdkChecker(
      * Assigns [elixirSdk] to [module] using the SDK representation appropriate for the running IDE.
      *
      * - **Rich IDEs**: the Java-module SDK ([ModuleRootManager] modifiable model).
-     * - **Small IDEs** (RubyMine, etc.): the Elixir **Facet** SDK, which is stored as a
-     *   module-library reference (see [org.elixir_lang.Facet.sdk]) and is what
-     *   [org.elixir_lang.sdk.elixir.ElixirSdkLookup] resolves there. The module SDK is not read
+     * - **Small IDEs** (RubyMine, etc.): the Elixir **Facet** SDK (see [org.elixir_lang.Facet.sdk]), which is
+     *   what [org.elixir_lang.sdk.elixir.ElixirSdkLookup] resolves there. The module SDK is not read
      *   by small IDEs, so assigning it would silently have no effect.
      *
-     * The Elixir SDK must already be registered in the [com.intellij.openapi.projectRoots.ProjectJdkTable]
-     * (the Facet setter matches it by name); [configureSdks] guarantees this ordering.
+     * The Elixir SDK must already be registered in the [com.intellij.openapi.projectRoots.ProjectJdkTable];
+     * [configureSdks] guarantees this ordering.
      *
      * Must be called inside a write action on the EDT.
      */
@@ -501,12 +500,11 @@ internal class ToolManagerSdkChecker(
             val facetManager = FacetManager.getInstance(module)
             val facet = facetManager.getFacetByType(Facet.ID)
                 ?: facetManager.addFacet(FacetType.findInstance(ElixirFacetType::class.java), "Elixir facet", null)
-            // The Facet.sdk setter opens and commits its own module-root modifiable model.
             facet.sdk = elixirSdk
-            LOG.info("configureSdks: set Facet SDK '${elixirSdk.name}' → '${module.name}' (small IDE)")
+            LOG.info("configureSdks: set Facet SDK '${elixirSdk.name}' -> '${module.name}' (small IDE)")
         } else {
             ModuleRootModificationUtil.updateModel(module) { it.sdk = elixirSdk }
-            LOG.info("configureSdks: committed '${elixirSdk.name}' → '${module.name}'")
+            LOG.info("configureSdks: committed '${elixirSdk.name}' -> '${module.name}'")
         }
     }
 }

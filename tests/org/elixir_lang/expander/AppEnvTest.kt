@@ -4,11 +4,14 @@ import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.intellij.openapi.application.ReadAction
 import com.intellij.psi.PsiFileFactory
+import com.intellij.util.system.OS
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.expander.ExpansionResult.Ended
+import org.elixir_lang.facet.FacetModelFixtures
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.psi.ElixirFile
+import java.io.File
 
 /**
  * A module body's `Application` env reads answer from [AppEnv]: a key a config file sets, or may set where a setting of
@@ -151,6 +154,27 @@ class AppEnvTest : PlatformTestCase() {
             "equal/0",
             defined("defmodule A do\n${defines(read, ":value")}  Application.put_env(:dep, :key, :other)\nend\n"),
         )
+    }
+
+    /**
+     * On a small IDE, an app's `.app` in the SDK the module's Elixir facet names is read, though no order entry has it.
+     */
+    fun testASmallIdesFacetModelsAppFileIsRead() {
+        val models = FacetModelFixtures()
+        models.onSmallIde(project, testRootDisposable)
+        val roots = models.roots("AppEnvTestLogger", testRootDisposable)
+        File(roots.ebin.path, "logger.app")
+            .writeText("{application, logger, [{vsn, \"1.0.0\"}, {env, [{level, info}]}]}.\n")
+        roots.ebin.refresh(false, true)
+        FacetModelFixtures.nameFacet(module, models.register("App Env Test Logger", roots).name)
+        FacetModelFixtures.settle(project)
+
+        val level = ReadAction.computeBlocking<AppEnvValue, Throwable> {
+            ProjectModules.getInstance(project).appEnv(ProjectModules.Inputs(legLevel(), legKernel, OS.CURRENT))
+                .of("logger", OtpErlangAtom("level"))
+        }
+
+        assertEquals(AppEnvValue.Declared(OtpErlangAtom("info")), level)
     }
 
     /** `:application`'s writers raise where their options aren't a timeout or a list. */

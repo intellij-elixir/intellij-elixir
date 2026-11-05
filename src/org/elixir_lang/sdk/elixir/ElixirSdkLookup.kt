@@ -12,10 +12,13 @@ import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiFileSystemItem
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Facet
+import org.elixir_lang.facet.FacetModels
 import org.elixir_lang.sdk.ProcessOutput.isSmallIde
 import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResolver
 import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResult
@@ -48,7 +51,7 @@ val ElixirSdkResolution.sdk: Sdk? get() = (this as? ElixirSdkResolution.Ready)?.
  * a platform-provided read action (e.g. background inspection threads) must acquire one
  * explicitly via [com.intellij.openapi.application.ReadAction.nonBlocking].
  *
- * Resolution order for [Module]: module SDK → project SDK; a small IDE reads only the Facet SDK.
+ * Resolution order for [Module]: module SDK -> project SDK; a small IDE reads only the Facet SDK.
  *
  * Use [resolveWithErlang] when the caller needs to verify the Erlang dependency as well.
  */
@@ -71,8 +74,8 @@ object ElixirSdkLookup {
         // Each IDE reads only what its settings can change: a small IDE has no module SDK settings, and IntelliJ IDEA
         // none for the facet, which a small IDE sharing the project leaves behind.
         if (isSmallIde) {
-            val facetSdk = FacetManager.getInstance(module).getFacetByType(Facet.ID)?.sdk
-            LOG.trace("ElixirSdkLookup.resolve(module='${module.name}'): small IDE, Facet → '${facetSdk?.name}'")
+            val facetSdk = facetSdk(module)
+            LOG.trace("ElixirSdkLookup.resolve(module='${module.name}'): small IDE, Facet -> '${facetSdk?.name}'")
             return facetSdk?.let(ElixirSdkResolution::Ready) ?: ElixirSdkResolution.MissingElixirSdk
         }
         if (hasMissingElixirModuleSdk(module)) {
@@ -82,14 +85,31 @@ object ElixirSdkLookup {
 
         val modSdk = moduleSdk(module)
         if (modSdk != null) {
-            LOG.trace("ElixirSdkLookup.resolve(module='${module.name}'): resolved from ModuleRootManager → '${modSdk.name}'")
+            LOG.trace(
+                "ElixirSdkLookup.resolve(module='${module.name}'): resolved from ModuleRootManager -> '${modSdk.name}'"
+            )
             return ElixirSdkResolution.Ready(modSdk)
         }
 
         val projResolution = resolve(module.project)
-        LOG.trace("ElixirSdkLookup.resolve(module='${module.name}'): fell through to project SDK → '${projResolution.sdk?.name}'")
+        LOG.trace(
+            "ElixirSdkLookup.resolve(module='${module.name}'): fell through to project SDK -> " +
+                "'${projResolution.sdk?.name}'"
+        )
         return projResolution
     }
+
+    /** The Elixir SDK [module]'s facet supplies: its facet's SDK on a small IDE, and null on IntelliJ IDEA. */
+    @RequiresReadLock
+    fun facetSdk(module: Module): Sdk? = facet(module)?.sdk
+
+    /** The name [module]'s facet stores for the SDK it supplies, read as [facetSdk] is. */
+    @RequiresReadLock
+    fun facetSdkName(module: Module): String? = facet(module)?.configuration?.sdkName
+
+    /** [module]'s Elixir facet on a small IDE, the only IDE that reads it. */
+    private fun facet(module: Module): Facet? =
+        if (isSmallIde) FacetManager.getInstance(module).getFacetByType(Facet.ID) else null
 
     /** Resolves to [ElixirSdkResolution.Ready] or [ElixirSdkResolution.MissingElixirSdk]. */
     @RequiresReadLock
@@ -98,8 +118,25 @@ object ElixirSdkLookup {
         val project = psiElement.project
         if (project.isDisposed) return ElixirSdkResolution.MissingElixirSdk
 
-        val module = ModuleUtilCore.findModuleForPsiElement(psiElement)
+        val module = moduleFor(psiElement)
         return if (module != null) resolve(module) else resolve(project)
+    }
+
+    /**
+     * [ModuleUtilCore.findModuleForPsiElement], or for a file or directory under the roots of an SDK a facet names,
+     * the module the platform would pick from those whose facet names it. Those roots come from no library entity,
+     * which the platform maps a library file to its modules by.
+     */
+    @RequiresReadLock
+    private fun moduleFor(element: PsiElement): Module? {
+        ModuleUtilCore.findModuleForPsiElement(element)?.let { return it }
+        if (element !is PsiFileSystemItem || (element is PsiFile && element.context != null)) return null
+
+        val file = element.virtualFile ?: return null
+        val project = element.project
+
+        return FacetModels.getInstance(project).modulesHolding(file)
+            .minWithOrNull(ModuleManager.getInstance(project).moduleDependencyComparator())
     }
 
     /** Resolves to [ElixirSdkResolution.Ready] or [ElixirSdkResolution.MissingElixirSdk]. */

@@ -15,6 +15,7 @@ import com.intellij.testFramework.LightVirtualFile
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.facet.FacetModelFixtures
 import org.intellij.plugins.markdown.lang.MarkdownLanguage
 import java.io.File
 import java.util.concurrent.Callable
@@ -131,6 +132,40 @@ class ScopeUtilTest : PlatformTestCase() {
         }).executeSynchronously()
 
         assertSame(lightFile, effectiveFile)
+    }
+
+    /** On a small IDE, a module file's narrowed scope holds the SDK its facet names, which no order entry carries. */
+    fun testASmallIdesFacetModelIsInTheNarrowedScope() {
+        val roots = onASmallIdeWithAFacetModel("ScopeUtilTestNarrowed")
+        val psiFile = myFixture.configureByText("foo.ex", source)
+
+        val scope = ReadAction.nonBlocking(Callable { narrowedScope(elementIn(psiFile), project) })
+            .executeSynchronously()
+
+        assertTrue("the facet's SDK's source is not in the narrowed scope", scope.contains(roots.source))
+        assertTrue("the facet's SDK's beam is not in the narrowed scope", scope.contains(roots.beam))
+    }
+
+    /** On a small IDE, a module file's resolve scope holds the SDK its facet names. */
+    fun testAFacetModulesResolveScopeHoldsItsModel() {
+        val roots = onASmallIdeWithAFacetModel("ScopeUtilTestResolve")
+        val psiFile = myFixture.configureByText("foo.ex", source)
+
+        val scope = ReadAction.nonBlocking(Callable { psiFile.resolveScope }).executeSynchronously()
+
+        assertTrue("the facet's SDK's source is not in the resolve scope", scope.contains(roots.source))
+        assertTrue("the facet's SDK's beam is not in the resolve scope", scope.contains(roots.beam))
+    }
+
+    /** A small IDE whose module's facet names an SDK with [moduleName]'s roots, all undone at tear-down. */
+    private fun onASmallIdeWithAFacetModel(moduleName: String): FacetModelFixtures.Roots {
+        val models = FacetModelFixtures()
+        models.onSmallIde(project, testRootDisposable)
+        val roots = models.roots(moduleName, testRootDisposable)
+        FacetModelFixtures.nameFacet(module, models.register("Scope Util Test $moduleName", roots).name)
+        FacetModelFixtures.settle(project)
+
+        return roots
     }
 
     private fun elementIn(file: PsiFile): PsiElement =

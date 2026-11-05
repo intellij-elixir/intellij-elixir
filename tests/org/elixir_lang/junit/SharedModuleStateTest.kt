@@ -11,6 +11,7 @@ import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import org.elixir_lang.Facet
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.facet.FacetModelFixtures
 import org.elixir_lang.facet.Type
 import org.elixir_lang.sdk.SdkFixtures
 import org.jetbrains.jps.model.java.JavaResourceRootType
@@ -40,7 +41,7 @@ class SharedModuleStateTest : PlatformTestCase() {
         assertEquals(emptyList<String>(), before.differences(SharedModuleState.of(module)))
     }
 
-    /** An Elixir facet's SDK library, a module SDK and a source folder on the fixture's own root are taken off too. */
+    /** A module SDK and a source folder on the fixture's own root are taken off too. */
     @RequiresEdt
     fun testRestoreRemovesAnSdkAndASourceFolder() {
         val before = SharedModuleState.of(module)
@@ -61,6 +62,19 @@ class SharedModuleStateTest : PlatformTestCase() {
         SharedModuleState.restore(module, before)
 
         assertEquals(emptyList<String>(), before.differences(SharedModuleState.of(module)))
+    }
+
+    /** A name a test leaves stored on a kept facet is reported. */
+    fun testDifferencesReportAFacetsStoredName() {
+        FacetModelFixtures.facet(module)
+        val before = SharedModuleState.of(module)
+
+        FacetModelFixtures.nameFacet(module, "Shared Module State SDK")
+
+        assertFalse(
+            "a facet's stored name is not part of the state",
+            before.differences(SharedModuleState.of(module)).isEmpty(),
+        )
     }
 
     /** A source folder re-marked as test sources keeps its URL, and is put back as it was, properties included. */

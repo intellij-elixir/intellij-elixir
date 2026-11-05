@@ -1,7 +1,6 @@
 package org.elixir_lang.reference.resolver
 
 import com.intellij.facet.FacetManager
-import com.intellij.facet.FacetType
 import com.intellij.facet.impl.FacetUtil
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
@@ -17,6 +16,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.IndexingTestUtil
+import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.util.system.OS
 import org.elixir_lang.Facet
 import org.elixir_lang.PlatformTestCase
@@ -28,7 +28,7 @@ import org.elixir_lang.expander.ExpanderSource
 import org.elixir_lang.expander.ProjectModules
 import org.elixir_lang.expander.legKernel
 import org.elixir_lang.expander.legLevel
-import org.elixir_lang.facet.Type
+import org.elixir_lang.facet.FacetModelFixtures
 import org.elixir_lang.mix.library.CONSOLIDATED_LIBRARY_BASE_NAME
 import org.elixir_lang.mix.sync.contentRootToken
 import org.elixir_lang.mix.sync.scopedDepLibraryName
@@ -217,23 +217,13 @@ class LoadedCopyTest : PlatformTestCase() {
         }
         ProcessOutput.isSmallIdeOverride = true
         try {
-            WriteAction.runAndWait<Throwable> {
-                FacetUtil.addFacet(module, FacetType.findInstance(Type::class.java))
-                FacetManager.getInstance(module).getFacetByType(Facet.ID)!!.sdk = sdk
-            }
-            IndexingTestUtil.waitUntilIndexesAreReady(project)
+            FacetModelFixtures.assign(module, sdk)
+            FacetModelFixtures.settle(project)
 
             assertEquals(listOf("sdk/ebin/$ENUMERABLE_BEAM"), loaded(LIB_ASKER, ENUMERABLE))
         } finally {
-            WriteAction.runAndWait<Throwable> {
-                FacetManager.getInstance(module).getFacetByType(Facet.ID)?.let { facet ->
-                    facet.sdk = null
-                    FacetManager.getInstance(module).createModifiableModel().apply {
-                        removeFacet(facet)
-                        commit()
-                    }
-                }
-            }
+            FacetManager.getInstance(module).getFacetByType(Facet.ID)?.let(FacetUtil::deleteFacet)
+            PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
             ProcessOutput.isSmallIdeOverride = null
         }
     }

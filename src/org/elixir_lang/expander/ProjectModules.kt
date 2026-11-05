@@ -8,6 +8,7 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.OrderEnumerator
+import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.Key
@@ -30,6 +31,7 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.expander.interpreter.Declined
 import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.equal
+import org.elixir_lang.facet.FacetModels
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
@@ -893,7 +895,9 @@ internal class ProjectModules(private val project: Project) {
     private fun appFile(app: String, level: ElixirLanguageLevel, stamps: Stamps): AppFile? {
         stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
         stamps.track(ProjectRootManager.getInstance(project))
-        val copies = OrderEnumerator.orderEntries(project).classes().roots
+        val facetSdkRoots = FacetModels.getInstance(project).named()
+            .flatMap { it.rootProvider.getFiles(OrderRootType.CLASSES).asList() }
+        val copies = (OrderEnumerator.orderEntries(project).classes().roots.asList() + facetSdkRoots)
             .mapNotNull { it.findChild("$app.app") }
             .filter(::isDependencyOutput)
             .distinct()

@@ -1,153 +1,67 @@
 package org.elixir_lang.facet
 
-import com.intellij.facet.FacetManager
-import com.intellij.facet.FacetType
-import com.intellij.facet.impl.FacetUtil
-import com.intellij.openapi.application.WriteAction
-import com.intellij.openapi.projectRoots.ProjectJdkTable
-import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
-import com.intellij.openapi.roots.LibraryOrderEntry
-import com.intellij.openapi.roots.ModuleRootManager
-import com.intellij.openapi.roots.OrderRootType
-import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.testFramework.common.runAll
-import org.elixir_lang.Facet
-import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
+import com.intellij.ide.projectView.ViewSettings
+import com.intellij.ide.projectView.impl.nodes.ExternalLibrariesNode
+import com.intellij.openapi.application.ReadAction
+import org.elixir_lang.facet.FacetModelFixtures.Companion.assign
+import org.elixir_lang.facet.FacetModelFixtures.Companion.facet
+import org.elixir_lang.facet.FacetModelFixtures.Companion.libraryNames
+import org.elixir_lang.facet.FacetModelFixtures.Companion.nameFacet
+import org.elixir_lang.facet.FacetModelFixtures.Companion.storedName
+import java.util.concurrent.Callable
 
-/**
- * Assigning a module's Elixir SDK must put that SDK's `CLASSES` roots into the module's own order
- * entries.
- *
- * On a small IDE there is no `JdkOrderEntry` - Settings -> Languages & Frameworks -> Elixir writes
- * through [Facet.sdk], and the module-level library it creates is the only thing that carries an
- * SDK's `ebin` directories into the project's index. Stub-indexed files under those directories are
- * what module-name completion reads, so a module library without them leaves the whole Elixir
- * standard library unreachable however correctly the SDK itself is configured.
- *
- * [ModuleSdkConfigurableTest] covers the same setter, but only ever compares SDK *names*; nothing
- * asserted that any root arrived.
- */
-class FacetSdkRootsTest : PlatformTestCase() {
+/** On a small IDE the Elixir facet stores its SDK by name, and the name outlives the SDK it names. */
+class FacetSdkRootsTest : SmallIdeFacetTestCase() {
+    fun testAssignmentStoresTheName() {
+        val sdk = models.register("Facet Name Test A")
 
-    private val added = mutableListOf<Sdk>()
+        assign(module, sdk)
 
-    override fun setUp() {
-        super.setUp()
-        SdksService.getInstance()!!.resetForTests()
-        ensureElixirFacet()
+        assertEquals("the facet does not store the assigned SDK's name", sdk.name, storedName(module))
     }
 
-    override fun tearDown() {
-        runAll(
-            {
-                WriteAction.run<Throwable> {
-                    FacetManager.getInstance(module).getFacetByType(Facet.ID)?.let { it.sdk = null }
-                }
-            },
-            {
-                WriteAction.run<Throwable> {
-                    val table = ProjectJdkTable.getInstance()
-                    added.filter { table.allJdks.contains(it) }.forEach { table.removeJdk(it) }
-                }
-                added.clear()
-            },
-            { SdksService.getInstance()!!.resetForTests() },
-            { super.tearDown() },
-        )
+    fun testRemovingTheModelLeavesTheName() {
+        val sdk = models.register("Facet Name Test B")
+        nameFacet(module, sdk.name)
+        assertEquals("the facet does not supply the SDK it names", sdk, facet(module).sdk)
+
+        models.remove(sdk)
+
+        assertNull("the facet supplies an SDK that is no longer registered", facet(module).sdk)
+        assertEquals("removing the SDK changed the name the facet stores", sdk.name, storedName(module))
     }
 
-    private fun ensureElixirFacet() {
-        val facetManager = FacetManager.getInstance(module)
+    fun testReaddingTheModelRelinksIt() {
+        val removed = models.register("Facet Name Test C")
+        nameFacet(module, removed.name)
+        models.remove(removed)
 
-        if (facetManager.getFacetByType(Facet.ID) == null) {
-            FacetUtil.addFacet(module, FacetType.findInstance(Type::class.java))
-        }
+        val readded = models.register(removed.name)
+
+        assertEquals("the facet does not supply the SDK re-added under its stored name", readded, facet(module).sdk)
     }
 
-    /** An Elixir SDK in the table whose `CLASSES` roots are [classesRoots], as a real SDK would have. */
-    private fun registerElixirSdk(name: String, vararg classesRoots: VirtualFile): Sdk {
-        val sdk = ProjectJdkImpl(name, ElixirSdkType.instance)
+    fun testAssignmentWritesNoLibrary() {
+        val sdk = models.register("Facet Name Test D")
 
-        WriteAction.run<Throwable> {
-            sdk.sdkModificator.apply {
-                classesRoots.forEach { addRoot(it, OrderRootType.CLASSES) }
-                commitChanges()
+        assign(module, sdk)
+
+        val libraryNames = libraryNames(module)
+        assertFalse("assigning the SDK wrote a library named after it: $libraryNames", sdk.name in libraryNames)
+    }
+
+    fun testTheModelShowsOnceUnderExternalLibraries() {
+        val sdk = models.register("Facet Name Test E", models.roots("FacetSdkRootsTestShown", testRootDisposable))
+
+        assign(module, sdk)
+        settle()
+
+        val shown = ReadAction.nonBlocking(Callable {
+            ExternalLibrariesNode(project, ViewSettings.DEFAULT).children.map { node ->
+                node.update()
+                node.presentation.presentableText
             }
-            ProjectJdkTable.getInstance().addJdk(sdk)
-        }
-
-        added.add(sdk)
-        SdksService.getInstance()!!.resetForTests()
-
-        return sdk
-    }
-
-    private fun setFacetSdk(sdk: Sdk?) {
-        WriteAction.run<Throwable> {
-            FacetManager.getInstance(module).getFacetByType(Facet.ID)!!.sdk = sdk
-        }
-    }
-
-    private fun ebinDir(app: String): VirtualFile =
-        myFixture.tempDirFixture.findOrCreateDir("$app/lib/$app/ebin")
-
-    /** The module library [Facet.sdk] creates for [name], or `null` if the assignment made none. */
-    private fun facetLibraryEntry(name: String): LibraryOrderEntry? =
-        ModuleRootManager
-            .getInstance(module)
-            .orderEntries
-            .filterIsInstance<LibraryOrderEntry>()
-            .firstOrNull { it.libraryName == name }
-
-    /** Every `CLASSES` root the module's order entries expose - what the index actually scans. */
-    private fun moduleClassesRoots(): List<VirtualFile> =
-        ModuleRootManager.getInstance(module).orderEntries().classes().roots.toList()
-
-    fun testAssignmentPutsSdkClassesRootsOnTheModule() {
-        val ebin = ebinDir("assigned_elixir")
-        val sdk = registerElixirSdk("Elixir Roots Test A", ebin)
-
-        assertEquals(
-            "Precondition: the SDK itself carries the root",
-            listOf(ebin),
-            sdk.rootProvider.getFiles(OrderRootType.CLASSES).toList()
-        )
-
-        setFacetSdk(sdk)
-
-        val entry = facetLibraryEntry(sdk.name)
-        assertNotNull("Assigning the SDK created no module library named after it", entry)
-        assertEquals(
-            "The module library named after the SDK carries none of its CLASSES roots",
-            listOf(ebin),
-            entry!!.getRootFiles(OrderRootType.CLASSES).toList()
-        )
-        assertTrue(
-            "The SDK's ebin directory never reaches the module's CLASSES roots, so nothing under " +
-                    "it is indexed for the module",
-            moduleClassesRoots().contains(ebin)
-        )
-    }
-
-    fun testReassignmentReplacesTheRootsOfThePreviousSdk() {
-        val firstEbin = ebinDir("first_elixir")
-        val secondEbin = ebinDir("second_elixir")
-        val first = registerElixirSdk("Elixir Roots Test B", firstEbin)
-        val second = registerElixirSdk("Elixir Roots Test C", secondEbin)
-
-        setFacetSdk(first)
-        setFacetSdk(second)
-
-        assertNull("The replaced SDK's module library outlived the reassignment", facetLibraryEntry(first.name))
-        assertTrue(
-            "The newly assigned SDK's ebin directory did not reach the module's CLASSES roots",
-            moduleClassesRoots().contains(secondEbin)
-        )
-        assertFalse(
-            "The replaced SDK's ebin directory is still on the module's CLASSES roots",
-            moduleClassesRoots().contains(firstEbin)
-        )
+        }).executeSynchronously()
+        assertEquals("the SDK does not show once under External Libraries: $shown", 1, shown.count { it == sdk.name })
     }
 }
