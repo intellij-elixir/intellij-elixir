@@ -49,7 +49,7 @@ internal fun erlangSdkNamed(name: String, sdkModel: SdkModel?): Sdk? =
  * Default implementation.
  *
  * Resolution priority:
- * 1. `erlangSdkHomePath` (stable; survives SDK renames) - WSL-aware path match in ProjectJdkTable
+ * 1. `erlangSdkHomePath` (stable; survives SDK renames)
  * 2. `erlangSdkName` (legacy fallback for configs written before home-path was added) - name match;
  *    [ErlangPairingHeal] commits the resolved path to `erlangSdkHomePath` so future lookups use path
  * 3. Both absent -> NOT_CONFIGURED
