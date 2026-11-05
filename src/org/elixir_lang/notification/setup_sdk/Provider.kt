@@ -4,21 +4,30 @@ import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.ActionUiKind
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext
+import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleType
 import com.intellij.openapi.module.ModuleUtilCore
+import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectBundle
+import com.intellij.openapi.projectRoots.ProjectJdkTable
+import com.intellij.openapi.projectRoots.Sdk
+import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.roots.ui.configuration.SdkPopupFactory
+import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
 import com.intellij.ui.EditorNotificationPanel
 import com.intellij.ui.EditorNotificationProvider
+import com.intellij.util.concurrency.annotations.RequiresEdt
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.sdk.ProcessOutput
+import org.elixir_lang.sdk.elixir.ElixirInternalErlangSdkSetup
 import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 import org.elixir_lang.sdk.elixir.SdkSettingsOpener
 import org.elixir_lang.sdk.elixir.SettingsPage
@@ -90,13 +99,36 @@ fun showModuleSettings(
 }
 
 private fun showProjectSettings(project: Project) {
+    val model = ProjectSdksModel()
     SdkPopupFactory.newBuilder()
         .withProject(project)
+        .withOwnProjectSdksModel(model)
         .withSdkType(Type.instance)
-        .updateProjectSdkFromSelection()
+        .onSdkSelected { picked -> selectProjectSdk(project, model, picked) }
         .buildPopup()
         .showInFocusCenter()
 }
+
+/**
+ * Sets the SDK picked from [model], a copy, as [project]'s SDK, once it has an Erlang SDK: one it has no pairing for
+ * is asked for first, and Cancel writes nothing. The model is applied first, which adds a new SDK to the table.
+ */
+@RequiresEdt
+internal fun selectProjectSdk(project: Project, model: ProjectSdksModel, picked: Sdk) {
+    ElixirInternalErlangSdkSetup.erlangSdkOrAsk(model, picked) ?: return
+
+    try {
+        // Only the added SDKs are validated: a table SDK whose pairing no longer resolves must not block this one.
+        model.apply(null, true)
+    } catch (e: ConfigurationException) {
+        LOG.warn("The project SDK '${picked.name}' was not set", e)
+        return
+    }
+    val applied = ProjectJdkTable.getInstance().findJdk(picked.name)
+    WriteAction.run<Throwable> { ProjectRootManager.getInstance(project).projectSdk = applied }
+}
+
+private val LOG = logger<Provider>()
 
 private fun createSmallIDEFacetPanel(
     project: Project,

@@ -20,6 +20,7 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.StartupUiUtil
 import org.elixir_lang.Elixir
 import org.elixir_lang.mix.project._import.Builder
+import org.elixir_lang.new_project_wizard.erlangSdkOrAsk
 import org.elixir_lang.sdk.SdkDetectionContext
 import org.elixir_lang.sdk.SdkEnvironment
 import org.elixir_lang.sdk.elixir.Type
@@ -74,7 +75,7 @@ class ElixirSdkForModuleStep(private val wizardContext: WizardContext) : ModuleW
         { it == Type.instance },
         { sdk -> Elixir.elixirSdkHasErlangSdk(sdk) && sdkVisibleForImportTarget(sdk) },
         null,
-        null
+        { sdk -> jdkComboBox.erlangSdkOrAsk(projectSdksModel, sdk) }
     ).apply {
         addActionListener {
             val defaultProject = ProjectManagerEx.getInstanceEx().defaultProject

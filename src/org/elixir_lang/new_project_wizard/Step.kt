@@ -35,13 +35,14 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.ui.dsl.builder.*
 import com.intellij.ui.layout.ValidationInfoBuilder
+import com.intellij.util.concurrency.annotations.RequiresEdt
 import kotlinx.coroutines.CancellationException
-import org.elixir_lang.Elixir
 import org.elixir_lang.Mix
 import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.module.ElixirModuleBuilder
 import org.elixir_lang.sdk.SdkDetectionContext
 import org.elixir_lang.sdk.SdkEnvironment
+import org.elixir_lang.sdk.elixir.ElixirInternalErlangSdkSetup
 import org.elixir_lang.sdk.elixir.Type
 import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResolver
 import java.io.IOException
@@ -265,28 +266,11 @@ fun Row.elixirSdkComboBox(
     fun locationDirectory(): String? = locationProperty?.get()?.takeUnless(String::isBlank)
     fun targetDescriptor() = locationDirectory()?.let { SdkEnvironment.eelDescriptor(it) }
 
-    // After setupSdkPaths runs on a newly created Elixir SDK, verify it has a linked Erlang SDK.
-    // If not, remove it from the staged model and clear the combo box selection so the wizard returns to "No SDK".
+    // The new Elixir SDK's Erlang SDK, asked for when it has none, goes to setupProject, which adds both to the table.
     // comboBox is assigned after this lambda but will be initialised by the time the callback fires.
     lateinit var comboBox: JdkComboBox
     val newSdkCallback: (Sdk) -> Unit = { sdk ->
-        val erlangSdk = Elixir.elixirSdkToErlangSdk(sdk)
-        if (erlangSdk == null) {
-            sdksModel.removeSdk(sdk)
-            comboBox.reloadModel()
-            comboBox.selectedJdk = null
-        } else {
-            // Add the Elixir SDK to sdksModel (not yet in JdkTable) so that
-            // sdksModel.apply() on wizard commit can commit it cleanly.
-            // ErlangSdkResolver checks both sdksModel and ProjectJdkTable, so the Erlang
-            // SDK is found during validation without requiring a model reset.
-            // Note: this does NOT prevent the workspace-model sync from wiping the SDKs
-            // later - that is handled in setupProject via runWriteAction re-registration.
-            sdksModel.addSdk(sdk)
-            comboBox.reloadModel()
-            comboBox.selectedJdk = sdk
-            onErlangSdkRegistered(erlangSdk)
-        }
+        comboBox.erlangSdkOrAsk(sdksModel, sdk)?.let(onErlangSdkRegistered)
     }
 
     comboBox = createSdkComboBox(
@@ -315,6 +299,22 @@ fun Row.elixirSdkComboBox(
     return cell(comboBox)
         .validationOnApply { validateElixirSdk(sdkProperty, sdksModel) }
 }
+
+/**
+ * [ElixirInternalErlangSdkSetup.erlangSdkOrAsk] for [sdk], a new SDK in this combo's [sdksModel], asked over this combo,
+ * which then selects [sdk], or nothing on Cancel.
+ */
+@RequiresEdt
+internal fun JdkComboBox.erlangSdkOrAsk(sdksModel: ProjectSdksModel, sdk: Sdk): Sdk? =
+    ElixirInternalErlangSdkSetup.erlangSdkOrAsk(sdksModel, sdk, this).also { erlangSdk ->
+        if (erlangSdk == null) {
+            // Selecting null doesn't reload the combo's list; selecting an SDK does.
+            reloadModel()
+            selectedJdk = null
+        } else {
+            selectedJdk = sdk
+        }
+    }
 
 fun ValidationInfoBuilder.validateElixirSdk(
     sdkProperty: ObservableProperty<Sdk?>,
