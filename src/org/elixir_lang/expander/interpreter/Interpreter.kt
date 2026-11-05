@@ -783,9 +783,9 @@ internal class Evaluation(
         throw Thrown(kind, reason, stacktrace ?: list(stack.toList()))
 
     /**
-     * A created module, an effect no decline's marks name, is applied: where the evaluator went on past code that
-     * declined to reach it ([wentOnPastDecline]), Elixir may have left before it, which is taken not to happen
-     * ([assumeNoRaise]).
+     * An effect no decline's marks name, a created module or a drawn counter, is applied: where the evaluator went on
+     * past code that declined to reach it ([wentOnPastDecline]), Elixir may have left before it, which is taken not to
+     * happen ([assumeNoRaise]).
      */
     fun reachingAnEffect() {
         if (wentOnPastDecline) assumeNoRaise()

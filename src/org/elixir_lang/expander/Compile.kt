@@ -132,6 +132,12 @@ internal class Compiling(
      */
     var stoppedWithin = false
 
+    /**
+     * Whether Elixir may or may not have drawn one of the module's counters where the expander didn't
+     * (`elixir_module:next_counter/1`), so its count isn't Elixir's.
+     */
+    var counterLost = false
+
     /** Whether a definition's clauses read an attribute that an effect that may not run may have changed. */
     var readChanged = false
 

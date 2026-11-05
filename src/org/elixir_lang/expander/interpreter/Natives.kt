@@ -324,14 +324,26 @@ internal class Natives(private val evaluation: Evaluation) {
     /**
      * `elixir_module:next_counter/1` (`elixir_module.erl:64-71`), from the [Counters][org.elixir_lang.expander.Counters]
      * the run's expansions take theirs from: `{Module, N}` for a module being compiled, whose table holds its counter, and
-     * a unique integer for `nil` or any other term, as Elixir's `catch` gives.
+     * a unique integer for `nil` or any other term, as Elixir's `catch` gives. Drawing one is an effect
+     * ([reachingAnEffect][Evaluation.reachingAnEffect]): where that declines, Elixir may or may not have drawn it, so the
+     * module's later counters aren't known. Code that declines whole is taken not to draw one.
      */
     private fun elixirModule(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
         when (key) {
             "next_counter/1" -> {
-                val module = (seen(args[0]) as? OtpErlangAtom)?.atomValue()?.takeIf { it in evaluation.run.compiling }
+                val name = (seen(args[0]) as? OtpErlangAtom)?.atomValue()
+                val compiling = name?.let(evaluation.run.compiling::get)
 
-                when (val counter = evaluation.run.counters.next(module)) {
+                if (compiling?.counterLost == true) decline("$name's counter isn't known")
+
+                try {
+                    evaluation.reachingAnEffect()
+                } catch (declined: Declined) {
+                    compiling?.counterLost = true
+                    throw declined
+                }
+
+                when (val counter = evaluation.run.counters.next(name.takeIf { compiling != null })) {
                     is Env.Counter.InModule -> tuple(atom(counter.module), integer(counter.n))
                     is Env.Counter.Unique -> integer(counter.n)
                 }

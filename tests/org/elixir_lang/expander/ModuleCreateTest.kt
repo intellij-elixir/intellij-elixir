@@ -804,6 +804,158 @@ class ModuleCreateTest : SdkProbeTestCase() {
             unknown = setOf("value"),
         )
 
+    /** A write in a function the body calls is reached, so the attribute holds what it wrote. */
+    fun testAWriteInAFunctionTheBodyCallsIsReached() =
+        assertAsElixir(
+            """
+            defmodule Created.ReachedWrite.Writer do
+              def write(module) do
+                try do
+                  _ = {:reached, Module.put_attribute(module, :x, 1)}
+                  :written
+                catch
+                  :skip -> :skipped
+                end
+              end
+            end
+
+            defmodule Created.ReachedWrite do
+              @x 0
+              Created.ReachedWrite.Writer.write(__MODULE__)
+              def x, do: @x
+            end
+            """,
+            "ReachedWrite.Writer", "ReachedWrite",
+            readers = readersOf("ReachedWrite", "x"),
+        )
+
+    /**
+     * A write after a part of the same value that throws, in a function the body calls, is never reached: the call's
+     * decline marks the module it was given, so the attribute reads unknown, where Elixir keeps its value.
+     */
+    fun testAWriteAfterAThrowingPartIsNotReached() =
+        assertAsElixir(
+            """
+            defmodule Created.SkippedWrite.Writer do
+              def write(module) do
+                try do
+                  _ = {
+                    receive do
+                      after 0 -> throw(:skip)
+                    end,
+                    Module.put_attribute(module, :x, 1)
+                  }
+
+                  :written
+                catch
+                  :skip -> :skipped
+                end
+              end
+            end
+
+            defmodule Created.SkippedWrite do
+              @x 0
+              Created.SkippedWrite.Writer.write(__MODULE__)
+              def x, do: @x
+            end
+            """,
+            "SkippedWrite.Writer", "SkippedWrite",
+            readers = readersOf("SkippedWrite", "x"),
+            unknown = setOf("x"),
+        )
+
+    /**
+     * A write in a loop's iteration after one that throws, in a function the body calls, is never reached: the call's
+     * decline marks the module it was given, so the attribute reads unknown, where Elixir keeps its value.
+     */
+    fun testAWriteInAnIterationAfterAThrowingOneIsNotReached() =
+        assertAsElixir(
+            """
+            defmodule Created.SkippedIterationWrite.Writer do
+              def write(module) do
+                try do
+                  for i <- [1, 2] do
+                    if i == 1 do
+                      receive do
+                        after 0 -> throw(:skip)
+                      end
+                    else
+                      Module.put_attribute(module, :x, i)
+                    end
+                  end
+
+                  :written
+                catch
+                  :skip -> :skipped
+                end
+              end
+            end
+
+            defmodule Created.SkippedIterationWrite do
+              @x 0
+              Created.SkippedIterationWrite.Writer.write(__MODULE__)
+              def x, do: @x
+            end
+            """,
+            "SkippedIterationWrite.Writer", "SkippedIterationWrite",
+            readers = readersOf("SkippedIterationWrite", "x"),
+            unknown = setOf("x"),
+        )
+
+    /** A counter drawn after a declined part that throws, which Elixir never draws, so the next isn't known. */
+    fun testACounterAfterADeclinedPartThatThrowsIsNotKnown() =
+        assertAsElixir(
+            """
+            defmodule Created.SkippedCounter do
+              try do
+                _ = {
+                  receive do
+                    after 0 -> throw(:skip)
+                  end,
+                  :elixir_module.next_counter(__MODULE__)
+                }
+
+                :drawn
+              catch
+                :skip -> :skipped
+              end
+
+              @counter :elixir_module.next_counter(__MODULE__)
+              def counter, do: @counter
+            end
+            """,
+            "SkippedCounter",
+            readers = readersOf("SkippedCounter", "counter"),
+            unknown = setOf("counter"),
+        )
+
+    /** A counter drawn after a declined part that returns, which Elixir draws, so the next isn't known. */
+    fun testACounterAfterADeclinedPartThatReturnsIsNotKnown() =
+        assertAsElixir(
+            """
+            defmodule Created.MaybeCounter do
+              try do
+                _ = {
+                  receive do
+                    after 0 -> :ok
+                  end,
+                  :elixir_module.next_counter(__MODULE__)
+                }
+
+                :drawn
+              catch
+                :skip -> :skipped
+              end
+
+              @counter :elixir_module.next_counter(__MODULE__)
+              def counter, do: @counter
+            end
+            """,
+            "MaybeCounter",
+            readers = readersOf("MaybeCounter", "counter"),
+            unknown = setOf("counter"),
+        )
+
     fun testCreatingTheModuleBeingCompiledRaises() =
         assertAsElixir(
             """
