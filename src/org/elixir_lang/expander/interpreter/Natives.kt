@@ -526,6 +526,24 @@ internal class Natives(private val evaluation: Evaluation) {
 
                 binary(integer.bigIntegerValue().toString(base).uppercase())
             }
+            "binary_to_integer/1", "binary_to_integer/2" -> {
+                val text = utf8(args[0]) ?: badarg()
+                val base = radix(args) ?: badarg()
+
+                // One sign and the base's ASCII digits, where `BigInteger` takes any Unicode digit.
+                if (!INTEGER_TEXT.matches(text)) badarg()
+
+                integer(text.removePrefix("+").toBigIntegerOrNull(base) ?: badarg())
+            }
+            "binary_to_float/1" -> {
+                // ERTS reads the text up to its first NUL (`bif.c`'s `binary_to_float`, `sys_chars_to_double`).
+                val bytes = binaryBytes(args[0]) ?: badarg()
+                val text = String(bytes, 0, bytes.indexOf(0).takeIf { it >= 0 } ?: bytes.size, Charsets.ISO_8859_1)
+
+                if (!FLOAT_TEXT.matches(text)) badarg()
+
+                OtpErlangDouble(text.replace(',', '.').toDouble().takeUnless { it.isInfinite() } ?: badarg())
+            }
             "atom_to_list/1" ->
                 list((seen(args[0]) as? OtpErlangAtom ?: badarg()).atomValue().codePoints().toArray().map { integer(it.toLong()) })
             "md5/1" -> OtpErlangBinary(MessageDigest.getInstance("MD5").digest(iodataBytes(args[0], badarg)))
@@ -2359,6 +2377,9 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun functionClause(module: String, function: String, args: List<OtpErlangObject>): Nothing =
         evaluation.error(atom("function_clause"), frame(module, function, list(args)))
 
+    private fun badargOf(module: String, function: String, args: List<OtpErlangObject>): Nothing =
+        evaluation.error(atom("badarg"), frame(module, function, list(args)))
+
     /** An `ArgumentError`, whose message `inspect` builds. */
     private fun argumentError(): Nothing = evaluation.raise("Elixir.ArgumentError", "message" to UnknownBinary)
 
@@ -2482,6 +2503,7 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun binaries(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
         when (key) {
             "at/2" -> byteAt(args[0], args[1])
+            "last/1" -> lastByte(args[0])
             "split/3" -> binarySplit(args[0], args[1], args[2])
             "match/2" -> binaryMatches("binary:$key", args[0], args[1], global = false).firstOrNull()?.let(::part) ?: atom("nomatch")
             "matches/2" -> list(binaryMatches("binary:$key", args[0], args[1], global = true).map(::part))
@@ -2793,6 +2815,20 @@ internal class Natives(private val evaluation: Evaluation) {
         return integer((bytes.getOrNull(index) ?: badarg()).toLong() and 0xFF)
     }
 
+    /** `binary:last/1`: the last byte of the binary [subject], which mustn't be empty. */
+    private fun lastByte(subject: OtpErlangObject): OtpErlangObject {
+        val bytes = binaryBytes(subject)?.takeIf { it.isNotEmpty() } ?: badargOf("binary", "last", listOf(subject))
+
+        return integer(bytes.last().toLong() and 0xFF)
+    }
+
+    /** The bytes of the binary [term], `null` where it isn't one. */
+    private fun binaryBytes(term: OtpErlangObject): ByteArray? = (seen(term) as? OtpErlangBitstr)?.takeIf(::isBinary)?.binaryValue()
+
+    /** The base `integer_to_binary/2` and `binary_to_integer/2` are given, 10 where they aren't, `null` past 2..36. */
+    private fun radix(args: List<OtpErlangObject>): Int? =
+        if (args.size == 1) 10 else smallInt(seen(args[1]))?.takeIf { it in 2..36 }
+
     /**
      * `ordsets:is_element/2`, by its clauses: the first element of [set] not below [element] decides, and a tail that
      * isn't `[]` has no clause.
@@ -3082,6 +3118,15 @@ private val RANGE = atom("Elixir.Range")
 
 /** A binary that stands for [UnknownBinary] in a type test. */
 private val SOME_BINARY = OtpErlangBinary(ByteArray(0))
+
+/** The text `erlang:binary_to_integer/1,2` takes: a sign at most, then digits, which the base must hold. */
+private val INTEGER_TEXT = Regex("[+-]?[0-9a-zA-Z]+")
+
+/**
+ * The text `erlang:binary_to_float/1` takes: digits on both sides of a point, then an exponent at most. The point is a
+ * `.` or a `,`, on every OS (`sys_chars_to_double`).
+ */
+private val FLOAT_TEXT = Regex("[+-]?[0-9]+[.,][0-9]+([eE][+-]?[0-9]+)?")
 
 /** The small integers of a 64-bit VM. */
 private val SMALL_INTEGERS = -(1L shl 59) until (1L shl 59)
