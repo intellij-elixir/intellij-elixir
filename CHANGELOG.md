@@ -219,6 +219,8 @@
 
 ### Bug Fixes
 
+- [#4634](https://github.com/intellij-elixir/intellij-elixir/pull/4634) [@sh41](https://github.com/sh41)
+  - **A Mix project set up on PyCharm or another IDE without module SDK settings no longer shows its Elixir SDK twice under External Libraries on IntelliJ IDEA, and on those IDEs the Elixir facet's SDK now reaches the project by name, live, rather than as a copy written into the module.** On IntelliJ IDEA, a module whose only Elixir SDK was that copy asks for one through the Setup SDK banner. Refs [#4628](https://github.com/intellij-elixir/intellij-elixir/issues/4628).
 - [#4629](https://github.com/intellij-elixir/intellij-elixir/pull/4629) [@sh41](https://github.com/sh41)
   - **In IDEs other than IntelliJ IDEA, choosing a new home for an Elixir or Erlang SDK in Settings no longer throws or logs an error, and takes the new home's library paths and version; Save Changes on the Elixir SDKs page no longer throws when Settings is shown as an editor tab; and when an SDK's paths change, External Libraries still names its library folders after their OTP applications.** Refs [#4627](https://github.com/intellij-elixir/intellij-elixir/issues/4627).
 - [#4612](https://github.com/intellij-elixir/intellij-elixir/pull/4612) [@sh41](https://github.com/sh41)
