@@ -10,12 +10,16 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.DEFGUARD_UNQUOTE_NAM
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
+import org.elixir_lang.psi.call.name.Function
+
+/** The kind of macro each of `defguard` and `defguardp`, as keyword, defines. */
+internal val GUARD_KINDS: Map<String, Kind> = mapOf(Function.DEFGUARD to Kind.DEFMACRO, Function.DEFGUARDP to Kind.DEFMACROP)
 
 /** `Kernel.defguard/1`: `@doc guard: true`, then the macro the guard defines. */
-internal val DEFGUARD = defguard(Kind.DEFMACRO)
+internal val DEFGUARD = defguard(GUARD_KINDS.getValue(Function.DEFGUARD))
 
 /** `Kernel.defguardp/1`: `@doc guard: true`, then the private macro the guard defines. */
-internal val DEFGUARDP = defguard(Kind.DEFMACROP)
+internal val DEFGUARDP = defguard(GUARD_KINDS.getValue(Function.DEFGUARDP))
 
 /**
  * `define_guard/3`, with the macro stored by `define/4` as a definition of its own: the `@doc` is expanded first, as

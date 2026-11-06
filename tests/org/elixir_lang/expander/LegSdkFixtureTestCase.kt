@@ -4,15 +4,21 @@ import com.intellij.openapi.module.Module
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
+import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.TestApplicationManager
 import com.intellij.testFramework.UsefulTestCase
 import com.intellij.testFramework.builders.EmptyModuleFixtureBuilder
 import com.intellij.testFramework.fixtures.CodeInsightTestFixture
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
 import com.intellij.util.ThrowableRunnable
+import org.elixir_lang.code_insight.GtduNavigation
+import org.elixir_lang.code_insight.gtduNavigationAtCaret
 import org.elixir_lang.declaration.SOURCE_PROPERTY
 import org.elixir_lang.expander.ExpanderSourceRows.lineOf
+import org.elixir_lang.expander.ExpanderSourceRows.read
 import org.elixir_lang.junit.logs.UnexpectedLogs
+import org.elixir_lang.model.psi.config.caret
 import org.elixir_lang.model.psi.config.disableMixDepsCheck
 
 /**
@@ -65,6 +71,26 @@ abstract class LegSdkFixtureTestCase : UsefulTestCase() {
         return "$relative:${lineOf(element)}"
     }
 
+    /** [text], its indent trimmed, as the project's [CALLER], indexed. */
+    protected fun caller(text: String): PsiFile {
+        val file = myFixture.addFileToProject(CALLER, text.trimIndent() + "\n")
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
+
+        return file
+    }
+
+    /** Where Go to Declaration at [marked] in the [CALLER] lands: each target as [render] writes it, sorted. */
+    protected fun destinations(marked: String, render: (PsiElement) -> String = this::place): String {
+        myFixture.caret(CALLER, marked)
+
+        return when (val navigation = myFixture.gtduNavigationAtCaret()) {
+            is GtduNavigation.GotoDeclaration ->
+                navigation.targets.map { target -> read { render(target.destination!!) } }.sorted().joinToString("\n")
+            GtduNavigation.None -> "none"
+            is GtduNavigation.ShowUsages -> "show usages"
+        }
+    }
+
     override fun tearDown() {
         try {
             LegSdk.tearDown(module)
@@ -73,5 +99,9 @@ abstract class LegSdkFixtureTestCase : UsefulTestCase() {
             savedProperty?.let { System.setProperty(SOURCE_PROPERTY, it) } ?: System.clearProperty(SOURCE_PROPERTY)
             super.tearDown()
         }
+    }
+
+    protected companion object {
+        const val CALLER = "lib/caller.ex"
     }
 }

@@ -5,6 +5,7 @@ import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiManager
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.NameArityInterval
+import org.elixir_lang.beam.macroDefiner
 import org.elixir_lang.declaration.Capabilities
 import org.elixir_lang.declaration.CompiledOrigin
 import org.elixir_lang.declaration.Declaration
@@ -33,10 +34,7 @@ interface CallDefinition : BeamSymbol, MaybeExported {
     @get:RequiresReadLock
     val capabilities: Capabilities
         get() = when (time) {
-            Time.COMPILE -> when {
-                isGuard -> if (isExported) Definer.DEFGUARD else Definer.DEFGUARDP
-                else -> if (isExported) Definer.DEFMACRO else Definer.DEFMACROP
-            }
+            Time.COMPILE -> macroDefiner(isExported, isGuard)
             Time.RUN -> if (isExported) Definer.DEF else Definer.DEFP
         }.capabilities
 

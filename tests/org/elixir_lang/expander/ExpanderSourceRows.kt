@@ -58,6 +58,12 @@ internal object ExpanderSourceRows {
     /** The 1-based line of [element] in its own file. */
     fun lineOf(element: PsiElement): Int = StringUtil.offsetToLineNumber(element.containingFile.text, element.textRange.startOffset) + 1
 
+    /** The expander's candidates for the call [call], which occurs once in [file], rendered one per line. */
+    fun candidates(file: PsiFile, call: String): String = candidates(use(file, call, call))
+
+    /** The expander's candidates for [use], rendered one per line. */
+    fun candidates(use: Use): String = render(read { ExpanderSource.candidates(use, false) })
+
     /** The use that is the call [call], found in the only occurrence of [context], or its last with [last]. */
     fun use(file: PsiFile, context: String, call: String, last: Boolean = false): Use.OfCall =
         read { Use.of(call(file, context, call, last))!! }
@@ -74,6 +80,9 @@ internal object ExpanderSourceRows {
             .filterIsInstance<Call>()
             .first { it.textRange.startOffset == offset && it.text == call }
     }
+
+    /** `label: rendered` pairs, one block each, so one comparison shows every row that differs. */
+    fun rows(vararg rows: Pair<String, String>): String = rows.joinToString("\n\n") { (label, rendered) -> "$label:\n$rendered" }
 
     fun <T> read(block: () -> T): T = ReadAction.nonBlocking(Callable { block() }).executeSynchronously()
 

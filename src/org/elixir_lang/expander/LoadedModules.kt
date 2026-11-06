@@ -153,8 +153,10 @@ internal object LoadedModules {
                     }
 
                     if (ModuleExports.INFO in functions) {
+                        val written by lazy { writtenDefinitions(reader) }
+
                         ModuleExports.Present(
-                            functions.filterNot { it in ModuleExports.NOT_IN_INFO },
+                            functions.filterNot { compilerAdded(it) { written } },
                             macros,
                             hasInfo = true,
                             behaviour,

@@ -18,30 +18,46 @@ import java.util.concurrent.ConcurrentHashMap
 /** Each `.beam` in every app of the leg's Elixir and OTP, by module as atom text. */
 internal val appBeams: Map<String, File> by lazy {
     (appEbins("ELIXIR_LANG_ELIXIR_PATH") + appEbins("ERLANG_SDK_HOME"))
-        .flatMap { ebin -> ebin.listFiles { file -> file.extension == "beam" }.orEmpty().toList() }
+        .flatMap(::beamsIn)
         .associateBy { it.nameWithoutExtension }
 }
+
+/** Each `.beam` in [ebin]. */
+internal fun beamsIn(ebin: File): List<File> = ebin.listFiles { file -> file.extension == "beam" }.orEmpty().toList()
 
 /**
  * The leg's modules' clauses, read from their [appBeams] `.beam`s in [project] as `ProjectModules` reads an SDK's, each
  * once. The `.beam`s' roots are readable until [disposable] is disposed.
  */
 internal fun sdkClauses(project: Project, disposable: Disposable): ModuleClauses.Lookup {
-    appBeams.values.map { it.parentFile.parentFile.parentFile.path }.distinct().forEach {
-        VfsRootAccess.allowRootAccess(disposable, it)
-    }
+    allowAppBeamRoots(disposable)
 
     val read = HashMap<String, ModuleClauses?>()
 
     return ModuleClauses.Lookup { module -> read.getOrPut(module) { appBeams[module]?.let { clausesOf(project, it) } } }
 }
 
+/** The roots of the [appBeams] `.beam`s, readable until [disposable] is disposed. */
+internal fun allowAppBeamRoots(disposable: Disposable) {
+    appBeams.values.map { it.parentFile.parentFile.parentFile.path }.distinct().forEach {
+        VfsRootAccess.allowRootAccess(disposable, it)
+    }
+}
+
+/** [beam]'s mirror in [project], its decompiled source; `null` where [beam] isn't a compiled Elixir file. */
+internal fun mirrorOf(project: Project, beam: File): ElixirFile? {
+    val file = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(beam) ?: return null
+
+    return ReadAction.computeBlocking<ElixirFile?, Throwable> {
+        (PsiManager.getInstance(project).findFile(file) as? PsiCompiledFile)?.decompiledPsiFile as? ElixirFile
+    }
+}
+
 /** The clauses of [beam], read through its decompiled file in [project]; `null` where it has no export chunk. */
 internal fun clausesOf(project: Project, beam: File): ModuleClauses? =
     ReadAction.computeBlocking<ModuleClauses?, Throwable> {
         val file = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(beam)!!
-        val compiled = PsiManager.getInstance(project).findFile(file) as PsiCompiledFile
-        val mirror = compiled.decompiledPsiFile as ElixirFile
+        val mirror = mirrorOf(project, beam)!!
         val bytes = beam.readBytes()
         val deprecations = (LoadedModules.exports(bytes, beam.path) as? ModuleExports.Present)?.deprecated
 

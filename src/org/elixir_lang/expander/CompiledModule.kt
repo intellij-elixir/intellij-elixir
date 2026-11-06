@@ -77,6 +77,24 @@ internal data class CompiledModule(
     }
 }
 
+/** Each definition's clauses in [modular], a mirror's module, by the kind each stores, name and arity, in source order. */
+@RequiresReadLock
+internal fun mirroredClauses(modular: Call): Map<MacroNameArity, List<Call>> =
+    Modular.callDefinitionClauseCallSequence(modular).mapNotNull { call ->
+        ProgressManager.checkCanceled()
+
+        mirroredKey(call)?.let { it to call }
+    }.groupBy({ it.first }, { it.second })
+
+/** The definition a mirror's clause [call] is one of: the kind it stores, its name and arity; `null` for no clause. */
+@RequiresReadLock
+private fun mirroredKey(call: Call): MacroNameArity? {
+    val kind = CallDefinitionClause.definer(call)?.let { storedKind(it.keyword) } ?: return null
+    val (name, arities) = CallDefinitionClause.nameArityInterval(call, ResolveState.initial()) ?: return null
+
+    return MacroNameArity(kind.keyword, name, arities.maximum ?: arities.minimum)
+}
+
 /** One `.beam`'s [CompiledModule], with [modular] its module in the mirror. */
 private class Builder(
     private val reader: BeamReader,
@@ -85,16 +103,7 @@ private class Builder(
     private val deprecations: Deprecations,
 ) {
     /** Each definition's clauses in the mirror, in source order. */
-    private val mirrored: Map<MacroNameArity, List<Call>> =
-        Modular.callDefinitionClauseCallSequence(modular).mapNotNull { call ->
-            ProgressManager.checkCanceled()
-
-            val definer = CallDefinitionClause.definer(call) ?: return@mapNotNull null
-            val (name, arities) = CallDefinitionClause.nameArityInterval(call, ResolveState.initial())
-                ?: return@mapNotNull null
-
-            MacroNameArity(definer.keyword, name, arities.maximum ?: arities.minimum) to call
-        }.groupBy({ it.first }, { it.second })
+    private val mirrored: Map<MacroNameArity, List<Call>> = mirroredClauses(modular)
 
     fun build(): CompiledModule? {
         val module = reader.atomsResult.valueOrNull?.moduleName() ?: return null

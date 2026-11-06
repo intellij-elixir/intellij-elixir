@@ -333,45 +333,49 @@ private fun appendCallDefinitions(
                 }
                 decompiled.append("\n")
 
-                if (documentation != null) {
-                    documentation.docs?.let { docs ->
-                        docs.deprecated(macroNameArity)?.let { deprecated ->
-                            when (deprecated) {
-                                is OtpErlangBinary ->
-                                    decompiled.append("\n  @deprecated \"\"\"\n")
-                                        .append("  ")
-                                        .append(String(deprecated.binaryValue()))
-                                        .append("\n  \"\"\"\n\n")
-                                else -> {
-                                    logger.error(
-                                        "Don't know how to decompiled @deprecated value (${
-                                            inspect(
-                                                deprecated
-                                            )
-                                        })"
-                                    )
-                                }
-                            }
+                documentation?.docs?.let { docs ->
+                    docs.deprecated(macroNameArity)?.let { deprecated ->
+                        when (deprecated) {
+                            is OtpErlangBinary ->
+                                decompiled.append("\n  @deprecated \"\"\"\n")
+                                    .append("  ")
+                                    .append(String(deprecated.binaryValue()))
+                                    .append("\n  \"\"\"\n\n")
+                            else -> logger.error("Don't know how to decompiled @deprecated value (${inspect(deprecated)})")
                         }
+                    }
 
-                        docs.doc(macroNameArity)?.let { doc ->
-                            when (doc) {
-                                is None -> Unit
-                                is Hidden -> appendDocumentation(decompiled, "doc")
-                                is MarkdownByLanguage -> {
-                                    for (formatted in doc.formattedByLanguage.values) {
-                                        appendDocumentation(decompiled, "doc", formatted)
-                                    }
+                    docs.doc(macroNameArity)?.let { doc ->
+                        when (doc) {
+                            is None -> Unit
+                            is Hidden -> appendDocumentation(decompiled, "doc")
+                            is MarkdownByLanguage -> {
+                                for (formatted in doc.formattedByLanguage.values) {
+                                    appendDocumentation(decompiled, "doc", formatted)
                                 }
                             }
                         }
                     }
                 }
                 appendSpec(decompiled, macroNameArity, debugInfo, options)
+                val clausesStart = decompiled.length
                 appendMacroNameArity(decompiled, macroNameArity, debugInfo, documentation, options)
+                if (isGuard(macroNameArity, { documentation?.docs }, debugInfo)) {
+                    writeAsGuard(decompiled, clausesStart, macroNameArity.macro)
+                }
             }
         }
     }
+}
+
+/**
+ * Rewrites the clauses [decompiled] holds from [start], each written with [macro] at a definition's indent, with the
+ * guard's `defguard` or `defguardp` instead.
+ */
+private fun writeAsGuard(decompiled: StringBuilder, start: Int, macro: String) {
+    val guard = macroDefiner(isExported = macro == DEFMACRO, isGuard = true).keyword
+    val clauses = decompiled.substring(start).replaceLinePrefix("  $macro ", "  $guard ")
+    decompiled.replace(start, decompiled.length, clauses)
 }
 
 @Volatile
@@ -526,7 +530,7 @@ private fun appendMacroNameArity(
             // the AST doesn't distinguish exported/unexported. The Decompiler knows the
             // correct macro from the export table, so fix it up here.
             if (macroNameArity.macro == DEFP) {
-                macroString = macroString.replaceDefWithDefp()
+                macroString = macroString.replaceLinePrefix("$DEF ", "$DEFP ")
             }
 
             decompiled.append(macroString.prependIndentToNonBlank()).append('\n')
@@ -578,30 +582,8 @@ private fun erlangTypeSignatureToElixir(signature: String): Pair<String, String>
 }
 
 fun String.prependIndentToNonBlank(indent: String = "  "): String =
-    lineSequence()
-        .map {
-            when {
-                it.isBlank() -> it
-                else -> indent + it
-            }
-        }
-        .joinToString("\n")
+    lineSequence().joinToString("\n") { if (it.isBlank()) it else indent + it }
 
-/**
- * Replaces `def ` with `defp ` at the start of each clause in a multi-clause function string
- * produced by [org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.Function.toMacroString].
- *
- * The Erlang abstract code [Function] always produces `def` because the AST doesn't encode
- * export information. This extension is used by the [Decompiler] when the export table indicates
- * the function is private.
- */
-private fun String.replaceDefWithDefp(): String =
-    lineSequence()
-        .map { line ->
-            if (line.startsWith("def ")) {
-                "defp " + line.removePrefix("def ")
-            } else {
-                line
-            }
-        }
-        .joinToString("\n")
+/** Each line that starts with [prefix] starts with [replacement] instead. */
+private fun String.replaceLinePrefix(prefix: String, replacement: String): String =
+    lineSequence().joinToString("\n") { if (it.startsWith(prefix)) replacement + it.substring(prefix.length) else it }

@@ -8,6 +8,7 @@ import org.elixir_lang.beam.chunk.DebugInfo
 import org.elixir_lang.beam.chunk.beam_documentation.Docs
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.V1
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.v1.definitions.definition.DefaultArgumentClause
+import org.elixir_lang.declaration.Definer
 import org.elixir_lang.ifTaggedTuple
 import org.elixir_lang.psi.call.name.Function.DEFMACRO
 import org.elixir_lang.psi.call.name.Function.DEFMACROP
@@ -20,6 +21,13 @@ import org.elixir_lang.psi.call.name.Function.DEFMACROP
 internal fun isGuard(macroNameArity: MacroNameArity, docs: () -> Docs?, debugInfo: DebugInfo?): Boolean =
     (macroNameArity.macro == DEFMACRO || macroNameArity.macro == DEFMACROP) &&
         (docs()?.isGuard(macroNameArity) == true || hasDefguardBody(macroNameArity, debugInfo))
+
+/** The definer a compiled macro is written with: a guard's where [isGuard] answers true for it. */
+internal fun macroDefiner(isExported: Boolean, isGuard: Boolean): Definer =
+    when {
+        isGuard -> if (isExported) Definer.DEFGUARD else Definer.DEFGUARDP
+        else -> if (isExported) Definer.DEFMACRO else Definer.DEFMACROP
+    }
 
 private fun hasDefguardBody(macroNameArity: MacroNameArity, debugInfo: DebugInfo?): Boolean {
     val definition = (debugInfo as? V1)?.definitions?.get(macroNameArity) ?: return false

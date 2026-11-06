@@ -5,7 +5,6 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.psi.PsiFile
-import com.intellij.psi.impl.PsiManagerEx
 import com.intellij.testFramework.IndexingTestUtil
 import org.elixir_lang.elixir_surface.LegManifest.environment
 import org.elixir_lang.junit.HeavyTestCase
@@ -67,7 +66,7 @@ class InterpreterBudgetHeavyTest : HeavyTestCase() {
             corpus.read {
                 for (module in modules) exports += timed { asking.exports(asker, module, inputs) }
             }
-            dropPsi()
+            dropPsi(project)
 
             val holder = ProjectModules(project).also { expanding = it }
             corpus.read {
@@ -78,7 +77,7 @@ class InterpreterBudgetHeavyTest : HeavyTestCase() {
                     byFile.getOrPut(file.relativeTo(corpus.dir).path) { mutableListOf() } += nanos
                 }
             }
-            dropPsi()
+            dropPsi(project)
         }
 
         // The last run's expanding holder still holds its clause cache, which emptying it lets go of.
@@ -115,11 +114,6 @@ class InterpreterBudgetHeavyTest : HeavyTestCase() {
 
     private fun inputs(file: PsiFile): ProjectModules.Inputs =
         (corpus.read { SdkInputs.getInstance(project).inputsFor(file) } as SdkInputs.Answer.Ready).inputs
-
-    /** Drops every file's PSI, so the next run reads each file again and nothing a holder kept on it remains. */
-    private fun dropPsi() {
-        WriteAction.runAndWait<Throwable> { PsiManagerEx.getInstanceEx(project).fileManager.cleanupForNextTest() }
-    }
 
     private fun machine(setup: String, modules: Int): String =
         buildString {
