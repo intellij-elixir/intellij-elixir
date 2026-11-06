@@ -1,38 +1,21 @@
 package org.elixir_lang.notification.setup_sdk
 
-import com.intellij.openapi.actionSystem.ActionPlaces
-import com.intellij.openapi.actionSystem.ActionUiKind
-import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.actionSystem.impl.SimpleDataContext
-import com.intellij.openapi.application.WriteAction
-import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleType
 import com.intellij.openapi.module.ModuleUtilCore
-import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.project.ProjectBundle
-import com.intellij.openapi.projectRoots.ProjectJdkTable
-import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.roots.ProjectRootManager
-import com.intellij.openapi.roots.ui.configuration.SdkPopupFactory
-import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
 import com.intellij.ui.EditorNotificationPanel
 import com.intellij.ui.EditorNotificationProvider
-import com.intellij.util.concurrency.annotations.RequiresEdt
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.sdk.ProcessOutput
-import org.elixir_lang.sdk.elixir.ElixirInternalErlangSdkSetup
+import org.elixir_lang.sdk.choice.SdkChoice
 import org.elixir_lang.sdk.elixir.ElixirSdkLookup
-import org.elixir_lang.sdk.elixir.SdkSettingsOpener
-import org.elixir_lang.sdk.elixir.SettingsPage
 import org.elixir_lang.sdk.elixir.sdk
-import org.elixir_lang.sdk.elixir.Type
 import org.elixir_lang.tool_manager.ToolManagerSdkAnalyser
 import org.elixir_lang.tool_manager.ToolManagerSdkCheckerService
 import java.util.function.Function
@@ -63,103 +46,29 @@ internal class Provider : EditorNotificationProvider {
         // for removal in the future if the Experimental Widget becomes stable.
         return when {
             module != null && ModuleType.get(module).id == ELIXIR_MODULE_TYPE_ID ->
-                Function { createModulePanel(project, module) }
+                Function { createModulePanel(project, module, "Elixir Module SDK is not defined") }
             module != null && ProcessOutput.isSmallIde ->
-                Function { createSmallIDEFacetPanel(project, module) }
+                Function { createModulePanel(project, module, "Elixir Facet SDK is not defined") }
             module != null ->
-                Function { createProjectPanel(project) }
+                Function { createProjectPanel(project, module) }
             else -> null
         }
     }
 }
 
-/**
- * Opens where a module is given its SDK in the running IDE via [SdkSettingsOpener]: the Elixir settings page in
- * small IDEs (RubyMine, etc.) or the Project Structure dialog in full IDEs.
- *
- * [showModuleSettings] previously called [com.intellij.openapi.roots.ui.configuration.ProjectSettingsService.openModuleSettings],
- * which is a no-op in small IDEs (their `ProjectSettingsService` reports `canOpenModuleSettings() == false`),
- * so the "Setup Elixir Module SDK" link silently did nothing in RubyMine and the other small IDEs.
- */
-private fun openSdkSettings(project: Project) {
-    val dataContext = SimpleDataContext.getProjectContext(project)
-    val event = AnActionEvent.createEvent(dataContext, null, ActionPlaces.UNKNOWN, ActionUiKind.NONE, null)
-    SdkSettingsOpener.getInstance().open(event, SettingsPage.MODULE_SDKS)
-}
-
-fun showFacetSettings(project: Project) {
-    openSdkSettings(project)
-}
-
-fun showModuleSettings(
-    project: Project,
-    @Suppress("UNUSED_PARAMETER") module: Module,
-) {
-    openSdkSettings(project)
-}
-
-private fun showProjectSettings(project: Project) {
-    val model = ProjectSdksModel()
-    SdkPopupFactory.newBuilder()
-        .withProject(project)
-        .withOwnProjectSdksModel(model)
-        .withSdkType(Type.instance)
-        .onSdkSelected { picked -> selectProjectSdk(project, model, picked) }
-        .buildPopup()
-        .showInFocusCenter()
-}
-
-/**
- * Sets the SDK picked from [model], a copy, as [project]'s SDK, once it has an Erlang SDK: one it has no pairing for
- * is asked for first, and Cancel writes nothing. The model is applied first, which adds a new SDK to the table.
- */
-@RequiresEdt
-internal fun selectProjectSdk(project: Project, model: ProjectSdksModel, picked: Sdk) {
-    ElixirInternalErlangSdkSetup.erlangSdkOrAsk(model, picked) ?: return
-
-    try {
-        // Only the added SDKs are validated: a table SDK whose pairing no longer resolves must not block this one.
-        model.apply(null, true)
-    } catch (e: ConfigurationException) {
-        LOG.warn("The project SDK '${picked.name}' was not set", e)
-        return
-    }
-    val applied = ProjectJdkTable.getInstance().findJdk(picked.name)
-    WriteAction.run<Throwable> { ProjectRootManager.getInstance(project).projectSdk = applied }
-}
-
-private val LOG = logger<Provider>()
-
-private fun createSmallIDEFacetPanel(
-    project: Project,
-    module: Module,
-): EditorNotificationPanel =
-    EditorNotificationPanel().apply {
-        text = "Elixir Facet SDK is not defined"
-        // Added before the "Setup" label so it renders to its LEFT. The links panel is right-anchored
-        // (BorderLayout.EAST) and packs left->right by add order, so the last-added label stays pinned
-        // to the right edge. Adding the (delayed) tool-manager label last would shift "Setup" left
-        // ~10s after startup when the mise scan completes; adding it first keeps "Setup" fixed.
-        addConfigureFromToolManagerLabel(project, module)
-        @Suppress("DialogTitleCapitalization")
-        createActionLabel("Setup Elixir Facet SDK") {
-            showFacetSettings(project)
-        }
-    }
-
 private fun createModulePanel(
     project: Project,
     module: Module,
+    text: String,
 ): EditorNotificationPanel =
     EditorNotificationPanel().apply {
-        text = "Elixir Module SDK is not defined"
-        // Added before the "Setup" label so it renders to its LEFT and "Setup" stays pinned to the
-        // right edge - see createSmallIDEFacetPanel for why (avoids the ~10s post-startup jump).
+        this.text = text
+        // Added before the "Choose" label so it renders to its LEFT. The links panel is right-anchored
+        // (BorderLayout.EAST) and packs left->right by add order, so the last-added label stays pinned
+        // to the right edge. Adding the (delayed) tool-manager label last would shift "Choose" left
+        // ~10s after startup when the mise scan completes; adding it first keeps "Choose" fixed.
         addConfigureFromToolManagerLabel(project, module)
-        @Suppress("DialogTitleCapitalization")
-        createActionLabel("Setup Elixir Module SDK") {
-            showModuleSettings(project, module)
-        }
+        addChooseLabel(project, module)
     }
 
 /**
@@ -188,10 +97,14 @@ private fun EditorNotificationPanel.addConfigureFromToolManagerLabel(project: Pr
     }
 }
 
-private fun createProjectPanel(project: Project): EditorNotificationPanel =
+private fun EditorNotificationPanel.addChooseLabel(project: Project, module: Module) {
+    createActionLabel("Choose Elixir SDK...") {
+        SdkChoice.getInstance().ask(project, listOf(module), this)
+    }
+}
+
+private fun createProjectPanel(project: Project, module: Module): EditorNotificationPanel =
     EditorNotificationPanel().apply {
         text = "Elixir SDK is not defined"
-        createActionLabel(ProjectBundle.message("project.sdk.setup")) {
-            showProjectSettings(project)
-        }
+        addChooseLabel(project, module)
     }
