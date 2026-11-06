@@ -109,7 +109,7 @@ class SdkChoiceTest : HeavyTestCase() {
 
         assertEquals(
             listOf("Choice paired  Erlang SDK 'Choice Erlang', OTP 27.3.4", "Choice unpaired  no Erlang SDK"),
-            dialog.state.entries.map(dialog::rowText),
+            dialog.panel.state.entries.map(dialog.panel::rowText),
         )
     }
 
@@ -127,7 +127,7 @@ class SdkChoiceTest : HeavyTestCase() {
 
         assertFalse("nothing is picked yet", dialog.isOKActionEnabled)
 
-        dialog.pick(dialog.state.entries.single())
+        dialog.panel.pick(dialog.panel.state.entries.single())
 
         assertTrue(dialog.isOKActionEnabled)
     }
@@ -136,9 +136,9 @@ class SdkChoiceTest : HeavyTestCase() {
         elixir("Choice unpaired")
         val dialog = dialog()
 
-        dialog.pick(dialog.state.entries.single())
+        dialog.panel.pick(dialog.panel.state.entries.single())
 
-        assertEquals("Choice unpaired", dialog.state.selected?.sdk?.name)
+        assertEquals("Choice unpaired", dialog.panel.state.selected?.sdk?.name)
     }
 
     fun testOnIntellijIdeaTheSdkTheFacetNamesGoesFirst() {
@@ -221,11 +221,11 @@ class SdkChoiceTest : HeavyTestCase() {
         scriptAdd(pickInstalledErlang)
         val dialog = dialog()
 
-        dialog.add()
+        dialog.panel.addButton.doClick()
 
         val created = Facet.sdks().single()
-        assertEquals(listOf(created.name), dialog.state.names())
-        assertEquals(created.name, dialog.state.selected?.sdk?.name)
+        assertEquals(listOf(created.name), dialog.panel.state.names())
+        assertEquals(created.name, dialog.panel.state.selected?.sdk?.name)
         assertTrue(dialog.isOKActionEnabled)
     }
 
@@ -252,19 +252,19 @@ class SdkChoiceTest : HeavyTestCase() {
         elixir("Choice A")
         scriptAdd(ScriptedErlangStep.cancel)
         val dialog = dialog()
-        dialog.pick(dialog.state.entries.single())
+        dialog.panel.pick(dialog.panel.state.entries.single())
 
-        dialog.add()
+        dialog.panel.addButton.doClick()
 
         assertEquals(listOf("Choice A"), Facet.sdks().map { it.name })
-        assertEquals("Choice A", dialog.state.selected?.sdk?.name)
+        assertEquals("Choice A", dialog.panel.state.selected?.sdk?.name)
         assertTrue(dialog.isOKActionEnabled)
     }
 
     fun testManageSdksOpensTheSdksPage() {
         val recorded = RecordedChooser(testRootDisposable)
 
-        dialog().manageSdksLink.doClick()
+        dialog().panel.manageSdksLink.doClick()
 
         assertEquals(listOf(project to SettingsPage.SDKS), recorded.settingsOpened)
     }
@@ -272,13 +272,13 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testAnSdkAddedToTheTableIsListedAndThePickKept() {
         elixir("Choice A")
         val dialog = dialog()
-        dialog.pick(dialog.state.entries.single())
+        dialog.panel.pick(dialog.panel.state.entries.single())
 
         elixir("Choice B")
         SdkFixtures.settle()
 
-        assertEquals(listOf("Choice A", "Choice B"), dialog.state.names())
-        assertEquals("Choice A", dialog.state.selected?.sdk?.name)
+        assertEquals(listOf("Choice A", "Choice B"), dialog.panel.state.names())
+        assertEquals("Choice A", dialog.panel.state.selected?.sdk?.name)
         assertTrue(dialog.isOKActionEnabled)
     }
 
@@ -286,13 +286,13 @@ class SdkChoiceTest : HeavyTestCase() {
         val picked = elixir("Choice A")
         elixir("Choice B")
         val dialog = dialog()
-        dialog.pick(dialog.state.entries.first())
+        dialog.panel.pick(dialog.panel.state.entries.first())
 
         WriteAction.run<Throwable> { ProjectJdkTable.getInstance().removeJdk(picked) }
         SdkFixtures.settle()
 
-        assertEquals(listOf("Choice B"), dialog.state.names())
-        assertNull(dialog.state.selected)
+        assertEquals(listOf("Choice B"), dialog.panel.state.names())
+        assertNull(dialog.panel.state.selected)
         assertFalse(dialog.isOKActionEnabled)
     }
 
@@ -304,7 +304,7 @@ class SdkChoiceTest : HeavyTestCase() {
         SdkFixtures.commitPairing(unpaired, erlang)
         SdkFixtures.settle()
 
-        assertEquals(listOf("Choice unpaired  Erlang SDK 'Choice Erlang', OTP 27.3.4"), dialog.state.entries.map(dialog::rowText))
+        assertEquals(listOf("Choice unpaired  Erlang SDK 'Choice Erlang', OTP 27.3.4"), dialog.panel.state.entries.map(dialog.panel::rowText))
     }
 
     fun testAddKeepsAPairingCommittedWhileTheChooserIsOpen() {
@@ -314,7 +314,7 @@ class SdkChoiceTest : HeavyTestCase() {
         val dialog = dialog()
 
         SdkFixtures.commitPairing(unpaired, erlang)
-        dialog.add()
+        dialog.panel.addButton.doClick()
 
         assertEquals("Choice Erlang", storedErlangName(unpaired))
     }
@@ -322,12 +322,12 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testRenamingThePickedSdkKeepsThePick() {
         elixir("Choice A")
         val dialog = dialog()
-        dialog.pick(dialog.state.entries.single())
+        dialog.panel.pick(dialog.panel.state.entries.single())
 
         SdkFixtures.renameInTable("Choice A", "Choice A renamed")
         SdkFixtures.settle()
 
-        assertEquals("Choice A renamed", dialog.state.selected?.sdk?.name)
+        assertEquals("Choice A renamed", dialog.panel.state.selected?.sdk?.name)
         assertTrue(dialog.isOKActionEnabled)
     }
 
