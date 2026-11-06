@@ -2943,7 +2943,6 @@ internal class Evaluation(
     private fun clauseHead(head: ElixirAst.ListNode) = clauseHead(head.elements)
 
     private companion object {
-        val STRUCT = atom("__struct__")
         val EXCEPTION = atom("__exception__")
         val CONTEXT = atom("context")
         val ONE = integer(1)
