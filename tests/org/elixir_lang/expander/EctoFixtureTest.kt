@@ -290,14 +290,14 @@ class EctoFixtureTest : HeavyTestCase() {
         val corpus = corpus!!
         val holder = ProjectModules(project)
 
-        val expected = compiled.stderr.replace("\r\n", "\n").split(Regex("\n\\s*\n"))
+        val expected = compiled.stderr.replace("\r\n", "\n").split(Regex("\n\\s*\n")).asSequence()
             .map { block -> block.lines().map(String::trim).filter(String::isNotEmpty) }
             .filter { it.firstOrNull()?.startsWith(WARNING) == true }
             .map { it.joinToString("\n").removePrefix(WARNING) }
             // It names the schema through `inspect/1`, whose text isn't known, so `IO.warn/2` declines.
             .filterNot { it.startsWith(MISSING_ON) }
             .sorted()
-        val actual = File(compiled.project, "lib").listFiles()!!.sortedBy { it.name }
+        val actual = File(compiled.project, "lib").listFiles()!!.sortedBy { it.name }.asSequence()
             .flatMap { ProjectModules.results(expansion(holder, file(corpus, compiled, "lib/${it.name}"))).toList() }
             .flatMap { it.warnings }
             .map(::rendered)

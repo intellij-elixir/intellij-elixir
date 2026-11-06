@@ -454,7 +454,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
     /** A module can't be defined while it is being defined. */
     fun testAModuleInsideItself() =
-        assertLevels("defmodule A do\n  defmodule Elixir.A, do: :ok\nend", LEVELS) { version ->
+        assertLevels("defmodule A do\n  defmodule Elixir.A, do: :ok\nend", LEVELS) {
             """
             top error module_in_definition `defmodule Elixir.A, do: :ok`
             module Elixir.A raised module_in_definition `defmodule Elixir.A, do: :ok`
@@ -465,7 +465,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
     /** A nested module that raises ends the module around it, so nothing after it is expanded. */
     fun testANestedModuleWhoseNameIsNotAnAtom() =
-        assertLevels("defmodule A do\n  defmodule \"foo\", do: :ok\n  def f, do: 1\nend", LEVELS) { version ->
+        assertLevels("defmodule A do\n  defmodule \"foo\", do: :ok\n  def f, do: 1\nend", LEVELS) {
             """
             top error invalid_module_name `defmodule "foo", do: :ok`
             module Elixir.A raised invalid_module_name `defmodule "foo", do: :ok`
@@ -622,7 +622,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
         }
 
     fun testAFileOfOnlyModulesNamedByTheModule() =
-        assertLevels("defmodule __MODULE__, do: :ok", FAST_PATH_LEVELS) { version ->
+        assertLevels("defmodule __MODULE__, do: :ok", FAST_PATH_LEVELS) {
             """
             top error invalid_module_name `defmodule __MODULE__, do: :ok`
             module nil raised invalid_module_name `defmodule __MODULE__, do: :ok`
@@ -690,7 +690,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             end
             """.trimIndent(),
             LEVELS,
-        ) { version ->
+        ) {
             """
             top error unloaded_module `require A`
             module Elixir.B raised unloaded_module `require A`
@@ -1048,7 +1048,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             end
             """.trimIndent(),
             LEVELS,
-        ) { version ->
+        ) {
             """
             top error macro_conflict `first(y)`
             module Elixir.A raised macro_conflict `first(y)`
@@ -1328,7 +1328,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             end
             """.trimIndent(),
             LEVELS,
-        ) { version ->
+        ) {
             """
             top error invalid_rescue_clause `foo() -> 1`
             module Elixir.A raised invalid_rescue_clause `foo() -> 1`
@@ -1745,7 +1745,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             end
             """.trimIndent(),
             LEVELS,
-        ) { version ->
+        ) {
             """
             top error definer_inside_function `def g, do: 1`
             module Elixir.A raised definer_inside_function `def g, do: 1`
@@ -1836,7 +1836,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
         for (name in listOf("Any", "Elixir")) {
             val module = if (name == "Elixir") "Elixir" else "Elixir.$name"
 
-            assertLevels("defmodule $name, do: :ok", LEVELS) { version ->
+            assertLevels("defmodule $name, do: :ok", LEVELS) {
                 """
                 top error module_reserved `defmodule $name, do: :ok`
                 module $module raised module_reserved `defmodule $name, do: :ok`
@@ -1864,7 +1864,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
     /** `nil` and the booleans are atoms, so before 1.13 `defmodule` records them as it does any module. */
     fun testNilAndTheBooleansAreInvalidNames() {
         for (name in listOf("nil", "true", "false")) {
-            assertLevels("defmodule $name, do: :ok", LEVELS) { version ->
+            assertLevels("defmodule $name, do: :ok", LEVELS) {
                 """
                 top error invalid_module_name `defmodule $name, do: :ok`
                 module $name raised invalid_module_name `defmodule $name, do: :ok`
@@ -1928,7 +1928,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
         }
 
     fun testAnInvalidDefinition() =
-        assertLevels("defmodule A do\n  def 1, do: 1\nend", LEVELS) { version ->
+        assertLevels("defmodule A do\n  def 1, do: 1\nend", LEVELS) {
             """
             top error invalid_def `def 1, do: 1`
             module Elixir.A raised invalid_def `def 1, do: 1`
@@ -1943,7 +1943,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             Triple("def module_info, do: 1", "def module_info/0", "module_info"),
             Triple("defp is_record(a, b), do: {a, b}", "defp is_record/2", "is_record"),
         )) {
-            assertLevels("defmodule A do\n  $code\nend", LEVELS) { version ->
+            assertLevels("defmodule A do\n  $code\nend", LEVELS) {
                 """
                 top error $kind `$code`
                 module Elixir.A raised $kind `$code`
@@ -2075,14 +2075,14 @@ class ModuleExpanderTest : ExpanderTestCase() {
         """.trimIndent()
 
         assertLevels("$mac\n\ndefmodule A do\n  require Mac\n  Mac.m()\nend", listOf("1.20.4")) {
-            "top error quote_in_pattern_with_unquote `Mac.m()`\n" + compiled + "\n" + """
+            "top error quote_in_pattern_with_unquote `Mac.m()`\n$compiled\n" + """
                 module Elixir.A raised quote_in_pattern_with_unquote `Mac.m()`
                   body: expanded {} next 0 context [Elixir.A]
                   def f/1: error quote_in_pattern_with_unquote `Mac.m()`
             """.trimIndent()
         }
         assertLevels("$mac\n\ndefmodule A do\n  require Mac\n  Mac.n()\nend", listOf("1.20.4")) {
-            "top error Elixir.FunctionClauseError `Mac.n()`\n" + compiled + "\n" + """
+            "top error Elixir.FunctionClauseError `Mac.n()`\n$compiled\n" + """
                 module Elixir.A raised Elixir.FunctionClauseError `Mac.n()`
                   body: error Elixir.FunctionClauseError `Mac.n()`
             """.trimIndent()
@@ -2135,7 +2135,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
     /** `store_definition/5` reads the name only after the head is unquoted: a head fragment that isn't a call raises. */
     fun testAHeadFragmentThatIsNotACallRaises() =
-        assertLevels("defmodule S do\n  h = :h\n  def unquote(h)\nend", LEVELS) { version ->
+        assertLevels("defmodule S do\n  h = :h\n  def unquote(h)\nend", LEVELS) {
             """
             top error invalid_def `def unquote(h)`
             module Elixir.S raised invalid_def `def unquote(h)`
@@ -2794,7 +2794,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             end
             """.trimIndent(),
             LEVELS,
-        ) { version ->
+        ) {
             """
             top error undefined_function `undefined()`
             module Elixir.D compiled
