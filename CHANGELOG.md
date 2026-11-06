@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4640](https://github.com/intellij-elixir/intellij-elixir/pull/4640) [@sh41](https://github.com/sh41)
+  - **The editor banner's "Choose Elixir SDK...", the SDK widget's first item and Tools > Elixir > Choose Elixir SDK... pick a module's Elixir SDK from a list of the existing ones, each with its Erlang SDK, or add one, and set it where the IDE reads it: the module or project SDK on IntelliJ IDEA, where other modules that aren't Elixir modules keep the SDK they had, the Elixir facet on the other IDEs; Reconfigure Elixir Module Setup no longer changes module SDKs.** Part of [#4623](https://github.com/intellij-elixir/intellij-elixir/issues/4623).
+
 - [#4638](https://github.com/intellij-elixir/intellij-elixir/pull/4638) [@sh41](https://github.com/sh41)
   - **On the Elixir SDKs and Internal Erlang SDKs settings pages of IDEs other than IntelliJ IDEA, an SDK can be renamed, and the pages keep up with SDKs added, removed or changed elsewhere, such as by "Configure from mise", instead of an Apply undoing those changes.** Refs [#4087](https://github.com/intellij-elixir/intellij-elixir/issues/4087).
 
@@ -225,6 +228,10 @@
 
 ### Bug Fixes
 
+- [#4640](https://github.com/intellij-elixir/intellij-elixir/pull/4640) [@sh41](https://github.com/sh41)
+  - **On IDEs other than IntelliJ IDEA, the editor banner of a file in an Elixir-type module says "Elixir Facet SDK is not defined", naming the facet those IDEs read, rather than a module SDK they have no setting for, and an Elixir project SDK no longer hides the banner of a module that reads its own Elixir SDK when that SDK is unset or missing.** Part of [#4623](https://github.com/intellij-elixir/intellij-elixir/issues/4623).
+  - **On IntelliJ IDEA, the SDK widget no longer warns about an Elixir-type module whose own Elixir SDK differs from the project SDK, which is what Choose Elixir SDK... sets for such a module.** Part of [#4623](https://github.com/intellij-elixir/intellij-elixir/issues/4623).
+  - **On IntelliJ IDEA, configuring the SDK from the tool manager gives a module that isn't Elixir-type the project SDK and leaves its JDK, rather than replacing that JDK with an Elixir SDK, and asks which Elixir SDK to use when such modules are pinned to different Elixir installs; on every IDE it also asks when the pinned Elixir install has several Elixir SDKs and no Erlang is pinned, rather than setting nothing.** Part of [#4623](https://github.com/intellij-elixir/intellij-elixir/issues/4623).
 - [#4642](https://github.com/intellij-elixir/intellij-elixir/pull/4642) [@sh41](https://github.com/sh41)
   - **With "Run the expander" on, a dependency's or Elixir's function answered from its source no longer counts a private head, a function head where the compiled module exports a macro or the reverse, or an arity a splice or default admits that the compiled module doesn't export, and a source edited to define its module once is answered from again.** Refs [#4610](https://github.com/intellij-elixir/intellij-elixir/issues/4610).
 - [#4639](https://github.com/intellij-elixir/intellij-elixir/pull/4639) [@sh41](https://github.com/sh41)

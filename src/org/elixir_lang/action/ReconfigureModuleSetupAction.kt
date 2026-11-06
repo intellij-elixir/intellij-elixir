@@ -8,9 +8,9 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.module.ModuleManager
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.*
 import com.intellij.openapi.util.text.StringUtil
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import org.elixir_lang.mix.project.CANONICAL_FOLDER_MARKS
 import org.elixir_lang.mix.project.FolderMark
@@ -18,16 +18,15 @@ import org.elixir_lang.isElixirMixModule
 import org.elixir_lang.mixContentRoots
 import org.elixir_lang.mix.Project as MixProject
 import org.elixir_lang.sdk.elixir.ElixirSdkLookup
-import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 
 private val LOG = logger<ReconfigureModuleSetupAction>()
 
 /**
- * Additively applies canonical folder marks from [CANONICAL_FOLDER_MARKS] and fixes module SDK
- * references for all Elixir Mix modules in the project.
+ * Additively applies canonical folder marks from [CANONICAL_FOLDER_MARKS] for all Elixir Mix modules in the
+ * project.
  *
  * **Additive behavior**: Existing user-customized source roots and exclusions are preserved.
- * The action only *adds* missing canonical marks and fixes dangling/mismatched module SDK entries.
+ * The action only *adds* missing canonical marks.
  *
  * Registered as `Elixir.ReconfigureModuleSetup` in `plugin.xml`.
  *
@@ -56,11 +55,6 @@ class ReconfigureModuleSetupAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
 
-        val projectSdk = ProjectRootManager.getInstance(project).projectSdk
-        val hasRootMixExs = project.basePath?.let { basePath ->
-            LocalFileSystem.getInstance().findFileByPath(basePath)?.findChild("mix.exs")
-        } != null
-
         // Umbrella sub-apps created by `mix new` are written by an external process, so VFS can
         // hold a stale child list that omits their mix.exs - which would make the scan below skip
         // them silently. Refresh first: this is deliberately outside the write action, where a
@@ -73,7 +67,6 @@ class ReconfigureModuleSetupAction : AnAction() {
 
         var modulesReconfigured = 0
         var foldersAdded = 0
-        var sdksFixed = 0
 
         WriteCommandAction.runWriteCommandAction(project, "Reconfigure Elixir Modules", null, {
             // Collect all content entry URLs upfront so umbrella sub-app detection can skip
@@ -83,43 +76,24 @@ class ReconfigureModuleSetupAction : AnAction() {
                 .toSet()
 
             for (module in ModuleManager.getInstance(project).modules) {
-                val rootManager = ModuleRootManager.getInstance(module)
-                val model = rootManager.modifiableModel
+                if (!module.isElixirMixModule()) continue
+                val model = ModuleRootManager.getInstance(module).modifiableModel
 
-                if (!module.isElixirMixModule()) {
-                    model.dispose()
-                    continue
-                }
-
-                var moduleChanged = false
+                var added = 0
 
                 for (contentEntry in model.contentEntries) {
                     val root = contentEntry.file ?: continue
                     if (root.findChild("mix.exs") == null) continue  // Not a Mix app
 
-                    val added = addMissingFolderMarks(contentEntry, root)
-                    if (added > 0) {
-                        foldersAdded += added
-                        moduleChanged = true
-                    }
+                    added += addMissingFolderMarks(contentEntry, root)
 
                     // Also apply marks for umbrella sub-apps that are not already covered by
                     // their own content entry.
-                    val umbrellaAdded = addMissingUmbrellaSubAppFolderMarks(contentEntry, root, allContentEntryUrls)
-                    if (umbrellaAdded > 0) {
-                        foldersAdded += umbrellaAdded
-                        moduleChanged = true
-                    }
+                    added += addMissingUmbrellaSubAppFolderMarks(contentEntry, root, allContentEntryUrls)
                 }
 
-                if (hasRootMixExs && projectSdk != null && projectSdk.sdkType is ElixirSdkType) {
-                    if (fixModuleSdk(model, projectSdk)) {
-                        sdksFixed++
-                        moduleChanged = true
-                    }
-                }
-
-                if (moduleChanged) {
+                if (added > 0) {
+                    foldersAdded += added
                     modulesReconfigured++
                 }
 
@@ -131,8 +105,7 @@ class ReconfigureModuleSetupAction : AnAction() {
             }
         })
 
-        // Show result notification
-        showResultNotification(e, modulesReconfigured, foldersAdded, sdksFixed)
+        showResultNotification(project, modulesReconfigured, foldersAdded)
     }
 
     /**
@@ -218,69 +191,18 @@ class ReconfigureModuleSetupAction : AnAction() {
         return added
     }
 
-    /**
-     * Fixes the module SDK entry to inherit from [projectSdk] when the current entry is
-     * dangling (references a non-existent SDK) or mismatches the project SDK.
-     *
-     * Returns `true` if a fix was applied.
-     */
-    private fun fixModuleSdk(model: ModifiableRootModel, projectSdk: com.intellij.openapi.projectRoots.Sdk): Boolean {
-        var fixed = false
-
-        for (entry in model.orderEntries) {
-            if (entry !is JdkOrderEntry) continue
-
-            val jdkName = entry.jdkName ?: continue  // skip entries without an SDK name
-            val resolvedSdk = entry.jdk
-
-            val isDangling = resolvedSdk == null
-            val isMismatch = resolvedSdk != null && resolvedSdk.sdkType is ElixirSdkType && resolvedSdk != projectSdk
-
-            if (isDangling || isMismatch) {
-                LOG.info("Fixing module SDK: ${if (isDangling) "dangling '$jdkName'" else "mismatch"} → inherit project SDK")
-                model.inheritSdk()
-                fixed = true
-                break  // inheritSdk() replaces the entire SDK entry; no further iteration needed
-            }
+    private fun showResultNotification(project: Project, modulesReconfigured: Int, foldersAdded: Int) {
+        val message = if (modulesReconfigured == 0) {
+            "All modules are configured correctly."
+        } else {
+            val moduleWord = StringUtil.pluralize("module", modulesReconfigured)
+            "Reconfigured $modulesReconfigured $moduleWord: $foldersAdded folder ${StringUtil.pluralize("mark", foldersAdded)} applied."
+                .also { LOG.info("ReconfigureModuleSetup: $it") }
         }
-
-        return fixed
-    }
-
-    private fun showResultNotification(e: AnActionEvent, modulesReconfigured: Int, foldersAdded: Int, sdksFixed: Int) {
-        val project = e.project ?: return
-
-        if (modulesReconfigured == 0 && sdksFixed == 0) {
-            NotificationGroupManager.getInstance()
-                .getNotificationGroup("Elixir")
-                .createNotification(
-                    "Elixir Module setup",
-                    "All modules are configured correctly.",
-                    NotificationType.INFORMATION
-                )
-                .notify(project)
-            return
-        }
-
-        val parts = mutableListOf<String>()
-        if (foldersAdded > 0) {
-            parts.add("$foldersAdded folder ${StringUtil.pluralize("mark", foldersAdded)} applied")
-        }
-        if (sdksFixed > 0) {
-            parts.add("$sdksFixed module ${StringUtil.pluralize("SDK", sdksFixed)} fixed")
-        }
-        val moduleWord = StringUtil.pluralize("module", modulesReconfigured)
-        val message = "Reconfigured $modulesReconfigured $moduleWord: ${parts.joinToString(", ")}."
 
         NotificationGroupManager.getInstance()
             .getNotificationGroup("Elixir")
-            .createNotification(
-                "Elixir Module setup",
-                message,
-                NotificationType.INFORMATION
-            )
+            .createNotification("Elixir Module setup", message, NotificationType.INFORMATION)
             .notify(project)
-
-        LOG.info("ReconfigureModuleSetup: $message")
     }
 }

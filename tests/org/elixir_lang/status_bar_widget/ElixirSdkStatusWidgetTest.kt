@@ -3,15 +3,25 @@ package org.elixir_lang.status_bar_widget
 import com.intellij.facet.FacetManager
 import com.intellij.facet.FacetType
 import com.intellij.facet.impl.FacetUtil
+import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.application.ApplicationManager
+import org.elixir_lang.sdk.choice.RecordedChooser
+import org.elixir_lang.sdk.choice.moduleEvent
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.SimpleJavaSdkType
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
+import com.intellij.openapi.module.ModuleTypeManager
+import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
+import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
+import org.elixir_lang.junit.HeavyTestCase
+import org.elixir_lang.sdk.SdkFixtures
+import org.elixir_lang.sdk.SdkFixtures.fakeHome
 import com.intellij.openapi.roots.ProjectRootManager
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import com.intellij.util.concurrency.annotations.RequiresReadLock
@@ -50,7 +60,7 @@ import org.elixir_lang.tool_manager.SdkVersionTable
  * 1a. Project SDK = Java, module SDK = Elixir -> no NotConfigured, no mismatch
  * 1b. Project SDK = Java, module SDK = Elixir -> no mismatch issues
  * 2.  Project SDK = null, module SDK = Elixir -> no NotConfigured
- * 3.  Project SDK = Elixir A, module SDK = Elixir B -> mismatch reported
+ * 3.  Project SDK = Elixir A, module SDK = Elixir B, not an ELIXIR_MODULE -> mismatch reported
  * 5.  No Elixir modules -> widget factory isAvailable() = false
  * 6.  Small IDE: stale Facet SDK reference, Elixir SDKs exist -> dangling issue
  * 7.  Small IDE: Facet SDK resolves correctly -> no issue
@@ -133,14 +143,6 @@ class ElixirSdkStatusWidgetTest : PlatformTestCase() {
 
     private fun createWidget(): ElixirEditorBasedSdkWidget = ElixirEditorBasedSdkWidget(project, testScope)
 
-    /** Calls [ElixirEditorBasedSdkWidget.detectModuleSdkIssues], which asserts it runs off the EDT. */
-    private fun ElixirEditorBasedSdkWidget.detectModuleSdkIssuesInTest(): List<ModuleSdkIssue> =
-        onPooledThread {
-            ApplicationManager.getApplication().runReadAction<List<ModuleSdkIssue>> {
-                detectModuleSdkIssues()
-            }
-        }
-
     // -------------------------------------------------------------------------
     // Scenario 1: Project SDK = Java, module SDK = Elixir
     // -------------------------------------------------------------------------
@@ -195,7 +197,7 @@ class ElixirSdkStatusWidgetTest : PlatformTestCase() {
     }
 
     // -------------------------------------------------------------------------
-    // Scenario 3: Project SDK = Elixir A, module SDK = Elixir B -> mismatch reported
+    // Scenario 3: Project SDK = Elixir A, module SDK = Elixir B, not an ELIXIR_MODULE -> mismatch reported
     // -------------------------------------------------------------------------
 
     fun testMismatchReportedWhenModuleSdkDiffersFromElixirProjectSdk() {
@@ -208,9 +210,9 @@ class ElixirSdkStatusWidgetTest : PlatformTestCase() {
         val widget = createWidget()
         val issues = widget.detectModuleSdkIssuesInTest()
 
-        assertTrue(
-            "Expected a mismatch issue (project=Elixir 1.17, module=Elixir 1.16); got: $issues",
-            issues.any { !it.isDangling && it.moduleName == module.name }
+        assertEquals(
+            listOf(ModuleSdkIssue(module.name, "uses 'Elixir 1.16' but project SDK is 'Elixir 1.17'", isDangling = false)),
+            issues,
         )
     }
 
@@ -602,10 +604,7 @@ class ElixirSdkStatusWidgetTest : PlatformTestCase() {
     }
 
     fun testReconfigureIsOfferedOnlyForFolderMarks() {
-        assertFalse(
-            "it resets a module to the project SDK, which undoes the SDK the tool manager chose",
-            ElixirEditorBasedSdkWidget.offersReconfigure(SdkStatus.ModuleSdkError(null, null, emptyList())),
-        )
+        assertFalse(ElixirEditorBasedSdkWidget.offersReconfigure(SdkStatus.ModuleSdkError(null, null, emptyList())))
         assertTrue(
             ElixirEditorBasedSdkWidget.offersReconfigure(
                 SdkStatus.FolderMarkWarning(ProjectJdkImpl("folder", ElixirSdkType.instance, "/fake", ""), "1.20.5", emptyList())
@@ -623,4 +622,54 @@ class ElixirSdkStatusWidgetTest : PlatformTestCase() {
     fun testWidgetIdConstant() {
         assertEquals("ElixirSdkStatus", ElixirEditorBasedSdkWidget.ID)
     }
+
+    fun testThePopupsFirstItemAsksTheChooser() {
+        val recorded = RecordedChooser(testRootDisposable)
+        val first = createWidget().popupActions().getChildren(null).first()
+        ActionUtil.performAction(first, moduleEvent(first, project, module))
+
+        recorded.assertChooserAskedFor(module)
+    }
 }
+
+/** IntelliJ IDEA, with an Elixir project SDK: a module's own Elixir SDK is reported only where a pick would not go. */
+class ElixirSdkStatusWidgetModuleSdkTest : HeavyTestCase() {
+    private lateinit var testScope: CoroutineScope
+    private lateinit var modulePick: Sdk
+
+    override fun setUp() {
+        super.setUp()
+        testScope = CoroutineScope(SupervisorJob())
+        val projectPick = SdkFixtures.register(SdkFixtures.elixirSdk("Project pick", fakeHome("elixir/project-pick")), testRootDisposable)
+        modulePick = SdkFixtures.register(SdkFixtures.elixirSdk("Module pick", fakeHome("elixir/module-pick")), testRootDisposable)
+        WriteAction.run<Throwable> { ProjectRootManager.getInstance(project).projectSdk = projectPick }
+    }
+
+    override fun tearDown() {
+        try {
+            testScope.cancel("test tearDown")
+        } finally {
+            super.tearDown()
+        }
+    }
+
+    fun testAnElixirModuleGivenItsOwnSdkByTheChooserShowsNoWarning() {
+        val elixirModule = doCreateRealModuleIn("elixir", project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
+        RecordedChooser(testRootDisposable) { state -> state.entries.single { it.sdk === modulePick } }
+        val widget = ElixirEditorBasedSdkWidget(project, testScope).also { Disposer.register(testRootDisposable, it) }
+        val first = widget.popupActions().getChildren(null).first()
+
+        ActionUtil.performAction(first, moduleEvent(first, project, elixirModule))
+
+        assertSame("precondition: the chooser wrote the module SDK", modulePick, ModuleRootManager.getInstance(elixirModule).sdk)
+        assertEquals(emptyList<ModuleSdkIssue>(), widget.detectModuleSdkIssuesInTest())
+    }
+}
+
+/** Calls [ElixirEditorBasedSdkWidget.detectModuleSdkIssues], which asserts it runs off the EDT. */
+private fun ElixirEditorBasedSdkWidget.detectModuleSdkIssuesInTest(): List<ModuleSdkIssue> =
+    onPooledThread {
+        ApplicationManager.getApplication().runReadAction<List<ModuleSdkIssue>> {
+            detectModuleSdkIssues()
+        }
+    }

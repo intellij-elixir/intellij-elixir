@@ -3,7 +3,6 @@ package org.elixir_lang.sdk.elixir
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.diagnostic.trace
-import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.SdkModificator
@@ -58,24 +57,21 @@ object ElixirInternalErlangSdkSetup {
     }
 
     /**
-     * The Erlang SDK [elixirSdk], an Elixir SDK in [sdksModel], is paired with. When it has none, the Erlang step asks
-     * for one, over [parent]: [elixirSdk] is paired with the pick and set up again, or on Cancel removed from
-     * [sdksModel]. When [elixirSdk] is one already in the table, the step asks for it as the Elixir SDK being re-paired,
-     * and Cancel leaves it. Null on Cancel.
+     * The Erlang SDK [elixirSdk], an Elixir SDK just added to [sdksModel], is paired with. When it has none, the Erlang
+     * step asks for one, over [parent]: [elixirSdk] is paired with the pick and set up again, or on Cancel removed from
+     * [sdksModel]. Null on Cancel.
      */
     @RequiresEdt
     internal fun erlangSdkOrAsk(
         sdksModel: ProjectSdksModel,
         elixirSdk: Sdk,
-        parent: Component? = null,
+        parent: Component?,
     ): Sdk? {
         ErlangSdkResolver.getInstance().resolveErlangSdk(elixirSdk, sdksModel)?.let { return it }
 
-        val asking = elixirSdk.takeIf { ProjectJdkTable.getInstance().findJdk(it.name) != null }
-        val pick = elixirSdk.homePath?.let { ErlangStep.getInstance().ask(parent, it, sdksModel, asking) }
+        val pick = elixirSdk.homePath?.let { ErlangStep.getInstance().ask(parent, it, sdksModel) }
         if (pick == null) {
-            // Only an SDK the pick added: removing a table SDK's copy would delete it on the model's next apply.
-            if (asking == null) sdksModel.removeSdk(elixirSdk)
+            sdksModel.removeSdk(elixirSdk)
             return null
         }
 
