@@ -17,6 +17,7 @@ import org.elixir_lang.ui.sdk_settings.addElixirOnPage
 import org.elixir_lang.ui.sdk_settings.addErlangOnPage
 import org.elixir_lang.ui.sdk_settings.closeInternalErrors
 import org.elixir_lang.ui.sdk_settings.dialogShown
+import java.io.File
 import java.nio.file.Path
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.copyToRecursively
@@ -129,3 +130,37 @@ internal fun Driver.cancelDialogs(vararg titles: String) {
 /** The lines of the module file [iml], trimmed, that start with one of [tags]. */
 internal fun imlLines(iml: Path, vararg tags: String): List<String> =
     iml.readText().lines().map(String::trim).filter { line -> tags.any(line::startsWith) }
+
+/** The folder [stubMise] writes `mise` in. */
+private val miseStubs: Path get() = NoScreen.privateHome.resolve("bin")
+
+/** The PATH with [stubMise]'s `mise` first, for the IDE. */
+internal fun stubbedPath(): String = "$miseStubs${File.pathSeparator}${System.getenv("PATH")}"
+
+/** `ls --current --json`'s entry for [tool] pinned at [version] in [project]'s `.tool-versions` and installed at [installPath]. */
+internal fun misePin(tool: String, version: Any, installPath: Any, project: Path): String =
+    """"$tool":[{"version":"$version","requested_version":"$version","install_path":"$installPath",""" +
+        """"source":{"type":".tool-versions","path":"${toolVersions(project)}"},"installed":true,"active":true}]"""
+
+private fun toolVersions(project: Path): Path = project.resolve(".tool-versions")
+
+/**
+ * `mise` first on [stubbedPath], answering as mise 2026.10.22 does: [lsCurrent], a shell command, answers
+ * `ls --current --json`, `config ls --json` names [project]'s `.tool-versions` with [tools], and `doctor --json` gives
+ * its `dirs`. Anything else fails, as the plugin would see a broken mise.
+ */
+internal fun stubMise(project: Path, lsCurrent: String, tools: List<String>) {
+    val home = NoScreen.privateHome
+    val config = """[{"path":"${toolVersions(project)}","tools":[${tools.joinToString(",") { "\"$it\"" }}],"override":false}]"""
+    val doctor = """{"dirs":{"state":"$home/.local/state/mise","data":"$home/.local/share/mise"}}"""
+    val script = """
+        #!/bin/sh
+        case "${'$'}1 ${'$'}2" in
+          "ls --current") $lsCurrent ;;
+          "config ls") echo '$config' ;;
+          "doctor --json") echo '$doctor' ;;
+          *) echo "mise stub: ${'$'}* is not answered" >&2; exit 1 ;;
+        esac
+    """.trimIndent()
+    miseStubs.createDirectories().resolve("mise").apply { writeText(script + "\n") }.toFile().setExecutable(true)
+}

@@ -4,7 +4,6 @@ import com.intellij.driver.client.Driver
 import com.intellij.driver.sdk.openFile
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
 import org.elixir_lang.ui.framework.core.ERLANG_STEP_TITLE
-import org.elixir_lang.ui.framework.core.NoScreen
 import org.elixir_lang.ui.framework.core.addErlangSdkFromDisk
 import org.elixir_lang.ui.framework.core.cancelErlangStep
 import org.elixir_lang.ui.framework.core.ensureWelcomeScreenInForeground
@@ -21,10 +20,7 @@ import org.elixir_lang.ui.sdk_settings.stored
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledOnOs
 import org.junit.jupiter.api.condition.OS
-import java.io.File
 import java.nio.file.Path
-import kotlin.io.path.createDirectories
-import kotlin.io.path.writeText
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -40,11 +36,10 @@ class ToolManagerErlangAskTest {
     @EnabledOnOs(OS.LINUX)
     fun `configuring from mise with no Erlang pinned asks the Erlang step`() {
         val rows = Rows()
-        val stubs = NoScreen.privateHome.resolve("bin")
-        launchIdea("ToolManagerErlangAskTest", { withEnv("PATH", "$stubs${File.pathSeparator}${System.getenv("PATH")}") }) { homes ->
+        launchIdea("ToolManagerErlangAskTest", { withEnv("PATH", stubbedPath()) }) { homes ->
             val install = stageElixirInstall()
             val project = stageProject(NAME, moduleIml("ELIXIR_MODULE"), mapOf(".tool-versions" to "elixir ${Path.of(install).fileName}", "lib/$NAME.ex" to SOURCE, ".idea/workspace.xml" to MISE_ENABLED))
-            stubMise(stubs, install, project)
+            stubMise(project, "echo '{${misePin("elixir", Path.of(install).fileName, install, project)}}'", listOf("elixir"))
             ensureWelcomeScreenInForeground()
             closeInternalErrors("setup")
             lateinit var erlang: String
@@ -84,30 +79,6 @@ class ToolManagerErlangAskTest {
             val assigned = appears("the module's SDK", 30.seconds) { moduleSdk() == sdk }
             rows.check(row, "the module's SDK '${moduleSdk()}' is it, '$sdk'", assigned)
         }.onFailure { failure -> failedErlangStepRow(rows, row, failure) {} }
-    }
-
-    /**
-     * `mise` in [stubs], answering as mise 2026.10.22 does in [project] with [install] staged: `ls --current --json`,
-     * `config ls --json` and `doctor --json` (its `dirs`). Anything else fails, as the plugin would see a broken mise.
-     */
-    private fun stubMise(stubs: Path, install: String, project: Path) {
-        val version = Path.of(install).fileName
-        val toolVersions = project.resolve(".tool-versions")
-        val home = NoScreen.privateHome
-        val ls = """{"elixir":[{"version":"$version","requested_version":"$version","install_path":"$install",""" +
-            """"source":{"type":".tool-versions","path":"$toolVersions"},"installed":true,"active":true}]}"""
-        val config = """[{"path":"$toolVersions","tools":["elixir"],"override":false}]"""
-        val doctor = """{"dirs":{"state":"$home/.local/state/mise","data":"$home/.local/share/mise"}}"""
-        val script = """
-            #!/bin/sh
-            case "${'$'}1 ${'$'}2" in
-              "ls --current") echo '$ls' ;;
-              "config ls") echo '$config' ;;
-              "doctor --json") echo '$doctor' ;;
-              *) echo "mise stub: ${'$'}* is not answered" >&2; exit 1 ;;
-            esac
-        """.trimIndent()
-        stubs.createDirectories().resolve("mise").apply { writeText(script + "\n") }.toFile().setExecutable(true)
     }
 
     private companion object {
