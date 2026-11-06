@@ -586,7 +586,7 @@ defmodule Kernel do
 
 
   """
-  defmacro left and right do
+  defguard left and right do
     case(__CALLER__.context()) do
       nil ->
         build_boolean_check(:and, left, right, false)
@@ -1575,7 +1575,7 @@ defmodule Kernel do
   will translate all occurrences of this AST to `left not in right`.
 
   """
-  defmacro left in right do
+  defguard left in right do
     (
       in_body? = is_nil(__CALLER__.context())
       expand = case(bootstrapped?(Macro)) do
@@ -1623,7 +1623,7 @@ defmodule Kernel do
 
 
   """
-  defmacro is_exception(term) do
+  defguard is_exception(term) do
     case(__CALLER__.context()) do
       nil ->
         {:case, [], [term, [do: [{:->, [], [[{:%, [], [{:_, [], Kernel}, {:%{}, [], [__exception__: true]}]}], true]}, {:->, [], [[{:_, [], Kernel}], false]}]]]}
@@ -1649,7 +1649,7 @@ defmodule Kernel do
 
 
   """
-  defmacro is_exception(term, name) do
+  defguard is_exception(term, name) do
     case(__CALLER__.context()) do
       nil ->
         {:case, [], [name, [do: [{:->, [], [[{:when, [], [{:name, [], Kernel}, {:is_atom, [context: Kernel, import: Kernel], [{:name, [], Kernel}]}]}], {:case, [], [term, [do: [{:->, [], [[{:%{}, [], [__struct__: {:^, [], [{:name, [], Kernel}]}, __exception__: true]}], true]}, {:->, [], [[{:_, [], Kernel}], false]}]]]}]}, {:->, [], [[{:_, [], Kernel}], {:raise, [context: Kernel, import: Kernel], [{:__aliases__, [alias: false], [:ArgumentError]}]}]}]]]}
@@ -1675,7 +1675,7 @@ defmodule Kernel do
 
 
   """
-  defmacro is_nil(term) do
+  defguard is_nil(term) do
     {:==, [context: Kernel, import: Kernel], [term, nil]}
   end
 
@@ -1694,7 +1694,7 @@ defmodule Kernel do
 
 
   """
-  defmacro is_struct(term) do
+  defguard is_struct(term) do
     case(__CALLER__.context()) do
       nil ->
         {:case, [], [term, [do: [{:->, [], [[{:%, [], [{:_, [], Kernel}, {:%{}, [], []}]}], true]}, {:->, [], [[{:_, [], Kernel}], false]}]]]}
@@ -1720,7 +1720,7 @@ defmodule Kernel do
 
 
   """
-  defmacro is_struct(term, name) do
+  defguard is_struct(term, name) do
     case(__CALLER__.context()) do
       nil ->
         {:case, [generated: true], [name, [do: [{:->, [generated: true], [[{:when, [generated: true], [{:name, [generated: true], Kernel}, {:is_atom, [generated: true, context: Kernel, import: Kernel], [{:name, [generated: true], Kernel}]}]}], {:case, [generated: true], [term, [do: [{:->, [generated: true], [[{:%{}, [generated: true], [__struct__: {:^, [generated: true], [{:name, [generated: true], Kernel}]}]}], true]}, {:->, [generated: true], [[{:_, [generated: true], Kernel}], false]}]]]}]}, {:->, [generated: true], [[{:_, [generated: true], Kernel}], {:raise, [generated: true, context: Kernel, import: Kernel], [{:__aliases__, [generated: true, alias: false], [:ArgumentError]}]}]}]]]}
@@ -1824,7 +1824,7 @@ defmodule Kernel do
 
 
   """
-  defmacro left or right do
+  defguard left or right do
     case(__CALLER__.context()) do
       nil ->
         build_boolean_check(:or, left, true, right)

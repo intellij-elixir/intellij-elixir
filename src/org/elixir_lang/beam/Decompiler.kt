@@ -358,10 +358,24 @@ private fun appendCallDefinitions(
                     }
                 }
                 appendSpec(decompiled, macroNameArity, debugInfo, options)
+                val clausesStart = decompiled.length
                 appendMacroNameArity(decompiled, macroNameArity, debugInfo, documentation, options)
+                if (isGuard(macroNameArity, { documentation?.docs }, debugInfo)) {
+                    writeAsGuard(decompiled, clausesStart, macroNameArity.macro)
+                }
             }
         }
     }
+}
+
+/**
+ * Rewrites the clauses [decompiled] holds from [start], each written with [macro] at a definition's indent, with the
+ * guard's `defguard` or `defguardp` instead.
+ */
+private fun writeAsGuard(decompiled: StringBuilder, start: Int, macro: String) {
+    val guard = macroDefiner(isExported = macro == DEFMACRO, isGuard = true).keyword
+    val clauses = decompiled.substring(start).replaceLinePrefix("  $macro ", "  $guard ")
+    decompiled.replace(start, decompiled.length, clauses)
 }
 
 @Volatile
