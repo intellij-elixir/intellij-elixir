@@ -397,21 +397,22 @@ class ElixirEditorBasedSdkWidget(
     }
 
     override fun createPopup(context: DataContext): ListPopup {
-        val actionGroup = DefaultActionGroup().apply {
-            add(createAddSdkAction())
-            val actionManager = ActionManager.getInstance()
-            actionManager.getAction("Elixir.RefreshAllElixirSdks")?.let { add(it) }
-            actionManager.getAction("Elixir.InstallMixDependencies")?.let { add(it) }
-            add(Separator.getInstance())
-            actionManager.getAction("Elixir.ReconfigureModuleSetup")?.let { add(it) }
-        }
         return JBPopupFactory.getInstance().createActionGroupPopup(
             "Elixir SDK",
-            actionGroup,
+            popupActions(),
             context,
             JBPopupFactory.ActionSelectionAid.SPEEDSEARCH,
             false
         )
+    }
+
+    internal fun popupActions(): DefaultActionGroup = DefaultActionGroup().apply {
+        val actionManager = ActionManager.getInstance()
+        actionManager.getAction("Elixir.ChooseElixirSdk")?.let { add(it) }
+        actionManager.getAction("Elixir.RefreshAllElixirSdks")?.let { add(it) }
+        actionManager.getAction("Elixir.InstallMixDependencies")?.let { add(it) }
+        add(Separator.getInstance())
+        actionManager.getAction("Elixir.ReconfigureModuleSetup")?.let { add(it) }
     }
 
     override fun createInstance(project: Project): StatusBarWidget =
@@ -1016,21 +1017,6 @@ class ElixirEditorBasedSdkWidget(
     // -------------------------------------------------------------------------
     // UI helpers
     // -------------------------------------------------------------------------
-
-    private fun createAddSdkAction(): AnAction =
-        object : AnAction("Configure Elixir SDKs...", "", AllIcons.General.Add) {
-            override fun actionPerformed(e: AnActionEvent) { SdkSettingsOpener.getInstance().open(e) }
-            override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
-            override fun update(e: AnActionEvent) {
-                val isConfigured = findModuleLevelElixirSdk() != null
-                val targetName = SdkSettingsOpener.getInstance().targetName()
-                e.presentation.text = if (isConfigured) "Configure Elixir SDKs..." else "Add Elixir SDK..."
-                e.presentation.description = if (isConfigured)
-                    "Configure Elixir SDKs in $targetName"
-                else
-                    "Open $targetName to add an Elixir SDK"
-            }
-        }
 
     internal fun buildSdkVersionTableHtml(table: SdkVersionTable): String {
         val okColor = ColorUtil.toHtmlColor(JBColor(0x388A34, 0x499C54))

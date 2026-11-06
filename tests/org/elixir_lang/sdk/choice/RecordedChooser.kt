@@ -1,10 +1,15 @@
 package org.elixir_lang.sdk.choice
 
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.actionSystem.PlatformCoreDataKeys
+import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
+import com.intellij.testFramework.TestActionEvent
 import com.intellij.testFramework.replaceService
 import junit.framework.TestCase.assertEquals
 import org.elixir_lang.sdk.elixir.SdkSettingsOpener
@@ -34,4 +39,13 @@ internal class RecordedChooser(disposable: Disposable, answer: (SdkChoiceState) 
         assertEquals(listOf(listOf(module)), chooserAsked)
         assertEquals("no settings opened", emptyList<Pair<Project?, SettingsPage>>(), settingsOpened)
     }
+}
+
+/** An event for [action] in [project], with [module] as the context's module. */
+internal fun moduleEvent(action: AnAction, project: Project, module: Module?): AnActionEvent {
+    val context = SimpleDataContext.builder()
+        .add(CommonDataKeys.PROJECT, project)
+        .add(PlatformCoreDataKeys.MODULE, module)
+        .build()
+    return TestActionEvent.createTestEvent(action, context)
 }

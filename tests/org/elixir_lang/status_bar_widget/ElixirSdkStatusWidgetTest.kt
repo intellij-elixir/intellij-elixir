@@ -3,7 +3,10 @@ package org.elixir_lang.status_bar_widget
 import com.intellij.facet.FacetManager
 import com.intellij.facet.FacetType
 import com.intellij.facet.impl.FacetUtil
+import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.application.ApplicationManager
+import org.elixir_lang.sdk.choice.RecordedChooser
+import org.elixir_lang.sdk.choice.moduleEvent
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.projectRoots.ProjectJdkTable
@@ -622,5 +625,13 @@ class ElixirSdkStatusWidgetTest : PlatformTestCase() {
 
     fun testWidgetIdConstant() {
         assertEquals("ElixirSdkStatus", ElixirEditorBasedSdkWidget.ID)
+    }
+
+    fun testThePopupsFirstItemAsksTheChooser() {
+        val recorded = RecordedChooser(testRootDisposable)
+        val first = createWidget().popupActions().getChildren(null).first()
+        ActionUtil.performAction(first, moduleEvent(first, project, module))
+
+        recorded.assertChooserAskedFor(module)
     }
 }

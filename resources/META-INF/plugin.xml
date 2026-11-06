@@ -590,6 +590,10 @@
         </group>
         <group id="LangElixir.SdkActions" popup="true" compact="true" text="Elixir"
                icon="org.elixir_lang.Icons.LANGUAGE">
+            <action id="Elixir.ChooseElixirSdk"
+                    class="org.elixir_lang.sdk.choice.ChooseElixirSdkAction"
+                    text="Choose Elixir SDK..."
+                    description="Choose the Elixir SDK of the current module, or of every Elixir module"/>
             <action id="Elixir.OpenElixirSdkSettings"
                     class="org.elixir_lang.action.OpenElixirSdkSettingsAction"
                     text="Configure Elixir SDKs"

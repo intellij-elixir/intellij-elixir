@@ -553,7 +553,7 @@ The status bar can display an **Elixir SDK status widget** in the bottom-right c
 
 **Click the widget** to open a popup with quick actions:
 
-* **Configure Elixir SDKs...** -- open Project Structure to add or edit SDKs
+* **Choose Elixir SDK...** -- pick the Elixir SDK of the current module from the existing ones, or add one; also in **Tools -> Elixir**
 * **Detected Elixir SDKs** -- if no SDK is configured and a tool manager (e.g. mise) detects valid installations, they are listed here. Click one to register it as the project SDK.
 * **Refresh Elixir SDKs** -- re-scan SDK home paths and update classpath entries
 * **Install Mix Dependencies** -- run `mix deps.get` for the project
