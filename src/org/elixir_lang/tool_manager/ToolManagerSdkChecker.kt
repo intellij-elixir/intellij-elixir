@@ -23,7 +23,9 @@ import kotlinx.coroutines.withContext
 import org.elixir_lang.isElixirModule
 import org.elixir_lang.sdk.SdkRegistrar
 import org.elixir_lang.sdk.SdkVersionsStore
+import org.elixir_lang.sdk.choice.SdkChoice
 import org.elixir_lang.sdk.elixir.ElixirSdkAssignment
+import org.elixir_lang.sdk.elixir.ElixirSdkAssignment.Target
 import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 import org.elixir_lang.sdk.elixir.knownOrNull
 import org.elixir_lang.sdk.elixir.sdk
@@ -385,7 +387,10 @@ internal class ToolManagerSdkChecker(
      * 2. A `jdk.table.xml` flush on [Dispatchers.IO] (see the inline comment below) so that
      *    `DelayedProjectSynchronizer` Attempt 2 reads the newly registered SDKs from disk instead
      *    of removing them as stale - which would undo the module assignment.
-     * 3. Module assignment **last**, inside a single [edtWriteAction].
+     * 3. Module assignment **last**, inside a single [edtWriteAction]. A module whose SDK can't be told is not assigned
+     *    there, and the chooser asks afterwards, once per group: the modules that share the project SDK but are pinned
+     *    to different installs, and each install's modules when it has several Elixir SDKs and no Erlang pin that
+     *    registers.
      *
      * Uses [runWithModalProgressBlocking] internally, so this must be called from a blocking
      * context on the EDT (e.g. an `AnAction.actionPerformed` handler).
@@ -400,6 +405,8 @@ internal class ToolManagerSdkChecker(
             "Configuring Elixir SDK from $toolName"
         ) {
             val elixirSdkByInstallPath = mutableMapOf<String, Sdk>()
+            // Installs with several Elixir SDKs and no Erlang pin that registers to tell them apart: the chooser asks which.
+            val severalOnInstall = mutableSetOf<String>()
 
             for ((installPath, sharing) in assignments.values.groupBy { it.elixir?.installPath }) {
                 val elixirPath = installPath ?: continue
@@ -426,9 +433,8 @@ internal class ToolManagerSdkChecker(
                             elixirSdkByInstallPath[elixirPath] = onInstall.single()
                             continue
                         }
-                        // Which of several is meant can't be told.
                         else -> {
-                            LOG.warn("configureSdks: ${onInstall.size} Elixir SDKs are on '$elixirPath'; none is assigned")
+                            severalOnInstall += elixirPath
                             continue
                         }
                     }
@@ -446,7 +452,7 @@ internal class ToolManagerSdkChecker(
                 elixirSdkByInstallPath[elixirPath] = elixirSdk
             }
 
-            if (elixirSdkByInstallPath.isEmpty()) {
+            if (elixirSdkByInstallPath.isEmpty() && severalOnInstall.isEmpty()) {
                 LOG.info("configureSdks: no SDKs registered, skipping module assignment")
                 return@runWithModalProgressBlocking
             }
@@ -467,26 +473,52 @@ internal class ToolManagerSdkChecker(
                 LOG.trace("configureSdks: jdk.table.xml flush complete")
             }
 
-            edtWriteAction {
-                for ((moduleName, versions) in assignments) {
-                    val elixirEntry = versions.elixir ?: run {
+            val undecided = edtWriteAction {
+                val pins = assignments.mapNotNull { (moduleName, versions) ->
+                    val installPath = versions.elixir?.installPath ?: run {
                         LOG.trace("configureSdks: skipping '$moduleName' - no elixir entry")
-                        continue
+                        return@mapNotNull null
                     }
-                    val elixirSdk = elixirSdkByInstallPath[elixirEntry.installPath] ?: run {
-                        LOG.warn("configureSdks: SDK not found for installPath='${elixirEntry.installPath}' (module='$moduleName')")
-                        continue
+                    if (installPath !in elixirSdkByInstallPath && installPath !in severalOnInstall) {
+                        LOG.warn("configureSdks: SDK not found for installPath='$installPath' (module='$moduleName')")
+                        return@mapNotNull null
                     }
                     val module = ModuleManager.getInstance(project)
                         .findModuleByName(moduleName)
                         ?.takeIf { !it.isDisposed } ?: run {
                         LOG.warn("configureSdks: module '$moduleName' not found or disposed")
-                        continue
+                        return@mapNotNull null
                     }
+                    module to installPath
+                }
+                // Modules that share the project SDK but are pinned to different installs: which is meant can't be
+                // told, so the chooser asks for them together.
+                val (sharing, own) = pins.partition { (module, _) -> ElixirSdkAssignment.target(module) == Target.PROJECT_SDK }
+                val sharingDisagrees = sharing.distinctBy { it.second }.size > 1
+                val (onSeveral, decided) = (if (sharingDisagrees) own else pins).partition { it.second in severalOnInstall }
+
+                for ((module, installPath) in decided) {
+                    val elixirSdk = elixirSdkByInstallPath.getValue(installPath)
                     try {
                         assignElixirSdk(module, elixirSdk)
                     } catch (ex: Exception) {
-                        LOG.warn("configureSdks: failed to assign '${elixirSdk.name}' -> '$moduleName'", ex)
+                        LOG.warn("configureSdks: failed to assign '${elixirSdk.name}' -> '${module.name}'", ex)
+                    }
+                }
+
+                buildList {
+                    if (sharingDisagrees) add(sharing.map { it.first })
+                    addAll(onSeveral.groupBy({ it.second }, { it.first }).values)
+                }
+            }
+
+            if (undecided.isNotEmpty()) {
+                // The chooser writes its pick in a write action, which `Dispatchers.UI` refuses.
+                @Suppress("ObsoleteDispatchersEdt")
+                withContext(Dispatchers.EDT) {
+                    for (modules in undecided) {
+                        LOG.info("configureSdks: which Elixir SDK ${modules.map { it.name }} use can't be told; asking")
+                        SdkChoice.getInstance().ask(project, modules)
                     }
                 }
             }

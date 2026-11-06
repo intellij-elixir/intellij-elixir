@@ -2,14 +2,15 @@ package org.elixir_lang.tool_manager
 
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.module.Module
-import com.intellij.openapi.projectRoots.ProjectJdkTable
+import com.intellij.openapi.module.ModuleTypeManager
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.testFramework.common.runAll
+import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.junit.HeavyTestCase
-import org.elixir_lang.junit.logs.expectWarnings
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.storedErlangHome
 import org.elixir_lang.sdk.SdkFixtures.storedErlangName
+import org.elixir_lang.sdk.choice.RecordedChooser
 import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 import org.elixir_lang.sdk.elixir.sdk
 import org.elixir_lang.sdk.erlang_dependent.Asked
@@ -18,12 +19,11 @@ import org.elixir_lang.sdk.erlang_dependent.StepAnswer
 import org.elixir_lang.sdk.erlang_dependent.elixirInstall
 import org.elixir_lang.sdk.erlang_dependent.install
 import org.elixir_lang.sdk.wsl.wslCompat
-import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 
 /**
  * "Configure from the tool manager" with no Erlang SDK to pair with (none pinned, or a pin that fails to register):
  * the Elixir install's own SDKs decide. With none, the Erlang step is asked; with one, it is used as it is; with
- * several, nothing is registered or assigned.
+ * several, the chooser asks which, once for the install's modules.
  */
 class ToolManagerErlangAskTest : HeavyTestCase() {
     private val asked = Asked()
@@ -76,14 +76,14 @@ class ToolManagerErlangAskTest : HeavyTestCase() {
         assertEquals(existing.name, assignedSdk()?.name)
     }
 
-    fun testWithSeveralSdksOnTheInstallNothingIsRegisteredOrAssigned() {
+    fun testWithSeveralSdksOnTheInstallACancelledChooserRegistersAndAssignsNothing() {
         val onTheInstall = twoSdksOnTheInstall()
+        val recorded = RecordedChooser(testRootDisposable)
         val moduleSdkBefore = assignedSdk()
 
-        expectWarnings(ToolManagerSdkChecker::class.java, Regex("configureSdks: 2 Elixir SDKs are on .*; none is assigned")) {
-            configure(erlang = null)
-        }
+        configure(erlang = null)
 
+        recorded.assertChooserAskedFor(module)
         assertEmpty(asked.events)
         assertSameElements(elixirSdksOnTheInstall().map { it.name }, onTheInstall.map { it.name })
         assertEquals(moduleSdkBefore, assignedSdk())
@@ -110,17 +110,43 @@ class ToolManagerErlangAskTest : HeavyTestCase() {
         assertEmpty(elixirSdksOnTheInstall())
     }
 
-    fun testModulesOnOneInstallWithSeveralSdksAreNotAssigned() {
-        val onTheInstall = twoSdksOnTheInstall()
-        val moduleSdkBefore = assignedSdk()
+    fun testModulesOnOneInstallWithSeveralSdksAreAskedForOnce() {
+        val pick = twoSdksOnTheInstall()[1]
+        val recorded = RecordedChooser(testRootDisposable) { state -> state.entries.single { it.sdk.name == pick.name } }
+        val other = createModule("Tool manager several SDKs module")
+        val decided = elixirModule()
+        val decidedHome = elixirInstall("1.17.3", "26")
 
-        expectWarnings(ToolManagerSdkChecker::class.java, Regex("configureSdks: 2 Elixir SDKs are on .*")) {
-            configure(null, module.name, "another module")
-        }
+        checker.configureSdks(
+            linkedMapOf(
+                module.name to onTheInstall(erlang = null),
+                other.name to onTheInstall(erlang = null),
+                decided.name to versions(elixir = ToolEntry("1.17.3", decidedHome, true), erlang = pinnedAt(install("26", "26.2.5"))),
+            )
+        )
 
-        assertEmpty(asked.events)
-        assertSameElements(elixirSdksOnTheInstall().map { it.name }, onTheInstall.map { it.name })
-        assertEquals(moduleSdkBefore, assignedSdk())
+        assertEquals(listOf(listOf(module, other)), recorded.chooserAsked)
+        assertEquals(pick.name, assignedSdk(module)?.name)
+        assertEquals(pick.name, assignedSdk(other)?.name)
+        assertEquals(elixirSdksAt(decidedHome).single().name, assignedSdk(decided)?.name)
+    }
+
+    fun testBothUndecidedCasesAskOncePerGroup() {
+        twoSdksOnTheInstall()
+        val recorded = RecordedChooser(testRootDisposable)
+        val sharing = createModule("Tool manager sharing module")
+        val onSeveral = elixirModule()
+        val erlang = pinnedAt(install("26", "26.2.5"))
+
+        checker.configureSdks(
+            linkedMapOf(
+                module.name to versions(elixir = ToolEntry("1.17.3", elixirInstall("1.17.3", "26"), true), erlang = erlang),
+                sharing.name to versions(elixir = ToolEntry("1.16.3", elixirInstall("1.16.3", "26"), true), erlang = erlang),
+                onSeveral.name to onTheInstall(erlang = null),
+            )
+        )
+
+        assertSameElements(recorded.chooserAsked, listOf(module, sharing), listOf(onSeveral))
     }
 
     fun testALaterModulesPinIsUsedWhenAnEarlierModuleOnTheInstallHasNone() {
@@ -173,14 +199,15 @@ class ToolManagerErlangAskTest : HeavyTestCase() {
             )
         }
 
+    private fun elixirModule(): Module =
+        doCreateRealModuleIn("Tool manager Elixir module", project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
+
     private fun registeredErlang(name: String, home: String): Sdk = SdkFixtures.register(SdkFixtures.erlangSdk(name, home))
 
     private fun script(vararg answers: StepAnswer): ScriptedErlangStep =
         ScriptedErlangStep(asked, *answers).install(testRootDisposable)
 
-    private fun elixirSdksOnTheInstall(): List<Sdk> =
-        ProjectJdkTable.getInstance().getSdksOfType(ElixirSdkType.instance)
-            .filter { wslCompat.pathsEqualWslAware(it.homePath, elixirHome) }
+    private fun elixirSdksOnTheInstall(): List<Sdk> = elixirSdksAt(elixirHome)
 
     private fun assignedSdk(module: Module = this.module): Sdk? =
         ReadAction.computeBlocking<Sdk?, Throwable> { ElixirSdkLookup.resolve(module).sdk }
