@@ -228,6 +228,8 @@
 
 ### Bug Fixes
 
+- [#4646](https://github.com/intellij-elixir/intellij-elixir/pull/4646) [@sh41](https://github.com/sh41)
+  - **A compiled guard, such as `Kernel.is_nil/1`, is written as `defguard` in a `.beam`'s decompiled source, and a guard is listed with the macros in Structure and named a macro in Find Usages.** Refs [#4596](https://github.com/intellij-elixir/intellij-elixir/issues/4596).
 - [#4640](https://github.com/intellij-elixir/intellij-elixir/pull/4640) [@sh41](https://github.com/sh41)
   - **On IDEs other than IntelliJ IDEA, the editor banner of a file in an Elixir-type module says "Elixir Facet SDK is not defined", naming the facet those IDEs read, rather than a module SDK they have no setting for, and an Elixir project SDK no longer hides the banner of a module that reads its own Elixir SDK when that SDK is unset or missing.** Part of [#4623](https://github.com/intellij-elixir/intellij-elixir/issues/4623).
   - **On IntelliJ IDEA, the SDK widget no longer warns about an Elixir-type module whose own Elixir SDK differs from the project SDK, which is what Choose Elixir SDK... sets for such a module.** Part of [#4623](https://github.com/intellij-elixir/intellij-elixir/issues/4623).
