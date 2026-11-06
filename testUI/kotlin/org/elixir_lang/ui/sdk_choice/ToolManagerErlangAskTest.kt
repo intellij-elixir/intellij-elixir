@@ -3,8 +3,6 @@ package org.elixir_lang.ui.sdk_choice
 import com.intellij.driver.client.Driver
 import com.intellij.driver.sdk.openFile
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
-import com.intellij.driver.sdk.ui.ui
-import com.intellij.driver.sdk.waitFor
 import org.elixir_lang.ui.framework.core.ERLANG_STEP_TITLE
 import org.elixir_lang.ui.framework.core.NoScreen
 import org.elixir_lang.ui.framework.core.addErlangSdkFromDisk
@@ -27,7 +25,6 @@ import java.io.File
 import java.nio.file.Path
 import kotlin.io.path.createDirectories
 import kotlin.io.path.writeText
-import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -63,7 +60,7 @@ class ToolManagerErlangAskTest {
     private fun Driver.cancelRegistersNothing(rows: Rows, install: String) {
         val row = "Cancel"
         runCatching {
-            configureFromMise()
+            clickBannerLabel(LABEL)
             val asked = appears("the Erlang step", 60.seconds) { dialogShown(ERLANG_STEP_TITLE) }
             rows.check(row, "the Erlang step asks", asked)
             cancelErlangStep()
@@ -77,7 +74,7 @@ class ToolManagerErlangAskTest {
     private fun Driver.aPickPairs(rows: Rows, install: String, erlang: String) {
         val row = "pick"
         runCatching {
-            configureFromMise()
+            clickBannerLabel(LABEL)
             pickInErlangStep(erlang)
             val registered = appears("the Elixir SDK at the install", 60.seconds) { sdksAt(install).isNotEmpty() }
             rows.check(row, "an Elixir SDK is registered at the install", registered)
@@ -87,13 +84,6 @@ class ToolManagerErlangAskTest {
             val assigned = appears("the module's SDK", 30.seconds) { moduleSdk() == sdk }
             rows.check(row, "the module's SDK '${moduleSdk()}' is it, '$sdk'", assigned)
         }.onFailure { failure -> failedErlangStepRow(rows, row, failure) {} }
-    }
-
-    /** The banner's "Configure from mise", clicked once the tool manager's analysis offers it. */
-    private fun Driver.configureFromMise() {
-        val label = ui.x("//div[@visible_text='$LABEL' or @accessiblename='$LABEL']")
-        waitFor("the banner's '$LABEL'", 2.minutes) { label.present() }
-        label.click()
     }
 
     /**
