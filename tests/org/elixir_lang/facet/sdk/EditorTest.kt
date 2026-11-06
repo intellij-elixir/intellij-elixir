@@ -59,6 +59,7 @@ class EditorTest : PlatformTestCase() {
 
     override fun tearDown() = runAll(
         { onEdt { pages.toList().forEach(SdksPage::cancel) } },
+        { onEdt { built.forEach(Editor::disposeUIResources) } },
         { ProcessOutput.isSmallIdeOverride = null },
         { SdksService.getInstance()!!.resetForTests() },
         { super.tearDown() },
@@ -66,10 +67,15 @@ class EditorTest : PlatformTestCase() {
 
     private val pages = mutableListOf<SdksPage>()
 
+    /** Disposed at teardown: an Elixir SDK editor's model stays registered for pairing repairs until it is. */
+    private val built = mutableListOf<Editor>()
+
+    private fun editor(sdk: ProjectJdkImpl): Editor = Editor(model(), history(), sdk).also(built::add)
+
     fun testSelectingAnSdkBuildsItsEditorWithoutALock() {
         val sdk = onEdt { pairedElixirSdkCopy("Editor Built Unlocked") }
 
-        val failure = withoutModelAccess { Editor(model(), history(), sdk) }
+        val failure = withoutModelAccess { editor(sdk) }
 
         assertNull("building the editor must not need a lock; failed with ${describe(failure)}", failure)
     }
@@ -79,7 +85,7 @@ class EditorTest : PlatformTestCase() {
         val erlangHome = File(parent, "erlang")
         onEdt { LocalFileSystem.getInstance().refreshAndFindFileByIoFile(parent)!!.children }
         val editor = onEdt {
-            Editor(model(), history(), pairedElixirSdkCopy("Editor Reset In Read Action", erlangHome.path))
+            editor(pairedElixirSdkCopy("Editor Reset In Read Action", erlangHome.path))
         }
         // Created after the VFS listed its parent, so the VFS holds it as absent: a refreshing lookup of it fires an event.
         assertTrue(erlangHome.mkdir())
@@ -91,7 +97,7 @@ class EditorTest : PlatformTestCase() {
     }
 
     fun testTheEditorTheCardPanelShowsIsUnmodified() {
-        val editor = onEdt { Editor(model(), history(), pairedElixirSdkCopy("Editor Shown Unmodified")) }
+        val editor = onEdt { editor(pairedElixirSdkCopy("Editor Shown Unmodified")) }
 
         onEdt { ConfigurableCardPanel.createConfigurableComponent(editor) }
 
@@ -121,25 +127,21 @@ class EditorTest : PlatformTestCase() {
     /** Browses [sdk]'s editor from [homeA] to [homeB] as the home chooser's callback does: on the EDT, no write action. */
     private fun assertBrowsingKeepsTheNewHome(sdk: ProjectJdkImpl, homeA: String, homeB: String) {
         val sdkType = sdk.sdkType as SdkType
-        val editor = onEdt { Editor(model(), history(), sdk).also { ConfigurableCardPanel.createConfigurableComponent(it) } }
-        try {
-            val name = sdk.name
-            onEdt { editor.doSetHomePath(homeB, sdkType) }
-            assertTrue("browsing to a new home modifies the editor", onEdt { editor.isModified })
+        val editor = onEdt { editor(sdk).also { ConfigurableCardPanel.createConfigurableComponent(it) } }
+        val name = sdk.name
+        onEdt { editor.doSetHomePath(homeB, sdkType) }
+        assertTrue("browsing to a new home modifies the editor", onEdt { editor.isModified })
 
-            onEdt { editor.apply() }
+        onEdt { editor.apply() }
 
-            assertEquals(FileUtil.toSystemIndependentName(homeB), FileUtil.toSystemIndependentName(sdk.homePath!!))
-            val roots = sdk.rootProvider.getUrls(OrderRootType.CLASSES).map(VfsUtilCore::urlToPath)
-            assertTrue("a CLASSES root lies under the new home: $roots", roots.any { FileUtil.isAncestor(homeB, it, false) })
-            assertFalse("no CLASSES root lies under the old home: $roots", roots.any { FileUtil.isAncestor(homeA, it, false) })
-            assertEquals("browsing renames nothing", name, sdk.name)
-            val versionB = onEdt { sdkType.getVersionString(homeB) }
-            assertFalse("the two homes' versions must differ", versionB == onEdt { sdkType.getVersionString(homeA) })
-            assertEquals("the version is the new home's", versionB, sdk.versionString)
-        } finally {
-            onEdt { editor.disposeUIResources() }
-        }
+        assertEquals(FileUtil.toSystemIndependentName(homeB), FileUtil.toSystemIndependentName(sdk.homePath!!))
+        val roots = sdk.rootProvider.getUrls(OrderRootType.CLASSES).map(VfsUtilCore::urlToPath)
+        assertTrue("a CLASSES root lies under the new home: $roots", roots.any { FileUtil.isAncestor(homeB, it, false) })
+        assertFalse("no CLASSES root lies under the old home: $roots", roots.any { FileUtil.isAncestor(homeA, it, false) })
+        assertEquals("browsing renames nothing", name, sdk.name)
+        val versionB = onEdt { sdkType.getVersionString(homeB) }
+        assertFalse("the two homes' versions must differ", versionB == onEdt { sdkType.getVersionString(homeA) })
+        assertEquals("the version is the new home's", versionB, sdk.versionString)
     }
 
     fun testRenamingAnErlangSdkReachesItsElixirSdksAndTheFacet() {

@@ -13,6 +13,7 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.SdkModificator
 import com.intellij.openapi.roots.OrderRootType
+import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.components.JBCheckBox
@@ -35,6 +36,7 @@ import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
 import org.elixir_lang.sdk.elixir.ElixirSdkValidation
 import org.elixir_lang.sdk.elixir.ElixirSdkValidation.hasErlangClasspathInRoots
 import org.elixir_lang.sdk.elixir.OtpMatch
+import org.elixir_lang.sdk.erlang.PairingRepairs
 import org.elixir_lang.util.ElixirAppCoroutineService
 import org.elixir_lang.util.WriteActions
 import java.awt.GridBagConstraints
@@ -66,6 +68,13 @@ class AdditionalDataConfigurable(
             isVisible = false
         }
     private val sdkModelListener: SdkModel.Listener
+
+    /**
+     * The model this editor is over, while it is open, whose Elixir SDK copies [PairingRepairs] repairs too when an Erlang
+     * SDK is renamed or moved. No platform registry lists the open models, but Project Structure builds an editor for
+     * each SDK, so a model holding an Elixir SDK holds one of these.
+     */
+    private var opened: ProjectSdksModel? = (sdkModel as? ProjectSdksModel)?.also { PairingRepairs.getInstance().open(it) }
 
     /**
      * Cancelling a detection cannot interrupt a read already inside the blocking filesystem calls,
@@ -354,6 +363,8 @@ class AdditionalDataConfigurable(
         otpScope?.cancel()
         otpScope = null
         sdkModel.removeListener(sdkModelListener)
+        opened?.let(PairingRepairs.getInstance()::release)
+        opened = null
     }
 
     private fun otpScope(): CoroutineScope =

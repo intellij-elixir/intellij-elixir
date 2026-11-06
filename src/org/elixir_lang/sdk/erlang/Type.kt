@@ -292,7 +292,7 @@ internal class Type : SdkType(ErlangSdkTypeId.ERLANG_SDK_TYPE_ID) {
     override fun createAdditionalDataConfigurable(
         sdkModel: SdkModel,
         sdkModificator: SdkModificator,
-    ): AdditionalDataConfigurable = PairingsConfigurable(sdkModel)
+    ): AdditionalDataConfigurable? = null
 
     override fun getPresentableName(): String = name
 

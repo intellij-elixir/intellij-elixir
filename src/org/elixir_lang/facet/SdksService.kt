@@ -341,7 +341,7 @@ class SdksService : Disposable {
     fun getModel(): ProjectSdksModel {
         return model ?: freshModel().also {
             model = it
-            // The pages build an Erlang SDK's editor only once they show it.
+            // The pages build an Elixir SDK's editor only once they show it.
             PairingRepairs.getInstance().open(it)
         }
     }

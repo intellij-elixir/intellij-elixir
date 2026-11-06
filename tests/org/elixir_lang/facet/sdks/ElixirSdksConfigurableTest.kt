@@ -10,7 +10,6 @@ import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.ui.Splitter
-import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.testFramework.TestActionEvent
@@ -701,14 +700,12 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     }
 
     /**
-     * Moves [erlang]'s home to [newHome] in a model of its own, as Project Structure's SDK editor does: the copy committed
-     * with the new home's code paths, its type's additional-data configurable applied, then the model.
+     * Moves [erlang]'s home to [newHome] in Project Structure open over a model of its own, as its SDK editor does: the
+     * copy committed with the new home's code paths, then the model applied.
      */
     private fun moveInProjectStructure(erlang: Sdk, newHome: String) {
-        val model = ProjectSdksModel().apply { reset(project) }
-        // Registered first, so disposed after the editor's configurable.
-        Disposer.register(testRootDisposable, model::disposeUIResources)
-        SdkFixtures.Editor(model, erlang.name, testRootDisposable).change(newHome = newHome)
+        val model = SdkFixtures.projectStructure(project, testRootDisposable)
+        SdkFixtures.moveHome(model.findSdk(erlang.name)!!, newHome)
         model.apply()
     }
 
