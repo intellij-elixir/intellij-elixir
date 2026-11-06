@@ -145,7 +145,7 @@ class ToolManagerOfferTest : HeavyTestCase() {
     private fun folder(name: String): Path = Files.createDirectories(root.resolve(name))
 
     private fun state(vararg folders: Path): SdkChoiceState =
-        SdkChoiceState(project, null, null, folders.toList()).also { Disposer.register(testRootDisposable, it) }
+        SdkChoiceState(project, null, null, folders.toList(), hostCommits = true).also { Disposer.register(testRootDisposable, it) }
 
     /** Dispatches the EDT's events for half a second, long enough for an answer already on its way to arrive. */
     private fun dispatchForAWhile() {

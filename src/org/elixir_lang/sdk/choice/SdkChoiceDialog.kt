@@ -30,6 +30,6 @@ class SdkChoiceDialog(parent: Component?, private val modules: List<Module>, pri
 
     override fun getPreferredFocusedComponent(): JComponent = panel.preferredFocusedComponent
 
-    /** Shows the dialog, and answers once it is closed with the entry picked, or null when cancelled. */
-    fun showAndPick(): SdkChoiceEntry? = if (showAndGet()) state.selected else null
+    /** Shows the dialog, and answers once it is closed with the pick, or null when cancelled. */
+    fun showAndPick(): SdkChoicePick? = if (showAndGet()) state.pick else null
 }

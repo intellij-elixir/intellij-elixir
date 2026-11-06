@@ -34,8 +34,11 @@ import org.elixir_lang.sdk.elixir.ElixirSdkAssignment
 import org.elixir_lang.sdk.elixir.Type
 import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResolver
 import org.elixir_lang.tool_manager.BuiltInToolManagers
+import org.elixir_lang.tool_manager.ElixirToolManager
 import org.elixir_lang.tool_manager.PinsModel
+import org.elixir_lang.tool_manager.ToolManagerOptIns
 import org.elixir_lang.tool_manager.ToolManagerPins
+import org.elixir_lang.tool_manager.ToolManagerSettings
 import org.elixir_lang.tool_manager.ToolManagerVersions
 import org.elixir_lang.tool_manager.toolManagerFolder
 import org.elixir_lang.util.ElixirAppCoroutineService
@@ -44,15 +47,29 @@ import java.nio.file.Path
 import javax.swing.JComponent
 import kotlin.time.Duration
 
+/** The entry picked, with the tool manager opt-ins its boxes hand over, or null when they hand over none. */
+data class SdkChoicePick(val entry: SdkChoiceEntry, val optIns: ToolManagerOptIns?)
+
 /** One table Elixir SDK the chooser offers, with the Erlang SDK it is paired with, or null when it has none. */
 data class SdkChoiceEntry(val sdk: Sdk, val erlang: Erlang?) {
     data class Erlang(val name: String, val otpVersion: String?)
 }
 
 /**
+ * Writes [sdk] to each of [modules] through [ElixirSdkAssignment], then the tool manager [optIns] picked with it, if any,
+ * through [ToolManagerSettings.adopt].
+ */
+@RequiresEdt
+internal fun writePick(project: Project, modules: List<Module>, sdk: Sdk, optIns: ToolManagerOptIns?) {
+    WriteAction.run<Throwable> { modules.forEach { ElixirSdkAssignment.assign(it, sdk) } }
+    optIns?.let { ToolManagerSettings.adopt(project, it) }
+}
+
+/**
  * What the chooser shows and has picked: every Elixir SDK in the table that runs in [target]'s environment, by name,
  * paired as in [model], with the SDK named [firstName] first. Nothing is picked until the user picks. [folders] are
- * where the modules are, or go, which [toolManagers] are asked about.
+ * where the modules are, or go, which [toolManagers] are asked about. [hostCommits] when whoever shows the chooser
+ * writes its pick at OK, so the opt-ins can be written with it.
  */
 @Suppress("UnstableApiUsage") // EelDescriptor is the platform's only name for an environment.
 class SdkChoiceState @RequiresEdt constructor(
@@ -60,6 +77,7 @@ class SdkChoiceState @RequiresEdt constructor(
     private var target: EelDescriptor?,
     private val firstName: String?,
     private var folders: List<Path>,
+    val hostCommits: Boolean,
 ) : Disposable {
     private val model = ProjectSdksModel()
     private val toolManagers = BuiltInToolManagers.getInstance().all
@@ -73,8 +91,7 @@ class SdkChoiceState @RequiresEdt constructor(
         private set
 
     /** The tool manager's pins the last check offered, or null when it offered none. */
-    var offer: ToolManagerCheck.Offer? = null
-        private set
+    private var offer: ToolManagerCheck.Offer? = null
 
     /** The Elixir SDKs taking an offer found, with the pins they were found for. */
     private class Taken(val pins: ToolManagerVersions, val sdks: List<Sdk>)
@@ -82,8 +99,40 @@ class SdkChoiceState @RequiresEdt constructor(
     /** What taking the offer found, kept while each answer since offers the same pins. */
     private var taken: Taken? = null
 
-    /** The Elixir SDKs taking the offer found. */
-    val offered: List<Sdk> get() = taken?.sdks.orEmpty()
+    private var toolManagerTicked = false
+    private var environmentTicked = false
+
+    private val settings get() = ToolManagerSettings.getInstance(project)
+
+    /** Whether the boxes hand over opt-ins: there is an offer, its manager is off, and the host writes the pick at OK. */
+    private val handsOverOptIns: Boolean
+        get() = hostCommits && offer?.let { !settings.isEnabled(it.manager) } == true
+
+    /** Whether the boxes can be ticked: they hand over opt-ins, and the pick is an Elixir SDK the offer found. */
+    val optInsOpen: Boolean get() = handsOverOptIns && selected?.sdk in taken?.sdks.orEmpty()
+
+    /** Whether the environment's box can be ticked: the boxes can be, and the tool manager's is. */
+    val environmentOpen: Boolean get() = optInsOpen && toolManagerBox
+
+    /** Whether the tool manager's box shows ticked. */
+    val toolManagerBox: Boolean get() = shown(optInsOpen, toolManagerTicked) { isEnabled(it) }
+
+    /** Whether the environment's box shows ticked. */
+    val environmentBox: Boolean get() = shown(environmentOpen, environmentTicked) { isEnvironmentEnabled(it) }
+
+    /**
+     * While the boxes hand over opt-ins, a box shows [ticked] only while it is [open]; otherwise it shows the offer's
+     * manager's [setting].
+     */
+    private fun shown(open: Boolean, ticked: Boolean, setting: ToolManagerSettings.(ElixirToolManager) -> Boolean): Boolean =
+        if (handsOverOptIns) open && ticked else offer?.let { settings.setting(it.manager) } == true
+
+    /** The pick, with the opt-ins of the boxes when they can be ticked and the tool manager's is. */
+    val pick: SdkChoicePick?
+        get() = selected?.let { entry ->
+            val optIns = offer?.takeIf { handsOverOptIns && toolManagerBox }?.let { ToolManagerOptIns(it.manager.name, environmentBox) }
+            SdkChoicePick(entry, optIns)
+        }
 
     init {
         reload(null)
@@ -91,6 +140,12 @@ class SdkChoiceState @RequiresEdt constructor(
 
     fun select(entry: SdkChoiceEntry?) {
         selected = entry?.takeIf(listModel::contains)
+    }
+
+    /** Ticks or unticks the boxes: [toolManager]'s, and [environment]'s. */
+    fun tick(toolManager: Boolean, environment: Boolean) {
+        toolManagerTicked = toolManager
+        environmentTicked = environment
     }
 
     /**
@@ -216,12 +271,15 @@ class SdkChoiceState @RequiresEdt constructor(
 class SdkChoice internal constructor(
     private val dialog: Dialog = Dialog { parent, modules, state -> SdkChoiceDialog(parent, modules, state).showAndPick() },
 ) {
-    /** Shows the [SdkChoiceState] asked for [modules] and answers with the entry picked, or null on Cancel. */
+    /** Shows the [SdkChoiceState] asked for [modules] and answers with the pick, or null on Cancel. */
     internal fun interface Dialog {
-        fun show(parent: Component?, modules: List<Module>, state: SdkChoiceState): SdkChoiceEntry?
+        fun show(parent: Component?, modules: List<Module>, state: SdkChoiceState): SdkChoicePick?
     }
 
-    /** Asks for [modules]' Elixir SDK and writes the pick to each; returns the table's SDK picked, or null on Cancel. */
+    /**
+     * Asks for [modules]' Elixir SDK and writes the pick to each, then the tool manager opt-ins picked with it; returns
+     * the table's SDK picked, or null on Cancel.
+     */
     @RequiresEdt
     @Suppress("UnstableApiUsage") // EelDescriptor is the platform's only name for an environment.
     fun ask(project: Project, modules: List<Module>, parent: Component? = null): Sdk? {
@@ -229,11 +287,11 @@ class SdkChoice internal constructor(
         val firstName = modules.firstOrNull()?.takeIf { ElixirSdkAssignment.target(it) != ElixirSdkAssignment.Target.FACET }
             ?.let { Facet.sdk(it) }?.name
         val folders = modules.mapNotNull { it.toolManagerFolder }
-        val state = SdkChoiceState(project, project.getEelDescriptor(), firstName, folders)
+        val state = SdkChoiceState(project, project.getEelDescriptor(), firstName, folders, hostCommits = true)
         try {
-            val pick = dialog.show(parent, modules, state)?.sdk ?: return null
-            WriteAction.run<Throwable> { modules.forEach { ElixirSdkAssignment.assign(it, pick) } }
-            return pick
+            val pick = dialog.show(parent, modules, state) ?: return null
+            writePick(project, modules, pick.entry.sdk, pick.optIns)
+            return pick.entry.sdk
         } finally {
             Disposer.dispose(state)
         }

@@ -25,7 +25,6 @@ import org.elixir_lang.sdk.elixir.SettingsPage
 import org.elixir_lang.sdk.elixir.Type
 import org.elixir_lang.sdk.erlang_dependent.Type.Companion.staticIsValidDependency
 import org.elixir_lang.sdk.erlang_dependent.rowText
-import org.elixir_lang.tool_manager.ToolManagerSettings
 import org.elixir_lang.tool_manager.providesEnvironment
 import java.awt.BorderLayout
 import java.awt.FlowLayout
@@ -40,13 +39,14 @@ import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * The chooser's list of [state]'s Elixir SDKs, each with its pairing, with nothing selected, Add... and Manage SDKs...,
- * following the table until [parentDisposable] goes. [onPick] hears each change of the pick, null included. When a tool
- * manager pins an Elixir for [state]'s folders, a button offers it, with boxes that would turn the manager on.
+ * following the table until [parentDisposable] goes. When a tool manager pins an Elixir for [state]'s folders, a button
+ * offers it, with boxes that would turn the manager on. [onPick] hears each change of the pick or its opt-ins, null
+ * included.
  */
 class SdkChoicePanel(
     internal val state: SdkChoiceState,
     parentDisposable: Disposable,
-    private val onPick: (SdkChoiceEntry?) -> Unit,
+    private val onPick: (SdkChoicePick?) -> Unit,
 ) : JPanel(BorderLayout(0, JBUI.scale(8))) {
     private val list = JBList(state.listModel).apply {
         selectionMode = ListSelectionModel.SINGLE_SELECTION
@@ -65,12 +65,15 @@ class SdkChoicePanel(
         addActionListener { pick(state.take(this@SdkChoicePanel)) }
     }
 
-    private val inStepBox = JBCheckBox().apply { addActionListener { updateBoxes() } }
-    private val environmentBox = JBCheckBox()
+    private val inStepBox = JBCheckBox().apply { addActionListener { ticked() } }
+    private val environmentBox = JBCheckBox().apply { addActionListener { ticked() } }
+    @Suppress("DialogTitleCapitalization") // Names the Settings pages as they are titled.
+    private val settingsPage = JBLabel("Change these in Settings > Languages & Frameworks > Elixir > Tool Managers.").apply { isVisible = !state.hostCommits }
     private val boxes = JPanel(VerticalLayout(0)).apply {
         isVisible = false
         add(inStepBox)
         add(environmentBox.apply { border = JBUI.Borders.emptyLeft(20) })
+        add(settingsPage)
     }
 
     private val errorMessage = JBLabel()
@@ -135,7 +138,7 @@ class SdkChoicePanel(
 
     private fun check(after: Duration = Duration.ZERO): Unit = state.check(list, after) { answer ->
         show(answer)
-        updateBoxes()
+        changed()
     }
 
     /** Shows [answer]'s offer and boxes, or its error, or neither. */
@@ -155,30 +158,25 @@ class SdkChoicePanel(
         errorMessage.text = error?.let { XmlStringUtil.wrapInHtml(it.description) }
     }
 
-    /**
-     * With the manager on, the boxes show its settings and can't be changed. With it off, they can be ticked only while
-     * the pick is an Elixir SDK the offer found, and the environment only once the manager is ticked.
-     */
-    private fun updateBoxes() {
-        val manager = state.offer?.manager ?: return
-        val settings = ToolManagerSettings.getInstance(state.project)
-        if (settings.isEnabled(manager)) {
-            inStepBox.isSelected = true
-            environmentBox.isSelected = settings.isEnvironmentEnabled(manager)
-            inStepBox.isEnabled = false
-            environmentBox.isEnabled = false
-        } else {
-            inStepBox.isEnabled = state.selected?.sdk in state.offered
-            environmentBox.isEnabled = inStepBox.isEnabled && inStepBox.isSelected
-        }
+    private fun ticked() {
+        state.tick(inStepBox.isSelected, environmentBox.isSelected)
+        changed()
     }
 
     internal fun pick(entry: SdkChoiceEntry?) {
         state.select(entry)
         val selected = state.selected
         if (list.selectedValue != selected) list.setSelectedValue(selected, true)
-        updateBoxes()
-        onPick(selected)
+        changed()
+    }
+
+    /** Shows the boxes as [state] has them, then tells [onPick]. */
+    private fun changed() {
+        inStepBox.isSelected = state.toolManagerBox
+        environmentBox.isSelected = state.environmentBox
+        inStepBox.isEnabled = state.optInsOpen
+        environmentBox.isEnabled = state.environmentOpen
+        onPick(state.pick)
     }
 
     /** The text of the list's row for [entry], as its renderer draws it. */
