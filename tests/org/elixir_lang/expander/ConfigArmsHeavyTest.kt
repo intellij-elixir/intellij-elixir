@@ -1010,6 +1010,27 @@ class ConfigArmsHeavyTest : ConfigHeavyTestCase() {
             struct = "",
         )
 
+    /** `Mix.Project`'s paths read the config they are given through `config[key]`, which runs a struct's `fetch/2`. */
+    fun testABuildPathOfAnAppEnvTheFileWroteAStructToDeclines() = assertMixProjectPathDeclines("build_path")
+
+    fun testAnAppPathOfAnAppEnvTheFileWroteAStructToDeclines() = assertMixProjectPathDeclines("app_path")
+
+    /** `deps_path/1` raises on the struct's `0` once its `fetch/2` has written. */
+    fun testADepsPathInATryOfAnAppEnvTheFileWroteAStructToDeclines() =
+        assertStructDeclines(
+            FETCH,
+            "Application.put_env(:other, :s, struct(S))\n\ntry do\n  _ = Mix.Project.deps_path(Application.get_env(:other, :s))\n" +
+                "rescue\n  _ -> :ok\nend\n\nconfig :app, k1: 1\n",
+            struct = "",
+        )
+
+    private fun assertMixProjectPathDeclines(function: String) =
+        assertStructDeclines(
+            FETCH,
+            "Application.put_env(:other, :s, struct(S))\nconfig :app, j: Mix.Project.$function(Application.get_env(:other, :s)), k1: 1\n",
+            struct = "",
+        )
+
     /** `compile_env/4`'s read of [path] in `:other`, else `0`. */
     private fun compileEnv(path: String): String = legCompileEnv(":other", path, "0")
 

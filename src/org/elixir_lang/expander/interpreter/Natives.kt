@@ -390,6 +390,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "filename" to reading(Natives::filename),
             "elixir_config" to Row({ function, _ -> function == "static" }) { key, args, _ -> config(key, args) },
             "Elixir.Mix" to reading { key, _ -> mix(key) },
+            "Elixir.Mix.Project" to reading(Natives::mixProject),
             "Elixir.Config" to writing(Natives::configure),
             "Elixir.Mix.Config" to writing { key, args -> if (key == "__import__!/2") mixConfigImport(args[0], args[1]) else null },
             "Elixir.File" to reading { key, args -> if (key == "exists?/1" || key == "exists?/2") fileExists(args[0]) else null },
@@ -2966,6 +2967,27 @@ internal class Natives(private val evaluation: Evaluation) {
         if (evaluation.run.config == null) evaluation.assume()
 
         return atom(answer)
+    }
+
+    /**
+     * `Mix.Project`'s config in a config read, and its paths of that config: what the build machine and the project stack
+     * make them, so not known, a path a binary that may raise. Given a config that is known, Elixir's own clauses run
+     * over it. Outside a read, no row.
+     */
+    private fun mixProject(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        evaluation.run.config ?: return null
+        if (args.any { !isUnknown(it) }) return null
+
+        return when (key) {
+            "config/0" -> Unknown
+            "build_path/0", "build_path/1", "deps_path/0", "deps_path/1", "app_path/0", "app_path/1" -> {
+                // Each reads keys of the config it is given (`config[key]`), as `Access.get/2` does, which may run a
+                // struct's `fetch/2`. Which keys differs by version, so one read of a key not known stands for them.
+                args.singleOrNull()?.let { evaluation.remote(atom("Elixir.Access"), "get", listOf(it, Unknown)) }
+                evaluation.unlessRaised(UnknownBinary)
+            }
+            else -> null
+        }
     }
 
     /**
