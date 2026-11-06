@@ -77,16 +77,14 @@ private fun createModulePanel(
  */
 private fun EditorNotificationPanel.addConfigureFromToolManagerLabel(project: Project, module: Module) {
     val analyser = ToolManagerSdkAnalyser.getInstanceIfRegistered(project) ?: return
-    val assignments = analyser.latestAnalysisResult
+    val versions = analyser.latestAnalysisResult
         ?.tmAssignments
-        ?.filterKeys { it == module.name }
-        ?.filterValues { it.elixir?.installed == true }
-        .orEmpty()
-    if (assignments.isEmpty()) return
+        ?.get(module.name)
+        ?.takeIf { it.elixir?.installed == true }
+        ?: return
 
-    val toolName = assignments.values.first().toolManagerName
-    createActionLabel("Configure from $toolName") {
-        ToolManagerSdkCheckerService.getInstance(project).configureSdks(assignments)
+    createActionLabel("Configure from ${versions.toolManagerName}") {
+        ToolManagerSdkCheckerService.getInstance(project).configureSdks(mapOf(module.name to versions))
     }
 }
 

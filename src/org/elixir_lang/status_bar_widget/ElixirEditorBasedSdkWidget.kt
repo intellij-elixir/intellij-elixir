@@ -965,7 +965,7 @@ class ElixirEditorBasedSdkWidget(
             } else {
                 // --- Small IDE path: detect dangling Facet SDK ---
                 val facet = FacetManager.getInstance(module).getFacetByType(Facet.ID)
-                if (facet != null && Facet.sdk(module) == null && Facet.sdks().isNotEmpty()) {
+                if (facet != null && facet.sdk == null && Facet.sdks().isNotEmpty()) {
                     issues.add(
                         ModuleSdkIssue(
                             module.name,

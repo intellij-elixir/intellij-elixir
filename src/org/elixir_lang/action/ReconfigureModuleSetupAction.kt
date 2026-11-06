@@ -76,13 +76,8 @@ class ReconfigureModuleSetupAction : AnAction() {
                 .toSet()
 
             for (module in ModuleManager.getInstance(project).modules) {
-                val rootManager = ModuleRootManager.getInstance(module)
-                val model = rootManager.modifiableModel
-
-                if (!module.isElixirMixModule()) {
-                    model.dispose()
-                    continue
-                }
+                if (!module.isElixirMixModule()) continue
+                val model = ModuleRootManager.getInstance(module).modifiableModel
 
                 var added = 0
 
@@ -110,7 +105,6 @@ class ReconfigureModuleSetupAction : AnAction() {
             }
         })
 
-        // Show result notification
         showResultNotification(project, modulesReconfigured, foldersAdded)
     }
 
