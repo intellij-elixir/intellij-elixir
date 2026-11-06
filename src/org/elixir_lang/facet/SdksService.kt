@@ -7,6 +7,7 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.application.WriteIntentReadAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.options.ConfigurationException
+import com.intellij.openapi.project.ProjectBundle
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
@@ -267,7 +268,8 @@ class SdksService : Disposable {
 
     /**
      * Runs a pending [pass] first, so nothing stale is applied, and then [applyEditors], which write a page's edits to
-     * their copies.
+     * their copies. [names] gives the name each copy will be applied under, which a page's Name field may hold before
+     * [applyEditors] writes it.
      *
      * Validating the model reads the SDK table. A modal Settings dialog's Apply holds write-intent, a Settings tab's
      * Save Changes holds no lock, so the lock is taken here.
@@ -295,6 +297,7 @@ class SdksService : Disposable {
         model: ProjectSdksModel,
         from: Page? = null,
         removed: Collection<Sdk> = emptyList(),
+        names: (Sdk) -> String = Sdk::getName,
         applyEditors: () -> Unit = {},
     ) = WriteIntentReadAction.run {
         pass()
@@ -309,7 +312,7 @@ class SdksService : Disposable {
         val heldEntries = unedited.filter { (key, copy) ->
             editedElsewhere.any { it === copy } && key in table
         }
-        refuseNameClash(sdks, removedEntries.keys)
+        refuseNameClash(table, sdks.filterKeys { it !in heldEntries }, removedEntries.keys, names)
         val replays = from?.let(refusedWrites::remove).orEmpty()
             .filter { write -> unedited.values.any { it === write.copy } && write.fits(write.copy) }
         val beforeEditors = unedited.mapValues { (_, copy) -> SdkState(copy) }
@@ -343,16 +346,36 @@ class SdksService : Disposable {
         Collections.newSetFromMap(IdentityHashMap<Sdk, Boolean>()).apply { addAll(ProjectJdkTable.getInstance().allJdks) }
 
     /**
-     * An SDK applied under a removed SDK's table name would share it in the table until the removal, which runs
-     * second. Refused before anything is written to the copies, which every page shares.
+     * An SDK applied under a name another table SDK still holds is refused, even when that SDK is renamed away or
+     * removed in the same Apply: the removal runs second. An empty name, or one two copies would be applied
+     * under, is refused too. Refused before anything is written to the copies, which every page shares: an Erlang SDK's
+     * editor writes its new name into its Elixir copies.
      */
-    private fun refuseNameClash(sdks: Map<Sdk, Sdk>, removedKeys: Collection<Sdk>) {
-        if (removedKeys.isEmpty()) return
-        val removedNames = removedKeys.map { it.name }.toSet()
-        val clash = sdks.any { (key, copy) ->
-            removedKeys.none { it === key } && copy.name in removedNames && !(key.name == copy.name && inTable(key))
+    private fun refuseNameClash(
+        table: Set<Sdk>,
+        sdks: Map<Sdk, Sdk>,
+        removedKeys: Collection<Sdk>,
+        names: (Sdk) -> String,
+    ) {
+        val applied = mutableListOf<String>()
+        for ((key, copy) in sdks) {
+            if (removedKeys.any { it === key }) continue
+            val name = names(copy)
+            if (name.isEmpty()) throw ConfigurationException(ProjectBundle.message("sdk.list.name.required.error"))
+            applied += name
+            if (name == key.name && key in table) continue
+            // SDKs of two types may share a name, so each holder counts, not the first found.
+            val holders = table.filter { it.name == name }
+            if (holders.isEmpty()) continue
+            if (holders.all { holder -> removedKeys.any { it === holder } }) {
+                throw ConfigurationException("Apply the removal first")
+            }
+            throw ConfigurationException("\"$name\" is still another SDK's name: rename that SDK and apply it first")
         }
-        if (clash) throw ConfigurationException("Apply the removal first")
+        // Checked once every copy is, so a name a table SDK still holds is refused as that, whichever copy comes first.
+        if (applied.size != applied.toSet().size) {
+            throw ConfigurationException(ProjectBundle.message("sdk.list.unique.name.required.error"))
+        }
     }
 
     /**

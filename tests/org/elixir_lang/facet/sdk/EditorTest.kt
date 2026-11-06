@@ -4,6 +4,7 @@ import com.intellij.openapi.application.ApplicationListener
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.UI
+import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.options.ex.ConfigurableCardPanel
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkType
@@ -12,6 +13,7 @@ import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtilCore
+import com.intellij.testFramework.common.runAll
 import com.intellij.testFramework.registerOrReplaceServiceInstance
 import com.intellij.ui.navigation.History
 import com.intellij.ui.navigation.Place
@@ -20,14 +22,20 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.facet.FacetModelFixtures
 import org.elixir_lang.facet.SdksService
+import org.elixir_lang.facet.sdks.Configurable
+import org.elixir_lang.facet.sdks.SdksPage
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkFixtures
+import org.elixir_lang.sdk.erlang_dependent.getErlangSdk
 import org.elixir_lang.sdk.wsl.MockWslCompatService
 import org.elixir_lang.sdk.wsl.WslCompatService
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData as ElixirSdkAdditionalData
+import org.elixir_lang.facet.sdks.elixir.Configurable as ElixirSdksConfigurable
+import org.elixir_lang.facet.sdks.erlang.Configurable as ErlangSdksConfigurable
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -50,14 +58,14 @@ class EditorTest : PlatformTestCase() {
         SdksService.getInstance()!!.resetForTests()
     }
 
-    override fun tearDown() {
-        try {
-            ProcessOutput.isSmallIdeOverride = null
-            SdksService.getInstance()!!.resetForTests()
-        } finally {
-            super.tearDown()
-        }
-    }
+    override fun tearDown() = runAll(
+        { onEdt { pages.toList().forEach(SdksPage::cancel) } },
+        { ProcessOutput.isSmallIdeOverride = null },
+        { SdksService.getInstance()!!.resetForTests() },
+        { super.tearDown() },
+    )
+
+    private val pages = mutableListOf<SdksPage>()
 
     fun testSelectingAnSdkBuildsItsEditorWithoutALock() {
         val sdk = onEdt { pairedElixirSdkCopy("Editor Built Unlocked") }
@@ -134,6 +142,75 @@ class EditorTest : PlatformTestCase() {
             onEdt { editor.disposeUIResources() }
         }
     }
+
+    fun testRenamingAnErlangSdkReachesItsElixirSdksAndTheFacet() {
+        val (erlang, elixir) = onEdt { pairedInTable("Elixir Of A Renamed Erlang") }
+        FacetModelFixtures.nameFacet(module, elixir.name)
+
+        renameOnAPage(ErlangSdksConfigurable(), erlang, "Renamed Erlang")
+
+        assertEquals("the table's Erlang SDK", "Renamed Erlang", erlang.name)
+        assertEquals("its Elixir SDK's pairing", "Renamed Erlang", SdkFixtures.storedErlangName(elixir))
+        assertSame("the facet's Elixir SDK finds it", erlang, onEdt { FacetModelFixtures.facet(module).sdk?.getErlangSdk() })
+    }
+
+    fun testRenamingAnElixirSdkReachesTheFacet() {
+        val (_, elixir) = onEdt { pairedInTable("Elixir Before Its Rename") }
+        FacetModelFixtures.nameFacet(module, elixir.name)
+
+        renameOnAPage(ElixirSdksConfigurable(), elixir, "Elixir After Its Rename")
+
+        assertEquals("the table's Elixir SDK", "Elixir After Its Rename", elixir.name)
+        assertEquals("the facet stores the new name", "Elixir After Its Rename", FacetModelFixtures.storedName(module))
+        assertSame("the facet supplies it", elixir, onEdt { FacetModelFixtures.facet(module).sdk })
+    }
+
+    /** Opens [configurable] as a page, types [name] into [sdk]'s Name field and applies. */
+    private fun renameOnAPage(configurable: Configurable, sdk: Sdk, name: String) = onEdt {
+        val page = SdksPage(configurable, pages)
+        page.rename(sdk, name)
+        page.apply()
+        SdkFixtures.settle()
+    }
+
+    fun testARefusedDuplicateNameLeavesThePageModifiedAndCancelRestoresIt() =
+        assertARefusedNameIsCancelled("Duplicate Name") { taken -> taken }
+
+    fun testARefusedEmptyNameLeavesThePageModifiedAndCancelRestoresIt() =
+        assertARefusedNameIsCancelled("Empty Name") { "" }
+
+    /**
+     * Renames the Erlang SDK of a pair named [name] on one page to [refusedName] of another Erlang SDK's name and
+     * applies, which is refused; then cancels that page and applies a second.
+     */
+    private fun assertARefusedNameIsCancelled(name: String, refusedName: (taken: String) -> String) = onEdt {
+        val (erlang, elixir) = pairedInTable(name)
+        val other = register(SdkFixtures.erlangSdk("$name Other Erlang", SdkFixtures.erlangHomeWithEbin("26", "26.2.5")))
+        val erlangName = erlang.name
+        val refused = SdksPage(ErlangSdksConfigurable(), pages)
+        refused.rename(erlang, refusedName(other.name))
+
+        assertThrows(ConfigurationException::class.java) { refused.apply() }
+
+        assertTrue("the refused page keeps its edit", refused.isModified)
+        assertEquals("the table's Erlang SDK", erlangName, erlang.name)
+        assertEquals("the other Erlang SDK", "$name Other Erlang", other.name)
+        assertEquals("the table's pairing", erlangName, SdkFixtures.storedErlangName(elixir))
+
+        refused.cancel()
+        SdkFixtures.settle()
+        SdksPage(ErlangSdksConfigurable(), pages).apply()
+        SdkFixtures.settle()
+
+        assertEquals("the clone has the table's name", erlangName, SdksPage.copy(erlang).name)
+        assertEquals("the table's Erlang SDK after the second Apply", erlangName, erlang.name)
+        assertEquals("the table's pairing after the second Apply", erlangName, SdkFixtures.storedErlangName(elixir))
+        assertEquals("the Elixir clone's pairing", erlangName, SdkFixtures.storedErlangName(SdksPage.copy(elixir)))
+    }
+
+    /** [SdkFixtures.pairedInTable], then the pages' model built afresh. */
+    private fun pairedInTable(name: String): Pair<Sdk, Sdk> =
+        SdkFixtures.pairedInTable(name, add = ::register).also { SdksService.getInstance()!!.resetForTests() }
 
     private fun pairedElixirSdkCopy(
         name: String,

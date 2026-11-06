@@ -2,26 +2,21 @@ package org.elixir_lang.facet.sdks
 
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.options.ConfigurationException
-import com.intellij.openapi.options.ex.ConfigurableCardPanel
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
-import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Splitter
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.testFramework.TestActionEvent
 import com.intellij.testFramework.common.runAll
 import com.intellij.ui.ToolbarDecorator
-import com.intellij.ui.components.JBCheckBox
-import com.intellij.util.ui.UIUtil
 import java.util.concurrent.atomic.AtomicBoolean
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.facet.SdksService
-import org.elixir_lang.facet.sdk.Editor
 import org.elixir_lang.facet.sdk.Model
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkFixtures
@@ -53,7 +48,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     private lateinit var table: SdkFixtures.TableSnapshot
 
-    private val pages = mutableListOf<Page>()
+    private val pages = mutableListOf<SdksPage>()
 
     override fun setUp() {
         super.setUp()
@@ -63,7 +58,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     override fun tearDown() {
         runAll(
-            { pages.toList().forEach(Page::cancel) },
+            { pages.toList().forEach(SdksPage::cancel) },
             { table.restore() },
             { service().resetForTests() },
             { super.tearDown() },
@@ -203,11 +198,11 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     }
 
     fun testRemoveDoesNotThrowAndRemovesSdk() {
-        registerElixirSdk("Elixir Test B")
-        val page = Page()
+        val sdk = registerElixirSdk("Elixir Test B")
+        val page = openPage()
 
         // Regression: this used to NPE (findSdk(clone)!! returned null after model re-cloning).
-        page.configurable.removeSelectedSdk(modelClone("Elixir Test B"))
+        page.remove(sdk)
 
         assertFalse("the page should no longer list it; got ${page.listed()}", "Elixir Test B" in page.listed())
         assertTrue("the model keeps it until Apply; got ${listedNames()}", "Elixir Test B" in listedNames())
@@ -259,7 +254,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     fun testAnOutsideCommitReachesAnOpenPageAndApplyKeepsIt() {
         val sdk = registerElixirSdk("Elixir Outside Commit", "/fake/elixir/a")
-        val page = Page()
+        val page = openPage()
         page.select(sdk)
 
         commitHome(sdk, "/fake/elixir/outside")
@@ -271,7 +266,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     fun testApplyBeforeTheDeferredPassWritesNothingStale() {
         val sdk = registerElixirSdk("Elixir Outside Commit Before The Pass", "/fake/elixir/a")
-        val page = Page()
+        val page = openPage()
         page.select(sdk)
 
         commitHome(sdk, "/fake/elixir/outside")
@@ -282,7 +277,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     fun testAnSdkRemovedOutsideStaysGoneAfterApply() {
         val sdk = registerElixirSdk("Elixir Removed Outside", "/fake/elixir/a")
-        val page = Page()
+        val page = openPage()
 
         SdkConfigurationUtil.removeSdk(sdk)
         settle()
@@ -293,8 +288,8 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     fun testAnSdkEditedOnThePageAndRemovedOutsideStaysGone() {
         val sdk = registerPairedElixirSdk("Elixir Edited Then Removed Outside")
-        val page = Page()
-        page.select(sdk).doSetHomePath(SdkFixtures.elixirHome("1.19.5"), ElixirSdkType.instance)
+        val page = openPage()
+        page.browse(sdk, SdkFixtures.elixirHome("1.19.5"))
 
         SdkConfigurationUtil.removeSdk(sdk)
         settle()
@@ -305,7 +300,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     }
 
     fun testAnSdkAddedOutsideIsListedOnAnOpenPage() {
-        val page = Page()
+        val page = openPage()
 
         addElixirSdkToTable("Elixir Added Outside")
         settle()
@@ -316,7 +311,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     fun testAnOutsideCommitLeavesAnUneditedPageUnmodified() {
         val sdk = registerElixirSdk("Elixir Outside Commit Unedited", "/fake/elixir/a")
-        val page = Page()
+        val page = openPage()
         page.select(sdk)
 
         commitHome(sdk, "/fake/elixir/b")
@@ -327,7 +322,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     fun testTwoOutsideCommitsInARowReachAnUneditedPage() {
         val sdk = registerElixirSdk("Elixir Two Outside Commits", "/fake/elixir/a")
-        val page = Page()
+        val page = openPage()
         page.select(sdk)
 
         commitHome(sdk, "/fake/elixir/b")
@@ -347,8 +342,8 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         val homeA = sdk.homePath!!
         val pagesErlang = SdkFixtures.storedErlangName(sdk)
         val outsideErlang = SdkFixtures.register(SdkFixtures.erlangSdk("Outside Erlang", SdkFixtures.erlangHomeWithEbin("26", "26.2.5")))
-        val page = Page()
-        page.select(sdk).doSetHomePath(homeB, ElixirSdkType.instance)
+        val page = openPage()
+        page.browse(sdk, homeB)
 
         SdkFixtures.commitPairing(sdk, outsideErlang)
         settle()
@@ -364,9 +359,9 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     fun testAnotherPagesApplyKeepsAnOutsideCommitToAnSdkAPageEdited() {
         val sdk = registerPairedElixirSdk("Elixir Edited Here Committed Outside")
-        val editing = Page()
-        val other = Page()
-        editing.select(sdk).doSetHomePath(SdkFixtures.elixirHome("1.19.5"), ElixirSdkType.instance)
+        val editing = openPage()
+        val other = openPage()
+        editing.browse(sdk, SdkFixtures.elixirHome("1.19.5"))
 
         commitHome(sdk, "/fake/elixir/outside")
         settle()
@@ -379,10 +374,10 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     fun testAnApplyWritesItsOwnEditOfAnSdkAnotherPageAlsoEdited() {
         val sdk = registerPairedElixirSdk("Elixir Edited On Both Pages")
         val home = SdkFixtures.elixirHome("1.19.5")
-        val other = Page()
-        val applying = Page()
-        other.select(sdk).doSetHomePath(home, ElixirSdkType.instance)
-        applying.select(sdk).doSetHomePath(home, ElixirSdkType.instance)
+        val other = openPage()
+        val applying = openPage()
+        other.browse(sdk, home)
+        applying.browse(sdk, home)
 
         applying.apply()
 
@@ -395,7 +390,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     fun testAnUndoneEditLetsApplyKeepAnOutsideCommit() {
         val sdk = registerElixirSdk("Elixir Undone Edit", "/fake/elixir/a")
         val other = registerPairedElixirSdk("Elixir Undone Edit Other")
-        val page = Page()
+        val page = openPage()
         page.select(sdk)
         page.clickSuppressOtpWarning()
 
@@ -403,7 +398,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         settle()
         page.clickSuppressOtpWarning()
         assertFalse("precondition: the edit is undone", page.isModified)
-        page.select(other).doSetHomePath(SdkFixtures.elixirHome("1.19.5"), ElixirSdkType.instance)
+        page.browse(other, SdkFixtures.elixirHome("1.19.5"))
         page.apply()
 
         assertTableHome("/fake/elixir/outside", sdk)
@@ -411,7 +406,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     fun testAnUndoneEditOnAClosedPageLetsTheNextPageKeepAnOutsideCommit() {
         val sdk = registerPairedElixirSdk("Elixir Undone On Closed Page")
-        val closing = Page()
+        val closing = openPage()
         closing.select(sdk)
         closing.clickSuppressOtpWarning()
         commitHome(sdk, "/fake/elixir/outside")
@@ -420,7 +415,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         closing.cancel()
         settle()
 
-        val next = Page()
+        val next = openPage()
         next.select(sdk)
         next.clickSuppressOtpWarning()
         next.apply()
@@ -431,13 +426,13 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     fun testAnUndoneEditLetsApplyDropWhatARefusedPageWrote() {
         val sdk = registerPairedElixirSdk("Elixir Undone Over Refused")
         val nameless = registerPairedElixirSdk("Elixir Undone Over Refused Nameless")
-        val editing = Page()
-        val refused = Page()
+        val editing = openPage()
+        val refused = openPage()
         editing.select(sdk)
         editing.clickSuppressOtpWarning()
         refused.select(sdk)
         refused.clickSuppressOtpWarning()
-        renameCopy(nameless, "")
+        refused.rename(nameless, "")
         assertApplyRefused { refused.apply() }
         refused.cancel()
         settle()
@@ -452,10 +447,9 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     fun testAFailedApplyOnOnePageLeavesTheOtherUnmodified() {
         val a = registerElixirSdk("Elixir Failed Apply A", "/fake/elixir/a")
         val b = registerElixirSdk("Elixir Failed Apply B", "/fake/elixir/b")
-        val refused = Page()
-        val other = Page()
-        refused.select(a)
-        renameCopy(a, b.name)
+        val refused = openPage()
+        val other = openPage()
+        refused.rename(a, b.name)
 
         assertApplyRefused { refused.apply() }
 
@@ -471,10 +465,10 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         val a = registerElixirSdk("Elixir Refused Option A", "/fake/elixir/a")
         val b = registerElixirSdk("Elixir Refused Option B", "/fake/elixir/b")
         val c = registerElixirSdk("Elixir Refused Option C", "/fake/elixir/c")
-        val page = Page()
+        val page = openPage()
         page.select(a)
         page.clickSuppressOtpWarning()
-        renameCopy(b, c.name)
+        page.rename(b, c.name)
 
         assertApplyRefused { page.apply() }
 
@@ -483,8 +477,8 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     fun testAnAppliedHomeChangeLeavesThePageUnmodified() {
         val sdk = registerPairedElixirSdk("Elixir Applied Home")
-        val page = Page()
-        page.select(sdk).doSetHomePath(SdkFixtures.elixirHome("1.19.5"), ElixirSdkType.instance)
+        val page = openPage()
+        page.browse(sdk, SdkFixtures.elixirHome("1.19.5"))
         assertTrue("precondition: browsing modifies the page", page.isModified)
 
         page.apply()
@@ -494,8 +488,8 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     fun testCancelAfterARemoveLeavesTheSharedModelWhole() {
         val sdk = registerElixirSdk("Elixir Removed Then Cancelled", "/fake/elixir/a")
-        val removing = Page()
-        val other = Page()
+        val removing = openPage()
+        val other = openPage()
 
         removing.remove(sdk)
         assertTrue("the other page still lists it; got ${other.listed()}", sdk.name in other.listed())
@@ -511,11 +505,10 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         val a = registerElixirSdk("Elixir Refused Remove A", "/fake/elixir/a")
         val b = registerElixirSdk("Elixir Refused Remove B", "/fake/elixir/b")
         val c = registerElixirSdk("Elixir Refused Remove C", "/fake/elixir/c")
-        val refused = Page()
-        val other = Page()
+        val refused = openPage()
+        val other = openPage()
         refused.remove(a)
-        refused.select(b)
-        renameCopy(b, c.name)
+        refused.rename(b, c.name)
 
         assertApplyRefused { refused.apply() }
         refused.cancel()
@@ -533,7 +526,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
             ProjectJdkTable.getInstance().allJdks.filter { it.sdkType is ErlangSdkType },
         )
         val sdk = registerElixirSdkPairedNowhere("Elixir Paired Nowhere")
-        val page = Page()
+        val page = openPage()
 
         page.remove(sdk)
         page.apply()
@@ -544,52 +537,79 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     fun testANameClashWithARecordedRemoveIsRefused() {
         val a = registerElixirSdk("Elixir Clash A", "/fake/elixir/a")
         val b = registerElixirSdk("Elixir Clash B", "/fake/elixir/b")
-        val page = Page()
+        val page = openPage()
         page.remove(a)
-        page.select(b)
-        renameCopy(b, a.name)
+        page.rename(b, a.name)
 
         assertApplyRefused("Apply the removal first") { page.apply() }
 
         assertTableUnchanged(a to "Elixir Clash A", b to "Elixir Clash B")
     }
 
-    fun testANameClashLeftByAnotherPagesRefusedApplyIsRefused() {
+    fun testANameARecordedRemoveSharesWithAnotherTypesSdkIsRefusedAsThatSdksName() {
+        val erlang = SdkFixtures.register(SdkFixtures.erlangSdk("Elixir Clash Shared", SdkFixtures.erlangHomeWithEbin("26", "26.2.5")))
+        val a = registerElixirSdk("Elixir Clash Shared", "/fake/elixir/shared")
+        val b = registerElixirSdk("Elixir Clash Shared B", "/fake/elixir/shared-b")
+        settle()
+        val page = openPage()
+        page.remove(a)
+        page.rename(b, a.name)
+
+        assertApplyRefused("\"${a.name}\" is still another SDK's name: rename that SDK and apply it first") { page.apply() }
+
+        assertTableUnchanged(a to "Elixir Clash Shared", erlang to "Elixir Clash Shared", b to "Elixir Clash Shared B")
+    }
+
+    fun testARenameOntoAnotherSdksNameIsRefusedBeforeItWritesTheSharedCopy() {
         val a = registerElixirSdk("Elixir Clash Left A", "/fake/elixir/a")
         val b = registerElixirSdk("Elixir Clash Left B", "/fake/elixir/b")
-        val removing = Page()
-        val renaming = Page()
-        renaming.select(b)
-        renameCopy(b, a.name)
-        assertApplyRefused { renaming.apply() }
+        val removing = openPage()
+        val renaming = openPage()
+        removing.select(b)
+        renaming.rename(b, a.name)
+        assertApplyRefused("\"Elixir Clash Left A\" is still another SDK's name") { renaming.apply() }
 
+        assertFalse("the page showing B sees no edit of it", removing.isModified)
         removing.remove(a)
+        removing.apply()
 
-        assertApplyRefused("Apply the removal first") { removing.apply() }
-        assertTableUnchanged(a to "Elixir Clash Left A", b to "Elixir Clash Left B")
+        assertFalse("A is removed", inTable(a.name))
+        assertTableUnchanged(b to "Elixir Clash Left B")
     }
 
     fun testANameClashWithARemoveWhoseCopyWasRenamedIsRefused() {
         val a = registerElixirSdk("Elixir Clash Renamed A", "/fake/elixir/a")
         val b = registerElixirSdk("Elixir Clash Renamed B", "/fake/elixir/b")
         val c = registerElixirSdk("Elixir Clash Renamed C", "/fake/elixir/c")
-        val removing = Page()
-        val renaming = Page()
-        renaming.select(a)
-        renameCopy(a, c.name)
+        val removing = openPage()
+        val renaming = openPage()
+        renaming.rename(a, c.name)
         assertApplyRefused { renaming.apply() }
 
         removing.remove(a)
-        removing.select(b)
-        renameCopy(b, a.name)
+        removing.rename(b, a.name)
 
         assertApplyRefused("Apply the removal first") { removing.apply() }
         assertTableUnchanged(a to "Elixir Clash Renamed A", b to "Elixir Clash Renamed B", c to "Elixir Clash Renamed C")
     }
 
-    fun testCancelAfterAnAddAnotherPageAppliedKeepsTheSdk() = addThroughThePage { _, _, elixirHome ->
-        val adding = pages.single()
-        val other = Page()
+    fun testARefusedNameClashWritesNothingAnotherPageApplies() {
+        val a = registerElixirSdk("Elixir Clash Unwritten A", "/fake/elixir/a")
+        val b = registerElixirSdk("Elixir Clash Unwritten B", "/fake/elixir/b")
+        val removing = openPage()
+        val other = openPage()
+        removing.remove(a)
+        removing.rename(b, a.name)
+        assertApplyRefused("Apply the removal first") { removing.apply() }
+
+        other.apply()
+
+        assertEquals("B's copy keeps its name", "Elixir Clash Unwritten B", SdksPage.copy(b).name)
+        assertTableUnchanged(a to "Elixir Clash Unwritten A", b to "Elixir Clash Unwritten B")
+    }
+
+    fun testCancelAfterAnAddAnotherPageAppliedKeepsTheSdk() = addThroughThePage { adding, _, elixirHome ->
+        val other = openPage()
         other.apply()
         adding.cancel()
         settle()
@@ -603,19 +623,17 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         )
     }
 
-    fun testAnAddAnotherPageAppliedLeavesThePageUnmodified() = addThroughThePage { _, _, _ ->
-        val adding = pages.single()
-        assertTrue("the page reads modified while its Add is unapplied", adding.configurable.isModified)
+    fun testAnAddAnotherPageAppliedLeavesThePageUnmodified() = addThroughThePage { adding, _, _ ->
+        assertTrue("the page reads modified while its Add is unapplied", adding.isModified)
 
-        Page().apply()
+        openPage().apply()
 
-        assertFalse("its Add is in the table now, so it has nothing to apply", adding.configurable.isModified)
+        assertFalse("its Add is in the table now, so it has nothing to apply", adding.isModified)
     }
 
-    fun testAnAddTakenOutByCancelLeavesTheOtherPage() = addThroughThePage { list, _, _ ->
-        val adding = pages.single()
-        val added = list.selectedValue
-        val other = Page()
+    fun testAnAddTakenOutByCancelLeavesTheOtherPage() = addThroughThePage { adding, _, _ ->
+        val added = adding.selected!!
+        val other = openPage()
         other.show(added).doSetHomePath(SdkFixtures.elixirHome("1.19.5"), ElixirSdkType.instance)
 
         adding.cancel()
@@ -624,41 +642,13 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         assertFalse("nor holds an edit of it", other.isModified)
     }
 
-    fun testAViewedElixirEditorDoesNotUndoAnErlangRepair() {
-        val oldHome = SdkFixtures.erlangHomeWithEbin("27", "27.3.4")
-        val (erlang, elixir) = SdkFixtures.pairedInTable("Viewed Elixir", erlangHomePath = oldHome)
-        service().resetForTests()
-        val elixirPage = Page()
-        val erlangPage = Page(ErlangSdksConfigurable())
-        elixirPage.select(elixir)
+    fun testAViewedElixirEditorDoesNotUndoAnErlangRepair() = assertAnErlangRepairSurvives("Viewed Elixir") { _, _ -> }
 
-        erlangPage.select(erlang).doSetHomePath(SdkFixtures.erlangHomeWithEbin("26", "26.2.5"), ErlangSdkType.instance)
-        erlangPage.apply()
-        settle()
-        elixirPage.apply()
-        settle()
-
-        SdkFixtures.assertCodePathsFollowed(tableSdk(elixir.name), tableSdk(erlang.name), oldHome)
-    }
-
-    fun testAnEditAfterAnotherPagesApplyKeepsItsErlangRepair() {
-        val oldHome = SdkFixtures.erlangHomeWithEbin("27", "27.3.4")
-        val (erlang, elixir) = SdkFixtures.pairedInTable("Edited Elixir", erlangHomePath = oldHome)
-        service().resetForTests()
-        val elixirPage = Page()
-        val erlangPage = Page(ErlangSdksConfigurable())
-        elixirPage.select(elixir)
-
-        erlangPage.select(erlang).doSetHomePath(SdkFixtures.erlangHomeWithEbin("26", "26.2.5"), ErlangSdkType.instance)
-        erlangPage.apply()
-        settle()
-        elixirPage.select(elixir)
-        elixirPage.clickSuppressOtpWarning()
-        elixirPage.apply()
-        settle()
-
-        SdkFixtures.assertCodePathsFollowed(tableSdk(elixir.name), tableSdk(erlang.name), oldHome)
-    }
+    fun testAnEditAfterAnotherPagesApplyKeepsItsErlangRepair() =
+        assertAnErlangRepairSurvives("Edited Elixir") { elixirPage, elixir ->
+            elixirPage.select(elixir)
+            elixirPage.clickSuppressOtpWarning()
+        }
 
     fun testAnEditBeforeAnotherPagesApplyKeepsItsErlangRepair() {
         val moved = moveTheErlangOfAHeldElixirSdk("Elixir Edited Before")
@@ -743,7 +733,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     private fun suppressed(sdk: Sdk): Boolean? = tableSdk(sdk.name).elixirAdditionalData?.isSuppressOtpMismatchWarning()
 
-    private class Moved(val elixirPage: Page, val elixir: Sdk, val erlang: Sdk, val oldHome: String, val newHome: String)
+    private class Moved(val elixirPage: SdksPage, val elixir: Sdk, val erlang: Sdk, val oldHome: String, val newHome: String)
 
     /**
      * The table's [Moved.elixir] is paired at its Erlang SDK's [newHome] and has that home's code paths, not [oldHome]'s.
@@ -759,24 +749,44 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     }
 
     /**
-     * Toggles the warning on the Elixir SDK [name] on one page, unapplied, and runs [meanwhile]; then another page moves
-     * its Erlang SDK's home and applies.
+     * Views the Elixir SDK [name] on one page, toggling its warning, unapplied, when [toggle], and runs [meanwhile]; then
+     * another page moves its Erlang SDK's home and applies.
      */
-    private fun moveTheErlangOfAHeldElixirSdk(name: String, meanwhile: (Sdk) -> Unit = {}): Moved {
-        val oldHome = SdkFixtures.erlangHomeWithEbin("27", "27.3.4")
-        val (erlang, elixir) = SdkFixtures.pairedInTable(name, erlangHomePath = oldHome)
+    private fun moveTheErlangOfAHeldElixirSdk(
+        name: String,
+        toggle: Boolean = true,
+        meanwhile: (Sdk) -> Unit = {},
+    ): Moved {
+        val (erlang, elixir) = SdkFixtures.pairedInTable(name)
+        val oldHome = erlang.homePath!!
         service().resetForTests()
-        val elixirPage = Page()
-        val erlangPage = Page(ErlangSdksConfigurable())
+        val elixirPage = openPage()
+        val erlangPage = openPage(ErlangSdksConfigurable())
         elixirPage.select(elixir)
-        elixirPage.clickSuppressOtpWarning()
+        if (toggle) elixirPage.clickSuppressOtpWarning()
         meanwhile(elixir)
 
         val newHome = SdkFixtures.erlangHomeWithEbin("26", "26.2.5")
-        erlangPage.select(erlang).doSetHomePath(newHome, ErlangSdkType.instance)
+        erlangPage.browse(erlang, newHome)
         erlangPage.apply()
         settle()
         return Moved(elixirPage, elixir, erlang, oldHome, newHome)
+    }
+
+    fun testARefusedErlangRenameLeavesItsElixirSdksPairingToAnotherPagesApply() {
+        val (erlang, elixir) = SdkFixtures.pairedInTable("Elixir Refused Erlang Rename")
+        val other = registerPairedElixirSdk("Elixir Refused Erlang Rename Other")
+        val erlangPage = openPage(ErlangSdksConfigurable())
+        val elixirPage = openPage()
+        val erlangName = erlang.name
+        erlangPage.rename(erlang, "")
+        assertApplyRefused { erlangPage.apply() }
+
+        elixirPage.select(other)
+        elixirPage.clickSuppressOtpWarning()
+        elixirPage.apply()
+
+        assertEquals(erlangName, SdkFixtures.storedErlangName(tableSdk(elixir.name)))
     }
 
     fun testAnErlangRepairARefusedApplyWroteIsLeftToItsPage() {
@@ -802,7 +812,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     fun testARetriedErlangApplyStoresTheRepairItsRefusedApplyWrote() {
         val refused = refuseAnErlangMove("Elixir Repaired On Retry")
         refused.applyTheElixirPage()
-        val closing = Page()
+        val closing = openPage()
         closing.select(refused.elixir)
         closing.clickSuppressOtpWarning()
         closing.cancel()
@@ -816,7 +826,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     fun testAnErlangSdkMovedAgainAfterARefusedApplyRepairsToItsLatestHome() {
         val refused = refuseAnErlangMove("Elixir Repaired After A Second Move")
         val latestHome = SdkFixtures.erlangHomeWithEbin("28", "28.0.2")
-        refused.erlangPage.select(refused.moved.erlang).doSetHomePath(latestHome, ErlangSdkType.instance)
+        refused.erlangPage.browse(refused.moved.erlang, latestHome)
         refused.applyTheElixirPage()
 
         refused.erlangPage.apply()
@@ -898,14 +908,14 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         refused.erlangPage.cancel()
         settle()
 
-        assertEquals("the copy's Erlang home", refused.oldHome, erlangHome(copy(refused.elixir)))
+        assertEquals("the copy's Erlang home", refused.oldHome, erlangHome(SdksPage.copy(refused.elixir)))
         refused.applyTheElixirPage()
         refused.assertNotRepaired()
     }
 
     private fun erlangHome(sdk: Sdk): String? = SdkFixtures.storedErlangHome(sdk)?.let(FileUtil::toSystemIndependentName)
 
-    private class Refused(val erlangPage: Page, val moved: Moved, val pairedNowhere: Sdk) {
+    private class Refused(val erlangPage: SdksPage, val moved: Moved, val pairedNowhere: Sdk) {
         val elixirPage get() = moved.elixirPage
         val elixir get() = moved.elixir
         val oldHome: String get() = FileUtil.toSystemIndependentName(moved.oldHome)
@@ -926,26 +936,39 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
      * SDK resolves nowhere, so the Erlang page's repair of the Elixir copy is written back out of it. [meanwhile] runs
      * on the Elixir page before the move.
      */
-    private fun refuseAnErlangMove(name: String, meanwhile: (Page, Sdk) -> Unit = { _, _ -> }): Refused {
-        val oldHome = SdkFixtures.erlangHomeWithEbin("27", "27.3.4")
-        val (erlang, elixir) = SdkFixtures.pairedInTable(name, erlangHomePath = oldHome)
+    private fun refuseAnErlangMove(name: String, meanwhile: (SdksPage, Sdk) -> Unit = { _, _ -> }): Refused {
+        val (erlang, elixir) = SdkFixtures.pairedInTable(name)
+        val oldHome = erlang.homePath!!
         val pairedNowhere = registerElixirSdkPairedNowhere("$name Paired Nowhere")
-        val erlangPage = Page(ErlangSdksConfigurable())
-        val elixirPage = Page()
+        val erlangPage = openPage(ErlangSdksConfigurable())
+        val elixirPage = openPage()
         meanwhile(elixirPage, elixir)
         val newHome = SdkFixtures.erlangHomeWithEbin("26", "26.2.5")
-        erlangPage.select(erlang).doSetHomePath(newHome, ErlangSdkType.instance)
+        erlangPage.browse(erlang, newHome)
         assertApplyRefused { erlangPage.apply() }
         return Refused(erlangPage, Moved(elixirPage, elixir, erlang, oldHome, newHome), pairedNowhere).also {
-            assertEquals("the copy's Erlang home", it.oldHome, erlangHome(copy(elixir)))
+            assertEquals("the copy's Erlang home", it.oldHome, erlangHome(SdksPage.copy(elixir)))
         }
+    }
+
+    /**
+     * Views the Elixir SDK [name] on one page while another page moves its Erlang SDK's home and applies; then runs
+     * [beforeElixirApply] and applies the Elixir page. The Elixir SDK keeps the new home's code paths.
+     */
+    private fun assertAnErlangRepairSurvives(name: String, beforeElixirApply: (SdksPage, Sdk) -> Unit) {
+        val moved = moveTheErlangOfAHeldElixirSdk(name, toggle = false)
+        beforeElixirApply(moved.elixirPage, moved.elixir)
+        moved.elixirPage.apply()
+        settle()
+
+        SdkFixtures.assertCodePathsFollowed(tableSdk(moved.elixir.name), tableSdk(moved.erlang.name), moved.oldHome)
     }
 
     fun testAnSdkAnotherPageRemovedLeavesThisPage() {
         val sdk = registerPairedElixirSdk("Elixir Removed By Another Page")
-        val removing = Page()
-        val other = Page()
-        other.select(sdk).doSetHomePath(SdkFixtures.elixirHome("1.19.5"), ElixirSdkType.instance)
+        val removing = openPage()
+        val other = openPage()
+        other.browse(sdk, SdkFixtures.elixirHome("1.19.5"))
 
         removing.remove(sdk)
         removing.apply()
@@ -970,20 +993,17 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     }
 
     fun testDisposeUIResourcesRemovesSdkModelListener() {
-        val configurable = ElixirSdksConfigurable()
-        val list = UIUtil.findComponentOfType(configurable.createComponent(), List::class.java)!!
-        configurable.reset()
+        val page = openPage()
         val model = service().getModel()
-        fun listed() = (0 until list.model.size).map { list.model.getElementAt(it).name }
 
         model.addSdk(ProjectJdkImpl("Elixir Listener A", ElixirSdkType.instance))
-        assertTrue("sanity: the open page lists an SDK its model adds; got ${listed()}", "Elixir Listener A" in listed())
+        assertTrue("sanity: the open page lists an SDK its model adds; got ${page.listed()}", "Elixir Listener A" in page.listed())
 
-        configurable.disposeUIResources()
+        page.cancel()
 
         // One listener left on the shared, app-lifetime model would accumulate per Settings open.
         model.addSdk(ProjectJdkImpl("Elixir Listener B", ElixirSdkType.instance))
-        assertFalse("listener must be removed on disposeUIResources; got ${listed()}", "Elixir Listener B" in listed())
+        assertFalse("listener must be removed on disposeUIResources; got ${page.listed()}", "Elixir Listener B" in page.listed())
     }
 
     fun testRemovedSdkDoesNotGhostInChooser() {
@@ -992,91 +1012,105 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         val model = Model()
         assertTrue("chooser should list it initially; got ${comboNames(model)}", "Elixir Test C" in comboNames(model))
 
-        // Removing via the model fires beforeSdkRemove(original); the chooser must drop it by name.
         service().getModel().removeSdk(modelClone("Elixir Test C"))
 
         assertFalse("removed SDK must not ghost in the chooser; got ${comboNames(model)}", "Elixir Test C" in comboNames(model))
     }
 
-    fun testAnAddWithAnInstallPickKeepsThePagesModel() = addThroughThePage { list, model, elixirHome ->
-        val listed = (0 until list.model.size).map(list.model::getElementAt)
-        assertTrue("the new Elixir SDK is listed", listed.any { wslCompat.pathsEqualWslAware(elixirHome, it.homePath) })
+    fun testAnSdkRemovedAfterARefusedRenameDoesNotGhostInChooser() {
+        val a = registerElixirSdk("Elixir Ghost A", "/fake/elixir/a")
+        val b = registerElixirSdk("Elixir Ghost B", "/fake/elixir/b")
+        val chooser = Model()
+        val page = openPage()
+        page.rename(a, b.name)
+        assertApplyRefused { page.apply() }
+
+        page.remove(a)
+        page.apply()
+
+        assertEquals(
+            "the chooser lists B once, and not the removed A under the name its refused rename left",
+            listOf(b.name),
+            comboNames(chooser).filter { it.startsWith("Elixir Ghost") },
+        )
+    }
+
+    fun testARemoveAppliedOnOnePageKeepsAnSdkAnotherPageEditsInTheChooser() {
+        val edited = registerElixirSdk("Elixir Held Edited", "/fake/elixir/edited")
+        val removed = registerElixirSdk("Elixir Held Removed", "/fake/elixir/removed")
+        val chooser = Model()
+        val editing = openPage()
+        val removing = openPage()
+        editing.rename(edited, "Elixir Held Edited renamed")
+
+        removing.remove(removed)
+        removing.apply()
+
+        assertEquals(
+            "the chooser keeps the SDK the other page edits, and drops only the removed one",
+            listOf(edited.name),
+            comboNames(chooser).filter { it.startsWith("Elixir Held") },
+        )
+    }
+
+    fun testSwappingTwoNamesIsRefused() {
+        val a = registerElixirSdk("Elixir Swap A", "/fake/elixir/a")
+        val b = registerElixirSdk("Elixir Swap B", "/fake/elixir/b")
+        val page = openPage()
+        page.rename(a, b.name)
+        page.rename(b, a.name)
+
+        assertApplyRefused("is still another SDK's name") { page.apply() }
+
+        assertTableUnchanged(a to "Elixir Swap A", b to "Elixir Swap B")
+    }
+
+    fun testTakingTheNameAnotherSdkRenamesAwayIsRefused() {
+        val a = registerElixirSdk("Elixir Taken A", "/fake/elixir/a")
+        val b = registerElixirSdk("Elixir Taken B", "/fake/elixir/b")
+        val page = openPage()
+        page.rename(a, b.name)
+        page.rename(b, "Elixir Taken C")
+
+        assertApplyRefused("\"Elixir Taken B\" is still another SDK's name") { page.apply() }
+
+        assertTableUnchanged(a to "Elixir Taken A", b to "Elixir Taken B")
+    }
+
+    fun testAnAddWithAnInstallPickKeepsThePagesModel() = addThroughThePage { page, model, elixirHome ->
+        assertTrue(
+            "the new Elixir SDK is listed",
+            page.listedSdks().any { wslCompat.pathsEqualWslAware(elixirHome, it.homePath) },
+        )
         assertSame("registering the picked install keeps the page's model", model, service().getModel())
     }
 
-    fun testAnAddedSdkIsSelected() = addThroughThePage { list, _, elixirHome ->
-        val selected = list.selectedValue
+    fun testAnAddedSdkIsSelected() = addThroughThePage { page, _, elixirHome ->
+        val selected = page.selected
         assertNotNull("the new Elixir SDK is selected", selected)
-        assertTrue(wslCompat.pathsEqualWslAware(elixirHome, selected.homePath))
+        assertTrue(wslCompat.pathsEqualWslAware(elixirHome, selected!!.homePath))
     }
 
     /**
-     * Adds an Elixir SDK through the page's "+", picking an Erlang install in the step, then hands [check] the page's
-     * list, the model the page held before the add, and the Elixir install. The page stays open for [check].
+     * Adds an Elixir SDK through the page's "+", picking an Erlang install in the step, then hands [check] the page,
+     * the model the page held before the add, and the Elixir install. The page stays open for [check].
      */
-    private fun addThroughThePage(check: (List, ProjectSdksModel, String) -> Unit) = inASmallIde {
+    private fun addThroughThePage(check: (SdksPage, ProjectSdksModel, String) -> Unit) = inASmallIde {
         val asked = Asked()
         val elixirHome = elixirInstall("1.18.4", "28")
         val install = install("28", "28.1")
         ScriptedErlangStep(asked, ScriptedErlangStep.pickInstall(install), installs = listOf(install)).install(testRootDisposable)
         ScriptedFileChooserFactory(asked, elixirHome).install(testRootDisposable)
-        val page = Page()
+        val page = openPage()
         val listPanel = (page.root as Splitter).firstComponent
         val model = service().getModel()
 
         ToolbarDecorator.findAddButton(listPanel)!!.actionPerformed(TestActionEvent.createTestEvent())
 
-        check(UIUtil.findComponentOfType(listPanel, List::class.java)!!, model, elixirHome)
+        check(page, model, elixirHome)
     }
 
-    /** One SDKs page, as a Settings tab: built and reset, then closed by [cancel] or at the end of the test. */
-    private inner class Page(val configurable: Configurable = ElixirSdksConfigurable()) {
-        val root = configurable.createComponent()!!
-
-        init {
-            configurable.reset()
-            pages += this
-        }
-
-        private val list: List get() = UIUtil.findComponentOfType(root, List::class.java)!!
-
-        fun listed(): kotlin.collections.List<String> = (0 until list.model.size).map { list.model.getElementAt(it).name }
-
-        /** Selects [sdk]'s copy, which builds and shows its editor, and returns that editor. */
-        fun select(sdk: Sdk): Editor = show(copy(sdk))
-
-        /** Selects [copy], which builds and shows its editor, and returns that editor. */
-        fun show(copy: ProjectJdkImpl): Editor {
-            list.setSelectedValue(copy, false)
-            return UIUtil.findComponentOfType(root, ConfigurableCardPanel::class.java)!!.key as Editor
-        }
-
-        /** Clicks the shown editor's "Suppress OTP version mismatch warning" checkbox. */
-        fun clickSuppressOtpWarning() =
-            UIUtil.findComponentsOfType(root, JBCheckBox::class.java)
-                .single { it.text == "Suppress OTP version mismatch warning" }
-                .doClick()
-
-        /** Selects the Elixir SDK [sdk] and picks [erlang]'s copy in its editor's Erlang SDK combo. */
-        fun pickErlang(sdk: Sdk, erlang: Sdk) {
-            select(sdk)
-            UIUtil.findComponentOfType(root, ComboBox::class.java)!!.selectedItem = copy(erlang)
-        }
-
-        fun remove(sdk: Sdk) = configurable.removeSelectedSdk(copy(sdk))
-
-        val isModified: Boolean get() = configurable.isModified
-
-        fun apply() = configurable.apply()
-
-        fun cancel() {
-            pages -= this
-            configurable.disposeUIResources()
-        }
-    }
-
-    /** [sdk]'s copy in the shared model, found by the table SDK it is keyed by. */
-    private fun copy(sdk: Sdk): ProjectJdkImpl = service().getModel().projectSdks[sdk] as ProjectJdkImpl
+    private fun openPage(configurable: Configurable = ElixirSdksConfigurable()) = SdksPage(configurable, pages)
 
     private fun tableSdk(name: String): Sdk = ProjectJdkTable.getInstance().findJdk(name)!!
 
@@ -1086,14 +1120,6 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     /** Commits [home] to [sdk] straight in the table, as `SdkRegistrar` or a refresh action does. */
     private fun commitHome(sdk: Sdk, home: String) = SdkFixtures.commit(sdk) { homePath = home }
-
-    /** Renames [sdk]'s copy in the shared model, as an editor does through the copy's modificator. */
-    private fun renameCopy(sdk: Sdk, name: String) = WriteAction.run<Throwable> {
-        copy(sdk).sdkModificator.apply {
-            this.name = name
-            commitChanges()
-        }
-    }
 
     private fun assertApplyRefused(message: String? = null, apply: () -> Unit) =
         assertThrows(ConfigurationException::class.java, message) { apply() }

@@ -47,14 +47,16 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     })
 
     override fun apply() {
-        var edited = emptyList<Editor>()
-        sdksService.apply(projectSdksModel, page, removedCopies) {
-            edited = editorByProjectJdkImpl.values.filter(Editor::isModified)
-            edited.forEach(Editor::apply)
+        // Taken once the pending pass has run, so the clash check reads the names the editors write.
+        val edited by lazy { editedEditors() }
+        sdksService.apply(projectSdksModel, page, removedCopies, { copy -> edited[copy]?.name ?: copy.name }) {
+            edited.values.forEach(Editor::apply)
         }
-        edited.forEach(Editor::applied)
+        edited.values.forEach(Editor::applied)
         addedCopies.clear()
     }
+
+    private fun editedEditors(): Map<ProjectJdkImpl, Editor> = editorByProjectJdkImpl.filterValues(Editor::isModified)
 
     override fun createComponent(): JComponent? {
         sdkList = List(this)
@@ -124,7 +126,7 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     private var sdkModelListener: SdkModel.Listener? = null
 
     private val page = object : SdksService.Page {
-        override fun editedCopies(): Collection<Sdk> = editorByProjectJdkImpl.filterValues(Editor::isModified).keys
+        override fun editedCopies(): Collection<Sdk> = editedEditors().keys
 
         override fun close(copy: Sdk) {
             removedCopies.removeIf { it === copy }
