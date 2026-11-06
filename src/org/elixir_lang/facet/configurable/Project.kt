@@ -2,9 +2,8 @@ package org.elixir_lang.facet.configurable
 
 import com.intellij.application.options.ModuleAwareProjectConfigurable
 import com.intellij.facet.FacetManager
-import com.intellij.facet.FacetType
 import com.intellij.ide.DataManager
-import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleType
 import com.intellij.openapi.options.ex.Settings
@@ -15,9 +14,9 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
 import org.elixir_lang.Facet
 import org.elixir_lang.facet.Configurable
-import org.elixir_lang.facet.Type
 import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.sdk.ProcessOutput
+import org.elixir_lang.sdk.elixir.ElixirSdkAssignment
 import org.elixir_lang.settings.SettingsPageId
 import java.awt.BorderLayout
 import java.awt.Component
@@ -84,22 +83,16 @@ class Project(project: Project) : ModuleAwareProjectConfigurable<Configurable>(p
     override fun createModuleConfigurable(module: Module): Configurable {
         return object : Configurable(module) {
             override fun applySdk(sdk: Sdk?) {
-                val facetManager = FacetManager.getInstance(module)
-
-                ApplicationManager.getApplication().runWriteAction {
-                    val facet = facetManager.getFacetByType(Facet.ID) ?: addFacet(facetManager)
-                    facet.sdk = sdk
+                WriteAction.run<Throwable> {
+                    if (sdk != null) {
+                        ElixirSdkAssignment.assign(module, sdk)
+                    } else {
+                        FacetManager.getInstance(module).getFacetByType(Facet.ID)?.sdk = null
+                    }
                 }
             }
 
             override fun initSdk(): Sdk? = Facet.sdk(module)
         }
-    }
-
-    private fun addFacet(facetManager: FacetManager): Facet =
-        facetManager.addFacet(FacetType.findInstance(Type::class.java), FACET_NAME, null)
-
-    companion object {
-        const val FACET_NAME = "Elixir facet"
     }
 }

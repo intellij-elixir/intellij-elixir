@@ -78,17 +78,10 @@ object ElixirSdkLookup {
             LOG.trace("ElixirSdkLookup.resolve(module='${module.name}'): small IDE, Facet -> '${facetSdk?.name}'")
             return facetSdk?.let(ElixirSdkResolution::Ready) ?: ElixirSdkResolution.MissingElixirSdk
         }
-        if (hasMissingElixirModuleSdk(module)) {
-            LOG.trace("ElixirSdkLookup.resolve(module='${module.name}'): module SDK is not in the SDK table")
-            return ElixirSdkResolution.MissingElixirSdk
-        }
-
-        val modSdk = moduleSdk(module)
-        if (modSdk != null) {
-            LOG.trace(
-                "ElixirSdkLookup.resolve(module='${module.name}'): resolved from ModuleRootManager -> '${modSdk.name}'"
-            )
-            return ElixirSdkResolution.Ready(modSdk)
+        ownElixirEntry(module)?.let { entry ->
+            val sdk = entry.jdk
+            LOG.trace("ElixirSdkLookup.resolve(module='${module.name}'): own Elixir module SDK -> '${sdk?.name}'")
+            return sdk?.let(ElixirSdkResolution::Ready) ?: ElixirSdkResolution.MissingElixirSdk
         }
 
         val projResolution = resolve(module.project)
@@ -211,25 +204,21 @@ object ElixirSdkLookup {
         return sdks
     }
 
-    /** An Elixir module SDK the SDK table no longer has, which [moduleSdk] cannot tell from no module SDK. */
-    private fun hasMissingElixirModuleSdk(module: Module): Boolean =
-        ModuleRootManager.getInstance(module).orderEntries.any {
-            it is ModuleJdkOrderEntry && it.jdk == null && it.jdkTypeName == Type.instance.name
+    /**
+     * [module]'s own SDK entry when it is Elixir's: its SDK is Elixir-typed, or it has none and stores Elixir's type. The
+     * stored type alone won't do, because the entry's SDK is the table's first of that name, whatever its type.
+     */
+    @RequiresReadLock
+    internal fun ownElixirEntry(module: Module): ModuleJdkOrderEntry? =
+        ModuleRootManager.getInstance(module).orderEntries.asSequence().filterIsInstance<ModuleJdkOrderEntry>().firstOrNull {
+            when (val sdk = it.jdk) {
+                null -> it.jdkTypeName == Type.instance.name
+                else -> sdk.sdkType === Type.instance
+            }
         }
 
-    private fun moduleSdk(module: Module): Sdk? {
-        val raw = ModuleRootManager.getInstance(module).sdk
-        val filtered = sdk(raw)
-        if (raw != null && filtered == null) {
-            LOG.trace("ElixirSdkLookup.moduleSdk(module='${module.name}'): raw SDK '${raw.name}' (type=${raw.sdkType.name}) rejected by type filter")
-        }
-        return filtered
-    }
-
-    private fun projectSdk(project: Project): Sdk? = sdk(ProjectRootManager.getInstance(project).projectSdk)
-
-    private fun sdk(sdk: Sdk?): Sdk? =
-        if (sdk != null && sdk.sdkType === Type.instance) sdk else null
+    private fun projectSdk(project: Project): Sdk? =
+        ProjectRootManager.getInstance(project).projectSdk?.takeIf { it.sdkType === Type.instance }
 }
 
 @RequiresReadLock

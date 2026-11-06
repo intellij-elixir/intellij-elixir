@@ -1,15 +1,17 @@
 package org.elixir_lang.tool_manager
 
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.testFramework.common.runAll
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.junit.logs.expectWarnings
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.storedErlangHome
 import org.elixir_lang.sdk.SdkFixtures.storedErlangName
+import org.elixir_lang.sdk.elixir.ElixirSdkLookup
+import org.elixir_lang.sdk.elixir.sdk
 import org.elixir_lang.sdk.erlang_dependent.Asked
 import org.elixir_lang.sdk.erlang_dependent.ScriptedErlangStep
 import org.elixir_lang.sdk.erlang_dependent.StepAnswer
@@ -153,7 +155,7 @@ class ToolManagerErlangAskTest : HeavyTestCase() {
     private fun assertPairedWith(erlangHome: String, vararg modules: Module) {
         val sdk = elixirSdksOnTheInstall().singleOrNull() ?: throw AssertionError("one SDK on the install: ${elixirSdksOnTheInstall()}")
         assertTrue("paired with the pin: ${storedErlangHome(sdk)}", wslCompat.pathsEqualWslAware(storedErlangHome(sdk), erlangHome))
-        modules.forEach { assertEquals(it.name, sdk.name, ModuleRootManager.getInstance(it).sdk?.name) }
+        modules.forEach { assertEquals(it.name, sdk.name, assignedSdk(it)?.name) }
     }
 
     /** [moduleNames] share one tool manager config, so all name one Elixir install. */
@@ -180,5 +182,6 @@ class ToolManagerErlangAskTest : HeavyTestCase() {
         ProjectJdkTable.getInstance().getSdksOfType(ElixirSdkType.instance)
             .filter { wslCompat.pathsEqualWslAware(it.homePath, elixirHome) }
 
-    private fun assignedSdk(): Sdk? = ModuleRootManager.getInstance(module).sdk
+    private fun assignedSdk(module: Module = this.module): Sdk? =
+        ReadAction.computeBlocking<Sdk?, Throwable> { ElixirSdkLookup.resolve(module).sdk }
 }

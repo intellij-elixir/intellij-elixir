@@ -1,7 +1,5 @@
 package org.elixir_lang.tool_manager
 
-import com.intellij.facet.FacetManager
-import com.intellij.facet.FacetType
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.edtWriteAction
@@ -11,7 +9,6 @@ import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
-import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.toNioPathOrNull
 import com.intellij.platform.ide.progress.ModalTaskOwner
@@ -23,11 +20,10 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import com.intellij.util.concurrency.annotations.RequiresWriteLock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.elixir_lang.Facet
 import org.elixir_lang.isElixirModule
-import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkRegistrar
 import org.elixir_lang.sdk.SdkVersionsStore
+import org.elixir_lang.sdk.elixir.ElixirSdkAssignment
 import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 import org.elixir_lang.sdk.elixir.knownOrNull
 import org.elixir_lang.sdk.elixir.sdk
@@ -36,7 +32,6 @@ import org.elixir_lang.sdk.erlang_dependent.elixirAdditionalData
 import org.elixir_lang.sdk.wsl.wslCompat
 import org.jetbrains.annotations.VisibleForTesting
 import java.nio.file.Path
-import org.elixir_lang.facet.Type as ElixirFacetType
 
 private val LOG = logger<ToolManagerSdkChecker>()
 
@@ -501,30 +496,15 @@ internal class ToolManagerSdkChecker(
     }
 
     /**
-     * Assigns [elixirSdk] to [module] using the SDK representation appropriate for the running IDE.
-     *
-     * - **Rich IDEs**: the Java-module SDK ([ModuleRootManager] modifiable model).
-     * - **Small IDEs** (RubyMine, etc.): the Elixir **Facet** SDK (see [org.elixir_lang.Facet.sdk]), which is
-     *   what [org.elixir_lang.sdk.elixir.ElixirSdkLookup] resolves there. The module SDK is not read
-     *   by small IDEs, so assigning it would silently have no effect.
+     * Assigns [elixirSdk] to [module] through [ElixirSdkAssignment.assign].
      *
      * The Elixir SDK must already be registered in the [com.intellij.openapi.projectRoots.ProjectJdkTable];
      * [configureSdks] guarantees this ordering.
-     *
-     * Must be called inside a write action on the EDT.
      */
     @VisibleForTesting
     @RequiresWriteLock
     internal fun assignElixirSdk(module: Module, elixirSdk: Sdk) {
-        if (ProcessOutput.isSmallIde) {
-            val facetManager = FacetManager.getInstance(module)
-            val facet = facetManager.getFacetByType(Facet.ID)
-                ?: facetManager.addFacet(FacetType.findInstance(ElixirFacetType::class.java), "Elixir facet", null)
-            facet.sdk = elixirSdk
-            LOG.info("configureSdks: set Facet SDK '${elixirSdk.name}' -> '${module.name}' (small IDE)")
-        } else {
-            ModuleRootModificationUtil.updateModel(module) { it.sdk = elixirSdk }
-            LOG.info("configureSdks: committed '${elixirSdk.name}' -> '${module.name}'")
-        }
+        ElixirSdkAssignment.assign(module, elixirSdk)
+        LOG.info("configureSdks: assigned '${elixirSdk.name}' -> '${module.name}'")
     }
 }
