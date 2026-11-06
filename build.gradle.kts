@@ -1224,6 +1224,17 @@ tasks.named<Test>("test") {
         outputs.upToDateWhen { false }
         outputs.cacheIf { false }
     }
+    // `MirrorExpansionHeavyTest`'s sweep, and the Mix build's `lib` whose deps it adds to it. The sweep reads the SDK's
+    // and the deps' `.beam`s, which aren't declared inputs, and writes a report that isn't a declared output, so a
+    // repeat run would otherwise be up to date or from the cache and sweep nothing.
+    if (providers.gradleProperty("expanderMirror").map(String::toBoolean).getOrElse(false)) {
+        systemProperty("org.elixir_lang.expander.mirror", "true")
+        outputs.upToDateWhen { false }
+        outputs.cacheIf { false }
+    }
+    providers.gradleProperty("expanderMirrorDeps").orNull?.let {
+        systemProperty("org.elixir_lang.expander.mirror.deps", file(it).absolutePath)
+    }
 
     val sdkProps = sdkPropertiesFile
     val quoterAvailability = quoterAvailabilityFile.asFile
