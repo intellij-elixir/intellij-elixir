@@ -3,14 +3,17 @@ package org.elixir_lang.sdk.elixir
 import com.intellij.facet.FacetManager
 import com.intellij.facet.FacetType
 import com.intellij.openapi.module.Module
+import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.module.ModuleType
 import com.intellij.openapi.projectRoots.Sdk
+import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.ui.EditorNotifications
 import com.intellij.util.concurrency.annotations.RequiresWriteLock
 import org.elixir_lang.Facet
 import org.elixir_lang.facet.Type as ElixirFacetType
+import org.elixir_lang.isElixirModule
 import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.sdk.ProcessOutput.isSmallIde
 
@@ -29,7 +32,8 @@ object ElixirSdkAssignment {
     /**
      * Writes [sdk] at [module]'s [target]. A facet, added as "Elixir facet" when absent, names it. A module or project
      * SDK is the table's SDK of that name, because a pick may be a `ProjectSdksModel` copy, and a module given the project
-     * SDK has its own Elixir entry, present or dangling, set to inherit.
+     * SDK has its own Elixir entry, present or dangling, set to inherit. A project SDK that isn't Elixir's, replaced, stays
+     * the SDK of each other module that inherited it and isn't an Elixir module.
      */
     @RequiresWriteLock
     fun assign(module: Module, sdk: Sdk) {
@@ -42,12 +46,24 @@ object ElixirSdkAssignment {
             }
             Target.MODULE_SDK -> ModuleRootModificationUtil.setModuleSdk(module, tableSdk(sdk))
             Target.PROJECT_SDK -> {
-                ProjectRootManager.getInstance(module.project).projectSdk = tableSdk(sdk)
+                val projectRootManager = ProjectRootManager.getInstance(module.project)
+                projectRootManager.projectSdk?.takeIf { it.sdkType !== Type.instance }?.let { keepForOthers(module, it) }
+                projectRootManager.projectSdk = tableSdk(sdk)
                 inheritOwnElixirEntry(module)
             }
         }
 
         EditorNotifications.getInstance(module.project).updateAllNotifications()
+    }
+
+    /** Gives [projectSdk] to each module other than [module] that inherits it and isn't an Elixir module, so it keeps it. */
+    @RequiresWriteLock
+    private fun keepForOthers(module: Module, projectSdk: Sdk) {
+        for (other in ModuleManager.getInstance(module.project).modules) {
+            if (other != module && !other.isElixirModule() && ModuleRootManager.getInstance(other).isSdkInherited) {
+                ModuleRootModificationUtil.setModuleSdk(other, projectSdk)
+            }
+        }
     }
 
     @RequiresWriteLock

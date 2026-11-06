@@ -2,8 +2,10 @@ package org.elixir_lang.sdk.choice
 
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.module.Module
+import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
+import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.ProjectRootManager
@@ -45,6 +47,8 @@ class SdkChoiceTest : HeavyTestCase() {
     )
 
     private fun elixir(name: String): Sdk = SdkFixtures.register(SdkFixtures.elixirSdk(name, fakeHome("elixir/$name")), testRootDisposable)
+
+    private fun inheritingModule(name: String): Module = createModule(name).also { ModuleRootModificationUtil.setSdkInherited(it) }
 
     /** "Choice Erlang", at an OTP 27.3.4 home. */
     private fun erlang(): Sdk {
@@ -137,8 +141,7 @@ class SdkChoiceTest : HeavyTestCase() {
 
     fun testOkWritesThePickToEveryModule() {
         val pick = elixir("Choice pick")
-        val other = createModule("Choice other module")
-        ModuleRootModificationUtil.setSdkInherited(other)
+        val other = inheritingModule("Choice other module")
 
         val returned = ask(pick("Choice pick"), listOf(module, other))
 
@@ -146,6 +149,43 @@ class SdkChoiceTest : HeavyTestCase() {
         assertSame(pick, ProjectRootManager.getInstance(project).projectSdk)
         assertSame(pick, ModuleRootManager.getInstance(module).sdk)
         assertSame(pick, ModuleRootManager.getInstance(other).sdk)
+    }
+
+    private fun projectJdk(): Sdk {
+        val jdk = SdkFixtures.register(ProjectJdkImpl("Choice JDK", JavaSdk.getInstance()), testRootDisposable)
+        WriteAction.runAndWait<Throwable> { ProjectRootManager.getInstance(project).projectSdk = jdk }
+        return jdk
+    }
+
+    fun testAModuleInheritingAProjectJdkKeepsIt() {
+        val jdk = projectJdk()
+        val java = inheritingModule("Choice Java module")
+        val pick = elixir("Choice pick")
+
+        ask(pick("Choice pick"))
+
+        assertSame(pick, ProjectRootManager.getInstance(project).projectSdk)
+        assertSame(jdk, ModuleRootManager.getInstance(java).sdk)
+    }
+
+    fun testAnElixirModuleInheritingAProjectJdkGetsThePick() {
+        projectJdk()
+        val facetModule = inheritingModule("Choice facet module")
+        FacetModelFixtures.facet(facetModule)
+        val pick = elixir("Choice pick")
+
+        ask(pick("Choice pick"))
+
+        assertSame(pick, ModuleRootManager.getInstance(facetModule).sdk)
+    }
+
+    fun testWithNoProjectSdkNoOtherModuleIsGivenAnEntry() {
+        val other = inheritingModule("Choice other module")
+        elixir("Choice pick")
+
+        ask(pick("Choice pick"))
+
+        assertTrue(ModuleRootManager.getInstance(other).isSdkInherited)
     }
 
     fun testCancelWritesNothing() {

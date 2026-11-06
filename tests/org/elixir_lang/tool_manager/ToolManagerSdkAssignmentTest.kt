@@ -3,8 +3,10 @@ package org.elixir_lang.tool_manager
 import com.intellij.facet.FacetManager
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.module.Module
+import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
+import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.ProjectRootManager
@@ -37,6 +39,8 @@ class ToolManagerSdkAssignmentTest : HeavyTestCase() {
 
     private fun sdk(name: String) = SdkFixtures.register(SdkFixtures.elixirSdk(name, fakeHome("elixir/$name")), testRootDisposable)
 
+    private fun assign(sdk: Sdk) = WriteAction.runAndWait<Throwable> { checker.assignElixirSdk(module, sdk) }
+
     /** This module is no `ELIXIR_MODULE`, so the pick is the project SDK, which the module inherits. */
     private fun assertProjectSdkInherited(sdk: Sdk) {
         assertEquals(sdk, ProjectRootManager.getInstance(project).projectSdk)
@@ -50,7 +54,7 @@ class ToolManagerSdkAssignmentTest : HeavyTestCase() {
         val after = sdk("after")
         FacetModelFixtures.assign(module, before)
 
-        WriteAction.runAndWait<Throwable> { checker.assignElixirSdk(module, after) }
+        assign(after)
 
         assertProjectSdkInherited(after)
         assertEquals(before, facet.sdk)
@@ -59,10 +63,50 @@ class ToolManagerSdkAssignmentTest : HeavyTestCase() {
     fun testAModuleWithoutAnElixirFacetIsGivenNone() {
         val after = sdk("after")
 
-        WriteAction.runAndWait<Throwable> { checker.assignElixirSdk(module, after) }
+        assign(after)
 
         assertProjectSdkInherited(after)
         assertNull(FacetManager.getInstance(module).getFacetByType(Facet.ID))
+    }
+
+    private fun projectJdk(): Sdk {
+        val jdk = SdkFixtures.register(ProjectJdkImpl("Tool manager JDK", JavaSdk.getInstance()), testRootDisposable)
+        WriteAction.runAndWait<Throwable> { ProjectRootManager.getInstance(project).projectSdk = jdk }
+        return jdk
+    }
+
+    private fun inheritingModule(name: String): Module = createModule(name).also { ModuleRootModificationUtil.setSdkInherited(it) }
+
+    fun testAModuleInheritingAProjectJdkKeepsIt() {
+        val jdk = projectJdk()
+        val java = inheritingModule("Tool manager Java module")
+        val pick = sdk("pick")
+
+        assign(pick)
+
+        assertProjectSdkInherited(pick)
+        assertSame(jdk, ModuleRootManager.getInstance(java).sdk)
+    }
+
+    fun testAnElixirModuleInheritingAProjectJdkGetsThePick() {
+        projectJdk()
+        val elixir = inheritingModule("Tool manager facet module")
+        FacetModelFixtures.facet(elixir)
+        val pick = sdk("pick")
+
+        assign(pick)
+
+        assertSame(pick, ModuleRootManager.getInstance(elixir).sdk)
+    }
+
+    fun testWithNoProjectSdkNoOtherModuleIsGivenAnEntry() {
+        val other = inheritingModule("Tool manager other module")
+        val pick = sdk("pick")
+
+        assign(pick)
+
+        assertProjectSdkInherited(pick)
+        assertTrue(ModuleRootManager.getInstance(other).isSdkInherited)
     }
 
     /** Two modules that read the one project SDK, pinned to different installs: which is meant can't be told. */
