@@ -1,10 +1,5 @@
 package org.elixir_lang.action
 
-import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.actionSystem.ActionPlaces
-import com.intellij.openapi.actionSystem.ActionUiKind
-import com.intellij.openapi.actionSystem.CommonDataKeys
-import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.module.Module
@@ -40,7 +35,7 @@ import org.elixir_lang.mix.project.ProjectModuleSetupValidator
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 
 /** Runs Reconfigure Elixir Module Setup on [project], as the Tools menu does. */
-private fun runReconfigure(project: Project) {
+internal fun runReconfigure(project: Project) {
     ReconfigureModuleSetupAction().actionPerformed(TestActionEvent.createTestEvent(SimpleDataContext.getProjectContext(project)))
 }
 
@@ -95,18 +90,6 @@ class ReconfigureModuleSetupActionTest : PlatformTestCase() {
         return appRoot
     }
 
-    private fun runAction() {
-        val action = ReconfigureModuleSetupAction()
-        val dataContext = DataContext { dataId ->
-            when {
-                CommonDataKeys.PROJECT.`is`(dataId) -> project
-                else -> null
-            }
-        }
-        val event = AnActionEvent.createEvent(dataContext, null, ActionPlaces.UNKNOWN, ActionUiKind.NONE, null)
-        action.actionPerformed(event)
-    }
-
     private fun detectIssuesOnBgThread(): List<ProjectModuleSetupValidator.FolderMarkIssue> {
         return onPooledThread<List<ProjectModuleSetupValidator.FolderMarkIssue>> {
             ApplicationManager.getApplication().runReadAction(
@@ -144,7 +127,7 @@ class ReconfigureModuleSetupActionTest : PlatformTestCase() {
         val issuesBefore = detectIssuesOnBgThread()
         assertTrue("Expected issues before reconfigure", issuesBefore.isNotEmpty())
 
-        runAction()
+        runReconfigure(project)
 
         // After reconfigure, all issues should be resolved
         val issuesAfter = detectIssuesOnBgThread()
@@ -208,7 +191,7 @@ class ReconfigureModuleSetupActionTest : PlatformTestCase() {
         val sourceCountBefore = entryBefore.sourceFolders.size
         val excludeCountBefore = entryBefore.excludeFolderUrls.size
 
-        runAction()
+        runReconfigure(project)
 
         // Counts should be identical - no duplicates added
         val entryAfter = ModuleRootManager.getInstance(module).contentEntries.find {
@@ -233,7 +216,7 @@ class ReconfigureModuleSetupActionTest : PlatformTestCase() {
             // But is missing canonical lib/ and test/ marks
         }
 
-        runAction()
+        runReconfigure(project)
 
         val rootManager = ModuleRootManager.getInstance(module)
         val entry = rootManager.contentEntries.find { it.file?.name == "custom_roots_app" }!!
@@ -258,7 +241,7 @@ class ReconfigureModuleSetupActionTest : PlatformTestCase() {
             content.addSourceFolder("$rootUrl/test", true)
         }
 
-        runAction()
+        runReconfigure(project)
 
         val rootManager = ModuleRootManager.getInstance(module)
         val entry = rootManager.contentEntries.find { it.file?.name == "wrong_mark_app" }!!
@@ -279,7 +262,7 @@ class ReconfigureModuleSetupActionTest : PlatformTestCase() {
             subdirs = listOf("lib", "test")
         )
 
-        runAction()
+        runReconfigure(project)
 
         val rootManager = ModuleRootManager.getInstance(module)
         val entry = rootManager.contentEntries.find { it.file?.name == "minimal_app" }!!
@@ -304,7 +287,7 @@ class ReconfigureModuleSetupActionTest : PlatformTestCase() {
             model.addContentEntry(appRoot)
         }
 
-        runAction()
+        runReconfigure(project)
 
         val rootManager = ModuleRootManager.getInstance(module)
         val entry = rootManager.contentEntries.find { it.file?.name == "non_mix_app" }!!
@@ -327,7 +310,7 @@ class ReconfigureModuleSetupActionTest : PlatformTestCase() {
             subdirs = listOf("lib", "test", "deps")
         )
 
-        runAction()
+        runReconfigure(project)
 
         val rootManager = ModuleRootManager.getInstance(module)
         val entry = rootManager.contentEntries.find { it.file?.name == "plain_mix_app" }!!
@@ -346,7 +329,7 @@ class ReconfigureModuleSetupActionTest : PlatformTestCase() {
             subdirs = listOf("lib", "test")
         )
 
-        runAction()
+        runReconfigure(project)
 
         val rootManager = ModuleRootManager.getInstance(module)
         val entry = rootManager.contentEntries.find { it.file?.name == "phoenix_old_app" }!!
@@ -392,7 +375,7 @@ class ReconfigureModuleSetupActionTest : PlatformTestCase() {
             issuesBefore.isNotEmpty()
         )
 
-        runAction()
+        runReconfigure(project)
 
         val entry = ModuleRootManager.getInstance(module).contentEntries
             .find { it.file?.name == "umbrella_root" }!!
@@ -444,7 +427,7 @@ class ReconfigureModuleSetupActionTest : PlatformTestCase() {
         // Add a Mix content entry so the action processes the module
         addMixContentEntry("sdk_guard_app", subdirs = listOf("lib", "test"))
 
-        runAction()
+        runReconfigure(project)
 
         // The module SDK should still be the Elixir SDK, not the Java project SDK
         val moduleSdkAfter = ReadAction.nonBlocking(java.util.concurrent.Callable {

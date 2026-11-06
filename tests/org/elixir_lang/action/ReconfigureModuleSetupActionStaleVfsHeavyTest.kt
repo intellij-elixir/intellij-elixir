@@ -2,11 +2,6 @@ package org.elixir_lang.action
 
 import com.intellij.facet.FacetType
 import com.intellij.facet.impl.FacetUtil
-import com.intellij.openapi.actionSystem.ActionPlaces
-import com.intellij.openapi.actionSystem.ActionUiKind
-import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.actionSystem.CommonDataKeys
-import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.util.io.FileUtil
@@ -61,7 +56,7 @@ class ReconfigureModuleSetupActionStaleVfsHeavyTest : HeavyTestCase() {
             subAppDir.findChild("mix.exs")
         )
 
-        runAction()
+        runReconfigure(project)
 
         val entry = ModuleRootManager.getInstance(module).contentEntries
             .single { it.file == umbrellaVf }
@@ -75,15 +70,6 @@ class ReconfigureModuleSetupActionStaleVfsHeavyTest : HeavyTestCase() {
             "apps/c1/test should be Test Sources despite the stale VFS entry, got: ${sourceUrls.keys}",
             sourceUrls.any { it.key.endsWith("/apps/c1/test") && it.value }
         )
-    }
-
-    private fun runAction() {
-        val dataContext = DataContext { dataId ->
-            if (CommonDataKeys.PROJECT.`is`(dataId)) project else null
-        }
-        val event = AnActionEvent.createEvent(dataContext, null, ActionPlaces.UNKNOWN, ActionUiKind.NONE, null)
-
-        ReconfigureModuleSetupAction().actionPerformed(event)
     }
 
     override fun tearDown() {

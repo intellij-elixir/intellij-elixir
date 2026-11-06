@@ -43,7 +43,7 @@ class ToolManagerErlangAskTest {
         val stubs = NoScreen.privateHome.resolve("bin")
         launchIdea("ToolManagerErlangAskTest", { withEnv("PATH", "$stubs${File.pathSeparator}${System.getenv("PATH")}") }) { homes ->
             val install = stageElixirInstall()
-            val project = stageProject(NAME, MODULE, mapOf(".tool-versions" to "elixir ${Path.of(install).fileName}", "lib/$NAME.ex" to SOURCE, ".idea/workspace.xml" to MISE_ENABLED))
+            val project = stageProject(NAME, moduleIml("ELIXIR_MODULE"), mapOf(".tool-versions" to "elixir ${Path.of(install).fileName}", "lib/$NAME.ex" to SOURCE, ".idea/workspace.xml" to MISE_ENABLED))
             stubMise(stubs, install, project)
             ensureWelcomeScreenInForeground()
             closeInternalErrors("setup")
@@ -113,20 +113,6 @@ class ToolManagerErlangAskTest {
     private companion object {
         const val NAME = "tool_manager_ask"
         const val LABEL = "Configure from mise"
-
-        /** An Elixir module with no SDK: none of its own, and the project has none to inherit. */
-        val MODULE = """
-            <?xml version="1.0" encoding="UTF-8"?>
-            <module type="ELIXIR_MODULE" version="4">
-              <component name="NewModuleRootManager">
-                <content url="file://${'$'}MODULE_DIR${'$'}">
-                  <sourceFolder url="file://${'$'}MODULE_DIR${'$'}/lib" isTestSource="false" />
-                </content>
-                <orderEntry type="inheritedJdk" />
-                <orderEntry type="sourceFolder" forTests="false" />
-              </component>
-            </module>
-        """.trimIndent()
 
         /** The tool managers are opt-in: mise turned on as Settings saves it. */
         val MISE_ENABLED = """
