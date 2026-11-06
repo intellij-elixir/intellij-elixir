@@ -3115,15 +3115,14 @@ internal class Evaluation(
         fun evalFrom(from: Int, scope: Frame, atTail: Boolean): OtpErlangObject {
             for (index in from until clauses.size) {
                 val clause = clauses[index]
+                // Where it declines, the clauses after it, the `do` and the `else` clauses may run.
+                val rest = buildList {
+                    addAll(clauses.subList(index + 1, clauses.size))
+                    add(doOption(options))
+                    addAll(elses)
+                }
 
                 if (!isCall(clause, "<-", 2)) {
-                    // Where it declines, the clauses after it, the `do` and the `else` clauses may run.
-                    val rest = buildList {
-                        addAll(clauses.subList(index + 1, clauses.size))
-                        add(doOption(options))
-                        addAll(elses)
-                    }
-
                     selecting(rest, elseHeads, emptyList(), scope) {
                         eval(clause, scope)
                     }
@@ -3132,12 +3131,6 @@ internal class Evaluation(
 
                 val (head, right) = (clause as ElixirAst.Call).arguments!!
                 val (patterns, guards) = clauseHead(ElixirAst.ListNode(head.meta, listOf(head)))
-                // Where it declines, the clauses after it, the `do` and the `else` clauses may run.
-                val rest = buildList {
-                    addAll(clauses.subList(index + 1, clauses.size))
-                    add(doOption(options))
-                    addAll(elses)
-                }
                 val heads = listOf(head) + elseHeads
                 val value = selecting(rest, heads, emptyList(), scope) { eval(right, scope) }
                 fun unmatched(inTail: Boolean): OtpErlangObject {
