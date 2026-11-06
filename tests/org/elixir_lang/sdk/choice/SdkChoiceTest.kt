@@ -13,6 +13,7 @@ import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.io.FileUtil
 import com.intellij.platform.eel.EelDescriptor
 import com.intellij.platform.eel.EelOsFamily
 import com.intellij.platform.eel.provider.getEelDescriptor
@@ -38,6 +39,18 @@ import org.elixir_lang.sdk.wsl.LEGACY_WSL_PREFIX
 import org.elixir_lang.sdk.wsl.MODERN_WSL_PREFIX
 import org.elixir_lang.sdk.wsl.MockWslCompatService
 import org.elixir_lang.sdk.wsl.WslCompatService
+import org.elixir_lang.tool_manager.ToolManagerResult
+import org.elixir_lang.tool_manager.ToolManagerSettings
+import org.elixir_lang.tool_manager.assertPairedWithErlangAt
+import org.elixir_lang.tool_manager.elixirSdksAt
+import org.elixir_lang.tool_manager.mise.MiseToolManager
+import org.elixir_lang.tool_manager.pairedElixir
+import org.elixir_lang.tool_manager.registeredErlang
+import org.elixir_lang.tool_manager.twoSdksOnTheInstall
+import java.nio.file.Path
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import javax.swing.JComponent
 import javax.swing.JPanel
 
 /** The chooser on IntelliJ IDEA, asked for this test's modules, with its dialog answered by the test. */
@@ -45,11 +58,13 @@ class SdkChoiceTest : HeavyTestCase() {
     private val shown = mutableListOf<SdkChoiceState>()
     private val asked = Asked()
     private lateinit var table: SdkFixtures.TableSnapshot
+    private val toolManager = FakeToolManager()
 
     override fun setUp() {
         super.setUp()
         table = SdkFixtures.TableSnapshot()
         asked.recordMessages(testRootDisposable)
+        toolManager.install(testRootDisposable)
         // As a module IntelliJ IDEA creates; a test module has no SDK entry.
         ModuleRootModificationUtil.setSdkInherited(module)
     }
@@ -375,6 +390,222 @@ class SdkChoiceTest : HeavyTestCase() {
         assertContainsElements(step.offered.single().mapNotNull { it.sdk?.name }, "Choice WSL Erlang", "Choice installed Erlang")
     }
 
+    fun testMisesPinsAreOfferedAndNothingIsSelected() {
+        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+
+        val dialog = offerDialog()
+
+        dialog.panel.waitFor(OFFER)
+        assertNull(dialog.panel.state.selected)
+        assertFalse(dialog.isOKActionEnabled)
+    }
+
+    fun testTakingTheOfferSelectsTheModelPairedAsMisePins() {
+        val elixirHome = elixirInstall("1.18.4", "27")
+        val erlangHome = install("27", "27.3.4")
+        toolManager.pins(elixirHome, erlangHome)
+        val dialog = offerDialog()
+
+        dialog.panel.waitFor(OFFER).doClick()
+
+        val made = dialog.selectedModel()
+        assertEquals(listOf(made), elixirSdksAt(elixirHome))
+        assertPairedWithErlangAt(made, erlangHome)
+        assertTrue(dialog.isOKActionEnabled)
+
+        val again = offerDialog()
+        again.panel.waitFor(OFFER).doClick()
+
+        assertSame(ProjectJdkTable.getInstance().findJdk(made.name), again.panel.state.selected?.sdk)
+        assertEquals(listOf(made), elixirSdksAt(elixirHome))
+    }
+
+    fun testTakingTheOfferRepairsNoModel() {
+        val elixirHome = elixirInstall("1.18.4", "27")
+        val otherErlang = registeredErlang("Choice other Erlang", install("26", "26.2.5"))
+        val other = pairedElixir("Choice other pairing", elixirHome, otherErlang)
+        val erlangHome = install("27", "27.3.4")
+        toolManager.pins(elixirHome, erlangHome)
+        val dialog = offerDialog()
+
+        dialog.panel.waitFor(OFFER).doClick()
+
+        assertEquals(otherErlang.name, storedErlangName(other))
+        val selected = dialog.selectedModel()
+        assertNotSame(other, selected)
+        assertPairedWithErlangAt(selected, erlangHome)
+    }
+
+    fun testAnElixirPinAloneWithNoModelAsksTheErlangStep() {
+        val elixirHome = elixirInstall("1.18.4", "27")
+        val erlang = registeredErlang("Choice step Erlang", install("27", "27.3.4"))
+        ScriptedErlangStep(asked, ScriptedErlangStep.pick(erlang.name)).install(testRootDisposable)
+        toolManager.pins(elixirHome, null)
+        val dialog = offerDialog()
+
+        dialog.panel.waitFor(ELIXIR_ONLY_OFFER).doClick()
+
+        assertEquals(listOf("erlang"), asked.events)
+        val selected = dialog.selectedModel()
+        assertEquals(listOf(selected), elixirSdksAt(elixirHome))
+        assertEquals(erlang.name, storedErlangName(selected))
+    }
+
+    fun testAnElixirPinAloneWithOneModelIsSelected() {
+        val elixirHome = elixirInstall("1.18.4", "27")
+        val existing = pairedElixir("Choice one on the install", elixirHome, registeredErlang("Choice one's Erlang", install("26", "26.2.5")))
+        toolManager.pins(elixirHome, null)
+        val dialog = offerDialog()
+
+        dialog.panel.waitFor(ELIXIR_ONLY_OFFER).doClick()
+
+        assertEmpty(asked.events)
+        assertSame(existing, dialog.panel.state.selected?.sdk)
+    }
+
+    fun testAnElixirPinAloneWithSeveralModelsSelectsNothing() {
+        val elixirHome = elixirInstall("1.18.4", "27")
+        twoSdksOnTheInstall(elixirHome, "Choice several")
+        toolManager.pins(elixirHome, null)
+        val dialog = offerDialog()
+
+        dialog.panel.waitFor(ELIXIR_ONLY_OFFER).doClick()
+
+        assertEmpty(asked.events)
+        assertNull(dialog.panel.state.selected)
+        assertFalse(dialog.isOKActionEnabled)
+    }
+
+    fun testTheEnvironmentBoxFollowsTheToolManagerBox() {
+        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+        val dialog = offerDialog()
+        dialog.panel.waitFor(OFFER).doClick()
+        val inStep = dialog.panel.waitFor(IN_STEP)
+        val environment = dialog.panel.waitFor(ENVIRONMENT)
+
+        assertEquals(listOf(true, false), listOf(inStep.isEnabled, inStep.isSelected))
+        assertEquals(listOf(false, false), listOf(environment.isEnabled, environment.isSelected))
+
+        inStep.doClick()
+        assertTrue(environment.isEnabled)
+
+        inStep.doClick()
+        assertFalse(environment.isEnabled)
+    }
+
+    fun testWithTheToolManagerOnTheBoxesShowItAndAreDisabled() {
+        ToolManagerSettings.getInstance(project).run {
+            setEnabled(toolManager, true)
+            setEnvironmentEnabled(toolManager, true)
+        }
+        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+        val dialog = offerDialog()
+
+        dialog.panel.waitFor(OFFER).doClick()
+
+        for (box in listOf(dialog.panel.waitFor(IN_STEP), dialog.panel.waitFor(ENVIRONMENT))) {
+            assertEquals(box.text, listOf(false, true), listOf(box.isEnabled, box.isSelected))
+        }
+    }
+
+    fun testAnUntrustedConfigShowsItsMessageAndNoOffer() {
+        toolManager.answer = { ToolManagerResult.Error(toolManager.name, MiseToolManager.untrustedConfigDescription("/project/mise.toml")) }
+
+        val dialog = offerDialog()
+
+        dialog.panel.waitFor("is not trusted") { "is not trusted" in it }
+        dialog.panel.waitFor(CHECK_AGAIN)
+        assertNull(dialog.panel.shownOffer())
+    }
+
+    fun testCheckAgainRunsTheCheckAgain() {
+        toolManager.answer = { ToolManagerResult.Error(toolManager.name, MiseToolManager.untrustedConfigDescription("/project/mise.toml")) }
+        val dialog = offerDialog()
+        dialog.panel.waitFor("is not trusted") { "is not trusted" in it }
+        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+
+        dialog.panel.waitFor(CHECK_AGAIN).doClick()
+
+        dialog.panel.waitFor(OFFER)
+        assertNull(dialog.panel.shown { "is not trusted" in it })
+    }
+
+    fun testTheListWorksWhileTheCheckRuns() {
+        elixir("Choice A")
+        val elixirHome = elixirInstall("1.18.4", "27")
+        val erlangHome = install("27", "27.3.4")
+        val release = CountDownLatch(1)
+        toolManager.answer = {
+            release.await(10, TimeUnit.SECONDS)
+            toolManager.success(elixirHome, erlangHome)
+        }
+        try {
+            val dialog = offerDialog()
+
+            dialog.panel.pick(dialog.panel.state.entries.single { it.sdk.name == "Choice A" })
+
+            assertTrue(dialog.isOKActionEnabled)
+            assertNull(dialog.panel.shownOffer())
+
+            release.countDown()
+
+            dialog.panel.waitFor(OFFER)
+            assertEquals("Choice A", dialog.panel.state.selected?.sdk?.name)
+        } finally {
+            release.countDown()
+        }
+    }
+
+    fun testAChangedLocationTakesTheOldOfferAway() {
+        val elixirHome = elixirInstall("1.18.4", "27")
+        val erlangHome = install("27", "27.3.4")
+        val elsewhere = FileUtil.createTempDirectory("sdk-choice-elsewhere", null, true).toPath()
+        val release = CountDownLatch(1)
+        toolManager.answer = { folder ->
+            if (folder != offerFolder) release.await(10, TimeUnit.SECONDS)
+            toolManager.success(elixirHome, erlangHome)
+        }
+        try {
+            val panel = offerDialog().panel
+            panel.waitFor(OFFER)
+
+            panel.retarget(project.getEelDescriptor(), listOf(elsewhere))
+
+            assertNull("the old location's offer", panel.shownOffer())
+            assertNull("the old location's boxes", panel.shown { it == IN_STEP })
+
+            release.countDown()
+
+            panel.waitFor(OFFER)
+        } finally {
+            release.countDown()
+        }
+    }
+
+    fun testATakenOfferStandsAtALocationPinningTheSame() {
+        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+        val panel = offerDialog().panel
+        panel.waitFor(OFFER).doClick()
+        assertTrue("the boxes once the offer is taken", panel.waitFor(IN_STEP).isEnabled)
+
+        panel.retarget(project.getEelDescriptor(), listOf(FileUtil.createTempDirectory("sdk-choice-same-pins", null, true).toPath()))
+        assertNull("the old location's offer", panel.shownOffer())
+
+        panel.waitFor(OFFER)
+        assertTrue("the boxes at a location pinning the same", panel.waitFor(IN_STEP).isEnabled)
+    }
+
+    private val offerFolder: Path by lazy { FileUtil.createTempDirectory("sdk-choice-offer", null, true).toPath() }
+
+    /** The chooser's dialog for [module], with the tool managers asked about a folder of its own. */
+    private fun offerDialog(): SdkChoiceDialog = dialog(listOf(offerFolder))
+
+    /** The offer's button, or one of its boxes, when one shows. */
+    private fun SdkChoicePanel.shownOffer(): JComponent? = shown { it.startsWith("Use mise's") }
+
+    /** The Model selected in the dialog's list. */
+    private fun SdkChoiceDialog.selectedModel(): Sdk = panel.state.selected?.sdk ?: throw AssertionError("a Model is selected")
+
     /** A wizard's state: the default project's, for a project directory in a WSL distro. */
     private fun wslTargetState(): SdkChoiceState {
         ApplicationManager.getApplication().registerOrReplaceServiceInstance(
@@ -386,8 +617,12 @@ class SdkChoiceTest : HeavyTestCase() {
         return state(ProjectManager.getInstance().defaultProject, target)
     }
 
-    private fun state(project: Project = this.project, target: EelDescriptor? = project.getEelDescriptor()): SdkChoiceState =
-        SdkChoiceState(project, target, null, emptyList()).also { Disposer.register(testRootDisposable, it) }
+    private fun state(
+        project: Project = this.project,
+        target: EelDescriptor? = project.getEelDescriptor(),
+        folders: List<Path> = emptyList(),
+    ): SdkChoiceState =
+        SdkChoiceState(project, target, null, folders).also { Disposer.register(testRootDisposable, it) }
 
     /** An environment no Eel resolver knows, so every SDK is visible for it. */
     private object Elsewhere : EelDescriptor {
@@ -395,6 +630,8 @@ class SdkChoiceTest : HeavyTestCase() {
         override val osFamily = EelOsFamily.Posix
     }
 
-    private fun dialog(): SdkChoiceDialog =
-        SdkChoiceDialog(null, listOf(module), state()).also { Disposer.register(testRootDisposable, it.disposable) }
+    private fun dialog(folders: List<Path> = emptyList()): SdkChoiceDialog =
+        SdkChoiceDialog(null, listOf(module), state(folders = folders)).also { Disposer.register(testRootDisposable, it.disposable) }
 }
+
+private const val CHECK_AGAIN = "Check again"

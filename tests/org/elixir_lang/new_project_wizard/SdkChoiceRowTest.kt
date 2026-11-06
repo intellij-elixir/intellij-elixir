@@ -18,6 +18,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.sdk.SdkDetectionContext
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.storedErlangName
+import org.elixir_lang.sdk.choice.FakeToolManager
 import org.elixir_lang.sdk.choice.SdkChoicePanel
 import org.elixir_lang.sdk.erlang_dependent.Asked
 import org.elixir_lang.sdk.erlang_dependent.ScriptedErlangStep
@@ -40,6 +41,8 @@ class SdkChoiceRowTest : PlatformTestCase() {
     override fun setUp() {
         super.setUp()
         table = SdkFixtures.TableSnapshot()
+        // The row asks the tool managers about its location, and a real mise there answers from this machine's config.
+        FakeToolManager().install(testRootDisposable)
     }
 
     override fun tearDown() = runAll(

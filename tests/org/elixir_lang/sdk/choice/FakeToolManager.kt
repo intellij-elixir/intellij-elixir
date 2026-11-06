@@ -30,6 +30,16 @@ internal class FakeToolManager(override val name: String = MiseToolManager.NAME)
         return answer(contentRoot)
     }
 
+    /** Answers that this manager pins the Elixir at [elixirHome], and the Erlang at [erlangHome] unless it is null, in every folder. */
+    fun pins(elixirHome: String, erlangHome: String?) {
+        val answer = success(elixirHome, erlangHome)
+        this.answer = { answer }
+    }
+
+    /** Pins of the Elixir at [elixirHome] as [OFFER] names it, and of the Erlang at [erlangHome] unless it is null. */
+    fun success(elixirHome: String, erlangHome: String?): ToolManagerResult =
+        success(ToolEntry("1.18.4-otp-27", elixirHome, true), erlangHome?.let { ToolEntry("27.3.4", it, true) })
+
     fun success(elixir: ToolEntry, erlang: ToolEntry?): ToolManagerResult =
         ToolManagerResult.Success(versions(toolManagerName = name, elixir = elixir, erlang = erlang))
 
@@ -40,3 +50,9 @@ internal class FakeToolManager(override val name: String = MiseToolManager.NAME)
 
     fun assertNeverOnTheEdtOrUnderAReadLock() = assertEquals(emptyList<String>(), badThreads)
 }
+
+/** The chooser's texts for the pins [FakeToolManager.pins] answers. */
+internal const val OFFER = "Use mise's Elixir 1.18.4-otp-27 and Erlang 27.3.4"
+internal const val ELIXIR_ONLY_OFFER = "Use mise's Elixir 1.18.4-otp-27"
+internal const val IN_STEP = "Keep the SDKs in step with mise"
+internal const val ENVIRONMENT = "Use mise's environment for Mix and the build"

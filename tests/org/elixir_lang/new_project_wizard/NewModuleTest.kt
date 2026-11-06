@@ -15,6 +15,8 @@ import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.sdk.SdkDetectionContext
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.fakeHome
+import org.elixir_lang.sdk.choice.ENVIRONMENT
+import org.elixir_lang.sdk.choice.FakeToolManager
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -25,6 +27,8 @@ class NewModuleTest : HeavyTestCase() {
     override fun setUp() {
         super.setUp()
         table = SdkFixtures.TableSnapshot()
+        // The row asks the tool managers about its location, and a real mise there answers from this machine's config.
+        FakeToolManager().install(testRootDisposable)
     }
 
     override fun tearDown() = runAll(
