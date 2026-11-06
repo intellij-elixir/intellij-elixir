@@ -54,18 +54,22 @@ internal class ToolManagerSettings : PersistentStateComponent<ToolManagerSetting
     fun isEnabled(manager: ElixirToolManager): Boolean =
         manager.name in myState.enabledManagers
 
-    fun setEnabled(manager: ElixirToolManager, enabled: Boolean) {
-        if (enabled) myState.enabledManagers.add(manager.name)
-        else myState.enabledManagers.remove(manager.name)
+    fun setEnabled(manager: ElixirToolManager, enabled: Boolean) = setEnabled(manager.name, enabled)
+
+    private fun setEnabled(name: String, enabled: Boolean) {
+        if (enabled) myState.enabledManagers.add(name)
+        else myState.enabledManagers.remove(name)
     }
 
     /** Whether the user asked for [manager]'s environment, which applies only while the manager is also enabled. */
     fun isEnvironmentEnabled(manager: ElixirToolManager): Boolean =
         manager.name in myState.environmentManagers
 
-    fun setEnvironmentEnabled(manager: ElixirToolManager, enabled: Boolean) {
-        if (enabled) myState.environmentManagers.add(manager.name)
-        else myState.environmentManagers.remove(manager.name)
+    fun setEnvironmentEnabled(manager: ElixirToolManager, enabled: Boolean) = setEnvironmentEnabled(manager.name, enabled)
+
+    private fun setEnvironmentEnabled(name: String, enabled: Boolean) {
+        if (enabled) myState.environmentManagers.add(name)
+        else myState.environmentManagers.remove(name)
     }
 
     companion object {
