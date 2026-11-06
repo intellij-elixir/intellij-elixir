@@ -1,6 +1,7 @@
 package org.elixir_lang.beam
 
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiManager
 import org.elixir_lang.PlatformTestCase
@@ -9,6 +10,11 @@ import org.elixir_lang.declaration.Definer
 import java.io.File
 
 class CompiledGuardTest : PlatformTestCase() {
+    override fun setUp() {
+        super.setUp()
+        VfsRootAccess.allowRootAccess(myFixture.testRootDisposable, GUARDS.path, KERNEL.path)
+    }
+
     fun testDocumentedDefguard() {
         assertDefiner(Definer.DEFGUARD, GUARDS, "Elixir.Guards.beam", "documented", 1)
     }
