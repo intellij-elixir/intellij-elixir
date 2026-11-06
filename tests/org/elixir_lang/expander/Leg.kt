@@ -25,6 +25,11 @@ internal fun legCompileEnv(app: String, path: String, default: String, env: Stri
     if (COMPILE_ENV_TAKES_ENV_FIRST.isSufficient(legLevel())) "Application.compile_env($env, $app, $path, $default)"
     else "Application.__compile_env__($app, $path, $default, $env)"
 
+/** `compile_env!/3`'s read of [path] in [app] under [env], in the leg's argument order. */
+internal fun legCompileEnvBang(app: String, path: String, env: String): String =
+    if (COMPILE_ENV_TAKES_ENV_FIRST.isSufficient(legLevel())) "Application.compile_env!($env, $app, $path)"
+    else "Application.__compile_env__!($app, $path, $env)"
+
 /** Whether the leg's `Path.expand/2` reads the working directory only for a relative directory, as from 1.16.0-rc.1. */
 internal fun legExpandsPathsLazily(): Boolean = legLevel().elixir >= ElixirLanguageLevel.of("1.16.0-rc.1").elixir
 

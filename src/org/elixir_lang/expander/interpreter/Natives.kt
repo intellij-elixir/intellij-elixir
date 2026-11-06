@@ -2303,12 +2303,13 @@ internal class Natives(private val evaluation: Evaluation) {
      * `__compile_env__/4` and `__compile_env__!/3` before it (`App:516–552` at v1.11.4): their env match, then
      * `fetch_compile_env`'s key and `fetch_env/2`'s app guards ([clauseGuard]), then the application's environment as a
      * default build sees it ([fetched]), and `traverse_env/2` down the rest of the path through `Access.fetch/2`, a rest
-     * not known included. Where it isn't known, nor is whether `compile_env!` finds it, and its raise is assumed away.
-     * An env that isn't known is taken to be one, which assumes away the raise where it isn't; before
+     * not known included. Where it isn't known, nor is whether `compile_env!` finds it, and it may raise
+     * ([Evaluation.raiseMayBeCaught]). An env that isn't known may not be one, and raise; before
      * [COMPILE_ENV_TAKES_ENV_FIRST] it is read only for its tracers, after the traversal, where a binary raises. A tracer
      * the env names records the read, and writes no module. `get_env/2,3`, `fetch_env/2` and `fetch_env!/2`
      * (`App:724–783` at v1.20.4, `App:620–668` at v1.11.4) read the same environment after their `is_atom(app)` guard;
-     * `get_env/2` is `get_env/3`'s default.
+     * `get_env/2` is `get_env/3`'s default, and `fetch_env!/2` raises where nothing sets the key and may raise where the
+     * value isn't known.
      */
     private fun application(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
         // `get_env/2` is `get_env/3` with its `nil` default, as a `FunctionClauseError` names it.
@@ -2329,8 +2330,11 @@ internal class Natives(private val evaluation: Evaluation) {
 
             return when (key) {
                 "fetch_env/2" -> fetched
-                "fetch_env!/2" -> value.also { if (it == null) evaluation.assumeNoRaise() }
-                    ?: unfetched((args[0] as? OtpErlangAtom)?.atomValue())
+                "fetch_env!/2" -> when {
+                    value != null -> value
+                    fetched == atom("error") -> argumentError()
+                    else -> evaluation.unlessRaised(fetched)
+                }
                 else -> if (fetched == atom("error")) args[2] else value ?: fetched
             }
         }
@@ -2338,13 +2342,7 @@ internal class Natives(private val evaluation: Evaluation) {
         val env = if (envFirst) args[0] else args.last()
         val (app, path) = if (envFirst) args[1] to args[2] else args[0] to args[1]
 
-        if (envFirst) {
-            when {
-                env is UnknownValue -> evaluation.assumeNoRaise()
-                (env as? OtpErlangMap)?.let(::macroEnvOf) == null ->
-                    functionClause("Elixir.Application", key.substringBefore('/'), args)
-            }
-        }
+        if (envFirst) clauseGuard(env, key.substringBefore('/'), args) { (it as? OtpErlangMap)?.let(::macroEnvOf) != null }
 
         // A path not known is a key not known, and a rest not known.
         val (elements, tail) = when (val keys = path.takeUnless(::isUnknown)) {
@@ -2373,7 +2371,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
         if (!envFirst) {
             when {
-                env is UnknownValue -> evaluation.assumeNoRaise()
+                env is UnknownValue -> evaluation.raiseMayBeCaught()
                 typed(env) is OtpErlangBinary -> argumentError()
                 (env as? OtpErlangMap)?.get(atom("tracers")) == null -> decline("reads the tracers of %s", env)
             }
@@ -2386,27 +2384,29 @@ internal class Natives(private val evaluation: Evaluation) {
 
         return when (traversed) {
             is OtpErlangTuple if seen(traversed.elementAt(0)) == atom("ok") -> traversed.elementAt(1)
-            atom("error") if default != null -> default
+            atom("error") -> default ?: argumentError()
             else -> {
-                if (default == null || tail != null) evaluation.assumeNoRaise()
+                if (default == null || tail != null) evaluation.raiseMayBeCaught()
                 unfetched((app as? OtpErlangAtom)?.atomValue())
             }
         }
     }
 
     /**
-     * `Application`'s [function]`(`[args]`)`'s guard on [term], `is_atom` unless [passes] says otherwise: one that fails
-     * it raises `FunctionClauseError`, and one not known may ([Evaluation.raiseMayBeCaught]).
+     * [module]'s [function]`(`[args]`)`'s guard on [term], `is_atom` unless [passes] says otherwise: one that fails it
+     * raises `FunctionClauseError`, and one not known may ([Evaluation.raiseMayBeCaught]). A binary whose bytes aren't
+     * known is a binary, which [passes] judges.
      */
     private fun clauseGuard(
         term: OtpErlangObject,
         function: String,
         args: List<OtpErlangObject>,
+        module: String = "Elixir.Application",
         passes: (OtpErlangObject) -> Boolean = ::isAtom,
     ) {
         when {
             term is UnknownValue -> evaluation.raiseMayBeCaught()
-            !passes(term) -> functionClause("Elixir.Application", function, args)
+            !passes(term) -> functionClause(module, function, args)
         }
     }
 
@@ -2463,12 +2463,9 @@ internal class Natives(private val evaluation: Evaluation) {
             }
             "set_env/3", "unset_env/2" -> wroteEnv(args[0])
             "set_env/4", "unset_env/3" -> {
-                val opts = args.last()
-                when {
-                    isUnknown(opts) -> evaluation.assumeNoRaise()
-                    opts == atom("infinity") || opts is OtpErlangList || opts is OtpErlangString -> {}
-                    opts is OtpErlangLong && opts.bigIntegerValue().signum() >= 0 -> {}
-                    else -> functionClause("application", key.substringBefore('/'), args)
+                clauseGuard(args.last(), key.substringBefore('/'), args, module = "application") { opts ->
+                    opts == atom("infinity") || opts is OtpErlangList || opts is OtpErlangString ||
+                        opts is OtpErlangLong && opts.bigIntegerValue().signum() >= 0
                 }
                 wroteEnv(args[0])
             }

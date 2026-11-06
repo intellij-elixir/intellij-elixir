@@ -323,6 +323,55 @@ class ConfigTryHeavyTest : ConfigHeavyTestCase() {
             ),
         )
 
+    /** `fetch_env!/2` of a value not known may raise, and the `try` may rescue it. */
+    fun testARescueOfAnAppEnvFetch() = assertRescued("Application.fetch_env!(:dep, :k)")
+
+    /**
+     * `compile_env/4` given an env not known may raise in its env match, and the `try` may rescue it, a default holding
+     * a function included.
+     */
+    fun testARescueOfACompileEnvOfAnEnvNotKnown() {
+        val env = "if(System.get_env(\"X\"), do: __ENV__, else: %{})"
+
+        assertRescued(legCompileEnv(":dep", ":k", "[fn -> 1 end]", env))
+    }
+
+    /**
+     * `compile_env!` of a value not known may raise where nothing sets it, and the `try` may rescue it, an env holding a
+     * function included.
+     */
+    fun testARescueOfABangCompileEnvOfAValueNotKnown() =
+        assertRescued(legCompileEnvBang(":dep", ":k", "Map.put(__ENV__, :f, fn -> 1 end)"))
+
+    /**
+     * `traverse_env/2` raises on a path's tail that isn't a list where a value not known is set, and the `try` may rescue
+     * it, a default holding a function included.
+     */
+    fun testARescueOfACompileEnvOfAnImproperPathPastAValueNotKnown() =
+        assertRescued(legCompileEnv(":dep", "[:k | :bad]", "[fn -> 1 end]"))
+
+    /** `compile_env!` of a value not known may raise where nothing sets it, so a config past it may not run. */
+    fun testAConfigPastABangCompileEnvOfAValueNotKnown() =
+        assertConfigPastARaise(legCompileEnvBang(":dep", ":k", "Map.put(__ENV__, :f, fn -> 1 end)"))
+
+    /** `traverse_env/2` may raise on a path's tail that isn't a list, so a config past it may not run. */
+    fun testAConfigPastACompileEnvOfAnImproperPathPastAValueNotKnown() =
+        assertConfigPastARaise(legCompileEnv(":dep", "[:k | :bad]", "[fn -> 1 end]"))
+
+    /** `set_env/4` given options not known may raise in its guards, and the `try` may rescue it. */
+    fun testARescueOfAnAppEnvWriteOfOptionsNotKnown() = assertRescued(":application.set_env(:dep, :k, 1, System.get_env(\"X\") && [])")
+
+    /** `unset_env/3` given options not known may raise in its guards too. */
+    fun testARescueOfAnAppEnvDeleteOfOptionsNotKnown() = assertRescued(":application.unset_env(:dep, :k, System.get_env(\"X\") && [])")
+
+    /** `set_env/4`'s guards reject a binary as its options, though its bytes aren't known, so the `try` rescues it. */
+    fun testARescueOfAnAppEnvWriteOfABinaryNotKnownAsOptions() =
+        assertEquals("k=:d k1=1", keyBeside("(try do :application.set_env(:dep, :k, 1, inspect(System.get_env(\"X\"))) rescue _ -> :d end)"))
+
+    /** `unset_env/3`'s guards reject a binary as its options too. */
+    fun testARescueOfAnAppEnvDeleteOfABinaryNotKnownAsOptions() =
+        assertEquals("k=:d k1=1", keyBeside("(try do :application.unset_env(:dep, :k, inspect(System.get_env(\"X\"))) rescue _ -> :d end)"))
+
     /** A rescue of a raise that may come reads that raise's stacktrace. */
     fun testARescueReadsTheStacktraceOfARaiseThatMayCome() =
         assertEquals("k=Configured k1=1", keyBound("k =\n  try do\n    System.fetch_env!(\"X\")\n  rescue\n    _ -> __STACKTRACE__\n  end\n\n"))
