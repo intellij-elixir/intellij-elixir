@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4655](https://github.com/intellij-elixir/intellij-elixir/pull/4655) [@sh41](https://github.com/sh41)
+  - **The expander reads a project's config files past values only the build machine knows, and past a `try` that rescues an application environment read, so the keys beside them, such as a generated Phoenix project's `dev_routes`, keep the values the config gives them.** Refs [#4636](https://github.com/intellij-elixir/intellij-elixir/issues/4636).
+
 - [#4667](https://github.com/intellij-elixir/intellij-elixir/pull/4667) [@sh41](https://github.com/sh41)
   - **On Project Structure, an Elixir SDK added from a detected install opens its own page and asks for its Erlang SDK there, Apply is refused until one is chosen, and the Erlang step no longer refuses an Erlang SDK another Elixir SDK on that install already uses.** Refs [#4666](https://github.com/intellij-elixir/intellij-elixir/issues/4666).
 
