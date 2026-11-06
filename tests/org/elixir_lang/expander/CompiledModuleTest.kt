@@ -11,13 +11,13 @@ import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiFileFactory
-import com.intellij.psi.ResolveState
 import com.intellij.util.ThrowableRunnable
 import junit.framework.Test
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.NameArity
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamReader
+import org.elixir_lang.beam.MacroNameArity
 import org.elixir_lang.beam.ReadResult
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.V1
 import org.elixir_lang.beam.term.inspect
@@ -25,9 +25,7 @@ import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.junit.SharedFixture
 import org.elixir_lang.junit.SharedFixtureHost
 import org.elixir_lang.lowering.Lowering
-import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirFile
-import org.elixir_lang.psi.Modular
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.toOtpErlangList
 import java.io.File
@@ -138,7 +136,7 @@ class CompiledModuleTest private constructor(
 
         val differing = definitions(beam).mapNotNull { definition ->
             val clauses = (definition.clausesTerm as OtpErlangList).arity()
-            val inMirror = mirrored[Triple(definition.macro, definition.name, definition.arity)].orEmpty().size
+            val inMirror = mirrored[definition.macroNameArity].orEmpty().size
             val nameArity = NameArity(definition.name!!, definition.arity!!)
             val inCode = definition.macro !in PRIVATE || nameArity in locals
             val origin = if (inCode) null else table[nameArity]?.at?.meta?.origin
@@ -230,7 +228,7 @@ class CompiledModuleTest private constructor(
         assertEquals(
             emptyList<String>(),
             compiled.table.entries.mapNotNull { (nameArity, entry) ->
-                val mirror = mirrored[Triple("def", nameArity.name, nameArity.arity)].orEmpty().size
+                val mirror = mirrored[MacroNameArity("def", nameArity.name, nameArity.arity)].orEmpty().size
 
                 "$nameArity ${entry.kind} ${entry.clauses} ${entry.defaults} ${entry.default}, mirror $mirror".takeUnless {
                     entry.kind == DefinitionTable.Kind.DEF && entry.clauses == mirror && entry.defaults == 0 && !entry.default
@@ -366,7 +364,7 @@ class CompiledModuleTest private constructor(
         return definitions(beam).flatMap { definition ->
             val nameArity = "${definition.name}/${definition.arity}"
             val clauses = (definition.clausesTerm as OtpErlangList).elements().map { it as OtpErlangTuple }
-            val origins = mirrored[Triple(definition.macro, definition.name, definition.arity)]
+            val origins = mirrored[definition.macroNameArity]
                 ?.map { ReadAction.computeBlocking<TextRange, Throwable> { it.textRange } }
                 ?: clauses.map { modular }
             val read = bodies[NameArity(definition.name!!, definition.arity!!)].orEmpty()
@@ -410,18 +408,10 @@ class CompiledModuleTest private constructor(
     /** [beam]'s mirror: its decompiled source. */
     private fun mirror(beam: File): ElixirFile = mirrorOf(project, beam)!!
 
-    /** The clauses of each definition of [mirror]'s module, by kind, name and arity, in source order. */
-    private fun mirrorClauses(mirror: ElixirFile): Map<Triple<String, String, Int>, List<Call>> =
-        ReadAction.computeBlocking<Map<Triple<String, String, Int>, List<Call>>, Throwable> {
-            Modular.callDefinitionClauseCallSequence(mirror.modulars().single())
-                .mapNotNull { call ->
-                    val definer = CallDefinitionClause.definer(call) ?: return@mapNotNull null
-                    val (name, arities) = CallDefinitionClause.nameArityInterval(call, ResolveState.initial())
-                        ?: return@mapNotNull null
-
-                    Triple(definer.keyword, name, arities.maximum ?: arities.minimum) to call
-                }
-                .groupBy({ it.first }, { it.second })
+    /** The clauses of each definition of [mirror]'s module, by the kind each stores, name and arity, in source order. */
+    private fun mirrorClauses(mirror: ElixirFile): Map<MacroNameArity, List<Call>> =
+        ReadAction.computeBlocking<Map<MacroNameArity, List<Call>>, Throwable> {
+            mirroredClauses(mirror.modulars().single())
         }
 
     /** One test's slice of the checks. */
