@@ -743,7 +743,7 @@ internal class Natives(private val evaluation: Evaluation) {
             }
             "integer_to_binary/1", "integer_to_binary/2" -> {
                 val integer = seen(args[0]) as? OtpErlangLong ?: badarg()
-                val base = if (args.size == 1) 10 else smallInt(seen(args[1]))?.takeIf { it in 2..36 } ?: badarg()
+                val base = radix(args) ?: badarg()
 
                 binary(integer.bigIntegerValue().toString(base).uppercase())
             }
@@ -852,7 +852,7 @@ internal class Natives(private val evaluation: Evaluation) {
     /** The atom text a binary is in its encoding, or `null` where either is invalid. */
     private fun atomText(args: List<OtpErlangObject>): String? =
         when (encoding(args)) {
-            Encoding.LATIN1 -> (seen(args[0]) as? OtpErlangBinary)?.binaryValue()?.let { String(it, Charsets.ISO_8859_1) }
+            Encoding.LATIN1 -> binaryBytes(args[0])?.let { String(it, Charsets.ISO_8859_1) }
             Encoding.UTF8 -> utf8(args[0])
             null -> null
         }
@@ -2534,7 +2534,7 @@ internal class Natives(private val evaluation: Evaluation) {
         val bytes = { part: OtpErlangObject ->
             when (val seen = seen(part)) {
                 is OtpErlangAtom -> binary(seen.atomValue()).binaryValue()
-                else -> seen.takeIf(::isBinary)?.let { (it as OtpErlangBitstr).binaryValue() }
+                else -> binaryBytes(seen)
             }
         }
         val elixir = "Elixir".toByteArray()
@@ -3160,12 +3160,12 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** The bytes of the binary [term], declining where it is not one, as a list or atom name is not. */
     private fun nameBytes(function: String, term: OtpErlangObject): ByteArray =
-        (seen(term) as? OtpErlangBitstr)?.takeIf(::isBinary)?.binaryValue() ?: decline("$function of %s, which is no binary", term)
+        binaryBytes(term) ?: decline("$function of %s, which is no binary", term)
 
     /** `binary:at/2`: the byte of the binary [subject] at the zero-based [position]. */
     private fun byteAt(subject: OtpErlangObject, position: OtpErlangObject): OtpErlangObject {
         val badarg = { evaluation.error(atom("badarg"), frame("binary", "at", list(listOf(subject, position)))) }
-        val bytes = (seen(subject) as? OtpErlangBitstr)?.takeIf(::isBinary)?.binaryValue() ?: badarg()
+        val bytes = binaryBytes(subject) ?: badarg()
         val index = smallInt(seen(position)) ?: badarg()
 
         return integer((bytes.getOrNull(index) ?: badarg()).toLong() and 0xFF)
@@ -3240,8 +3240,7 @@ internal class Natives(private val evaluation: Evaluation) {
     }
 
     /** The text of the binary [term], `null` where it isn't a binary of UTF-8. */
-    fun utf8(term: OtpErlangObject): String? =
-        if (isBinary(term)) decodeUtf8((seen(term) as OtpErlangBitstr).binaryValue()) else null
+    fun utf8(term: OtpErlangObject): String? = binaryBytes(term)?.let(::decodeUtf8)
 
     /**
      * `unicode:characters_to_binary/1` (`unicode.erl:305-311`) and `characters_to_list/1` (`:289-295`): chardata as a
@@ -3322,9 +3321,9 @@ internal class Natives(private val evaluation: Evaluation) {
         val graphemes = Graphemes.of(level)
         val cluster = { codePoints: List<Int> -> codePoints.singleOrNull()?.let { integer(it.toLong()) } ?: list(codePoints.map { integer(it.toLong()) }) }
 
-        if (isBinary(term)) {
-            val bytes = (term as OtpErlangBitstr).binaryValue()
+        val bytes = binaryBytes(term)
 
+        if (bytes != null) {
             if (bytes.isEmpty()) return list(emptyList())
 
             // `String`'s walks call this once per cluster, so it decodes only as far as the first cluster is seen to end.
