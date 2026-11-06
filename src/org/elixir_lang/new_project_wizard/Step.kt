@@ -4,6 +4,7 @@ import com.intellij.execution.ExecutionException
 import com.intellij.execution.process.ProcessOutput
 import com.intellij.execution.util.ExecUtil
 import com.intellij.ide.JavaUiBundle
+import com.intellij.ide.highlighter.ModuleFileType
 import com.intellij.ide.util.projectWizard.WizardContext
 import com.intellij.ide.wizard.AbstractNewProjectWizardStep
 import com.intellij.ide.wizard.NewProjectWizardBaseData
@@ -23,6 +24,7 @@ import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.NlsContexts
+import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.ui.dsl.builder.*
@@ -191,10 +193,17 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
         }
     }
 
-    /** The builder of the module `mix new` made, which writes [sdk] as its Elixir SDK. */
+    /**
+     * The builder of the module `mix new` made, which writes [sdk] as its Elixir SDK. It is named and placed from this
+     * step's name and location, as `IntelliJNewProjectWizardStep.configureModuleBuilder` does: left unset, New Module
+     * would write the project's own module file.
+     */
     internal fun moduleBuilder(sdk: Sdk): ElixirModuleBuilder {
         val projectDirectory = context.projectDirectory.toString()
         val builder = ElixirModuleBuilder()
+        builder.name = name
+        builder.moduleFilePath = FileUtil.toSystemDependentName(Paths.get(projectDirectory, name + ModuleFileType.DOT_DEFAULT_EXTENSION).toString())
+        builder.contentEntryPath = FileUtil.toSystemDependentName(projectDirectory)
         builder.elixirSdk = sdk
 
         // Set the source paths even when there are none: JavaModuleBuilder.getSourcePaths()
