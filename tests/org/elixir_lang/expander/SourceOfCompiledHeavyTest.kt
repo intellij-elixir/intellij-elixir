@@ -309,6 +309,25 @@ class SourceOfCompiledHeavyTest : LegSdkFixtureTestCase() {
         )
     }
 
+    /** A source edited to define the module once answers from its heads, though the names its files define are unchanged. */
+    fun testASourceEditedToDefineTheModuleOnceAnswersFromIt() {
+        dependency()
+        val file = caller("defmodule Caller do\n  def twice(x), do: SourceOfCompiled.Twice.g(x)\nend\n")
+        val call = "SourceOfCompiled.Twice.g(x)"
+        val before = candidates(file, call)
+
+        val twice = read { PsiManager.getInstance(project).findFile(dir("deps/d/lib/twice.ex"))!! }
+        edit(project, twice, read { twice.text }.substringBefore("\n\ndefmodule") + "\n")
+
+        assertEquals(
+            rows(
+                "before" to "SourceOfCompiled.Twice.g/1 OWN VALID via []",
+                "after" to "SourceOfCompiled.Twice.g/1 OWN VALID via [] line 3",
+            ),
+            rows("before" to before, "after" to candidates(file, call)),
+        )
+    }
+
     /**
      * A library with CLASSES only keeps the `.beam`, though a sibling library attaches the same module's source, and so
      * does its protocol, whose consolidated copy's library has CLASSES only too.

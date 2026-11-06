@@ -360,14 +360,15 @@ class LoadedCopyTest : PlatformTestCase() {
         assertEquals("none", paired(LIB_ASKER, DEP))
     }
 
-    fun testAFileDefiningTheModuleTwicePairsWithNothing() {
+    /** Copies are counted by file: the expander's written heads decide which of a file's definitions counts. */
+    fun testAFileDefiningTheModuleTwicePairsAsOneCopy() {
         layout(
             "app/deps/d/lib/loaded_copy.ex" to "$DEP_SOURCE\n$DEP_SOURCE".toByteArray(),
             "app/_build/dev/lib/d/ebin/$DEP_BEAM" to fixture(DEP_BEAM),
         )
         dependency("dev")
 
-        assertEquals("none", paired(LIB_ASKER, DEP))
+        assertEquals("app/deps/d/lib/loaded_copy.ex", paired(LIB_ASKER, DEP))
     }
 
     fun testASourceInContentIsStillTheCopyLocated() {
