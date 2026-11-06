@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4647](https://github.com/intellij-elixir/intellij-elixir/pull/4647) [@sh41](https://github.com/sh41)
+  - **File > New > Project and File > New > Module with the Elixir generator pick the Elixir SDK from a list of the existing ones, each with its Erlang SDK and none preselected, or add one, and New Module makes its own module instead of setting the SDK of the project's existing module.** Part of [#4623](https://github.com/intellij-elixir/intellij-elixir/issues/4623).
+
 - [#4640](https://github.com/intellij-elixir/intellij-elixir/pull/4640) [@sh41](https://github.com/sh41)
   - **The editor banner's "Choose Elixir SDK...", the SDK widget's first item and Tools > Elixir > Choose Elixir SDK... pick a module's Elixir SDK from a list of the existing ones, each with its Erlang SDK, or add one, and set it where the IDE reads it: the module or project SDK on IntelliJ IDEA, where other modules that aren't Elixir modules keep the SDK they had, the Elixir facet on the other IDEs; Reconfigure Elixir Module Setup no longer changes module SDKs.** Part of [#4623](https://github.com/intellij-elixir/intellij-elixir/issues/4623).
 
