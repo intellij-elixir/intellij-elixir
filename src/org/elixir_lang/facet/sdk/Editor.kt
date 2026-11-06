@@ -149,8 +149,7 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
     @Throws(ConfigurationException::class)
     override fun apply() {
         val sdkModificator = sdk.sdkModificator
-        // Before the commit and the additional-data configurables, which follow a rename; the model refuses an empty
-        // or duplicate name.
+        // The model refuses an empty or duplicate name.
         sdkModificator.name = name
         if (!FileUtil.pathsEqual(homeValue, sdk.homePath ?: "")) {
             sdkModificator.versionString = _versionString
@@ -199,8 +198,7 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
 
     /**
      * Shows the copy again where nothing is edited: all of it when unmodified, else each path list. Another page's
-     * Apply may write the copy's roots, as an Erlang SDK's editor repairs an Elixir copy's code paths, and [apply]
-     * writes every path list.
+     * Apply may write the copy's roots, and [apply] writes every path list.
      */
     fun refresh() {
         if (!isModified) return reset()

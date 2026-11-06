@@ -10,6 +10,7 @@ import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.ui.Splitter
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.testFramework.TestActionEvent
@@ -647,6 +648,93 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         assertFalse("nor holds an edit of it", other.isModified)
     }
 
+    fun testAMoveInProjectStructureRepairsTheTableAndAnOpenPagesCopy() {
+        val (erlang, elixir) = SdkFixtures.pairedInTable("Elixir Moved In Project Structure")
+        val oldHome = erlang.homePath!!
+        service().resetForTests()
+        val page = openPage()
+        page.browse(elixir, SdkFixtures.elixirHome("1.19.5"))
+
+        moveInProjectStructure(erlang, SdkFixtures.erlangHomeWithEbin("26", "26.2.5"))
+        settle()
+
+        assertPairedAt(tableSdk(elixir.name), erlang, oldHome, "the table's Elixir SDK")
+        assertPairedAt(SdksPage.copy(elixir), erlang, oldHome, "the page's copy")
+        assertTrue("the page keeps its edit", page.isModified)
+    }
+
+    fun testARefusedApplyLeavesOtherPagesCopiesUntouched() {
+        val refused = refuseAnErlangMove("Elixir Beside A Refused Move") { page, elixir ->
+            page.browse(elixir, SdkFixtures.elixirHome("1.19.5"))
+        }
+        val elixir = refused.elixir
+        val erlang = refused.moved.erlang
+        val oldHome = refused.oldHome
+        settle()
+
+        val copy = SdksPage.copy(elixir)
+        assertEquals("the other page's copy keeps its Erlang home", oldHome, erlangHome(copy))
+        assertEquals("and its code paths", SdkFixtures.codePaths(erlang), SdkFixtures.codePathsUnder(copy, oldHome))
+        assertEquals("the table's Erlang home", oldHome, FileUtil.toSystemIndependentName(tableSdk(erlang.name).homePath!!))
+        refused.assertNotRepaired()
+    }
+
+    fun testAMoveCommittedOutsideRepairsAnUneditedPagesCopy() = inASmallIde {
+        val (erlang, elixir) = SdkFixtures.pairedInTable("Elixir Of An Erlang Moved Outside")
+        val oldHome = erlang.homePath!!
+        service().resetForTests()
+        val page = openPage()
+        page.select(elixir)
+
+        SdkFixtures.moveHome(erlang, SdkFixtures.erlangHomeWithEbin("26", "26.2.5"))
+        settle()
+
+        assertPairedAt(tableSdk(elixir.name), erlang, oldHome, "the table's Elixir SDK")
+        assertPairedAt(SdksPage.copy(elixir), erlang, oldHome, "the page's copy")
+        assertFalse("a repair is no edit of the page", page.isModified)
+    }
+
+    /** [elixir] is paired at [erlang]'s home and has its code paths, and none under [oldHome]. */
+    private fun assertPairedAt(elixir: Sdk, erlang: Sdk, oldHome: String, message: String) {
+        assertEquals("$message: the stored Erlang home", FileUtil.toSystemIndependentName(erlang.homePath!!), erlangHome(elixir))
+        SdkFixtures.assertCodePathsFollowed(elixir, erlang, oldHome)
+    }
+
+    /**
+     * Moves [erlang]'s home to [newHome] in a model of its own, as Project Structure's SDK editor does: the copy committed
+     * with the new home's code paths, its type's additional-data configurable applied, then the model.
+     */
+    private fun moveInProjectStructure(erlang: Sdk, newHome: String) {
+        val model = ProjectSdksModel().apply { reset(project) }
+        // Registered first, so disposed after the editor's configurable.
+        Disposer.register(testRootDisposable, model::disposeUIResources)
+        SdkFixtures.Editor(model, erlang.name, testRootDisposable).change(newHome = newHome)
+        model.apply()
+    }
+
+    fun testAnErlangMoveOnAnotherPageLeavesAViewedElixirEditorUnmodified() = inASmallIde {
+        assertAnErlangRepairSurvives("Viewed Elixir Unmodified") { elixirPage, _ ->
+            assertFalse("the Elixir page holds no edit", elixirPage.isModified)
+        }
+    }
+
+    /** A code path committed to the Elixir SDK just after the Erlang page's Apply is kept. */
+    fun testACodePathCommittedJustAfterAnErlangMoveIsKept() {
+        val (erlang, elixir) = SdkFixtures.pairedInTable("Elixir Committed Just After")
+        val oldHome = erlang.homePath!!
+        service().resetForTests()
+        val erlangPage = openPage(ErlangSdksConfigurable())
+        erlangPage.browse(erlang, SdkFixtures.erlangHomeWithEbin("26", "26.2.5"))
+        erlangPage.apply()
+        val outsideRoot = outsideRoot()
+        SdkFixtures.commit(tableSdk(elixir.name)) { addRoot(outsideRoot, OrderRootType.CLASSES) }
+
+        settle()
+
+        assertContainsElements(classUrls(elixir), outsideRoot.url)
+        SdkFixtures.assertCodePathsFollowed(tableSdk(elixir.name), tableSdk(erlang.name), oldHome)
+    }
+
     fun testAViewedElixirEditorDoesNotUndoAnErlangRepair() = assertAnErlangRepairSurvives("Viewed Elixir") { _, _ -> }
 
     fun testAnEditAfterAnotherPagesApplyKeepsItsErlangRepair() =
@@ -690,14 +778,12 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
             WriteAction.run<Throwable> { ElixirSdkMutation.setOtpMismatchWarningSuppressed(elixir, true) }
             settle()
         }
-        assertContainsElements(classUrls(moved.elixir), outsideRoot.url)
         assertEquals("the outside warning flag", true, suppressed(moved.elixir))
         moved.assertRepaired()
 
         moved.elixirPage.cancel()
         settle()
 
-        assertContainsElements(classUrls(moved.elixir), outsideRoot.url)
         assertEquals("the outside warning flag, after the Cancel", true, suppressed(moved.elixir))
     }
 
@@ -862,7 +948,6 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         refused.erlangPage.apply()
 
         refused.moved.assertRepaired()
-        assertContainsElements(classUrls(refused.elixir), outsideRoot.url)
     }
 
     fun testARefusedErlangRepairIsNotReplayedOverAPairingCommittedOutside() =
@@ -938,8 +1023,7 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
     /**
      * Moves the Erlang SDK of the Elixir SDK [name] on one page and applies, refused because another Elixir SDK's Erlang
-     * SDK resolves nowhere, so the Erlang page's repair of the Elixir copy is written back out of it. [meanwhile] runs
-     * on the Elixir page before the move.
+     * SDK resolves nowhere. [meanwhile] runs on the Elixir page before the move.
      */
     private fun refuseAnErlangMove(name: String, meanwhile: (SdksPage, Sdk) -> Unit = { _, _ -> }): Refused {
         val (erlang, elixir) = SdkFixtures.pairedInTable(name)

@@ -6,9 +6,12 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkAdditionalData
 import com.intellij.openapi.projectRoots.SdkModificator
+import com.intellij.openapi.projectRoots.SdkType
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.roots.OrderRootType
+import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.diagnostic.ThreadDumper
@@ -167,6 +170,16 @@ internal object SdkFixtures {
     @RequiresEdt
     fun withCodePaths(erlangSdk: Sdk): Sdk = erlangSdk.also(ErlangSdkType.instance::setupSdkPaths)
 
+    /** [erlangSdk] moved to [newHome], with that home's code paths in place of the old ones, as `SdkEditor` takes them. */
+    @RequiresEdt
+    fun moveHome(erlangSdk: Sdk, newHome: String) {
+        commit(erlangSdk) {
+            homePath = newHome
+            removeAllRoots()
+        }
+        withCodePaths(erlangSdk)
+    }
+
     /**
      * An Erlang SDK [erlangName] at [erlangHomePath] with its code paths, then an Elixir SDK [name] paired with it and
      * set up, both added to the table with [add].
@@ -218,6 +231,28 @@ internal object SdkFixtures {
             }
             PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
             Thread.sleep(10)
+        }
+    }
+
+    /**
+     * An open SDK editor for the copy named [name] in [model], as `SdkEditor` is: its configurables set and reset, then
+     * on Apply the copy changed and committed, then theirs applied, and disposed with [parent].
+     */
+    class Editor(model: ProjectSdksModel, name: String, parent: Disposable) {
+        private val copy = model.findSdk(name)!!
+        private val configurable = (copy.sdkType as SdkType).createAdditionalDataConfigurable(model, copy.sdkModificator)?.apply {
+            setSdk(copy)
+            reset()
+            Disposer.register(parent, ::disposeUIResources)
+        }
+
+        fun rename(newName: String) = change(newName = newName)
+
+        /** The new name [newName] and the new home [newHome], each if given, as [moveHome] moves it. */
+        fun change(newName: String? = null, newHome: String? = null) {
+            if (newName != null) SdkFixtures.commit(copy) { name = newName }
+            if (newHome != null) SdkFixtures.moveHome(copy, newHome)
+            configurable?.apply()
         }
     }
 }

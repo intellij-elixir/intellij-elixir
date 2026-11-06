@@ -12,17 +12,14 @@ import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
-import com.intellij.openapi.projectRoots.SdkType
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
-import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.util.JDOMUtil
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import org.elixir_lang.sdk.SdkTableChanges
 import org.elixir_lang.sdk.SdkTableChanges.Kind
-import org.jdom.Element
+import org.elixir_lang.sdk.erlang.PairingRepairs
 import org.jetbrains.annotations.TestOnly
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -55,9 +52,6 @@ class SdksService : Disposable {
     private val passScheduled = AtomicBoolean()
 
     private val pages = mutableSetOf<Page>()
-
-    /** What each page's refused Apply had its editors write, written back out of the copies until its next Apply. */
-    private val refusedWrites = mutableMapOf<Page, List<Write>>()
 
     /** An open SDKs page, which [pass] asks what it has edited and tells what changed. */
     internal interface Page {
@@ -163,7 +157,6 @@ class SdksService : Disposable {
     /** [copy] leaves [model], and its editor closes on every open page. */
     private fun leave(model: ProjectSdksModel, copy: Sdk) {
         pages.forEach { it.close(copy) }
-        refusedWrites.replaceAll { _, writes -> writes.filter { it.copy !== copy } }
         model.removeSdk(copy)
     }
 
@@ -202,7 +195,6 @@ class SdksService : Disposable {
     @RequiresEdt
     internal fun removePage(page: Page, unapplied: Boolean) {
         pages -= page
-        refusedWrites -= page
         if (unapplied) refreshAll.set(true)
         schedule()
     }
@@ -221,11 +213,11 @@ class SdksService : Disposable {
      */
     @TestOnly
     fun resetForTests() {
+        model?.let(PairingRepairs.getInstance()::release)
         model?.disposeUIResources()
         model = null
         touched.clear()
         refreshAll.set(false)
-        refusedWrites.clear()
     }
 
     /**
@@ -241,17 +233,10 @@ class SdksService : Disposable {
      * queue them for every later Apply, from any page.
      *
      * The table SDKs whose copies another open page has edited, and [from] has not, are taken out of each commit too:
-     * their copies carry only part of that page's edit, and that page applies its edit whole. What [applyEditors]
-     * changes in one, as an Erlang SDK's editor repairs its Elixir copies, is still committed, unless the table SDK no
-     * longer holds what was written over, as when it was paired with another Erlang SDK since.
+     * their copies carry only part of that page's edit, and that page applies its edit whole.
      *
-     * When the Apply is refused, what [applyEditors] wrote to those copies and to the copies no page has edited is
-     * written back out of them, and written in again by [from]'s next Apply before its editors run: an Erlang SDK's
-     * editor repairs its Elixir copies once, against the home it had before. A copy that no longer holds what was
-     * written over is left as it is.
-     *
-     * Once applied, the open pages are told, as after a pass: an Erlang SDK's editor also writes Elixir copies another
-     * page may show.
+     * Once applied, [PairingRepairs] repairs what the commit left, and then the open pages are told, as after a pass: an
+     * editor reset first would show a copy whose Erlang SDK moved unrepaired, and add the new home's code paths itself.
      */
     @Suppress("UnstableApiUsage")
     @Throws(ConfigurationException::class)
@@ -268,35 +253,18 @@ class SdksService : Disposable {
         val removedEntries = sdks.filterValues { copy -> removed.any { it === copy } }
         val editedHere = from?.editedCopies().orEmpty()
         val editedElsewhere = pages.filter { it !== from }.flatMap(Page::editedCopies)
-        val unedited = sdks.filterValues { copy ->
-            editedHere.none { it === copy } && removed.none { it === copy }
-        }
-        val heldEntries = unedited.filter { (key, copy) ->
-            editedElsewhere.any { it === copy } && key in table
+        val heldEntries = sdks.filter { (key, copy) ->
+            editedElsewhere.any { it === copy } && editedHere.none { it === copy } && removed.none { it === copy } &&
+                key in table
         }
         refuseNameClash(table, sdks.filterKeys { it !in heldEntries }, removedEntries.keys, names)
-        val replays = from?.let(refusedWrites::remove).orEmpty()
-            .filter { write -> unedited.values.any { it === write.copy } && write.fits(write.copy) }
-        val beforeEditors = unedited.mapValues { (_, copy) -> SdkState(copy) }
-        if (replays.isNotEmpty()) WriteAction.run<Throwable> { replays.forEach(Write::replay) }
         applyEditors()
-        val writes = unedited.mapValues { (key, copy) -> Write(copy, beforeEditors.getValue(key), SdkState(copy)) }
-            .filterValues { !it.isEmpty }
-        val standIns = writes.filter { (key, write) -> key in heldEntries && write.fits(key) }
-            .mapValues { (key, write) -> write.standIn(key) }
-        try {
-            applyModel(model, heldEntries + removedEntries, standIns)
-        } catch (e: ConfigurationException) {
-            if (writes.isNotEmpty()) WriteAction.run<Throwable> { writes.values.forEach(Write::undo) }
-            if (from != null) refusedWrites[from] = writes.values.toList()
-            throw e
-        } finally {
-            standIns.values.forEach { Disposer.dispose(it as Disposable) }
-        }
+        applyModel(model, heldEntries + removedEntries)
         if (removedEntries.isNotEmpty()) {
             removedEntries.values.forEach { leave(model, it) }
             applyModel(model, heldEntries)
         }
+        PairingRepairs.getInstance().flush()
         pages.forEach(Page::modelChanged)
     }
 
@@ -310,8 +278,7 @@ class SdksService : Disposable {
     /**
      * An SDK applied under a name another table SDK still holds is refused, even when that SDK is renamed away or
      * removed in the same Apply: the removal runs second. An empty name, or one two copies would be applied
-     * under, is refused too. Refused before anything is written to the copies, which every page shares: an Erlang SDK's
-     * editor writes its new name into its Elixir copies.
+     * under, is refused too. Refused before anything is written to the copies, which every page shares.
      */
     private fun refuseNameClash(
         table: Set<Sdk>,
@@ -340,14 +307,10 @@ class SdksService : Disposable {
         }
     }
 
-    /**
-     * Commits [model] with [held] out of its map, or [standIns] in their place, for the commit alone, so the model's
-     * listeners never see a map without them.
-     */
-    private fun applyModel(model: ProjectSdksModel, held: Map<Sdk, Sdk>, standIns: Map<Sdk, Sdk> = emptyMap()) {
+    /** Commits [model] with [held] out of its map for the commit alone, so the model's listeners never see it without them. */
+    private fun applyModel(model: ProjectSdksModel, held: Map<Sdk, Sdk>) {
         val sdks = model.projectSdks
         held.keys.forEach(sdks::remove)
-        sdks.putAll(standIns)
         applying = true
         try {
             model.apply()
@@ -378,6 +341,8 @@ class SdksService : Disposable {
     fun getModel(): ProjectSdksModel {
         return model ?: freshModel().also {
             model = it
+            // The pages build an Erlang SDK's editor only once they show it.
+            PairingRepairs.getInstance().open(it)
         }
     }
 
@@ -397,89 +362,4 @@ class SdksService : Disposable {
 
         return model
     }
-}
-
-/** What applying a page's editors may change in a copy, the additional data as its type saves it. */
-private class SdkState(sdk: Sdk) {
-    val name: String = sdk.name
-    val home: String? = sdk.homePath
-    val version: String? = sdk.versionString
-    val data: Element = savedData(sdk)
-    val roots: Map<OrderRootType, Set<String>> =
-        OrderRootType.getAllTypes().associateWith { sdk.rootProvider.getUrls(it).toSet() }
-}
-
-/**
- * What an Apply's editors changed in [copy], from [before] to [after]: name, home and version whole, each attribute of
- * the additional data and its children, and each type's roots.
- */
-private class Write(val copy: Sdk, private val before: SdkState, private val after: SdkState) {
-    private val changedAttributes = (before.data.attributes + after.data.attributes).map { it.name }.distinct()
-        .filter { before.data.getAttributeValue(it) != after.data.getAttributeValue(it) }
-    private val childrenChanged = !sameChildren(before.data, after.data)
-    private val dataChanged = changedAttributes.isNotEmpty() || childrenChanged
-    private val changedRoots = OrderRootType.getAllTypes().filter { before.roots[it] != after.roots[it] }
-
-    val isEmpty = before.name == after.name && before.home == after.home && before.version == after.version &&
-        !dataChanged && changedRoots.isEmpty()
-
-    /**
-     * [sdk] still holds [before] in each part that changed, so writing the change over it writes over what the editors
-     * wrote over: not a pairing to another Erlang SDK. Roots are left out, as [write] merges them root by root.
-     */
-    fun fits(sdk: Sdk): Boolean {
-        val now = SdkState(sdk)
-        fun <T> holds(part: SdkState.() -> T) = before.part() == after.part() || now.part() == before.part()
-        return holds { name } && holds { home } && holds { version } &&
-            changedAttributes.all { attribute -> holds { data.getAttributeValue(attribute) } } &&
-            (!childrenChanged || sameChildren(now.data, before.data))
-    }
-
-    fun replay() = write(copy, before, after)
-
-    fun undo() = write(copy, after, before)
-
-    /**
-     * A clone of [original] with what changed written over it. A held copy also carries another page's unapplied edit,
-     * or misses an outside commit, so only the change is written.
-     */
-    fun standIn(original: Sdk): Sdk =
-        original.clone().also { WriteAction.run<Throwable> { write(it, before, after, owner = original) } }
-
-    /** Writes over [sdk] each part that changed, from [from] to [to]. The additional data is loaded for [owner]. */
-    private fun write(sdk: Sdk, from: SdkState, to: SdkState, owner: Sdk = sdk) {
-        val data = if (!dataChanged) null else savedData(sdk).also { element ->
-            for (name in changedAttributes) {
-                val value = to.data.getAttributeValue(name)
-                if (value == null) element.removeAttribute(name) else element.setAttribute(name, value)
-            }
-            if (childrenChanged) element.setContent(to.data.cloneContent())
-        }
-        val roots = changedRoots.associateWith { type ->
-            val was = from.roots.getValue(type)
-            val now = to.roots.getValue(type)
-            val kept = sdk.rootProvider.getUrls(type).filter { it in now || it !in was }
-            kept + now.filter { it !in was && it !in kept }
-        }
-        val modificator = sdk.sdkModificator
-        if (from.name != to.name) modificator.name = to.name
-        if (from.home != to.home) modificator.homePath = to.home
-        if (from.version != to.version) modificator.versionString = to.version
-        if (data != null) modificator.sdkAdditionalData = (sdk.sdkType as SdkType).loadAdditionalData(owner, data)
-        for ((type, urls) in roots) {
-            modificator.removeRoots(type)
-            urls.forEach { modificator.addRoot(it, type) }
-        }
-        modificator.commitChanges()
-    }
-}
-
-private fun sameChildren(one: Element, other: Element): Boolean =
-    JDOMUtil.areElementsEqual(Element("children").addContent(one.cloneContent()),
-        Element("children").addContent(other.cloneContent()))
-
-/** [sdk]'s additional data as its type saves it. */
-private fun savedData(sdk: Sdk): Element = Element("additional").also { element ->
-    val data = sdk.sdkAdditionalData ?: return@also
-    (sdk.sdkType as? SdkType)?.saveAdditionalData(data, element)
 }
