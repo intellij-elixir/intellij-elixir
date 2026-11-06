@@ -121,12 +121,7 @@ object ChildCall {
         ),
         Entry(
             "macro",
-            matches = { call, _ ->
-                when (org.elixir_lang.psi.CallDefinitionClause.capabilities(call)?.presentation) {
-                    Presentation.MACRO -> true
-                    Presentation.FUNCTION, Presentation.GUARD, null -> false
-                }
-            },
+            matches = { call, _ -> org.elixir_lang.psi.CallDefinitionClause.capabilities(call)?.compileTime == true },
             handle = { accumulator, call -> accumulator.macroByNameArity.addClausesToCallDefinition(call) }
         ),
         Entry(

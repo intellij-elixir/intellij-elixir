@@ -17,7 +17,6 @@ import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Definer
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.MacroRole
-import org.elixir_lang.declaration.Presentation
 import org.elixir_lang.declaration.SourceOrigin
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
@@ -185,10 +184,8 @@ object CallDefinitionClause {
      */
     @RequiresReadLock
     fun elementDescription(call: Call, location: ElementDescriptionLocation): String? =
-            when (capabilities(call)?.presentation) {
-                Presentation.FUNCTION -> functionElementDescription(call, location)
-                Presentation.MACRO -> macroElementDescription(location)
-                Presentation.GUARD, null -> null
+            capabilities(call)?.let {
+                if (it.compileTime) macroElementDescription(location) else functionElementDescription(call, location)
             }
 
     /**

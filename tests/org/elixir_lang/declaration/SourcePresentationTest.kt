@@ -23,10 +23,7 @@ import org.elixir_lang.structure_view.Model
 import org.elixir_lang.structure_view.element.CallDefinition
 import org.elixir_lang.structure_view.element.Timed
 
-/**
- * What a user sees of a source definition for each `def*`. A guard gets no usage-view type of its own and no
- * structure-view node.
- */
+/** What a user sees of a source definition for each `def*`. */
 class SourcePresentationTest : PlatformTestCase() {
     private lateinit var scheme: DistinctKeyScheme
 
@@ -85,8 +82,8 @@ class SourcePresentationTest : PlatformTestCase() {
                 "private_function" to "function",
                 "public_macro" to "macro",
                 "private_macro" to "macro",
-                "public_guard" to UNDESCRIBED_CALL,
-                "private_guard" to UNDESCRIBED_CALL
+                "public_guard" to "macro",
+                "private_guard" to "macro"
             ),
             NAMES.associateWith { name ->
                 ElementDescriptionUtil.getElementDescription(clause(name), UsageViewTypeLocation.INSTANCE)
@@ -131,6 +128,8 @@ class SourcePresentationTest : PlatformTestCase() {
                 "private_function" to (Timed.Time.RUN to Visibility.PRIVATE),
                 "public_macro" to (Timed.Time.COMPILE to Visibility.PUBLIC),
                 "private_macro" to (Timed.Time.COMPILE to Visibility.PRIVATE),
+                "public_guard" to (Timed.Time.COMPILE to Visibility.PUBLIC),
+                "private_guard" to (Timed.Time.COMPILE to Visibility.PRIVATE),
                 "calls" to (Timed.Time.RUN to Visibility.PUBLIC)
             ),
             structureViewCallDefinitions()
@@ -200,9 +199,6 @@ class SourcePresentationTest : PlatformTestCase() {
     }
 
     companion object {
-        /** The platform's fallback when no provider describes the element: its class's name. */
-        private const val UNDESCRIBED_CALL = "Elixir Unmatched Unqualified No Parentheses Call Impl"
-
         private val NAMES = listOf(
             "public_function",
             "private_function",
