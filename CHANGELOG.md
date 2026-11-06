@@ -222,6 +222,8 @@
 
 ### Bug Fixes
 
+- [#4642](https://github.com/intellij-elixir/intellij-elixir/pull/4642) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, a dependency's or Elixir's function answered from its source no longer counts a private head, a function head where the compiled module exports a macro or the reverse, or an arity a splice or default admits that the compiled module doesn't export, and a source edited to define its module once is answered from again.** Refs [#4610](https://github.com/intellij-elixir/intellij-elixir/issues/4610).
 - [#4639](https://github.com/intellij-elixir/intellij-elixir/pull/4639) [@sh41](https://github.com/sh41)
   - **A call of a compiled guard, such as a dependency's `defguard` or `Kernel.is_struct/1`, is coloured as a guard call, as a source `defguard`'s already is, rather than as a macro call.** Refs [#4596](https://github.com/intellij-elixir/intellij-elixir/issues/4596).
 - [#4635](https://github.com/intellij-elixir/intellij-elixir/pull/4635) [@sh41](https://github.com/sh41)
