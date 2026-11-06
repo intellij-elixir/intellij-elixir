@@ -1294,6 +1294,18 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         assertFile("defmodule A do\n  _ = {Application.fetch_env!(:nope, :k), :ok = :bad}\nend", stopped)
     }
 
+    /**
+     * A bang read of a key nothing sets raises, as Elixir does, so the module defines nothing after it. That nothing sets
+     * the key is assumed, so the module stops rather than raises.
+     */
+    fun testABangReadOfAKeyNothingSetsStops() {
+        for (read in listOf("fetch_env!", "compile_env!")) {
+            val statement = "@v Application.$read(:elixir, :no_such_key)"
+
+            assertFile("defmodule A do\n  $statement\n  def f, do: 1\nend", "top unported `$statement`\nmodule Elixir.A stopped `$statement`")
+        }
+    }
+
     /** The reads that raise only on a guard raise nothing here, so the error after them is the module's. */
     fun testAnErrorAfterAnApplicationReadIsTheModules() =
         assertFile(
@@ -9792,7 +9804,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                   @a :before
                   try do
                     :lists.foreach(fn _ ->
-                      _ = Application.fetch_env!(:elixir, :unset_key)
+                      _ = Application.fetch_env!(:nope, :unset_key)
                       Module.put_attribute(__MODULE__, :a, :after)
                     end, [1])
                   rescue
@@ -9819,7 +9831,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 defmodule {row}.Caught do
                   @a :before
                   {row}.Safely.run(fn ->
-                    _ = Application.fetch_env!(:elixir, :unset_key)
+                    _ = Application.fetch_env!(:nope, :unset_key)
                     Module.put_attribute(__MODULE__, :a, :after)
                   end)
                   def r, do: @a
@@ -9845,7 +9857,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                   @a :before
                   {row}.Safely.run(fn ->
                     defmodule Inner do
-                      _ = Application.fetch_env!(:elixir, :unset_key)
+                      _ = Application.fetch_env!(:nope, :unset_key)
                     end
                     Module.put_attribute(__MODULE__, :a, :after)
                   end)
@@ -9871,7 +9883,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 end
                 {row}.Safely.run(fn ->
                   defmodule {row}.Inner do
-                    _ = Application.fetch_env!(:elixir, :unset_key)
+                    _ = Application.fetch_env!(:nope, :unset_key)
                   end
                   defmodule {row}.Later do
                     def r, do: :defined
@@ -10574,13 +10586,13 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 """,
                 pins = DECLINED,
             ),
-            // A raise taken not to happen, under a `try` that may catch it, declines: the build goes on either way.
+            // A raise taken not to happen, under a `try` that may catch it, declines.
             macro(
                 "branch:assumed-raise-rescued",
                 """
                 defmacro m do
                   try do
-                    Application.fetch_env!(:elixir, :unset_key)
+                    Application.fetch_env!(:nope, :unset_key)
                     :body
                   rescue
                     ArgumentError -> :rescued
@@ -10599,6 +10611,26 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                   rescue
                     ArgumentError -> :rescued
                   end
+                end
+                """,
+            ),
+            // A bang read of a key nothing sets raises `ArgumentError`, which a rescue of it takes.
+            macro(
+                "body:unset-bang-read-rescued",
+                "defmacro m, do: Macro.escape({row}.UR.r())",
+                helper = """
+                defmodule {row}.UR do
+                  @f (try do
+                    Application.fetch_env!(:elixir, :unset_key)
+                  rescue
+                    ArgumentError -> :rescued
+                  end)
+                  @c (try do
+                    Application.compile_env!(:elixir, [:unset_key, :sub])
+                  rescue
+                    ArgumentError -> :rescued
+                  end)
+                  def r, do: {@f, @c}
                 end
                 """,
             ),

@@ -1,5 +1,7 @@
 package org.elixir_lang.expander
 
+import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
+
 /**
  * A `try` whose body may raise on an unknown: its rescues join with the body, `else` takes the body's value, and what
  * follows a possible raise in the body may not run, as an arm may not. Where which raise a rescue sees depends on which
@@ -242,6 +244,38 @@ class ConfigTryHeavyTest : ConfigHeavyTestCase() {
                 "k1",
             ),
         )
+
+    /** `fetch_env!/2` of a value not known may raise, and the `try` may rescue it. */
+    fun testARescueOfAnAppEnvFetch() = assertRescued("Application.fetch_env!(:dep, :k)")
+
+    /**
+     * `compile_env/4` given an env not known may raise in its env match, and the `try` may rescue it, a default holding
+     * a function included.
+     */
+    fun testARescueOfACompileEnvOfAnEnvNotKnown() {
+        val env = "if(System.get_env(\"X\"), do: __ENV__, else: %{})"
+
+        assertRescued(
+            if (COMPILE_ENV_TAKES_ENV_FIRST.isSufficient(legLevel())) "Application.compile_env($env, :dep, :k, [fn -> 1 end])"
+            else "Application.__compile_env__(:dep, :k, [fn -> 1 end], $env)",
+        )
+    }
+
+    /**
+     * `traverse_env/2` down a path past a value not known may raise in `Access.fetch/2`, and the `try` may rescue it, a
+     * default holding a function included.
+     */
+    fun testARescueOfACompileEnvPastAValueNotKnown() =
+        assertRescued(
+            if (COMPILE_ENV_TAKES_ENV_FIRST.isSufficient(legLevel())) "Application.compile_env(__ENV__, :dep, [:k, :sub], [fn -> 1 end])"
+            else "Application.__compile_env__(:dep, [:k, :sub], [fn -> 1 end], __ENV__)",
+        )
+
+    /** `set_env/4` given options not known may raise in its guards, and the `try` may rescue it. */
+    fun testARescueOfAnAppEnvWriteOfOptionsNotKnown() = assertRescued(":application.set_env(:dep, :k, 1, System.get_env(\"X\") && [])")
+
+    /** `unset_env/3` given options not known may raise in its guards too. */
+    fun testARescueOfAnAppEnvDeleteOfOptionsNotKnown() = assertRescued(":application.unset_env(:dep, :k, System.get_env(\"X\") && [])")
 
     /** [statements], then a read of what `H`, which they may create, gives. */
     private fun assertCreatedDeclines(statements: String) = assertEquals("declined", keys(statements + "config :app, k: H.v(), k1: 1\n", "k", "k1"))
