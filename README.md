@@ -557,11 +557,11 @@ The status bar can display an **Elixir SDK status widget** in the bottom-right c
 * **Detected Elixir SDKs** -- if no SDK is configured and a tool manager (e.g. mise) detects valid installations, they are listed here. Click one to register it as the project SDK.
 * **Refresh Elixir SDKs** -- re-scan SDK home paths and update classpath entries
 * **Install Mix Dependencies** -- run `mix deps.get` for the project
-* **Reconfigure Elixir Module Setup** -- re-apply canonical folder marks (`lib/` -> Sources, `test/` -> Test Sources, `deps/` -> Excluded, etc.) and fix dangling module SDK references
+* **Reconfigure Elixir Module Setup** -- re-apply canonical folder marks (`lib/` -> Sources, `test/` -> Test Sources, `deps/` -> Excluded, etc.)
 
 **Notifications:** When the widget detects a problem, it fires a notification with actionable buttons:
 
-* **"Reconfigure Now"** -- one-click fix for folder mark warnings and module SDK errors
+* **"Reconfigure Now"** -- one-click fix for folder mark warnings
 * **"Open Project Structure"** -- navigate to SDK/module settings
 * **"Don't Warn for This SDK"** -- suppress OTP mismatch warnings for a specific SDK
 

@@ -605,10 +605,7 @@ class ElixirSdkStatusWidgetTest : PlatformTestCase() {
     }
 
     fun testReconfigureIsOfferedOnlyForFolderMarks() {
-        assertFalse(
-            "it resets a module to the project SDK, which undoes the SDK the tool manager chose",
-            ElixirEditorBasedSdkWidget.offersReconfigure(SdkStatus.ModuleSdkError(null, null, emptyList())),
-        )
+        assertFalse(ElixirEditorBasedSdkWidget.offersReconfigure(SdkStatus.ModuleSdkError(null, null, emptyList())))
         assertTrue(
             ElixirEditorBasedSdkWidget.offersReconfigure(
                 SdkStatus.FolderMarkWarning(ProjectJdkImpl("folder", ElixirSdkType.instance, "/fake", ""), "1.20.5", emptyList())

@@ -5,7 +5,19 @@ import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.ActionUiKind
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.DataContext
+import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.module.Module
+import com.intellij.openapi.module.ModuleTypeManager
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.roots.ModuleJdkOrderEntry
+import com.intellij.testFramework.PsiTestUtil
+import com.intellij.testFramework.TestActionEvent
+import com.intellij.testFramework.VfsTestUtil
+import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
+import org.elixir_lang.junit.HeavyTestCase
+import org.elixir_lang.sdk.SdkFixtures
+import org.elixir_lang.sdk.SdkFixtures.fakeHome
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.SimpleJavaSdkType
@@ -26,6 +38,11 @@ import org.elixir_lang.facet.Type
 import org.elixir_lang.junit.onPooledThread
 import org.elixir_lang.mix.project.ProjectModuleSetupValidator
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
+
+/** Runs Reconfigure Elixir Module Setup on [project], as the Tools menu does. */
+private fun runReconfigure(project: Project) {
+    ReconfigureModuleSetupAction().actionPerformed(TestActionEvent.createTestEvent(SimpleDataContext.getProjectContext(project)))
+}
 
 class ReconfigureModuleSetupActionTest : PlatformTestCase() {
 
@@ -400,13 +417,12 @@ class ReconfigureModuleSetupActionTest : PlatformTestCase() {
 
     // -------------------------------------------------------------------------
     // Scenario 4: Project SDK = Java, Reconfigure action invoked
-    // -> folder marks applied; module SDK left untouched (Step 1 guard)
+    // -> folder marks applied; module SDK left untouched
     // -------------------------------------------------------------------------
 
     /**
      * When the project SDK is non-Elixir (e.g. Java), the Reconfigure action must NOT
-     * touch the module SDK.  Before Step 1, `fixModuleSdk()` would call `model.inheritSdk()`
-     * unconditionally, replacing the Elixir module SDK with the Java project SDK.
+     * touch the module SDK.
      */
     @RequiresEdt
     fun testReconfigureWithNonElixirProjectSdkDoesNotTouchModuleSdk() {
@@ -439,5 +455,42 @@ class ReconfigureModuleSetupActionTest : PlatformTestCase() {
             elixirSdk,
             moduleSdkAfter
         )
+    }
+}
+
+/**
+ * Reconfigure leaves a module's SDK alone, on a project with a `mix.exs` at its root and an Elixir project SDK: the
+ * chooser is where a module's SDK is picked.
+ */
+class ReconfigureModuleSetupActionSdkTest : HeavyTestCase() {
+    private lateinit var app: Module
+
+    override fun setUp() {
+        super.setUp()
+        val root = getOrCreateProjectBaseDir()
+        VfsTestUtil.createFile(root, "mix.exs", "")
+        app = doCreateRealModuleIn("app", project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
+        PsiTestUtil.addContentRoot(app, root)
+        val projectSdk = SdkFixtures.register(SdkFixtures.elixirSdk("Reconfigure project", fakeHome("elixir/reconfigure-project")), testRootDisposable)
+        WriteAction.runAndWait<Throwable> { ProjectRootManager.getInstance(project).projectSdk = projectSdk }
+    }
+
+    fun testADanglingModuleSdkIsLeft() {
+        ModuleRootModificationUtil.updateModel(app) { it.setInvalidSdk("Reconfigure gone", ElixirSdkType.instance.name) }
+
+        runReconfigure(project)
+
+        val rootManager = ModuleRootManager.getInstance(app)
+        assertFalse("the module does not inherit", rootManager.isSdkInherited)
+        assertEquals("Reconfigure gone", rootManager.orderEntries.filterIsInstance<ModuleJdkOrderEntry>().single().jdkName)
+    }
+
+    fun testAModuleSdkOtherThanTheProjectSdkIsLeft() {
+        val own = SdkFixtures.register(SdkFixtures.elixirSdk("Reconfigure own", fakeHome("elixir/reconfigure-own")), testRootDisposable)
+        ModuleRootModificationUtil.setModuleSdk(app, own)
+
+        runReconfigure(project)
+
+        assertSame(own, ModuleRootManager.getInstance(app).sdk)
     }
 }

@@ -159,7 +159,6 @@ class ElixirEditorBasedSdkWidget(
                 "Elixir SDK: '${table.moduleName}' Version Mismatch"
             }
 
-        /** Not for a module SDK error: it resets the module to the project SDK, undoing what a tool manager chose. */
         internal fun offersReconfigure(status: SdkStatus): Boolean = status is SdkStatus.FolderMarkWarning
 
         internal fun otpMismatchMessage(sdkName: String, elixirOtpMajor: String, erlangOtpMajor: String): String =
