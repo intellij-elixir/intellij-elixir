@@ -70,8 +70,13 @@ object SdkEnvironment {
      * filtering that ProjectSdksModel.reset() applies for opened projects. Permissive when
      * either environment cannot be determined, so SDK validation stays the deciding factor.
      */
-    fun sdkVisibleFor(targetDescriptor: EelDescriptor?, sdk: Sdk): Boolean =
-        sdk.homePath?.takeUnless(String::isBlank)?.let(homesInEnvironmentOf(targetDescriptor)) ?: true
+    fun sdkVisibleFor(targetDescriptor: EelDescriptor?, sdk: Sdk): Boolean = visibleFor(targetDescriptor)(sdk)
+
+    /** [sdkVisibleFor] as a predicate, so [targetDescriptor]'s Eel machine is resolved once per scan, not once per SDK. */
+    fun visibleFor(targetDescriptor: EelDescriptor?): (Sdk) -> Boolean {
+        val inEnvironment = homesInEnvironmentOf(targetDescriptor)
+        return { sdk -> sdk.homePath?.takeUnless(String::isBlank)?.let(inEnvironment) ?: true }
+    }
 
     /**
      * Whether a candidate home runs in the same environment as [home]; true when either cannot be determined. A

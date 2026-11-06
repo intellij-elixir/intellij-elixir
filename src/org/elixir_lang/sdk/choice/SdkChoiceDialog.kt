@@ -3,6 +3,7 @@ package org.elixir_lang.sdk.choice
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.ColoredListCellRenderer
@@ -29,8 +30,8 @@ import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.ListSelectionModel
 
-/** Asks which of the [state]'s Elixir SDKs its modules use. OK is enabled once one is picked. */
-class SdkChoiceDialog(parent: Component?, internal val state: SdkChoiceState) :
+/** Asks which of the [state]'s Elixir SDKs [modules] use. OK is enabled once one is picked. */
+class SdkChoiceDialog(parent: Component?, private val modules: List<Module>, internal val state: SdkChoiceState) :
     DialogWrapper(state.project, parent, true, IdeModalityType.IDE) {
     private val list = JBList(state.listModel).apply {
         selectionMode = ListSelectionModel.SINGLE_SELECTION
@@ -87,7 +88,7 @@ class SdkChoiceDialog(parent: Component?, internal val state: SdkChoiceState) :
     }
 
     private fun modulesText(): String =
-        state.modules.singleOrNull()?.let { "module '${it.name}'" } ?: "the modules of '${state.project.name}'"
+        modules.singleOrNull()?.let { "module '${it.name}'" } ?: "the modules of '${state.project.name}'"
 
     override fun getPreferredFocusedComponent(): JComponent = list
 
