@@ -135,14 +135,15 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
             roots.map { (classes, sources) -> classes.toSet() to sources }
         }
 
-        /** The files of [all]'s source copies, one per modular. */
-        private val sourceFiles: List<VirtualFile> by lazy(LazyThreadSafetyMode.NONE) {
-            all.filterNot { it.isBeam }.mapNotNull { it.file }
+        /** The files of [all]'s source copies. */
+        private val sourceFiles: Set<VirtualFile> by lazy(LazyThreadSafetyMode.NONE) {
+            all.filterNot { it.isBeam }.mapNotNullTo(HashSet()) { it.file }
         }
 
         /**
-         * The file of the one copy of [all] the entry of [asker]'s IDE module that holds [beam] attaches as source;
-         * `null` when it attaches none or several, counted by modular.
+         * The one file of [all]'s copies the entry of [asker]'s IDE module that holds [beam] attaches as source; `null`
+         * when it attaches none or several files. Counted by file, not modular: what this answers is held until a file
+         * gains or drops the name, which a file dropping one of two definitions of it doesn't.
          */
         @RequiresReadLock
         fun sourceOf(beam: VirtualFile): VirtualFile? {

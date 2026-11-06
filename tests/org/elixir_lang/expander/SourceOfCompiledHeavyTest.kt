@@ -122,7 +122,7 @@ class SourceOfCompiledHeavyTest : LegSdkFixtureTestCase() {
                 "single" to candidates(file, "Phoenix.Component.connected?(s)"),
                 "macro" to candidates(file, "Phoenix.Component.slot(:a)"),
                 "guard" to candidates(file, "Phoenix.Component.is_assigns(x)"),
-                "capture" to assignCapture(file),
+                "capture" to capture(file, "Phoenix.Component.assign", 3),
                 "pipe" to candidates(file, "Phoenix.Component.assign(:k, 1)"),
                 "aliased" to candidates(file, "Component.assign(s, :aliased, 1)"),
                 "own delegation" to candidates(file, "Phoenix.Component.render(t)"),
@@ -252,6 +252,79 @@ class SourceOfCompiledHeavyTest : LegSdkFixtureTestCase() {
                 "twice" to candidates(file, "SourceOfCompiled.Twice.g(x)"),
                 "erlang" to candidates(file, ":lists.reverse(l)"),
             ),
+        )
+    }
+
+    /** A head written as another kind than the `.beam` exports its name and arity as, or private, declares none of it. */
+    fun testAHeadOfAnotherKindOrVisibilityDeclaresNoExport() {
+        dependency()
+        val file = caller(
+            """
+            defmodule Caller do
+              require SourceOfCompiled.Unexported
+
+              def macro(x), do: SourceOfCompiled.Unexported.f(x)
+              def public(x), do: SourceOfCompiled.Unexported.h(x)
+            end
+            """
+        )
+
+        assertEquals(
+            rows(
+                "macro" to "SourceOfCompiled.Unexported.f/1 OWN VALID via [] line 12",
+                "public" to "SourceOfCompiled.Unexported.h/1 OWN VALID via [] line 14",
+            ),
+            rows(
+                "macro" to candidates(file, "SourceOfCompiled.Unexported.f(x)"),
+                "public" to candidates(file, "SourceOfCompiled.Unexported.h(x)"),
+            ),
+        )
+    }
+
+    /** A head declares only the arities the `.beam` exports of those it admits: none of a splice's others, or a default's. */
+    fun testAHeadDeclaresOnlyTheExportedArities() {
+        dependency()
+        val file = caller(
+            """
+            defmodule Caller do
+              def none, do: SourceOfCompiled.Unexported.spliced()
+              def capture, do: &SourceOfCompiled.Unexported.spliced/3
+              def defaulted(x), do: SourceOfCompiled.Unexported.g(x)
+            end
+            """
+        )
+        val spliced = "SourceOfCompiled.Unexported.spliced/2 OWN WRONG_ARITY via [] line 4"
+
+        assertEquals(
+            rows(
+                "none" to spliced,
+                "capture" to spliced,
+                "defaulted" to lines("SourceOfCompiled.Unexported.g/2 OWN WRONG_ARITY via []", 9, 16),
+            ),
+            rows(
+                "none" to candidates(file, "SourceOfCompiled.Unexported.spliced()"),
+                "capture" to capture(file, "SourceOfCompiled.Unexported.spliced", 3),
+                "defaulted" to candidates(file, "SourceOfCompiled.Unexported.g(x)"),
+            ),
+        )
+    }
+
+    /** A source edited to define the module once answers from its heads, though the names its files define are unchanged. */
+    fun testASourceEditedToDefineTheModuleOnceAnswersFromIt() {
+        dependency()
+        val file = caller("defmodule Caller do\n  def twice(x), do: SourceOfCompiled.Twice.g(x)\nend\n")
+        val call = "SourceOfCompiled.Twice.g(x)"
+        val before = candidates(file, call)
+
+        val twice = read { PsiManager.getInstance(project).findFile(dir("deps/d/lib/twice.ex"))!! }
+        edit(project, twice, read { twice.text }.substringBefore("\n\ndefmodule") + "\n")
+
+        assertEquals(
+            rows(
+                "before" to "SourceOfCompiled.Twice.g/1 OWN VALID via []",
+                "after" to "SourceOfCompiled.Twice.g/1 OWN VALID via [] line 3",
+            ),
+            rows("before" to before, "after" to candidates(file, call)),
         )
     }
 
@@ -552,12 +625,9 @@ class SourceOfCompiledHeavyTest : LegSdkFixtureTestCase() {
 
     private fun candidates(use: Use): String = render(read { ExpanderSource.candidates(use, false) })
 
-    /** The expander's candidates for the capture `&Phoenix.Component.assign/3`, which occurs once in [file]. */
-    private fun assignCapture(file: PsiFile): String {
-        val name = "Phoenix.Component.assign"
-
-        return candidates(read { Use.capture(ExpanderSourceRows.call(file, "&$name/3", name), 3)!! })
-    }
+    /** The expander's candidates for the capture `&`[name]`/`[arity], which occurs once in [file]. */
+    private fun capture(file: PsiFile, name: String, arity: Int): String =
+        candidates(read { Use.capture(ExpanderSourceRows.call(file, "&$name/$arity", name), arity)!! })
 
     /** The use that is the call [call], which occurs once in [file]. */
     private fun use(file: PsiFile, call: String): Use.OfCall = ExpanderSourceRows.use(file, call, call)
