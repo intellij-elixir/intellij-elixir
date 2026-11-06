@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4651](https://github.com/intellij-elixir/intellij-elixir/pull/4651) [@sh41](https://github.com/sh41)
+  - **The Elixir SDK chooser, File > New > Project and File > New > Module offer the Elixir and Erlang that mise pins for the project before mise is turned on, with boxes to turn it and its environment on, or show mise's message when its config isn't trusted.** Part of [#4623](https://github.com/intellij-elixir/intellij-elixir/issues/4623).
+
 - [#4647](https://github.com/intellij-elixir/intellij-elixir/pull/4647) [@sh41](https://github.com/sh41)
   - **File > New > Project and File > New > Module with the Elixir generator pick the Elixir SDK from a list of the existing ones, each with its Erlang SDK and none preselected, or add one, and New Module makes its own module instead of setting the SDK of the project's existing module.** Part of [#4623](https://github.com/intellij-elixir/intellij-elixir/issues/4623).
 
