@@ -6,6 +6,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.util.Disposer
+import com.intellij.platform.eel.EelDescriptor
 import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.components.AnActionLink
@@ -78,6 +79,14 @@ class SdkChoicePanel(
 
     private fun reload() {
         state.reload()
+        pick(state.selected)
+    }
+
+    /** Lists the Elixir SDKs of [target]'s environment instead. */
+    @RequiresEdt
+    @Suppress("UnstableApiUsage") // EelDescriptor is the platform's only name for an environment.
+    fun retarget(target: EelDescriptor?) {
+        state.retarget(target)
         pick(state.selected)
     }
 

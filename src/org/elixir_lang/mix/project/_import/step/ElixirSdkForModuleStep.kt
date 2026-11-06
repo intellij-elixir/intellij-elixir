@@ -15,14 +15,15 @@ import com.intellij.openapi.roots.ui.configuration.JdkComboBox
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.ui.MultiLineLabelUI
 import com.intellij.platform.eel.EelDescriptor
+import com.intellij.util.concurrency.annotations.RequiresEdt
 import com.intellij.util.ui.JBInsets
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.StartupUiUtil
 import org.elixir_lang.Elixir
 import org.elixir_lang.mix.project._import.Builder
-import org.elixir_lang.new_project_wizard.erlangSdkOrAsk
 import org.elixir_lang.sdk.SdkDetectionContext
 import org.elixir_lang.sdk.SdkEnvironment
+import org.elixir_lang.sdk.elixir.ElixirInternalErlangSdkSetup
 import org.elixir_lang.sdk.elixir.Type
 import org.jetbrains.annotations.VisibleForTesting
 import java.awt.Font
@@ -56,11 +57,11 @@ class ElixirSdkForModuleStep(private val wizardContext: WizardContext) : ModuleW
     internal fun sdkDescriptor(sdk: Sdk): EelDescriptor? = SdkEnvironment.sdkDescriptor(sdk)
 
     /**
-     * See [SdkEnvironment.sdkVisibleFor], applied to the import target.
+     * See [SdkEnvironment.visibleFor], applied to the import target.
      */
     @VisibleForTesting
     internal fun sdkVisibleForImportTarget(sdk: Sdk): Boolean =
-        SdkEnvironment.sdkVisibleFor(importTargetDescriptor(), sdk)
+        SdkEnvironment.visibleFor(importTargetDescriptor())(sdk)
 
     /**
      * Create a new ProjectSdksModel instance rather than using ProjectStructureConfigurable's
@@ -193,3 +194,19 @@ class ElixirSdkForModuleStep(private val wizardContext: WizardContext) : ModuleW
         }
     }
 }
+
+/**
+ * [ElixirInternalErlangSdkSetup.erlangSdkOrAsk] for [sdk], a new SDK in this combo's [sdksModel], asked over this combo,
+ * which then selects [sdk], or nothing on Cancel.
+ */
+@RequiresEdt
+private fun JdkComboBox.erlangSdkOrAsk(sdksModel: ProjectSdksModel, sdk: Sdk): Sdk? =
+    ElixirInternalErlangSdkSetup.erlangSdkOrAsk(sdksModel, sdk, this).also { erlangSdk ->
+        if (erlangSdk == null) {
+            // Selecting null doesn't reload the combo's list; selecting an SDK does.
+            reloadModel()
+            selectedJdk = null
+        } else {
+            selectedJdk = sdk
+        }
+    }

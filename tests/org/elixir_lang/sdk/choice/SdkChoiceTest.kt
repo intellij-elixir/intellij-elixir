@@ -14,6 +14,7 @@ import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.platform.eel.EelDescriptor
+import com.intellij.platform.eel.EelOsFamily
 import com.intellij.platform.eel.provider.getEelDescriptor
 import com.intellij.testFramework.common.runAll
 import com.intellij.testFramework.registerOrReplaceServiceInstance
@@ -352,6 +353,16 @@ class SdkChoiceTest : HeavyTestCase() {
         assertEquals(listOf("Choice homeless"), state.names())
     }
 
+    fun testRetargetingToAnotherEnvironmentListsTheTableAgain() {
+        val state = state()
+        elixir("Choice later")
+        assertEmpty(state.names())
+
+        state.retarget(Elsewhere)
+
+        assertEquals(listOf("Choice later"), state.names())
+    }
+
     fun testAddsErlangStepIsGivenTheTargetsErlangSdks() {
         SdkFixtures.register(
             SdkFixtures.erlangSdk("Choice WSL Erlang", "${LEGACY_WSL_PREFIX}IntellijElixirWSLDistribution\\home\\user\\erlang"),
@@ -377,6 +388,12 @@ class SdkChoiceTest : HeavyTestCase() {
 
     private fun state(project: Project = this.project, target: EelDescriptor? = project.getEelDescriptor()): SdkChoiceState =
         SdkChoiceState(project, target, null).also { Disposer.register(testRootDisposable, it) }
+
+    /** An environment no Eel resolver knows, so every SDK is visible for it. */
+    private object Elsewhere : EelDescriptor {
+        override val name = "elsewhere"
+        override val osFamily = EelOsFamily.Posix
+    }
 
     private fun dialog(): SdkChoiceDialog =
         SdkChoiceDialog(null, listOf(module), state()).also { Disposer.register(testRootDisposable, it.disposable) }

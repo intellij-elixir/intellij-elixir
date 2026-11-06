@@ -5,14 +5,15 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
+import com.intellij.openapi.projectRoots.SdkType
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.ui.configuration.JdkComboBox
+import com.intellij.openapi.roots.ui.configuration.SdkListItem
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.platform.eel.provider.getEelDescriptor
 import com.intellij.testFramework.common.runAll
 import com.intellij.testFramework.registerOrReplaceServiceInstance
 import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.new_project_wizard.pickDetected
 import org.elixir_lang.sdk.SdkDetectionContext
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.elixir.Type
@@ -377,4 +378,14 @@ class ElixirSdkForModuleStepTest : PlatformTestCase() {
             moduleStep.projectSdksModel.projectSdks.size
         )
     }
+}
+
+/** A home the combo detected, picked as the user picks it: the platform sets it up, then calls the combo's callback. */
+private fun JdkComboBox.pickDetected(home: String) {
+    // SuggestedItem's constructor is package-private; detection itself needs a dialog parent.
+    val item = SdkListItem.SuggestedItem::class.java
+        .getDeclaredConstructor(SdkType::class.java, String::class.java, String::class.java)
+        .apply { isAccessible = true }
+        .newInstance(Type.instance, "1.18.4", home)
+    setSelectedItem(item)
 }

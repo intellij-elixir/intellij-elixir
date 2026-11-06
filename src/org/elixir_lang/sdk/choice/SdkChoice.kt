@@ -37,7 +37,7 @@ data class SdkChoiceEntry(val sdk: Sdk, val erlang: Erlang?) {
 @Suppress("UnstableApiUsage") // EelDescriptor is the platform's only name for an environment.
 class SdkChoiceState @RequiresEdt constructor(
     val project: Project,
-    private val target: EelDescriptor?,
+    private var target: EelDescriptor?,
     private val firstName: String?,
 ) : Disposable {
     private val model = ProjectSdksModel()
@@ -74,6 +74,14 @@ class SdkChoiceState @RequiresEdt constructor(
     /** Lists the table's Elixir SDKs again, keeping the pick while the table still has that SDK, renamed or not. */
     @RequiresEdt
     fun reload() = reload(selected?.sdk)
+
+    /** Lists the Elixir SDKs of [target]'s environment, keeping the pick while it is one of them. */
+    @RequiresEdt
+    fun retarget(target: EelDescriptor?) {
+        if (target == this.target) return
+        this.target = target
+        reload()
+    }
 
     /** Lists the table's Elixir SDKs again and picks the table's [sdk], when it is listed. */
     private fun reload(sdk: Sdk?) {
