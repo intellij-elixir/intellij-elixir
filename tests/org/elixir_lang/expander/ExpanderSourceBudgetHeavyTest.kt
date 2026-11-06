@@ -10,7 +10,6 @@ import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiFile
-import com.intellij.psi.impl.PsiManagerEx
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.replaceService
 import org.elixir_lang.declaration.Use
@@ -139,7 +138,7 @@ class ExpanderSourceBudgetHeavyTest : HeavyTestCase() {
                 retained.getOrPut(case) { mutableListOf() } += after - cleared
                 rows.append("$case\t$round\t$before\t$after\t$cleared\t${after - cleared}\t${after - before}\t$indexed\n")
                 held = null
-                dropPsi()
+                dropPsi(project)
             }
         }
 
@@ -167,14 +166,6 @@ class ExpanderSourceBudgetHeavyTest : HeavyTestCase() {
             release(holder, held.filterIsInstance<PsiFile>())
             Disposer.dispose(disposable)
         }
-    }
-
-    /**
-     * Drops every file's PSI, so the next holder starts on new PSI: a holder keeps a file's expansion on its PSI under a
-     * key of its own, so PSI read again would still hold each earlier holder's.
-     */
-    private fun dropPsi() {
-        WriteAction.runAndWait<Throwable> { PsiManagerEx.getInstanceEx(project).fileManager.cleanupForNextTest() }
     }
 
     /** Lets go of what [holder] keeps on each of [files]' PSI, under the keys it holds privately. */

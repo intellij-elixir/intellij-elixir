@@ -1,10 +1,12 @@
 package org.elixir_lang.expander
 
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
+import com.intellij.psi.impl.PsiManagerEx
 import com.intellij.util.system.OS
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.ElixirFile
@@ -22,6 +24,14 @@ internal fun exports(
     atom: String,
     inputs: ProjectModules.Inputs = legInputs,
 ): ModuleExports = ReadAction.nonBlocking(Callable { holder.exports(asker, atom, inputs) }).executeSynchronously()
+
+/**
+ * Drops every file's PSI in [project], so the next holder starts on new PSI: a holder keeps a file's expansion on its
+ * PSI under a key of its own, so PSI read again would still hold each earlier holder's.
+ */
+internal fun dropPsi(project: Project) {
+    WriteAction.runAndWait<Throwable> { PsiManagerEx.getInstanceEx(project).fileManager.cleanupForNextTest() }
+}
 
 /** [file]'s expansion from a holder that has cached nothing. */
 internal fun freshExpansion(project: Project, file: PsiFile, inputs: ProjectModules.Inputs = legInputs): FileExpansion =
