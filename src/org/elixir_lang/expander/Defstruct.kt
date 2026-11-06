@@ -64,13 +64,11 @@ private fun defstruct(
     val results = queued.firstNotNullOfOrNull { (it as? Pending.Match)?.node?.let(output::results) }
     val effect = DefstructEffect(
         node,
-        module,
         output,
         { compiling, bindings -> fieldsAt(watched, node, compiling, state, env, run, bindings) },
         { default, compiling, bindings -> compiling.values.evaluate(default, state, env, run, bindings) },
         kept,
         results.orEmpty(),
-        compiling.statements,
         run,
     ).takeIf { expansion is Expansion.Expanded && definitions.size == output.definitionCount }
 
@@ -334,7 +332,7 @@ private fun combined(nodes: List<ElixirAst>, level: ElixirLanguageLevel): Value 
 }
 
 /**
- * The effect of a `defstruct` at [node] on [module] once the body has run to it: `Kernel.Utils.defstruct`'s checks
+ * The effect of a `defstruct` at [node] on its module once the body has run to it: `Kernel.Utils.defstruct`'s checks
  * and the record, its result bound to the output's [results], the variables the definitions of `__struct__/0` and
  * `__struct__/1` unquote, and the struct it gives as the output's value, each default [evaluate]d where the body is.
  * [queued] is what the output queued that runs after it: its definitions, and up to 1.13 the `case` on
@@ -342,13 +340,11 @@ private fun combined(nodes: List<ElixirAst>, level: ElixirLanguageLevel): Value 
  */
 private class DefstructEffect(
     private val node: ElixirAst.Call,
-    private val module: String,
     private val output: StructOutput,
     private val fields: (Compiling, HashMap<Binding, OtpErlangObject>) -> Fields,
     private val evaluate: (ElixirAst, Compiling, HashMap<Binding, OtpErlangObject>) -> Evaluated,
     private val queued: List<Pending>,
     private val results: Map<String, ElixirAst>,
-    private val statements: Statements,
     private val run: Run,
 ) {
     private val level = run.level
@@ -449,7 +445,7 @@ private class DefstructEffect(
     }
 
     /** What the output queued after the effect, as statements where the `defstruct` is one. */
-    fun queued(): List<Pending> = queued.map { if (statement && !it.isStatement(statements)) it.asStatement() else it }
+    fun queued(): List<Pending> = queued.map { if (statement && !it.isStatement) it.asStatement() else it }
 }
 
 /**
