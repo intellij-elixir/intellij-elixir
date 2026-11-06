@@ -77,7 +77,7 @@ class ToolManagerErlangAskTest : HeavyTestCase() {
     }
 
     fun testWithSeveralSdksOnTheInstallACancelledChooserRegistersAndAssignsNothing() {
-        val onTheInstall = twoSdksOnTheInstall()
+        val onTheInstall = twoSdksOnTheInstall(elixirHome, "Tool manager")
         val recorded = RecordedChooser(testRootDisposable)
         val moduleSdkBefore = assignedSdk()
 
@@ -111,7 +111,7 @@ class ToolManagerErlangAskTest : HeavyTestCase() {
     }
 
     fun testModulesOnOneInstallWithSeveralSdksAreAskedForOnce() {
-        val pick = twoSdksOnTheInstall()[1]
+        val pick = twoSdksOnTheInstall(elixirHome, "Tool manager")[1]
         val recorded = RecordedChooser(testRootDisposable) { state -> state.entries.single { it.sdk.name == pick.name } }
         val other = createModule("Tool manager several SDKs module")
         val decided = elixirModule()
@@ -132,7 +132,7 @@ class ToolManagerErlangAskTest : HeavyTestCase() {
     }
 
     fun testBothUndecidedCasesAskOncePerGroup() {
-        twoSdksOnTheInstall()
+        twoSdksOnTheInstall(elixirHome, "Tool manager")
         val recorded = RecordedChooser(testRootDisposable)
         val sharing = createModule("Tool manager sharing module")
         val onSeveral = elixirModule()
@@ -190,19 +190,8 @@ class ToolManagerErlangAskTest : HeavyTestCase() {
         checker.configureSdks(moduleNames.associateWith { shared })
     }
 
-    /** Two Elixir SDKs on the install, each paired with an Erlang SDK of its own. */
-    private fun twoSdksOnTheInstall(): List<Sdk> =
-        listOf(install("27", "27.3.4"), install("26", "26.2.5")).mapIndexed { index, erlangHome ->
-            SdkFixtures.commitPairing(
-                SdkFixtures.register(SdkFixtures.elixirSdk("Tool manager Elixir $index", elixirHome)),
-                registeredErlang("Tool manager Erlang $index", erlangHome),
-            )
-        }
-
     private fun elixirModule(): Module =
         doCreateRealModuleIn("Tool manager Elixir module", project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
-
-    private fun registeredErlang(name: String, home: String): Sdk = SdkFixtures.register(SdkFixtures.erlangSdk(name, home))
 
     private fun script(vararg answers: StepAnswer): ScriptedErlangStep =
         ScriptedErlangStep(asked, *answers).install(testRootDisposable)

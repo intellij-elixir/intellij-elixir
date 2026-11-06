@@ -24,6 +24,19 @@ import org.elixir_lang.sdk.erlang_dependent.install
 /** The table's Elixir SDKs at [home]. */
 internal fun elixirSdksAt(home: String): List<Sdk> = ProjectJdkTable.getInstance().allJdks.filter { SdkRegistrar.onInstall(it, home) }
 
+/** An Erlang SDK named [name] at [home], in the table. */
+internal fun registeredErlang(name: String, home: String): Sdk = SdkFixtures.register(SdkFixtures.erlangSdk(name, home))
+
+/** An Elixir SDK named [name] at [elixirHome], in the table, paired with [erlang]. */
+internal fun pairedElixir(name: String, elixirHome: String, erlang: Sdk): Sdk =
+    SdkFixtures.commitPairing(SdkFixtures.register(SdkFixtures.elixirSdk(name, elixirHome)), erlang)
+
+/** Two Elixir SDKs at [elixirHome], named from [prefix], each paired with an Erlang SDK of its own. */
+internal fun twoSdksOnTheInstall(elixirHome: String, prefix: String): List<Sdk> =
+    listOf(install("27", "27.3.4"), install("26", "26.2.5")).mapIndexed { index, erlangHome ->
+        pairedElixir("$prefix Elixir $index", elixirHome, registeredErlang("$prefix Erlang $index", erlangHome))
+    }
+
 class ToolManagerSdkAssignmentTest : HeavyTestCase() {
     private val checker get() = ToolManagerSdkChecker(project, emptyList(), ToolManagerSettings())
     private lateinit var table: SdkFixtures.TableSnapshot
