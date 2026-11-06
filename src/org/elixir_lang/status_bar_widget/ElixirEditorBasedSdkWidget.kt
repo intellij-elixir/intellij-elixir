@@ -567,7 +567,7 @@ class ElixirEditorBasedSdkWidget(
         )
     }
 
-    private suspend fun collectNotificationScanIoData(modelData: NotificationScanModelData): NotificationScanIoData {
+    private fun collectNotificationScanIoData(modelData: NotificationScanModelData): NotificationScanIoData {
         val snapshot = modelData.projectSdkSnapshot
         // The single-arg overload is used deliberately to keep honouring isSuppressOtpMismatchWarning.
         val projectSdkOtpMismatch = snapshot.elixirSdk?.let { elixirSdk -> detectOtpMismatch(elixirSdk) }

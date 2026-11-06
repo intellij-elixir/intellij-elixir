@@ -59,13 +59,7 @@ object ElixirSdkLookup {
     private val LOG = com.intellij.openapi.diagnostic.logger<ElixirSdkLookup>()
 
     @RequiresReadLock
-    fun mostSpecificSdk(module: Module): Sdk? = resolve(module).sdk
-
-    @RequiresReadLock
     fun mostSpecificSdk(psiElement: PsiElement): Sdk? = resolve(psiElement).sdk
-
-    @RequiresReadLock
-    fun mostSpecificSdk(project: Project): Sdk? = resolve(project).sdk
 
     /** Resolves to [ElixirSdkResolution.Ready] or [ElixirSdkResolution.MissingElixirSdk]. */
     @RequiresReadLock
