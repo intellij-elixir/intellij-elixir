@@ -203,7 +203,7 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
         awaitingModelApply = true
     }
 
-    /** The model holding the copy [apply] wrote has applied it to the table. */
+    /** The model holding the copy [apply] wrote has applied it to the table, or [reset] reads the copy again. */
     fun applied() {
         initialName = sdk.name
         initialPath = sdk.homePath
@@ -211,6 +211,7 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
     }
 
     override fun reset() {
+        applied()
         // Only read, and left uncommitted: ConfigurableCardPanel calls this inside a read action.
         val sdkModificator = sdk.sdkModificator
         for (type in sdkPathEditorByOrderRootType.keys) {
@@ -228,6 +229,17 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
         for (i in 0 until tabbedPane.tabCount) {
             tabbedPane.setEnabledAt(i, true)
         }
+    }
+
+    /**
+     * Shows the copy again where nothing is edited: all of it when unmodified, else each path list. Another page's
+     * Apply may write the copy's roots, as an Erlang SDK's editor repairs an Elixir copy's code paths, and [apply]
+     * writes every path list.
+     */
+    fun refresh() {
+        if (!isModified) return reset()
+        val sdkModificator = sdk.sdkModificator
+        sdkPathEditorByOrderRootType.values.filterNot(SdkPathEditor::isModified).forEach { it.reset(sdkModificator) }
     }
 
     override fun disposeUIResources() {

@@ -48,14 +48,12 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
 
     override fun apply() {
         var edited = emptyList<Editor>()
-        sdksService.apply(projectSdksModel, removedCopies) {
+        sdksService.apply(projectSdksModel, page, removedCopies) {
             edited = editorByProjectJdkImpl.values.filter(Editor::isModified)
             edited.forEach(Editor::apply)
         }
         edited.forEach(Editor::applied)
-        removedCopies.clear()
         addedCopies.clear()
-        sdkList.refresh()
     }
 
     override fun createComponent(): JComponent? {
@@ -98,9 +96,9 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
         sdksService.projectJdkImplList(sdkType().javaClass).filter { it !in removedCopies }
 
     override fun reset() {
-        // The shared model is populated once (SdksService.initModel) and kept in sync via the
-        // SdkModel listeners; do NOT reset it here - re-cloning would invalidate the SDK objects
-        // held by other open SDK views (and break removeSdk, whose findSdk matches by identity).
+        // The shared model is populated once (SdksService.getModel); do NOT reset it here - re-cloning
+        // would invalidate the SDK objects held by other open SDK views (and break removeSdk, whose
+        // findSdk matches by identity).
         sdkList.refresh()
     }
 
@@ -125,6 +123,20 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
      */
     private var sdkModelListener: SdkModel.Listener? = null
 
+    private val page = object : SdksService.Page {
+        override fun editedCopies(): Collection<Sdk> = editorByProjectJdkImpl.filterValues(Editor::isModified).keys
+
+        override fun close(copy: Sdk) {
+            removedCopies.removeIf { it === copy }
+            closeEditor(copy)
+        }
+
+        override fun modelChanged() {
+            editorByProjectJdkImpl.values.forEach(Editor::refresh)
+            sdkList.refresh()
+        }
+    }
+
     private fun addListeners() {
         val listener = object : SdkModel.Listener {
             override fun sdkAdded(sdk: Sdk) {
@@ -138,6 +150,7 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
         }
         projectSdksModel.addListener(listener)
         sdkModelListener = listener
+        sdksService.addPage(page)
         sdkList.selectionModel.addListSelectionListener { event ->
             if (!event.valueIsAdjusting) {
                 updateSdkPanel(sdkList.selectedValue)
@@ -148,11 +161,11 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     override fun disposeUIResources() {
         sdkModelListener?.let { projectSdksModel.removeListener(it) }
         sdkModelListener = null
-        unappliedAdds().forEach(projectSdksModel::removeSdk)
+        sdksService.removePage(page, isModified)
+        sdksService.takeOut(unappliedAdds())
         addedCopies.clear()
         removedCopies.clear()
         editorByProjectJdkImpl.clear()
-        sdksService.discardUnapplied(projectSdksModel)
     }
 
     private fun addSdk() {
@@ -170,8 +183,12 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
      */
     internal fun removeSelectedSdk(selected: ProjectJdkImpl) {
         removedCopies += selected
-        editorByProjectJdkImpl.remove(selected)?.let { editor -> sdkPanel.getValue(editor, false)?.let(sdkPanel::remove) }
+        closeEditor(selected)
         sdkList.refresh()
+    }
+
+    private fun closeEditor(copy: Sdk) {
+        editorByProjectJdkImpl.remove(copy)?.let { editor -> sdkPanel.getValue(editor, false)?.let(sdkPanel::remove) }
     }
 
     private fun updateSdkPanel(selectedValue: ProjectJdkImpl?) {

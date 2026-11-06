@@ -5,6 +5,7 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkAdditionalData
+import com.intellij.openapi.projectRoots.SdkModificator
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.roots.OrderRootType
@@ -139,10 +140,14 @@ internal object SdkFixtures {
         elixirSdk.also { commit(it, ElixirSdkAdditionalData(erlangSdk, it)) }
 
     @RequiresEdt
-    fun commit(sdk: Sdk, data: SdkAdditionalData?) {
+    fun commit(sdk: Sdk, data: SdkAdditionalData?) = commit(sdk) { sdkAdditionalData = data }
+
+    /** Commits [change] to [sdk] itself, as a writer outside any model does. */
+    @RequiresEdt
+    fun commit(sdk: Sdk, change: SdkModificator.() -> Unit) {
         WriteAction.run<Throwable> {
             sdk.sdkModificator.apply {
-                sdkAdditionalData = data
+                change()
                 commitChanges()
             }
         }
