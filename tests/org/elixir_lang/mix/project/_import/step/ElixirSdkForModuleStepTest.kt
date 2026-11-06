@@ -38,7 +38,7 @@ import java.nio.file.Path
  * three kinds of assertions:
  * - locally observable behaviour: a local import target resolves to the local descriptor,
  *   visibility is permissive when an environment cannot be determined, and the post-reset sync
- *   loop ([ElixirSdkForModuleStep.addImportTargetSdks] via updateStep()) never adds spurious SDKs
+ *   loop ([org.elixir_lang.sdk.SdkEnvironment.syncTargetSdks] via updateStep()) never adds spurious SDKs
  *   or marks the model modified for a local-only import;
  * - plumbing: paths are routed through WslCompatService's prefix normalization before descriptor
  *   resolution (via a recording service);
@@ -281,8 +281,6 @@ class ElixirSdkForModuleStepTest : PlatformTestCase() {
         )
     }
 
-    // updateStep() -- reset + addImportTargetSdks() end to end
-
     fun testUpdateStepPopulatesLocalSdkWithoutModifyingModel() {
         val sdk = registerElixirSdk("Local Elixir", homePath = localImportDirectory())
         val moduleStep = step(localImportDirectory())
@@ -330,9 +328,6 @@ class ElixirSdkForModuleStepTest : PlatformTestCase() {
 
         moduleStep.updateStep()
 
-        // Environment-independent end state: on machines without WSL reset() already kept the SDK
-        // (its home is owned by the local environment there); on machines with WSL reset() filters
-        // it out and addImportTargetSdks() re-adds it because the normalized descriptors match.
         assertTrue(
             "A WSL SDK must be in the model when importing from the same distro via the other prefix",
             moduleStep.projectSdksModel.projectSdks.containsKey(sdk)
