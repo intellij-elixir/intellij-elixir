@@ -2337,6 +2337,29 @@ class ModuleExpanderTest : ExpanderTestCase() {
         }
 
     /**
+     * A splice in a head whose value isn't known, which may be a list of any length, stops the definition there: Elixir
+     * defines `spliced/1` where the app env doesn't set it.
+     */
+    fun testAHeadWithASpliceOfAValueNotKnownStops() =
+        assertLevels(
+            """
+            defmodule S do
+              args = Application.get_env(:app, :args, [1])
+              def spliced(unquote_splicing(args)), do: :ok
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.S")}
+            module Elixir.S stopped `unquote_splicing(args)`
+              def unnamed
+              body: expanded {args:0} next 1 context [Elixir.S]
+              def unnamed unordered: unported `unquote_splicing(args)`
+            """.trimIndent()
+        }
+
+    /**
      * `unquote` inserts its value as quoted code, in which a tuple of three is a call and of four or more isn't code at
      * all, so such a value is not a tuple literal in the definition.
      */
