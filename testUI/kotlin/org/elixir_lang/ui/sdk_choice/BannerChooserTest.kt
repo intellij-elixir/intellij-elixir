@@ -83,7 +83,7 @@ class BannerChooserTest {
                 rows.check(row, "the module inherits it as the project SDK", moduleInheritsSdk())
                 val saved = savedTo(project.resolve(".idea/misc.xml"), """project-jdk-name="$elixir"""")
                 rows.check(row, "misc.xml names '$elixir' as the project SDK", saved)
-                val entries = project.resolve("$NAME.iml").readText().lines().filter { "<orderEntry" in it }.map(String::trim)
+                val entries = imlLines(project.resolve("$NAME.iml"), "<orderEntry")
                 rows.check(row, "the .iml has no SDK entry of its own: $entries", entries.none { "type=\"jdk\"" in it })
             }.onFailure { failure -> failed(rows, row, failure) }
         }
@@ -102,12 +102,9 @@ class BannerChooserTest {
         ui.dialog(xQuery { byTitle(TITLE) }) {
             waitUntilReady()
             val list = jBlist()
-            val entries = list.items
-            val entry = entries.firstOrNull { it.startsWith("$elixir ") }
-            rows.check(row, "the chooser lists '$elixir' paired with '$erlang': $entries", entry?.contains("Erlang SDK '$erlang'") == true)
-            rows.check(row, "nothing is picked: ${list.selectedItems}", list.selectedItems.isEmpty())
+            rows.listsPairedWithNothingPicked(row, list, elixir, erlang)
             rows.check(row, "OK is disabled before a pick", !x { byAccessibleName("OK") }.isEnabled())
-            list.clickItemAtIndex(entries.indexOf(checkNotNull(entry) { "no entry '$elixir' in the chooser: $entries" }))
+            list.pickEntry(elixir)
             clickButtonText("OK")
         }
     }
@@ -119,7 +116,7 @@ class BannerChooserTest {
     }
 
     private fun Driver.failed(rows: Rows, row: String, failure: Throwable) =
-        failedErlangStepRow(rows, row, failure) { if (dialogShown(TITLE)) ui.x(xQuery { byTitle(TITLE) }).clickButtonText("Cancel") }
+        failedErlangStepRow(rows, row, failure) { cancelDialogs(TITLE) }
 
     private companion object {
         const val NAME = "banner_chooser"
