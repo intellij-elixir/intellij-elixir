@@ -540,7 +540,7 @@ internal class ProjectModules(private val project: Project) {
         val receivers = if (records) ReceiverIndex() else null
         val lowering = Lowering.of(file, inputs.level)
         val expansion = Expander.expandFile(
-            lowering.lower(file),
+            lowering.lower(file).let { if (file.isDecompiled()) compilerOutput(it) { writtenDefinitions(file) } else it },
             top,
             inputs.level,
             { ask(it).exports },

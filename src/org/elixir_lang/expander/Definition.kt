@@ -1102,7 +1102,7 @@ private fun store(
     )
 
 /** `assert_valid_name/5`: the error a definition of [name] and [arity] raises, as one the compiler defines. */
-private fun reservedNameError(kind: Kind, name: String, arity: Int): String? =
+internal fun reservedNameError(kind: Kind, name: String, arity: Int): String? =
     when (name) {
         "__info__" if arity == 1 -> "__info__"
         "module_info" if arity in 0..1 -> "module_info"
