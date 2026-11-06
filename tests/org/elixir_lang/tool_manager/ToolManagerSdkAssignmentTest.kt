@@ -11,18 +11,25 @@ import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.testFramework.common.runAll
+import junit.framework.TestCase.assertTrue
 import org.elixir_lang.Facet
 import org.elixir_lang.facet.FacetModelFixtures
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.fakeHome
+import org.elixir_lang.sdk.SdkFixtures.storedErlangHome
 import org.elixir_lang.sdk.SdkRegistrar
 import org.elixir_lang.sdk.choice.RecordedChooser
 import org.elixir_lang.sdk.erlang_dependent.elixirInstall
 import org.elixir_lang.sdk.erlang_dependent.install
+import org.elixir_lang.sdk.wsl.wslCompat
 
 /** The table's Elixir SDKs at [home]. */
 internal fun elixirSdksAt(home: String): List<Sdk> = ProjectJdkTable.getInstance().allJdks.filter { SdkRegistrar.onInstall(it, home) }
+
+/** Asserts that [sdk] is paired with the Erlang SDK at [erlangHome]. */
+internal fun assertPairedWithErlangAt(sdk: Sdk, erlangHome: String) =
+    assertTrue("paired with the Erlang at $erlangHome: ${storedErlangHome(sdk)}", wslCompat.pathsEqualWslAware(storedErlangHome(sdk), erlangHome))
 
 /** An Erlang SDK named [name] at [home], in the table. */
 internal fun registeredErlang(name: String, home: String): Sdk = SdkFixtures.register(SdkFixtures.erlangSdk(name, home))

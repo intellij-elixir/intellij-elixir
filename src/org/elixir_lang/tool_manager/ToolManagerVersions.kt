@@ -11,4 +11,7 @@ interface ToolManagerVersions {
     val toolManagerName: String
     val elixir: ToolEntry?
     val erlang: ToolEntry?
+
+    /** Whether an Elixir SDK can be made from these pins: the Elixir pin is installed, and so is the Erlang one if any. */
+    val isConfigurable: Boolean get() = elixir?.installed == true && erlang?.installed != false
 }
