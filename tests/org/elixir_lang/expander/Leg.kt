@@ -72,8 +72,10 @@ internal fun legAppEnv(
 private val legEbins: List<File> by lazy { appEbins("ELIXIR_LANG_ELIXIR_PATH") + appEbins("ERLANG_SDK_HOME") }
 
 /** Each app's `ebin` under the `lib` of the install the leg's [variable] names. */
-internal fun appEbins(variable: String): List<File> =
-    File(LegManifest.environment(variable), "lib").listFiles { app -> app.isDirectory }.orEmpty().map { File(it, "ebin") }
+internal fun appEbins(variable: String): List<File> = appEbins(File(LegManifest.environment(variable), "lib"))
+
+/** Each app's `ebin` in [lib], a directory of apps. */
+internal fun appEbins(lib: File): List<File> = lib.listFiles { app -> app.isDirectory }.orEmpty().map { File(it, "ebin") }
 
 internal fun legBeam(module: String): File? = legEbins.map { File(it, "$module.beam") }.firstOrNull(File::isFile)
 

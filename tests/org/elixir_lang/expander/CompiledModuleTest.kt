@@ -10,9 +10,7 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
-import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiFileFactory
-import com.intellij.psi.PsiManager
 import com.intellij.psi.ResolveState
 import com.intellij.util.ThrowableRunnable
 import junit.framework.Test
@@ -56,9 +54,7 @@ class CompiledModuleTest private constructor(
     override fun setUp() {
         super.setUp()
 
-        appBeams.values.map { it.parentFile.parentFile.parentFile.path }.distinct().forEach {
-            VfsRootAccess.allowRootAccess(testRootDisposable, it)
-        }
+        allowAppBeamRoots(testRootDisposable)
     }
 
     override fun runShared(serve: ThrowableRunnable<Throwable>) {
@@ -412,12 +408,7 @@ class CompiledModuleTest private constructor(
             ?: throw AssertionError("$beam isn't read")
 
     /** [beam]'s mirror: its decompiled source. */
-    private fun mirror(beam: File): ElixirFile =
-        ReadAction.computeBlocking<ElixirFile, Throwable> {
-            val file = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(beam)!!
-
-            (PsiManager.getInstance(project).findFile(file) as PsiCompiledFile).decompiledPsiFile as ElixirFile
-        }
+    private fun mirror(beam: File): ElixirFile = mirrorOf(project, beam)!!
 
     /** The clauses of each definition of [mirror]'s module, by kind, name and arity, in source order. */
     private fun mirrorClauses(mirror: ElixirFile): Map<Triple<String, String, Int>, List<Call>> =

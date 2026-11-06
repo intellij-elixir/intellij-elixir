@@ -22,14 +22,13 @@ import com.intellij.psi.PsiManager
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.beam.BeamLibraryFixture
-import org.elixir_lang.code_insight.GtduNavigation
-import org.elixir_lang.code_insight.gtduNavigationAtCaret
 import org.elixir_lang.code_insight.parameterInfoSignaturesAtCaret
 import org.elixir_lang.declaration.*
 import org.elixir_lang.documentation.quickDocumentationAtCaret
 import org.elixir_lang.elixir_surface.LegManifest
+import org.elixir_lang.expander.ExpanderSourceRows.candidates
 import org.elixir_lang.expander.ExpanderSourceRows.read
-import org.elixir_lang.expander.ExpanderSourceRows.render
+import org.elixir_lang.expander.ExpanderSourceRows.rows
 import org.elixir_lang.expander.ExpanderSourceRows.withExpanderSwitch
 import org.elixir_lang.mix.library.CONSOLIDATED_LIBRARY_BASE_NAME
 import org.elixir_lang.mix.sync.MixSyncTestHelpers
@@ -598,13 +597,6 @@ class SourceOfCompiledHeavyTest : LegSdkFixtureTestCase() {
 
     private fun dir(path: String): VirtualFile = myFixture.findFileInTempDir(path)
 
-    private fun caller(text: String): PsiFile {
-        val file = myFixture.addFileToProject(CALLER, text.trimIndent() + "\n")
-        IndexingTestUtil.waitUntilIndexesAreReady(project)
-
-        return file
-    }
-
     /** The 1-based lines in the leg SDK's [path] of the first line starting [head], then of each clause of its name after it. */
     private fun sdkHeads(path: String, head: String): List<Int> {
         val lines = LegManifest.source(path).readLines()
@@ -615,15 +607,7 @@ class SourceOfCompiledHeavyTest : LegSdkFixtureTestCase() {
         return listOf(at + 1) + (at + 1 until lines.size).filter { lines[it].trim().startsWith(clause) }.map { it + 1 }
     }
 
-    /** `label: rendered` pairs, one block each, so one comparison shows every row that differs. */
-    private fun rows(vararg rows: Pair<String, String>): String = rows.joinToString("\n\n") { (label, rendered) -> "$label:\n$rendered" }
-
     private fun lines(prefix: String, vararg lines: Int): String = lines.joinToString("\n") { "$prefix line $it" }
-
-    /** The expander's candidates for the call [call], which occurs once in [file], rendered one per line. */
-    private fun candidates(file: PsiFile, call: String): String = candidates(use(file, call))
-
-    private fun candidates(use: Use): String = render(read { ExpanderSource.candidates(use, false) })
 
     /** The expander's candidates for the capture `&`[name]`/`[arity], which occurs once in [file]. */
     private fun capture(file: PsiFile, name: String, arity: Int): String =
@@ -632,20 +616,8 @@ class SourceOfCompiledHeavyTest : LegSdkFixtureTestCase() {
     /** The use that is the call [call], which occurs once in [file]. */
     private fun use(file: PsiFile, call: String): Use.OfCall = ExpanderSourceRows.use(file, call, call)
 
-    /** Where Go to Declaration at [marked] in the caller lands: each target's file, relative, and line. */
-    private fun destinations(marked: String): String {
-        myFixture.caret(CALLER, marked)
-
-        return when (val navigation = myFixture.gtduNavigationAtCaret()) {
-            is GtduNavigation.GotoDeclaration -> navigation.targets.map { target -> read { place(target.destination!!) } }.sorted().joinToString("\n")
-            GtduNavigation.None -> "none"
-            is GtduNavigation.ShowUsages -> "show usages"
-        }
-    }
-
     private companion object {
         val FIXTURES: File = File("testData/org/elixir_lang/expander/source_of_compiled").absoluteFile
-        const val CALLER = "lib/caller.ex"
         const val PROTOCOL_BEAM = "Elixir.SourceOfCompiled.Protocol.beam"
 
         /** The lines of the heads `phoenix_component.ex` writes for `assign`. */
