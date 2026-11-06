@@ -447,10 +447,10 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
         assertEquals(
             "top expanded\nmodule Elixir.A compiled [/proj/0 def]",
-            file(code, tables = true, run = RunInputs(OS.Linux, FILE, CompileDirectories { "/proj" })),
+            file(code, tables = true, run = RunInputs(OS.Linux, FILE, directories = { "/proj" })),
         )
         assertEquals(stopped, file(code, tables = true, run = RunInputs(OS.Linux, FILE)))
-        assertEquals(stopped, file(code, tables = true, run = RunInputs(OS.Linux, null, CompileDirectories { "/proj" })))
+        assertEquals(stopped, file(code, tables = true, run = RunInputs(OS.Linux, null, directories = { "/proj" })))
     }
 
     /** A call that declined may have changed the directory, so the directory after it is not known. */
@@ -463,7 +463,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
         assertEquals(
             "top expanded\nmodule Elixir.A stopped `unquote(:erlang.binary_to_atom(:unicode.characters_to_binary(cwd), :utf8))` []",
-            file(code, tables = true, run = RunInputs(OS.Linux, FILE, CompileDirectories { "/proj" })),
+            file(code, tables = true, run = RunInputs(OS.Linux, FILE, directories = { "/proj" })),
         )
     }
 
@@ -474,17 +474,17 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
         assertEquals(
             "top expanded\nmodule Elixir.M compiled [cd/0 defmacro]\nmodule Elixir.A stopped `M.cd()` []\nmodule Elixir.B stopped `$CWD_NAME` []",
-            file(code, tables = true, run = RunInputs(OS.Linux, FILE, CompileDirectories { "/proj" })),
+            file(code, tables = true, run = RunInputs(OS.Linux, FILE, directories = { "/proj" })),
         )
     }
 
     /** A module that stopped may have run code after the stop that changed the directory a later module reads. */
     fun testTheWorkingDirectoryAfterAStoppedModuleIsUnknown() {
-        val code = "defmodule A do\n  quote(location: :other, do: 1)\nend\n" + CWD_MODULE
+        val code = "defmodule A do\n  quote(location: :other, do: 1)\nend\n$CWD_MODULE"
 
         assertEquals(
             "top expanded\nmodule Elixir.A stopped `quote(location: :other, do: 1)` []\nmodule Elixir.B stopped `$CWD_NAME` []",
-            file(code, tables = true, run = RunInputs(OS.Linux, FILE, CompileDirectories { "/proj" })),
+            file(code, tables = true, run = RunInputs(OS.Linux, FILE, directories = { "/proj" })),
         )
     }
 
@@ -495,17 +495,17 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
         assertEquals(
             "top expanded\nmodule Elixir.A stopped `$CWD_NAME` []",
-            file(code, tables = true, run = RunInputs(OS.Linux, FILE, CompileDirectories { "/proj" })),
+            file(code, tables = true, run = RunInputs(OS.Linux, FILE, directories = { "/proj" })),
         )
     }
 
     /** A loop that goes on past an iteration that declined leaves the directory unknown too. */
     fun testTheWorkingDirectoryAfterALoopWhoseIterationDeclinedIsUnknown() {
-        val code = "defmodule A do\n  x = for i <- [1, 2], do: (:file.set_cwd(\"/other\"); i)\n  y = Enum.map([1], fn i -> :file.set_cwd(\"/other\"); i end)\n  def f, do: unquote(x ++ y)\nend\n" + CWD_MODULE
+        val code = "defmodule A do\n  x = for i <- [1, 2], do: (:file.set_cwd(\"/other\"); i)\n  y = Enum.map([1], fn i -> :file.set_cwd(\"/other\"); i end)\n  def f, do: unquote(x ++ y)\nend\n$CWD_MODULE"
 
         assertEquals(
             "top expanded\nmodule Elixir.A compiled [f/0 def]\nmodule Elixir.B stopped `$CWD_NAME` []",
-            file(code, tables = true, run = RunInputs(OS.Linux, FILE, CompileDirectories { "/proj" })),
+            file(code, tables = true, run = RunInputs(OS.Linux, FILE, directories = { "/proj" })),
         )
     }
 
@@ -515,7 +515,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
         assertEquals(
             "top expanded\nmodule Elixir.A compiled [c:/proj/0 def]",
-            file(code, tables = true, run = RunInputs(OS.Windows, "c:/proj/lib/a.ex", CompileDirectories { "C:/proj" })),
+            file(code, tables = true, run = RunInputs(OS.Windows, "c:/proj/lib/a.ex", directories = { "C:/proj" })),
         )
     }
 
@@ -524,7 +524,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
      * is in the run's file where that directory is known, and moved after code that may have changed it.
      */
     fun testARelativeFileOfADefinitionIsMovedAfterTheDirectoryMayHaveChanged() {
-        val run = RunInputs(OS.Linux, "/proj/lib/a.ex", CompileDirectories { "/proj" })
+        val run = RunInputs(OS.Linux, "/proj/lib/a.ex", directories = { "/proj" })
         val code = { cd: String ->
             "defmodule A do\n  $cd\n  @file \"lib/a.ex\"\n  defmacro n, do: __ENV__.file\nend\n" +
                 "defmodule B do\n  require A\n  def unquote(:erlang.binary_to_atom(A.n(), :utf8))(), do: 1\nend"
@@ -1596,7 +1596,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
         val module = expandedModule(code)
 
-        assertEquals(true, (module.ended as ExpansionResult.Ended.Stopped).mayRaise)
+        assertEquals(true, (module.ended as Ended.Stopped).mayRaise)
         assertTrue(module.units.single { it.owner == later() }.expansion is Expansion.Expanded)
     }
 
@@ -3011,7 +3011,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             use("use:leg-" + module.lowercase(), "", options, SourceRun.NONE, after = after, module = module)
 
         /** A `for` the evaluator declines, which holds a `def` whose name isn't known. */
-        val UNNAMED_IN_DECLINED_FOR = "for x <- String.to_charlist(inspect(self())) do\n    def unquote(x)(), do: 1\n  end"
+        const val UNNAMED_IN_DECLINED_FOR = "for x <- String.to_charlist(inspect(self())) do\n    def unquote(x)(), do: 1\n  end"
 
         /** A `def` named by whether the table holds `g/0`: unnamed where that isn't known. */
         const val NAMED_BY_DEFINES_OF_G = "def unquote(if Module.defines?(__MODULE__, {:g, 0}), do: :y, else: :n)(), do: 1"
