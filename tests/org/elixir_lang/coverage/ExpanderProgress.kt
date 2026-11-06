@@ -139,8 +139,8 @@ internal class ExpanderProgress(
         const val EXPANDED = "expanded"
 
         /**
-         * Sets up the Mix project at [dir] in [module]: the leg's Elixir as its SDK, and `lib`, `test` and each
-         * dependency as [PhoenixCorpus] lays them out. Fails when indexing has not finished, since a lookup in dumb
+         * Sets up the Mix project at [dir] in [module]: the leg's Elixir as its SDK, and its root, `lib`, `test` and
+         * each dependency as [PhoenixCorpus] lays them out. Fails when indexing has not finished, since a lookup in dumb
          * mode answers unreadable and would read as a stop.
          */
         fun setUp(project: Project, module: IdeaModule, disposable: Disposable, dir: File): PhoenixCorpus {
