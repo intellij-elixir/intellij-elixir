@@ -255,6 +255,32 @@ class SourceOfCompiledHeavyTest : LegSdkFixtureTestCase() {
         )
     }
 
+    /** A head written as another kind than the `.beam` exports its name and arity as, or private, declares none of it. */
+    fun testAHeadOfAnotherKindOrVisibilityDeclaresNoExport() {
+        dependency()
+        val file = caller(
+            """
+            defmodule Caller do
+              require SourceOfCompiled.Unexported
+
+              def macro(x), do: SourceOfCompiled.Unexported.f(x)
+              def public(x), do: SourceOfCompiled.Unexported.h(x)
+            end
+            """
+        )
+
+        assertEquals(
+            rows(
+                "macro" to "SourceOfCompiled.Unexported.f/1 OWN VALID via [] line 12",
+                "public" to "SourceOfCompiled.Unexported.h/1 OWN VALID via [] line 14",
+            ),
+            rows(
+                "macro" to candidates(file, "SourceOfCompiled.Unexported.f(x)"),
+                "public" to candidates(file, "SourceOfCompiled.Unexported.h(x)"),
+            ),
+        )
+    }
+
     /**
      * A library with CLASSES only keeps the `.beam`, though a sibling library attaches the same module's source, and so
      * does its protocol, whose consolidated copy's library has CLASSES only too.

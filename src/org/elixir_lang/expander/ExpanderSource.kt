@@ -753,7 +753,13 @@ internal object ExpanderSource : CandidateSource {
         }
 
         return NameIndex.of(exports).named(name).flatMap { nameArity ->
-            val written = heads?.named(nameArity.name).orEmpty().filter { it.declaration.arity.admits(nameArity.arity) }
+            val macro = nameArity in exports.macros
+            // Only a public head of the export's kind can write it.
+            val written = heads?.named(nameArity.name).orEmpty().filter { head ->
+                val capabilities = head.declaration.capabilities
+
+                capabilities.public && capabilities.compileTime == macro && head.declaration.arity.admits(nameArity.arity)
+            }
 
             if (written.isEmpty()) {
                 listOfNotNull(decompiled(nameArity))
