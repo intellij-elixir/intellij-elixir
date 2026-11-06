@@ -9,6 +9,7 @@ import com.intellij.openapi.projectRoots.SdkType
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.ui.Splitter
 import com.intellij.openapi.util.ActionCallback
+import com.intellij.openapi.util.Disposer
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.navigation.History
@@ -163,6 +164,8 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
         sdksService.takeOut(unappliedAdds())
         addedCopies.clear()
         removedCopies.clear()
+        // Disposes each editor it built, which stop following the shared model.
+        if (::sdkPanel.isInitialized) Disposer.dispose(sdkPanel)
         editorByProjectJdkImpl.clear()
     }
 

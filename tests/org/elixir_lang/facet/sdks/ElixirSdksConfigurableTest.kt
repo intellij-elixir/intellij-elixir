@@ -12,12 +12,14 @@ import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.ui.Splitter
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.testFramework.LeakHunter
 import com.intellij.testFramework.TestActionEvent
 import com.intellij.testFramework.common.runAll
 import com.intellij.ui.ToolbarDecorator
 import java.util.concurrent.atomic.AtomicBoolean
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.facet.SdksService
+import org.elixir_lang.facet.sdk.Editor
 import org.elixir_lang.facet.sdk.Model
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkFixtures
@@ -1083,6 +1085,25 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         // One listener left on the shared, app-lifetime model would accumulate per Settings open.
         model.addSdk(ProjectJdkImpl("Elixir Listener B", ElixirSdkType.instance))
         assertFalse("listener must be removed on disposeUIResources; got ${page.listed()}", "Elixir Listener B" in page.listed())
+    }
+
+    fun testAClosedPagesEditorsStopFollowingTheModel() {
+        val elixir = registerPairedElixirSdk("Elixir Editor Closed")
+        val page = openPage()
+        page.select(elixir)
+        val erlangCombo = page.erlangCombo
+        val model = service().getModel()
+        fun offered() = (0 until erlangCombo.itemCount).mapNotNull { (erlangCombo.getItemAt(it) as? Sdk)?.name }
+
+        model.addSdk(ProjectJdkImpl("Erlang Added While Open", ErlangSdkType.instance))
+        assertTrue("sanity: the open editor offers an Erlang SDK its model adds; got ${offered()}", "Erlang Added While Open" in offered())
+
+        page.cancel()
+
+        // An editor left listening to the shared, app-lifetime model would accumulate per Settings open.
+        LeakHunter.checkLeak(model, Editor::class.java)
+        model.addSdk(ProjectJdkImpl("Erlang Added After Close", ErlangSdkType.instance))
+        assertFalse("the closed page's editor no longer follows the model; got ${offered()}", "Erlang Added After Close" in offered())
     }
 
     fun testRemovedSdkDoesNotGhostInChooser() {
