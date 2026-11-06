@@ -414,39 +414,18 @@ If you've already created a (non-`mix`) project, you can load it as an Elixir pr
 
 #### New
 
-If you want to create a basic (non-`mix`) Elixir project with a `lib` directory, perform the following steps.
+To create a project with `mix new`:
 
 1. File > New > Project
 
    ![File > New > Project](/screenshots/features/project/New.png?raw=true "New Project")
-2. Select Elixir from the project type menu on the left
-3. Click Next
+2. Select Elixir from the generator list on the left.
+3. Enter the project's Name and Location.
+4. (Optionally) expand **mix new Options** to set `--app`, `--module`, `--sup` or `--umbrella`.
+5. Under **Elixir SDK:**, pick an Elixir SDK from the list, which shows each with its Erlang SDK and picks none for you, or click **Add...** to add one. Create is refused until you pick one.
+6. Click Create.
 
-   ![File > New > Project > Elixir](/screenshots/features/project/new/Elixir.png?raw=true "New Elixir Project")
-4. Select a Project SDK directory by clicking Configure.
-
-   ![Project SDK](/screenshots/features/project/SDK.png?raw=true "Project SDK")
-5. Select a Project SDK directory by clicking Configure.
-6. The plugin will automatically find the newest version of Elixir installed.
-   * macOS / OSX
-     * Homebrew (`/usr/local/Cellar/elixir`)
-     * Nix (`/nix/store`)
-   * Linux
-     * `/usr/local/lib/elixir`
-     * Nix and NixOS (`/nix/store`)
-   * Windows
-     * 64-bit (`C:\Program Files\Elixir`)
-     * 32-bit (`C:\Program Files (x86)\Elixir`)
-   * (**NOTE: SDK detection only works for the locations above. [Open an issue](https://github.com/intellij-elixir/intellij-elixir/issues) with information about Elixir install locations on your operating system and package manager to have SDK detection added for it.**)
-7. If the automatic detection doesn't find your Elixir SDK or you want to use an older version, manually select select the directory above the `bin` directory containing `elixir`, `elixirc`, `iex`, and `mix`.  If the `bin`, `lib,` or `src` directory is incorrectly selected, it will be corrected to the parent directory.
-8. Click Next after you select SDK name from the Project SDK list.
-9. Change the `Project name` to the name your want for the project
-   ![File > New > Project > Settings](/screenshots/features/project/new/Settings.png?raw=true "New Elixir Project Settings")
-10. (Optionally) change the `Project location` if the directory does not match what you want
-11. (Optionally) expand `More Settings` to change the `Module name`, `Content root`, `Module file location`, and/or `Project format`.  The defaults derived from the `Project name` and `Project location` should work for most projects.
-12. Click Finish
-13. Choose whether to open in a New Window or in This Window.
-    ![File > New > Project > Window](/screenshots/features/project/new/Settings.png?raw=true "Open Project in New Window or This Window")
+File > New > Module offers the same Elixir generator, and adds a module of the name you enter to the open project, with the Elixir SDK you pick.
 
 ### Project Structure
 
@@ -494,7 +473,6 @@ The plugin supports running Elixir, Mix, and IEx commands within WSL. This inclu
 
 #### WSL Limitations
 
-* **New Project Wizard**: SDK selection is based on the location of the currently open project, not the new project. To select a WSL based SDK during the New Project Wizard, open any WSL project or directory in the IDE first. 
 * **SDKs and Project must all be on the same WSL Distribution**: You cannot use a WSL based SDK with a non-WSL project, and vice versa. You can use the `/mnt/c` drive to access Windows files from WSL, but the performance is terrible. 
 * **Build system (Ctrl+F9)**: The IDE build system only works when the **Project SDK** is set to a **JDK 21+** in the same WSL distribution, and all **Module SDKs** are set to the correct **Elixir SDK**.
 * **Performance**: Running the IDE in Windows with a WSL project is slower than running the IDE directly in the WSL instance. This is a limitation of the IDE, not specific to the Elixir plugin.  

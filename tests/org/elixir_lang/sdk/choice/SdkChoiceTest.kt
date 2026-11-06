@@ -1,7 +1,10 @@
 package org.elixir_lang.sdk.choice
 
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.module.Module
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
@@ -10,21 +13,31 @@ import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.Disposer
+import com.intellij.platform.eel.EelDescriptor
+import com.intellij.platform.eel.EelOsFamily
+import com.intellij.platform.eel.provider.getEelDescriptor
 import com.intellij.testFramework.common.runAll
+import com.intellij.testFramework.registerOrReplaceServiceInstance
 import org.elixir_lang.Facet
 import org.elixir_lang.facet.FacetModelFixtures
 import org.elixir_lang.junit.HeavyTestCase
+import org.elixir_lang.sdk.SdkEnvironment
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.fakeHome
 import org.elixir_lang.sdk.SdkFixtures.storedErlangName
 import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.elixir.SettingsPage
+import org.elixir_lang.sdk.elixir.Type as ElixirType
 import org.elixir_lang.sdk.erlang_dependent.Asked
 import org.elixir_lang.sdk.erlang_dependent.ScriptedErlangStep
 import org.elixir_lang.sdk.erlang_dependent.ScriptedFileChooserFactory
 import org.elixir_lang.sdk.erlang_dependent.StepAnswer
 import org.elixir_lang.sdk.erlang_dependent.elixirInstall
 import org.elixir_lang.sdk.erlang_dependent.install
+import org.elixir_lang.sdk.wsl.LEGACY_WSL_PREFIX
+import org.elixir_lang.sdk.wsl.MODERN_WSL_PREFIX
+import org.elixir_lang.sdk.wsl.MockWslCompatService
+import org.elixir_lang.sdk.wsl.WslCompatService
 import javax.swing.JPanel
 
 /** The chooser on IntelliJ IDEA, asked for this test's modules, with its dialog answered by the test. */
@@ -58,10 +71,10 @@ class SdkChoiceTest : HeavyTestCase() {
     }
 
     /** Add...'s create flow scripted: the home chooser picks a new Elixir install, and the Erlang step answers [answer]. */
-    private fun scriptAdd(answer: StepAnswer) {
+    private fun scriptAdd(answer: StepAnswer): ScriptedErlangStep {
         SdkFixtures.register(SdkFixtures.erlangSdk("Choice installed Erlang", install("27", "27.3.4")), testRootDisposable)
         ScriptedFileChooserFactory(asked, elixirInstall("1.18.4", "27")).install(testRootDisposable)
-        ScriptedErlangStep(asked, answer).install(testRootDisposable)
+        return ScriptedErlangStep(asked, answer).install(testRootDisposable)
     }
 
     private val pickInstalledErlang: StepAnswer = ScriptedErlangStep.pick("Choice installed Erlang")
@@ -72,7 +85,7 @@ class SdkChoiceTest : HeavyTestCase() {
 
     /** Asks the chooser for [modules], its dialog answered by [answer] from what it shows. */
     private fun ask(answer: (SdkChoiceState) -> SdkChoiceEntry?, modules: List<Module> = listOf(module)): Sdk? =
-        SdkChoice { _, state ->
+        SdkChoice { _, _, state ->
             shown += state
             answer(state)
         }.ask(project, modules)
@@ -97,7 +110,7 @@ class SdkChoiceTest : HeavyTestCase() {
 
         assertEquals(
             listOf("Choice paired  Erlang SDK 'Choice Erlang', OTP 27.3.4", "Choice unpaired  no Erlang SDK"),
-            dialog.state.entries.map(dialog::rowText),
+            dialog.panel.state.entries.map(dialog.panel::rowText),
         )
     }
 
@@ -115,7 +128,7 @@ class SdkChoiceTest : HeavyTestCase() {
 
         assertFalse("nothing is picked yet", dialog.isOKActionEnabled)
 
-        dialog.pick(dialog.state.entries.single())
+        dialog.panel.pick(dialog.panel.state.entries.single())
 
         assertTrue(dialog.isOKActionEnabled)
     }
@@ -124,9 +137,9 @@ class SdkChoiceTest : HeavyTestCase() {
         elixir("Choice unpaired")
         val dialog = dialog()
 
-        dialog.pick(dialog.state.entries.single())
+        dialog.panel.pick(dialog.panel.state.entries.single())
 
-        assertEquals("Choice unpaired", dialog.state.selected?.sdk?.name)
+        assertEquals("Choice unpaired", dialog.panel.state.selected?.sdk?.name)
     }
 
     fun testOnIntellijIdeaTheSdkTheFacetNamesGoesFirst() {
@@ -209,11 +222,11 @@ class SdkChoiceTest : HeavyTestCase() {
         scriptAdd(pickInstalledErlang)
         val dialog = dialog()
 
-        dialog.add()
+        dialog.panel.addButton.doClick()
 
         val created = Facet.sdks().single()
-        assertEquals(listOf(created.name), dialog.state.names())
-        assertEquals(created.name, dialog.state.selected?.sdk?.name)
+        assertEquals(listOf(created.name), dialog.panel.state.names())
+        assertEquals(created.name, dialog.panel.state.selected?.sdk?.name)
         assertTrue(dialog.isOKActionEnabled)
     }
 
@@ -240,19 +253,19 @@ class SdkChoiceTest : HeavyTestCase() {
         elixir("Choice A")
         scriptAdd(ScriptedErlangStep.cancel)
         val dialog = dialog()
-        dialog.pick(dialog.state.entries.single())
+        dialog.panel.pick(dialog.panel.state.entries.single())
 
-        dialog.add()
+        dialog.panel.addButton.doClick()
 
         assertEquals(listOf("Choice A"), Facet.sdks().map { it.name })
-        assertEquals("Choice A", dialog.state.selected?.sdk?.name)
+        assertEquals("Choice A", dialog.panel.state.selected?.sdk?.name)
         assertTrue(dialog.isOKActionEnabled)
     }
 
     fun testManageSdksOpensTheSdksPage() {
         val recorded = RecordedChooser(testRootDisposable)
 
-        dialog().manageSdksLink.doClick()
+        dialog().panel.manageSdksLink.doClick()
 
         assertEquals(listOf(project to SettingsPage.SDKS), recorded.settingsOpened)
     }
@@ -260,13 +273,13 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testAnSdkAddedToTheTableIsListedAndThePickKept() {
         elixir("Choice A")
         val dialog = dialog()
-        dialog.pick(dialog.state.entries.single())
+        dialog.panel.pick(dialog.panel.state.entries.single())
 
         elixir("Choice B")
         SdkFixtures.settle()
 
-        assertEquals(listOf("Choice A", "Choice B"), dialog.state.names())
-        assertEquals("Choice A", dialog.state.selected?.sdk?.name)
+        assertEquals(listOf("Choice A", "Choice B"), dialog.panel.state.names())
+        assertEquals("Choice A", dialog.panel.state.selected?.sdk?.name)
         assertTrue(dialog.isOKActionEnabled)
     }
 
@@ -274,13 +287,13 @@ class SdkChoiceTest : HeavyTestCase() {
         val picked = elixir("Choice A")
         elixir("Choice B")
         val dialog = dialog()
-        dialog.pick(dialog.state.entries.first())
+        dialog.panel.pick(dialog.panel.state.entries.first())
 
         WriteAction.run<Throwable> { ProjectJdkTable.getInstance().removeJdk(picked) }
         SdkFixtures.settle()
 
-        assertEquals(listOf("Choice B"), dialog.state.names())
-        assertNull(dialog.state.selected)
+        assertEquals(listOf("Choice B"), dialog.panel.state.names())
+        assertNull(dialog.panel.state.selected)
         assertFalse(dialog.isOKActionEnabled)
     }
 
@@ -292,7 +305,7 @@ class SdkChoiceTest : HeavyTestCase() {
         SdkFixtures.commitPairing(unpaired, erlang)
         SdkFixtures.settle()
 
-        assertEquals(listOf("Choice unpaired  Erlang SDK 'Choice Erlang', OTP 27.3.4"), dialog.state.entries.map(dialog::rowText))
+        assertEquals(listOf("Choice unpaired  Erlang SDK 'Choice Erlang', OTP 27.3.4"), dialog.panel.state.entries.map(dialog.panel::rowText))
     }
 
     fun testAddKeepsAPairingCommittedWhileTheChooserIsOpen() {
@@ -302,7 +315,7 @@ class SdkChoiceTest : HeavyTestCase() {
         val dialog = dialog()
 
         SdkFixtures.commitPairing(unpaired, erlang)
-        dialog.add()
+        dialog.panel.addButton.doClick()
 
         assertEquals("Choice Erlang", storedErlangName(unpaired))
     }
@@ -310,18 +323,78 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testRenamingThePickedSdkKeepsThePick() {
         elixir("Choice A")
         val dialog = dialog()
-        dialog.pick(dialog.state.entries.single())
+        dialog.panel.pick(dialog.panel.state.entries.single())
 
         SdkFixtures.renameInTable("Choice A", "Choice A renamed")
         SdkFixtures.settle()
 
-        assertEquals("Choice A renamed", dialog.state.selected?.sdk?.name)
+        assertEquals("Choice A renamed", dialog.panel.state.selected?.sdk?.name)
         assertTrue(dialog.isOKActionEnabled)
     }
 
-    private fun dialog(): SdkChoiceDialog {
-        val state = SdkChoiceState(project, listOf(module))
-        Disposer.register(testRootDisposable, state)
-        return SdkChoiceDialog(null, state).also { Disposer.register(testRootDisposable, it.disposable) }
+    fun testADefaultProjectStateWithAWslTargetListsThatDistrosSdksOnceAcrossReloads() {
+        val home = "${LEGACY_WSL_PREFIX}IntellijElixirWSLDistribution\\home\\user\\elixir"
+        SdkFixtures.register(SdkFixtures.elixirSdk("Choice WSL", home), testRootDisposable)
+        val state = wslTargetState()
+
+        state.reload()
+        state.reload()
+
+        // Without WSL both paths are local, and `reset` keeps the SDK; with it, the sync adds it back. Either way, once.
+        assertEquals(listOf("Choice WSL"), state.names())
     }
+
+    fun testAnSdkWithNoHomeIsListedOnce() {
+        SdkFixtures.register(ProjectJdkImpl("Choice homeless", ElixirType.instance), testRootDisposable)
+        val state = wslTargetState()
+
+        state.reload()
+
+        assertEquals(listOf("Choice homeless"), state.names())
+    }
+
+    fun testRetargetingToAnotherEnvironmentListsTheTableAgain() {
+        val state = state()
+        elixir("Choice later")
+        assertEmpty(state.names())
+
+        state.retarget(Elsewhere)
+
+        assertEquals(listOf("Choice later"), state.names())
+    }
+
+    fun testAddsErlangStepIsGivenTheTargetsErlangSdks() {
+        SdkFixtures.register(
+            SdkFixtures.erlangSdk("Choice WSL Erlang", "${LEGACY_WSL_PREFIX}IntellijElixirWSLDistribution\\home\\user\\erlang"),
+            testRootDisposable,
+        )
+        val step = scriptAdd(ScriptedErlangStep.cancel)
+
+        wslTargetState().add(JPanel())
+
+        assertContainsElements(step.offered.single().mapNotNull { it.sdk?.name }, "Choice WSL Erlang", "Choice installed Erlang")
+    }
+
+    /** A wizard's state: the default project's, for a project directory in a WSL distro. */
+    private fun wslTargetState(): SdkChoiceState {
+        ApplicationManager.getApplication().registerOrReplaceServiceInstance(
+            WslCompatService::class.java,
+            MockWslCompatService(),
+            testRootDisposable,
+        )
+        val target = SdkEnvironment.eelDescriptor("${MODERN_WSL_PREFIX}IntellijElixirWSLDistribution\\home\\user\\project")
+        return state(ProjectManager.getInstance().defaultProject, target)
+    }
+
+    private fun state(project: Project = this.project, target: EelDescriptor? = project.getEelDescriptor()): SdkChoiceState =
+        SdkChoiceState(project, target, null).also { Disposer.register(testRootDisposable, it) }
+
+    /** An environment no Eel resolver knows, so every SDK is visible for it. */
+    private object Elsewhere : EelDescriptor {
+        override val name = "elsewhere"
+        override val osFamily = EelOsFamily.Posix
+    }
+
+    private fun dialog(): SdkChoiceDialog =
+        SdkChoiceDialog(null, listOf(module), state()).also { Disposer.register(testRootDisposable, it.disposable) }
 }

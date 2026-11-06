@@ -2,16 +2,21 @@ package org.elixir_lang.ui.sdk_choice
 
 import com.intellij.driver.client.Driver
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
+import com.intellij.driver.sdk.ui.components.elements.JListUiComponent
 import com.intellij.driver.sdk.ui.ui
+import com.intellij.driver.sdk.ui.xQuery
 import com.intellij.driver.sdk.waitFor
 import org.elixir_lang.ui.framework.core.IdeTestContext
 import org.elixir_lang.ui.framework.core.NoScreen
 import org.elixir_lang.ui.framework.core.addElixirSdkFromDisk
 import org.elixir_lang.ui.framework.core.addErlangSdkFromDisk
+import org.elixir_lang.ui.framework.core.clickButtonText
 import org.elixir_lang.ui.framework.core.ensureWelcomeScreenInForeground
+import org.elixir_lang.ui.sdk_settings.Rows
 import org.elixir_lang.ui.sdk_settings.addElixirOnPage
 import org.elixir_lang.ui.sdk_settings.addErlangOnPage
 import org.elixir_lang.ui.sdk_settings.closeInternalErrors
+import org.elixir_lang.ui.sdk_settings.dialogShown
 import java.nio.file.Path
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.copyToRecursively
@@ -98,3 +103,29 @@ internal fun Driver.clickBannerLabel(text: String) {
     waitFor("the banner's '$text'", 2.minutes) { label.present() }
     label.click()
 }
+
+/** The chooser's [list] lists [elixir] paired with [erlang], and nothing is picked. */
+internal fun Rows.listsPairedWithNothingPicked(row: String, list: JListUiComponent, elixir: String, erlang: String) {
+    val entries = list.items
+    check(row, "the chooser lists '$elixir' paired with '$erlang': $entries", entries.entryOf(elixir)?.contains("Erlang SDK '$erlang'") == true)
+    check(row, "nothing is picked: ${list.selectedItems}", list.selectedItems.isEmpty())
+}
+
+/** Picks [elixir] in the chooser's list. */
+internal fun JListUiComponent.pickEntry(elixir: String) {
+    val entries = items
+    clickItemAtIndex(entries.indexOf(checkNotNull(entries.entryOf(elixir)) { "no entry '$elixir' in the chooser: $entries" }))
+}
+
+private fun List<String>.entryOf(elixir: String): String? = firstOrNull { it.startsWith("$elixir ") }
+
+/** Cancels each dialog titled one of [titles] that is shown, in order. */
+internal fun Driver.cancelDialogs(vararg titles: String) {
+    for (title in titles) {
+        if (dialogShown(title)) ui.x(xQuery { byTitle(title) }).clickButtonText("Cancel")
+    }
+}
+
+/** The lines of the module file [iml], trimmed, that start with one of [tags]. */
+internal fun imlLines(iml: Path, vararg tags: String): List<String> =
+    iml.readText().lines().map(String::trim).filter { line -> tags.any(line::startsWith) }

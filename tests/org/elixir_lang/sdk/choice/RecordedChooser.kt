@@ -25,7 +25,7 @@ internal class RecordedChooser(disposable: Disposable, answer: (SdkChoiceState) 
 
     init {
         val application = ApplicationManager.getApplication()
-        application.replaceService(SdkChoice::class.java, SdkChoice { _, state -> chooserAsked += state.modules; answer(state) }, disposable)
+        application.replaceService(SdkChoice::class.java, SdkChoice { _, modules, state -> chooserAsked += modules; answer(state) }, disposable)
         application.replaceService(SdkSettingsOpener::class.java, object : SdkSettingsOpener {
             override fun open(event: AnActionEvent, page: SettingsPage) {
                 settingsOpened += event.project to page

@@ -14,8 +14,8 @@ import java.nio.file.Path
 
 /**
  * Execution-environment identity for SDK homes and wizard target directories, shared by the
- * import wizard ([org.elixir_lang.mix.project._import.step.ElixirSdkForModuleStep]) and the New
- * Project wizard ([org.elixir_lang.new_project_wizard.elixirSdkComboBox]).
+ * import wizard ([org.elixir_lang.mix.project._import.step.ElixirSdkForModuleStep]) and the
+ * chooser ([org.elixir_lang.sdk.choice.SdkChoiceState]).
  *
  * ProjectSdksModel.reset() filters SDKs to the project's environment, but during import and New
  * Project the wizard supplies the default project, which always resolves to the local
@@ -68,10 +68,13 @@ object SdkEnvironment {
      * Whether the SDK should be visible for [targetDescriptor]: hides SDKs from other
      * environments (e.g. local SDKs when the wizard targets WSL), mirroring the environment
      * filtering that ProjectSdksModel.reset() applies for opened projects. Permissive when
-     * either environment cannot be determined, so SDK validation stays the deciding factor.
+     * either environment cannot be determined, so SDK validation stays the deciding factor. A predicate so
+     * [targetDescriptor]'s Eel machine is resolved once per scan, not once per SDK.
      */
-    fun sdkVisibleFor(targetDescriptor: EelDescriptor?, sdk: Sdk): Boolean =
-        sdk.homePath?.takeUnless(String::isBlank)?.let(homesInEnvironmentOf(targetDescriptor)) ?: true
+    fun visibleFor(targetDescriptor: EelDescriptor?): (Sdk) -> Boolean {
+        val inEnvironment = homesInEnvironmentOf(targetDescriptor)
+        return { sdk -> sdk.homePath?.takeUnless(String::isBlank)?.let(inEnvironment) ?: true }
+    }
 
     /**
      * Whether a candidate home runs in the same environment as [home]; true when either cannot be determined. A

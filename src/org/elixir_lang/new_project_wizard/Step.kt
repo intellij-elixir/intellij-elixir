@@ -4,6 +4,7 @@ import com.intellij.execution.ExecutionException
 import com.intellij.execution.process.ProcessOutput
 import com.intellij.execution.util.ExecUtil
 import com.intellij.ide.JavaUiBundle
+import com.intellij.ide.highlighter.ModuleFileType
 import com.intellij.ide.util.projectWizard.WizardContext
 import com.intellij.ide.wizard.AbstractNewProjectWizardStep
 import com.intellij.ide.wizard.NewProjectWizardBaseData
@@ -11,40 +12,31 @@ import com.intellij.ide.wizard.NewProjectWizardBaseData.Companion.baseData
 import com.intellij.ide.wizard.NewProjectWizardStep
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.observable.properties.ObservableMutableProperty
 import com.intellij.openapi.observable.properties.ObservableProperty
 import com.intellij.openapi.observable.util.not
-import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.projectRoots.ProjectJdkTable
+import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.projectRoots.SdkTypeId
-import com.intellij.openapi.roots.ui.configuration.JdkComboBox
-import com.intellij.openapi.roots.ui.configuration.SdkListItem
-import com.intellij.openapi.roots.ui.configuration.createSdkComboBox
-import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
-import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.NlsContexts
+import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.ui.dsl.builder.*
-import com.intellij.ui.layout.ValidationInfoBuilder
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import kotlinx.coroutines.CancellationException
 import org.elixir_lang.Mix
-import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.module.ElixirModuleBuilder
 import org.elixir_lang.sdk.SdkDetectionContext
 import org.elixir_lang.sdk.SdkEnvironment
-import org.elixir_lang.sdk.elixir.ElixirInternalErlangSdkSetup
-import org.elixir_lang.sdk.elixir.Type
-import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResolver
+import org.elixir_lang.sdk.choice.SdkChoicePanel
+import org.elixir_lang.sdk.choice.SdkChoiceState
+import org.elixir_lang.sdk.erlang_dependent.getErlangSdk
 import java.io.IOException
 import java.nio.file.Paths
 import com.intellij.openapi.application.ReadAction
@@ -63,9 +55,6 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
     override val mixNewSupProperty = propertyGraph.property(false)
     override val mixNewUmbrellaProperty = propertyGraph.property(false)
 
-    // The selected SDK's Erlang SDK, when the combo's step paired it, for setupProject to add to the table.
-    private var erlangSdkForSetup: Sdk? = null
-
     override var sdk by sdkProperty
     override var mixNewApp by mixNewAppProperty
     override var mixNewModule by mixNewModuleProperty
@@ -76,8 +65,7 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
     override fun setupUI(builder: Panel) {
         with(builder) {
             row("Elixir SDK:") {
-                elixirSdkComboBox(context, sdkProperty, pathProperty) { erlangSdkForSetup = it }
-                    .columns(COLUMNS_MEDIUM)
+                elixirSdkChooser(context, sdkProperty, pathProperty).align(AlignX.FILL)
             }
             @Suppress("DialogTitleCapitalization")
             collapsibleGroup("mix new Options") {
@@ -135,25 +123,6 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
             val sdk = this.sdk!!
             val workingDirectory = Paths.get(".").toAbsolutePath().normalize().toString()
             val projectDirectory = context.projectDirectory.toString()
-
-            // Re-register both SDKs if the workspace-model sync has wiped them from
-            // ProjectJdkTable. This sync fires ~5s after IDE start (delayLoadGlobalWorkspaceModel
-            // in JpsGlobalModelSynchronizerImpl) and replaces in-memory SDKs with whatever was
-            // on disk at that moment - before our SDKs were registered. setupProject runs on
-            // the EDT so no sync can interleave between addJdk and the resolver call.
-            ApplicationManager.getApplication().runWriteAction {
-                val jdkTable = ProjectJdkTable.getInstance()
-                // The Erlang SDK first: added after the Elixir SDK, its `jdkAdded` would set that SDK up again.
-                erlangSdkForSetup?.let { erlangSdk ->
-                    if (jdkTable.findJdk(erlangSdk.name) == null) {
-                        jdkTable.addJdk(erlangSdk)
-                    }
-                }
-                if (jdkTable.findJdk(sdk.name) == null) {
-                    jdkTable.addJdk(sdk)
-                }
-            }
-            erlangSdkForSetup = null  // Clear after use; Step is wizard-scoped so no leak, but signals intent
 
             // Mix.commandLine() -> argsOrThrow() -> requireErlangSdkOrNotifyAndThrow()
             // -> findErlangSdkByHomePath() asserts a read lock; acquire one here.
@@ -213,25 +182,7 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
 
             super.setupProject(project)
 
-            val builder = ElixirModuleBuilder()
-
-            // Always set moduleJdk rather than context.projectJdk so the Elixir plugin never claims the project SDK slot.
-            // The project SDK belongs to the host language (Java, Python, etc.) and is not required for Elixir functionality.
-            builder.moduleJdk = sdk
-
-            // Set the source paths even when there are none: JavaModuleBuilder.getSourcePaths()
-            // creates and returns <contentRoot>/src when they were never set at all, which would
-            // leave a stray empty src/ in an umbrella root.
-            builder.sourcePaths = MixNewOptions
-                .sourcePath(projectDirectory, mixNewUmbrella)
-                ?.let { listOf(com.intellij.openapi.util.Pair(it, "")) }
-                .orEmpty()
-
-            MixNewOptions
-                .compilerOutputPath(projectDirectory, name, mixNewApp, mixNewUmbrella)
-                ?.let(builder::setCompilerOutputPath)
-
-            builder.commit(project)
+            moduleBuilder(sdk).commit(project)
         } catch (e: ExecutionException) {
             Logger.getInstance(javaClass).warn("mix new failed", e)
             throw e
@@ -241,97 +192,70 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
             throw ioException
         }
     }
+
+    /**
+     * The builder of the module `mix new` made, which writes [sdk] as its Elixir SDK. It is named and placed from this
+     * step's name and location, as `IntelliJNewProjectWizardStep.configureModuleBuilder` does: left unset, New Module
+     * would write the project's own module file.
+     */
+    internal fun moduleBuilder(sdk: Sdk): ElixirModuleBuilder {
+        val projectDirectory = context.projectDirectory.toString()
+        val builder = ElixirModuleBuilder()
+        builder.name = name
+        builder.moduleFilePath = FileUtil.toSystemDependentName(Paths.get(projectDirectory, name + ModuleFileType.DOT_DEFAULT_EXTENSION).toString())
+        builder.contentEntryPath = FileUtil.toSystemDependentName(projectDirectory)
+        builder.elixirSdk = sdk
+
+        // Set the source paths even when there are none: JavaModuleBuilder.getSourcePaths()
+        // creates and returns <contentRoot>/src when they were never set at all, which would
+        // leave a stray empty src/ in an umbrella root.
+        builder.sourcePaths = MixNewOptions
+            .sourcePath(projectDirectory, mixNewUmbrella)
+            ?.let { listOf(com.intellij.openapi.util.Pair(it, "")) }
+            .orEmpty()
+
+        MixNewOptions
+            .compilerOutputPath(projectDirectory, name, mixNewApp, mixNewUmbrella)
+            ?.let(builder::setCompilerOutputPath)
+
+        return builder
+    }
 }
 
-private val ELIXIR_SDK_TYPE_FILTER = { it: SdkTypeId -> it == Type.instance; }
-private val ANY_SDK_TYPE_FILTER: ((SdkTypeId) -> Boolean) = { true }
-private val ANY_SUGGESTED_SDK_FILTER: ((SdkListItem.SuggestedItem) -> Boolean) = { true }
 private val APPLICATION_NAME_REGEX: Regex = Regex("[a-z]([a-z0-9_])*")
 
-fun Row.elixirSdkComboBox(
-    context: WizardContext,
-    sdkProperty: ObservableMutableProperty<Sdk?>,
-    locationProperty: ObservableProperty<String>? = null,
-    onErlangSdkForSetup: (Sdk?) -> Unit = {},
-): Cell<JdkComboBox> {
-    val sdksModel = ProjectSdksModel()
-
-    Disposer.register(context.disposable) {
-        SdkDetectionContext.clear()
-        sdksModel.disposeUIResources()
-    }
-
-    fun locationDirectory(): String? = locationProperty?.get()?.takeUnless(String::isBlank)
-    fun targetDescriptor() = locationDirectory()?.let { SdkEnvironment.eelDescriptor(it) }
-
-    // A new Elixir SDK's Erlang SDK, asked for when it has none, goes to setupProject, which adds both to the table,
-    // while that SDK is the one selected.
-    val erlangSdkForSetup = mutableMapOf<Sdk, Sdk>()
-    // comboBox is assigned after this lambda but will be initialised by the time the callback fires.
-    lateinit var comboBox: JdkComboBox
-    val newSdkCallback: (Sdk) -> Unit = { sdk ->
-        comboBox.erlangSdkOrAsk(sdksModel, sdk)?.let { erlangSdk ->
-            erlangSdkForSetup[sdk] = erlangSdk
-            onErlangSdkForSetup(erlangSdk)
-        }
-    }
-
-    comboBox = createSdkComboBox(
-        context.project,
-        sdksModel,
-        sdkProperty,
-        ELIXIR_MODULE_TYPE_ID,
-        ELIXIR_SDK_TYPE_FILTER,
-        { sdk -> SdkEnvironment.sdkVisibleFor(targetDescriptor(), sdk) },
-        ANY_SUGGESTED_SDK_FILTER,
-        ANY_SDK_TYPE_FILTER,
-        newSdkCallback
-    )
-
-    // The wizard supplies no Project, so createSdkComboBox's internal reset() only loaded local
-    // SDKs. Publish the location for SDK detection/creation and re-add SDKs registered for the
-    // target environment, re-syncing whenever the user edits the location (e.g. to a WSL path).
-    fun syncForLocation() {
-        SdkDetectionContext.set(locationDirectory())
-        SdkEnvironment.syncTargetSdks(sdksModel, targetDescriptor())
-        comboBox.reloadModel()
-    }
-    syncForLocation()
-    locationProperty?.afterChange(context.disposable) { syncForLocation() }
-    sdkProperty.afterChange(context.disposable) { onErlangSdkForSetup(it?.let(erlangSdkForSetup::get)) }
-
-    return cell(comboBox)
-        .validationOnApply { validateElixirSdk(sdkProperty, sdksModel) }
-}
-
 /**
- * [ElixirInternalErlangSdkSetup.erlangSdkOrAsk] for [sdk], a new SDK in this combo's [sdksModel], asked over this combo,
- * which then selects [sdk], or nothing on Cancel.
+ * The chooser's panel over the table's Elixir SDKs that run where [locationProperty]'s directory is. The pick is
+ * [sdkProperty]. Create is refused until there is one, and for one with no Erlang SDK, which `mix new` needs.
  */
 @RequiresEdt
-internal fun JdkComboBox.erlangSdkOrAsk(sdksModel: ProjectSdksModel, sdk: Sdk): Sdk? =
-    ElixirInternalErlangSdkSetup.erlangSdkOrAsk(sdksModel, sdk, this).also { erlangSdk ->
-        if (erlangSdk == null) {
-            // Selecting null doesn't reload the combo's list; selecting an SDK does.
-            reloadModel()
-            selectedJdk = null
-        } else {
-            selectedJdk = sdk
-        }
+fun Row.elixirSdkChooser(
+    context: WizardContext,
+    sdkProperty: ObservableMutableProperty<Sdk?>,
+    locationProperty: ObservableProperty<String>,
+): Cell<SdkChoicePanel> {
+    fun locationDirectory(): String? = locationProperty.get().takeUnless(String::isBlank)
+    fun target() = locationDirectory()?.let { SdkEnvironment.eelDescriptor(it) }
+
+    val state = SdkChoiceState(context.project ?: ProjectManager.getInstance().defaultProject, target(), null)
+    Disposer.register(context.disposable, state)
+    Disposer.register(context.disposable) { SdkDetectionContext.clear() }
+    val panel = SdkChoicePanel(state, context.disposable) { sdkProperty.set(it?.sdk) }
+
+    // Add...'s home chooser opens where the project goes.
+    SdkDetectionContext.set(locationDirectory())
+    locationProperty.afterChange(context.disposable) {
+        SdkDetectionContext.set(locationDirectory())
+        panel.retarget(target())
     }
 
-fun ValidationInfoBuilder.validateElixirSdk(
-    sdkProperty: ObservableProperty<Sdk?>,
-    sdkModel: ProjectSdksModel
-): ValidationInfo? = validateAndGetSdkValidationMessage(sdkProperty, sdkModel)?.let { error(it) }
+    return cell(panel).validationOnApply { validationMessage(sdkProperty.get())?.let { error(it) } }
+}
 
-private fun validateAndGetSdkValidationMessage(
-    sdkProperty: ObservableProperty<Sdk?>,
-    sdkModel: ProjectSdksModel,
-): @NlsContexts.DialogMessage String? {
-    val sdk = sdkProperty.get() ?: return JavaUiBundle.message("title.no.jdk.specified")
+private fun validationMessage(sdk: Sdk?): @NlsContexts.DialogMessage String? {
+    sdk ?: return JavaUiBundle.message("title.no.jdk.specified")
 
-    val internalErlangSdk = ErlangSdkResolver.getInstance().resolveErlangSdk(sdk, sdkModel)
+    val internalErlangSdk = sdk.getErlangSdk()
         ?: return "Internal Erlang SDK is not configured. Set it before picking this Elixir SDK."
 
     val internalErlangHome = internalErlangSdk.homePath
@@ -344,11 +268,5 @@ private fun validateAndGetSdkValidationMessage(
                 " (${internalErlangSdk.homePath}) does not exist. Did you uninstall it?"
     }
 
-    return try {
-        sdkModel.apply(null, true)
-        null
-    } catch (e: ConfigurationException) {
-        @Suppress("DEPRECATION")
-        e.message ?: e.title
-    }
+    return null
 }
