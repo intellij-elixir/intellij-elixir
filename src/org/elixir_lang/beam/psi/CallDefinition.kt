@@ -27,11 +27,16 @@ interface CallDefinition : BeamSymbol, MaybeExported {
     /** The head a function with default arguments is written with, the same at each arity they cover; empty if none. */
     val head: List<String>
 
-    /** A `defguard` is a `MACRO-` export, which the stub cannot tell from a `defmacro`. */
+    /** Whether this macro is a guard, by its `Docs` entry or its debug info: its `MACRO-` export cannot say. */
+    val isGuard: Boolean
+
     @get:RequiresReadLock
     val capabilities: Capabilities
         get() = when (time) {
-            Time.COMPILE -> if (isExported) Definer.DEFMACRO else Definer.DEFMACROP
+            Time.COMPILE -> when {
+                isGuard -> if (isExported) Definer.DEFGUARD else Definer.DEFGUARDP
+                else -> if (isExported) Definer.DEFMACRO else Definer.DEFMACROP
+            }
             Time.RUN -> if (isExported) Definer.DEF else Definer.DEFP
         }.capabilities
 

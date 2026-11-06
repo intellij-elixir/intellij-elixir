@@ -13,6 +13,9 @@ class Docs(private val documentedByArityByNameByKind: MutableMap<String, TreeMap
 
     fun doc(macroNameArity: MacroNameArity): Doc? = documented(macroNameArity)?.doc
 
+    fun isGuard(macroNameArity: MacroNameArity): Boolean =
+            (documented(macroNameArity) ?: covering(macroNameArity))?.isGuard() == true
+
     private fun documented(macroNameArity: MacroNameArity): Documented? =
             kind(macroNameArity)?.let { kind ->
                 documented(kind, macroNameArity.name, macroNameArity.arity)

@@ -12,7 +12,7 @@ import com.intellij.ui.icons.RowIcon
 import com.intellij.usageView.UsageViewNodeTextLocation
 import com.intellij.usageView.UsageViewTypeLocation
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.FUNCTION_CALL
-import org.elixir_lang.ElixirSyntaxHighlighter.Companion.MACRO_CALL
+import org.elixir_lang.ElixirSyntaxHighlighter.Companion.GUARD_CALL
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.PREDEFINED_CALL
 import org.elixir_lang.Icons
 import org.elixir_lang.beam.BeamLibraryTestCase
@@ -24,10 +24,7 @@ import org.elixir_lang.model.psi.function.FunctionSymbol
 import org.elixir_lang.structure_view.element.Timed
 import java.io.File
 
-/**
- * What a user sees of a compiled definition. A `defguard` compiles to a `MACRO-` export, so `Kernel.is_struct/1`
- * shows as a macro.
- */
+/** What a user sees of a compiled definition. */
 class CompiledPresentationTest : BeamLibraryTestCase() {
     private lateinit var scheme: DistinctKeyScheme
 
@@ -87,7 +84,7 @@ class CompiledPresentationTest : BeamLibraryTestCase() {
         assertEquals(
             mapOf(
                 "abs" to setOf(FUNCTION_CALL, PREDEFINED_CALL),
-                "is_struct" to setOf(MACRO_CALL, PREDEFINED_CALL)
+                "is_struct" to setOf(GUARD_CALL, PREDEFINED_CALL)
             ),
             listOf("abs", "is_struct").associateWith { name ->
                 keysAt(code.indexOf("Kernel.$name(") + "Kernel.".length, name.length)
@@ -111,7 +108,7 @@ class CompiledPresentationTest : BeamLibraryTestCase() {
         )
     }
 
-    /** `Kernel.abs/1` (`def`), `Kernel.is_struct/1` (`defguard`) and a private function. */
+    /** `Kernel.abs/1`, `Kernel.is_struct/1` and a private function. */
     private fun definitions(): List<CallDefinition> {
         val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(File(EBIN, "Elixir.Kernel.beam"))!!
         val compiled = PsiManager.getInstance(project).findFile(virtualFile) as PsiCompiledFile

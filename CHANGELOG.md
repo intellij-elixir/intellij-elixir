@@ -222,6 +222,8 @@
 
 ### Bug Fixes
 
+- [#4639](https://github.com/intellij-elixir/intellij-elixir/pull/4639) [@sh41](https://github.com/sh41)
+  - **A call of a compiled guard, such as a dependency's `defguard` or `Kernel.is_struct/1`, is coloured as a guard call, as a source `defguard`'s already is, rather than as a macro call.** Refs [#4596](https://github.com/intellij-elixir/intellij-elixir/issues/4596).
 - [#4635](https://github.com/intellij-elixir/intellij-elixir/pull/4635) [@sh41](https://github.com/sh41)
   - **An Elixir SDK is no longer paired with an Erlang SDK you didn't pick: a detected Elixir install picked in the New Project wizard, the Mix import or the Setup SDK banner, or configured from the tool manager with no Erlang pinned, asks for its Erlang, and other setups leave an SDK unpaired rather than guess; of two Erlang SDKs at one home, the one you picked stays paired.** Part of [#4623](https://github.com/intellij-elixir/intellij-elixir/issues/4623).
 - [#4637](https://github.com/intellij-elixir/intellij-elixir/pull/4637) [@sh41](https://github.com/sh41)
