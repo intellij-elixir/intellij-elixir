@@ -15,8 +15,6 @@ import com.intellij.openapi.roots.JdkOrderEntry
 import com.intellij.openapi.roots.LibraryOrderEntry
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
-import org.elixir_lang.jps.shared.ElixirSdkTypeId
-import org.elixir_lang.jps.shared.ErlangSdkTypeId
 import org.elixir_lang.mix.buildEnv
 import org.elixir_lang.mix.sync.isConsolidatedLibraryName
 import org.elixir_lang.mix.sync.scopedLibraryNameToken
@@ -66,7 +64,7 @@ internal class ElixirSdkLibraryTreeStructureProvider : TreeStructureProvider, Du
                 if (node !is NamedLibraryElementNode) return@map node
                 when (val entry = node.value?.orderEntry) {
                     is JdkOrderEntry ->
-                        if (entry.isElixirOrErlangSdk()) SdkLibraryNode(node, settings) else node
+                        if (entry.jdk?.isElixirOrErlangSdk() == true) SdkLibraryNode(node, settings) else node
                     is LibraryOrderEntry -> {
                         val libName = entry.libraryName
                         when {
@@ -170,16 +168,6 @@ private class ApplicationGroupNode(
     }
     override fun contains(file: VirtualFile): Boolean =
         applicationChildren.any { (it as? ProjectViewNode<*>)?.contains(file) == true }
-}
-
-/**
- * Whether this SDK order entry points at an Elixir or Erlang SDK, matching by SDK type id the same way
- * [ElixirSdkRootsCache] does. Used to avoid re-weighting SDKs of unrelated projects (e.g. Java), since this
- * provider is registered application-wide.
- */
-private fun JdkOrderEntry.isElixirOrErlangSdk(): Boolean {
-    val typeName = jdk?.sdkType?.name ?: return false
-    return typeName == ElixirSdkTypeId.ELIXIR_SDK_TYPE_ID || typeName == ErlangSdkTypeId.ERLANG_SDK_TYPE_ID
 }
 
 /**

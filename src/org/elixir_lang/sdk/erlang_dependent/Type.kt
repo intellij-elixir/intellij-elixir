@@ -98,6 +98,14 @@ abstract class Type protected constructor(name: String) : DependentSdkType(name)
         private val ERLANG_SDK_FOR_ELIXIR_SDK_TYPE_CANONICAL_NAME: String =
             org.elixir_lang.sdk.erlang.Type::class.java.canonicalName
 
+        /**
+         * intellij-erlang's Erlang SDK type, found by its class name, so the plugin compiles against none of it. None in
+         * the small IDEs, where it does not work: it uses JavadocRoot for documentation, which they lack.
+         */
+        internal fun intellijErlangSdkType(): SdkType? =
+            if (isSmallIde) null
+            else EP_NAME.extensionList.firstOrNull { it.javaClass.canonicalName == ERLANG_SDK_TYPE_CANONICAL_NAME }
+
         @JvmStatic
         val ERLANG_SDK_KEY = com.intellij.openapi.util.Key.create<Sdk>("ERLANG_SDK_FOR_ELIXIR")
 

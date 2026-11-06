@@ -693,9 +693,9 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         assertFalse("a repair is no edit of the page", page.isModified)
     }
 
-    /** [elixir] is paired at [erlang]'s home and has its code paths, and none under [oldHome]. */
-    private fun assertPairedAt(elixir: Sdk, erlang: Sdk, oldHome: String, message: String) {
-        assertEquals("$message: the stored Erlang home", FileUtil.toSystemIndependentName(erlang.homePath!!), erlangHome(elixir))
+    /** [elixir] is paired at [home], [erlang]'s by default, and has [erlang]'s code paths, and none under [oldHome]. */
+    private fun assertPairedAt(elixir: Sdk, erlang: Sdk, oldHome: String, message: String, home: String = erlang.homePath!!) {
+        assertEquals("$message: the stored Erlang home", FileUtil.toSystemIndependentName(home), erlangHome(elixir))
         SdkFixtures.assertCodePathsFollowed(elixir, erlang, oldHome)
     }
 
@@ -826,15 +826,8 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
     /**
      * The table's [Moved.elixir] is paired at its Erlang SDK's [newHome] and has that home's code paths, not [oldHome]'s.
      */
-    private fun Moved.assertRepaired(newHome: String = this.newHome, oldHome: String = this.oldHome) {
-        val tableElixir = tableSdk(elixir.name)
-        assertEquals(
-            "the stored Erlang home",
-            FileUtil.toSystemIndependentName(newHome),
-            erlangHome(tableElixir),
-        )
-        SdkFixtures.assertCodePathsFollowed(tableElixir, tableSdk(erlang.name), oldHome)
-    }
+    private fun Moved.assertRepaired(newHome: String = this.newHome, oldHome: String = this.oldHome) =
+        assertPairedAt(tableSdk(elixir.name), tableSdk(erlang.name), oldHome, "the table's Elixir SDK", newHome)
 
     /**
      * Views the Elixir SDK [name] on one page, toggling its warning, unapplied, when [toggle], and runs [meanwhile]; then

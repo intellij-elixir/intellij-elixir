@@ -4,7 +4,6 @@ import com.intellij.notification.Notification
 import com.intellij.notification.Notifications
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.WriteAction
-import com.intellij.openapi.application.impl.LaterInvocator
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
@@ -16,6 +15,7 @@ import org.elixir_lang.facet.SdksService
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.codePaths
 import org.elixir_lang.sdk.SdkFixtures.codePathsUnder
+import org.elixir_lang.sdk.SdkFixtures.inADialog
 import org.elixir_lang.sdk.SdkFixtures.register
 import org.elixir_lang.sdk.SdkFixtures.settle
 import org.elixir_lang.sdk.SdkFixtures.storedErlangHome
@@ -102,16 +102,12 @@ class ErlangDeletionAskTest : PlatformTestCase() {
         val deleted = erlang("Ask modal deleted Erlang", install("27", "27.3.4"))
         paired("Ask modal Elixir", SdkFixtures.elixirHome("1.18.4"), deleted)
         script(ScriptedErlangStep.cancel)
-        val settings = Any()
 
-        LaterInvocator.enterModal(settings)
-        try {
+        inADialog {
             SdkConfigurationUtil.removeSdk(deleted)
             settle()
 
             assertEmpty("nothing is asked while Settings is open", asked.events)
-        } finally {
-            LaterInvocator.leaveModal(settings)
         }
         settle()
 

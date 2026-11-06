@@ -46,7 +46,7 @@ internal object ElixirSdkRootsCache {
         }.also { classAndSourceRootsCache = it }
 }
 
-/** Whether the SDK is an Elixir or Erlang SDK, by its type's id: the SDKs [ElixirSdkRootsCache] holds roots of. */
+/** Whether the SDK is of the plugin's own Elixir or Erlang type, by its type's id; intellij-erlang's type is not. */
 internal fun Sdk.isElixirOrErlangSdk(): Boolean =
     sdkType.name == ElixirSdkTypeId.ELIXIR_SDK_TYPE_ID || sdkType.name == ErlangSdkTypeId.ERLANG_SDK_TYPE_ID
 

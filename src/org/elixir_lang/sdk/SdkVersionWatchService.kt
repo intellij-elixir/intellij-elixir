@@ -25,8 +25,6 @@ import java.util.concurrent.atomic.AtomicReference
 import org.jetbrains.annotations.TestOnly
 import org.elixir_lang.util.ElixirAppCoroutineService
 import org.elixir_lang.sdk.wsl.wslCompat
-import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
-import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
 
 private val LOG = logger<SdkVersionWatchService>()
 
@@ -82,20 +80,17 @@ internal object SdkVersionWatchService {
                 object : ProjectJdkTable.Listener {
                     // Published from inside the table's write action, so the filesystem work is launched.
                     override fun jdkAdded(jdk: Sdk) {
-                        val homePath = jdk.homePath?.takeIf { isOurs(jdk) } ?: return
+                        val homePath = jdk.homePath?.takeIf { jdk.isElixirOrErlangSdk() } ?: return
                         scope.launch { SdkVersionsFiller.fillIfUnread(homePath) }
                     }
 
                     override fun jdkRemoved(jdk: Sdk) {
-                        val homePath = jdk.homePath?.takeIf { isOurs(jdk) } ?: return
+                        val homePath = jdk.homePath?.takeIf { jdk.isElixirOrErlangSdk() } ?: return
                         scope.launch { forgetUnlessRegistered(homePath) }
                     }
                 },
             )
     }
-
-    private fun isOurs(sdk: Sdk): Boolean =
-        sdk.sdkType === ElixirSdkType.instance || sdk.sdkType === ErlangSdkType.instance
 
     /**
      * Two Elixir SDKs pairing one build with different Erlang SDKs share a home, so removing one leaves the
@@ -105,9 +100,8 @@ internal object SdkVersionWatchService {
         val store = SdkVersionsStore.getInstance()
         val canonicalHome = store.canonicalHome(homePath) ?: return
         val stillRegistered = readAction {
-            val table = ProjectJdkTable.getInstance()
-            (table.getSdksOfType(ElixirSdkType.instance) + table.getSdksOfType(ErlangSdkType.instance))
-                .any { store.canonicalHome(it.homePath) == canonicalHome }
+            ProjectJdkTable.getInstance().allJdks
+                .any { it.isElixirOrErlangSdk() && store.canonicalHome(it.homePath) == canonicalHome }
         }
         if (!stillRegistered) {
             store.forgetInstallation(canonicalHome, homePath)
@@ -125,8 +119,8 @@ internal object SdkVersionWatchService {
         synchronized(unanswered) { unanswered.values.removeAll(stored) }
         val writes = synchronized(unanswered) { unansweredWrites }
         val registered = readAction {
-            val table = ProjectJdkTable.getInstance()
-            (table.getSdksOfType(ElixirSdkType.instance) + table.getSdksOfType(ErlangSdkType.instance))
+            ProjectJdkTable.getInstance().allJdks
+                .filter { it.isElixirOrErlangSdk() }
                 .mapNotNullTo(HashSet()) { installationKey(it.homePath) }
         }
         // A home recorded since the table was read may be an SDK added since, so the pass after this one prunes.

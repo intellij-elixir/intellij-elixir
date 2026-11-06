@@ -3,7 +3,6 @@ package org.elixir_lang.sdk
 import com.intellij.ide.projectView.PresentationData
 import com.intellij.ide.projectView.ViewSettings
 import com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode
-import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.OrderRootType
@@ -52,12 +51,7 @@ class ElixirSdkLibraryNodeDecoratorTest : PlatformTestCase() {
         val sdk = registerElixirSdk(classRoots = listOf(iex))
         assertEquals("iex", presentableTextOf(iex))
 
-        WriteAction.run<Throwable> {
-            sdk.sdkModificator.apply {
-                addRoot(logger, OrderRootType.CLASSES)
-                commitChanges()
-            }
-        }
+        SdkFixtures.commit(sdk) { addRoot(logger, OrderRootType.CLASSES) }
 
         assertEquals("logger", presentableTextOf(logger))
     }

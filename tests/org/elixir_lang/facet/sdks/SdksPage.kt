@@ -55,10 +55,13 @@ internal class SdksPage(private val configurable: Configurable, private val open
             .single { it.text == "Suppress OTP version mismatch warning" }
             .doClick()
 
+    /** The shown Elixir SDK editor's Erlang SDK combo. */
+    val erlangCombo: ComboBox<*> get() = UIUtil.findComponentOfType(root, ComboBox::class.java)!!
+
     /** Selects the Elixir SDK [sdk] and picks [erlang]'s copy in its editor's Erlang SDK combo. */
     fun pickErlang(sdk: Sdk, erlang: Sdk) {
         select(sdk)
-        UIUtil.findComponentOfType(root, ComboBox::class.java)!!.selectedItem = copy(erlang)
+        erlangCombo.selectedItem = copy(erlang)
     }
 
     fun remove(sdk: Sdk) = configurable.removeSelectedSdk(copy(sdk))
