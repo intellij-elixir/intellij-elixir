@@ -4,6 +4,7 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
+import com.intellij.openapi.projectRoots.SdkType
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.roots.OrderRootType
@@ -21,6 +22,7 @@ import org.elixir_lang.facet.sdk.Model
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.settle
+import org.elixir_lang.sdk.StubSdkType
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
 import org.elixir_lang.sdk.erlang_dependent.Asked
 import org.elixir_lang.sdk.erlang_dependent.ScriptedErlangStep
@@ -108,6 +110,24 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
 
         assertSame("open pages keep the model", before, service().getModel())
         assertEquals("/fake/elixir/committed-outside", before.findSdk("Elixir Test Committed Outside")?.homePath)
+    }
+
+    fun testAnOutsideCommitToAnotherTypesSdkReachesItsCopy() {
+        // Neither Elixir nor Erlang, as PyCharm's Python SDKs are.
+        val type = StubSdkType("Other Test SDK")
+        SdkType.EP_NAME.point.registerExtension(type, testRootDisposable)
+        val sdk = SdkFixtures.register(ProjectJdkImpl("Other Type Committed Outside", type, "/fake/other/a", ""))
+        service().resetForTests()
+        val model = service().getModel()
+
+        commitHome(sdk, "/fake/other/outside")
+        settle()
+
+        assertEquals(
+            "a page's Apply writes every copy, so another type's copy follows the table too",
+            "/fake/other/outside",
+            model.projectSdks[sdk]?.homePath,
+        )
     }
 
     fun testApplyingTheCachedModelKeepsIt() {

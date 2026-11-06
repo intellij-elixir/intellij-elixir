@@ -20,6 +20,8 @@ import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.JDOMUtil
 import com.intellij.util.concurrency.annotations.RequiresEdt
+import org.elixir_lang.sdk.SdkTableChanges
+import org.elixir_lang.sdk.SdkTableChanges.Kind
 import org.jdom.Element
 import org.jetbrains.annotations.TestOnly
 import java.util.Collections
@@ -32,9 +34,6 @@ class SdksService : Disposable {
     // Read by root-set-changed listeners, which run inside whatever write action committed an SDK.
     @Volatile
     private var model: ProjectSdksModel? = null
-
-    /** The model's listeners: on its adds and removes, and on each of its SDKs' commits. */
-    private var following: Disposable? = null
 
     /** The service's own [model] is being applied to the table. */
     @Volatile
@@ -73,69 +72,33 @@ class SdksService : Disposable {
     }
 
     init {
-        // Another writer, such as "Configure from mise" through SdkRegistrar, changes the table under open pages.
-        ApplicationManager.getApplication().messageBus.connect(this)
-            .subscribe(ProjectJdkTable.JDK_TABLE_TOPIC, object : ProjectJdkTable.Listener {
-                override fun jdkAdded(jdk: Sdk) = tableChanged(jdk, Change.ADDED)
-                override fun jdkRemoved(jdk: Sdk) = tableChanged(jdk, Change.REMOVED)
-                override fun jdkNameChanged(jdk: Sdk, previousName: String) = tableChanged(jdk, Change.RENAMED)
-            })
+        // A page's Apply writes every copy, whatever its type.
+        SdkTableChanges.follow(this, { true }, ::tableChanged)
     }
 
     /**
-     * A commit to an SDK fires no JDK table event, only `rootSetChanged` on the SDK, and applying a stale copy of it
-     * reverts the commit. The model's own Apply commits each SDK it holds.
+     * Another writer, such as "Configure from mise" through SdkRegistrar, changes the table under open pages. A model
+     * being applied adds and removes its own SDKs in the table, holding an added one as a key and having already dropped
+     * a removed one, and commits each SDK it holds.
      */
-    private fun follow(model: ProjectSdksModel) {
-        val following = Disposer.newDisposable(this, "SdksService model")
-        val commitListeners = HashMap<Sdk, Disposable>()
-        fun followCommits(sdk: Sdk) {
-            val listener = Disposer.newDisposable(following, "SdksService commits to ${sdk.name}")
-            commitListeners.put(sdk, listener)?.let(Disposer::dispose)
-            sdk.rootProvider.addRootSetChangedListener({ if (!applying) record(sdk) }, listener)
-        }
-        model.projectSdks.keys.forEach(::followCommits)
-        val listener = object : SdkModel.Listener {
-            // `doAdd` keys the map by the original and publishes the editable copy, which `findSdk` maps back.
-            override fun sdkAdded(sdk: Sdk) {
-                model.findSdk(sdk)?.let(::followCommits)
-            }
-
-            override fun beforeSdkRemove(sdk: Sdk) {
-                commitListeners.remove(sdk)?.let(Disposer::dispose)
-            }
-        }
-        model.addListener(listener)
-        Disposer.register(following) { model.removeListener(listener) }
-        this.following = following
-    }
-
-    private enum class Change { ADDED, REMOVED, RENAMED }
-
-    /**
-     * A model being applied adds and removes its own SDKs in the table; it holds an added one as a key and has already
-     * dropped a removed one.
-     */
-    private fun tableChanged(jdk: Sdk, change: Change) {
-        if (change == Change.ADDED && jdk === registering) return
-        val model = this.model
-        if (applying && model != null) {
-            val copy = model.projectSdks[jdk]
-            val ownChange = when (change) {
+    private fun tableChanged(jdk: Sdk, kind: Kind) {
+        if (kind == Kind.ADDED && jdk === registering) return
+        val model = this.model ?: return
+        val copy = model.projectSdks[jdk]
+        // No copy to bring in line: the pass adds an SDK the table gained as the table then holds it.
+        if (kind == Kind.ROOTS_COMMITTED && copy == null) return
+        if (applying) {
+            val ownChange = when (kind) {
                 // `ProjectSdksModel.doApply` adds the key and copies the editable clone's state in on the next line,
                 // so an SDK it has just added still carries the name it was cloned with.
-                Change.ADDED -> copy != null
-                Change.REMOVED -> copy == null
-                Change.RENAMED -> copy != null && copy.name == jdk.name
+                Kind.ADDED -> copy != null
+                Kind.REMOVED -> copy == null
+                Kind.RENAMED -> copy != null && copy.name == jdk.name
+                Kind.ROOTS_COMMITTED -> true
             }
             if (ownChange) return
         }
-        record(jdk)
-    }
-
-    private fun record(sdk: Sdk) {
-        if (model == null) return
-        touched += sdk
+        touched += jdk
         schedule()
     }
 
@@ -260,8 +223,6 @@ class SdksService : Disposable {
     fun resetForTests() {
         model?.disposeUIResources()
         model = null
-        following?.let(Disposer::dispose)
-        following = null
         touched.clear()
         refreshAll.set(false)
         refusedWrites.clear()
@@ -416,7 +377,6 @@ class SdksService : Disposable {
 
     fun getModel(): ProjectSdksModel {
         return model ?: freshModel().also {
-            follow(it)
             model = it
         }
     }
