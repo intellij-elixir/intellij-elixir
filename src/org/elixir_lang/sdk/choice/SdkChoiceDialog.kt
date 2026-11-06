@@ -1,15 +1,29 @@
 package org.elixir_lang.sdk.choice
 
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.SimpleTextAttributes
+import com.intellij.ui.components.AnActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.util.concurrency.annotations.RequiresEdt
 import com.intellij.util.ui.JBUI
+import org.elixir_lang.sdk.SdkTableChanges
+import org.elixir_lang.sdk.elixir.SdkSettingsOpener
+import org.elixir_lang.sdk.elixir.SettingsPage
+import org.elixir_lang.sdk.elixir.Type
+import org.elixir_lang.sdk.erlang_dependent.Type.Companion.staticIsValidDependency
 import org.elixir_lang.sdk.erlang_dependent.rowText
 import java.awt.BorderLayout
 import java.awt.Component
+import java.awt.event.ActionEvent
+import java.util.concurrent.atomic.AtomicBoolean
+import javax.swing.Action
 import javax.swing.JComponent
 import javax.swing.JList
 import javax.swing.JPanel
@@ -24,15 +38,52 @@ class SdkChoiceDialog(parent: Component?, internal val state: SdkChoiceState) :
         addListSelectionListener { event -> if (!event.valueIsAdjusting) pick(selectedValue) }
     }
 
+    internal val manageSdksLink = AnActionLink("Manage SDKs...", object : DumbAwareAction() {
+        override fun actionPerformed(e: AnActionEvent) = SdkSettingsOpener.getInstance().open(e, SettingsPage.SDKS)
+    })
+
+    private val reloadQueued = AtomicBoolean()
+
     init {
         title = "Choose Elixir SDK"
         isOKActionEnabled = false
         init()
+        // The Elixir SDKs it lists, and the Erlang SDKs their rows name.
+        SdkTableChanges.follow(disposable, { it.sdkType === Type.instance || staticIsValidDependency(it) }) { _, _ ->
+            reloadLater()
+        }
     }
 
     override fun createCenterPanel(): JComponent = JPanel(BorderLayout(0, JBUI.scale(8))).apply {
         add(JBLabel("Choose the Elixir SDK for ${modulesText()}:"), BorderLayout.NORTH)
         add(JBScrollPane(list).apply { preferredSize = JBUI.size(520, 200) }, BorderLayout.CENTER)
+        add(manageSdksLink, BorderLayout.SOUTH)
+    }
+
+    override fun createLeftSideActions(): Array<Action> = arrayOf(
+        object : DialogWrapperAction("Add...") {
+            override fun doAction(e: ActionEvent) = add()
+        },
+    )
+
+    @RequiresEdt
+    internal fun add() {
+        state.add(list)?.let(::pick)
+    }
+
+    // Later, at this dialog's modality, so not while Settings or the create flow is open over it: the table publishes
+    // inside its write action. One reload for a burst, as an Apply on the SDKs page commits every SDK in the table.
+    private fun reloadLater() {
+        if (!reloadQueued.compareAndSet(false, true)) return
+        ApplicationManager.getApplication().invokeLater(
+            { reloadQueued.set(false); reload() },
+            ModalityState.stateForComponent(list),
+        ) { isDisposed }
+    }
+
+    private fun reload() {
+        state.reload()
+        pick(state.selected)
     }
 
     private fun modulesText(): String =

@@ -9,6 +9,7 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.Sdk
+import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.util.Disposer
 import com.intellij.ui.CollectionListModel
@@ -20,6 +21,7 @@ import org.elixir_lang.sdk.elixir.ElixirSdkAssignment
 import org.elixir_lang.sdk.elixir.Type
 import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResolver
 import java.awt.Component
+import javax.swing.JComponent
 
 /** One table Elixir SDK the chooser offers, with the Erlang SDK it is paired with, or null when it has none. */
 data class SdkChoiceEntry(val sdk: Sdk, val erlang: Erlang?) {
@@ -43,6 +45,34 @@ class SdkChoiceState @RequiresEdt constructor(val project: Project, val modules:
 
     fun select(entry: SdkChoiceEntry?) {
         selected = entry?.takeIf(listModel::contains)
+    }
+
+    /**
+     * Runs the SDK pages' create flow and picks the SDK it creates. That SDK goes into the table at once, so Cancel
+     * keeps it. Answers the pick, or null when the flow was cancelled, which keeps the pick there was.
+     */
+    @RequiresEdt
+    fun add(parent: JComponent): SdkChoiceEntry? {
+        var created: Sdk? = null
+        model.doAdd(parent, Type.instance) { created = it }
+        val sdk = created?.let { model.findSdk(it) } ?: return null
+        // Only the new SDK: applying the model would write its copies back over SDKs committed since its last reset.
+        SdkConfigurationUtil.addSdk(sdk)
+        reload(sdk)
+        return selected
+    }
+
+    /** Lists the table's Elixir SDKs again, keeping the pick while the table still has that SDK, renamed or not. */
+    @RequiresEdt
+    fun reload() = reload(selected?.sdk)
+
+    /** Lists the table's Elixir SDKs again and picks the table's [sdk], when it is listed. */
+    private fun reload(sdk: Sdk?) {
+        // `reset` drops the copies it holds without disposing them, and each stays registered until the IDE exits.
+        model.disposeUIResources()
+        model.reset(project)
+        listModel.replaceAll(load())
+        select(entries.find { it.sdk === sdk })
     }
 
     private fun load(): List<SdkChoiceEntry> {
