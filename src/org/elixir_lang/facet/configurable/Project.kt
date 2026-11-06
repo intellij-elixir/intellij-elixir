@@ -5,7 +5,6 @@ import com.intellij.facet.FacetManager
 import com.intellij.ide.DataManager
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.module.Module
-import com.intellij.openapi.module.ModuleType
 import com.intellij.openapi.options.ex.Settings
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.Sdk
@@ -14,8 +13,6 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
 import org.elixir_lang.Facet
 import org.elixir_lang.facet.Configurable
-import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
-import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.elixir.ElixirSdkAssignment
 import org.elixir_lang.settings.SettingsPageId
 import java.awt.BorderLayout
@@ -27,15 +24,7 @@ import javax.swing.JPanel
 
 class Project(project: Project) : ModuleAwareProjectConfigurable<Configurable>(project, "Elixir", null) {
     override fun isSuitableForModule(module: Module): Boolean =
-        // CANNOT use ModuleType.is(module, ElixirModuleType.getInstance()) as ElixirModuleType depends
-        // on JavaModuleBuilder and so is only available in IntelliJ.
-        //
-        // ELIXIR_MODULE modules are normally configured via the module SDK in Project Structure,
-        // which only exists in rich IDEs, so they are excluded from this facet-based per-module SDK
-        // page there. But a project created in IntelliJ keeps its ELIXIR_MODULE module ids when
-        // opened in a small IDE (RubyMine, etc.), where there is no module-SDK UI - the facet SDK is
-        // then the only per-module mechanism, so include every module when running in a small IDE.
-        ProcessOutput.isSmallIde || ModuleType.get(module).id != ELIXIR_MODULE_TYPE_ID
+        ElixirSdkAssignment.target(module) == ElixirSdkAssignment.Target.FACET
 
     override fun createComponent(): JComponent {
         // The per-module SDK dropdowns read the shared ProjectSdksModel, which SdksService populates

@@ -16,25 +16,33 @@ import org.elixir_lang.sdk.ProcessOutput.isSmallIde
 
 /** Writes a module's Elixir SDK pick where the running IDE reads it, which [ElixirSdkLookup.resolve] then finds. */
 object ElixirSdkAssignment {
+    /** Where [assign] writes a module's Elixir SDK pick. */
+    enum class Target { FACET, MODULE_SDK, PROJECT_SDK }
+
+    /** On a small IDE, [module]'s Elixir facet; on IntelliJ IDEA, an `ELIXIR_MODULE`'s module SDK, else the project SDK. */
+    fun target(module: Module): Target = when {
+        isSmallIde -> Target.FACET
+        ModuleType.get(module).id == ELIXIR_MODULE_TYPE_ID -> Target.MODULE_SDK
+        else -> Target.PROJECT_SDK
+    }
+
     /**
-     * On a small IDE, [module]'s Elixir facet, added when absent, names [sdk]. On IntelliJ IDEA the table's SDK of that
-     * name is written, because a pick may be a `ProjectSdksModel` copy: an `ELIXIR_MODULE` gets it as its module SDK,
-     * and any other module as the project SDK, with its own Elixir entry, present or dangling, set to inherit.
+     * Writes [sdk] at [module]'s [target]. A facet, added as "Elixir facet" when absent, names it. A module or project
+     * SDK is the table's SDK of that name, because a pick may be a `ProjectSdksModel` copy, and a module given the project
+     * SDK has its own Elixir entry, present or dangling, set to inherit.
      */
     @RequiresWriteLock
     fun assign(module: Module, sdk: Sdk) {
-        if (isSmallIde) {
-            val facetManager = FacetManager.getInstance(module)
-            val facet = facetManager.getFacetByType(Facet.ID)
-                ?: facetManager.addFacet(FacetType.findInstance(ElixirFacetType::class.java), "Elixir facet", null)
-            facet.sdk = sdk
-        } else {
-            val tableSdk = checkNotNull(Facet.sdkNamed(sdk.name)) { "Elixir SDK '${sdk.name}' is not in the SDK table" }
-
-            if (ModuleType.get(module).id == ELIXIR_MODULE_TYPE_ID) {
-                ModuleRootModificationUtil.setModuleSdk(module, tableSdk)
-            } else {
-                ProjectRootManager.getInstance(module.project).projectSdk = tableSdk
+        when (target(module)) {
+            Target.FACET -> {
+                val facetManager = FacetManager.getInstance(module)
+                val facet = facetManager.getFacetByType(Facet.ID)
+                    ?: facetManager.addFacet(FacetType.findInstance(ElixirFacetType::class.java), "Elixir facet", null)
+                facet.sdk = sdk
+            }
+            Target.MODULE_SDK -> ModuleRootModificationUtil.setModuleSdk(module, tableSdk(sdk))
+            Target.PROJECT_SDK -> {
+                ProjectRootManager.getInstance(module.project).projectSdk = tableSdk(sdk)
                 inheritOwnElixirEntry(module)
             }
         }
@@ -48,4 +56,7 @@ object ElixirSdkAssignment {
             ModuleRootModificationUtil.setSdkInherited(module)
         }
     }
+
+    private fun tableSdk(sdk: Sdk): Sdk =
+        checkNotNull(Facet.sdkNamed(sdk.name)) { "Elixir SDK '${sdk.name}' is not in the SDK table" }
 }

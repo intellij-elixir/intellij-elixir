@@ -15,7 +15,6 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.ui.CollectionListModel
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import org.elixir_lang.Facet
-import org.elixir_lang.sdk.ProcessOutput.isSmallIde
 import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.elixir.ElixirSdkAssignment
 import org.elixir_lang.sdk.elixir.Type
@@ -35,7 +34,9 @@ data class SdkChoiceEntry(val sdk: Sdk, val erlang: Erlang?) {
  */
 class SdkChoiceState @RequiresEdt constructor(val project: Project, val modules: List<Module>) : Disposable {
     private val model = ProjectSdksModel().apply { reset(project) }
-    private val firstName: String? = if (isSmallIde) null else modules.firstOrNull()?.let { Facet.sdk(it) }?.name
+    private val firstName: String? =
+        modules.firstOrNull()?.takeIf { ElixirSdkAssignment.target(it) != ElixirSdkAssignment.Target.FACET }
+            ?.let { Facet.sdk(it) }?.name
 
     val listModel = CollectionListModel(load())
     val entries: List<SdkChoiceEntry> get() = listModel.items

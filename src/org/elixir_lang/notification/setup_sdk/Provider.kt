@@ -2,7 +2,6 @@ package org.elixir_lang.notification.setup_sdk
 
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.module.Module
-import com.intellij.openapi.module.ModuleType
 import com.intellij.openapi.module.ModuleUtilCore
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
@@ -11,9 +10,9 @@ import com.intellij.ui.EditorNotificationPanel
 import com.intellij.ui.EditorNotificationProvider
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirLanguage
-import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
-import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.choice.SdkChoice
+import org.elixir_lang.sdk.elixir.ElixirSdkAssignment
+import org.elixir_lang.sdk.elixir.ElixirSdkAssignment.Target
 import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 import org.elixir_lang.sdk.elixir.sdk
 import org.elixir_lang.tool_manager.ToolManagerSdkAnalyser
@@ -34,24 +33,18 @@ internal class Provider : EditorNotificationProvider {
         val psiFile = PsiManager.getInstance(project).findFile(file) ?: return null
         if (psiFile.language !== ElixirLanguage) return null
 
-        val module = ModuleUtilCore.findModuleForPsiElement(psiFile)
-
-        val sdk = module?.let { ElixirSdkLookup.resolve(it).sdk } ?: ElixirSdkLookup.resolve(project).sdk
-        if (sdk != null) return null
+        val module = ModuleUtilCore.findModuleForPsiElement(psiFile) ?: return null
+        if (ElixirSdkLookup.resolve(module).sdk != null) return null
 
         // No SDK configured. Mise-based suggestion is handled by the status bar widget's
         // notification scan (ElixirEditorBasedSdkWidget), which runs off the read lock on
         // Dispatchers.IO and surfaces a balloon notification with a one-click configure action.
         // This panel remains as a persistent per-file indicator for manual setup, but is a candidate
         // for removal in the future if the Experimental Widget becomes stable.
-        return when {
-            module != null && ModuleType.get(module).id == ELIXIR_MODULE_TYPE_ID ->
-                Function { createModulePanel(project, module, "Elixir Module SDK is not defined") }
-            module != null && ProcessOutput.isSmallIde ->
-                Function { createModulePanel(project, module, "Elixir Facet SDK is not defined") }
-            module != null ->
-                Function { createProjectPanel(project, module) }
-            else -> null
+        return when (ElixirSdkAssignment.target(module)) {
+            Target.FACET -> Function { createModulePanel(project, module, "Elixir Facet SDK is not defined") }
+            Target.MODULE_SDK -> Function { createModulePanel(project, module, "Elixir Module SDK is not defined") }
+            Target.PROJECT_SDK -> Function { createProjectPanel(project, module) }
         }
     }
 }
