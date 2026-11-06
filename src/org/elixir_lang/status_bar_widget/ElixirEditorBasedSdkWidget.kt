@@ -16,7 +16,6 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.JdkOrderEntry
 import com.intellij.openapi.roots.ModuleRootListener
 import com.intellij.openapi.roots.ModuleRootManager
-import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.ui.popup.ListPopup
 import com.intellij.openapi.util.Disposer
@@ -43,9 +42,10 @@ import org.elixir_lang.mix.project.ProjectModuleSetupValidator
 import org.elixir_lang.mix.project.ProjectModuleSetupValidator.FolderMarkIssue
 import org.elixir_lang.mixContentRoots
 import org.elixir_lang.mix.Project as MixProject
-import org.elixir_lang.sdk.ProcessOutput.isSmallIde
 import org.elixir_lang.sdk.SdkEbinPaths
 import org.elixir_lang.sdk.SdkVersionsListener
+import org.elixir_lang.sdk.elixir.ElixirSdkAssignment
+import org.elixir_lang.sdk.elixir.ElixirSdkAssignment.Target
 import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
 import org.elixir_lang.sdk.elixir.ElixirSdkValidation
@@ -905,8 +905,7 @@ class ElixirEditorBasedSdkWidget(
      * in a small one, so neither needs branching here.
      *
      * When both the project SDK and a module SDK are Elixir, this returns the **module** SDK - the one
-     * that actually drives code insight - rather than the project-level one. The mismatch between them
-     * is reported separately by [detectModuleSdkIssues].
+     * that actually drives code insight - rather than the project-level one.
      */
     @RequiresReadLock
     internal fun findModuleLevelElixirSdk(): Sdk? {
@@ -933,44 +932,38 @@ class ElixirEditorBasedSdkWidget(
     internal fun detectModuleSdkIssues(): List<ModuleSdkIssue> {
         ThreadingAssertions.assertBackgroundThread()
         val issues = mutableListOf<ModuleSdkIssue>()
-        val projectSdk = ProjectRootManager.getInstance(project).projectSdk
+        val elixirProjectSdk = ElixirSdkLookup.resolve(project).sdk
 
         for (module in ModuleManager.getInstance(project).modules) {
             ProgressManager.checkCanceled()
             if (!module.isElixirModule()) continue
-            val rootManager = ModuleRootManager.getInstance(module)
+            val target = ElixirSdkAssignment.target(module)
 
-            // --- Rich IDE path: detect dangling/mismatch JdkOrderEntry ---
-            // The lookup never reads a module SDK in a small IDE, which has no settings to change one.
-            for (entry in if (isSmallIde) emptyArray() else rootManager.orderEntries) {
-                ProgressManager.checkCanceled()
-                if (entry !is JdkOrderEntry) continue
+            if (target != Target.FACET) {
+                // --- Rich IDE path: detect dangling JdkOrderEntry ---
+                // The lookup never reads a module SDK in a small IDE, which has no settings to change one.
+                for (entry in ModuleRootManager.getInstance(module).orderEntries) {
+                    ProgressManager.checkCanceled()
+                    if (entry !is JdkOrderEntry || entry.jdk != null) continue
 
-                val jdkName = entry.jdkName ?: continue
-                // Only check Elixir SDK entries (when SDK is resolvable, check its type)
-                val resolvedSdk = entry.jdk
-                if (resolvedSdk != null && resolvedSdk.sdkType !is Type) continue
-
-                if (resolvedSdk == null) {
                     // DANGLING: SDK name exists in .iml but not in JDK table
+                    val jdkName = entry.jdkName ?: continue
                     issues.add(
                         ModuleSdkIssue(module.name, "references non-existent SDK '$jdkName'", isDangling = true, missingSdkName = jdkName)
                     )
-                } else if (projectSdk != null && projectSdk.sdkType is Type && resolvedSdk != projectSdk) {
-                    // MISMATCH: Module uses different Elixir SDK than project in a single-version project.
-                    // Only meaningful when the project SDK is itself Elixir; skip when it is Java/Python/etc.
-                    issues.add(
-                        ModuleSdkIssue(
-                            module.name,
-                            "uses '$jdkName' but project SDK is '${projectSdk.name}'",
-                            isDangling = false
-                        )
-                    )
                 }
-            }
 
-            // --- Small IDE path: detect dangling Facet SDK ---
-            if (isSmallIde) {
+                // MISMATCH: an own Elixir SDK where a pick goes in the Elixir project SDK.
+                if (elixirProjectSdk != null && target == Target.PROJECT_SDK) {
+                    val ownSdk = ElixirSdkLookup.ownElixirEntry(module)?.jdk
+                    if (ownSdk != null && ownSdk != elixirProjectSdk) {
+                        issues.add(
+                            ModuleSdkIssue(module.name, "uses '${ownSdk.name}' but project SDK is '${elixirProjectSdk.name}'", isDangling = false)
+                        )
+                    }
+                }
+            } else {
+                // --- Small IDE path: detect dangling Facet SDK ---
                 val facet = FacetManager.getInstance(module).getFacetByType(Facet.ID)
                 if (facet != null && Facet.sdk(module) == null && Facet.sdks().isNotEmpty()) {
                     issues.add(
