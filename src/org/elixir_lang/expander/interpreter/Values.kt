@@ -369,6 +369,8 @@ internal val TRUE = OtpErlangAtom("true")
 internal val FALSE = OtpErlangAtom("false")
 internal val NIL = OtpErlangAtom("nil")
 internal val EMPTY = OtpErlangList()
+internal val STRUCT = OtpErlangAtom("__struct__")
+internal val MACRO_ENV = OtpErlangAtom("Elixir.Macro.Env")
 
 /**
  * The atom [name]. Past an atom's 255 characters it declines: Elixir refuses such an alias, or `__MODULE__`, when it
@@ -684,7 +686,7 @@ internal fun seen(term: OtpErlangObject): OtpErlangObject = if (isUnknown(term))
 
 /** [term] where it is a `%Macro.Env{}`, `null` where it is something else. */
 internal fun macroEnvOf(term: OtpErlangObject): OtpErlangMap? =
-    (seen(term) as? OtpErlangMap)?.takeIf { it.get(atom("__struct__"))?.let(::seen) == atom("Elixir.Macro.Env") }
+    (seen(term) as? OtpErlangMap)?.takeIf { it.get(STRUCT)?.let(::seen) == MACRO_ENV }
 
 /** The field [name] of [env], a `%Macro.Env{}`, declining where it lacks it or it isn't known. */
 internal fun macroEnvField(env: OtpErlangMap, name: String): OtpErlangObject = seen(macroEnvEntry(env, name))

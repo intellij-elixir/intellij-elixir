@@ -8,6 +8,7 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.Macro
 import org.elixir_lang.NameArity
+import org.elixir_lang.expander.interpreter.STRUCT
 
 /**
  * Each module's struct, as `defstruct` records it in the module's metadata. A module the expanded file defines is
@@ -142,7 +143,7 @@ sealed class ModuleStruct {
         private val REQUIRED = OtpErlangAtom("required")
         private val TRUE = OtpErlangAtom("true")
         private val FALSE = OtpErlangAtom("false")
-        private val STRUCT_1 = OtpErlangTuple(arrayOf(OtpErlangAtom("__struct__"), OtpErlangLong(1)))
+        private val STRUCT_1 = OtpErlangTuple(arrayOf(STRUCT, OtpErlangLong(1)))
         private val BLOCK = OtpErlangAtom("__block__")
         private val MATCH = OtpErlangAtom("=")
         private val CASE = OtpErlangAtom("case")

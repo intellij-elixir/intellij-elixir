@@ -297,7 +297,7 @@ internal class Natives(private val evaluation: Evaluation) {
      */
     fun enumerate(enumerable: OtpErlangObject): Sequence<OtpErlangObject> =
         properElements(enumerable)?.asSequence()?.onEach { ProgressManager.checkCanceled() } ?: range(enumerable)?.elements()
-            ?: (enumerable as? OtpErlangMap)?.takeIf { it.get(atom("__struct__")) == null }?.let { map ->
+            ?: (enumerable as? OtpErlangMap)?.takeIf { it.get(STRUCT) == null }?.let { map ->
                 inOrder(map).asSequence().map { (key, value) ->
                     ProgressManager.checkCanceled()
                     tuple(key, value)
@@ -1614,7 +1614,7 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun range(term: OtpErlangObject): Range? {
         val map = term as? OtpErlangMap ?: return null
 
-        if (map.get(atom("__struct__")) != atom("Elixir.Range")) return null
+        if (map.get(STRUCT) != RANGE) return null
 
         val first = (map.get(atom("first")) as? OtpErlangLong)?.bigIntegerValue() ?: decline("a range's first")
         val last = (map.get(atom("last")) as? OtpErlangLong)?.bigIntegerValue() ?: decline("a range's last")
@@ -3076,6 +3076,9 @@ private const val LOCAL_NODE = "nonode@nohost"
 
 /** `self()`: the one process a macro body runs in. */
 private val SELF = OtpErlangPid(LOCAL_NODE, 0, 0, 0)
+
+/** The module of a `Range`. */
+private val RANGE = atom("Elixir.Range")
 
 /** A binary that stands for [UnknownBinary] in a type test. */
 private val SOME_BINARY = OtpErlangBinary(ByteArray(0))
