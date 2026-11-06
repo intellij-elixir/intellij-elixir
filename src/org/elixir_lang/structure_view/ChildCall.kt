@@ -4,7 +4,6 @@ import com.intellij.ide.util.treeView.smartTree.TreeElement
 import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
-import org.elixir_lang.declaration.Presentation
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.operation.Or
 import org.elixir_lang.structure_view.element.CallDefinitionHead
@@ -92,12 +91,7 @@ object ChildCall {
         ),
         Entry(
             "function",
-            matches = { call, _ ->
-                when (org.elixir_lang.psi.CallDefinitionClause.capabilities(call)?.presentation) {
-                    Presentation.FUNCTION -> true
-                    Presentation.MACRO, Presentation.GUARD, null -> false
-                }
-            },
+            matches = { call, _ -> org.elixir_lang.psi.CallDefinitionClause.capabilities(call)?.runtimeFunction == true },
             handle = { accumulator, call -> accumulator.functionByNameArity.addClausesToCallDefinition(call) }
         ),
         Entry(
