@@ -137,7 +137,7 @@ internal object Interpreter {
      * variable it binds, binding into [values], holds them too.
      */
     fun bindDeclined(pattern: ElixirAst, holds: List<OtpErlangObject>, values: HashMap<Binding, OtpErlangObject>, env: Env, run: Run) {
-        Frame(run.bodyClauses(env.module), values).bindEach(pattern, unknownOf(holds))
+        Frame(run.bodyClauses(env.module), values).bindEach(listOf(pattern), unknownOf(holds))
     }
 
     /**
@@ -294,11 +294,11 @@ internal class Frame(
     }
 
     /**
-     * Binds each variable [pattern] binds, but those already bound, to [value], a value that isn't known: none where it
+     * Binds each variable [patterns] bind, but those already bound, to [value], a value that isn't known: none where it
      * is [Unknown], which came from no module being compiled.
      */
-    fun bindEach(pattern: ElixirAst, value: UnknownValue) {
-        if (value !== Unknown) bindUnknown(listOf(pattern), value)
+    fun bindEach(patterns: List<ElixirAst>, value: UnknownValue) {
+        if (value !== Unknown) bindUnknown(patterns, value)
     }
 
     /**
@@ -1346,7 +1346,7 @@ internal class Evaluation(
                 return value
             }
             // Where what it declined on came from a module being compiled, so may what the pattern binds.
-            frame.bindEach(pattern, unknownOf(declined.holds + value))
+            frame.bindEach(listOf(pattern), unknownOf(declined.holds + value))
             throw declined
         }
 
@@ -1360,7 +1360,7 @@ internal class Evaluation(
         val value = try {
             eval(right, frame)
         } catch (declined: Declined) {
-            frame.bindEach(pattern, unknownOf(declined.holds))
+            frame.bindEach(listOf(pattern), unknownOf(declined.holds))
             throw declined
         }
 
@@ -1654,7 +1654,7 @@ internal class Evaluation(
             val scope = frame.copy()
             val value = unknownOf(values + declined.holds)
 
-            for (pattern in patterns) scope.bindEach(pattern, value)
+            scope.bindEach(patterns, value)
             throw gave(declined) { add(marks(branches, scope), run.compiling.keys) }
         }
 
