@@ -111,10 +111,7 @@ class ErlangStepDialog(
     internal val isAnotherInstallLinkShown: Boolean get() = anotherInstallLink.isVisible
 
     /** The text of the list's row for [entry], as its renderer draws it. */
-    internal fun rowText(entry: ErlangStepEntry): String {
-        val row = list.cellRenderer.getListCellRendererComponent(list, entry, 0, false, false) as SimpleColoredComponent
-        return row.getCharSequence(false).toString()
-    }
+    internal fun rowText(entry: ErlangStepEntry): String = list.rowText(entry)
 
     private class EntryRenderer : ColoredListCellRenderer<ErlangStepEntry>() {
         override fun customizeCellRenderer(
@@ -148,4 +145,10 @@ class ErlangStepDialog(
     private companion object {
         const val ANOTHER_INSTALL_EXIT_CODE = NEXT_USER_EXIT_CODE
     }
+}
+
+/** The text of this list's row for [entry], as its renderer draws it. */
+internal fun <T> JList<T>.rowText(entry: T): String {
+    val row = cellRenderer.getListCellRendererComponent(this, entry, 0, false, false) as SimpleColoredComponent
+    return row.getCharSequence(false).toString()
 }
