@@ -14,29 +14,18 @@ class Model :
         false
     ),
     ComboBoxModel<Sdk?> {
-    override fun getElementIndex(item: Sdk?): Int {
-        return if (item != null) {
-            internalList.indexOfFirst { it?.name == item.name }
-        } else {
-            0
-        }
-    }
-
-    /**
-     * The [ProjectSdksModel] this instance subscribed to. Kept so [detach] unsubscribes from the
-     * same instance that [listener] was added to, even if [SdksService] has since invalidated and
-     * rebuilt its cached model.
-     */
     private val subscribedSdksModel: ProjectSdksModel? = SdksService.getInstance()?.getModel()
 
     private val listener = object : SdkModel.Listener {
         override fun beforeSdkRemove(sdk: Sdk) {
-            // ProjectSdksModel.removeSdk fires this with the ORIGINAL table SDK (the map key),
-            // while this model holds the editable clones (the map values), so remove(sdk) by
-            // identity would miss and leave a "ghost" entry in the chooser. Match by name.
-            val index = internalList.indexOfFirst { it?.name == sdk.name }
-            if (index >= 0) {
-                remove(index)
+            // ProjectSdksModel.removeSdk fires this with the table SDK once its copy, which this model lists and which
+            // may carry another name, has left the model's map.
+            val copies = subscribedSdksModel?.projectSdks?.values ?: return
+            for (index in internalList.indices.reversed()) {
+                val item = internalList[index]
+                if (item != null && copies.none { it === item }) {
+                    remove(index)
+                }
             }
         }
 
@@ -45,18 +34,6 @@ class Model :
                 add(sdk)
             }
         }
-
-        override fun sdkChanged(sdk: Sdk, previousName: String) {
-            val previousIndex = internalList.indexOfFirst { indexSdk ->
-                indexSdk?.name == previousName
-            }
-
-            if (previousIndex > 0) {
-                fireContentsChanged(this@Model, previousIndex, previousIndex)
-            }
-        }
-
-        override fun sdkHomeSelected(sdk: Sdk, newSdkHome: String) {}
     }
 
     init {

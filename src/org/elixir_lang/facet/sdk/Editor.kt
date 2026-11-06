@@ -18,13 +18,16 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.TabbedPaneWrapper
+import com.intellij.ui.components.JBTextField
 import com.intellij.ui.navigation.History
 import com.intellij.ui.navigation.Place
+import com.intellij.util.ui.GridBag
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
+import java.awt.Insets
 import java.io.File
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
@@ -42,9 +45,13 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
     private val componentByAdditionalDataConfigurable = HashMap<AdditionalDataConfigurable, JComponent?>()
     private val editedSdkModificator = this.EditedSdkModificator()
     private val disposable = Disposer.newDisposable()
+    private val rows = GridBag()
     private var _versionString: String? = null
     private var initialName: String = sdk.name
     private var initialPath: String? = sdk.homePath
+
+    /** Applied to the copy, but not yet to the table: the copy's own baselines, such as the path editors', have moved. */
+    private var awaitingModelApply = false
 
     private val homeFieldLabelValue: String
         get() = (sdk.sdkType as SdkType).homeFieldLabel
@@ -56,6 +63,7 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
         get() = initAdditionalDataConfigurable(sdk)
 
     // GUI components
+    private lateinit var nameField: JBTextField
     private lateinit var additionalDataPanel: JPanel
     private lateinit var homeComponent: TextFieldWithBrowseButton
     private lateinit var mainPanel: JPanel
@@ -94,72 +102,30 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
 
         tabbedPane.addChangeListener { history.pushQueryPlace() }
 
+        nameField = JBTextField(sdk.name)
+        addRow(JLabel("Name:").apply { labelFor = nameField }, nameField)
+
         homeComponent = createHomeComponent()
         homeComponent.textField.isEditable = false
         homeFieldLabel = JLabel(homeFieldLabelValue)
-        mainPanel.add(
-            homeFieldLabel, GridBagConstraints(
-                0,
-                GridBagConstraints.RELATIVE,
-                1,
-                1,
-                0.0,
-                0.0,
-                GridBagConstraints.WEST,
-                GridBagConstraints.NONE,
-                JBUI.insets(2, 10, 2, 2),
-                0,
-                0
-            )
-        )
-        mainPanel.add(
-            homeComponent, GridBagConstraints(
-                1,
-                GridBagConstraints.RELATIVE,
-                1,
-                1,
-                1.0,
-                0.0,
-                GridBagConstraints.CENTER,
-                GridBagConstraints.HORIZONTAL,
-                JBUI.insets(2, 2, 2, 10),
-                0,
-                0
-            )
-        )
+        addRow(homeFieldLabel, homeComponent)
 
         additionalDataPanel = JPanel(BorderLayout())
-        mainPanel.add(
-            additionalDataPanel, GridBagConstraints(
-                0,
-                GridBagConstraints.RELATIVE,
-                2,
-                1,
-                1.0,
-                0.0,
-                GridBagConstraints.CENTER,
-                GridBagConstraints.BOTH,
-                JBUI.insets(2, 10, 0, 10),
-                0,
-                0
-            )
-        )
+        addWideRow(additionalDataPanel, 0.0, JBUI.insets(2, 10, 0, 10))
+        addWideRow(tabbedPane.component, 1.0, JBUI.insetsTop(2))
+    }
 
+    /** A row spanning both columns. */
+    private fun addWideRow(component: JComponent, weighty: Double, insets: Insets) {
         mainPanel.add(
-            tabbedPane.component, GridBagConstraints(
-                0,
-                GridBagConstraints.RELATIVE,
-                2,
-                1,
-                1.0,
-                1.0,
-                GridBagConstraints.CENTER,
-                GridBagConstraints.BOTH,
-                JBUI.insetsTop(2),
-                0,
-                0
-            )
+            component,
+            rows.nextLine().next().coverLine().fillCell().weightx(1.0).weighty(weighty).insets(insets),
         )
+    }
+
+    private fun addRow(label: JLabel, field: JComponent) {
+        mainPanel.add(label, rows.nextLine().next().anchor(GridBagConstraints.WEST).insets(JBUI.insets(2, 10, 2, 2)))
+        mainPanel.add(field, rows.next().fillCellHorizontally().weightx(1.0).insets(JBUI.insets(2, 2, 2, 10)))
     }
 
     private fun createHomeComponent(): TextFieldWithBrowseButton = TextFieldWithBrowseButton { doSelectHomePath() }
@@ -167,7 +133,8 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
     private fun showTabForType(type: OrderRootType): Boolean = (sdk.sdkType as SdkType).isRootTypeApplicable(type)
 
     override fun isModified(): Boolean =
-        !Objects.equals(sdk.name, initialName) ||
+        awaitingModelApply ||
+                name != initialName ||
                 !Objects.equals(
                     FileUtil.toSystemIndependentName(homeValue),
                     FileUtil.toSystemIndependentName(initialPath!!)
@@ -181,13 +148,10 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
 
     @Throws(ConfigurationException::class)
     override fun apply() {
-        if (!Objects.equals(initialName, sdk.name) && sdk.name.isEmpty()) {
-            throw ConfigurationException(ProjectBundle.message("sdk.list.name.required.error"))
-        }
-
-        initialName = sdk.name
-        initialPath = sdk.homePath
         val sdkModificator = sdk.sdkModificator
+        // Before the commit and the additional-data configurables, which follow a rename; the model refuses an empty
+        // or duplicate name.
+        sdkModificator.name = name
         if (!FileUtil.pathsEqual(homeValue, sdk.homePath ?: "")) {
             sdkModificator.versionString = _versionString
         }
@@ -198,9 +162,22 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
         ApplicationManager.getApplication().runWriteAction { sdkModificator.commitChanges() }
 
         additionalDataConfigurable.forEach(AdditionalDataConfigurable::apply)
+        awaitingModelApply = true
+    }
+
+    /** The name [apply] writes to the copy. */
+    val name: String get() = nameField.text
+
+    /** The model holding the copy [apply] wrote has applied it to the table, or [reset] reads the copy again. */
+    fun applied() {
+        initialName = sdk.name
+        initialPath = sdk.homePath
+        awaitingModelApply = false
     }
 
     override fun reset() {
+        applied()
+        nameField.text = sdk.name
         // Only read, and left uncommitted: ConfigurableCardPanel calls this inside a read action.
         val sdkModificator = sdk.sdkModificator
         for (type in sdkPathEditorByOrderRootType.keys) {
@@ -218,6 +195,17 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
         for (i in 0 until tabbedPane.tabCount) {
             tabbedPane.setEnabledAt(i, true)
         }
+    }
+
+    /**
+     * Shows the copy again where nothing is edited: all of it when unmodified, else each path list. Another page's
+     * Apply may write the copy's roots, as an Erlang SDK's editor repairs an Elixir copy's code paths, and [apply]
+     * writes every path list.
+     */
+    fun refresh() {
+        if (!isModified) return reset()
+        val sdkModificator = sdk.sdkModificator
+        sdkPathEditorByOrderRootType.values.filterNot(SdkPathEditor::isModified).forEach { it.reset(sdkModificator) }
     }
 
     override fun disposeUIResources() {
@@ -347,10 +335,10 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
     override fun setHistory(history: History) {}
 
     private inner class EditedSdkModificator : SdkModificator {
-        override fun getName(): String = sdk.name
+        override fun getName(): String = this@Editor.name
 
         override fun setName(name: String) {
-            sdk.name = name
+            nameField.text = name
         }
 
         override fun getHomePath(): String = homeValue

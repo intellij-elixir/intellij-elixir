@@ -231,6 +231,34 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         assertFalse(page.configurable.isModified)
     }
 
+    fun testADeletedErlangSdkWhoseCopyWasRenamedLeavesTheList() {
+        val kept = erlang("Combo renamed kept Erlang", "27", "27.3.4")
+        val removed = erlang("Combo renamed removed Erlang", "26", "26.2.5")
+        val model = model(kept, removed, paired("Combo renamed removal", kept.name, kept.homePath!!))
+        val page = open(model, "Combo renamed removal")
+        val copy = model.findSdk(removed.name)!!
+        renameCopy(copy, "Combo renamed removed Erlang left by a refused Apply")
+
+        model.removeSdk(copy)
+
+        assertEquals(listOf(kept.name), page.listedNames())
+    }
+
+    fun testAPickWhoseCopyWasRenamedRemovedFromTheModelShowsTheStoredPairingAgain() {
+        val stored = SdkFixtures.withCodePaths(erlang("Combo renamed pick stored Erlang", "27", "27.3.4"))
+        val picked = SdkFixtures.withCodePaths(erlang("Combo renamed pick shown Erlang", "26", "26.2.5"))
+        val model = model(stored, picked, paired("Combo renamed pick paths", stored.name, stored.homePath!!))
+        val page = open(model, "Combo renamed pick paths")
+        val copy = model.findSdk(picked.name)!!
+        page.combo.selectedItem = copy
+        renameCopy(copy, "Combo renamed pick shown Erlang left by a refused Apply")
+
+        model.removeSdk(copy)
+
+        assertEquals(stored.name, (page.combo.selectedItem as Sdk?)?.name)
+        assertEquals("the removed pick's code paths", emptyList<String>(), page.codePathsUnder(picked.homePath!!))
+    }
+
     fun testDeletingThePairedErlangSdkShowsNothingAndWritesNothing() {
         val deleted = erlang("Combo paired deleted Erlang", "27", "27.3.4")
         val neighbour = erlang("Combo neighbour Erlang", "26", "26.2.5")
@@ -342,6 +370,9 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
             modificator,
         )
     }
+
+    /** Names the model's [copy] [name] while its table SDK keeps its own, as a refused Apply leaves a page's Name field. */
+    private fun renameCopy(copy: Sdk, name: String) = SdkFixtures.commit(copy) { this.name = name }
 
     private fun erlang(name: String, major: String, otpVersion: String): Sdk =
         SdkFixtures.erlangSdk(name, SdkFixtures.erlangHomeWithEbin(major, otpVersion))

@@ -102,7 +102,7 @@ class AdditionalDataConfigurable(
 
                 override fun beforeSdkRemove(sdk: Sdk) {
                     if (Type.staticIsValidDependency(sdk)) {
-                        removeErlangSdk(sdk)
+                        dropRemovedErlangSdks()
                     }
                 }
             }
@@ -367,12 +367,19 @@ class AdditionalDataConfigurable(
     }
 
     /**
-     * By name: `ProjectSdksModel.removeSdk` fires with the table's SDK, while the combo lists the model's copies. Removing
-     * the picked SDK voids the pick: the page shows the stored pairing again, with its code paths in place of the pick's.
+     * `ProjectSdksModel.removeSdk` fires with the table's SDK once its copy, which the combo lists and which may carry
+     * another name, has left the model. Removing the picked SDK voids the pick: the page shows the stored pairing again,
+     * with its code paths in place of the pick's.
      */
-    private fun removeErlangSdk(sdk: Sdk) {
-        val picked = (internalErlangSdksComboBox.selectedItem as? Sdk)?.takeIf { pairingPicked && it.name == sdk.name }
-        frozen { internalErlangSdksComboBoxModel.indexOfName(sdk.name)?.let(internalErlangSdksComboBoxModel::removeElementAt) }
+    private fun dropRemovedErlangSdks() {
+        val held = sdkModel.sdks
+        fun gone(item: Sdk) = held.none { it === item }
+        val picked = (internalErlangSdksComboBox.selectedItem as? Sdk)?.takeIf { pairingPicked && gone(it) }
+        frozen {
+            for (index in (0 until internalErlangSdksComboBoxModel.size).reversed()) {
+                if (gone(internalErlangSdksComboBoxModel.getElementAt(index))) internalErlangSdksComboBoxModel.removeElementAt(index)
+            }
+        }
         val myElixirSdk = elixirSdk
         if (picked == null || myElixirSdk == null) return
 

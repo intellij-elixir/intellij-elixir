@@ -5,7 +5,6 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.testFramework.registerOrReplaceServiceInstance
-import com.intellij.testFramework.runInEdtAndGet
 import com.intellij.testFramework.runInEdtAndWait
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.sdk.ProcessOutput
@@ -15,7 +14,6 @@ import org.elixir_lang.sdk.wsl.MockWslCompatService
 import org.elixir_lang.sdk.wsl.WslCompatService
 import org.elixir_lang.util.WriteActions
 import java.util.concurrent.Callable
-import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData as ElixirSdkAdditionalData
 
 class SdksServiceApplyTest : PlatformTestCase() {
     override fun runInDispatchThread(): Boolean = false
@@ -45,13 +43,13 @@ class SdksServiceApplyTest : PlatformTestCase() {
         val e1Home = SdkFixtures.erlangHomeWithEbin("26", "26.2.5")
         val e2Home = SdkFixtures.erlangHomeWithEbin("27", "27.3.4")
         val xHome = SdkFixtures.elixirHome("1.18.4")
-        val model = runInEdtAndGet {
+        runInEdtAndWait {
             val e1 = register(SdkFixtures.erlangSdk(E1, e1Home))
             register(SdkFixtures.erlangSdk(E2, e2Home))
             val x = register(SdkFixtures.elixirSdk(X, xHome))
-            SdkFixtures.commit(x, ElixirSdkAdditionalData(e1, x))
+            SdkFixtures.commitPairing(x, e1)
             SdksService.getInstance()!!.resetForTests()
-            SdksService.getInstance()!!.getModel().also { model ->
+            SdksService.getInstance()!!.getModel().let { model ->
                 // As the SDKs page's Erlang combo applies a new pairing to the model's copy.
                 WriteActions.runWriteAction {
                     ElixirSdkMutation.applyDependencySelection(
@@ -65,7 +63,7 @@ class SdksServiceApplyTest : PlatformTestCase() {
 
         runInEdtAndWait(writeIntent = false) {
             assertFalse("a Settings tab's click holds no lock", ApplicationManager.getApplication().isReadAccessAllowed)
-            SdksService.getInstance()!!.apply(model)
+            SdksService.getInstance()!!.apply()
         }
 
         val stored = ReadAction.nonBlocking(Callable {

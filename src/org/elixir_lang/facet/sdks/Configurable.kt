@@ -1,6 +1,5 @@
 package org.elixir_lang.facet.sdks
 
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.options.SearchableConfigurable
 import com.intellij.openapi.options.ex.ConfigurableCardPanel
@@ -8,12 +7,8 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.SdkType
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
-import com.intellij.openapi.roots.OrderRootType
-import com.intellij.openapi.roots.libraries.Library
-import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar
 import com.intellij.openapi.ui.Splitter
 import com.intellij.openapi.util.ActionCallback
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.navigation.History
@@ -26,17 +21,17 @@ import javax.swing.JPanel
 
 private val LOG = logger<Configurable>()
 
-fun Library.ModifiableModel.addRoots(sdk: Sdk) =
-        sdk
-                .rootProvider
-                .getFiles(OrderRootType.CLASSES)
-                .let { addRoots(it) }
-
 abstract class Configurable: SearchableConfigurable, com.intellij.openapi.options.Configurable.NoScroll {
-    internal val sdksService by lazy { SdksService.getInstance()!! }
+    private val sdksService by lazy { SdksService.getInstance()!! }
     private val projectSdksModel by lazy { sdksService.getModel() }
     private lateinit var rootSplitter: Splitter
     private val editorByProjectJdkImpl: MutableMap<ProjectJdkImpl, Editor> = mutableMapOf()
+
+    /** Copies this page removed, hidden here and left in the shared model until its Apply. */
+    private val removedCopies = mutableSetOf<ProjectJdkImpl>()
+
+    /** Copies this page added, taken out of the shared model again by Cancel unless an Apply has put them in the table. */
+    private val addedCopies = mutableSetOf<ProjectJdkImpl>()
     private lateinit var sdkPanel: ConfigurableCardPanel
     private lateinit var sdkList: List
     private lateinit var sdkListPanel: JPanel
@@ -52,28 +47,16 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     })
 
     override fun apply() {
-        editorByProjectJdkImpl.forEach { (_, editor) ->
-            editor.apply()
+        // Taken once the pending pass has run, so the clash check reads the names the editors write.
+        val edited by lazy { editedEditors() }
+        sdksService.apply(page, removedCopies, { copy -> edited[copy]?.name ?: copy.name }) {
+            edited.values.forEach(Editor::apply)
         }
-        sdksService.apply(projectSdksModel)
-        removeLibraries()
+        edited.values.forEach(Editor::applied)
+        addedCopies.clear()
     }
 
-    /**
-     * The application libraries of the SDKs removed on this page, which go when the removal is applied, but for one an
-     * SDK added under the same name has taken back.
-     */
-    private val removedLibraries = mutableSetOf<Library>()
-
-    private fun removeLibraries() {
-        if (removedLibraries.isEmpty()) return
-        val libraryTable = LibraryTablesRegistrar.getInstance().libraryTable
-        val libraries = removedLibraries.intersect(libraryTable.libraries.toSet())
-        removedLibraries.clear()
-        if (libraries.isNotEmpty()) {
-            ApplicationManager.getApplication().runWriteAction { libraries.forEach(libraryTable::removeLibrary) }
-        }
-    }
+    private fun editedEditors(): Map<ProjectJdkImpl, Editor> = editorByProjectJdkImpl.filterValues(Editor::isModified)
 
     override fun createComponent(): JComponent? {
         sdkList = List(this)
@@ -104,12 +87,20 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     override fun getHelpTopic(): String? = null
 
     override fun isModified(): Boolean =
-            projectSdksModel.isModified || editorByProjectJdkImpl.any { entry -> entry.value.isModified }
+        removedCopies.isNotEmpty() || unappliedAdds().isNotEmpty() || editorByProjectJdkImpl.values.any(Editor::isModified)
+
+    /** This page's adds the table does not hold yet: another page's Apply may have put them there. */
+    private fun unappliedAdds(): kotlin.collections.List<ProjectJdkImpl> =
+        addedCopies.filter { projectSdksModel.findSdk(it)?.let(sdksService::inTable) == false }
+
+    /** The shared model's SDKs of this page's type, but those this page removed. */
+    internal fun listedSdks(): kotlin.collections.List<ProjectJdkImpl> =
+        sdksService.projectJdkImplList(sdkType().javaClass).filter { it !in removedCopies }
 
     override fun reset() {
-        // The shared model is populated once (SdksService.initModel) and kept in sync via the
-        // SdkModel listeners; do NOT reset it here - re-cloning would invalidate the SDK objects
-        // held by other open SDK views (and break removeSdk, whose findSdk matches by identity).
+        // The shared model is populated once (SdksService.getModel); do NOT reset it here - re-cloning
+        // would invalidate the SDK objects held by other open SDK views (and break removeSdk, whose
+        // findSdk matches by identity).
         sdkList.refresh()
     }
 
@@ -118,6 +109,7 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     private fun addCreatedSdk(sdk: Sdk?) {
         sdk?.let {
             if (it.sdkType == sdkType()) {
+                addedCopies += it as ProjectJdkImpl
                 sdkList.apply {
                     refresh()
                     setSelectedValue(sdk, true)
@@ -133,61 +125,30 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
      */
     private var sdkModelListener: SdkModel.Listener? = null
 
+    private val page = object : SdksService.Page {
+        override fun editedCopies(): Collection<Sdk> = editedEditors().keys
+
+        override fun close(copy: Sdk) {
+            removedCopies.removeIf { it === copy }
+            closeEditor(copy)
+        }
+
+        override fun modelChanged() {
+            editorByProjectJdkImpl.values.forEach(Editor::refresh)
+            sdkList.refresh()
+        }
+    }
+
     private fun addListeners() {
         val listener = object : SdkModel.Listener {
-            override fun beforeSdkRemove(sdk: Sdk) {
-                LOG.debug("beforeSdkRemove(sdk.name='${sdk.name}')")
-                LibraryTablesRegistrar.getInstance().libraryTable.getLibraryByName(sdk.name)?.let(removedLibraries::add)
-            }
-
             override fun sdkAdded(sdk: Sdk) {
                 LOG.debug("sdkAdded(sdk.name='${sdk.name}')")
-                LibraryTablesRegistrar.getInstance().libraryTable.let { libraryTable ->
-                    ApplicationManager.getApplication().runWriteAction {
-                        val library = libraryTable.getLibraryByName(sdk.name)?.also(removedLibraries::remove)
-                            ?: libraryTable.createLibrary(sdk.name)
-                        library.modifiableModel.apply {
-                            replaceRoots(sdk)
-                            commit()
-                        }
-                    }
-                }
-
                 sdkList.refresh()
-            }
-
-            override fun sdkChanged(sdk: Sdk, previousName: String) {
-                LOG.debug("sdkChanged(sdk.name='${sdk.name}', previousName='$previousName')")
-                if (sdk.name != previousName) {
-                    LibraryTablesRegistrar.getInstance().libraryTable.getLibraryByName(previousName)?.let { library ->
-                        ApplicationManager.getApplication().runWriteAction {
-                            library.modifiableModel.apply {
-                                name = sdk.name
-                                replaceRoots(sdk)
-                                commit()
-                            }
-                        }
-                    }
-                } else {
-                    LibraryTablesRegistrar.getInstance().libraryTable.getLibraryByName(sdk.name)?.let { library ->
-                        ApplicationManager.getApplication().runWriteAction {
-                            library.modifiableModel.apply {
-                                replaceRoots(sdk)
-                                commit()
-                            }
-                        }
-                    }
-                }
-
-                sdkList.refresh()
-            }
-
-            override fun sdkHomeSelected(sdk: Sdk, newSdkHome: String) {
-                LOG.debug("sdkHomeSelected(sdk.name='${sdk.name}', newSdkHome='$newSdkHome')")
             }
         }
         projectSdksModel.addListener(listener)
         sdkModelListener = listener
+        sdksService.addPage(page)
         sdkList.selectionModel.addListSelectionListener { event ->
             if (!event.valueIsAdjusting) {
                 updateSdkPanel(sdkList.selectedValue)
@@ -198,9 +159,11 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     override fun disposeUIResources() {
         sdkModelListener?.let { projectSdksModel.removeListener(it) }
         sdkModelListener = null
+        sdksService.removePage(page, isModified)
+        sdksService.takeOut(unappliedAdds())
+        addedCopies.clear()
+        removedCopies.clear()
         editorByProjectJdkImpl.clear()
-        removedLibraries.clear()
-        sdksService.discardUnapplied(projectSdksModel)
     }
 
     private fun addSdk() {
@@ -213,20 +176,17 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
     }
 
     /**
-     * Removes [selected] (the editable model clone shown in the list) from the model, which takes it out of the table
-     * when applied, after validating what is left, as IDEA's Project Structure does. Extracted for testing.
+     * Removes [selected] (the editable model clone shown in the list) from this page; its Apply takes it out of the
+     * table. Extracted for testing.
      */
     internal fun removeSelectedSdk(selected: ProjectJdkImpl) {
-        projectSdksModel.removeSdk(selected)
-
-        editorByProjectJdkImpl[selected]?.let {
-            sdkPanel.getValue(sdkPanel.key, false).let { value ->
-                sdkPanel.remove(value)
-            }
-        }
-        editorByProjectJdkImpl.remove(selected)
-
+        removedCopies += selected
+        closeEditor(selected)
         sdkList.refresh()
+    }
+
+    private fun closeEditor(copy: Sdk) {
+        editorByProjectJdkImpl.remove(copy)?.let { editor -> sdkPanel.getValue(editor, false)?.let(sdkPanel::remove) }
     }
 
     private fun updateSdkPanel(selectedValue: ProjectJdkImpl?) {
@@ -236,20 +196,4 @@ abstract class Configurable: SearchableConfigurable, com.intellij.openapi.option
 
         sdkPanel.select(selectedEditor, true)
     }
-}
-
-private fun Library.ModifiableModel.addRoots(roots: Array<VirtualFile>) =
-        roots.forEach {
-            addRoot(it, OrderRootType.CLASSES)
-        }
-
-private fun Library.ModifiableModel.clearRoots() {
-    getUrls(OrderRootType.CLASSES).forEach {
-        removeRoot(it, OrderRootType.CLASSES)
-    }
-}
-
-private fun Library.ModifiableModel.replaceRoots(sdk: Sdk) {
-    clearRoots()
-    addRoots(sdk)
 }

@@ -64,7 +64,7 @@ class ErlangRenameTest : PlatformTestCase() {
         val model = smallIdesModel()
 
         Editor(model, "Rename small Erlang").rename("Rename small Erlang renamed")
-        SdksService.getInstance()!!.apply(model)
+        SdksService.getInstance()!!.apply()
         settle()
 
         assertNotNull("precondition: the rename reached the table", ProjectJdkTable.getInstance().findJdk("Rename small Erlang renamed"))
@@ -154,7 +154,7 @@ class ErlangRenameTest : PlatformTestCase() {
 
     /** The small IDEs' SDKs pages. */
     fun testAHomeMovedOnTheSmallIdesPagesIsFollowedByItsElixirSdks() =
-        assertMoveFollowed("Move small", ::smallIdesModel) { SdksService.getInstance()!!.apply(it) }
+        assertMoveFollowed("Move small", ::smallIdesModel) { SdksService.getInstance()!!.apply() }
 
     /** A rename and a move in one Apply, on IntelliJ IDEA's Project Structure. */
     fun testAHomeMovedAndRenamedInOneApplyIsFollowedByItsElixirSdks() =
@@ -210,9 +210,7 @@ class ErlangRenameTest : PlatformTestCase() {
      * code paths its type sets up.
      */
     private fun pairedWithErlang(prefix: String): Sdk {
-        val erlang = SdkFixtures.withCodePaths(register(SdkFixtures.erlangSdk("$prefix Erlang", SdkFixtures.erlangHomeWithEbin("27", "27.3.4"))))
-        val elixir = pairedElixir("$prefix Elixir", erlang)
-        ElixirSdkPathConfigurator.configure(elixir)
+        val (erlang, elixir) = SdkFixtures.pairedInTable("$prefix Elixir", erlangName = "$prefix Erlang")
         assertEquals("precondition: the Erlang code paths", codePaths(erlang), codePathsUnder(elixir, erlang.homePath!!))
         return elixir
     }
