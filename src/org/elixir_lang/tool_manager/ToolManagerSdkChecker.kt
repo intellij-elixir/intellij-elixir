@@ -94,12 +94,7 @@ internal class ToolManagerSdkChecker(
     fun collectContentRoots(): List<Path> =
         ModuleManager.getInstance(project).modules
             .filter { it.isElixirModule() }
-            .mapNotNull { module ->
-                ModuleRootManager.getInstance(module)
-                    .contentRoots
-                    .firstOrNull()
-                    ?.toNioPathOrNull()
-            }
+            .mapNotNull { it.toolManagerFolder }
             .distinct()
 
     /**
@@ -116,10 +111,7 @@ internal class ToolManagerSdkChecker(
                 val elixirSdk = ElixirSdkLookup.resolve(module).sdk
                 val elixirData = elixirSdk?.elixirAdditionalData
                 val erlangSdk = elixirData?.getErlangSdk()
-                val contentRoot = ModuleRootManager.getInstance(module)
-                    .contentRoots
-                    .firstOrNull()
-                    ?.toNioPathOrNull()
+                val contentRoot = module.toolManagerFolder
                 LOG.trace("collectModuleCheckData: module='${module.name}' elixirSdk='${elixirSdk?.name}' contentRoot=$contentRoot")
                 ModuleCheckData(
                     moduleName = module.name,
@@ -484,3 +476,7 @@ internal class ToolManagerSdkChecker(
         LOG.info("configureSdks: assigned '${elixirSdk.name}' -> '${module.name}'")
     }
 }
+
+/** The folder the tool managers are asked about for this module: its first content root. */
+internal val Module.toolManagerFolder: Path?
+    @RequiresReadLock get() = ModuleRootManager.getInstance(this).contentRoots.firstOrNull()?.toNioPathOrNull()
