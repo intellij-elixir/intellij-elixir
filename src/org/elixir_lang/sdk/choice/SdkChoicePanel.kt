@@ -22,6 +22,7 @@ import org.elixir_lang.sdk.erlang_dependent.Type.Companion.staticIsValidDependen
 import org.elixir_lang.sdk.erlang_dependent.rowText
 import java.awt.BorderLayout
 import java.awt.FlowLayout
+import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.JButton
 import javax.swing.JList
@@ -82,11 +83,11 @@ class SdkChoicePanel(
         pick(state.selected)
     }
 
-    /** Lists the Elixir SDKs of [target]'s environment instead. */
+    /** Lists the Elixir SDKs of [target]'s environment instead, for [folders]. */
     @RequiresEdt
     @Suppress("UnstableApiUsage") // EelDescriptor is the platform's only name for an environment.
-    fun retarget(target: EelDescriptor?) {
-        state.retarget(target)
+    fun retarget(target: EelDescriptor?, folders: List<Path>) {
+        state.retarget(target, folders)
         pick(state.selected)
     }
 

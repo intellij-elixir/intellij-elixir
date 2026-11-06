@@ -358,7 +358,7 @@ class SdkChoiceTest : HeavyTestCase() {
         elixir("Choice later")
         assertEmpty(state.names())
 
-        state.retarget(Elsewhere)
+        state.retarget(Elsewhere, emptyList())
 
         assertEquals(listOf("Choice later"), state.names())
     }
@@ -387,7 +387,7 @@ class SdkChoiceTest : HeavyTestCase() {
     }
 
     private fun state(project: Project = this.project, target: EelDescriptor? = project.getEelDescriptor()): SdkChoiceState =
-        SdkChoiceState(project, target, null).also { Disposer.register(testRootDisposable, it) }
+        SdkChoiceState(project, target, null, emptyList()).also { Disposer.register(testRootDisposable, it) }
 
     /** An environment no Eel resolver knows, so every SDK is visible for it. */
     private object Elsewhere : EelDescriptor {

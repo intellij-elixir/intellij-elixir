@@ -25,6 +25,7 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.NlsContexts
 import com.intellij.openapi.util.io.FileUtil
+import com.intellij.openapi.util.io.toNioPathOrNull
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.ui.dsl.builder.*
@@ -237,7 +238,9 @@ fun Row.elixirSdkChooser(
     fun locationDirectory(): String? = locationProperty.get().takeUnless(String::isBlank)
     fun target() = locationDirectory()?.let { SdkEnvironment.eelDescriptor(it) }
 
-    val state = SdkChoiceState(context.project ?: ProjectManager.getInstance().defaultProject, target(), null)
+    fun folders() = listOfNotNull(locationDirectory()?.toNioPathOrNull())
+
+    val state = SdkChoiceState(context.project ?: ProjectManager.getInstance().defaultProject, target(), null, folders())
     Disposer.register(context.disposable, state)
     Disposer.register(context.disposable) { SdkDetectionContext.clear() }
     val panel = SdkChoicePanel(state, context.disposable) { sdkProperty.set(it?.sdk) }
@@ -246,7 +249,7 @@ fun Row.elixirSdkChooser(
     SdkDetectionContext.set(locationDirectory())
     locationProperty.afterChange(context.disposable) {
         SdkDetectionContext.set(locationDirectory())
-        panel.retarget(target())
+        panel.retarget(target(), folders())
     }
 
     return cell(panel).validationOnApply { validationMessage(sdkProperty.get())?.let { error(it) } }

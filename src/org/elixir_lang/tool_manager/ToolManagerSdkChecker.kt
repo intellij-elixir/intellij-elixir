@@ -141,17 +141,8 @@ internal class ToolManagerSdkChecker(
      *
      * Must NOT be called on the EDT or under a read lock - tool managers may spawn subprocesses.
      */
-    fun resolveVersions(contentRoots: List<Path>): Map<Path, ToolManagerResult?> {
-        val enabledManagers = toolManagers.filter { settings.isEnabled(it) }
-        return contentRoots.associateWith { contentRoot ->
-            enabledManagers.firstNotNullOfOrNull { manager ->
-                LOG.trace("resolveVersions: trying '${manager.name}' for $contentRoot")
-                manager.resolveVersions(contentRoot).also { result ->
-                    LOG.trace("resolveVersions: '${manager.name}' returned $result for $contentRoot")
-                }
-            }
-        }
-    }
+    fun resolveVersions(contentRoots: List<Path>): Map<Path, ToolManagerResult?> =
+        resolveFirst(toolManagers.filter { settings.isEnabled(it) }, contentRoots)
 
     /**
      * Resolves symlinks in the module SDK homes and the install paths the results name: an SDK home picked through a
@@ -480,3 +471,18 @@ internal class ToolManagerSdkChecker(
 /** The folder the tool managers are asked about for this module: its first content root. */
 internal val Module.toolManagerFolder: Path?
     @RequiresReadLock get() = ModuleRootManager.getInstance(this).contentRoots.firstOrNull()?.toNioPathOrNull()
+
+/**
+ * The first non-null answer of [toolManagers], in their order, for each of [contentRoots].
+ *
+ * Must NOT be called on the EDT or under a read lock - tool managers may spawn subprocesses.
+ */
+internal fun resolveFirst(toolManagers: List<ElixirToolManager>, contentRoots: List<Path>): Map<Path, ToolManagerResult?> =
+    contentRoots.associateWith { contentRoot ->
+        toolManagers.firstNotNullOfOrNull { manager ->
+            LOG.trace("resolveVersions: trying '${manager.name}' for $contentRoot")
+            manager.resolveVersions(contentRoot).also { result ->
+                LOG.trace("resolveVersions: '${manager.name}' returned $result for $contentRoot")
+            }
+        }
+    }
