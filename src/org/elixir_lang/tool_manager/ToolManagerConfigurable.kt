@@ -18,7 +18,7 @@ import javax.swing.JComponent
  * small-IDE-safe (see [ToolManagerSdkChecker.configureSdks]).
  *
  * Renders one checkbox per registered tool manager so users can opt in to each experimental
- * manager individually.  The list is driven by [allBuiltInToolManagers] so new managers
+ * manager individually.  The list is driven by [BuiltInToolManagers] so new managers
  * registered there automatically appear here without any additional wiring.
  */
 internal class ToolManagerConfigurable(private val project: Project) : Configurable {
@@ -34,7 +34,7 @@ internal class ToolManagerConfigurable(private val project: Project) : Configura
                 row {
                     comment("Saved for you in this project, not shared with others who open it.")
                 }
-                for (manager in allBuiltInToolManagers) {
+                for (manager in BuiltInToolManagers.getInstance().all) {
                     lateinit var enabled: Cell<JBCheckBox>
                     row {
                         enabled = checkBox(manager.displayName)

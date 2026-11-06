@@ -41,9 +41,11 @@ internal class ToolManagerSdkCheckerService(private val project: Project) : Disp
 
     private val scope = project.service<ElixirCoroutineService>().supervisedChildScope(javaClass.simpleName)
 
+    private val toolManagers = BuiltInToolManagers.getInstance().all
+
     internal val checker = ToolManagerSdkChecker(
         project = project,
-        toolManagers = allBuiltInToolManagers,
+        toolManagers = toolManagers,
         settings = ToolManagerSettings.getInstance(project),
     )
 
@@ -144,7 +146,7 @@ internal class ToolManagerSdkCheckerService(private val project: Project) : Disp
 
         val settings = ToolManagerSettings.getInstance(project)
 
-        allBuiltInToolManagers
+        toolManagers
             .filter { settings.isEnabled(it) }
             .forEach { manager ->
                 val trigger = manager.createRefreshTrigger() ?: return@forEach

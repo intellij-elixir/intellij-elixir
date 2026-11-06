@@ -46,7 +46,7 @@ internal class ToolManagerSdkAnalyser(private val project: Project) : Disposable
 
     private val checker = ToolManagerSdkChecker(
         project = project,
-        toolManagers = allBuiltInToolManagers,
+        toolManagers = BuiltInToolManagers.getInstance().all,
         settings = ToolManagerSettings.getInstance(project),
     )
 
