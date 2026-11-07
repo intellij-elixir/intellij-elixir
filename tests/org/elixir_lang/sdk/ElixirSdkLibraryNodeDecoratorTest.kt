@@ -3,7 +3,6 @@ package org.elixir_lang.sdk
 import com.intellij.ide.projectView.PresentationData
 import com.intellij.ide.projectView.ViewSettings
 import com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode
-import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.OrderRootType
@@ -11,6 +10,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
+import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
 
 /**
  * Tests for [ElixirSdkLibraryNodeDecorator].
@@ -51,28 +51,37 @@ class ElixirSdkLibraryNodeDecoratorTest : PlatformTestCase() {
         val sdk = registerElixirSdk(classRoots = listOf(iex))
         assertEquals("iex", presentableTextOf(iex))
 
-        WriteAction.run<Throwable> {
-            sdk.sdkModificator.apply {
-                addRoot(logger, OrderRootType.CLASSES)
-                commitChanges()
-            }
-        }
+        SdkFixtures.commit(sdk) { addRoot(logger, OrderRootType.CLASSES) }
 
         assertEquals("logger", presentableTextOf(logger))
+    }
+
+    fun testRootAddedToARegisteredErlangSdkIsNamedAfterItsOtpApplication() {
+        val kernel = myFixture.tempDirFixture.findOrCreateDir("erlang_home/lib/kernel-10.0/ebin")
+        val stdlib = myFixture.tempDirFixture.findOrCreateDir("erlang_home/lib/stdlib-7.1/ebin")
+        val sdk = registerSdk(ProjectJdkImpl("Test Erlang SDK", ErlangSdkType.instance), "erlang_home", classRoots = listOf(kernel))
+        assertEquals("kernel-10.0", presentableTextOf(kernel))
+
+        SdkFixtures.commit(sdk) { addRoot(stdlib, OrderRootType.CLASSES) }
+
+        assertEquals("stdlib-7.1", presentableTextOf(stdlib))
     }
 
     private fun registerElixirSdk(
         classRoots: List<VirtualFile> = emptyList(),
         sourceRoots: List<VirtualFile> = emptyList(),
+    ): Sdk = registerSdk(ProjectJdkImpl("Test Elixir SDK", ElixirSdkType.instance), "elixir_home", classRoots, sourceRoots)
+
+    private fun registerSdk(
+        sdk: Sdk,
+        home: String,
+        classRoots: List<VirtualFile> = emptyList(),
+        sourceRoots: List<VirtualFile> = emptyList(),
     ): Sdk {
-        val sdk = ProjectJdkImpl("Test Elixir SDK", ElixirSdkType.instance)
-        WriteAction.run<Throwable> {
-            sdk.sdkModificator.apply {
-                homePath = myFixture.tempDirFixture.findOrCreateDir("elixir_home").path
-                classRoots.forEach { addRoot(it, OrderRootType.CLASSES) }
-                sourceRoots.forEach { addRoot(it, OrderRootType.SOURCES) }
-                commitChanges()
-            }
+        SdkFixtures.commit(sdk) {
+            homePath = myFixture.tempDirFixture.findOrCreateDir(home).path
+            classRoots.forEach { addRoot(it, OrderRootType.CLASSES) }
+            sourceRoots.forEach { addRoot(it, OrderRootType.SOURCES) }
         }
         return SdkFixtures.register(sdk, testRootDisposable)
     }

@@ -38,6 +38,7 @@
         <postStartupActivity implementation="org.elixir_lang.mix.DepsCheckerStartupActivity"/>
         <postStartupActivity implementation="org.elixir_lang.mix.sync.MixLibraryReconcileStartupActivity"/>
         <postStartupActivity implementation="org.elixir_lang.facet.StandInMigration"/>
+        <postStartupActivity implementation="org.elixir_lang.sdk.erlang.PairingRepairsStartup"/>
 
         <!--        <errorHandler implementation="org.elixir_lang.errorreport.Submitter"/>-->
         <errorHandler implementation="com.intellij.diagnostic.JetBrainsMarketplaceErrorReportSubmitter"/>

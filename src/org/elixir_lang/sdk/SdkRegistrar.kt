@@ -11,6 +11,7 @@ import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresWriteLock
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
+import org.elixir_lang.sdk.erlang.PairingRepairs
 import org.elixir_lang.sdk.erlang_dependent.elixirAdditionalData
 import org.elixir_lang.sdk.erlang_dependent.erlangSdkNamed
 import org.elixir_lang.sdk.erlang_dependent.resolveErlangSdkOrNullAndNotify
@@ -34,6 +35,8 @@ object SdkRegistrar {
         // Set up before it is added, so an Elixir SDK followed at `jdkAdded` gets its code paths.
         val updatedSdk = ProjectJdkImpl(sdkName, sdkType, canonicalHomePath, versionString)
         sdkType.setupSdkPaths(updatedSdk)
+        // `updateJdk` may rename the SDK registered at the home, which `PairingRepairs` hears only once started.
+        PairingRepairs.getInstance().ensureStarted()
         return edtWriteAction {
             val table = ProjectJdkTable.getInstance()
             registerOrUpdate(findSdkByHomePath(sdkType, canonicalHomePath, table), updatedSdk, table)
@@ -177,7 +180,7 @@ object SdkRegistrar {
 
     internal fun sameErlangHome(sdk: Sdk, erlangSdk: Sdk?): Boolean = sameErlangHome(sdk, erlangSdk?.homePath, erlangSdk?.name)
 
-    private fun sameErlangHome(sdk: Sdk, requestedHome: String?, requestedName: String?): Boolean {
+    internal fun sameErlangHome(sdk: Sdk, requestedHome: String?, requestedName: String?): Boolean {
         val additionalData = sdk.elixirAdditionalData
         val persistedHome = additionalData?.getErlangSdkHomePath()
         return when {

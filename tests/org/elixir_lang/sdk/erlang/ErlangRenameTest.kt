@@ -1,10 +1,8 @@
 package org.elixir_lang.sdk.erlang
 
 import com.intellij.openapi.application.ReadAction
-import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.projectRoots.SdkType
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.testFramework.common.runAll
@@ -19,12 +17,12 @@ import org.elixir_lang.sdk.SdkFixtures.storedErlangHome
 import org.elixir_lang.sdk.SdkFixtures.storedErlangName
 import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
 import org.elixir_lang.sdk.erlang_dependent.getErlangSdk
+import kotlinx.coroutines.runBlocking
 
 /**
  * Renaming an Erlang SDK in an SDK editor pairs the Elixir SDKs that stored its old name with its new one, and moving its
  * home pairs those that stored its old home with its new one, though the model's apply writes its copy of each Elixir
- * SDK after the Erlang SDK's change. Driven as the editors do: the copy changed and committed, then the Erlang type's
- * additional-data configurable applied, then the model.
+ * SDK after the Erlang SDK's change. Driven as the editors do: the copy changed and committed, then the model applied.
  */
 class ErlangRenameTest : PlatformTestCase() {
     private lateinit var table: SdkFixtures.TableSnapshot
@@ -114,9 +112,21 @@ class ErlangRenameTest : PlatformTestCase() {
     }
 
     /**
-     * The same rename made in the table outside any dialog's model: the table's listener repairs the pairing inside the
-     * table's write action, and the code paths follow once it ends.
+     * A rename made in the table by a writer that is no entry point, of an Erlang SDK loaded with the table, so heard by
+     * no `jdkAdded`: a project's startup has started [PairingRepairs].
      */
+    fun testARenameInTheTableAfterAProjectsStartupRepairsItsElixirSdks() {
+        val elixir = pairedWithErlang("Startup")
+        PairingRepairs.getInstance().resetForTests()
+        runBlocking { PairingRepairsStartup().execute(project) }
+
+        SdkFixtures.renameInTable("Startup Erlang", "Startup Erlang renamed")
+        settle()
+
+        assertEquals("Startup Erlang renamed", storedErlangName(elixir))
+    }
+
+    /** The same rename made in the table outside any dialog's model. */
     fun testARenameInTheTableThatPairsAtAnotherHomeMovesTheCodePaths() {
         val (elixir, staleHome) = pairedAtAStaleHome("Table rehomes")
 
@@ -161,6 +171,25 @@ class ErlangRenameTest : PlatformTestCase() {
         assertMoveFollowed("Move and rename", ::ideaModel, renameTo = "Move and rename Erlang renamed") { it.apply() }
 
     /**
+     * An Erlang SDK added to the table while IntelliJ IDEA's Project Structure is open with none, then moved outside it:
+     * the dialog's copy of its Elixir SDK follows too, so the dialog's Apply doesn't write the old home back.
+     */
+    fun testAMoveOfAnErlangSdkAddedWhileADialogWithoutOneIsOpenIsKeptByItsApply() {
+        val oldHome = SdkFixtures.erlangHomeWithEbin("27", "27.3.4")
+        val elixir = SdkFixtures.elixirSdk("Added later Elixir", SdkFixtures.elixirHome("1.18.4"))
+        SdkFixtures.commitPairing(register(elixir), "Added later Erlang", oldHome)
+        val model = ideaModel()
+        val erlang = SdkFixtures.withCodePaths(register(SdkFixtures.erlangSdk("Added later Erlang", oldHome)))
+
+        SdkFixtures.moveHome(erlang, SdkFixtures.erlangHomeWithEbin("26", "26.2.5"))
+        settle()
+        model.apply()
+        settle()
+
+        assertFollowed(elixir, "Added later Erlang", oldHome)
+    }
+
+    /**
      * The Erlang SDK's home moved, and the SDK renamed [renameTo] if given, in an editor on the model [model] gives, then
      * [apply]: the Elixir SDK follows the home, so a later SDK at the old home doesn't take it, and its code paths are the
      * new home's Erlang ones and none of the old home's. After the move, another Erlang SDK is registered at the old
@@ -196,8 +225,7 @@ class ErlangRenameTest : PlatformTestCase() {
         assertSame(moved, ReadAction.computeBlocking<Sdk?, RuntimeException> { elixir.getErlangSdk() })
     }
 
-    /** A Project Structure dialog's model, as IntelliJ IDEA's holds it. */
-    private fun ideaModel(): ProjectSdksModel = ProjectSdksModel().apply { reset(project) }
+    private fun ideaModel(): ProjectSdksModel = SdkFixtures.projectStructure(project, testRootDisposable)
 
     /** The small IDEs' SDKs pages' model, `SdksService`'s, built afresh from the table. */
     private fun smallIdesModel(): ProjectSdksModel = SdksService.getInstance()!!.run {
@@ -256,36 +284,16 @@ class ErlangRenameTest : PlatformTestCase() {
     private fun assertFollowed(elixir: Sdk, erlangName: String, oldHome: String) =
         SdkFixtures.assertCodePathsFollowed(elixir, assertPairedAt(elixir, erlangName), oldHome)
 
-    /**
-     * An open SDK editor for the copy named [name] in [model], as `SdkEditor` is: its configurables set and reset, then
-     * on Apply the copy changed and committed, then theirs applied.
-     */
+    /** The copy named [name] in [model], changed as its SDK editor's Apply changes it: committed. */
     private class Editor(model: ProjectSdksModel, name: String) {
         private val copy = model.findSdk(name)!!
-        private val configurable = (copy.sdkType as SdkType).createAdditionalDataConfigurable(model, copy.sdkModificator)?.apply {
-            setSdk(copy)
-            reset()
-        }
 
         fun rename(newName: String) = change(newName = newName)
 
-        /**
-         * The new name [newName] and the new home [newHome], each if given, with the new home's code paths in place of the
-         * old ones, as `SdkEditor` takes them from `setupSdkPaths`.
-         */
+        /** The new name [newName] and the new home [newHome], each if given, as [SdkFixtures.moveHome] moves it. */
         fun change(newName: String? = null, newHome: String? = null) {
-            WriteAction.run<Throwable> {
-                copy.sdkModificator.apply {
-                    newName?.let { this.name = it }
-                    if (newHome != null) {
-                        homePath = newHome
-                        removeAllRoots()
-                    }
-                    commitChanges()
-                }
-                if (newHome != null) SdkFixtures.withCodePaths(copy)
-            }
-            configurable?.apply()
+            if (newName != null) SdkFixtures.commit(copy) { name = newName }
+            if (newHome != null) SdkFixtures.moveHome(copy, newHome)
         }
     }
 }

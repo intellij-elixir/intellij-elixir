@@ -4,7 +4,6 @@ import com.intellij.notification.Notification
 import com.intellij.notification.Notifications
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.WriteAction
-import com.intellij.openapi.application.impl.LaterInvocator
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
@@ -16,6 +15,7 @@ import org.elixir_lang.facet.SdksService
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.codePaths
 import org.elixir_lang.sdk.SdkFixtures.codePathsUnder
+import org.elixir_lang.sdk.SdkFixtures.inADialog
 import org.elixir_lang.sdk.SdkFixtures.register
 import org.elixir_lang.sdk.SdkFixtures.settle
 import org.elixir_lang.sdk.SdkFixtures.storedErlangHome
@@ -102,16 +102,12 @@ class ErlangDeletionAskTest : PlatformTestCase() {
         val deleted = erlang("Ask modal deleted Erlang", install("27", "27.3.4"))
         paired("Ask modal Elixir", SdkFixtures.elixirHome("1.18.4"), deleted)
         script(ScriptedErlangStep.cancel)
-        val settings = Any()
 
-        LaterInvocator.enterModal(settings)
-        try {
+        inADialog {
             SdkConfigurationUtil.removeSdk(deleted)
             settle()
 
             assertEmpty("nothing is asked while Settings is open", asked.events)
-        } finally {
-            LaterInvocator.leaveModal(settings)
         }
         settle()
 
@@ -164,6 +160,7 @@ class ErlangDeletionAskTest : PlatformTestCase() {
         erlang("Ask key other Erlang", install("26", "26.2.5"))
         val elixirSdk = paired("Ask key Elixir", elixirInstall("1.18.4", "26"), deleted)
         val renamed = SdkFixtures.renameInTable(deleted.name, "Ask key deleted Erlang renamed")
+        settle()
         assertEquals("precondition: the rename is repaired", renamed.name, storedErlangName(elixirSdk))
         script(ScriptedErlangStep.cancel)
 
@@ -172,6 +169,38 @@ class ErlangDeletionAskTest : PlatformTestCase() {
         ElixirSdkType.instance.setupSdkPaths(elixirSdk)
 
         assertEquals("the set-up pairs nothing the user did not pick", renamed.name, storedErlangName(elixirSdk))
+    }
+
+    fun testAnErlangRenamedMovedAndDeletedBeforeThePassIsAsked() =
+        assertAskedWhenDeletedBeforeThePass("Ask unrepaired") { erlang ->
+            SdkFixtures.renameInTable(erlang.name, "${erlang.name} renamed").also {
+                SdkFixtures.moveHome(it, install("26", "26.2.5"))
+            }
+        }
+
+    fun testAnErlangRenamedAndDeletedBeforeThePassIsAsked() =
+        assertAskedWhenDeletedBeforeThePass("Ask unrepaired renamed") { erlang ->
+            SdkFixtures.renameInTable(erlang.name, "${erlang.name} renamed")
+        }
+
+    fun testAnErlangMovedAndDeletedBeforeThePassIsAsked() =
+        assertAskedWhenDeletedBeforeThePass("Ask unrepaired moved") { erlang ->
+            erlang.also { SdkFixtures.moveHome(it, install("26", "26.2.5")) }
+        }
+
+    /**
+     * An Erlang SDK that [change] renames or moves in the table, returning it, and that is then deleted before the pass
+     * that repairs the change, still asks the Elixir SDK that stores its old pairing.
+     */
+    private fun assertAskedWhenDeletedBeforeThePass(prefix: String, change: (Sdk) -> Sdk) {
+        val deleted = erlang("$prefix deleted Erlang", install("27", "27.3.4"))
+        paired("$prefix Elixir", SdkFixtures.elixirHome("1.18.4"), deleted)
+        script(ScriptedErlangStep.cancel)
+
+        SdkConfigurationUtil.removeSdk(change(deleted))
+        settle()
+
+        assertEquals(listOf("erlang"), asked.events)
     }
 
     /** A Refresh before the ask sets the Elixir SDK up with no Erlang code paths; a pick at the same home adds them back. */

@@ -2,18 +2,26 @@ package org.elixir_lang.sdk
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.application.impl.LaterInvocator
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkAdditionalData
 import com.intellij.openapi.projectRoots.SdkModificator
+import com.intellij.openapi.projectRoots.SdkType
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
+import com.intellij.openapi.projectRoots.ui.SdkEditor
 import com.intellij.openapi.roots.OrderRootType
+import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.diagnostic.ThreadDumper
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.common.runAll
+import com.intellij.ui.navigation.History
+import com.intellij.ui.navigation.Place
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import junit.framework.TestCase
 import org.jdom.Element
@@ -55,7 +63,8 @@ internal object SdkFixtures {
 
     fun elixirSdk(name: String, homePath: String): Sdk = ProjectJdkImpl(name, ElixirSdkType.instance, homePath, "")
 
-    fun erlangSdk(name: String, homePath: String): Sdk = ProjectJdkImpl(name, ErlangSdkType.instance, homePath, "")
+    fun erlangSdk(name: String, homePath: String, type: SdkType = ErlangSdkType.instance): Sdk =
+        ProjectJdkImpl(name, type, homePath, "")
 
     /** [erlang]'s one code path, its [erlangHomeWithEbin]'s stdlib ebin. */
     fun codePaths(erlang: Sdk): List<String> = listOf(erlang.rootProvider.getFiles(OrderRootType.CLASSES).single().path)
@@ -163,13 +172,23 @@ internal object SdkFixtures {
     /** The Erlang SDK home [persistedElixirData] holds. */
     fun storedErlangHome(sdk: Sdk): String? = persistedElixirData(sdk)?.getErlangSdkHomePath()
 
-    /** [erlangSdk] with the code paths its type sets up: its home's stdlib ebin. */
+    /** [erlangSdk] with the code paths its type sets up: for the plugin's own type, its home's stdlib ebin. */
     @RequiresEdt
-    fun withCodePaths(erlangSdk: Sdk): Sdk = erlangSdk.also(ErlangSdkType.instance::setupSdkPaths)
+    fun withCodePaths(erlangSdk: Sdk): Sdk = erlangSdk.also { (it.sdkType as SdkType).setupSdkPaths(it) }
+
+    /** [erlangSdk] moved to [newHome], with that home's code paths in place of the old ones, as `SdkEditor` takes them. */
+    @RequiresEdt
+    fun moveHome(erlangSdk: Sdk, newHome: String) {
+        commit(erlangSdk) {
+            homePath = newHome
+            removeAllRoots()
+        }
+        withCodePaths(erlangSdk)
+    }
 
     /**
-     * An Erlang SDK [erlangName] at [erlangHomePath] with its code paths, then an Elixir SDK [name] paired with it and
-     * set up, both added to the table with [add].
+     * An Erlang SDK [erlangName] of [erlangType] at [erlangHomePath] with its code paths, then an Elixir SDK [name] paired
+     * with it and set up, both added to the table with [add].
      */
     @RequiresEdt
     fun pairedInTable(
@@ -177,8 +196,9 @@ internal object SdkFixtures {
         erlangHomePath: String = erlangHomeWithEbin("27", "27.3.4"),
         erlangName: String = "$name's Erlang",
         add: (Sdk) -> Sdk = ::register,
+        erlangType: SdkType = ErlangSdkType.instance,
     ): Pair<Sdk, Sdk> {
-        val erlang = withCodePaths(add(erlangSdk(erlangName, erlangHomePath)))
+        val erlang = withCodePaths(add(erlangSdk(erlangName, erlangHomePath, erlangType)))
         val elixir = commitPairing(add(elixirSdk(name, elixirHome("1.18.4"))), erlang)
         ElixirSdkPathConfigurator.configure(elixir)
         return erlang to elixir
@@ -204,6 +224,18 @@ internal object SdkFixtures {
     @RequiresEdt
     fun settle() = PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
+    /** [block] with a modal dialog open, as Settings and Project Structure are. */
+    @RequiresEdt
+    fun inADialog(block: () -> Unit) {
+        val dialog = Any()
+        LaterInvocator.enterModal(dialog)
+        try {
+            block()
+        } finally {
+            LaterInvocator.leaveModal(dialog)
+        }
+    }
+
     @RequiresEdt
     fun waitUntil(message: String, timeoutMillis: Long = 10_000, condition: () -> Boolean) {
         val deadline = System.currentTimeMillis() + timeoutMillis
@@ -219,5 +251,29 @@ internal object SdkFixtures {
             PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
             Thread.sleep(10)
         }
+    }
+
+    /**
+     * Project Structure open over [model]: an `SdkEditor` for each copy, as `JdkListConfigurable.loadTree` builds one per
+     * SDK, each disposed with [parent]. Returns them by copy.
+     */
+    @RequiresEdt
+    fun openEditors(project: Project, model: ProjectSdksModel, parent: Disposable): Map<Sdk, SdkEditor> =
+        model.projectSdks.values.associateWith { copy ->
+            SdkEditor(project, model, History(object : Place.Navigator {}), copy).also {
+                Disposer.register(parent, it::disposeUIResources)
+            }
+        }
+
+    /**
+     * A Project Structure dialog's model, as IntelliJ IDEA's holds it, reset from the table, with [openEditors] open over
+     * it; all disposed with [parent], the editors first.
+     */
+    @RequiresEdt
+    fun projectStructure(project: Project, parent: Disposable): ProjectSdksModel = ProjectSdksModel().also { model ->
+        model.reset(project)
+        // Registered first, so disposed after the editors.
+        Disposer.register(parent, model::disposeUIResources)
+        openEditors(project, model, parent)
     }
 }

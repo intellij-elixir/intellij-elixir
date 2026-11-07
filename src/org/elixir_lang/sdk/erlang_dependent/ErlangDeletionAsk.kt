@@ -12,6 +12,7 @@ import com.intellij.util.concurrency.annotations.RequiresEdt
 import org.elixir_lang.sdk.SdkRegistrar
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
 import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
+import org.elixir_lang.sdk.erlang.PairingRepairs
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 
 /**
@@ -25,7 +26,8 @@ class ErlangDeletionAsk {
 
     /** At `jdkRemoved`: records the table's Elixir SDKs paired with [deleted]. */
     fun erlangRemoved(deleted: Sdk) {
-        val paired = ProjectJdkTable.getInstance().getSdksOfType(ElixirSdkType.instance).filter { pairedWith(it, deleted) }
+        val pairings = PairingRepairs.getInstance().pairingsOf(deleted)
+        val paired = ProjectJdkTable.getInstance().getSdksOfType(ElixirSdkType.instance).filter { pairedWith(it, pairings) }
         if (paired.isEmpty()) return
 
         val first = synchronized(recorded) { recorded.isEmpty().also { recorded += paired } }
@@ -51,12 +53,13 @@ class ErlangDeletionAsk {
     companion object {
         fun getInstance(): ErlangDeletionAsk = ApplicationManager.getApplication().service()
 
-        /** By the registrar's variant rule, or by its stored name; a deleted Erlang SDK with no home, by name only. */
-        private fun pairedWith(elixirSdk: Sdk, deleted: Sdk): Boolean {
+        /** By the registrar's variant rule, or by its stored name; a pairing with no home, by name only. */
+        private fun pairedWith(elixirSdk: Sdk, pairings: List<PairingRepairs.Pairing>): Boolean {
             val data = elixirSdk.elixirAdditionalData ?: return false
 
-            return data.getErlangSdkName() == deleted.name ||
-                (!deleted.homePath.isNullOrBlank() && SdkRegistrar.sameErlangHome(elixirSdk, deleted))
+            return pairings.any { (name, home) ->
+                data.getErlangSdkName() == name || (home != null && SdkRegistrar.sameErlangHome(elixirSdk, home, name))
+            }
         }
 
         /** Still in the table, with a pairing that resolves to nothing or to an Erlang SDK other than the one it names. */

@@ -24,9 +24,8 @@ import org.elixir_lang.mix.sync.MixEventClassifier
 import org.elixir_lang.notification.setup_sdk.Notifier
 import org.elixir_lang.package_manager.DepsStatusResult
 import org.elixir_lang.package_manager.virtualFile
-import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 import org.elixir_lang.sdk.elixir.findElixirSdkForRoot
-import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
+import org.elixir_lang.sdk.isElixirOrErlangSdk
 import org.elixir_lang.settings.ElixirExperimentalSettings
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
@@ -135,21 +134,21 @@ class DepsCheckerService(private val project: Project, private val cs: Coroutine
         connection.subscribe(ProjectJdkTable.JDK_TABLE_TOPIC, object : ProjectJdkTable.Listener {
             override fun jdkAdded(jdk: Sdk) {
                 if (!depsCheckEnabled()) return
-                if (isRelevantSdk(jdk)) {
+                if (jdk.isElixirOrErlangSdk()) {
                     scheduleTopologyAwareCheck("sdk added")
                 }
             }
 
             override fun jdkRemoved(jdk: Sdk) {
                 if (!depsCheckEnabled()) return
-                if (isRelevantSdk(jdk)) {
+                if (jdk.isElixirOrErlangSdk()) {
                     scheduleTopologyAwareCheck("sdk removed")
                 }
             }
 
             override fun jdkNameChanged(jdk: Sdk, previousName: String) {
                 if (!depsCheckEnabled()) return
-                if (isRelevantSdk(jdk)) {
+                if (jdk.isElixirOrErlangSdk()) {
                     scheduleTopologyAwareCheck("sdk renamed")
                 }
             }
@@ -201,8 +200,6 @@ class DepsCheckerService(private val project: Project, private val cs: Coroutine
         }
         checkFlow.tryEmit(DebouncedCheck(reason, checkGeneration.get()))
     }
-
-    private fun isRelevantSdk(sdk: Sdk): Boolean = sdk.sdkType is ElixirSdkType || sdk.sdkType is ErlangSdkType
 
     /** Whether the experimental Mix deps check feature is enabled in settings. */
     private fun depsCheckEnabled(): Boolean =

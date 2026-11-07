@@ -282,13 +282,7 @@ ELIXIR_SDK_HOME
 
         @JvmStatic
         fun erlangSdkType(): SdkType =
-            if (ProcessOutput.isSmallIde) {
-                /* intellij-erlang's "Erlang SDK" does not work in small IDEs because it uses JavadocRoot for documentation,
-                   which isn't available in Small IDEs. */
-                null
-            } else {
-                EP_NAME.extensionList.find { sdkType -> sdkType.name == "Erlang SDK" }
-            } ?: findInstance(org.elixir_lang.sdk.erlang.Type::class.java)
+            intellijErlangSdkType() ?: findInstance(org.elixir_lang.sdk.erlang.Type::class.java)
 
         @JvmStatic
         val instance: Type
