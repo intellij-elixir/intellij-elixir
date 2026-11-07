@@ -7,16 +7,20 @@ import com.intellij.driver.sdk.ui.components.common.welcomeScreen
 import com.intellij.driver.sdk.ui.components.elements.JCheckBoxUi
 import com.intellij.driver.sdk.ui.components.elements.JListUiComponent
 import com.intellij.driver.sdk.ui.components.elements.checkBoxWithName
+import com.intellij.driver.sdk.ui.components.elements.dialog
+import com.intellij.driver.sdk.ui.components.elements.jBlist
 import com.intellij.driver.sdk.ui.components.settings.settingsDialog
 import com.intellij.driver.sdk.ui.ui
 import com.intellij.driver.sdk.ui.xQuery
 import com.intellij.driver.sdk.waitFor
+import org.elixir_lang.ui.framework.core.CHOOSER_TITLE
 import org.elixir_lang.ui.framework.core.IdeTestContext
 import org.elixir_lang.ui.framework.core.NoScreen
 import org.elixir_lang.ui.framework.core.addElixirSdkFromDisk
 import org.elixir_lang.ui.framework.core.addErlangSdkFromDisk
 import org.elixir_lang.ui.framework.core.clickButtonText
 import org.elixir_lang.ui.framework.core.ensureWelcomeScreenInForeground
+import org.elixir_lang.ui.framework.core.waitUntilReady
 import org.elixir_lang.ui.sdk_settings.Home
 import org.elixir_lang.ui.sdk_settings.Homes
 import org.elixir_lang.ui.sdk_settings.Rows
@@ -114,9 +118,12 @@ internal fun Driver.addSdksOnPage(erlangHome: String, elixirHome: String): Pair<
     return erlang to addElixirOnPage(elixirHome, erlang).name
 }
 
+/** The editor banner's [text] label. */
+internal fun Driver.bannerLabel(text: String): UiComponent = ui.x("//div[@visible_text='$text' or @accessiblename='$text']")
+
 /** The editor banner's [text] label, clicked once the banner offers it. */
 internal fun Driver.clickBannerLabel(text: String) {
-    val label = ui.x("//div[@visible_text='$text' or @accessiblename='$text']")
+    val label = bannerLabel(text)
     waitFor("the banner's '$text'", 2.minutes) { label.present() }
     label.click()
 }
@@ -135,6 +142,18 @@ internal fun JListUiComponent.pickEntry(elixir: String) {
 }
 
 private fun List<String>.entryOf(elixir: String): String? = firstOrNull { it.startsWith("$elixir ") }
+
+/** The chooser lists [elixir] paired with [erlang], with nothing picked and OK disabled; then [elixir] is picked, and OK. */
+internal fun Driver.pickInChooser(rows: Rows, row: String, elixir: String, erlang: String) {
+    ui.dialog(xQuery { byTitle(CHOOSER_TITLE) }) {
+        waitUntilReady()
+        val list = jBlist()
+        rows.listsPairedWithNothingPicked(row, list, elixir, erlang)
+        rows.check(row, "OK is disabled before a pick", !x { byAccessibleName("OK") }.isEnabled())
+        list.pickEntry(elixir)
+        clickButtonText("OK")
+    }
+}
 
 /** Cancels each dialog titled one of [titles] that is shown, in order. */
 internal fun Driver.cancelDialogs(vararg titles: String) {
