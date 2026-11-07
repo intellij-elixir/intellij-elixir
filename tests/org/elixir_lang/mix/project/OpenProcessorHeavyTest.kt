@@ -7,7 +7,6 @@ import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.module.ModuleTypeManager
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.projectRoots.JavaSdk
@@ -152,11 +151,13 @@ class OpenProcessorHeavyTest : HeavyTestCase() {
             ?: error("Get from VCS on $dir opened no project")
     }
 
-    /** Indexing done and the EDT drained, so what the open posted for the smart project has run. */
+    /**
+     * Indexing done and the chooser asked. The ask waits for smart mode, and when a scan is running as it is posted, the
+     * platform's smart-mode queue holds it until a pooled thread sees the scan end, which draining the EDT does not wait for.
+     */
     private fun settle(project: Project) {
         IndexingTestUtil.waitUntilIndexesAreReady(project)
-        DumbService.getInstance(project).waitForSmartMode()
-        runInEdtAndWait { PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue() }
+        runInEdtAndWait { PlatformTestUtil.waitWithEventsDispatching("the chooser was not asked", { recorded.chooserAsked.isNotEmpty() }, 60) }
     }
 
     private fun module(project: Project): Module = ModuleManager.getInstance(project).modules.single()
