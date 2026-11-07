@@ -41,11 +41,9 @@ internal class ToolManagerSdkCheckerService(private val project: Project) : Disp
 
     private val scope = project.service<ElixirCoroutineService>().supervisedChildScope(javaClass.simpleName)
 
-    private val toolManagers = BuiltInToolManagers.getInstance().all
-
     internal val checker = ToolManagerSdkChecker(
         project = project,
-        toolManagers = toolManagers,
+        toolManagers = BuiltInToolManagers.getInstance().all,
         settings = ToolManagerSettings.getInstance(project),
     )
 
@@ -144,10 +142,7 @@ internal class ToolManagerSdkCheckerService(private val project: Project) : Disp
         // field) so a concurrent settings-change reset cannot redirect our registrations.
         val newLifetime = swapTriggerLifetime()
 
-        val settings = ToolManagerSettings.getInstance(project)
-
-        toolManagers
-            .filter { settings.isEnabled(it) }
+        checker.enabledToolManagers
             .forEach { manager ->
                 val trigger = manager.createRefreshTrigger() ?: return@forEach
                 LOG.debug("Installing refresh trigger for '${manager.name}' in '${project.name}'")

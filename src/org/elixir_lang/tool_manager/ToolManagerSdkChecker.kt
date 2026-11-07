@@ -142,7 +142,10 @@ internal class ToolManagerSdkChecker(
      * Must NOT be called on the EDT or under a read lock - tool managers may spawn subprocesses.
      */
     fun resolveVersions(contentRoots: List<Path>): Map<Path, ToolManagerResult?> =
-        resolveFirst(toolManagers.filter { settings.isEnabled(it) }, contentRoots)
+        resolveFirst(enabledToolManagers, contentRoots)
+
+    /** The tool managers the settings enable, in priority order. */
+    val enabledToolManagers: List<ElixirToolManager> get() = toolManagers.filter { settings.isEnabled(it) }
 
     /**
      * Resolves symlinks in the module SDK homes and the install paths the results name: an SDK home picked through a
