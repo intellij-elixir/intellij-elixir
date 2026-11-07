@@ -4,7 +4,6 @@ import com.intellij.ide.util.importProject.ModuleDescriptor;
 import com.intellij.ide.util.importProject.ProjectDescriptor;
 import com.intellij.ide.util.projectWizard.ModuleWizardStep;
 import com.intellij.ide.util.projectWizard.importSources.DetectedProjectRoot;
-import com.intellij.ide.util.projectWizard.importSources.DetectedSourceRoot;
 import com.intellij.ide.util.projectWizard.importSources.ProjectFromSourcesBuilder;
 import com.intellij.ide.util.projectWizard.importSources.ProjectStructureDetector;
 import com.intellij.ide.util.projectWizard.importSources.impl.ProjectFromSourcesBuilderImpl;
@@ -37,8 +36,8 @@ import java.util.regex.Pattern;
 public class ElixirProjectStructureDetector extends ProjectStructureDetector {
   @NotNull
   @Override
-  public DirectoryProcessingResult detectRoots(@NotNull File dir, @NotNull File[] children, @NotNull File base, @NotNull List<DetectedProjectRoot> result) {
-    Pattern pattern = Pattern.compile(".*\\.ex[s]*");
+  public DirectoryProcessingResult detectRoots(@NotNull File dir, File @NotNull [] children, @NotNull File base, @NotNull List<DetectedProjectRoot> result) {
+    Pattern pattern = Pattern.compile(".*\\.exs*");
     List<File> filesByMask = FileUtil.findFilesByMask(pattern, base);
     if(!filesByMask.isEmpty()){
       result.add(new DetectedProjectRoot(dir) {
@@ -55,7 +54,7 @@ public class ElixirProjectStructureDetector extends ProjectStructureDetector {
   /**
    * This detector just for import non-organization project which not like mix-project
    * So that it's no need to detect directories such as libs, deps, tests etc
-   *
+   * <p>
    * And mix-project will imported by the Builder.java
    * */
   @Override
@@ -63,9 +62,9 @@ public class ElixirProjectStructureDetector extends ProjectStructureDetector {
     if(!roots.isEmpty() && !builder.hasRootsFromOtherDetectors(this)){
       List<ModuleDescriptor> modules = projectDescriptor.getModules();
       if(modules.isEmpty()){
-        modules = new ArrayList<ModuleDescriptor>();
+        modules = new ArrayList<>();
         for(DetectedProjectRoot root : roots){
-          modules.add(new ModuleDescriptor(root.getDirectory(), ElixirModuleType.getInstance(), ContainerUtil.<DetectedSourceRoot>emptyList()));
+          modules.add(new ModuleDescriptor(root.getDirectory(), ElixirModuleType.getInstance(), ContainerUtil.emptyList()));
         }
         projectDescriptor.setModules(modules);
       }
