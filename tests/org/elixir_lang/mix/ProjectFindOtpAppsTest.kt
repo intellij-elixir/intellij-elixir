@@ -3,6 +3,7 @@ package org.elixir_lang.mix
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.vfs.VirtualFile
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.mix.project.mixExs
 
 /** Which folders below a scanned folder hold its apps. */
 class ProjectFindOtpAppsTest : PlatformTestCase() {
@@ -75,18 +76,7 @@ class ProjectFindOtpAppsTest : PlatformTestCase() {
     }
 
     private fun addMixExs(directory: String, app: String) {
-        myFixture.addFileToProject(
-            "$directory/mix.exs",
-            """
-            defmodule ${app.replaceFirstChar { it.uppercase() }}.MixProject do
-              use Mix.Project
-
-              def project do
-                [app: :$app, version: "0.1.0"]
-              end
-            end
-            """.trimIndent()
-        )
+        myFixture.addFileToProject("$directory/mix.exs", mixExs(app))
     }
 
     /** Each app's path relative to [rootDirectory], so `/` is the app at the root. */

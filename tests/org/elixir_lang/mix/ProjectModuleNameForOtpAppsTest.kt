@@ -3,6 +3,7 @@ package org.elixir_lang.mix
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.vfs.VirtualFile
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.mix.project.mixExs
 
 /**
  * Covers the module-name disambiguation an umbrella import depends on.
@@ -20,23 +21,12 @@ class ProjectModuleNameForOtpAppsTest : PlatformTestCase() {
      * uniquely-named sibling alongside them.
      */
     private fun umbrellaRoot(): VirtualFile {
-        myFixture.addFileToProject("umbrella/mix.exs", mixExs("DupName", "dup_name"))
-        myFixture.addFileToProject("umbrella/apps/dup_name/mix.exs", mixExs("DupName.Child", "dup_name"))
-        myFixture.addFileToProject("umbrella/apps/other_app/mix.exs", mixExs("OtherApp", "other_app"))
+        myFixture.addFileToProject("umbrella/mix.exs", mixExs("dup_name"))
+        myFixture.addFileToProject("umbrella/apps/dup_name/mix.exs", mixExs("dup_name"))
+        myFixture.addFileToProject("umbrella/apps/other_app/mix.exs", mixExs("other_app"))
 
         return myFixture.tempDirFixture.getFile("umbrella")!!
     }
-
-    private fun mixExs(modular: String, app: String): String =
-        """
-        defmodule $modular.MixProject do
-          use Mix.Project
-
-          def project do
-            [app: :$app, version: "0.1.0"]
-          end
-        end
-        """.trimIndent()
 
     /** Module names keyed by each app's path relative to the umbrella root, so `/` is the root app. */
     private fun moduleNamesByRelativePath(): Map<String, String> {
