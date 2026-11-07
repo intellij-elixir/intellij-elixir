@@ -7,7 +7,6 @@ import com.intellij.openapi.application.ex.ApplicationInfoEx
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModifiableModuleModel
 import com.intellij.openapi.module.Module
-import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.Sdk
@@ -20,6 +19,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.newvfs.NewVirtualFile
 import com.intellij.packaging.artifacts.ModifiableArtifactModel
 import com.intellij.projectImport.ProjectImportBuilder
+import com.intellij.util.concurrency.annotations.RequiresEdt
 import org.elixir_lang.configuration.ElixirCompilerSettings
 import org.elixir_lang.mix.Icons
 import org.elixir_lang.mix.Project.createModulesForOtpApps
@@ -122,21 +122,18 @@ class Builder : ProjectImportBuilder<OtpApp>(), TakesSdkPick {
         }
     }
 
+    @RequiresEdt
     override fun commit(
         project: Project,
         moduleModel: ModifiableModuleModel?,
         modulesProvider: ModulesProvider,
         artifactModel: ModifiableArtifactModel?
     ): List<Module> {
-        val sdk = elixirSdk
-        val createModules = createModulesForOtpApps(
+        val modules = createModulesForOtpApps(
             project,
             mySelectedOtpApps,
-            { moduleModel ?: ModuleManager.getInstance(project).getModifiableModel() },
+            moduleModel,
             { otpApp, rootModel ->
-                if (sdk != null) {
-                    rootModel.sdk = sdk
-                }
                 val compilerModuleExt = rootModel.getModuleExtension(CompilerModuleExtension::class.java)
                 compilerModuleExt.inheritCompilerOutputPath(false)
                 val ideaModuleDir = otpApp.root
@@ -167,12 +164,14 @@ class Builder : ProjectImportBuilder<OtpApp>(), TakesSdkPick {
             projectRoot = myProjectRoot
         )
 
+        writePickTo(project, modules)
+
         if (myIsImportingProject) {
             ElixirCompilerSettings.getInstance(project).isUseMixCompilerEnabled = true
         }
         CompilerWorkspaceConfiguration.getInstance(project).CLEAR_OUTPUT_DIRECTORY = false
 
-        return createModules
+        return modules
     }
 
     fun setProjectRoot(projectRoot: VirtualFile) {

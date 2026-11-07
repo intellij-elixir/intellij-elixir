@@ -5,7 +5,9 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModifiableModuleModel
 import com.intellij.openapi.module.Module
+import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.project.ModuleListener
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.CompilerModuleExtension
 import com.intellij.openapi.roots.ContentEntry
@@ -22,6 +24,7 @@ import org.elixir_lang.mix.project.FolderMark
 import org.elixir_lang.mix.project.OtpApp
 import org.elixir_lang.mix.sync.MixDepsSyncService
 import org.elixir_lang.mix.sync.SyncRequest
+import org.elixir_lang.util.ElixirCoroutineService
 import java.io.EOFException
 import java.io.File
 
@@ -115,49 +118,82 @@ object Project {
         return result
     }
 
+    /**
+     * The modules of [otpApps], in [handedModuleModel] or else the project's: each app with no module file of its own
+     * is created and set up by [rootModelModifier], and each with one is loaded from it. A handed model is left to its
+     * caller to commit, as Project Structure commits its own on OK; the project's is committed here. The apps' Mix
+     * dependency libraries are synced once their model commits.
+     */
     @RequiresEdt
     fun createModulesForOtpApps(
         project: Project,
         otpApps: List<OtpApp>,
-        modifiableModuleModelFactory: () -> ModifiableModuleModel,
+        handedModuleModel: ModifiableModuleModel?,
         rootModelModifier: (OtpApp, ModifiableRootModel) -> Unit = { _, _ -> },
         projectRoot: VirtualFile? = null
     ): List<Module> =
         if (otpApps.isNotEmpty()) {
-            val moduleModel = modifiableModuleModelFactory()
+            val moduleModel = handedModuleModel ?: ModuleManager.getInstance(project).getModifiableModel()
             val moduleNames = moduleNameForOtpApps(otpApps, projectRoot)
-            val createdRootModels = otpApps.mapNotNull { createModuleForOtpApp(it, moduleModel, rootModelModifier, moduleNames[it] ?: it.name) }
+            val (modules, rootModels) =
+                otpApps.map { createModuleForOtpApp(it, moduleModel, rootModelModifier, moduleNames[it] ?: it.name) }.unzip()
 
-            if (createdRootModels.isNotEmpty()) {
-                // Use WriteAction.run since this is called from EDT via importToProject
-                // runBlockingCancellable is forbidden on EDT as it doesn't pump the event queue
-                WriteAction.run<Throwable> {
-                    for (rootModel in createdRootModels) {
-                        rootModel.commit()
-                    }
+            // Use WriteAction.run since this is called from EDT via importToProject
+            // runBlockingCancellable is forbidden on EDT as it doesn't pump the event queue
+            WriteAction.run<Throwable> {
+                for (rootModel in rootModels.filterNotNull()) {
+                    rootModel.commit()
+                }
 
+                if (handedModuleModel == null) {
                     moduleModel.commit()
                 }
-                project.service<MixDepsSyncService>().enqueue(SyncRequest.All)
             }
+            syncDepsOnceAdded(project, modules)
 
-            createdRootModels.map { it.module }
+            modules
         } else {
             emptyList()
         }
 
+    /**
+     * Syncs the Mix dependency libraries once [modules] are in [project]: at once when they all are, and otherwise once
+     * any of them is added, as the module model holding them commits. A model disposed instead, on Cancel, leaves the
+     * wait to end at the next module added, or with the project.
+     */
+    fun syncDepsOnceAdded(project: Project, modules: List<Module>) {
+        val moduleManager = ModuleManager.getInstance(project)
+        if (modules.all { moduleManager.findModuleByName(it.name) === it }) {
+            project.service<MixDepsSyncService>().enqueue(SyncRequest.All)
+            return
+        }
+
+        val connection = project.messageBus.connect(project.service<ElixirCoroutineService>().scope)
+        connection.subscribe(ModuleListener.TOPIC, object : ModuleListener {
+            override fun modulesAdded(project: Project, added: List<Module>) {
+                if (added.any(modules::contains)) {
+                    connection.disconnect()
+                    project.service<MixDepsSyncService>().enqueue(SyncRequest.All)
+                } else if (modules.all(Module::isDisposed)) {
+                    connection.disconnect()
+                }
+            }
+        })
+    }
+
+    /** [otpApp]'s module, with its root model to commit when it is created rather than loaded from its module file. */
     private fun createModuleForOtpApp(
         otpApp: OtpApp,
         moduleModel: ModifiableModuleModel,
         rootModelModifier: (OtpApp, ModifiableRootModel) -> Unit,
         moduleName: String
-    ): ModifiableRootModel? {
+    ): Pair<Module, ModifiableRootModel?> {
         val ideaModuleDir = otpApp.root
         val ideaModuleFile = "${ideaModuleDir.canonicalPath}${File.separator}/${moduleName}.iml"
         val module = moduleModel.newModule(ideaModuleFile, ELIXIR_MODULE_TYPE_ID)
         otpApp.module = module
 
-        return if (otpApp.ideaModuleFile == null) {
+        return module to if (otpApp.ideaModuleFile == null) {
             val rootModel = ModuleRootManager.getInstance(module).modifiableModel
 
             addFolders(rootModel, otpApp.root)
