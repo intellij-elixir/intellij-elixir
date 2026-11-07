@@ -12,6 +12,7 @@ import com.intellij.ide.wizard.NewProjectWizardStep
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.module.Module
 import com.intellij.openapi.observable.properties.ObservableMutableProperty
 import com.intellij.openapi.observable.properties.ObservableProperty
 import com.intellij.openapi.observable.util.not
@@ -178,7 +179,7 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
 
             super.setupProject(project)
 
-            moduleBuilder(sdk).commit(project)
+            commitModule(project, sdk)
         } catch (e: ExecutionException) {
             Logger.getInstance(javaClass).warn("mix new failed", e)
             throw e
@@ -190,11 +191,19 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
     }
 
     /**
+     * Commits the module `mix new` made, with [sdk] as its Elixir SDK, into the module model the wizard hands over, so
+     * Project Structure's Cancel drops it; with none handed, into the project's.
+     */
+    @Suppress("DEPRECATION") // The key the wizard hands its model under; UIWizardUtil.setupProjectFromBuilder, its replacement, is @Internal.
+    internal fun commitModule(project: Project, sdk: Sdk): List<Module> =
+        moduleBuilder(sdk).commit(project, context.getUserData(NewProjectWizardStep.MODIFIABLE_MODULE_MODEL_KEY))
+
+    /**
      * The builder of the module `mix new` made, which writes [sdk] as its Elixir SDK. It is named and placed from this
      * step's name and location, as `IntelliJNewProjectWizardStep.configureModuleBuilder` does: left unset, New Module
      * would write the project's own module file.
      */
-    internal fun moduleBuilder(sdk: Sdk): ElixirModuleBuilder {
+    private fun moduleBuilder(sdk: Sdk): ElixirModuleBuilder {
         val projectDirectory = context.projectDirectory.toString()
         val builder = ElixirModuleBuilder()
         builder.name = name

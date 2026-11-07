@@ -2,7 +2,10 @@ package org.elixir_lang.new_project_wizard
 
 import com.intellij.ide.util.projectWizard.WizardContext
 import com.intellij.ide.wizard.NewProjectWizardBaseStep
+import com.intellij.ide.wizard.NewProjectWizardStep
 import com.intellij.ide.wizard.RootNewProjectWizardStep
+import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.module.ModifiableModuleModel
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.projectRoots.Sdk
@@ -92,6 +95,35 @@ class NewModuleTest : HeavyTestCase() {
         assertFalse(ToolManagerSettings.getInstance(project).isEnabled(toolManager))
     }
 
+    fun testInProjectStructuresModelCancelLeavesNoModule() {
+        val sdk = SdkFixtures.register(SdkFixtures.elixirSdk("New module Elixir", fakeHome("elixir/new-module")), testRootDisposable)
+        val model = ModuleManager.getInstance(project).getModifiableModel()
+        val wizard = Wizard(projectStructure(model))
+
+        wizard.commit(sdk)
+        WriteAction.run<Throwable> { model.dispose() }
+
+        assertNull(ModuleManager.getInstance(project).findModuleByName("extra"))
+    }
+
+    fun testInProjectStructuresModelApplyLeavesTheModuleWithThePick() {
+        val sdk = SdkFixtures.register(SdkFixtures.elixirSdk("New module Elixir", fakeHome("elixir/new-module")), testRootDisposable)
+        val model = ModuleManager.getInstance(project).getModifiableModel()
+        val wizard = Wizard(projectStructure(model))
+
+        wizard.commit(sdk)
+        WriteAction.run<Throwable> { model.commit() }
+
+        assertSame(sdk, ModuleManager.getInstance(project).findModuleByName("extra")?.let { ModuleRootManager.getInstance(it).sdk })
+    }
+
+    /** Project Structure's New Module, which hands the wizard its uncommitted [model]. */
+    @Suppress("DEPRECATION") // The key Project Structure's wizard hands its model under; its replacement is @Internal.
+    private fun projectStructure(model: ModifiableModuleModel) = WizardContext(project, Disposer.newDisposable(testRootDisposable)).apply {
+        modulesProvider = ModulesProvider.EMPTY_MODULES_PROVIDER
+        putUserData(NewProjectWizardStep.MODIFIABLE_MODULE_MODEL_KEY, model)
+    }
+
     /**
      * In the wizard [opened] once mise pins an installed Elixir and Erlang, the offer taken with the tool manager's box
      * ticked gives the module made the offer's Model and turns the tool manager on.
@@ -132,8 +164,7 @@ class NewModuleTest : HeavyTestCase() {
             base.name = "extra"
             panel.apply()
             Files.createDirectories(Path.of(location, "extra"))
-            step.moduleBuilder(sdk).commit(project)
-            return checkNotNull(ModuleManager.getInstance(project).findModuleByName("extra")) { "no module 'extra'" }
+            return step.commitModule(project, sdk).single()
         }
     }
 }
