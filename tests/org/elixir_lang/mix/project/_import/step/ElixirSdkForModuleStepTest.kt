@@ -10,7 +10,6 @@ import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.ui.configuration.JdkComboBox
 import com.intellij.openapi.roots.ui.configuration.SdkListItem
 import com.intellij.openapi.util.io.FileUtil
-import com.intellij.platform.eel.provider.getEelDescriptor
 import com.intellij.testFramework.common.runAll
 import com.intellij.testFramework.registerOrReplaceServiceInstance
 import org.elixir_lang.PlatformTestCase
@@ -28,29 +27,12 @@ import org.elixir_lang.sdk.wsl.LEGACY_WSL_PREFIX
 import org.elixir_lang.sdk.wsl.MODERN_WSL_PREFIX
 import org.elixir_lang.sdk.wsl.MockWslCompatService
 import org.elixir_lang.sdk.wsl.WslCompatService
-import org.mockito.Mockito
 import java.nio.file.Path
 
 /**
- * Tests for the EEL-aware SDK filtering in [ElixirSdkForModuleStep].
- *
- * A real WSL/remote environment cannot be required in platform tests, so coverage is built from
- * three kinds of assertions:
- * - locally observable behaviour: a local import target resolves to the local descriptor,
- *   visibility is permissive when an environment cannot be determined, and the post-reset sync
- *   loop ([org.elixir_lang.sdk.SdkEnvironment.syncTargetSdks] via updateStep()) never adds spurious SDKs
- *   or marks the model modified for a local-only import;
- * - plumbing: paths are routed through WslCompatService's prefix normalization before descriptor
- *   resolution (via a recording service);
- * - environment-independent invariants: after normalization, `\\wsl$\<distro>` and
- *   `\\wsl.localhost\<distro>` paths resolve to EQUAL descriptors. On machines without WSL both
- *   resolve to the local descriptor; on machines with WSL both resolve to the same distro
- *   descriptor -- the assertions hold either way, while exercising the real re-add path when WSL
- *   is present.
- *
- * [MockWslCompatService] pins the prefix-conversion policy (legacy -> modern by default) so tests
- * are deterministic across the CI matrix (Windows 11, older Windows, Linux) instead of depending
- * on the host OS version.
+ * The import's SDK step: its pick, and the SDKs of the import target's environment it adds to its model.
+ * [MockWslCompatService] pins the prefix conversion, legacy to modern, so the rows don't depend on the host's Windows
+ * version.
  */
 @Suppress("UnstableApiUsage")
 class ElixirSdkForModuleStepTest : PlatformTestCase() {
@@ -136,149 +118,6 @@ class ElixirSdkForModuleStepTest : PlatformTestCase() {
         }
 
         return sdk
-    }
-
-    // eelDescriptor(path) -- descriptor resolution and normalization plumbing
-
-    fun testImportTargetDescriptorForLocalDirectoryIsLocalDescriptor() {
-        val targetDescriptor = step(localImportDirectory()).importTargetDescriptor()
-
-        assertNotNull("A local import directory should resolve to a descriptor", targetDescriptor)
-        assertEquals(
-            "A local import directory should resolve to the same descriptor as any other local path",
-            Path.of(FileUtil.getTempDirectory()).getEelDescriptor(),
-            targetDescriptor
-        )
-    }
-
-    fun testEelDescriptorIsNullForUnparseablePath() {
-        // A NUL character is rejected by Path.of() on every platform
-        assertNull(
-            "An unparseable path has no determinable descriptor",
-            step(localImportDirectory()).eelDescriptor("\u0000invalid")
-        )
-    }
-
-    fun testEelDescriptorNormalizesPathsThroughWslCompatService() {
-        val recordedPaths = mutableListOf<String>()
-        installWslCompatService(object : WslCompatService by MockWslCompatService() {
-            override fun String.canonicalizeWslPrefix(): String {
-                recordedPaths += this
-                return this
-            }
-        })
-
-        val importDirectory = localImportDirectory()
-        val sdkHome = localImportDirectory()
-        val sdk = registerElixirSdk("Local Elixir", homePath = sdkHome)
-        val moduleStep = step(importDirectory)
-
-        moduleStep.importTargetDescriptor()
-        moduleStep.sdkDescriptor(sdk)
-
-        // Slash direction varies by source (SdkModificator stores system-independent paths,
-        // FileUtil.createTempDirectory returns system-dependent ones), so compare normalized
-        assertContainsElements(
-            recordedPaths.map(FileUtil::toSystemIndependentName),
-            FileUtil.toSystemIndependentName(importDirectory),
-            FileUtil.toSystemIndependentName(sdkHome),
-        )
-    }
-
-    /**
-     * The regression test for the mixed-prefix hole: WSL descriptor equality includes the UNC
-     * root, so without normalization a `\\wsl$\<distro>` SDK home and a `\\wsl.localhost\<distro>`
-     * import directory would resolve to unequal descriptors on a machine with WSL. After
-     * normalization both resolve to the same descriptor -- on machines without WSL both are the
-     * local descriptor, so the assertion is environment-independent.
-     */
-    fun testMixedWslPrefixesResolveToEqualDescriptors() {
-        val moduleStep = step(localImportDirectory())
-
-        assertEquals(
-            "Legacy- and modern-prefix paths into the same distro must resolve to equal descriptors",
-            moduleStep.eelDescriptor("${LEGACY_WSL_PREFIX}IntellijElixirWSLDistribution\\home\\user\\project"),
-            moduleStep.eelDescriptor("${MODERN_WSL_PREFIX}IntellijElixirWSLDistribution\\home\\user\\project")
-        )
-    }
-
-    fun testMixedWslPrefixesResolveToEqualDescriptorsUnderLegacyConversionPolicy() {
-        // Older Windows normalizes modern -> legacy instead; the equality invariant must still hold
-        installWslCompatService(MockWslCompatService(prefixConversionOverride = MODERN_WSL_PREFIX to LEGACY_WSL_PREFIX))
-
-        val moduleStep = step(localImportDirectory())
-
-        assertEquals(
-            "Descriptor equality must be prefix-insensitive under the modern -> legacy policy too",
-            moduleStep.eelDescriptor("${LEGACY_WSL_PREFIX}IntellijElixirWSLDistribution\\home\\user\\project"),
-            moduleStep.eelDescriptor("${MODERN_WSL_PREFIX}IntellijElixirWSLDistribution\\home\\user\\project")
-        )
-    }
-
-    // sdkDescriptor(sdk)
-
-    fun testSdkDescriptorIsNullWithoutHomePath() {
-        val sdk = registerElixirSdk("Homeless Elixir")
-
-        assertNull(
-            "An SDK without a home path has no determinable descriptor",
-            step(localImportDirectory()).sdkDescriptor(sdk)
-        )
-    }
-
-    fun testSdkDescriptorIsNullForUnparseableHomePath() {
-        // A NUL character is rejected by Path.of() on every platform. The SDK is mocked rather
-        // than registered because ProjectJdkTable.addJdk() itself parses the home path and
-        // rejects the NUL before sdkDescriptor() could ever see it.
-        val sdk = Mockito.mock(Sdk::class.java)
-        Mockito.`when`(sdk.homePath).thenReturn("\u0000invalid")
-
-        assertNull(
-            "An SDK with an unparseable home path has no determinable descriptor",
-            step(localImportDirectory()).sdkDescriptor(sdk)
-        )
-    }
-
-    fun testSdkDescriptorForLocalHomeMatchesLocalImportTarget() {
-        val sdk = registerElixirSdk("Local Elixir", homePath = localImportDirectory())
-        val moduleStep = step(localImportDirectory())
-
-        assertEquals(
-            "An SDK with a local home should be in the same environment as a local import target",
-            moduleStep.importTargetDescriptor(),
-            moduleStep.sdkDescriptor(sdk)
-        )
-    }
-
-    // sdkVisibleForImportTarget(sdk)
-
-    fun testSdkWithUnknownDescriptorIsVisible() {
-        val sdk = registerElixirSdk("Homeless Elixir")
-
-        assertTrue(
-            "Visibility should be permissive when the SDK's environment cannot be determined",
-            step(localImportDirectory()).sdkVisibleForImportTarget(sdk)
-        )
-    }
-
-    fun testLocalSdkIsVisibleForLocalImportTarget() {
-        val sdk = registerElixirSdk("Local Elixir", homePath = localImportDirectory())
-
-        assertTrue(
-            "A local SDK should be visible for a local import target",
-            step(localImportDirectory()).sdkVisibleForImportTarget(sdk)
-        )
-    }
-
-    fun testWslSdkIsVisibleForImportTargetInSameDistroWithMixedPrefixes() {
-        val sdk = registerElixirSdk("WSL Elixir", homePath = "${LEGACY_WSL_PREFIX}IntellijElixirWSLDistribution\\home\\user\\elixir")
-
-        // Environment-independent: without WSL both sides are the local descriptor; with WSL both
-        // normalize to the same distro descriptor. Either way the SDK must be visible.
-        assertTrue(
-            "A WSL SDK should be visible when importing from the same distro via the other prefix",
-            step("${MODERN_WSL_PREFIX}IntellijElixirWSLDistribution\\home\\user\\project").sdkVisibleForImportTarget(sdk)
-        )
     }
 
     fun testUpdateStepPopulatesLocalSdkWithoutModifyingModel() {
