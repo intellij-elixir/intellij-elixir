@@ -5,13 +5,17 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.module.ModifiableModuleModel
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
+import com.intellij.openapi.module.ModuleTypeManager
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
+import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.ui.configuration.DefaultModulesProvider
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.VfsTestUtil
 import com.intellij.testFramework.common.runAll
+import org.elixir_lang.isElixirModule
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.mix.sync.MixSyncTestHelpers
 import org.elixir_lang.mix.project.OtpApp
@@ -135,6 +139,120 @@ class BuilderCommitTest : HeavyTestCase() {
         assertFalse(ToolManagerSettings.getInstance(project).isEnabled(toolManager))
     }
 
+    fun testAModuleOfAnAppsNameElsewhereGivesTheAppItsPathName() {
+        importing(app("alpha"))
+        withModelHolding("alpha") { model ->
+            commit(model)
+
+            assertNotNull(model.findModuleByName("alpha-apps-alpha"))
+        }
+    }
+
+    fun testAnAppWithItsOwnModuleFileNamedLikeAModuleElsewhereGetsItsPathNameRootedAtTheApp() {
+        importing(app("alpha", reused = true))
+        withModelHolding("alpha") { model ->
+            commit(model)
+
+            val module = model.findModuleByName("alpha-apps-alpha")!!
+            assertEquals(listOf(appRoot("alpha")), ModuleRootManager.getInstance(module).contentRoots.toList())
+        }
+    }
+
+    fun testAModuleOfTheRootAppsNameGivesItItsFolderName() {
+        val root = OtpApp(umbrella, mixExs(umbrella, "hub"))
+        builder.setPreScannedApps(umbrella, listOf(root))
+        withModelHolding("hub") { model ->
+            commit(model)
+
+            assertNotNull(model.findModuleByName("hub-${umbrella.name}"))
+        }
+    }
+
+    fun testATakenPathNameGivesTheAppTheNextFreeName() {
+        importing(app("alpha"))
+        withModelHolding("alpha", "alpha-apps-alpha") { model ->
+            commit(model)
+
+            assertNotNull(model.findModuleByName("alpha-apps-alpha-2"))
+        }
+    }
+
+    fun testAModuleOfTheAppsPathNameRootedAtTheAppIsReused() {
+        importing(app("alpha"))
+        withModelHolding("alpha") { model ->
+            model.newPlainModule("alpha-apps-alpha", appRoot("alpha"))
+            val modules = commit(model)
+
+            assertEquals(listOf(model.findModuleByName("alpha-apps-alpha")), modules)
+            assertNull(model.findModuleByName("alpha-apps-alpha-2"))
+        }
+    }
+
+    fun testAReusedPlainModuleBecomesAnElixirModule() {
+        importing(app("alpha"))
+        val alpha = committedPlainModule("alpha", appRoot("alpha"))
+
+        assertEquals(listOf(alpha), commit())
+
+        assertIsAnElixirModuleWithItsMixFoldersMarked(alpha, appRoot("alpha"))
+    }
+
+    fun testInAHandedModelAReusedPlainModuleBecomesAnElixirModule() {
+        importing(app("alpha"))
+        val alpha = committedPlainModule("alpha", appRoot("alpha"))
+        withModelHolding { model ->
+            assertEquals(listOf(alpha), commit(model))
+
+            assertIsAnElixirModuleWithItsMixFoldersMarked(alpha, appRoot("alpha"))
+        }
+    }
+
+    fun testInAHandedModelAReusedPlainModuleNotYetInTheProjectBecomesAnElixirModuleOnceItIs() {
+        importing(app("alpha"))
+        val model = ModuleManager.getInstance(project).getModifiableModel()
+        val alpha = model.newPlainModule("alpha", appRoot("alpha"))
+
+        assertEquals(listOf(alpha), commit(model))
+        WriteAction.run<Throwable>(model::commit)
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+
+        assertIsAnElixirModuleWithItsMixFoldersMarked(alpha, appRoot("alpha"))
+    }
+
+    /** [module] is an Elixir module whose content root [root] marks `lib` as sources and `test` as test sources, as ExUnit's run icons need. */
+    private fun assertIsAnElixirModuleWithItsMixFoldersMarked(module: Module, root: VirtualFile) {
+        assertTrue("${module.name} is an Elixir module", module.isElixirModule())
+        val contentEntry = ModuleRootManager.getInstance(module).contentEntries.single { it.file == root }
+        val isTestSource = contentEntry.sourceFolders.associate { it.url to it.isTestSource }
+        assertEquals("${module.name}'s lib", false, isTestSource["${root.url}/lib"])
+        assertEquals("${module.name}'s test", true, isTestSource["${root.url}/test"])
+    }
+
+    /** A module [name] of the IDE's default type in the project, its file outside the umbrella, rooted at [root]. */
+    private fun committedPlainModule(name: String, root: VirtualFile): Module =
+        createModuleAt(name, project, ModuleTypeManager.getInstance().defaultModuleType, tempDir.createVirtualDir("elsewhere-$name").toNioPath())
+            .also { ModuleRootModificationUtil.addContentRoot(it, root) }
+
+    /** A new module [name] of the IDE's default type in this model, its file outside the umbrella, rooted at [root] or else there. */
+    private fun ModifiableModuleModel.newPlainModule(name: String, root: VirtualFile? = null): Module {
+        val elsewhere = tempDir.createVirtualDir("elsewhere-$name")
+        return newModule("${elsewhere.path}/$name.iml", ModuleTypeManager.getInstance().defaultModuleType.id)
+            .also { ModuleRootModificationUtil.addContentRoot(it, root ?: elsewhere) }
+    }
+
+    /** [body] given a module model holding a module of each of [names], each outside the umbrella and rooted where its file is, then disposed. */
+    private fun withModelHolding(vararg names: String, body: (ModifiableModuleModel) -> Unit) {
+        val model = ModuleManager.getInstance(project).getModifiableModel()
+        try {
+            for (name in names) {
+                model.newPlainModule(name)
+            }
+            body(model)
+        } finally {
+            WriteAction.run<Throwable>(model::dispose)
+        }
+    }
+
     /** Committing an import of [names] with no module model gives each app, as `commit` returns it, the pick. */
     private fun assertEachAppGetsThePick(vararg names: String) {
         val sdk = elixirSdk()
@@ -203,6 +321,9 @@ class BuilderCommitTest : HeavyTestCase() {
         }
         builder.setPreScannedApps(umbrella, apps)
     }
+
+    /** The root of the app [name] under the umbrella's `apps/`. */
+    private fun appRoot(name: String): VirtualFile = umbrella.findFileByRelativePath("apps/$name")!!
 
     /** The name the import gives app [name]'s module. */
     private fun moduleName(name: String) = moduleNames.getValue(name)

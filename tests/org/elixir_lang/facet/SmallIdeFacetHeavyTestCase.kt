@@ -3,6 +3,7 @@ package org.elixir_lang.facet
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.common.runAll
+import com.intellij.testFramework.runInEdtAndWait
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.sdk.ProcessOutput
 import java.io.File
@@ -18,7 +19,7 @@ abstract class SmallIdeFacetHeavyTestCase : HeavyTestCase() {
 
     override fun tearDown() {
         runAll(
-            { models.leaveSmallIde(project) },
+            { runInEdtAndWait { models.leaveSmallIde(project) } },
             { super.tearDown() },
         )
     }

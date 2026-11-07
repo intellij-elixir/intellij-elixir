@@ -5,15 +5,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.mix.project.mixExs
 
-/**
- * Covers the module-name disambiguation an umbrella import depends on.
- *
- * [Project.createModulesForOtpApps] builds each `.iml` path out of the name it is handed, and the
- * platform derives the module name from that path - so two OTP apps mapped to the same name become
- * two identical `.iml` paths and the second `newModule` call throws `ModuleWithNameAlreadyExists`.
- * An umbrella whose root directory and one `apps/` child declare the same `app:` is exactly that
- * case, and [Project.moduleNameForOtpApps] is the only thing standing between it and the crash.
- */
+/** Covers the module-name disambiguation an umbrella import depends on. */
 class ProjectModuleNameForOtpAppsTest : PlatformTestCase() {
 
     /**
@@ -51,8 +43,7 @@ class ProjectModuleNameForOtpAppsTest : PlatformTestCase() {
             moduleNames["/"]
         )
         assertFalse(
-            "the child app sharing the root's name must not be mapped to that same name, or both" +
-                    " apps resolve to one .iml path and the import throws ModuleWithNameAlreadyExists",
+            "the child app sharing the root's name must not be mapped to that same name",
             moduleNames["/apps/dup_name"] == moduleNames["/"]
         )
     }

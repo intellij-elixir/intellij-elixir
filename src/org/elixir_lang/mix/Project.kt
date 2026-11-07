@@ -1,11 +1,15 @@
 package org.elixir_lang.mix
 
+import com.intellij.facet.FacetManager
+import com.intellij.facet.FacetType
+import com.intellij.facet.impl.FacetUtil
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModifiableModuleModel
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
+import com.intellij.openapi.module.ModuleType
 import com.intellij.openapi.module.ModuleTypeManager
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.ModuleListener
@@ -14,11 +18,14 @@ import com.intellij.openapi.roots.CompilerModuleExtension
 import com.intellij.openapi.roots.ContentEntry
 import com.intellij.openapi.roots.ModifiableRootModel
 import com.intellij.openapi.roots.ModuleRootManager
+import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileVisitor
 import com.intellij.util.concurrency.annotations.RequiresEdt
+import com.intellij.util.concurrency.annotations.RequiresWriteLock
+import org.elixir_lang.Facet
 import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.mix.project.CANONICAL_FOLDER_MARKS
 import org.elixir_lang.mix.project.FolderMark
@@ -103,17 +110,7 @@ object Project {
             } else {
                 for (app in apps) {
                     val isRoot = projectRoot != null && app.root.path == projectRoot.path
-                    if (isRoot) {
-                        result[app] = app.name
-                    } else if (projectRoot != null) {
-                        val relativePath = app.root.path
-                            .removePrefix(projectRoot.path)
-                            .trimStart('/')
-                            .replace('/', '-')
-                        result[app] = "${app.name}-${relativePath}"
-                    } else {
-                        result[app] = "${app.name}-${app.root.name}"
-                    }
+                    result[app] = if (isRoot) app.name else pathName(app, projectRoot)
                 }
             }
         }
@@ -121,11 +118,19 @@ object Project {
         return result
     }
 
+    /** [app]'s name suffixed with its path from [projectRoot], or with its folder's name when that path is empty or unknown. */
+    private fun pathName(app: OtpApp, projectRoot: VirtualFile?): String {
+        val relativePath = projectRoot?.let { app.root.path.removePrefix(it.path).trimStart('/').replace('/', '-') }
+        return "${app.name}-${if (relativePath.isNullOrEmpty()) app.root.name else relativePath}"
+    }
+
     /**
-     * The modules of [otpApps], in [handedModuleModel] or else the project's: each app with no module file of its own
-     * is created and set up by [rootModelModifier], and each with one is loaded from it. A handed model is left to its
-     * caller to commit, as Project Structure commits its own on OK; the project's is committed here. The apps' Mix
-     * dependency libraries are synced once their model commits.
+     * The modules of [otpApps], in [handedModuleModel] or else the project's: a module rooted at the app under its name
+     * or path name is reused, and each other app with no module file of its own is created and set up by
+     * [rootModelModifier]. A handed model is left to its caller to commit, as Project Structure commits its own on OK;
+     * the project's is committed here. Each module gets the Elixir facet where its type takes one, one new in a handed
+     * model into that model, and a reused one that takes it gets its Mix folders marked too.
+     * The apps' Mix dependency libraries are synced once their model commits.
      */
     @RequiresEdt
     fun createModulesForOtpApps(
@@ -138,11 +143,10 @@ object Project {
         if (otpApps.isNotEmpty()) {
             val moduleModel = handedModuleModel ?: ModuleManager.getInstance(project).getModifiableModel()
             val moduleNames = moduleNameForOtpApps(otpApps, projectRoot)
-            val (modules, rootModels) =
-                otpApps.map { createModuleForOtpApp(it, moduleModel, rootModelModifier, moduleNames[it] ?: it.name) }.unzip()
+            val (modules, rootModels) = otpApps
+                .map { createModuleForOtpApp(it, moduleModel, rootModelModifier, moduleNames.getValue(it), projectRoot) }
+                .unzip()
 
-            // Use WriteAction.run since this is called from EDT via importToProject
-            // runBlockingCancellable is forbidden on EDT as it doesn't pump the event queue
             WriteAction.run<Throwable> {
                 for (rootModel in rootModels.filterNotNull()) {
                     rootModel.commit()
@@ -150,6 +154,11 @@ object Project {
 
                 if (handedModuleModel == null) {
                     moduleModel.commit()
+                }
+
+                // A new module's root model already marked its folders; a reused one is marked as it converts.
+                for ((index, module) in modules.withIndex()) {
+                    if (rootModels[index] == null) makeElixirModule(module, otpApps[index].root) else addElixirFacet(module)
                 }
             }
             syncDepsOnceAdded(project, modules)
@@ -184,23 +193,68 @@ object Project {
         })
     }
 
+    /**
+     * Gives [module] the Elixir facet when its module type takes one and it has none, and then marks [root]'s Mix folders
+     * in it; whether it did.
+     */
+    @RequiresWriteLock
+    internal fun makeElixirModule(module: Module, root: VirtualFile): Boolean {
+        if (!addElixirFacet(module)) return false
+        ModuleRootModificationUtil.updateModel(module) { addFolders(it, root) }
+        return true
+    }
+
+    /** Adds the Elixir facet to [module] when its module type takes one and it has none; whether it added it. */
+    @RequiresWriteLock
+    private fun addElixirFacet(module: Module): Boolean {
+        val type = FacetType.findInstance(org.elixir_lang.facet.Type::class.java)
+
+        val adds = type.isSuitableModuleType(ModuleType.get(module)) && FacetManager.getInstance(module).getFacetByType(Facet.ID) == null
+        if (adds) FacetUtil.addFacet(module, type)
+        return adds
+    }
+
     /** The type of an OTP app's module: a small IDE has no `ELIXIR_MODULE` type, so its modules take the IDE's own. */
     fun otpAppModuleTypeId(): String =
         if (isSmallIde) ModuleTypeManager.getInstance().defaultModuleType.id else ELIXIR_MODULE_TYPE_ID
 
-    /** [otpApp]'s module, with its root model to commit when it is created rather than loaded from its module file. */
+    /**
+     * [otpApp]'s module. It takes the first of [moduleName], its [pathName], then that suffixed `-2`, `-3`, ... that is free or names a
+     * module rooted at the app, which is then reused: a module of the name elsewhere, such as the one the platform names
+     * after the opened folder, passes it on.
+     */
     private fun createModuleForOtpApp(
         otpApp: OtpApp,
         moduleModel: ModifiableModuleModel,
         rootModelModifier: (OtpApp, ModifiableRootModel) -> Unit,
-        moduleName: String
+        moduleName: String,
+        projectRoot: VirtualFile?
     ): Pair<Module, ModifiableRootModel?> {
-        val ideaModuleDir = otpApp.root
-        val ideaModuleFile = "${ideaModuleDir.canonicalPath}${File.separator}/${moduleName}.iml"
-        val module = moduleModel.newModule(ideaModuleFile, otpAppModuleTypeId())
-        otpApp.module = module
+        val pathName = pathName(otpApp, projectRoot)
+        val names = sequenceOf(moduleName, pathName) + generateSequence(2) { it + 1 }.map { "$pathName-$it" }
 
-        return module to if (otpApp.ideaModuleFile == null) {
+        return names.firstNotNullOf { name ->
+            val named = moduleModel.findModuleByName(name)
+            when {
+                named == null -> newModuleForOtpApp(otpApp, moduleModel, rootModelModifier, name, name == moduleName)
+                otpApp.root in ModuleRootManager.getInstance(named).contentRoots -> named to null
+                else -> null
+            }
+        }.also { (module, _) -> otpApp.module = module }
+    }
+
+    /** [otpApp]'s new module [name]. */
+    private fun newModuleForOtpApp(
+        otpApp: OtpApp,
+        moduleModel: ModifiableModuleModel,
+        rootModelModifier: (OtpApp, ModifiableRootModel) -> Unit,
+        name: String,
+        isOwnName: Boolean
+    ): Pair<Module, ModifiableRootModel?> {
+        val module = moduleModel.newModule("${otpApp.root.canonicalPath}${File.separator}/$name.iml", otpAppModuleTypeId())
+
+        // The app's own module file is under its own name, so a path name's module has none.
+        return module to if (otpApp.ideaModuleFile == null || !isOwnName) {
             val rootModel = ModuleRootManager.getInstance(module).modifiableModel
 
             addFolders(rootModel, otpApp.root)
