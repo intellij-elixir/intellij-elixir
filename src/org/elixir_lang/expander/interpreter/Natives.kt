@@ -588,7 +588,7 @@ internal class Natives(private val evaluation: Evaluation) {
         }
 
     private fun erlang(key: String, args: List<OtpErlangObject>, tail: Boolean = false): OtpErlangObject? {
-        val badarg = { evaluation.error(atom("badarg"), frame("erlang", key.substringBefore('/'), list(args))) }
+        val badarg = { badargOf("erlang", key.substringBefore('/'), args) }
 
         return when (key) {
             "++/2" -> cons(properElements(args[0]) ?: badarg(), args[1])
@@ -910,7 +910,7 @@ internal class Natives(private val evaluation: Evaluation) {
         val functionClause = { function: String, clauseArgs: List<OtpErlangObject> ->
             evaluation.error(atom("function_clause"), frame("lists", function, list(clauseArgs)))
         }
-        val badarg = { function: String -> evaluation.error(atom("badarg"), frame("lists", function, list(args))) }
+        val badarg = { function: String -> badargOf("lists", function, args) }
         val ran by lazy { running("lists", key, args).single() }
 
         return when (key) {
@@ -1357,7 +1357,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** `lists:keyfind/3`: the first tuple of the list whose element [args]`[1]` is `==` to [args]`[0]`. */
     private fun keyfind(args: List<OtpErlangObject>): OtpErlangTuple? {
-        val badarg = { evaluation.error(atom("badarg"), frame("lists", "keyfind", list(args))) }
+        val badarg = { badargOf("lists", "keyfind", args) }
         val n = small(args[1])?.takeIf { it > 0 } ?: badarg()
         val (elements, tail) = cells(args[2]) ?: badarg()
 
@@ -1448,7 +1448,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 mapOf(entries(left) + entries(map(args[1])), level)
             }
             "from_list/1" -> {
-                val badarg = { evaluation.error(atom("badarg"), frame("maps", "from_list", list(args))) }
+                val badarg = { badargOf("maps", "from_list", args) }
 
                 mapOf(
                     (properElements(args[0]) ?: badarg()).map { element ->
@@ -3164,7 +3164,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** `binary:at/2`: the byte of the binary [subject] at the zero-based [position]. */
     private fun byteAt(subject: OtpErlangObject, position: OtpErlangObject): OtpErlangObject {
-        val badarg = { evaluation.error(atom("badarg"), frame("binary", "at", list(listOf(subject, position)))) }
+        val badarg = { badargOf("binary", "at", listOf(subject, position)) }
         val bytes = binaryBytes(subject) ?: badarg()
         val index = smallInt(seen(position)) ?: badarg()
 
@@ -3270,7 +3270,7 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun chardataBytes(
         function: String,
         args: List<OtpErlangObject>,
-        notChardata: () -> Nothing = { evaluation.error(atom("badarg"), frame("unicode", function, list(args))) },
+        notChardata: () -> Nothing = { badargOf("unicode", function, args) },
     ): ByteArray {
         // One binary's bytes run on into the next's, so a character may be split between them.
         val bytes = Built()
@@ -3295,7 +3295,7 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun compareLevels(args: List<OtpErlangObject>): OtpErlangObject {
         val (first, second) = args.map { LOG_LEVELS.indexOf((seen(it) as? OtpErlangAtom)?.atomValue()) }
 
-        if (first < 0 || second < 0) evaluation.error(atom("badarg"), frame("logger", "compare_levels", list(args)))
+        if (first < 0 || second < 0) badargOf("logger", "compare_levels", args)
 
         return atom(
             when {
