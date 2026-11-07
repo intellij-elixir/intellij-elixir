@@ -66,7 +66,7 @@ class OpenProcessor : ProjectOpenProcessorBase<Builder>() {
 
         // Use pre-scanned results (no slow I/O on EDT)
         val foundApps = builder.list
-        builder.setList(foundApps)
+        builder.list = foundApps
 
         // Mark as importing project so Builder.commit() enables Mix compiler
         // This matches the behavior of the Import Wizard
