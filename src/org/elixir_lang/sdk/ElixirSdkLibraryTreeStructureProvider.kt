@@ -256,4 +256,4 @@ private fun presentScoped(presentation: PresentationData) {
  * Siblings of an `ebin` that hold source, in the order they are preferred. An application written in Elixir keeps its
  * `.ex` under `lib`; OTP's own applications keep their `.erl` under `src`.
  */
-private val SOURCE_DIRECTORY_NAMES = listOf("lib", "src")
+internal val SOURCE_DIRECTORY_NAMES = listOf("lib", "src")

@@ -44,5 +44,5 @@ internal class ElixirSdkLibraryNodeDecorator : ProjectViewNodeDecorator {
  * All three are named after their content rather than their application, so all three need
  * the parent's name to be legible in the tree.
  */
-private val ROOT_DIRECTORY_NAMES = setOf("ebin", "lib", "src")
+private val ROOT_DIRECTORY_NAMES = SOURCE_DIRECTORY_NAMES.toSet() + "ebin"
 
