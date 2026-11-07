@@ -63,7 +63,8 @@ object Project {
                 if (file.isDirectory) {
                     indicator.text2 = file.path
 
-                    if (isHiddenBelow(root, file) || isAssetsOrBuildOrConfigOrDepsOrTestsDirectory(root.path, file.path)) {
+                    // The scanned root is never skipped, whatever its name.
+                    if (file != root && (isHidden(file) || isAssetsOrBuildOrConfigOrDepsOrTestsDirectory(root, file))) {
                         return false
                     }
                 }
@@ -276,24 +277,34 @@ object Project {
         VfsUtil.markDirtyAndRefresh(async, false, true, *targets)
     }
 
-    private fun createImportedOtpApp(appRoot: VirtualFile): OtpApp? =
+    private fun createImportedOtpApp(appRoot: VirtualFile): OtpApp? = findMixExs(appRoot)?.let { OtpApp(appRoot, it) }
+
+    private fun findMixExs(directory: VirtualFile): VirtualFile? =
         try {
-            appRoot.findChild(MIX_EXS)
+            directory.findChild(MIX_EXS)
         } catch (_: EOFException) {
             null
-        }?.let {
-            OtpApp(appRoot, it)
         }
 
-    /** A hidden directory holds tooling state, such as `.claude/worktrees/` checkouts, never an app of [root]. */
-    private fun isHiddenBelow(root: VirtualFile, directory: VirtualFile): Boolean =
-        directory != root && directory.name.startsWith(".")
+    private fun isMixProject(directory: VirtualFile?): Boolean = directory?.let(::findMixExs) != null
 
-    private fun isAssetsOrBuildOrConfigOrDepsOrTestsDirectory(projectRootPath: String, path: String): Boolean {
-        return (path.endsWith("/assets")
-                || "$projectRootPath/_build" == path
-                || "$projectRootPath/config" == path
-                || "$projectRootPath/deps" == path
-                || "$projectRootPath/tests" == path)
+    /** Whether [directory] is a Mix project's `deps`, which holds its fetched dependencies. */
+    internal fun isDepsOfAMixProject(directory: VirtualFile): Boolean =
+        directory.name == "deps" && isMixProject(directory.parent)
+
+    /** A hidden directory holds tooling state, such as `.claude/worktrees/` checkouts, never an app of the scanned root. */
+    private fun isHidden(directory: VirtualFile): Boolean = directory.name.startsWith(".")
+
+    private fun isAssetsOrBuildOrConfigOrDepsOrTestsDirectory(root: VirtualFile, directory: VirtualFile): Boolean {
+        val parent = directory.parent
+
+        return when (directory.name) {
+            "assets" -> true
+            "config", "tests" -> parent == root
+            // The deps and _build of root or of a Mix project below it hold fetched dependencies and their builds.
+            "deps" -> parent == root || isDepsOfAMixProject(directory)
+            "_build" -> parent == root || isMixProject(parent)
+            else -> false
+        }
     }
 }

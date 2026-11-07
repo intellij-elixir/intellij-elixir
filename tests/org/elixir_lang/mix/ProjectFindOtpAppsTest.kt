@@ -40,6 +40,40 @@ class ProjectFindOtpAppsTest : PlatformTestCase() {
         assertEquals(listOf("/"), appPaths(".hidden_proj"))
     }
 
+    fun testAProjectsFetchedDependenciesBelowTheFolderAreNotApps() {
+        addMixExs("folder/backend", "backend")
+        addMixExs("folder/backend/deps/dep", "dep")
+
+        assertEquals(listOf("/backend"), appPaths("folder"))
+    }
+
+    fun testTheFoldersOwnDependenciesAreNotAppsWhenItHoldsNoMixExs() {
+        addMixExs("folder/backend", "backend")
+        addMixExs("folder/deps/dep", "dep")
+
+        assertEquals(listOf("/backend"), appPaths("folder"))
+    }
+
+    fun testAFolderOpenedInsideAProjectsDependenciesFindsTheirApps() {
+        addMixExs("folder/backend", "backend")
+        addMixExs("folder/backend/deps/dep", "dep")
+
+        assertEquals(listOf("/dep"), appPaths("folder/backend/deps"))
+    }
+
+    fun testAFolderNamedAssetsFindsItsOwnApp() {
+        addMixExs("assets", "assets")
+
+        assertEquals(listOf("/"), appPaths("assets"))
+    }
+
+    fun testAProjectsBuildOutputBelowTheFolderIsNotAnApp() {
+        addMixExs("folder/backend", "backend")
+        addMixExs("folder/backend/_build/dev/lib/dep", "dep")
+
+        assertEquals(listOf("/backend"), appPaths("folder"))
+    }
+
     private fun addMixExs(directory: String, app: String) {
         myFixture.addFileToProject(
             "$directory/mix.exs",

@@ -10,3 +10,14 @@ internal val MIX_EXS = """
       end
     end
 """.trimIndent()
+
+/** A `mix.exs` of one app, [app]. */
+internal fun mixExs(app: String): String = """
+    defmodule App.MixProject do
+      use Mix.Project
+
+      def project do
+        [app: :$app, version: "0.1.0"]
+      end
+    end
+""".trimIndent()
