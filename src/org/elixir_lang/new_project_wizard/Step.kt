@@ -25,6 +25,7 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.NlsContexts
 import com.intellij.openapi.util.io.FileUtil
+import com.intellij.openapi.util.io.toNioPathOrNull
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.ui.dsl.builder.*
@@ -36,7 +37,9 @@ import org.elixir_lang.sdk.SdkDetectionContext
 import org.elixir_lang.sdk.SdkEnvironment
 import org.elixir_lang.sdk.choice.SdkChoicePanel
 import org.elixir_lang.sdk.choice.SdkChoiceState
+import org.elixir_lang.sdk.choice.takesOptIns
 import org.elixir_lang.sdk.erlang_dependent.getErlangSdk
+import org.elixir_lang.tool_manager.ToolManagerOptIns
 import java.io.IOException
 import java.nio.file.Paths
 import com.intellij.openapi.application.ReadAction
@@ -50,6 +53,7 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
                                            NewProjectWizardBaseData by parent.baseData!!,
                                            Data {
     override val sdkProperty = propertyGraph.property<Sdk?>(null)
+    private val optInsProperty = propertyGraph.property<ToolManagerOptIns?>(null)
     override val mixNewAppProperty = propertyGraph.property("")
     override val mixNewModuleProperty = propertyGraph.property("")
     override val mixNewSupProperty = propertyGraph.property(false)
@@ -65,7 +69,7 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
     override fun setupUI(builder: Panel) {
         with(builder) {
             row("Elixir SDK:") {
-                elixirSdkChooser(context, sdkProperty, pathProperty).align(AlignX.FILL)
+                elixirSdkChooser(context, sdkProperty, optInsProperty, pathProperty).align(AlignX.FILL)
             }
             @Suppress("DialogTitleCapitalization")
             collapsibleGroup("mix new Options") {
@@ -205,6 +209,7 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
         builder.moduleFilePath = FileUtil.toSystemDependentName(Paths.get(projectDirectory, name + ModuleFileType.DOT_DEFAULT_EXTENSION).toString())
         builder.contentEntryPath = FileUtil.toSystemDependentName(projectDirectory)
         builder.elixirSdk = sdk
+        builder.toolManagerOptIns = optInsProperty.get()
 
         // Set the source paths even when there are none: JavaModuleBuilder.getSourcePaths()
         // creates and returns <contentRoot>/src when they were never set at all, which would
@@ -226,27 +231,34 @@ private val APPLICATION_NAME_REGEX: Regex = Regex("[a-z]([a-z0-9_])*")
 
 /**
  * The chooser's panel over the table's Elixir SDKs that run where [locationProperty]'s directory is. The pick is
- * [sdkProperty]. Create is refused until there is one, and for one with no Erlang SDK, which `mix new` needs.
+ * [sdkProperty], and the tool manager opt-ins handed over with it are [optInsProperty]. Create is refused until there is
+ * a pick, and for one with no Erlang SDK, which `mix new` needs.
  */
 @RequiresEdt
 fun Row.elixirSdkChooser(
     context: WizardContext,
     sdkProperty: ObservableMutableProperty<Sdk?>,
+    optInsProperty: ObservableMutableProperty<ToolManagerOptIns?>,
     locationProperty: ObservableProperty<String>,
 ): Cell<SdkChoicePanel> {
     fun locationDirectory(): String? = locationProperty.get().takeUnless(String::isBlank)
     fun target() = locationDirectory()?.let { SdkEnvironment.eelDescriptor(it) }
 
-    val state = SdkChoiceState(context.project ?: ProjectManager.getInstance().defaultProject, target(), null)
+    fun folders() = listOfNotNull(locationDirectory()?.toNioPathOrNull())
+
+    val state = SdkChoiceState(context.project ?: ProjectManager.getInstance().defaultProject, target(), null, folders(), takesOptIns(context))
     Disposer.register(context.disposable, state)
     Disposer.register(context.disposable) { SdkDetectionContext.clear() }
-    val panel = SdkChoicePanel(state, context.disposable) { sdkProperty.set(it?.sdk) }
+    val panel = SdkChoicePanel(state, context.disposable) {
+        sdkProperty.set(it?.entry?.sdk)
+        optInsProperty.set(it?.optIns)
+    }
 
     // Add...'s home chooser opens where the project goes.
     SdkDetectionContext.set(locationDirectory())
     locationProperty.afterChange(context.disposable) {
         SdkDetectionContext.set(locationDirectory())
-        panel.retarget(target())
+        panel.retarget(target(), folders())
     }
 
     return cell(panel).validationOnApply { validationMessage(sdkProperty.get())?.let { error(it) } }

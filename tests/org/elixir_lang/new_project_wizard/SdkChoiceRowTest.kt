@@ -18,6 +18,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.sdk.SdkDetectionContext
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.storedErlangName
+import org.elixir_lang.sdk.choice.FakeToolManager
 import org.elixir_lang.sdk.choice.SdkChoicePanel
 import org.elixir_lang.sdk.erlang_dependent.Asked
 import org.elixir_lang.sdk.erlang_dependent.ScriptedErlangStep
@@ -26,6 +27,7 @@ import org.elixir_lang.sdk.erlang_dependent.elixirInstall
 import org.elixir_lang.sdk.erlang_dependent.install
 import org.elixir_lang.sdk.wsl.MockWslCompatService
 import org.elixir_lang.sdk.wsl.WslCompatService
+import org.elixir_lang.tool_manager.ToolManagerOptIns
 import java.nio.file.Path
 
 /** The New Project and New Module wizards' "Elixir SDK:" row, asked as the wizard asks it, with no project. */
@@ -33,6 +35,7 @@ class SdkChoiceRowTest : PlatformTestCase() {
     private lateinit var table: SdkFixtures.TableSnapshot
     private val propertyGraph = PropertyGraph()
     private val sdkProperty = propertyGraph.property<Sdk?>(null)
+    private val optInsProperty = propertyGraph.property<ToolManagerOptIns?>(null)
     private lateinit var wizardDisposable: com.intellij.openapi.Disposable
     private lateinit var dialogPanel: DialogPanel
     private lateinit var chooser: SdkChoicePanel
@@ -40,6 +43,8 @@ class SdkChoiceRowTest : PlatformTestCase() {
     override fun setUp() {
         super.setUp()
         table = SdkFixtures.TableSnapshot()
+        // The row asks the tool managers about its location, and a real mise there answers from this machine's config.
+        FakeToolManager().install(testRootDisposable)
     }
 
     override fun tearDown() = runAll(
@@ -157,7 +162,7 @@ class SdkChoiceRowTest : PlatformTestCase() {
     private fun row(location: ObservableProperty<String> = propertyGraph.property("")) {
         wizardDisposable = Disposer.newDisposable(testRootDisposable)
         val context = WizardContext(null, wizardDisposable)
-        dialogPanel = panel { row { chooser = elixirSdkChooser(context, sdkProperty, location).component } }
+        dialogPanel = panel { row { chooser = elixirSdkChooser(context, sdkProperty, optInsProperty, location).component } }
             .apply { registerValidators(wizardDisposable) }
     }
 

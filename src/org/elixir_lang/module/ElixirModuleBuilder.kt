@@ -2,7 +2,6 @@ package org.elixir_lang.module
 
 import com.intellij.compiler.CompilerWorkspaceConfiguration
 import com.intellij.ide.util.projectWizard.*
-import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.module.ModifiableModuleModel
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleType
@@ -12,10 +11,13 @@ import com.intellij.openapi.projectRoots.SdkTypeId
 import com.intellij.openapi.roots.ModifiableRootModel
 import com.intellij.openapi.roots.ui.configuration.ModulesProvider
 import com.intellij.openapi.util.Condition
+import com.intellij.util.concurrency.annotations.RequiresEdt
 import org.elixir_lang.Icons
 import org.elixir_lang.mix.Project
+import org.elixir_lang.sdk.choice.writePick
 import org.elixir_lang.sdk.elixir.ElixirSdkAssignment
 import org.elixir_lang.sdk.elixir.Type.Companion.instance
+import org.elixir_lang.tool_manager.ToolManagerOptIns
 import javax.swing.Icon
 
 /**
@@ -26,9 +28,13 @@ class ElixirModuleBuilder : JavaModuleBuilder(), ModuleBuilderListener {
     /** The Elixir SDK [commit] writes to the modules it makes, through [ElixirSdkAssignment]. */
     var elixirSdk: Sdk? = null
 
+    /** The tool manager opt-ins [commit] writes with [elixirSdk], through [writePick]. */
+    var toolManagerOptIns: ToolManagerOptIns? = null
+
+    @RequiresEdt
     override fun commit(project: com.intellij.openapi.project.Project, model: ModifiableModuleModel?, modulesProvider: ModulesProvider?): List<Module>? {
         val modules = super.commit(project, model, modulesProvider) ?: return null
-        elixirSdk?.let { sdk -> WriteAction.run<Throwable> { modules.forEach { ElixirSdkAssignment.assign(it, sdk) } } }
+        elixirSdk?.let { sdk -> writePick(project, modules, sdk, toolManagerOptIns) }
         return modules
     }
 

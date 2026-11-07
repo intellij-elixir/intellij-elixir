@@ -74,10 +74,11 @@ private const val INTERNAL_ERRORS_CLOSE =
     "//div[@class='MyDialog' and @accessiblename='IDE Internal Errors']//div[@class='JButton' and @accessiblename='Close']"
 
 /**
- * One PyCharm launch under the guard. The rows' homes: A, the installs the build resolves, and B, copies of them in the
- * private home whose version files name another version.
+ * One PyCharm launch under the guard, with [vmOptions] applied. The rows' homes: A, the installs the build resolves, and
+ * B, copies of them in the private home whose version files name another version.
  */
-fun launchPyCharm(name: String, body: Driver.(Homes) -> Unit) = launch(name, IdeProductProvider.PY, {}, body)
+fun launchPyCharm(name: String, vmOptions: VMOptions.() -> Unit = {}, body: Driver.(Homes) -> Unit) =
+    launch(name, IdeProductProvider.PY, vmOptions, body)
 
 /** One IntelliJ IDEA launch under the guard, with the homes of [launchPyCharm] and [vmOptions] applied. */
 fun launchIdea(name: String, vmOptions: VMOptions.() -> Unit = {}, body: Driver.(Homes) -> Unit) =

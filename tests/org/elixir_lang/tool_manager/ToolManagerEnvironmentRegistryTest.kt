@@ -7,7 +7,7 @@ import java.io.IOException
 
 class ToolManagerEnvironmentRegistryTest : TestCase() {
     fun testEveryManagerThatAppliesAnEnvironmentIsABuiltInToolManager() {
-        val names = allBuiltInToolManagers.map { it.name }
+        val names = BuiltInToolManagers().all.map { it.name }
         val environments = builtInToolManagerEnvironments { _, _, _ -> throw IOException() }.keys
 
         assertTrue("$environments are not all in $names", names.containsAll(environments))

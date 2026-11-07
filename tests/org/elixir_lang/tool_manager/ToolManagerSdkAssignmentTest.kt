@@ -11,18 +11,38 @@ import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.testFramework.common.runAll
+import junit.framework.TestCase.assertTrue
 import org.elixir_lang.Facet
 import org.elixir_lang.facet.FacetModelFixtures
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.fakeHome
+import org.elixir_lang.sdk.SdkFixtures.storedErlangHome
 import org.elixir_lang.sdk.SdkRegistrar
 import org.elixir_lang.sdk.choice.RecordedChooser
 import org.elixir_lang.sdk.erlang_dependent.elixirInstall
 import org.elixir_lang.sdk.erlang_dependent.install
+import org.elixir_lang.sdk.wsl.wslCompat
 
 /** The table's Elixir SDKs at [home]. */
 internal fun elixirSdksAt(home: String): List<Sdk> = ProjectJdkTable.getInstance().allJdks.filter { SdkRegistrar.onInstall(it, home) }
+
+/** Asserts that [sdk] is paired with the Erlang SDK at [erlangHome]. */
+internal fun assertPairedWithErlangAt(sdk: Sdk, erlangHome: String) =
+    assertTrue("paired with the Erlang at $erlangHome: ${storedErlangHome(sdk)}", wslCompat.pathsEqualWslAware(storedErlangHome(sdk), erlangHome))
+
+/** An Erlang SDK named [name] at [home], in the table. */
+internal fun registeredErlang(name: String, home: String): Sdk = SdkFixtures.register(SdkFixtures.erlangSdk(name, home))
+
+/** An Elixir SDK named [name] at [elixirHome], in the table, paired with [erlang]. */
+internal fun pairedElixir(name: String, elixirHome: String, erlang: Sdk): Sdk =
+    SdkFixtures.commitPairing(SdkFixtures.register(SdkFixtures.elixirSdk(name, elixirHome)), erlang)
+
+/** Two Elixir SDKs at [elixirHome], named from [prefix], each paired with an Erlang SDK of its own. */
+internal fun twoSdksOnTheInstall(elixirHome: String, prefix: String): List<Sdk> =
+    listOf(install("27", "27.3.4"), install("26", "26.2.5")).mapIndexed { index, erlangHome ->
+        pairedElixir("$prefix Elixir $index", elixirHome, registeredErlang("$prefix Erlang $index", erlangHome))
+    }
 
 class ToolManagerSdkAssignmentTest : HeavyTestCase() {
     private val checker get() = ToolManagerSdkChecker(project, emptyList(), ToolManagerSettings())
