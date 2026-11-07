@@ -108,9 +108,13 @@ class SdksService : Disposable {
     /**
      * Brings the model in line with the table: an SDK the table lost leaves it, even when edited; one it gained enters
      * it; and a touched copy no open page has edited is refreshed from the table.
+     *
+     * [PairingRepairs] repairs first what the commits left, so an edited path list is re-based onto the repaired copy
+     * before an Apply writes it. A repair after the commit reconfigures the SDK, which drops a path the user added.
      */
     @RequiresEdt
     private fun pass() {
+        PairingRepairs.getInstance().flush()
         val all = refreshAll.getAndSet(false)
         val sdks = touched.toList().also(touched::removeAll)
         val model = model ?: return

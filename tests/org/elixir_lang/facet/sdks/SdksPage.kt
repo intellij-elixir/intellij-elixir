@@ -4,7 +4,9 @@ import com.intellij.openapi.options.ex.ConfigurableCardPanel
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkType
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
+import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.ui.UIUtil
 import javax.swing.JLabel
@@ -63,6 +65,9 @@ internal class SdksPage(private val configurable: Configurable, private val open
         select(sdk)
         erlangCombo.selectedItem = copy(erlang)
     }
+
+    /** Selects [sdk] and adds [path] to its editor's Classes list, as that list's Add button does. */
+    fun addClassPath(sdk: Sdk, path: VirtualFile) = select(sdk).pathEditorFor(OrderRootType.CLASSES)!!.addPaths(path)
 
     fun remove(sdk: Sdk) = configurable.removeSelectedSdk(copy(sdk))
 

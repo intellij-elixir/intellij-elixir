@@ -40,7 +40,7 @@ import org.jetbrains.annotations.VisibleForTesting
 
 class Editor(private val sdkModel: SdkModel, private val history: History, private var sdk: ProjectJdkImpl) :
     Configurable, Place.Navigator {
-    private val sdkPathEditorByOrderRootType = HashMap<OrderRootType, SdkPathEditor>()
+    private val sdkPathEditorByOrderRootType = HashMap<OrderRootType, RebasingSdkPathEditor>()
     private val additionalDataConfigurableListBySdkType = HashMap<SdkType, MutableList<AdditionalDataConfigurable>>()
     private val componentByAdditionalDataConfigurable = HashMap<AdditionalDataConfigurable, JComponent?>()
     private val editedSdkModificator = this.EditedSdkModificator()
@@ -179,9 +179,7 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
         nameField.text = sdk.name
         // Only read, and left uncommitted: ConfigurableCardPanel calls this inside a read action.
         val sdkModificator = sdk.sdkModificator
-        for (type in sdkPathEditorByOrderRootType.keys) {
-            sdkPathEditorByOrderRootType[type]?.reset(sdkModificator)
-        }
+        sdkPathEditorByOrderRootType.values.forEach { pathEditor -> pathEditor.reset(sdkModificator) }
         setHomePathValue(FileUtil.toSystemDependentName(sdk.homePath ?: ""))
         _versionString = null
         homeFieldLabel.text = homeFieldLabelValue
@@ -197,14 +195,19 @@ class Editor(private val sdkModel: SdkModel, private val history: History, priva
     }
 
     /**
-     * Shows the copy again where nothing is edited: all of it when unmodified, else each path list. Another page's
-     * Apply may write the copy's roots, and [apply] writes every path list.
+     * Shows the copy again: all of it when unmodified, else each path list as the copy's roots with the user's own adds
+     * and removes since it last matched them. A repair or another page's Apply may write the copy's roots, and [apply]
+     * writes every path list.
      */
     fun refresh() {
         if (!isModified) return reset()
         val sdkModificator = sdk.sdkModificator
-        sdkPathEditorByOrderRootType.values.filterNot(SdkPathEditor::isModified).forEach { it.reset(sdkModificator) }
+        sdkPathEditorByOrderRootType.values.forEach { pathEditor -> pathEditor.rebase(sdkModificator) }
     }
+
+    /** The path list for [type], as its tab's Add button reaches it. */
+    @VisibleForTesting
+    internal fun pathEditorFor(type: OrderRootType): SdkPathEditor? = sdkPathEditorByOrderRootType[type]
 
     override fun disposeUIResources() {
         additionalDataConfigurableListBySdkType.keys

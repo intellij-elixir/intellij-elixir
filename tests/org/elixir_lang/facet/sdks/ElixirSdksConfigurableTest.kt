@@ -26,6 +26,7 @@ import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.settle
 import org.elixir_lang.sdk.StubSdkType
 import org.elixir_lang.sdk.elixir.ElixirSdkMutation
+import org.elixir_lang.sdk.erlang.PairingRepairs
 import org.elixir_lang.sdk.erlang_dependent.Asked
 import org.elixir_lang.sdk.erlang_dependent.ScriptedErlangStep
 import org.elixir_lang.sdk.erlang_dependent.ScriptedFileChooserFactory
@@ -690,6 +691,84 @@ class ElixirSdksConfigurableTest : PlatformTestCase() {
         SdkFixtures.moveHome(erlang, SdkFixtures.erlangHomeWithEbin("26", "26.2.5"))
         settle()
 
+        assertAViewedCopyRepaired(page, elixir, erlang, oldHome)
+    }
+
+    /** As [testAMoveCommittedOutsideRepairsAnUneditedPagesCopy], with the pages' pass heard and queued before the repair. */
+    fun testAMoveCommittedOutsideRepairsAViewedCopyWhenThePagesPassIsQueuedFirst() = inASmallIde {
+        PairingRepairs.getInstance().resetForTests()
+        service()
+        PairingRepairs.getInstance().ensureStarted()
+        val (erlang, elixir) = SdkFixtures.pairedInTable("Elixir Of An Erlang Moved Outside, Pass First")
+        val oldHome = erlang.homePath!!
+        service().resetForTests()
+        val page = openPage()
+        page.select(elixir)
+
+        SdkFixtures.moveHome(erlang, SdkFixtures.erlangHomeWithEbin("26", "26.2.5"))
+        settle()
+
+        assertAViewedCopyRepaired(page, elixir, erlang, oldHome)
+    }
+
+    /** A code path added on the Elixir page is kept, and its Erlang SDK's move on another page still reaches its paths. */
+    fun testAnErlangMoveOnAnotherPageReachesAnElixirSdkWhoseClassesListIsEdited() = inASmallIde {
+        val (erlang, elixir) = SdkFixtures.pairedInTable("Elixir Classes Edited, Erlang Moved On Another Page")
+        val oldHome = erlang.homePath!!
+        service().resetForTests()
+        val elixirPage = openPage()
+        val erlangPage = openPage(ErlangSdksConfigurable())
+        val added = outsideRoot()
+        elixirPage.addClassPath(elixir, added)
+
+        erlangPage.browse(erlang, SdkFixtures.erlangHomeWithEbin("26", "26.2.5"))
+        erlangPage.apply()
+        settle()
+        elixirPage.apply()
+        settle()
+
+        SdkFixtures.assertCodePathsFollowed(tableSdk(elixir.name), tableSdk(erlang.name), oldHome)
+        assertContainsElements(classUrls(elixir), added.url)
+    }
+
+    /** As [testAnErlangMoveOnAnotherPageReachesAnElixirSdkWhoseClassesListIsEdited], with the move committed outside and the page applied before its pass. */
+    fun testAMoveCommittedOutsideReachesAnElixirSdkWhoseClassesListIsEditedAndAppliedBeforeThePass() = inASmallIde {
+        val (erlang, elixir) = SdkFixtures.pairedInTable("Elixir Classes Edited, Moved Outside")
+        val oldHome = erlang.homePath!!
+        service().resetForTests()
+        val page = openPage()
+        val added = outsideRoot()
+        page.addClassPath(elixir, added)
+
+        SdkFixtures.moveHome(erlang, SdkFixtures.erlangHomeWithEbin("26", "26.2.5"))
+        page.apply()
+        settle()
+
+        SdkFixtures.assertCodePathsFollowed(tableSdk(elixir.name), tableSdk(erlang.name), oldHome)
+        assertContainsElements(classUrls(elixir), added.url)
+    }
+
+    /** As [testAMoveCommittedOutsideRepairsAnUneditedPagesCopy], with another page applied before the move's pass. */
+    fun testAMoveCommittedOutsideRepairsAViewedCopyWhenAnotherPageAppliesBeforeThePass() = inASmallIde {
+        val (erlang, elixir) = SdkFixtures.pairedInTable("Elixir Viewed, Moved Outside, Other Page Applied")
+        val other = registerPairedElixirSdk("Elixir Viewed, Moved Outside, Other Page Applied, Other")
+        val oldHome = erlang.homePath!!
+        service().resetForTests()
+        val page = openPage()
+        page.select(elixir)
+        val otherPage = openPage()
+        otherPage.select(other)
+        otherPage.clickSuppressOtpWarning()
+
+        SdkFixtures.moveHome(erlang, SdkFixtures.erlangHomeWithEbin("26", "26.2.5"))
+        otherPage.apply()
+        settle()
+
+        assertAViewedCopyRepaired(page, elixir, erlang, oldHome)
+    }
+
+    /** [elixir] is paired at [erlang]'s home, not [oldHome], in the table and [page]'s copy; [page] holds no edit. */
+    private fun assertAViewedCopyRepaired(page: SdksPage, elixir: Sdk, erlang: Sdk, oldHome: String) {
         assertPairedAt(tableSdk(elixir.name), erlang, oldHome, "the table's Elixir SDK")
         assertPairedAt(SdksPage.copy(elixir), erlang, oldHome, "the page's copy")
         assertFalse("a repair is no edit of the page", page.isModified)
