@@ -794,6 +794,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#4656](https://github.com/intellij-elixir/intellij-elixir/pull/4656) [@sh41](https://github.com/sh41)
+  - **The Project view no longer logs an error against the plugin the first time it shows a `lib`, `src` or `ebin` folder.** Refs [#4087](https://github.com/intellij-elixir/intellij-elixir/issues/4087).
 - [#4626](https://github.com/intellij-elixir/intellij-elixir/pull/4626) [@sh41](https://github.com/sh41)
   - **A long binary search in macro code the expander runs can now be cancelled.** Refs [#4597](https://github.com/intellij-elixir/intellij-elixir/issues/4597).
 - [#4533](https://github.com/intellij-elixir/intellij-elixir/pull/4533) [@sh41](https://github.com/sh41)

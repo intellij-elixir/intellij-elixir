@@ -9,6 +9,7 @@ import com.intellij.ide.projectView.impl.nodes.ExternalLibrariesNode
 import com.intellij.ide.projectView.impl.nodes.NamedLibraryElementNode
 import com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode
 import com.intellij.ide.util.treeView.AbstractTreeNode
+import com.intellij.openapi.components.service
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.JdkOrderEntry
@@ -130,9 +131,7 @@ internal class ElixirSdkLibraryTreeStructureProvider : TreeStructureProvider, Du
         if (node !is PsiDirectoryNode) return null
         val ebinVFile = node.value?.virtualFile ?: return null
         if (ebinVFile.name != "ebin") return null
-
-        // O(1) set lookup - avoids scanning all SDKs per child
-        if (ebinVFile !in ElixirSdkRootsCache.classRoots()) return null
+        if (ebinVFile !in service<ElixirSdkRootsCache>().classRoots()) return null
 
         val applicationVFile = ebinVFile.parent ?: return null
         val sourceVFile = SOURCE_DIRECTORY_NAMES
@@ -255,4 +254,4 @@ private fun presentScoped(presentation: PresentationData) {
  * Siblings of an `ebin` that hold source, in the order they are preferred. An application written in Elixir keeps its
  * `.ex` under `lib`; OTP's own applications keep their `.erl` under `src`.
  */
-private val SOURCE_DIRECTORY_NAMES = listOf("lib", "src")
+internal val SOURCE_DIRECTORY_NAMES = listOf("lib", "src")
