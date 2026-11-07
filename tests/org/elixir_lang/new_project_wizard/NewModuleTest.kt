@@ -19,6 +19,10 @@ import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.common.runAll
 import com.intellij.ui.UIBundle
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.util.concurrency.AppExecutorUtil
+import com.intellij.util.system.OS
+import org.elixir_lang.jps.shared.tool_manager.ToolManagerEnvironment
+import org.elixir_lang.jps.shared.tool_manager.ToolManagerEnvironmentResolver
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.sdk.SdkDetectionContext
 import org.elixir_lang.sdk.SdkFixtures
@@ -27,6 +31,9 @@ import org.elixir_lang.sdk.choice.ENVIRONMENT
 import org.elixir_lang.sdk.choice.FakeToolManager
 import org.elixir_lang.sdk.choice.IN_STEP
 import org.elixir_lang.sdk.choice.OFFER
+import org.elixir_lang.sdk.choice.TOOL_MANAGER_PROBE
+import org.elixir_lang.sdk.choice.TOOL_MANAGER_PROBE_LINE
+import org.elixir_lang.sdk.choice.replaceToolManagerEnvironments
 import org.elixir_lang.sdk.choice.waitFor
 import org.elixir_lang.sdk.erlang_dependent.elixirInstall
 import org.elixir_lang.sdk.erlang_dependent.install
@@ -34,6 +41,8 @@ import org.elixir_lang.tool_manager.ToolManagerSettings
 import org.elixir_lang.tool_manager.elixirSdksAt
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.Callable
+import java.util.concurrent.TimeUnit
 
 /** File > New > Module with the Elixir generator, in this test's project, as the wizard builds its steps. */
 class NewModuleTest : HeavyTestCase() {
@@ -78,6 +87,12 @@ class NewModuleTest : HeavyTestCase() {
 
     fun testOnNewProjectTheOffersModelWithTheToolManagerTickedTurnsItOnInTheProjectMade() =
         assertTakingTheOfferTickedTurnsTheToolManagerOn { Wizard(WizardContext(null, Disposer.newDisposable(testRootDisposable))) }
+
+    fun testMixNewGetsTheTickedEnvironmentOfTheToolManagerAskedAboutTheLocation() =
+        assertMixNewGetsTheTickedEnvironment { Wizard() }
+
+    fun testOnNewProjectMixNewGetsTheTickedEnvironmentOfTheToolManagerAskedAboutTheLocation() =
+        assertMixNewGetsTheTickedEnvironment { Wizard(WizardContext(null, Disposer.newDisposable(testRootDisposable))) }
 
     fun testProjectStructuresNewModuleShowsTheBoxesDisabledAndLeavesTheToolManagerAlone() {
         val elixirHome = elixirInstall("1.18.4", "27")
@@ -139,6 +154,47 @@ class NewModuleTest : HeavyTestCase() {
 
         assertEquals(elixirSdksAt(elixirHome), listOfNotNull(ModuleRootManager.getInstance(made).sdk))
         assertTrue(ToolManagerSettings.getInstance(project).isEnabled(toolManager))
+    }
+
+    /**
+     * In the wizard [opened] once mise pins an installed Elixir and Erlang, the offer taken with mise's environment
+     * ticked gives `mix new` that environment, which mise reads for the location, as the offer did, before the project
+     * adopts the boxes.
+     */
+    private fun assertMixNewGetsTheTickedEnvironment(opened: () -> Wizard) {
+        val askedAbout = mutableListOf<Path>()
+        replaceToolManagerEnvironments(
+            testRootDisposable,
+            mapOf(toolManager.name to ToolManagerEnvironmentResolver { dir, _ ->
+                askedAbout.add(dir)
+                ToolManagerEnvironment.Variables(TOOL_MANAGER_PROBE)
+            }),
+        )
+        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+        val wizard = opened()
+        wizard.panel.waitFor(OFFER).doClick()
+        wizard.panel.waitFor(IN_STEP).doClick()
+        wizard.panel.waitFor(ENVIRONMENT).doClick()
+        wizard.base.name = "extra"
+        wizard.panel.apply()
+
+        val lines = AppExecutorUtil.getAppExecutorService().submit(Callable {
+            val commandLine = wizard.step.mixNewCommandLine(project, wizard.step.sdk!!).apply {
+                parametersList.clearAll()
+                if (OS.CURRENT == OS.Windows) {
+                    exePath = "cmd.exe"
+                    addParameters("/c", "set")
+                } else {
+                    exePath = "env"
+                }
+            }
+            val process = commandLine.createProcess()
+            process.inputStream.bufferedReader().readText().also { process.waitFor(30, TimeUnit.SECONDS) }
+        }).get(60, TimeUnit.SECONDS).lines().map { it.trim() }
+
+        assertTrue(lines.joinToString("\n"), TOOL_MANAGER_PROBE_LINE in lines)
+        assertEquals(listOf(Path.of(wizard.location)), askedAbout)
+        assertFalse("adopted before the module is made", ToolManagerSettings.getInstance(project).isEnabled(toolManager))
     }
 
     /** The wizard's name and location step, then this plugin's, on one panel, for File > New > Module unless [context] is given. */

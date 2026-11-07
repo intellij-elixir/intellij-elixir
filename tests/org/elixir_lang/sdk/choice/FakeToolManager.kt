@@ -5,11 +5,13 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.testFramework.replaceService
 import com.intellij.util.ui.EDT
 import junit.framework.TestCase.assertEquals
+import org.elixir_lang.jps.shared.tool_manager.ToolManagerEnvironmentResolver
 import org.elixir_lang.sdk.erlang_dependent.elixirInstall
 import org.elixir_lang.sdk.erlang_dependent.install
 import org.elixir_lang.tool_manager.BuiltInToolManagers
 import org.elixir_lang.tool_manager.ElixirToolManager
 import org.elixir_lang.tool_manager.ToolEntry
+import org.elixir_lang.tool_manager.ToolManagerEnvironments
 import org.elixir_lang.tool_manager.ToolManagerResult
 import org.elixir_lang.tool_manager.mise.MiseToolManager
 import org.elixir_lang.tool_manager.versions
@@ -66,3 +68,12 @@ internal const val FOLDER_OFFER = "Use mise's Elixir 1.17.3-otp-27 and Erlang 27
 internal const val ELIXIR_ONLY_OFFER = "Use mise's Elixir 1.18.4-otp-27"
 internal const val IN_STEP = "Keep the SDKs in step with mise"
 internal const val ENVIRONMENT = "Use mise's environment for Mix and the build"
+
+/** Until [disposable] goes, the environment of each tool manager that applies one, by name. */
+internal fun replaceToolManagerEnvironments(disposable: Disposable, resolvers: Map<String, ToolManagerEnvironmentResolver>) {
+    ApplicationManager.getApplication().replaceService(ToolManagerEnvironments::class.java, ToolManagerEnvironments(resolvers), disposable)
+}
+
+/** The variables a test's tool manager environment sets, and the line `env` prints for them. */
+internal val TOOL_MANAGER_PROBE = mapOf("TOOL_MANAGER_PROBE" to "from-tool-manager")
+internal const val TOOL_MANAGER_PROBE_LINE = "TOOL_MANAGER_PROBE=from-tool-manager"

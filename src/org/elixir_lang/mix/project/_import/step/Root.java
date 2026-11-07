@@ -10,9 +10,11 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.projectImport.ProjectImportWizardStep;
+import org.elixir_lang.jps.shared.tool_manager.ToolManagerEnvironmentResolver;
 import org.elixir_lang.mix.project._import.Builder;
 import org.elixir_lang.mix.runner.MixTaskRunner;
 import org.elixir_lang.sdk.choice.SdkChoiceStepKt;
+import org.elixir_lang.tool_manager.ToolManagerProcessEnvironmentKt;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -93,8 +95,14 @@ public class Root extends ProjectImportWizardStep {
             Sdk sdk = getBuilder().getElixirSdk();
 
             if (sdk != null) {
+                // The project adopts the chooser's opt-ins only once the import commits.
+                ToolManagerEnvironmentResolver environment = ToolManagerProcessEnvironmentKt.toolManagerEnvironment(
+                        getWizardContext().getProject(),
+                        getBuilder().getToolManagerOptIns()
+                );
+
                 // Errors are logged by MixTaskRunner
-                MixTaskRunner.runImportTasks(workingDirectory, sdk);
+                MixTaskRunner.runImportTasks(environment, workingDirectory, sdk);
             }
         }
 

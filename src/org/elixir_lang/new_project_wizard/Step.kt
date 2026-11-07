@@ -1,6 +1,7 @@
 package org.elixir_lang.new_project_wizard
 
 import com.intellij.execution.ExecutionException
+import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.process.ProcessOutput
 import com.intellij.execution.util.ExecUtil
 import com.intellij.ide.highlighter.ModuleFileType
@@ -34,6 +35,7 @@ import org.elixir_lang.sdk.choice.follow
 import org.elixir_lang.sdk.choice.pickRefusal
 import org.elixir_lang.sdk.choice.wizardChooserPanel
 import org.elixir_lang.tool_manager.ToolManagerOptIns
+import org.elixir_lang.tool_manager.toolManagerEnvironment
 import java.io.IOException
 import java.nio.file.Paths
 import com.intellij.openapi.application.ReadAction
@@ -118,17 +120,8 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
     override fun setupProject(project: Project) {
         try {
             val sdk = this.sdk!!
-            val workingDirectory = Paths.get(".").toAbsolutePath().normalize().toString()
             val projectDirectory = context.projectDirectory.toString()
-
-            // Mix.commandLine() -> argsOrThrow() -> requireErlangSdkOrNotifyAndThrow()
-            // -> findErlangSdkByHomePath() asserts a read lock; acquire one here.
-            val commandLine = ReadAction.nonBlocking(Callable {
-                Mix.commandLine(emptyMap(), workingDirectory, sdk, project = project)
-            }).executeSynchronously()
-            commandLine.addParameters(
-                MixNewOptions.parameters(projectDirectory, mixNewApp, mixNewModule, mixNewSup, mixNewUmbrella)
-            )
+            val commandLine = mixNewCommandLine(project, sdk)
 
             // delete the caller's created empty directory so that `mix new` can create it.
             if (!context.projectDirectory.toFile().deleteRecursively()) {
@@ -188,6 +181,27 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
 
             throw ioException
         }
+    }
+
+    /**
+     * `mix new` for this step's answers, with [sdk]. [project] adopts the tool manager opt-ins the chooser ticked only
+     * once the module is made, so `mix new` takes their environment as pending. The tool manager is asked about the
+     * location, as the offer was, not about `mix new`'s working directory.
+     */
+    internal fun mixNewCommandLine(project: Project, sdk: Sdk): GeneralCommandLine {
+        val workingDirectory = Paths.get(".").toAbsolutePath().normalize().toString()
+        val environment = toolManagerEnvironment(project, optInsProperty.get(), Paths.get(path))
+
+        // Mix.commandLine() -> argsOrThrow() -> requireErlangSdkOrNotifyAndThrow()
+        // -> findErlangSdkByHomePath() asserts a read lock; acquire one here.
+        val commandLine = ReadAction.nonBlocking(Callable {
+            Mix.commandLine(emptyMap(), workingDirectory, sdk, project = project, toolManagerEnvironment = environment)
+        }).executeSynchronously()
+        commandLine.addParameters(
+            MixNewOptions.parameters(context.projectDirectory.toString(), mixNewApp, mixNewModule, mixNewSup, mixNewUmbrella)
+        )
+
+        return commandLine
     }
 
     /**
