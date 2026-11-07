@@ -364,6 +364,17 @@ its output instead when run with `-PoverwriteTestData=true`; review the diff bef
 ./gradlew test --tests "<class>" -PoverwriteTestData=true
 ```
 
+The root `test` task also forwards these Gradle properties into the test JVM (`-D` on the `./gradlew`
+command line stays on Gradle's JVM):
+
+- `-PexpanderPhoenix=<dir>` sets `org.elixir_lang.expander.phoenix` to the directory's absolute path;
+  blank values are ignored. With this property set to a non-blank directory, `test` is never up to date
+  or taken from the build cache, because the corpus files and the reports are not declared task inputs or outputs.
+- `-PdeclarationSource=expander` sets `org.elixir_lang.declaration.source` to `expander`. Non-blank values
+  pass through unchanged, and the value is a task input so switching it invalidates cached results.
+- `-PquoterFullDump=true` sets `elixir.quoter.fullDump` to `true` for complete quoting-mismatch dumps.
+  Other values leave it unset; cache behavior is unchanged.
+
 A new committed golden compares through `org.elixir_lang.golden.CommittedGolden.assertMatches`, which on CI also
 writes its diff to the job summary.
 
@@ -473,7 +484,7 @@ machine alone while it runs. `-PtestUiTimeoutMinutes=<n>` changes the whole run'
 - **Quoting mismatches** report only the first divergence, as
   `quoted forms diverge at {2}[0]{1}[0]: keyword key, expected :from_brackets, got :line`, where the
   path notation is `{i}` tuple, `[i]` list, `[:key]` keyword, `%{key}` map. Pass
-  `-Delixir.quoter.fullDump=true` for the complete side-by-side terms.
+  `-PquoterFullDump=true` for the complete side-by-side terms.
 - **The platform log** for a failing test is written to
   `build/idea-sandbox/.../log_*/splitTestLogs/` rather than stderr, and stderr carries a
   `Log saved to:` pointer. The `test` task sets `idea.split.test.logs=true` for this - without it the
