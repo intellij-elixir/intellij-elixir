@@ -2665,6 +2665,31 @@ enum class ElixirLanguageFeature(
     STRING_TO_ATOM_REQUIRES_BINARY(sinceElixir = "1.12.0-rc.0"),
 
     /**
+     * `IO.warn/2` takes a `Macro.Env` or options for where the warning is, as well as `[]` or a stacktrace. Before it,
+     * an env or options raises `FunctionClauseError` before the message is read.
+     *
+     * `elixir-lang/elixir@3ee4e78cf` ("Support more stacktrace formats in IO.warn/2"), first released in v1.14.0-rc.0.
+     */
+    IO_WARN_TAKES_AN_ENV_OR_OPTIONS(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * `IO.warn/2` makes its message a string before the stacktrace of an env, or of one built from the options. Before
+     * it, that stacktrace is made first.
+     *
+     * `elixir-lang/elixir@3509fd963` ("Optimize IO.warn with Macro.Env"), first released in v1.16.0-rc.0.
+     */
+    IO_WARN_READS_THE_MESSAGE_FIRST(sinceElixir = "1.16.0-rc.0"),
+
+    /**
+     * `IO.warn/2` reads the `:line` and `:column` of options naming a file, then makes its message a string. Before it,
+     * the options' `:module`, `:function` and `:line` are read into an env, which `IO.warn/2` then takes as it takes
+     * any env ([IO_WARN_READS_THE_MESSAGE_FIRST]).
+     *
+     * `elixir-lang/elixir@1878e30bd` ("Improve docs and support column in IO.warn"), first released in v1.16.0.
+     */
+    IO_WARN_OPTIONS_TAKE_A_COLUMN(sinceElixir = "1.16.0"),
+
+    /**
      * A macro's arguments that are calls or variables are marked `stop_generated: true` where an import dispatches the
      * macro, or `Macro.expand/2` or `expand_once/2` expands it, and `generated: true` stops there in its expansion. A
      * remote call to the macro doesn't mark them. Linifying a macro's result looks the mark up in each node's metadata

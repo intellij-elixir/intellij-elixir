@@ -52,6 +52,7 @@ internal class Bits(private val evaluation: Evaluation) {
     fun build(segments: List<ElixirAst>, frame: Frame): OtpErlangObject {
         val writer = Writer()
         var unknown = false
+        var bytes = true
         val writes = ArrayList<() -> Unit>()
         // `v3_core` evaluates every segment's value and then its size, in order, before it writes any: each is a part.
         val turn = InTurn<Thrown>()
@@ -92,7 +93,12 @@ internal class Bits(private val evaluation: Evaluation) {
             writes += {
                 val size = segmentSize?.let(::seen)
 
-                if (segmentValue === UnknownBinary && takesWhole(spec, size, null)) {
+                if (isUnknown(segmentValue) && takesWhole(spec, size, null)) {
+                    // A value not known may not be a binary, nor, where the unit takes bits, a whole number of bytes.
+                    if (segmentValue !== UnknownBinary) {
+                        evaluation.raiseMayBeCaught()
+                        if (unit(spec) % 8 != 0) bytes = false
+                    }
                     unknown = true
                 } else if (!write(writer, seen(segmentValue), spec, size)) {
                     evaluation.error(atom("badarg"))
@@ -105,7 +111,7 @@ internal class Bits(private val evaluation: Evaluation) {
 
         return when {
             !unknown -> writer.bitstring()
-            writer.aligned -> UnknownBinary
+            writer.aligned && bytes -> UnknownBinary
             else -> Unknown
         }
     }

@@ -925,13 +925,7 @@ internal class QuoteEscape<I, O> private constructor(
 
         val module = (struct?.valueTerm as? OtpErlangAtom)?.atomValue() ?: return null
 
-        val escapes = when (val exported = exports.of(module)) {
-            is ModuleExports.Present -> ESCAPE in exported.exported
-            ModuleExports.Absent -> false
-            ModuleExports.Unreadable -> throw Decline()
-        }
-
-        if (escapes) throw Decline()
+        if (escapesItself(exports.of(module))) throw Decline()
 
         return null
     }
@@ -1052,6 +1046,14 @@ internal class QuoteEscape<I, O> private constructor(
         private val PRUNED_KEYS = setOf("line", "no_parens")
 
         private val ESCAPE = NameArity("__escape__", 1)
+
+        /** Whether a struct whose module [exports] describes may escape itself with its `__escape__/1`. */
+        internal fun escapesItself(exports: ModuleExports): Boolean =
+            when (exports) {
+                is ModuleExports.Present -> ESCAPE in exports.exported
+                ModuleExports.Absent -> false
+                ModuleExports.Unreadable -> true
+            }
 
         private const val ARGUMENT_ERROR = "Elixir.ArgumentError"
 

@@ -324,13 +324,13 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
         assertEquals("Elixir.Dep compiled different/0 equal/0\nElixir.Other compiled equal/0", "${ended(dep)}\n${ended(other)}")
     }
 
-    /** A value from the system, which the read declines, so every answer is the settings index's. */
-    fun testAReadThatDeclinedAnswersAsMainDoes() {
+    /** A value from the system is unknown, and leaves the keys beside it known. */
+    fun testASystemReadLeavesTheKeysBesideItKnown() {
         val (dep, other) = readers(
             "import Config\n\nconfig :dep, :key, :other\nconfig :other, port: String.to_integer(System.get_env(\"PORT\") || \"4000\")\n",
         )
 
-        assertEquals("Elixir.Dep compiled different/0 equal/0\nElixir.Other compiled equal/0", "${ended(dep)}\n${ended(other)}")
+        assertEquals("Elixir.Dep compiled different/0\nElixir.Other compiled equal/0", "${ended(dep)}\n${ended(other)}")
     }
 
     /**
@@ -368,13 +368,51 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
         assertEquals("Elixir.Dep compiled different/0 equal/0\nElixir.Other compiled different/0 equal/0", "${ended(dep)}\n${ended(other)}")
     }
 
-    /** A system read's decline writes nothing, but the arm that passes a decline over can't know which declines write. */
-    fun testACaseOfASystemReadPassedOverInAReadAnswersAsMainDoes() {
+    /** A `case` of a system read runs each arm that may be taken, and a raise in one leaves the read's keys known. */
+    fun testACaseOfASystemReadLeavesTheKeysAfterItKnown() {
         val (dep, other) = readers(
             "import Config\n\ncase System.get_env(\"X\") do\n  nil -> raise \"no\"\n  _ -> :ok\nend\n\nconfig :dep, :key, :other\n",
         )
 
-        assertEquals("Elixir.Dep compiled different/0 equal/0\nElixir.Other compiled equal/0", "${ended(dep)}\n${ended(other)}")
+        assertEquals("Elixir.Dep compiled different/0\nElixir.Other compiled equal/0", "${ended(dep)}\n${ended(other)}")
+    }
+
+    /** The issue's example: a module reading the keys beside a system read and a build path, on 1.20.4 and 1.11.4. */
+    fun testASettingFromSystemGetEnvLeavesOnlyItsKeyUnknown() {
+        val root = project(
+            "mix.exs" to "defmodule MyApp.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :my_app, version: \"0.1.0\", elixir: \"~> 1.11\"]\nend\n",
+            "config/config.exs" to
+                "import Config\n\nconfig :my_app, port: String.to_integer(System.get_env(\"PORT\") || \"4000\")\n" +
+                "config :my_app, node_path: [Path.expand(\"../deps\", __DIR__), Mix.Project.build_path()]\nconfig :my_app, feature: true\n",
+            "lib/feature.ex" to module("Feature", "Application.compile_env(:my_app, :feature)", "true"),
+            "lib/listener.ex" to module("Listener", "Application.compile_env(:my_app, :port)", "4000"),
+            "lib/node_path.ex" to module("NodePath", "Application.compile_env(:my_app, :node_path)", "[]"),
+        )
+
+        assertEquals(
+            "Elixir.Feature compiled equal/0\nElixir.Listener compiled different/0 equal/0\nElixir.NodePath compiled different/0 equal/0",
+            listOf("feature", "listener", "node_path").joinToString("\n") { ended(psi(root, "lib/$it.ex")) },
+        )
+    }
+
+    /** `mix phx.new` 1.8.13's config: the esbuild key holds the build path, and `dev.exs` turns the dev routes on. */
+    fun testAGeneratedConfigsBuildPathLeavesTheDevRoutesKnown() {
+        val root = project(
+            "mix.exs" to MIX_EXS,
+            "config/config.exs" to
+                "import Config\n\nconfig :esbuild,\n  version: \"0.17.11\",\n  app: [\n    args: ~w(js/app.js --bundle),\n" +
+                "    cd: Path.expand(\"../assets\", __DIR__),\n" +
+                "    env: %{\"NODE_PATH\" => [Path.expand(\"../deps\", __DIR__), Mix.Project.build_path()]}\n  ]\n\n" +
+                "import_config \"#{config_env()}.exs\"\n",
+            "config/dev.exs" to "import Config\n\nconfig :app, dev_routes: true\n",
+            "lib/routes.ex" to module("Routes", "Application.compile_env(:app, :dev_routes)", "true"),
+            "lib/esbuild.ex" to module("Esbuild", "Application.compile_env(:esbuild, :app)", "nil"),
+        )
+
+        assertEquals(
+            "Elixir.Routes compiled equal/0\nElixir.Esbuild compiled different/0 equal/0",
+            listOf("routes", "esbuild").joinToString("\n") { ended(psi(root, "lib/$it.ex")) },
+        )
     }
 
     /**
@@ -439,6 +477,18 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
             "t = [a: t, b: t]\n",
         )
     }
+
+    fun testTwoSharedMapsSetInArmsAreJoinedInBoundedWork() {
+        assertSharedValueIsReadInBoundedWork(inArms("u = %{a: u, b: u}\n"), "t = %{a: t, b: t}\n")
+    }
+
+    fun testTwoSharedImproperListsSetInArmsAreJoinedInBoundedWork() {
+        assertSharedValueIsReadInBoundedWork(inArms("u = [u | {u}]\n"), "t = [t | {t}]\n")
+    }
+
+    /** `u`, doubled forty times by [doubling] as `t` is, and arms over a system read setting `:dep`'s `:key` to `t` or `u`. */
+    private fun inArms(doubling: String) =
+        "u = []\n${doubling.repeat(40)}if System.get_env(\"X\") do\n  config :dep, :key, t\nelse\n  config :dep, :key, u\nend\n"
 
     /** A config file that doubles `t` forty times by [doubling], then ends in [last], answers a module reading `:dep`'s `:key` in bounded work. */
     private fun assertSharedValueIsReadInBoundedWork(last: String, doubling: String = "t = {t, t}\n") {

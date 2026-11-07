@@ -28,8 +28,8 @@ import org.elixir_lang.psi.call.Call
 import java.io.File
 
 /**
- * The Mix project at [dir], whose `mix deps.get` and `mix compile` have run: its `lib/` and `test/` as content and each
- * dep as a library of its ebin and sources.
+ * The Mix project at [dir], whose `mix deps.get` and `mix compile` have run, each dep as a library of its ebin and
+ * sources.
  */
 internal class PhoenixCorpus(private val project: Project, disposable: Disposable, val dir: File) {
     val loweringErrors = sortedMapOf<String, Int>()
@@ -44,14 +44,17 @@ internal class PhoenixCorpus(private val project: Project, disposable: Disposabl
     }
 
     /**
-     * The app's `lib/` and `test/` as content and each dep as a library of [module]. The leg's Elixir is not a library
-     * too, since that would give each of its modules a second copy.
+     * The app's root as content, `lib/` and `test/` its sources, `deps/` and `_build/` excluded, and each dep as a
+     * library of [module]. The leg's Elixir is not a library too, since that would give each of its modules a second
+     * copy.
      */
     fun setUp(module: Module): String {
+        PsiTestUtil.addContentRoot(module, vf(dir))
         for ((name, test) in listOf("lib" to false, "test" to true)) {
-            val root = vf(File(dir, name))
-            PsiTestUtil.addContentRoot(module, root)
-            PsiTestUtil.addSourceRoot(module, root, test)
+            PsiTestUtil.addSourceRoot(module, vf(File(dir, name)), test)
+        }
+        for (name in listOf("deps", "_build")) {
+            File(dir, name).takeIf { it.isDirectory }?.let { PsiTestUtil.addExcludedRoot(module, vf(it)) }
         }
         val deps = File(dir, "deps").listFiles()!!.filter { it.isDirectory }.sortedBy { it.name }
         for (dep in deps) {
@@ -59,10 +62,13 @@ internal class PhoenixCorpus(private val project: Project, disposable: Disposabl
             val sources = listOf("lib", "src").map { File(dep, it) }.filter { it.isDirectory }
             library(module, "dep-${dep.name}", listOfNotNull(ebin), sources)
         }
+        // After the roots: a change the refresh finds in a file no project holds leaves that file's index entries as
+        // they were, and a corpus rebuilt at the same path reuses its files' ids.
+        VfsUtil.markDirtyAndRefresh(false, true, true, vf(dir))
         IndexingTestUtil.waitUntilIndexesAreReady(project)
 
-        return "content: lib (sources), test (test sources); ${deps.size} dep libraries, each CLASSES " +
-            "_build/dev/lib/<dep>/ebin and SOURCES deps/<dep>/{lib,src}"
+        return "content: the root, lib (sources), test (test sources), deps and _build excluded; " +
+            "${deps.size} dep libraries, each CLASSES _build/dev/lib/<dep>/ebin and SOURCES deps/<dep>/{lib,src}"
     }
 
     val appFiles: List<File> get() = exFiles(File(dir, "lib")) + exFiles(File(dir, "test"))
@@ -103,7 +109,7 @@ internal class PhoenixCorpus(private val project: Project, disposable: Disposabl
     fun <T> read(body: () -> T): T = quiet { ReadAction.computeBlocking<T, Throwable> { body() } }
 
     private fun vf(file: File): VirtualFile =
-        LocalFileSystem.getInstance().refreshAndFindFileByIoFile(file)!!.also { VfsUtil.markDirtyAndRefresh(false, true, true, it) }
+        LocalFileSystem.getInstance().run { findFileByIoFile(file) ?: refreshAndFindFileByIoFile(file)!! }
 
     private fun library(module: Module, name: String, classes: List<File>, sources: List<File>) {
         WriteAction.runAndWait<Throwable> {

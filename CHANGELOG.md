@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4655](https://github.com/intellij-elixir/intellij-elixir/pull/4655) [@sh41](https://github.com/sh41)
+  - **The expander reads a project's config files past values only the build machine knows, and past a `try` that rescues an application environment read, so the keys beside them, such as a generated Phoenix project's `dev_routes`, keep the values the config gives them.** Refs [#4636](https://github.com/intellij-elixir/intellij-elixir/issues/4636).
+
 - [#4653](https://github.com/intellij-elixir/intellij-elixir/pull/4653) [@sh41](https://github.com/sh41)
   - **Importing a Mix project, Create project from existing sources and Project Structure's New Module pick the Elixir SDK from a list of the existing ones, each with its Erlang SDK and none preselected; every module an import makes gets the pick, and `mix deps.get` runs on it. A ticked "Use mise's environment" applies to the import's `mix deps.get` and to `mix new`, and adding a Mix project to an open project fetches its dependencies with that project's environment. Project Structure's Import Module imports the folder chosen, not the open project's, and offers the tool manager's SDK for that folder; both imports, Project Structure's included, set up the Mix dependencies' libraries once their modules are added; Cancel in Project Structure drops a module New Module made.** Part of [#4623](https://github.com/intellij-elixir/intellij-elixir/issues/4623).
 

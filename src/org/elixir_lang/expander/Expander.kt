@@ -7,10 +7,12 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.io.OSAgnosticPathUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.util.system.OS
+import org.elixir_lang.expander.interpreter.ARM_BUDGET
 import org.elixir_lang.expander.interpreter.Binding
 import org.elixir_lang.expander.interpreter.Evaluated
 import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.Given
+import org.elixir_lang.expander.interpreter.RunningCall
 import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.expander.interpreter.ValueUse
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
@@ -354,6 +356,36 @@ internal class Run(
 
     /** Whether the value of the unit the evaluator runs where it reaches it ([reached]) is read, `null` outside one. */
     var reachedUse: ValueUse? = null
+
+    /** How many arms that may not be taken are running ([mayNotRun]). */
+    var speculating = 0
+
+    /** Whether the body of the `try` being evaluated may have raised over a value that isn't known. */
+    var raisedOverUnknown = false
+
+    /** Whether an enclosing `try` body, or `else`, may have raised before the code now running. */
+    var pastRaise = false
+
+    /**
+     * Whether the code running may not run in Elixir: an arm taken over a value that isn't known, or code past a raise a
+     * `try` may catch. Only the config such code writes is joined, so a unit, a module or an effect in it declines.
+     */
+    val mayNotRun get() = speculating > 0 || raisedOverUnknown || pastRaise
+
+    /** How many arms that may not be taken the run has run, where it reads no config ([ConfigRead.armsTaken]). */
+    private var armsTaken = 0
+
+    /**
+     * Counts an arm that may not be taken: whether the arms counted are within [ARM_BUDGET], across the run, or across a
+     * config read's files where it reads one.
+     */
+    fun takesArm(): Boolean = (config?.let { ++it.armsTaken } ?: ++armsTaken) <= ARM_BUDGET
+
+    /**
+     * The calls running over a value that isn't known in code that may not run, innermost last: a call repeating one
+     * answers unknown.
+     */
+    val runningOverUnknown = ArrayList<RunningCall>()
 
     /**
      * Whether code the expander doesn't follow ran, which may have changed the directory the compile runs in
