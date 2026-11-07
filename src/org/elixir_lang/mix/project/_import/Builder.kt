@@ -219,53 +219,53 @@ class Builder : ProjectImportBuilder<OtpApp>(), TakesSdkPick {
 
     companion object {
         private val LOG = Logger.getInstance(Builder::class.java)
+    }
+}
 
-        @Throws(IOException::class)
-        private fun deleteIdeaModuleFiles(otpApps: List<OtpApp>) {
-            val ex = arrayOfNulls<IOException>(1)
+@Throws(IOException::class)
+private fun deleteIdeaModuleFiles(otpApps: List<OtpApp>) {
+    val ex = arrayOfNulls<IOException>(1)
 
-            ApplicationManager.getApplication().runWriteAction(object : Runnable {
-                override fun run() {
-                    for (importedOtpApp in otpApps) {
-                        val ideaModuleFile = importedOtpApp.ideaModuleFile
-                        if (ideaModuleFile != null) {
-                            try {
-                                ideaModuleFile.delete(this)
-                                importedOtpApp.ideaModuleFile = null
-                            } catch (e: IOException) {
-                                ex[0] = e
-                            }
-
-                        }
+    ApplicationManager.getApplication().runWriteAction(object : Runnable {
+        override fun run() {
+            for (importedOtpApp in otpApps) {
+                val ideaModuleFile = importedOtpApp.ideaModuleFile
+                if (ideaModuleFile != null) {
+                    try {
+                        ideaModuleFile.delete(this)
+                        importedOtpApp.ideaModuleFile = null
+                    } catch (e: IOException) {
+                        ex[0] = e
                     }
-                }
-            })
 
-            ex[0]?.let { ioException ->
-                throw ioException
+                }
             }
         }
+    })
 
-        private fun findIdeaModuleFiles(otpApps: List<OtpApp>, projectRoot: VirtualFile?): Boolean {
-            val moduleNames = org.elixir_lang.mix.Project.moduleNameForOtpApps(otpApps, projectRoot)
-            var ideaModuleFileExists = false
-            for (importedOtpApp in otpApps) {
-                val applicationRoot = importedOtpApp.root
-                val ideaModuleName = moduleNames[importedOtpApp] ?: importedOtpApp.name
-                val imlFile = applicationRoot.findChild("$ideaModuleName.iml")
-                if (imlFile != null) {
-                    ideaModuleFileExists = true
-                    importedOtpApp.ideaModuleFile = imlFile
-                } else {
-                    val emlFile = applicationRoot.findChild("$ideaModuleName.eml")
-                    if (emlFile != null) {
-                        ideaModuleFileExists = true
-                        importedOtpApp.ideaModuleFile = emlFile
-                    }
-                }
+    ex[0]?.let { ioException ->
+        throw ioException
+    }
+}
+
+private fun findIdeaModuleFiles(otpApps: List<OtpApp>, projectRoot: VirtualFile?): Boolean {
+    val moduleNames = org.elixir_lang.mix.Project.moduleNameForOtpApps(otpApps, projectRoot)
+    var ideaModuleFileExists = false
+    for (importedOtpApp in otpApps) {
+        val applicationRoot = importedOtpApp.root
+        val ideaModuleName = moduleNames[importedOtpApp] ?: importedOtpApp.name
+        val imlFile = applicationRoot.findChild("$ideaModuleName.iml")
+        if (imlFile != null) {
+            ideaModuleFileExists = true
+            importedOtpApp.ideaModuleFile = imlFile
+        } else {
+            val emlFile = applicationRoot.findChild("$ideaModuleName.eml")
+            if (emlFile != null) {
+                ideaModuleFileExists = true
+                importedOtpApp.ideaModuleFile = emlFile
             }
-
-            return ideaModuleFileExists
         }
     }
+
+    return ideaModuleFileExists
 }
