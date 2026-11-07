@@ -9,6 +9,7 @@ import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.module.ModuleType
 import com.intellij.openapi.module.ModuleTypeManager
 import com.intellij.openapi.progress.EmptyProgressIndicator
+import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.util.io.FileUtil
@@ -21,10 +22,15 @@ import com.intellij.testFramework.runInEdtAndGet
 import com.intellij.testFramework.runInEdtAndWait
 import kotlinx.coroutines.runBlocking
 import org.elixir_lang.Facet
+import org.elixir_lang.facet.FacetModelFixtures.Companion.storedName
 import org.elixir_lang.facet.SmallIdeFacetHeavyTestCase
 import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.junit.logs.GuardedLoggedErrorProcessor
 import org.elixir_lang.sdk.ProcessOutput
+import org.elixir_lang.sdk.SdkFixtures.fakeHome
+import org.elixir_lang.sdk.choice.RecordedChooser
+import org.elixir_lang.sdk.choice.SdkChoiceEntry
+import org.elixir_lang.sdk.choice.SdkChoiceState
 import java.io.File
 import java.nio.file.Path
 import java.util.concurrent.Callable
@@ -37,6 +43,16 @@ import java.util.concurrent.Callable
 class DirectoryConfiguratorHeavyTest : SmallIdeFacetHeavyTestCase() {
     /** [runDirectoryProjectConfigurators] dispatches to `Dispatchers.EDT`, which a [runBlocking] on the EDT would never reach. */
     override fun runInDispatchThread(): Boolean = false
+
+    private lateinit var sdk: Sdk
+    private lateinit var recorded: RecordedChooser
+    private var answer: (SdkChoiceState) -> SdkChoiceEntry? = { null }
+
+    override fun setUp() {
+        super.setUp()
+        sdk = runInEdtAndGet { models.register("Configured Elixir", home = fakeHome("elixir/configured")) }
+        recorded = RecordedChooser(testRootDisposable) { state -> answer(state) }
+    }
 
     fun testConfiguresTheRootModule() {
         val appDir = createTempDir("mix_app")
@@ -172,6 +188,48 @@ class DirectoryConfiguratorHeavyTest : SmallIdeFacetHeavyTestCase() {
 
         assertEquals(setOf(module), modules())
         assertEquals(staged, filesUnder(File(umbrellaDir, "apps")))
+    }
+
+    fun testTheOpenAsksOnceForEveryModule() {
+        configureDirectory(umbrella())
+        recorded.awaitAsk()
+
+        assertEquals(umbrellaModules(), recorded.chooserAsked.single().toSet())
+    }
+
+    fun testThePickIsNamedInEachFacet() {
+        answer = { state -> state.entries.single { it.sdk.name == sdk.name } }
+
+        configureDirectory(umbrella())
+        recorded.awaitAsk()
+
+        for (each in umbrellaModules()) {
+            assertEquals("${each.name}'s facet SDK", sdk.name, storedName(each))
+        }
+    }
+
+    fun testAnAttachsThrowawayRunDoesNotAsk() {
+        configureDirectory(umbrella(), newProject = true)
+
+        assertEmpty("the chooser was asked", recorded.chooserAsked)
+    }
+
+    fun testOnIntelliJIdeaTheOpenAsksOnceForTheAppsModules() {
+        ProcessOutput.isSmallIdeOverride = false
+
+        configureDirectory(appsBelow())
+        recorded.awaitAsk()
+
+        assertEquals(appsBelowModules(), recorded.chooserAsked.single().toSet())
+    }
+
+    fun testCancelLeavesEachFacetWithoutAnSdk() {
+        configureDirectory(umbrella())
+        recorded.awaitAsk()
+
+        for (each in modules()) {
+            assertNull("${each.name}'s facet SDK", storedName(each))
+        }
     }
 
     /** An umbrella `hub` with the apps `alpha` and `beta` under `apps/`, no `.idea` in it. */

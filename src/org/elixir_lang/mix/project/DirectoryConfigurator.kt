@@ -48,9 +48,13 @@ class DirectoryConfigurator : DirectoryProjectConfigurator.AsyncDirectoryProject
             configureRootOtpApp(project, otpApp)
         }
 
-        // Also set for an attach's throwaway project, whose app modules nothing would load.
+        // isProjectCreatedWithWizard is also true for an attach's throwaway project, whose app modules nothing loads and
+        // whose ask nobody sees.
         if (!isProjectCreatedWithWizard) {
             configureOtpAppsBelow(project, appsBelow, baseDir)
+            if (foundOtpApps.isNotEmpty()) {
+                askAfterOpen(project)
+            }
         }
     }
 
