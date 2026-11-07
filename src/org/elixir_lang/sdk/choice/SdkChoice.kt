@@ -159,6 +159,7 @@ class SdkChoiceState @RequiresEdt constructor(
         val sdk = created?.let { model.findSdk(it) } ?: return null
         // Only the new SDK: applying the model would write its copies back over SDKs committed since its last reset.
         SdkConfigurationUtil.addSdk(sdk)
+        saveSdkTable()
         reload(sdk)
         return selected
     }
