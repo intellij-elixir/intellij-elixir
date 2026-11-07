@@ -231,6 +231,8 @@
 
 ### Bug Fixes
 
+- [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
+  - **On IntelliJ IDEA, opening a Mix project that has no `.idea` folder, by File > Open or Get from VCS, no longer makes a JDK the project SDK or gives its modules the Elixir SDK picked in a cancelled import, and asks for the modules' Elixir SDK once the project has opened.** Fixes [#4618](https://github.com/intellij-elixir/intellij-elixir/issues/4618). Part of [#4623](https://github.com/intellij-elixir/intellij-elixir/issues/4623).
 - [#4646](https://github.com/intellij-elixir/intellij-elixir/pull/4646) [@sh41](https://github.com/sh41)
   - **A compiled guard, such as `Kernel.is_nil/1`, is written as `defguard` in a `.beam`'s decompiled source, and a guard is listed with the macros in Structure and named a macro in Find Usages.** Refs [#4596](https://github.com/intellij-elixir/intellij-elixir/issues/4596).
 - [#4640](https://github.com/intellij-elixir/intellij-elixir/pull/4640) [@sh41](https://github.com/sh41)
