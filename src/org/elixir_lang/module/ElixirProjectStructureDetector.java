@@ -73,7 +73,8 @@ public class ElixirProjectStructureDetector extends ProjectStructureDetector {
 
   /**
    * The chooser, asking for the Elixir SDK of this detector's modules, which an updater of the import writes once they
-   * are made. Only {@link ProjectFromSourcesBuilderImpl} takes updaters, so another builder gets no step.
+   * are made, and then syncs their Mix dependency libraries once they are in the project. Only
+   * {@link ProjectFromSourcesBuilderImpl} takes updaters, so another builder gets no step.
    */
   @Override
   public List<ModuleWizardStep> createWizardSteps(ProjectFromSourcesBuilder builder, ProjectDescriptor projectDescriptor, Icon stepIcon) {
@@ -83,9 +84,13 @@ public class ElixirProjectStructureDetector extends ProjectStructureDetector {
 
     AtomicReference<SdkChoicePick> picked = new AtomicReference<>();
     sourcesBuilder.addConfigurationUpdater((project, modelsProvider, modulesProvider) -> {
+      List<Module> modules = modulesOf(projectDescriptor, modulesProvider);
       SdkChoicePick pick = picked.get();
       if (pick != null) {
-        SdkChoiceKt.writePick(project, modulesOf(projectDescriptor, modulesProvider), pick.getEntry().getSdk(), pick.getOptIns());
+        SdkChoiceKt.writePick(project, modules, pick.getEntry().getSdk(), pick.getOptIns());
+      }
+      if (!modules.isEmpty()) {
+        org.elixir_lang.mix.Project.INSTANCE.syncDepsOnceAdded(project, modules);
       }
     });
 

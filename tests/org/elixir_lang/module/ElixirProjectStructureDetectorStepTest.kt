@@ -20,9 +20,13 @@ import com.intellij.openapi.roots.ui.configuration.ModulesProvider
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.testFramework.common.runAll
 import com.intellij.util.containers.MultiMap
 import org.elixir_lang.junit.HeavyTestCase
+import org.elixir_lang.mix.project._import.assertPhoenixIsALibraryOf
+import org.elixir_lang.mix.project._import.mixAppUsingPhoenix
+import org.elixir_lang.mix.sync.MixSyncTestHelpers
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.choice.FOLDER_OFFER
 import org.elixir_lang.sdk.choice.FakeToolManager
@@ -53,6 +57,8 @@ class ElixirProjectStructureDetectorStepTest : HeavyTestCase() {
     }
 
     override fun tearDown() = runAll(
+        { MixSyncTestHelpers.awaitMixDepsSyncs(project) },
+        { MixSyncTestHelpers.removeAllLibraries(project) },
         { table.restore() },
         { super.tearDown() },
     )
@@ -85,6 +91,28 @@ class ElixirProjectStructureDetectorStepTest : HeavyTestCase() {
         assertTrue(ToolManagerSettings.getInstance(project).isEnabled(toolManager))
     }
 
+    fun testTheMixAppsDependenciesBecomeItsLibraries() {
+        val root = sourcesUsingPhoenix()
+        val builder = builder(project, DefaultModulesProvider.createForProject(project))
+        step(builder)
+
+        val detected = builder.commit(project, null, null).single()
+
+        assertPhoenixIsALibraryOf(project, detected, root)
+    }
+
+    fun testOnceAHandedModelCommitsTheMixAppsDependenciesBecomeItsLibraries() {
+        val root = sourcesUsingPhoenix()
+        val builder = builder(project, DefaultModulesProvider.createForProject(project))
+        step(builder)
+        val model = ModuleManager.getInstance(project).getModifiableModel()
+        val detected = builder.commit(project, model, modulesOf(model)).single()
+
+        WriteAction.run<Throwable> { model.commit() }
+
+        assertPhoenixIsALibraryOf(project, detected, root)
+    }
+
     fun testOnImportModuleTheOfferIsForTheFolderChosen() {
         toolManager.pinsAnotherIn(sources.toPath())
         // Import Module's wizard works in the open project's folder, and hands the folder chosen to the builder.
@@ -108,6 +136,18 @@ class ElixirProjectStructureDetectorStepTest : HeavyTestCase() {
                 })
             })
         }
+    }
+
+    /** The sources made a Mix app declaring `phoenix`, which they have fetched and built; their folder. */
+    private fun sourcesUsingPhoenix(): VirtualFile =
+        LocalFileSystem.getInstance().refreshAndFindFileByIoFile(sources)!!.also { mixAppUsingPhoenix(project, it, "hello") }
+
+    /** The modules of [model], as Project Structure's modules configurator hands them to an import with that model. */
+    private fun modulesOf(model: ModifiableModuleModel): ModulesProvider = object : ModulesProvider {
+        override fun getModules(): Array<Module> = model.modules
+        override fun getModule(name: String): Module? = model.findModuleByName(name)
+        override fun getRootModel(module: Module): ModuleRootModel = ModuleRootManager.getInstance(module)
+        override fun getFacetModel(module: Module): FacetModel = FacetManager.getInstance(module)
     }
 
     private fun step(builder: ProjectFromSourcesBuilderImpl): SdkChoiceStep =
