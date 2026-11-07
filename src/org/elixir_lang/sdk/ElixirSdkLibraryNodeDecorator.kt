@@ -4,6 +4,7 @@ import com.intellij.ide.projectView.PresentationData
 import com.intellij.ide.projectView.ProjectViewNode
 import com.intellij.ide.projectView.ProjectViewNodeDecorator
 import com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode
+import com.intellij.openapi.components.service
 
 /**
  * Renames SDK library root nodes in External Libraries from the generic directory name - "ebin",
@@ -25,7 +26,7 @@ internal class ElixirSdkLibraryNodeDecorator : ProjectViewNodeDecorator {
         if (vFile.name !in ROOT_DIRECTORY_NAMES) return
 
         // O(1) set lookup - avoids scanning all SDKs on every render
-        if (vFile !in ElixirSdkRootsCache.classAndSourceRoots()) return
+        if (vFile !in service<ElixirSdkRootsCache>().classAndSourceRoots()) return
 
         // Only a root standing on its own needs the application's name. Where
         // ElixirSdkLibraryTreeStructureProvider has grouped an application's roots under one node,
@@ -33,17 +34,15 @@ internal class ElixirSdkLibraryNodeDecorator : ProjectViewNodeDecorator {
         // `src`/`lib` to be told apart.
         if (node.parent?.let { it !is PsiDirectoryNode && it.value is String } == true) return
 
-        // Rename to the OTP application directory name, e.g. lib/iex/ebin → "iex"
+        // Rename to the OTP application directory name, e.g. lib/iex/ebin -> "iex"
         data.presentableText = vFile.parent?.name ?: return
     }
-
-    private companion object {
-        /**
-         * The generic directory names an SDK root can end in: beams, Elixir source, Erlang source.
-         * All three are named after their content rather than their application, so all three need
-         * the parent's name to be legible in the tree.
-         */
-        private val ROOT_DIRECTORY_NAMES = setOf("ebin", "lib", "src")
-    }
 }
+
+/**
+ * The generic directory names an SDK root can end in: beams, Elixir source, Erlang source.
+ * All three are named after their content rather than their application, so all three need
+ * the parent's name to be legible in the tree.
+ */
+private val ROOT_DIRECTORY_NAMES = setOf("ebin", "lib", "src")
 

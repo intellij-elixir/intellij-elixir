@@ -9,6 +9,7 @@ import com.intellij.ide.projectView.impl.nodes.ExternalLibrariesNode
 import com.intellij.ide.projectView.impl.nodes.NamedLibraryElementNode
 import com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode
 import com.intellij.ide.util.treeView.AbstractTreeNode
+import com.intellij.openapi.components.service
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.JdkOrderEntry
@@ -132,7 +133,7 @@ internal class ElixirSdkLibraryTreeStructureProvider : TreeStructureProvider, Du
         if (ebinVFile.name != "ebin") return null
 
         // O(1) set lookup - avoids scanning all SDKs per child
-        if (ebinVFile !in ElixirSdkRootsCache.classRoots()) return null
+        if (ebinVFile !in service<ElixirSdkRootsCache>().classRoots()) return null
 
         val applicationVFile = ebinVFile.parent ?: return null
         val sourceVFile = SOURCE_DIRECTORY_NAMES
