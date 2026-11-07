@@ -131,8 +131,6 @@ internal class ElixirSdkLibraryTreeStructureProvider : TreeStructureProvider, Du
         if (node !is PsiDirectoryNode) return null
         val ebinVFile = node.value?.virtualFile ?: return null
         if (ebinVFile.name != "ebin") return null
-
-        // O(1) set lookup - avoids scanning all SDKs per child
         if (ebinVFile !in service<ElixirSdkRootsCache>().classRoots()) return null
 
         val applicationVFile = ebinVFile.parent ?: return null

@@ -22,10 +22,7 @@ internal class ElixirSdkLibraryNodeDecorator : ProjectViewNodeDecorator {
         if (node !is PsiDirectoryNode) return
         val vFile = node.value?.virtualFile ?: return
 
-        // Cheap name pre-filter before touching the cache
         if (vFile.name !in ROOT_DIRECTORY_NAMES) return
-
-        // O(1) set lookup - avoids scanning all SDKs on every render
         if (vFile !in service<ElixirSdkRootsCache>().classAndSourceRoots()) return
 
         // Only a root standing on its own needs the application's name. Where
