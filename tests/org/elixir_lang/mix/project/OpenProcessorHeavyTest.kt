@@ -168,16 +168,4 @@ class OpenProcessorHeavyTest : HeavyTestCase() {
         doCreateRealModuleIn(name, project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
 
     private fun <T> read(compute: () -> T): T = ReadAction.nonBlocking(Callable(compute)).executeSynchronously()
-
-    private companion object {
-        private val MIX_EXS = """
-            defmodule TestApp.MixProject do
-              use Mix.Project
-
-              def project do
-                [app: :test_app, version: "0.1.0"]
-              end
-            end
-        """.trimIndent()
-    }
 }
