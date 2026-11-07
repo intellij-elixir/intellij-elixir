@@ -7,18 +7,8 @@ import org.elixir_lang.mix.project._import.Builder
 class OpenProcessorTest : PlatformTestCase() {
 
     fun testCanOpenProjectWithMixExsFile() {
-        val mixExsContent = """
-            defmodule TestApp.MixProject do
-              use Mix.Project
-
-              def project do
-                [app: :test_app, version: "0.1.0"]
-              end
-            end
-        """.trimIndent()
-
         val projectDir = myFixture.tempDirFixture.findOrCreateDir("test_project")
-        myFixture.tempDirFixture.createFile("test_project/mix.exs", mixExsContent)
+        myFixture.tempDirFixture.createFile("test_project/mix.exs", MIX_EXS)
         val mixExsFile = projectDir.findChild("mix.exs")!!
 
         val openProcessor = OpenProcessor()
@@ -28,18 +18,8 @@ class OpenProcessorTest : PlatformTestCase() {
     }
 
     fun testCanOpenProjectWithDirectoryContainingMixExs() {
-        val mixExsContent = """
-            defmodule TestApp.MixProject do
-              use Mix.Project
-
-              def project do
-                [app: :test_app, version: "0.1.0"]
-              end
-            end
-        """.trimIndent()
-
         val projectDir = myFixture.tempDirFixture.findOrCreateDir("test_project_dir")
-        myFixture.tempDirFixture.createFile("test_project_dir/mix.exs", mixExsContent)
+        myFixture.tempDirFixture.createFile("test_project_dir/mix.exs", MIX_EXS)
 
         val openProcessor = OpenProcessor()
 
@@ -58,18 +38,8 @@ class OpenProcessorTest : PlatformTestCase() {
     }
 
     fun testBuilderSetProjectRootAndScan() {
-        val mixExsContent = """
-            defmodule TestApp.MixProject do
-              use Mix.Project
-
-              def project do
-                [app: :test_app, version: "0.1.0"]
-              end
-            end
-        """.trimIndent()
-
         val projectDir = myFixture.tempDirFixture.findOrCreateDir("builder_test_project")
-        myFixture.tempDirFixture.createFile("builder_test_project/mix.exs", mixExsContent)
+        myFixture.tempDirFixture.createFile("builder_test_project/mix.exs", MIX_EXS)
 
         val builder = ProjectImportBuilder.EXTENSIONS_POINT_NAME.findExtensionOrFail(Builder::class.java)
 

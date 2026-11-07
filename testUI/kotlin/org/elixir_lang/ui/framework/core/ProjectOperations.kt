@@ -19,6 +19,7 @@ import com.intellij.driver.sdk.waitFor
 import org.elixir_lang.jps.shared.ElixirSdkTypeId.ELIXIR_SDK_TYPE_ID
 import java.nio.file.Path
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -94,6 +95,18 @@ fun Driver.openProjectAt(path: String, keepBuild: Boolean = false, ready: Durati
     ideFrame {
         waitUntilReady(ready)
     }
+    // The open asks for the modules' Elixir SDK; the callers set it with assignElixirSdk.
+    cancelChooser()
+}
+
+/** The chooser's title: the dialog that asks for modules' Elixir SDK. */
+const val CHOOSER_TITLE = "Choose Elixir SDK"
+
+/** Cancels the chooser, once it shows. */
+private fun Driver.cancelChooser() = step("Cancel the chooser") {
+    val chooser = ui.dialog(xQuery { byTitle(CHOOSER_TITLE) })
+    waitFor("the chooser", 2.minutes) { chooser.present() }
+    chooser.clickButtonText("Cancel")
 }
 
 /** Types [path] into the file chooser titled [title] and confirms it. */
