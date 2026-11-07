@@ -12,6 +12,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.projectImport.ProjectImportWizardStep;
 import org.elixir_lang.mix.project._import.Builder;
 import org.elixir_lang.mix.runner.MixTaskRunner;
+import org.elixir_lang.sdk.choice.SdkChoiceStepKt;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -27,15 +28,20 @@ public class Root extends ProjectImportWizardStep {
     public Root(WizardContext context) {
         super(context);
 
-        String projectFileDirectory = context.getProjectFileDirectory();
         //noinspection DialogTitleCapitalization
         myProjectRootComponent.addBrowseFolderListener(
                 null,
                 FileChooserDescriptorFactory.createSingleFolderDescriptor()
                         .withTitle("Select mix.exs of a mix project to import")
         );
+    }
 
-        myProjectRootComponent.setText(projectFileDirectory); // provide project path
+    /** The folder the wizard works in, unless a root was already entered. */
+    @Override
+    public void updateStep() {
+        if (myProjectRootComponent.getText().isEmpty()) {
+            myProjectRootComponent.setText(SdkChoiceStepKt.wizardFolder(getWizardContext(), getBuilder().getFileToImport()));
+        }
     }
 
     /**
