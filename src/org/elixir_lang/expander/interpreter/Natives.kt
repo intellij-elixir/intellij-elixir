@@ -2717,10 +2717,9 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun typed(term: OtpErlangObject): OtpErlangObject = if (term === UnknownBinary) SOME_BINARY else seen(term)
 
     private fun functionClause(module: String, function: String, args: List<OtpErlangObject>): Nothing =
-        evaluation.error(atom("function_clause"), frame(module, function, list(args)))
+        evaluation.functionClause(module, function, args)
 
-    private fun badargOf(module: String, function: String, args: List<OtpErlangObject>): Nothing =
-        evaluation.error(atom("badarg"), frame(module, function, list(args)))
+    private fun badargOf(module: String, function: String, args: List<OtpErlangObject>): Nothing = evaluation.badargOf(module, function, args)
 
     /** An `ArgumentError`, whose message `inspect` builds. */
     private fun argumentError(): Nothing = evaluation.raise("Elixir.ArgumentError", "message" to UnknownBinary)
