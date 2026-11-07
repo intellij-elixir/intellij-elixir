@@ -129,8 +129,8 @@ object Project {
         project: Project,
         otpApps: List<OtpApp>,
         handedModuleModel: ModifiableModuleModel?,
-        rootModelModifier: (OtpApp, ModifiableRootModel) -> Unit = { _, _ -> },
-        projectRoot: VirtualFile? = null
+        rootModelModifier: (OtpApp, ModifiableRootModel) -> Unit,
+        projectRoot: VirtualFile?
     ): List<Module> =
         if (otpApps.isNotEmpty()) {
             val moduleModel = handedModuleModel ?: ModuleManager.getInstance(project).getModifiableModel()
