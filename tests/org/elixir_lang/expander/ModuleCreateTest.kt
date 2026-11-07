@@ -1602,14 +1602,16 @@ class ModuleCreateTest : SdkProbeTestCase() {
         assertEquals("the oracle's compile: ${compiled.diagnostics}", OtpErlangAtom("ok"), compiled.status)
 
         val (raised, infos, reads) = (compiled.messages.single() as OtpErlangTuple).elements()
-        val expected = listOf("raises " + if (raised == OtpErlangAtom("nil")) "nothing" else (raised as OtpErlangAtom).atomValue()) +
-            modules.zip((infos as OtpErlangList).elements()) { module, info ->
+        val expected = buildList {
+            add("raises " + if (raised == OtpErlangAtom("nil")) "nothing" else (raised as OtpErlangAtom).atomValue())
+            modules.zip((infos as OtpErlangList).elements()).mapTo(this) { (module, info) ->
                 "$module " + if (info == OtpErlangAtom("nil")) "absent" else "compiled ${exported(info as OtpErlangMap)}"
-            } +
-            readers.zip((reads as OtpErlangList).elements()) { reader, read ->
+            }
+            readers.zip((reads as OtpErlangList).elements()).mapTo(this) { (reader, read) ->
                 "${reader.module}.${reader.function} " +
                     if (reader.function in unknown) "unknown" else utf8(read)
             }
+        }
 
         assertEquals(expected.joinToString("\n").replace("$token.", ""), expanded(written, token, modules.toList(), readers))
     }
@@ -1641,15 +1643,16 @@ class ModuleCreateTest : SdkProbeTestCase() {
             is Expansion.Unported, is Expansion.Opaque -> "nothing known, as it stopped"
             else -> "nothing"
         }
-        val lines = listOf("raises $raise") +
-            modules.map { module ->
+        val lines = buildList {
+            add("raises $raise")
+            modules.mapTo(this) { module ->
                 val result = byName["$prefix$module"]
 
                 // A module that raised defines nothing.
                 "$module " +
                     if (result == null || result.ended.raises) "absent" else "${ending(result)} ${stored(result)}"
-            } +
-            readers.map { reader ->
+            }
+            readers.mapTo(this) { reader ->
                 val result = byName["$prefix${reader.module}"]
                 val value = result?.attributes?.final?.get(reader.function)
 
@@ -1661,6 +1664,7 @@ class ModuleCreateTest : SdkProbeTestCase() {
                     AttributeValue.Unknown -> "unknown"
                 }
             }
+        }
 
         return lines.joinToString("\n").replace("$token.", "")
     }
