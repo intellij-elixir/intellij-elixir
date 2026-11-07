@@ -344,7 +344,8 @@ property, as locally, every class runs.
 
 A test fails on any error logged while it runs, any warning from the plugin's own (`org.elixir_lang`)
 loggers, and any exception left uncaught, on any thread, that it did not expect. A platform warning does not fail
-it: `checkUnexpectedLogs` lists those after `test` without failing the build. A test that exercises a warning or an error wraps the code in
+it: `checkUnexpectedLogs` lists those after `test` without failing the build. The exception is the platform's
+warning that a plugin class's initializer asked for a service, which a product IDE logs as an error. A test that exercises a warning or an error wraps the code in
 `expectWarnings(TheLoggingClass::class.java, Regex("..."))` or `expectErrors(...)`
 (`org.elixir_lang.junit.logs`), which return the matching messages for the test to validate and fail if there
 were none. The test is failed once it has finished, tearDown included, so nothing is thrown into the code that

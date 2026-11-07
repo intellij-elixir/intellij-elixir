@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 /**
  * Fails a test that logs an error, or a warning from the plugin's own loggers, or leaves an exception uncaught on any
  * thread, that it did not expect, whichever engine runs it. A platform warning is only reported: they change with each
- * platform version and runner, and none has pointed at a plugin bug.
+ * platform version and runner. The exception is a plugin class initializer asking for a service.
  *
  * [GuardedLoggedErrorProcessor] is installed as the JVM-wide `LoggedErrorProcessor` for the whole run, so every
  * `Logger.warn` and `Logger.error`, on any thread, is recorded against the running test, as is an uncaught exception.
@@ -52,7 +52,13 @@ object UnexpectedLogs {
 
         /** Whether it fails the test it was logged in, rather than only being reported. */
         val fails: Boolean
-            get() = level != Level.WARN || category.startsWith(PLUGIN_CATEGORY)
+            get() = level != Level.WARN || category.startsWith(PLUGIN_CATEGORY) || isPluginClassInitializerServiceRequest
+
+        // A warning only in tests: a product IDE logs it as an error (IJPL-156676).
+        private val isPluginClassInitializerServiceRequest: Boolean
+            get() = category == COMPONENT_MANAGER_CATEGORY &&
+                message.startsWith(PLUGIN_PACKAGE) &&
+                " <clinit> requests " in message
 
         val header: String
             get() = "$level $category - $message [${testName ?: "outside any test"}, thread $thread]"
@@ -171,7 +177,11 @@ object UnexpectedLogs {
     /** Starts the name of a report file that only lists: the build fails on every other one. */
     const val PLATFORM_WARNINGS_PREFIX = "platform-warnings-"
 
-    private const val PLUGIN_CATEGORY = "#org.elixir_lang."
+    private const val PLUGIN_PACKAGE = "org.elixir_lang."
+
+    private const val PLUGIN_CATEGORY = "#$PLUGIN_PACKAGE"
+
+    internal const val COMPONENT_MANAGER_CATEGORY = "#com.intellij.serviceContainer.ComponentManagerImpl"
 
     // Everything up to the logger's last frame is logging and processors, so the first frame is the code that logged.
     private fun callerFrames(thread: LoggingThread): List<StackTraceElement> {

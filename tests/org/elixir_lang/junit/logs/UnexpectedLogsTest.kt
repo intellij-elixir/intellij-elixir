@@ -37,7 +37,6 @@ class UnexpectedLogsTest : UnitTestCase() {
         assertEquals(TestExecutionResult.Status.SUCCESSFUL, results.getValue("testExpectsItsWarning").status)
         assertFailedWith(results, "testExpectsAWarningThatNeverComes", "none was logged")
         assertEquals(TestExecutionResult.Status.SUCCESSFUL, results.getValue("testIgnoredWarning").status)
-        // Reported rather than failed: only the plugin's own warnings fail a test.
         assertEquals(TestExecutionResult.Status.SUCCESSFUL, results.getValue("testPlatformWarns").status)
         assertFailedWith(results, "testPlatformLogsAnError", "ERROR $PLATFORM_CATEGORY - $PLATFORM_ERROR")
         assertFailedWith(results, "testWarnsOnAnotherThread", BACKGROUND_WARNING)
@@ -63,8 +62,7 @@ class UnexpectedLogsTest : UnitTestCase() {
         reported(VintageSample::class.java)
 
         for (test in listOf("testLogsAnErrorWithAttachments", "testLogsTheSameErrorWithDifferentAttachments")) {
-            for (attachment in listOf(FIRST_ATTACHMENT_NAME to FIRST_ATTACHMENT_TEXT, SECOND_ATTACHMENT_NAME to SECOND_ATTACHMENT_TEXT)) {
-                val (name, text) = attachment
+            for ((name, text) in listOf(FIRST_ATTACHMENT_NAME to FIRST_ATTACHMENT_TEXT, SECOND_ATTACHMENT_NAME to SECOND_ATTACHMENT_TEXT)) {
                 assertFailedWith(results, test, "$name\n")
                 assertFailedWith(results, test, text)
                 assertConsoleShows(results, test, text)
