@@ -93,10 +93,8 @@ public class Root extends ProjectImportWizardStep {
             Sdk sdk = getBuilder().getElixirSdk();
 
             if (sdk != null) {
-                // Ignore result - errors are logged by MixTaskRunner
-                MixTaskRunner.updateHex(null, workingDirectory, sdk);
-                MixTaskRunner.updateRebar(null, workingDirectory, sdk);
-                MixTaskRunner.fetchDependencies(null, workingDirectory, sdk);
+                // Errors are logged by MixTaskRunner
+                MixTaskRunner.runImportTasks(workingDirectory, sdk);
             }
         }
 
