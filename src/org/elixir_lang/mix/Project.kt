@@ -181,6 +181,9 @@ object Project {
         })
     }
 
+    /** The type of an OTP app's module. */
+    fun otpAppModuleTypeId(): String = ELIXIR_MODULE_TYPE_ID
+
     /** [otpApp]'s module, with its root model to commit when it is created rather than loaded from its module file. */
     private fun createModuleForOtpApp(
         otpApp: OtpApp,
@@ -190,7 +193,7 @@ object Project {
     ): Pair<Module, ModifiableRootModel?> {
         val ideaModuleDir = otpApp.root
         val ideaModuleFile = "${ideaModuleDir.canonicalPath}${File.separator}/${moduleName}.iml"
-        val module = moduleModel.newModule(ideaModuleFile, ELIXIR_MODULE_TYPE_ID)
+        val module = moduleModel.newModule(ideaModuleFile, otpAppModuleTypeId())
         otpApp.module = module
 
         return module to if (otpApp.ideaModuleFile == null) {
