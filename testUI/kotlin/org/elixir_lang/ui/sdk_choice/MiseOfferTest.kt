@@ -2,10 +2,7 @@ package org.elixir_lang.ui.sdk_choice
 
 import com.intellij.driver.client.Driver
 import com.intellij.driver.sdk.openFile
-import com.intellij.driver.sdk.ui.components.common.ideFrame
-import com.intellij.driver.sdk.ui.components.elements.checkBoxWithName
 import com.intellij.driver.sdk.ui.components.elements.dialog
-import com.intellij.driver.sdk.ui.components.settings.settingsDialog
 import com.intellij.driver.sdk.ui.ui
 import com.intellij.driver.sdk.ui.xQuery
 import org.elixir_lang.ui.framework.core.clickButtonText
@@ -22,7 +19,6 @@ import org.elixir_lang.ui.sdk_settings.failedErlangStepRow
 import org.elixir_lang.ui.sdk_settings.launchIdea
 import org.elixir_lang.ui.sdk_settings.launchPyCharm
 import org.elixir_lang.ui.sdk_settings.openInThisWindow
-import org.elixir_lang.ui.sdk_settings.openSettings
 import org.elixir_lang.ui.sdk_settings.stored
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledOnOs
@@ -47,8 +43,8 @@ class MiseOfferTest {
         val row = "IU"
         launchIdea("MiseOfferTest-IU", { withEnv("PATH", stubbedPath()) }) { homes ->
             val install = stageElixirInstall()
-            val project = stageProject(NAME, moduleIml("ELIXIR_MODULE"), mapOf(SOURCE_PATH to SOURCE, ".tool-versions" to toolVersions(install, homes.erlang)))
-            stubMise(project, pins(project, install, homes.erlang), TOOLS)
+            val project = stageProject(NAME, moduleIml("ELIXIR_MODULE"), mapOf(SOURCE_PATH to SOURCE))
+            pinWithMise(project, install, homes.erlang)
             open(project)
             runCatching {
                 takeTheOffer(rows, row, install, homes.erlang)
@@ -68,8 +64,8 @@ class MiseOfferTest {
         val row = "PY"
         launchPyCharm("MiseOfferTest-PY", { withEnv("PATH", stubbedPath()) }) { homes ->
             val install = stageElixirInstall()
-            val project = stageProject(NAME, moduleIml("PYTHON_MODULE", "<configuration />"), mapOf(SOURCE_PATH to SOURCE, ".tool-versions" to toolVersions(install, homes.erlang)))
-            stubMise(project, pins(project, install, homes.erlang), TOOLS)
+            val project = stageProject(NAME, moduleIml("PYTHON_MODULE", "<configuration />"), mapOf(SOURCE_PATH to SOURCE))
+            pinWithMise(project, install, homes.erlang)
             closeInternalErrors("setup")
             runCatching {
                 openInThisWindow(project)
@@ -127,11 +123,7 @@ class MiseOfferTest {
         askTheChooser(rows, row)
         ui.dialog(xQuery { byTitle(TITLE) }) {
             waitUntilReady()
-            val text = "Use mise's Elixir ${Path.of(install).fileName} and Erlang ${erlang.bVersion}"
-            val offer = x(xQuery { byAccessibleName(text) })
-            rows.check(row, "the chooser offers '$text'", appears("the offer", 30.seconds) { offer.present() })
-            offer.click()
-            val inStep = checkBoxWithName("Keep the SDKs in step with mise")
+            val inStep = takeMisesOffer(rows, row, install, erlang)
             rows.check(row, "its box can be ticked once the offer is taken", appears("the box enabled", 30.seconds) { inStep.isEnabled() })
             inStep.check()
             clickButtonText("OK")
@@ -144,36 +136,11 @@ class MiseOfferTest {
         rows.check(row, "'$elixir' is paired with '$paired', at mise's Erlang", paired != null && paired in sdksAt(erlang.b))
     }
 
-    /** Whether Settings > Languages & Frameworks > Elixir > Tool Managers has mise ticked; Settings is cancelled after. */
-    private fun Driver.toolManagersShowMiseOn(): Boolean {
-        openSettings()
-        var on = false
-        ideFrame {
-            settingsDialog {
-                openTreeSettingsSection("Languages & Frameworks", "Elixir", "Tool Managers")
-                on = appears("mise ticked", 10.seconds) { checkBoxWithName("mise").isSelected() }
-                clickButtonText("Cancel")
-            }
-        }
-        return on
-    }
-
     private fun Driver.failed(rows: Rows, row: String, failure: Throwable) =
         failedErlangStepRow(rows, row, failure) {
             cancelDialogs(TITLE)
             cancelSettings()
         }
-
-    private fun toolVersions(install: String, erlang: Home): String = "elixir ${Path.of(install).fileName}\nerlang ${erlang.bVersion}"
-
-    /**
-     * `ls --current --json` as mise answers it in [project] with the Elixir at [install] and the Erlang at [erlang]'s B
-     * pinned and installed.
-     */
-    private fun pins(project: Path, install: String, erlang: Home): String {
-        val elixir = misePin("elixir", Path.of(install).fileName, install, project)
-        return "echo '{$elixir,${misePin("erlang", erlang.bVersion, erlang.b, project)}}'"
-    }
 
     private companion object {
         const val NAME = "mise_offer"
