@@ -1,24 +1,18 @@
 package org.elixir_lang.sdk.elixir
 
-import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.diagnostic.trace
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.SdkModificator
-import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
-import com.intellij.util.concurrency.annotations.RequiresEdt
-import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResolver
-import org.elixir_lang.sdk.erlang_dependent.ErlangStep
 import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
 import org.elixir_lang.sdk.erlang_dependent.Type.Companion.ERLANG_SDK_KEY
 import org.elixir_lang.sdk.erlang_dependent.elixirAdditionalData
 import org.elixir_lang.util.ReadActions
-import java.awt.Component
 
 /**
  * Links an Elixir SDK being set up to the Erlang SDK it was created with or is already paired with. It never picks one
- * itself: an Elixir SDK with neither is set up unpaired, and [erlangSdkOrAsk] asks the user where the pick is known.
+ * itself: an Elixir SDK with neither is set up unpaired.
  */
 object ElixirInternalErlangSdkSetup {
 
@@ -54,29 +48,5 @@ object ElixirInternalErlangSdkSetup {
         } else {
             LOG.info("No Erlang SDK is paired with Elixir SDK '${elixirSdk.name}'; it is set up unpaired")
         }
-    }
-
-    /**
-     * The Erlang SDK [elixirSdk], an Elixir SDK just added to [sdksModel], is paired with. When it has none, the Erlang
-     * step asks for one, over [parent]: [elixirSdk] is paired with the pick and set up again, or on Cancel removed from
-     * [sdksModel]. Null on Cancel.
-     */
-    @RequiresEdt
-    internal fun erlangSdkOrAsk(
-        sdksModel: ProjectSdksModel,
-        elixirSdk: Sdk,
-        parent: Component?,
-    ): Sdk? {
-        ErlangSdkResolver.getInstance().resolveErlangSdk(elixirSdk, sdksModel)?.let { return it }
-
-        val pick = elixirSdk.homePath?.let { ErlangStep.getInstance().ask(parent, it, sdksModel) }
-        if (pick == null) {
-            sdksModel.removeSdk(elixirSdk)
-            return null
-        }
-
-        WriteAction.run<Throwable> { ElixirSdkMutation.applyDependencySelection(elixirSdk, pick) }
-        Type.instance.setupSdkPaths(elixirSdk, sdksModel)
-        return pick
     }
 }
