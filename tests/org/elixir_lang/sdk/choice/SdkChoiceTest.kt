@@ -44,7 +44,6 @@ import org.elixir_lang.sdk.wsl.WslCompatService
 import org.elixir_lang.tool_manager.ToolManagerOptIns
 import org.elixir_lang.tool_manager.ToolManagerResult
 import org.elixir_lang.tool_manager.ToolManagerSettings
-import org.elixir_lang.tool_manager.ToolManagerSettingsListener
 import org.elixir_lang.tool_manager.assertPairedWithErlangAt
 import org.elixir_lang.tool_manager.elixirSdksAt
 import org.elixir_lang.tool_manager.mise.MiseToolManager
@@ -54,7 +53,6 @@ import org.elixir_lang.tool_manager.twoSdksOnTheInstall
 import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 import javax.swing.JComponent
 import javax.swing.JPanel
 
@@ -603,7 +601,7 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testOkWithTheOffersModelWritesTheTickedOptIns() {
         val elixirHome = elixirInstall("1.18.4", "27")
         toolManager.pins(elixirHome, install("27", "27.3.4"))
-        val changes = settingsChanges()
+        val changes = settingsChanges(project, testRootDisposable) {}
 
         val written = askWithTheOffer { panel ->
             panel.waitFor(OFFER).doClick()
@@ -614,7 +612,7 @@ class SdkChoiceTest : HeavyTestCase() {
         assertEquals(elixirSdksAt(elixirHome), listOfNotNull(written))
         assertSame(written, ModuleRootManager.getInstance(module).sdk)
         assertEquals(listOf(true, true), toolManagerSettings())
-        assertEquals("settings changes", 1, changes.get())
+        assertEquals("settings changes", 1, changes.size)
     }
 
     fun testBoxesTickedAfterThePickAreHandedOver() {
@@ -716,7 +714,7 @@ class SdkChoiceTest : HeavyTestCase() {
     fun testCancelWritesNoOptIn() {
         val elixirHome = elixirInstall("1.18.4", "27")
         toolManager.pins(elixirHome, install("27", "27.3.4"))
-        val changes = settingsChanges()
+        val changes = settingsChanges(project, testRootDisposable) {}
 
         val written = askWithTheOffer(ok = false) { panel ->
             panel.waitFor(OFFER).doClick()
@@ -727,30 +725,24 @@ class SdkChoiceTest : HeavyTestCase() {
         assertNull(written)
         assertTrue(ModuleRootManager.getInstance(module).isSdkInherited)
         assertEquals(listOf(false, false), toolManagerSettings())
-        assertEquals("settings changes", 0, changes.get())
+        assertEquals("settings changes", 0, changes.size)
         assertEquals("the Model the offer made stays", 1, elixirSdksAt(elixirHome).size)
     }
 
     fun testUntickedBoxesLeaveTheToolManagerOff() {
         toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
-        val changes = settingsChanges()
+        val changes = settingsChanges(project, testRootDisposable) {}
 
         val written = askWithTheOffer { panel -> panel.waitFor(OFFER).doClick() }
 
         assertSame(written, ModuleRootManager.getInstance(module).sdk)
         assertEquals(listOf(false, false), toolManagerSettings())
-        assertEquals("settings changes", 0, changes.get())
+        assertEquals("settings changes", 0, changes.size)
     }
 
     /** The tool manager's settings in this project: whether it is on, and whether its environment is. */
     private fun toolManagerSettings(): List<Boolean> =
         ToolManagerSettings.getInstance(project).run { listOf(isEnabled(toolManager), isEnvironmentEnabled(toolManager)) }
-
-    /** Counts the tool manager settings' changes published in this project. */
-    private fun settingsChanges(): AtomicInteger = AtomicInteger().also { count ->
-        project.messageBus.connect(testRootDisposable)
-            .subscribe(ToolManagerSettings.SETTINGS_CHANGED_TOPIC, ToolManagerSettingsListener { count.incrementAndGet() })
-    }
 
     /**
      * Asks the chooser for [module], with the offer folder as its content root so the tool managers are asked about
