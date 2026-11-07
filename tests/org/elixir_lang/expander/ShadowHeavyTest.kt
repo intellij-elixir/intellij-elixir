@@ -38,18 +38,18 @@ import java.io.File
 /**
  * Compares [ExpanderSource]'s candidates with [LegacyWalkSource]'s at every use in the snapshot inputs, and the
  * compiler join with the source switch off and on, in a project whose module has the leg's SDK; and the candidates at
- * every use of the Phoenix app `-Dorg.elixir_lang.expander.phoenix` names. It writes what moved to
+ * every use of the Phoenix app `-PexpanderPhoenix=<dir>` (`org.elixir_lang.expander.phoenix`) names. It writes what moved to
  * `build/reports/expander-shadow/<elixir version>/` and asserts nothing on it.
  *
- * It runs only when `-Dorg.elixir_lang.declaration.source=expander` is set, since that puts the expander behind the
- * join, and the corpus's part only when the corpus is named too.
+ * It runs only when `-PdeclarationSource=expander` (`org.elixir_lang.declaration.source`) is set, since that puts the
+ * expander behind the join, and the corpus's part only when the corpus is named too.
  */
 class ShadowHeavyTest : HeavyTestCase() {
     override fun shouldRunTest(): Boolean {
         val skipped = if (name == CORPUS_TEST) {
             PhoenixCorpus.skipReason()
         } else {
-            "$SOURCE_PROPERTY=$EXPANDER is not set".takeUnless { expanderSwitchOn() }
+            "-PdeclarationSource=$EXPANDER ($SOURCE_PROPERTY) is not set".takeUnless { expanderSwitchOn() }
         }
 
         if (skipped != null) {

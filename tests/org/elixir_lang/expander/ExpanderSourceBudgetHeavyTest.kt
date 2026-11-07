@@ -27,7 +27,7 @@ import org.elixir_lang.sdk.Type as SdkRoots
 
 /**
  * Times [ExpanderSource] and what it reads, and measures the heap the expansions hold, over the Phoenix app
- * `-Dorg.elixir_lang.expander.phoenix` names, and writes each figure beside its budget to
+ * `-PexpanderPhoenix=<dir>` (`org.elixir_lang.expander.phoenix`) names, and writes each figure beside its budget to
  * `build/reports/expander-budget/<elixir version>/`. It asserts nothing on them: the figures hold for one machine and
  * heap.
  *

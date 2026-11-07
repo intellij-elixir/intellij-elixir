@@ -1235,6 +1235,21 @@ tasks.named<Test>("test") {
     providers.gradleProperty("expanderMirrorDeps").orNull?.let {
         systemProperty("org.elixir_lang.expander.mirror.deps", file(it).absolutePath)
     }
+    // `-D` on the `./gradlew` command line stays on Gradle's JVM, so forward these harness switches explicitly.
+    // Only `expanderPhoenix` reads files that aren't declared inputs and writes reports that aren't declared outputs,
+    // so a repeat corpus run would otherwise be up to date or from the cache and read nothing.
+    providers.gradleProperty("expanderPhoenix").orNull?.takeIf { it.isNotBlank() }?.let {
+        systemProperty("org.elixir_lang.expander.phoenix", file(it).absolutePath)
+        outputs.upToDateWhen { false }
+        outputs.cacheIf { false }
+    }
+    inputs.property("declarationSource", providers.gradleProperty("declarationSource").orElse(""))
+    providers.gradleProperty("declarationSource").orNull?.takeIf { it.isNotBlank() }?.let {
+        systemProperty("org.elixir_lang.declaration.source", it)
+    }
+    if (providers.gradleProperty("quoterFullDump").map(String::toBoolean).getOrElse(false)) {
+        systemProperty("elixir.quoter.fullDump", "true")
+    }
 
     val sdkProps = sdkPropertiesFile
     val quoterAvailability = quoterAvailabilityFile.asFile

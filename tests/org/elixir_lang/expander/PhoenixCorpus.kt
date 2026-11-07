@@ -130,8 +130,8 @@ internal class PhoenixCorpus(private val project: Project, disposable: Disposabl
         /** Why a test over the corpus can't run, or `null` when both it and the expander switch are set. */
         fun skipReason(): String? =
             when {
-                !expanderSwitchOn() -> "$SOURCE_PROPERTY=$EXPANDER is not set"
-                System.getProperty(PROPERTY) == null -> "$PROPERTY=<Phoenix app directory> is not set"
+                !expanderSwitchOn() -> "-PdeclarationSource=$EXPANDER ($SOURCE_PROPERTY) is not set"
+                System.getProperty(PROPERTY) == null -> "-PexpanderPhoenix=<dir> ($PROPERTY) is not set"
                 else -> null
             }
     }
