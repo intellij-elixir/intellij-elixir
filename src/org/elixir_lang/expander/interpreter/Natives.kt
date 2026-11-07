@@ -907,22 +907,20 @@ internal class Natives(private val evaluation: Evaluation) {
     }
 
     private fun lists(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
-        val functionClause = { function: String, clauseArgs: List<OtpErlangObject> ->
-            evaluation.error(atom("function_clause"), frame("lists", function, list(clauseArgs)))
-        }
+        val noClause = { function: String, clauseArgs: List<OtpErlangObject> -> functionClause("lists", function, clauseArgs) }
         val badarg = { function: String -> badargOf("lists", function, args) }
         val ran by lazy { running("lists", key, args).single() }
 
         return when (key) {
             "reverse/1" -> {
-                val (elements, tail) = cells(args[0]) ?: functionClause("reverse", args)
+                val (elements, tail) = cells(args[0]) ?: noClause("reverse", args)
 
                 when {
                     tail == null && elements.size <= 1 -> args[0]
                     tail == null && elements.size == 2 -> list(elements.reversed())
                     elements.size >= 2 ->
                         lists("reverse/2", listOf(cons(elements.drop(2), tail ?: EMPTY), list(elements.take(2).reversed())))
-                    else -> functionClause("reverse", args)
+                    else -> noClause("reverse", args)
                 }
             }
             "reverse/2" -> cons((properElements(args[0]) ?: badarg("reverse")).reversed(), args[1])
@@ -939,8 +937,8 @@ internal class Natives(private val evaluation: Evaluation) {
             "keymember/3" -> bool(keyfind(args) != null)
             "keydelete/3" -> {
                 val n = (seen(args[1]) as? OtpErlangLong)?.bigIntegerValue()?.takeIf { it.signum() > 0 }
-                    ?: functionClause("keydelete", args)
-                val (elements, tail) = cells(args[2]) ?: functionClause("keydelete3", args)
+                    ?: noClause("keydelete", args)
+                val (elements, tail) = cells(args[2]) ?: noClause("keydelete3", args)
                 val index = elements.indexOfFirst { element ->
                     (seen(element) as? OtpErlangTuple)?.takeIf { BigInteger.valueOf(it.arity().toLong()) >= n }
                         ?.let { equal(it.elementAt(n.toInt() - 1), args[0], false, level) } == true
@@ -948,18 +946,18 @@ internal class Natives(private val evaluation: Evaluation) {
 
                 when {
                     index >= 0 -> cons(elements.take(index), cons(elements.drop(index + 1), tail ?: EMPTY))
-                    tail != null -> functionClause("keydelete3", listOf(args[0], args[1], tail))
+                    tail != null -> noClause("keydelete3", listOf(args[0], args[1], tail))
                     else -> args[2]
                 }
             }
             "append/1" -> {
-                val (lists, tail) = cells(args[0]) ?: functionClause("append", args)
+                val (lists, tail) = cells(args[0]) ?: noClause("append", args)
 
                 append(lists, tail)
             }
             "append/2" -> erlang("++/2", args)
             "flatten/1" -> {
-                if (!isList(args[0])) functionClause("flatten", args)
+                if (!isList(args[0])) noClause("flatten", args)
 
                 list(mutableListOf<OtpErlangObject>().also { flatten(args[0], it) }.asReversed())
             }
@@ -978,7 +976,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 atom("ok")
             }
             "filter/2" -> {
-                val predicate = function(ran, 1) ?: functionClause("filter", args)
+                val predicate = function(ran, 1) ?: noClause("filter", args)
 
                 filter(args[1]) { element ->
                     when (val keep = predicate.call(element)) {
@@ -1031,9 +1029,9 @@ internal class Natives(private val evaluation: Evaluation) {
 
                 TRUE
             }
-            "sort/1" -> sort(args[0], functionClause)
-            "sort/2" -> sortWith(ran, args, functionClause)
-            "keysort/2" -> keysort(args, functionClause, badarg)
+            "sort/1" -> sort(args[0])
+            "sort/2" -> sortWith(ran, args)
+            "keysort/2" -> keysort(args)
             else -> null
         }
     }
@@ -1045,8 +1043,8 @@ internal class Natives(private val evaluation: Evaluation) {
      * [LISTS_SORT_KEEPS_EQUAL_ORDER], elements that compare equal but differ, such as `1` and `1.0`, are in the old
      * split's order, and the walk's clauses are others, so both decline.
      */
-    private fun sort(term: OtpErlangObject, functionClause: (String, List<OtpErlangObject>) -> Nothing): OtpErlangObject {
-        val (elements, tail) = cells(term) ?: functionClause("sort", listOf(term))
+    private fun sort(term: OtpErlangObject): OtpErlangObject {
+        val (elements, tail) = cells(term) ?: functionClause("lists", "sort", listOf(term))
 
         if (tail == null) {
             val sorted = elements.sortedWith { left, right ->
@@ -1070,7 +1068,7 @@ internal class Natives(private val evaluation: Evaluation) {
             return list(sorted)
         }
 
-        if (elements.size < 2) functionClause("sort", listOf(term))
+        if (elements.size < 2) functionClause("lists", "sort", listOf(term))
         if (!LISTS_SORT_KEEPS_EQUAL_ORDER.isSufficient(level)) decline("lists:sort/1 of an improper list before OTP 29")
 
         val split = SortSplit(elements[0], elements[1])
@@ -1081,7 +1079,7 @@ internal class Natives(private val evaluation: Evaluation) {
             split.next(z)
         }
 
-        functionClause(split.helper, split.arguments(tail))
+        functionClause("lists", split.helper, split.arguments(tail))
     }
 
     /**
@@ -1089,12 +1087,8 @@ internal class Natives(private val evaluation: Evaluation) {
      * without reading it. A longer improper list raises in a helper whose runs aren't ported, so it declines, as does a
      * list OTP's own sort gives in a different order before and after its stability fix.
      */
-    private fun keysort(
-        args: List<OtpErlangObject>,
-        functionClause: (String, List<OtpErlangObject>) -> Nothing,
-        badarg: (String) -> Nothing,
-    ): OtpErlangObject {
-        val position = (seen(args[0]) as? OtpErlangLong)?.takeIf { it.signum() > 0 } ?: functionClause("keysort", args)
+    private fun keysort(args: List<OtpErlangObject>): OtpErlangObject {
+        val position = (seen(args[0]) as? OtpErlangLong)?.takeIf { it.signum() > 0 } ?: functionClause("lists", "keysort", args)
         val (elements, tail) = cells(args[1]) ?: evaluation.error(tuple(atom("case_clause"), args[1]))
 
         if (tail != null) {
@@ -1106,7 +1100,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
         val index = position.bigIntegerValue().min(Int.MAX_VALUE.toBigInteger()).toInt()
         val keyed = elements.map { element ->
-            val key = (seen(element) as? OtpErlangTuple)?.takeIf { index <= it.arity() }?.elementAt(index - 1) ?: badarg("keysort")
+            val key = (seen(element) as? OtpErlangTuple)?.takeIf { index <= it.arity() }?.elementAt(index - 1) ?: badargOf("lists", "keysort", args)
 
             key to element
         }
@@ -1127,20 +1121,16 @@ internal class Natives(private val evaluation: Evaluation) {
     }
 
     /** `lists:sort/2`, which declines on an improper list or a value it can't call, whose raise is in a helper not ported. */
-    private fun sortWith(
-        ran: OtpErlangObject,
-        args: List<OtpErlangObject>,
-        functionClause: (String, List<OtpErlangObject>) -> Nothing,
-    ): OtpErlangObject {
+    private fun sortWith(ran: OtpErlangObject, args: List<OtpErlangObject>): OtpErlangObject {
         val function = function(ran, 2)
-        val (elements, tail) = cells(args[1]) ?: functionClause("sort", args)
+        val (elements, tail) = cells(args[1]) ?: functionClause("lists", "sort", args)
 
         if (tail != null) {
-            if (elements.size < 2) functionClause("sort", args)
+            if (elements.size < 2) functionClause("lists", "sort", args)
 
             decline("lists:sort/2 of an improper list")
         }
-        if (elements.size < 2) return if (function != null) args[1] else functionClause("sort", args)
+        if (elements.size < 2) return if (function != null) args[1] else functionClause("lists", "sort", args)
         if (function == null) decline("lists:sort/2 with %s", args[0])
 
         return list(FunSort { left, right ->
@@ -1412,9 +1402,7 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun flatten(term: OtpErlangObject, reversed: MutableList<OtpErlangObject>, met: Int = 0): Int {
         val (elements, tail) = cells(term)!!
 
-        if (tail != null) {
-            evaluation.error(atom("function_clause"), frame("lists", "do_flatten", list(listOf(tail, list(reversed.reversed())))))
-        }
+        if (tail != null) functionClause("lists", "do_flatten", listOf(tail, list(reversed.reversed())))
 
         var count = met
 
@@ -1477,9 +1465,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** `elixir_quote`'s run-time helpers, which an expanded `quote` calls. */
     private fun quote(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
-        val functionClause = { function: String ->
-            evaluation.error(atom("function_clause"), frame("elixir_quote", function, list(args)))
-        }
+        val noClause = { function: String -> functionClause("elixir_quote", function, args) }
 
         return when (key) {
             "validate_quote/1" -> args[0]
@@ -1490,7 +1476,7 @@ internal class Natives(private val evaluation: Evaluation) {
                     "file" -> value is OtpErlangBitstr && value.pad_bits() == 0
                     "context" -> value is OtpErlangAtom && value != NIL
                     "generated", "unquote" -> boolean(value) != null
-                    else -> functionClause("is_valid")
+                    else -> noClause("is_valid")
                 }
 
                 if (valid) args[1] else argumentError()
@@ -1498,7 +1484,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "dot/5" -> annotate(dot(args[0], args[1], args[2], args[3]), args[4])
             "dot/4" -> dot(args[0], args[1], args[2], args[3])
             "list/2" -> {
-                if (!isList(args[1])) functionClause("list")
+                if (!isList(args[1])) noClause("list")
 
                 validateList(args[0])
                 erlang("++/2", args)!!
@@ -1524,7 +1510,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
                         list((listOf(tuple(atom("|"), EMPTY, list(listOf(reversed[0], right)))) + reversed.drop(1)).reversed())
                     }
-                    else -> functionClause("tail_list")
+                    else -> noClause("tail_list")
                 }
             }
             "unquote/1", "shallow_validate_ast/1" -> if (shallowValidAst(args[0])) args[0] else argumentError()
@@ -1656,11 +1642,9 @@ internal class Natives(private val evaluation: Evaluation) {
         // `get/2` and `pop/2` are `get/3` and `pop/3` with their `nil` default, as a `FunctionClauseError` names them.
         if (key == "get/2" || key == "pop/2") return keyword(key.replace("/2", "/3"), args + NIL)
 
-        val functionClause = { function: String ->
-            evaluation.error(atom("function_clause"), frame("Elixir.Keyword", function, list(args)))
-        }
+        val noClause = { function: String -> functionClause("Elixir.Keyword", function, args) }
         val guarded = { function: String ->
-            if (!isList(args[0]) || !isAtom(args[1])) functionClause(function)
+            if (!isList(args[0]) || !isAtom(args[1])) noClause(function)
         }
         val found = { function: String ->
             guarded(function)
@@ -1708,18 +1692,18 @@ internal class Natives(private val evaluation: Evaluation) {
 
                         erlang("++/2", listOf(kept, right))
                     }
-                    else -> functionClause("merge")
+                    else -> noClause("merge")
                 }
             }
             "take/2", "drop/2" -> {
                 val (keywords, keys) = args
                 val take = key == "take/2"
 
-                if (!isList(keywords) || !isList(keys)) functionClause(key.substringBefore('/'))
+                if (!isList(keywords) || !isList(keys)) noClause(key.substringBefore('/'))
 
                 filter(keywords) { pair ->
                     val name = (seen(pair) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elementAt(0)
-                        ?: evaluation.error(atom("function_clause"), frame("Elixir.Keyword", "-${key.substringBefore('/')}/2-fun-0-", list(listOf(pair))))
+                        ?: functionClause("Elixir.Keyword", "-${key.substringBefore('/')}/2-fun-0-", listOf(pair))
 
                     (lists("member/2", listOf(name, keys)) == TRUE) == take
                 }
@@ -1741,15 +1725,12 @@ internal class Natives(private val evaluation: Evaluation) {
         val kept = elements.withIndex().mapNotNull { (index, element) ->
             // `delete_key/2` is called on the rest of the list, from this cell.
             val pair = (seen(element) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }
-                ?: evaluation.error(
-                    atom("function_clause"),
-                    frame("Elixir.Keyword", "delete_key", list(listOf(cons(elements.subList(index, elements.size), tail ?: EMPTY), key))),
-                )
+                ?: functionClause("Elixir.Keyword", "delete_key", listOf(cons(elements.subList(index, elements.size), tail ?: EMPTY), key))
 
             element.takeUnless { equal(pair.elementAt(0), key, true, level) }
         }
 
-        if (tail != null) evaluation.error(atom("function_clause"), frame("Elixir.Keyword", "delete_key", list(listOf(tail, key))))
+        if (tail != null) functionClause("Elixir.Keyword", "delete_key", listOf(tail, key))
 
         return list(kept)
     }
@@ -1919,7 +1900,7 @@ internal class Natives(private val evaluation: Evaluation) {
                     argumentError()
                 }
             NIL -> default
-            else -> evaluation.error(atom("function_clause"), frame("Elixir.Access", "get", list(listOf(container, accessKey, default))))
+            else -> functionClause("Elixir.Access", "get", listOf(container, accessKey, default))
         }
     }
 
@@ -3190,10 +3171,8 @@ internal class Natives(private val evaluation: Evaluation) {
      * isn't `[]` has no clause.
      */
     private fun isElement(element: OtpErlangObject, set: OtpErlangObject): OtpErlangObject {
-        val functionClause = { rest: OtpErlangObject ->
-            evaluation.error(atom("function_clause"), frame("ordsets", "is_element", list(listOf(element, rest))))
-        }
-        val (elements, tail) = cells(set) ?: functionClause(set)
+        val noClause = { rest: OtpErlangObject -> functionClause("ordsets", "is_element", listOf(element, rest)) }
+        val (elements, tail) = cells(set) ?: noClause(set)
 
         for (each in elements) {
             ProgressManager.checkCanceled()
@@ -3204,7 +3183,7 @@ internal class Natives(private val evaluation: Evaluation) {
             if (order == 0) return TRUE
         }
 
-        return if (tail == null) FALSE else functionClause(tail)
+        return if (tail == null) FALSE else noClause(tail)
     }
 
     /**
