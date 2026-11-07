@@ -21,7 +21,6 @@ import com.intellij.openapi.vcs.checkout.CheckoutListener
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.projectImport.ProjectImportBuilder
 import com.intellij.testFramework.IndexingTestUtil
-import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.closeProjectAsync
 import com.intellij.testFramework.createTestOpenProjectOptions
 import com.intellij.testFramework.runInEdtAndGet
@@ -151,13 +150,10 @@ class OpenProcessorHeavyTest : HeavyTestCase() {
             ?: error("Get from VCS on $dir opened no project")
     }
 
-    /**
-     * Indexing done and the chooser asked. The ask waits for smart mode, and when a scan is running as it is posted, the
-     * platform's smart-mode queue holds it until a pooled thread sees the scan end, which draining the EDT does not wait for.
-     */
+    /** Indexing done and the chooser asked. */
     private fun settle(project: Project) {
         IndexingTestUtil.waitUntilIndexesAreReady(project)
-        runInEdtAndWait { PlatformTestUtil.waitWithEventsDispatching("the chooser was not asked", { recorded.chooserAsked.isNotEmpty() }, 60) }
+        recorded.awaitAsk()
     }
 
     private fun module(project: Project): Module = ModuleManager.getInstance(project).modules.single()

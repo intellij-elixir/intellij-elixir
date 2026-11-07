@@ -9,8 +9,10 @@ import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
+import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.TestActionEvent
 import com.intellij.testFramework.replaceService
+import com.intellij.testFramework.runInEdtAndWait
 import junit.framework.TestCase.assertEquals
 import org.elixir_lang.sdk.elixir.SdkSettingsOpener
 import org.elixir_lang.sdk.elixir.SettingsPage
@@ -34,6 +36,13 @@ internal class RecordedChooser(disposable: Disposable, answer: (SdkChoiceState) 
             override fun targetName(): String = "Recorded"
         }, disposable)
     }
+
+    /**
+     * Waits for the chooser to be asked. The ask waits for smart mode, and when a scan is running as it is posted, the
+     * platform's smart-mode queue holds it until a pooled thread sees the scan end, which draining the EDT does not wait for.
+     */
+    fun awaitAsk() =
+        runInEdtAndWait { PlatformTestUtil.waitWithEventsDispatching("the chooser was not asked", { chooserAsked.isNotEmpty() }, 60) }
 
     fun assertChooserAskedFor(module: Module) {
         assertEquals(listOf(listOf(module)), chooserAsked)
