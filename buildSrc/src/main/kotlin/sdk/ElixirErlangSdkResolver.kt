@@ -276,7 +276,8 @@ class ElixirErlangSdkResolver(
             return null
         }
         val privDirPath = lastNonEmptyLine(privDirResult.output) ?: return null
-        val privDir = File(privDirPath)
+        // `elixir` reports its priv dir through its `bin/..`.
+        val privDir = File(privDirPath).normalize()
         val home = privDir.parentFile?.parentFile?.parentFile ?: return null
         if (!isValidElixirHome(home)) {
             return null
