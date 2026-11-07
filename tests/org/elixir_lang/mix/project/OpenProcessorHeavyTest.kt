@@ -4,6 +4,7 @@ import com.intellij.ide.impl.ProjectUtil
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
+import com.intellij.openapi.module.ModuleTypeManager
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.DumbService
@@ -13,6 +14,8 @@ import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
+import com.intellij.openapi.roots.ModuleRootManager
+import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vcs.checkout.CheckoutListener
@@ -22,12 +25,17 @@ import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.closeProjectAsync
 import com.intellij.testFramework.createTestOpenProjectOptions
+import com.intellij.testFramework.runInEdtAndGet
 import com.intellij.testFramework.runInEdtAndWait
 import kotlinx.coroutines.runBlocking
+import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.mix.project._import.Builder
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.fakeHome
+import org.elixir_lang.sdk.choice.RecordedChooser
+import org.elixir_lang.sdk.choice.SdkChoiceEntry
+import org.elixir_lang.sdk.choice.SdkChoiceState
 import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 import org.elixir_lang.sdk.elixir.sdk
 import java.nio.file.Path
@@ -36,7 +44,7 @@ import kotlin.io.path.writeText
 
 /**
  * A Mix project with no `.idea`, opened as File > Open on a folder and as Get from VCS opens a checkout: the open attaches
- * no JDK and no earlier import's pick.
+ * no JDK and no earlier import's pick, and once the project is open the chooser asks for its modules' Elixir SDK.
  */
 class OpenProcessorHeavyTest : HeavyTestCase() {
     /** The open dispatches to `Dispatchers.EDT`, which a [runBlocking] on the EDT would never reach. */
@@ -44,6 +52,8 @@ class OpenProcessorHeavyTest : HeavyTestCase() {
 
     private lateinit var jdk: Sdk
     private lateinit var elixir: Sdk
+    private lateinit var recorded: RecordedChooser
+    private var answer: (SdkChoiceState) -> SdkChoiceEntry? = { null }
 
     override fun setUp() {
         super.setUp()
@@ -51,6 +61,7 @@ class OpenProcessorHeavyTest : HeavyTestCase() {
             jdk = SdkFixtures.register(ProjectJdkImpl("Open JDK", JavaSdk.getInstance()), testRootDisposable)
             elixir = SdkFixtures.register(SdkFixtures.elixirSdk("Open Elixir", fakeHome("elixir/open")), testRootDisposable)
         }
+        recorded = RecordedChooser(testRootDisposable) { state -> answer(state) }
     }
 
     fun testAnEarlierImportPickIsNotGivenToTheOpenedModule() {
@@ -73,6 +84,41 @@ class OpenProcessorHeavyTest : HeavyTestCase() {
 
     fun testGetFromVcsWithoutIdeaAttachesNoJdk() = opened(::getFromVcs) { project ->
         assertNoProjectSdk(project)
+    }
+
+    fun testTheChooserIsAskedForTheOpenedModule() = opened(::fileOpen) { project ->
+        recorded.assertChooserAskedFor(module(project))
+    }
+
+    fun testThePickIsTheOpenedModulesSdk() {
+        answer = { state -> state.entries.single { it.sdk.name == elixir.name } }
+        opened(::fileOpen) { project ->
+            val module = module(project)
+            assertSame(elixir, ModuleRootManager.getInstance(module).sdk)
+            assertFalse("the module inherits the project SDK", ModuleRootManager.getInstance(module).isSdkInherited)
+            assertNoProjectSdk(project)
+        }
+    }
+
+    fun testGetFromVcsWithoutIdeaAsksForTheModule() = opened(::getFromVcs) { project ->
+        recorded.assertChooserAskedFor(module(project))
+    }
+
+    fun testCancelLeavesTheModuleWithoutAnSdk() = opened(::fileOpen) { project ->
+        val module = module(project)
+        recorded.assertChooserAskedFor(module)
+        assertEquals("the opened module's Elixir SDK", null, read { ElixirSdkLookup.resolve(module).sdk?.name })
+        assertNoProjectSdk(project)
+    }
+
+    fun testAModuleWithAnElixirSdkIsNotAsked() {
+        val (a, b) = runInEdtAndGet { elixirModule("a") to elixirModule("b") }
+        ModuleRootModificationUtil.setModuleSdk(b, elixir)
+
+        askAfterOpen(project)
+        settle(project)
+
+        recorded.assertChooserAskedFor(a)
     }
 
     /** A Mix project with no `.idea` opened by [open], given to [body], then closed. */
@@ -117,6 +163,9 @@ class OpenProcessorHeavyTest : HeavyTestCase() {
 
     private fun assertNoProjectSdk(project: Project) =
         assertEquals("the project SDK", null, ProjectRootManager.getInstance(project).projectSdk?.name)
+
+    private fun elixirModule(name: String): Module =
+        doCreateRealModuleIn(name, project, ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID))
 
     private fun <T> read(compute: () -> T): T = ReadAction.nonBlocking(Callable(compute)).executeSynchronously()
 

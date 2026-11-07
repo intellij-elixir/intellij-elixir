@@ -54,7 +54,7 @@ class OpenProcessor : ProjectOpenProcessorBase<Builder>() {
         // 2026.1+ (it wraps its EDT-bound work in withContext(Dispatchers.EDT) and uses
         // withRawProgressReporter), so the old caller-side EDT hop for 2025.3's
         // runBlockingModalWithRawProgressReporter is no longer needed.
-        return super.openProjectAsync(virtualFile, projectToClose, forceOpenInNewFrame)
+        return super.openProjectAsync(virtualFile, projectToClose, forceOpenInNewFrame)?.also(::askAfterOpen)
     }
 
     override fun doQuickImport(file: VirtualFile, wizardContext: WizardContext): Boolean {
