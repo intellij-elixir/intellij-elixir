@@ -6,6 +6,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModifiableModuleModel
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
+import com.intellij.openapi.module.ModuleTypeManager
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.ModuleListener
 import com.intellij.openapi.project.Project
@@ -24,6 +25,7 @@ import org.elixir_lang.mix.project.FolderMark
 import org.elixir_lang.mix.project.OtpApp
 import org.elixir_lang.mix.sync.MixDepsSyncService
 import org.elixir_lang.mix.sync.SyncRequest
+import org.elixir_lang.sdk.ProcessOutput.isSmallIde
 import org.elixir_lang.util.ElixirCoroutineService
 import java.io.EOFException
 import java.io.File
@@ -181,8 +183,9 @@ object Project {
         })
     }
 
-    /** The type of an OTP app's module. */
-    fun otpAppModuleTypeId(): String = ELIXIR_MODULE_TYPE_ID
+    /** The type of an OTP app's module: a small IDE has no `ELIXIR_MODULE` type, so its modules take the IDE's own. */
+    fun otpAppModuleTypeId(): String =
+        if (isSmallIde) ModuleTypeManager.getInstance().defaultModuleType.id else ELIXIR_MODULE_TYPE_ID
 
     /** [otpApp]'s module, with its root model to commit when it is created rather than loaded from its module file. */
     private fun createModuleForOtpApp(
