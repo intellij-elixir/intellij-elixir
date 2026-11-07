@@ -44,12 +44,12 @@ internal fun stageElixirInstall(): String {
  * project's folder; its folder. It has its own `.idea`, so opening it keeps what the module file says.
  */
 internal fun stageProject(name: String, iml: String, files: Map<String, String> = emptyMap()): Path {
-    val modules = """
+    val modules = $$"""
         <?xml version="1.0" encoding="UTF-8"?>
         <project version="4">
           <component name="ProjectModuleManager">
             <modules>
-              <module fileurl="file://${'$'}PROJECT_DIR${'$'}/$name.iml" filepath="${'$'}PROJECT_DIR${'$'}/$name.iml" />
+              <module fileurl="file://$PROJECT_DIR$/$${name}.iml" filepath="$PROJECT_DIR$/$${name}.iml" />
             </modules>
           </component>
         </project>
@@ -156,13 +156,13 @@ internal fun stubMise(project: Path, lsCurrent: String, tools: List<String>) {
     val home = NoScreen.privateHome
     val config = """[{"path":"${toolVersions(project)}","tools":[${tools.joinToString(",") { "\"$it\"" }}],"override":false}]"""
     val doctor = """{"dirs":{"state":"$home/.local/state/mise","data":"$home/.local/share/mise"}}"""
-    val script = """
+    val script = $$"""
         #!/bin/sh
-        case "${'$'}1 ${'$'}2" in
-          "ls --current") $lsCurrent ;;
-          "config ls") echo '$config' ;;
-          "doctor --json") echo '$doctor' ;;
-          *) echo "mise stub: ${'$'}* is not answered" >&2; exit 1 ;;
+        case "$1 $2" in
+          "ls --current") $$lsCurrent ;;
+          "config ls") echo '$$config' ;;
+          "doctor --json") echo '$$doctor' ;;
+          *) echo "mise stub: $* is not answered" >&2; exit 1 ;;
         esac
     """.trimIndent()
     miseStubs.createDirectories().resolve("mise").apply { writeText(script + "\n") }.toFile().setExecutable(true)
