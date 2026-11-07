@@ -774,12 +774,20 @@ internal class Evaluation(
             if (running != null) run.runningOverUnknown.removeAt(run.runningOverUnknown.lastIndex)
         }
 
-        error(atom("function_clause"), frame(module.module, function, list(args)))
+        functionClause(module.module, function, args)
     }
 
     /** Raises [reason] as an `error`, with [top] above the calls being evaluated. */
     fun error(reason: OtpErlangObject, top: OtpErlangTuple? = null): Nothing =
         throw Thrown("error", reason, list(listOfNotNull(top) + stack))
+
+    /** Raises `function_clause` from [module]`.`[function] given [args]. */
+    fun functionClause(module: String, function: String, args: List<OtpErlangObject>): Nothing =
+        error(atom("function_clause"), frame(module, function, list(args)))
+
+    /** Raises `badarg` from [module]`.`[function] given [args]. */
+    fun badargOf(module: String, function: String, args: List<OtpErlangObject>): Nothing =
+        error(atom("badarg"), frame(module, function, list(args)))
 
     /**
      * Raises [reason] as `error/2` and `error/3` do: the raising function's frame takes [args] in place of its arity,
@@ -2072,7 +2080,7 @@ internal class Evaluation(
         received(receiver, args, marks)
 
         val module = (receiver as? OtpErlangAtom)?.atomValue()
-            ?: error(atom("badarg"), frame("erlang", "apply", list(listOf(receiver, atom(function), list(args)))))
+            ?: badargOf("erlang", "apply", listOf(receiver, atom(function), list(args)))
 
         nativeResult(module, function, args, marks, tail)?.let { return it }
 
