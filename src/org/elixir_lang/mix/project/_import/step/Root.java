@@ -84,7 +84,7 @@ public class Root extends ProjectImportWizardStep {
 
             assert workingDirectory != null;
 
-            Sdk sdk = getWizardContext().getProjectJdk();
+            Sdk sdk = getBuilder().getElixirSdk();
 
             if (sdk != null) {
                 // Ignore result - errors are logged by MixTaskRunner
