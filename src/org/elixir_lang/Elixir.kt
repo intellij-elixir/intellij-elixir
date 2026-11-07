@@ -35,6 +35,5 @@ object Elixir {
         return commandLine
     }
 
-    fun elixirSdkHasErlangSdk(elixirSdk: Sdk): Boolean = elixirSdkToErlangSdk(elixirSdk) != null
     fun elixirSdkToErlangSdk(elixirSdk: Sdk): Sdk? = elixirSdk.elixirAdditionalData?.getErlangSdk()
 }

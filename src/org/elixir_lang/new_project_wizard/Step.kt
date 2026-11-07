@@ -3,7 +3,6 @@ package org.elixir_lang.new_project_wizard
 import com.intellij.execution.ExecutionException
 import com.intellij.execution.process.ProcessOutput
 import com.intellij.execution.util.ExecUtil
-import com.intellij.ide.JavaUiBundle
 import com.intellij.ide.highlighter.ModuleFileType
 import com.intellij.ide.util.projectWizard.WizardContext
 import com.intellij.ide.wizard.AbstractNewProjectWizardStep
@@ -20,12 +19,8 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.util.NlsContexts
 import com.intellij.openapi.util.io.FileUtil
-import com.intellij.openapi.util.io.toNioPathOrNull
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.ui.dsl.builder.*
@@ -33,12 +28,10 @@ import com.intellij.util.concurrency.annotations.RequiresEdt
 import kotlinx.coroutines.CancellationException
 import org.elixir_lang.Mix
 import org.elixir_lang.module.ElixirModuleBuilder
-import org.elixir_lang.sdk.SdkDetectionContext
-import org.elixir_lang.sdk.SdkEnvironment
 import org.elixir_lang.sdk.choice.SdkChoicePanel
-import org.elixir_lang.sdk.choice.SdkChoiceState
-import org.elixir_lang.sdk.choice.takesOptIns
-import org.elixir_lang.sdk.erlang_dependent.getErlangSdk
+import org.elixir_lang.sdk.choice.follow
+import org.elixir_lang.sdk.choice.pickRefusal
+import org.elixir_lang.sdk.choice.wizardChooserPanel
 import org.elixir_lang.tool_manager.ToolManagerOptIns
 import java.io.IOException
 import java.nio.file.Paths
@@ -46,7 +39,6 @@ import com.intellij.openapi.application.ReadAction
 import java.util.concurrent.Callable
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-import org.elixir_lang.sdk.wsl.wslCompat
 
 // Based on [NewPythonProjectStep](https://github.com/JetBrains/intellij-community/blob/7bb876b50c1601c8563c444d5f133dd19247e814/python/src/com/jetbrains/python/newProject/NewProjectWizardPythonData.kt#L74)
 class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
@@ -242,43 +234,15 @@ fun Row.elixirSdkChooser(
     locationProperty: ObservableProperty<String>,
 ): Cell<SdkChoicePanel> {
     fun locationDirectory(): String? = locationProperty.get().takeUnless(String::isBlank)
-    fun target() = locationDirectory()?.let { SdkEnvironment.eelDescriptor(it) }
 
-    fun folders() = listOfNotNull(locationDirectory()?.toNioPathOrNull())
-
-    val state = SdkChoiceState(context.project ?: ProjectManager.getInstance().defaultProject, target(), null, folders(), takesOptIns(context))
-    Disposer.register(context.disposable, state)
-    Disposer.register(context.disposable) { SdkDetectionContext.clear() }
-    val panel = SdkChoicePanel(state, context.disposable) {
+    val panel = wizardChooserPanel(context, context.disposable, locationDirectory()) {
         sdkProperty.set(it?.entry?.sdk)
         optInsProperty.set(it?.optIns)
     }
 
     // Add...'s home chooser opens where the project goes.
-    SdkDetectionContext.set(locationDirectory())
-    locationProperty.afterChange(context.disposable) {
-        SdkDetectionContext.set(locationDirectory())
-        panel.retarget(target(), folders())
-    }
+    panel.follow(locationDirectory())
+    locationProperty.afterChange(context.disposable) { panel.follow(locationDirectory()) }
 
-    return cell(panel).validationOnApply { validationMessage(sdkProperty.get())?.let { error(it) } }
-}
-
-private fun validationMessage(sdk: Sdk?): @NlsContexts.DialogMessage String? {
-    sdk ?: return JavaUiBundle.message("title.no.jdk.specified")
-
-    val internalErlangSdk = sdk.getErlangSdk()
-        ?: return "Internal Erlang SDK is not configured. Set it before picking this Elixir SDK."
-
-    val internalErlangHome = internalErlangSdk.homePath
-    if (internalErlangHome != null && !wslCompat.isReachable(internalErlangHome)) {
-        return "Internal Erlang SDK (${internalErlangSdk.name}) home directory ($internalErlangHome) is in a WSL" +
-                " distribution that is not installed."
-    }
-    if (internalErlangHome?.let { wslCompat.findFileByPath(it) } == null) {
-        return "Internal Erlang SDK (${internalErlangSdk.name}) home directory" +
-                " (${internalErlangSdk.homePath}) does not exist. Did you uninstall it?"
-    }
-
-    return null
+    return cell(panel).validationOnApply { pickRefusal(sdkProperty.get())?.let { error(it) } }
 }

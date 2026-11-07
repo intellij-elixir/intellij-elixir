@@ -24,7 +24,9 @@ import org.elixir_lang.configuration.ElixirCompilerSettings
 import org.elixir_lang.mix.Icons
 import org.elixir_lang.mix.Project.createModulesForOtpApps
 import org.elixir_lang.mix.project.OtpApp
+import org.elixir_lang.sdk.choice.TakesSdkPick
 import org.elixir_lang.sdk.elixir.Type
+import org.elixir_lang.tool_manager.ToolManagerOptIns
 import java.io.File
 import java.io.IOException
 import javax.swing.Icon
@@ -33,15 +35,15 @@ import javax.swing.Icon
  * Created by zyuyou on 15/7/1.
  * https://github.com/ignatov/intellij-erlang/blob/master/src/org/intellij/erlang/rebar/importWizard/RebarProjectImportBuilder.java
  */
-class Builder : ProjectImportBuilder<OtpApp>() {
+class Builder : ProjectImportBuilder<OtpApp>(), TakesSdkPick {
     private var myProjectRoot: VirtualFile? = null
     private var myFoundOtpApps = emptyList<OtpApp>()
     private var mySelectedOtpApps = emptyList<OtpApp>()
     private var myIsImportingProject: Boolean = false
     private var myNeedsScan: Boolean = false
 
-    /** Elixir SDK to assign to each created module. Set by ElixirSdkForModuleStep.updateDataModel(). */
-    var elixirSdk: Sdk? = null
+    override var elixirSdk: Sdk? = null
+    override var toolManagerOptIns: ToolManagerOptIns? = null
 
     /** File > Open's context, whose `projectJdk` the platform applies to the project after [validate]. */
     var openContext: WizardContext? = null

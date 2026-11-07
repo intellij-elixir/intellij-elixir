@@ -13,9 +13,8 @@ import java.nio.file.InvalidPathException
 import java.nio.file.Path
 
 /**
- * Execution-environment identity for SDK homes and wizard target directories, shared by the
- * import wizard ([org.elixir_lang.mix.project._import.step.ElixirSdkForModuleStep]) and the
- * chooser ([org.elixir_lang.sdk.choice.SdkChoiceState]).
+ * Execution-environment identity for SDK homes and wizard target directories, for the chooser
+ * ([org.elixir_lang.sdk.choice.SdkChoiceState]).
  *
  * ProjectSdksModel.reset() filters SDKs to the project's environment, but during import and New
  * Project the wizard supplies the default project, which always resolves to the local
