@@ -49,8 +49,8 @@ internal fun Driver.moduleInheritsSdk(): Boolean = withReadAction { utility(Modu
 /** The module's dependencies as Project Structure names them: a library by its name, an SDK as `< name >`. */
 internal fun Driver.dependencyNames(): List<String> = withReadAction { getOrderEntries(module()).map { it.getPresentableName() } }
 
-/** The SDK name the module's one facet, the Elixir facet, stores. */
-internal fun Driver.facetSdkName(): String? = withReadAction {
-    val facet = utility(FacetManagerRef::class).getInstance(module()).getAllFacets().single()
+/** The SDK name the one facet, the Elixir facet, of the [module] named [name] stores. */
+internal fun Driver.facetSdkName(name: String? = null): String? = withReadAction {
+    val facet = utility(FacetManagerRef::class).getInstance(module(name)).getAllFacets().single()
     cast(facet.getConfiguration(), ElixirFacetConfigurationRef::class).getSdkName()
 }

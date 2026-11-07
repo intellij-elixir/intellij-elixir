@@ -74,6 +74,17 @@ internal fun stageProject(name: String, iml: String, files: Map<String, String> 
     return stageSources(name, files + mapOf(".idea/modules.xml" to modules, "$name.iml" to iml))
 }
 
+/** A `mix.exs` of one app, [app]. */
+internal fun mixExs(app: String): String = """
+    defmodule ${app.replaceFirstChar(Char::uppercase)}.MixProject do
+      use Mix.Project
+
+      def project do
+        [app: :$app, version: "0.1.0"]
+      end
+    end
+""".trimIndent()
+
 /** A folder under the private home's projects holding [files], by path from it; the folder. */
 internal fun stageSources(name: String, files: Map<String, String>): Path {
     val folder = NoScreen.privateHome.resolve("projects/$name")
@@ -117,6 +128,9 @@ internal fun Driver.addSdksOnPage(erlangHome: String, elixirHome: String): Pair<
     val erlang = addErlangOnPage(erlangHome)
     return erlang to addElixirOnPage(elixirHome, erlang).name
 }
+
+/** The editor banner's label that asks the chooser for the Elixir SDK. */
+internal const val CHOOSE_LABEL = "Choose Elixir SDK..."
 
 /** The editor banner's [text] label. */
 internal fun Driver.bannerLabel(text: String): UiComponent = ui.x("//div[@visible_text='$text' or @accessiblename='$text']")
