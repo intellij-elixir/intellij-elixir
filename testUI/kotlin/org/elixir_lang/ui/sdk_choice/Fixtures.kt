@@ -44,7 +44,6 @@ internal fun stageElixirInstall(): String {
  * project's folder; its folder. It has its own `.idea`, so opening it keeps what the module file says.
  */
 internal fun stageProject(name: String, iml: String, files: Map<String, String> = emptyMap()): Path {
-    val project = NoScreen.privateHome.resolve("projects/$name")
     val modules = """
         <?xml version="1.0" encoding="UTF-8"?>
         <project version="4">
@@ -55,10 +54,14 @@ internal fun stageProject(name: String, iml: String, files: Map<String, String> 
           </component>
         </project>
     """.trimIndent()
-    (files + mapOf(".idea/modules.xml" to modules, "$name.iml" to iml)).forEach { (path, text) ->
-        project.resolve(path).apply { parent.createDirectories() }.writeText(text + "\n")
-    }
-    return project
+    return stageSources(name, files + mapOf(".idea/modules.xml" to modules, "$name.iml" to iml))
+}
+
+/** A folder under the private home's projects holding [files], by path from it; the folder. */
+internal fun stageSources(name: String, files: Map<String, String>): Path {
+    val folder = NoScreen.privateHome.resolve("projects/$name")
+    files.forEach { (path, text) -> folder.resolve(path).apply { parent.createDirectories() }.writeText(text + "\n") }
+    return folder
 }
 
 /** A module of [type] inheriting a project SDK there is none of, with [facet] as its Elixir facet's configuration when given. */

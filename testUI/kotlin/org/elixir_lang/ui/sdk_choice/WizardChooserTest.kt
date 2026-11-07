@@ -7,7 +7,6 @@ import com.intellij.driver.sdk.invokeAction
 import com.intellij.driver.sdk.ui.components.common.dialogs.NewProjectDialogUI
 import com.intellij.driver.sdk.ui.components.common.dialogs.newProjectDialog
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
-import com.intellij.driver.sdk.ui.components.elements.jBlist
 import org.elixir_lang.ui.framework.core.choosePath
 import org.elixir_lang.ui.framework.core.pickInErlangStep
 import org.elixir_lang.ui.framework.core.sdksAt
@@ -119,8 +118,6 @@ class WizardChooserTest {
     }
 
     private fun NewProjectDialogUI.pick(elixir: String) = chooserList().pickEntry(elixir)
-
-    private fun NewProjectDialogUI.chooserList() = jBlist("//div[@class='SdkChoicePanel']//div[@class='JBList']")
 
     /** The content root and dependency lines of the module file [iml]. */
     private fun rootEntries(iml: Path): List<String> = imlLines(iml, "<content", "<orderEntry")

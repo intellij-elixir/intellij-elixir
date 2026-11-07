@@ -3,14 +3,20 @@ package org.elixir_lang.module;
 import com.intellij.ide.util.importProject.ModuleDescriptor;
 import com.intellij.ide.util.importProject.ProjectDescriptor;
 import com.intellij.ide.util.projectWizard.ModuleWizardStep;
-import com.intellij.ide.util.projectWizard.ProjectJdkForModuleStep;
 import com.intellij.ide.util.projectWizard.importSources.DetectedProjectRoot;
 import com.intellij.ide.util.projectWizard.importSources.DetectedSourceRoot;
 import com.intellij.ide.util.projectWizard.importSources.ProjectFromSourcesBuilder;
 import com.intellij.ide.util.projectWizard.importSources.ProjectStructureDetector;
+import com.intellij.ide.util.projectWizard.importSources.impl.ProjectFromSourcesBuilderImpl;
+import com.intellij.openapi.module.Module;
+import com.intellij.openapi.roots.ModuleRootManager;
+import com.intellij.openapi.roots.ui.configuration.ModulesProvider;
 import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.util.containers.ContainerUtil;
-import org.elixir_lang.sdk.elixir.Type;
+import org.elixir_lang.sdk.choice.SdkChoiceKt;
+import org.elixir_lang.sdk.choice.SdkChoicePick;
+import org.elixir_lang.sdk.choice.SdkChoiceStep;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -18,7 +24,10 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 /**
@@ -63,11 +72,39 @@ public class ElixirProjectStructureDetector extends ProjectStructureDetector {
     }
   }
 
+  /**
+   * The chooser, asking for the Elixir SDK of this detector's modules, which an updater of the import writes once they
+   * are made. Only {@link ProjectFromSourcesBuilderImpl} takes updaters, so another builder gets no step.
+   */
   @Override
   public List<ModuleWizardStep> createWizardSteps(ProjectFromSourcesBuilder builder, ProjectDescriptor projectDescriptor, Icon stepIcon) {
-    ProjectJdkForModuleStep projectJdkForModuleStep = new ProjectJdkForModuleStep(builder.getContext(), Type.getInstance());
-    return Collections.<ModuleWizardStep>singletonList(projectJdkForModuleStep);
+    if (!(builder instanceof ProjectFromSourcesBuilderImpl sourcesBuilder)) {
+      return Collections.emptyList();
+    }
+
+    AtomicReference<SdkChoicePick> picked = new AtomicReference<>();
+    sourcesBuilder.addConfigurationUpdater((project, modelsProvider, modulesProvider) -> {
+      SdkChoicePick pick = picked.get();
+      if (pick != null) {
+        SdkChoiceKt.writePick(project, modulesOf(projectDescriptor, modulesProvider), pick.getEntry().getSdk(), pick.getOptIns());
+      }
+    });
+
+    return Collections.singletonList(new SdkChoiceStep(builder.getContext(), picked::set, builder::getBaseProjectPath));
   }
 
+  /** The modules of {@code modulesProvider} with a content root of one of {@code projectDescriptor}'s modules. */
+  private static @NotNull List<Module> modulesOf(@NotNull ProjectDescriptor projectDescriptor, @NotNull ModulesProvider modulesProvider) {
+    Set<String> contentRootUrls = new HashSet<>();
+    for (ModuleDescriptor moduleDescriptor : projectDescriptor.getModules()) {
+      for (File contentRoot : moduleDescriptor.getContentRoots()) {
+        contentRootUrls.add(VfsUtilCore.fileToUrl(contentRoot));
+      }
+    }
 
+    return ContainerUtil.filter(
+      modulesProvider.getModules(),
+      module -> ContainerUtil.exists(ModuleRootManager.getInstance(module).getContentRootUrls(), contentRootUrls::contains)
+    );
+  }
 }
