@@ -3,12 +3,16 @@ package org.elixir_lang.tool_manager
 import com.intellij.execution.ExecutionException
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.process.CapturingProcessHandler
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.components.Service
+import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.util.system.OS
 import org.elixir_lang.jps.shared.tool_manager.ToolManagerCommandOutput
 import org.elixir_lang.jps.shared.tool_manager.ToolManagerCommandRunner
 import org.elixir_lang.jps.shared.tool_manager.ToolManagerEnvironment
 import org.elixir_lang.jps.shared.tool_manager.ToolManagerEnvironmentResolver
+import org.elixir_lang.jps.shared.tool_manager.ToolManagerSettingsState
 import org.elixir_lang.jps.shared.tool_manager.builtInToolManagerEnvironments
 import org.elixir_lang.jps.shared.tool_manager.resolveToolManagerEnvironment
 import org.elixir_lang.sdk.wsl.wslCompat
@@ -33,19 +37,49 @@ private val runner = ToolManagerCommandRunner { command, workDir, environment ->
     ToolManagerCommandOutput(output.exitCode, output.stdout, output.stderr)
 }
 
-private val resolvers: Map<String, ToolManagerEnvironmentResolver> = builtInToolManagerEnvironments(runner)
+/**
+ * The environment of each tool manager that applies one, by name: [builtInToolManagerEnvironments], run as this IDE runs
+ * processes.
+ *
+ * A test replaces the service with one built from its own map. A light service's class must be final.
+ */
+@Service
+class ToolManagerEnvironments(val resolvers: Map<String, ToolManagerEnvironmentResolver>) {
+    @Suppress("unused") // The platform makes the service through it.
+    constructor() : this(builtInToolManagerEnvironments(runner))
+
+    companion object {
+        fun getInstance(): ToolManagerEnvironments = ApplicationManager.getApplication().service()
+    }
+}
 
 /** Whether [manager] can apply its environment to the processes the plugin starts. */
-fun providesEnvironment(manager: ElixirToolManager): Boolean = manager.name in resolvers
+fun providesEnvironment(manager: ElixirToolManager): Boolean = manager.name in ToolManagerEnvironments.getInstance().resolvers
 
-/** The environment of the tool managers [project] opted into, as its settings stand now. */
-fun toolManagerEnvironment(project: Project?): ToolManagerEnvironmentResolver? {
-    if (project == null || project.isDisposed) return null
+/**
+ * The environment of the tool managers [project] opted into, as its settings stand now, with the opt-ins in [pending]
+ * on top. A wizard starts `mix` before it adopts what its chooser ticked, and nothing pending is saved here.
+ *
+ * The tool manager is asked about [folder] when it is given, and otherwise about each process's working directory.
+ */
+@JvmOverloads
+fun toolManagerEnvironment(
+    project: Project?,
+    pending: ToolManagerOptIns? = null,
+    folder: Path? = null,
+): ToolManagerEnvironmentResolver? {
+    if (project?.isDisposed == true) return null
 
-    val settings = ToolManagerSettings.getInstance(project).state.copy()
+    val settings = when {
+        project != null -> ToolManagerSettings.getInstance(project).state.copy()
+        pending != null -> ToolManagerSettingsState()
+        else -> return null
+    }
+    pending?.adoptInto(settings)
+    val resolvers = ToolManagerEnvironments.getInstance().resolvers
 
     return ToolManagerEnvironmentResolver { workDir, launchVariables ->
-        resolveToolManagerEnvironment(settings, resolvers, workDir, launchVariables)
+        resolveToolManagerEnvironment(settings, resolvers, folder ?: workDir, launchVariables)
     }
 }
 

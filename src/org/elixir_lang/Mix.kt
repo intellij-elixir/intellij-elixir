@@ -8,7 +8,9 @@ import org.elixir_lang.cli.CliArguments
 import org.elixir_lang.jps.shared.cli.CliArgs
 import org.elixir_lang.jps.shared.cli.CliTool
 import org.elixir_lang.jps.shared.sdk.SdkPaths
+import org.elixir_lang.jps.shared.tool_manager.ToolManagerEnvironmentResolver
 import org.elixir_lang.run.baseCommandLine
+import org.elixir_lang.tool_manager.toolManagerEnvironment
 
 object Mix {
     @JvmStatic
@@ -21,7 +23,8 @@ object Mix {
         elixirParameters: List<String> = emptyList(),
         pty: Boolean = false,
         project: Project? = null,
-        ansiEnabled: Boolean = true
+        ansiEnabled: Boolean = true,
+        toolManagerEnvironment: ToolManagerEnvironmentResolver? = toolManagerEnvironment(project),
     ): GeneralCommandLine {
         val args: CliArgs =
             CliArguments.argsOrThrow(
@@ -38,6 +41,7 @@ object Mix {
             workingDirectory,
             project,
             SdkPaths.mixHomeEnvironment(elixirSdk.homePath),
+            toolManagerEnvironment,
         )
         commandLine.exePath = args.exePath
         commandLine.addParameters(args.arguments)

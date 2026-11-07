@@ -16,10 +16,11 @@ fun baseCommandLine(
     workingDirectory: String?,
     project: Project?,
     sdkEnvironment: SdkEnvironment? = null,
+    toolManagerEnvironment: ToolManagerEnvironmentResolver? = toolManagerEnvironment(project),
 ): GeneralCommandLine {
     workingDirectory?.let { wslCompat.requireReachable(it, "Working directory") }
 
-    return baseCommandLine(pty, toolManagerEnvironment(project), sdkEnvironment)
+    return baseCommandLine(pty, toolManagerEnvironment, sdkEnvironment)
             .withCharset(Charsets.UTF_8)
             .withEnvironment(environment)
             .withWorkDirectory(workingDirectory)

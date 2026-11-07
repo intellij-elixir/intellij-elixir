@@ -1,13 +1,11 @@
 package org.elixir_lang.ui.sdk_choice
 
 import com.intellij.driver.client.Driver
-import com.intellij.driver.sdk.getModules
 import com.intellij.driver.sdk.getOpenProjects
 import com.intellij.driver.sdk.invokeAction
 import com.intellij.driver.sdk.ui.components.common.dialogs.NewProjectDialogUI
 import com.intellij.driver.sdk.ui.components.common.dialogs.newProjectDialog
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
-import com.intellij.driver.sdk.ui.components.elements.jBlist
 import org.elixir_lang.ui.framework.core.choosePath
 import org.elixir_lang.ui.framework.core.pickInErlangStep
 import org.elixir_lang.ui.framework.core.sdksAt
@@ -120,14 +118,10 @@ class WizardChooserTest {
 
     private fun NewProjectDialogUI.pick(elixir: String) = chooserList().pickEntry(elixir)
 
-    private fun NewProjectDialogUI.chooserList() = jBlist("//div[@class='SdkChoicePanel']//div[@class='JBList']")
-
     /** The content root and dependency lines of the module file [iml]. */
     private fun rootEntries(iml: Path): List<String> = imlLines(iml, "<content", "<orderEntry")
 
     private fun Driver.project(name: String) = getOpenProjects().firstOrNull { it.getName() == name }
-
-    private fun Driver.moduleNames(): List<String> = getModules().map { it.getName() }
 
     private fun NewProjectDialogUI.failedKeepingWizard(rows: Rows, row: String, failure: Throwable) =
         driver.failedErlangStepRow(rows, row, failure) { cancelDialogs(SdkPage.ELIXIR.chooserTitle) }

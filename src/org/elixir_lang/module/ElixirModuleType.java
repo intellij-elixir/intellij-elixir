@@ -1,13 +1,12 @@
 package org.elixir_lang.module;
 
 import com.intellij.ide.util.projectWizard.ModuleWizardStep;
-import com.intellij.ide.util.projectWizard.ProjectJdkForModuleStep;
 import com.intellij.ide.util.projectWizard.WizardContext;
 import com.intellij.openapi.module.ModuleType;
 import com.intellij.openapi.module.ModuleTypeManager;
 import com.intellij.openapi.roots.ui.configuration.ModulesProvider;
 import org.elixir_lang.Icons;
-import org.elixir_lang.sdk.elixir.Type;
+import org.elixir_lang.sdk.choice.SdkChoiceStep;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -51,15 +50,8 @@ final class ElixirModuleType extends ModuleType<ElixirModuleBuilder>{
 
   @Override
   public ModuleWizardStep @NotNull [] createWizardSteps(@NotNull WizardContext wizardContext,
-                                              @NotNull final ElixirModuleBuilder moduleBuilder,
+                                              @NotNull ElixirModuleBuilder moduleBuilder,
                                               @NotNull ModulesProvider modulesProvider) {
-    return new ModuleWizardStep[]{
-        new ProjectJdkForModuleStep(wizardContext, Type.getInstance()){
-          public void updateDataModel(){
-            super.updateDataModel();
-            moduleBuilder.setModuleJdk(getJdk());
-          }
-        }
-    };
+    return new ModuleWizardStep[]{new SdkChoiceStep(wizardContext, moduleBuilder::takePick, () -> null)};
   }
 }

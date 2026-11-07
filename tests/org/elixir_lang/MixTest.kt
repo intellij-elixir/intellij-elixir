@@ -13,11 +13,17 @@ import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.system.OS
 import org.elixir_lang.jps.shared.tool_manager.ToolManagerEnvironment
 import org.elixir_lang.jps.shared.tool_manager.ToolManagerEnvironmentResolver
+import org.elixir_lang.mix.runner.MixTaskRunner
 import org.elixir_lang.run.WslAwareCommandLine
 import org.elixir_lang.run.WslAwarePtyCommandLine
+import org.elixir_lang.sdk.choice.TOOL_MANAGER_PROBE
+import org.elixir_lang.sdk.choice.TOOL_MANAGER_PROBE_LINE
+import org.elixir_lang.sdk.choice.replaceToolManagerEnvironments
 import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResolver
 import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResult
 import org.elixir_lang.sdk.erlang_dependent.MissingErlangSdkReason
+import org.elixir_lang.tool_manager.ToolManagerOptIns
+import org.elixir_lang.tool_manager.toolManagerEnvironment
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
@@ -153,6 +159,27 @@ class MixTest : PlatformTestCase() {
         )
     }
 
+    /**
+     * A Mix import fetches the project's dependencies before it adopts what its chooser ticked, so the tasks take the
+     * environment of those pending opt-ins.
+     */
+    fun testTheImportsMixTasksGetThePendingOptInsEnvironment() {
+        // The Erlang SDK's `erl.exe` cannot be a script that records the environment it was started with.
+        if (OS.CURRENT == OS.Windows) return
+
+        val recorded = trackPath(Files.createTempDirectory("mix-task-environment")).resolve("environment")
+        val elixirSdk = mockSdk(ElixirSdkType.instance, ELIXIR_VERSION, createElixirHome(), mockSdk(ErlangSdkType.instance, "28.0.2", createRecordingErlangHome(recorded)))
+        val workDir = trackPath(Files.createTempDirectory("mix-task-work-dir")).toString()
+        replaceToolManagerEnvironments(testRootDisposable, mapOf("fake" to ToolManagerEnvironmentResolver { _, _ -> ToolManagerEnvironment.Variables(TOOL_MANAGER_PROBE) }))
+        val environment = toolManagerEnvironment(null, ToolManagerOptIns("fake", environment = true))
+
+        MixTaskRunner.runImportTasks(environment, workDir, elixirSdk)
+
+        val lines = if (Files.exists(recorded)) Files.readAllLines(recorded) else emptyList()
+        // One `env` for each of `local.hex`, `local.rebar` and `deps.get`.
+        assertEquals(lines.joinToString("\n"), 3, lines.count { it == TOOL_MANAGER_PROBE_LINE })
+    }
+
     private fun sdkMixVariables(elixirHome: Path): Map<String, String> {
         val mixHome = elixirHome.resolve(".mix")
         return mapOf(
@@ -233,6 +260,15 @@ class MixTest : PlatformTestCase() {
     private fun createErlangHome(): Path {
         val home = trackPath(Files.createTempDirectory("erlang-home"))
         Files.createFile(Files.createDirectories(home.resolve("bin")).resolve("erl"))
+        return home
+    }
+
+    /** An Erlang home whose `erl` appends the environment it was started with to [recorded]. */
+    private fun createRecordingErlangHome(recorded: Path): Path {
+        val home = trackPath(Files.createTempDirectory("recording-erlang-home"))
+        val erl = Files.createDirectories(home.resolve("bin")).resolve("erl")
+        Files.writeString(erl, "#!/bin/sh\nenv >> '$recorded'\n")
+        check(erl.toFile().setExecutable(true)) { "Failed to make $erl executable" }
         return home
     }
 

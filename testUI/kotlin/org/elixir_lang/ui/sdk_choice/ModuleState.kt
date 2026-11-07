@@ -36,6 +36,9 @@ internal interface ElixirFacetConfigurationRef {
 /** The open project's module named [name], or its one module when no name is given. */
 internal fun Driver.module(name: String? = null): Module = getModules().single { name == null || it.getName() == name }
 
+/** The names of the open project's modules. */
+internal fun Driver.moduleNames(): List<String> = getModules().map { it.getName() }
+
 /** The name of the SDK of the [module] named [name], its own or the project's it inherits; null when it has none. */
 internal fun Driver.moduleSdk(name: String? = null): String? =
     withReadAction { utility(ModuleRootsRef::class).getInstance(module(name)).getSdk()?.getName() }

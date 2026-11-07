@@ -1,9 +1,9 @@
 package org.elixir_lang.new_project_wizard
 
 import com.intellij.execution.ExecutionException
+import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.process.ProcessOutput
 import com.intellij.execution.util.ExecUtil
-import com.intellij.ide.JavaUiBundle
 import com.intellij.ide.highlighter.ModuleFileType
 import com.intellij.ide.util.projectWizard.WizardContext
 import com.intellij.ide.wizard.AbstractNewProjectWizardStep
@@ -13,6 +13,7 @@ import com.intellij.ide.wizard.NewProjectWizardStep
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.module.Module
 import com.intellij.openapi.observable.properties.ObservableMutableProperty
 import com.intellij.openapi.observable.properties.ObservableProperty
 import com.intellij.openapi.observable.util.not
@@ -20,12 +21,8 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.util.NlsContexts
 import com.intellij.openapi.util.io.FileUtil
-import com.intellij.openapi.util.io.toNioPathOrNull
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.ui.dsl.builder.*
@@ -33,20 +30,18 @@ import com.intellij.util.concurrency.annotations.RequiresEdt
 import kotlinx.coroutines.CancellationException
 import org.elixir_lang.Mix
 import org.elixir_lang.module.ElixirModuleBuilder
-import org.elixir_lang.sdk.SdkDetectionContext
-import org.elixir_lang.sdk.SdkEnvironment
 import org.elixir_lang.sdk.choice.SdkChoicePanel
-import org.elixir_lang.sdk.choice.SdkChoiceState
-import org.elixir_lang.sdk.choice.takesOptIns
-import org.elixir_lang.sdk.erlang_dependent.getErlangSdk
+import org.elixir_lang.sdk.choice.follow
+import org.elixir_lang.sdk.choice.pickRefusal
+import org.elixir_lang.sdk.choice.wizardChooserPanel
 import org.elixir_lang.tool_manager.ToolManagerOptIns
+import org.elixir_lang.tool_manager.toolManagerEnvironment
 import java.io.IOException
 import java.nio.file.Paths
 import com.intellij.openapi.application.ReadAction
 import java.util.concurrent.Callable
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-import org.elixir_lang.sdk.wsl.wslCompat
 
 // Based on [NewPythonProjectStep](https://github.com/JetBrains/intellij-community/blob/7bb876b50c1601c8563c444d5f133dd19247e814/python/src/com/jetbrains/python/newProject/NewProjectWizardPythonData.kt#L74)
 class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
@@ -125,17 +120,8 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
     override fun setupProject(project: Project) {
         try {
             val sdk = this.sdk!!
-            val workingDirectory = Paths.get(".").toAbsolutePath().normalize().toString()
             val projectDirectory = context.projectDirectory.toString()
-
-            // Mix.commandLine() -> argsOrThrow() -> requireErlangSdkOrNotifyAndThrow()
-            // -> findErlangSdkByHomePath() asserts a read lock; acquire one here.
-            val commandLine = ReadAction.nonBlocking(Callable {
-                Mix.commandLine(emptyMap(), workingDirectory, sdk, project = project)
-            }).executeSynchronously()
-            commandLine.addParameters(
-                MixNewOptions.parameters(projectDirectory, mixNewApp, mixNewModule, mixNewSup, mixNewUmbrella)
-            )
+            val commandLine = mixNewCommandLine(project, sdk)
 
             // delete the caller's created empty directory so that `mix new` can create it.
             if (!context.projectDirectory.toFile().deleteRecursively()) {
@@ -186,7 +172,7 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
 
             super.setupProject(project)
 
-            moduleBuilder(sdk).commit(project)
+            commitModule(project, sdk)
         } catch (e: ExecutionException) {
             Logger.getInstance(javaClass).warn("mix new failed", e)
             throw e
@@ -198,11 +184,40 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
     }
 
     /**
+     * `mix new` for this step's answers, with [sdk]. [project] adopts the tool manager opt-ins the chooser ticked only
+     * once the module is made, so `mix new` takes their environment as pending. The tool manager is asked about the
+     * location, as the offer was, not about `mix new`'s working directory.
+     */
+    internal fun mixNewCommandLine(project: Project, sdk: Sdk): GeneralCommandLine {
+        val workingDirectory = Paths.get(".").toAbsolutePath().normalize().toString()
+        val environment = toolManagerEnvironment(project, optInsProperty.get(), Paths.get(path))
+
+        // Mix.commandLine() -> argsOrThrow() -> requireErlangSdkOrNotifyAndThrow()
+        // -> findErlangSdkByHomePath() asserts a read lock; acquire one here.
+        val commandLine = ReadAction.nonBlocking(Callable {
+            Mix.commandLine(emptyMap(), workingDirectory, sdk, project = project, toolManagerEnvironment = environment)
+        }).executeSynchronously()
+        commandLine.addParameters(
+            MixNewOptions.parameters(context.projectDirectory.toString(), mixNewApp, mixNewModule, mixNewSup, mixNewUmbrella)
+        )
+
+        return commandLine
+    }
+
+    /**
+     * Commits the module `mix new` made, with [sdk] as its Elixir SDK, into the module model the wizard hands over, so
+     * Project Structure's Cancel drops it; with none handed, into the project's.
+     */
+    @Suppress("DEPRECATION") // The key the wizard hands its model under; UIWizardUtil.setupProjectFromBuilder, its replacement, is @Internal.
+    internal fun commitModule(project: Project, sdk: Sdk): List<Module> =
+        moduleBuilder(sdk).commit(project, context.getUserData(NewProjectWizardStep.MODIFIABLE_MODULE_MODEL_KEY))
+
+    /**
      * The builder of the module `mix new` made, which writes [sdk] as its Elixir SDK. It is named and placed from this
      * step's name and location, as `IntelliJNewProjectWizardStep.configureModuleBuilder` does: left unset, New Module
      * would write the project's own module file.
      */
-    internal fun moduleBuilder(sdk: Sdk): ElixirModuleBuilder {
+    private fun moduleBuilder(sdk: Sdk): ElixirModuleBuilder {
         val projectDirectory = context.projectDirectory.toString()
         val builder = ElixirModuleBuilder()
         builder.name = name
@@ -242,43 +257,15 @@ fun Row.elixirSdkChooser(
     locationProperty: ObservableProperty<String>,
 ): Cell<SdkChoicePanel> {
     fun locationDirectory(): String? = locationProperty.get().takeUnless(String::isBlank)
-    fun target() = locationDirectory()?.let { SdkEnvironment.eelDescriptor(it) }
 
-    fun folders() = listOfNotNull(locationDirectory()?.toNioPathOrNull())
-
-    val state = SdkChoiceState(context.project ?: ProjectManager.getInstance().defaultProject, target(), null, folders(), takesOptIns(context))
-    Disposer.register(context.disposable, state)
-    Disposer.register(context.disposable) { SdkDetectionContext.clear() }
-    val panel = SdkChoicePanel(state, context.disposable) {
+    val panel = wizardChooserPanel(context, context.disposable, locationDirectory()) {
         sdkProperty.set(it?.entry?.sdk)
         optInsProperty.set(it?.optIns)
     }
 
     // Add...'s home chooser opens where the project goes.
-    SdkDetectionContext.set(locationDirectory())
-    locationProperty.afterChange(context.disposable) {
-        SdkDetectionContext.set(locationDirectory())
-        panel.retarget(target(), folders())
-    }
+    panel.follow(locationDirectory())
+    locationProperty.afterChange(context.disposable) { panel.follow(locationDirectory()) }
 
-    return cell(panel).validationOnApply { validationMessage(sdkProperty.get())?.let { error(it) } }
-}
-
-private fun validationMessage(sdk: Sdk?): @NlsContexts.DialogMessage String? {
-    sdk ?: return JavaUiBundle.message("title.no.jdk.specified")
-
-    val internalErlangSdk = sdk.getErlangSdk()
-        ?: return "Internal Erlang SDK is not configured. Set it before picking this Elixir SDK."
-
-    val internalErlangHome = internalErlangSdk.homePath
-    if (internalErlangHome != null && !wslCompat.isReachable(internalErlangHome)) {
-        return "Internal Erlang SDK (${internalErlangSdk.name}) home directory ($internalErlangHome) is in a WSL" +
-                " distribution that is not installed."
-    }
-    if (internalErlangHome?.let { wslCompat.findFileByPath(it) } == null) {
-        return "Internal Erlang SDK (${internalErlangSdk.name}) home directory" +
-                " (${internalErlangSdk.homePath}) does not exist. Did you uninstall it?"
-    }
-
-    return null
+    return cell(panel).validationOnApply { pickRefusal(sdkProperty.get())?.let { error(it) } }
 }

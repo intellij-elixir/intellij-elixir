@@ -11,12 +11,14 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.util.Disposer
 import com.intellij.platform.eel.EelDescriptor
 import com.intellij.platform.eel.provider.getEelDescriptor
+import com.intellij.platform.eel.provider.getResolvedEelMachine
 import com.intellij.platform.ide.progress.ModalTaskOwner
 import com.intellij.platform.ide.progress.runWithModalProgressBlocking
 import com.intellij.ui.CollectionListModel
@@ -238,9 +240,27 @@ class SdkChoiceState @RequiresEdt constructor(
         // A wizard's project is the default project, whose `reset` keeps only local SDKs. Add...'s Erlang step lists the
         // model's, so the target's go in too.
         model.reset(project)
-        SdkEnvironment.syncTargetSdks(model, target)
+        syncTargetSdks()
         listModel.replaceAll(load())
         select(entries.find { it.sdk === sdk })
+    }
+
+    /**
+     * Adds the table's SDKs in [target]'s environment that `reset` left out, as the internal
+     * `ProjectSdksModel.syncSdks(EelMachine)` would: `addSdk` copies each into [model] and fires `sdkAdded`, and `apply`
+     * takes an SDK already in the table as an update, not an addition.
+     */
+    private fun syncTargetSdks() {
+        val targetMachine = target?.getResolvedEelMachine() ?: return
+        val projectSdks = model.projectSdks
+
+        for (sdk in ProjectJdkTable.getInstance().allJdks) {
+            if (projectSdks.containsKey(sdk) || projectSdks.containsValue(sdk)) continue
+
+            if (SdkEnvironment.sdkDescriptor(sdk)?.getResolvedEelMachine() == targetMachine) {
+                model.addSdk(sdk)
+            }
+        }
     }
 
     private fun load(): List<SdkChoiceEntry> {

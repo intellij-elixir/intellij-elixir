@@ -1,8 +1,6 @@
 package org.elixir_lang.sdk
 
-import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.platform.eel.EelDescriptor
 import com.intellij.platform.eel.provider.getEelDescriptor
@@ -13,9 +11,8 @@ import java.nio.file.InvalidPathException
 import java.nio.file.Path
 
 /**
- * Execution-environment identity for SDK homes and wizard target directories, shared by the
- * import wizard ([org.elixir_lang.mix.project._import.step.ElixirSdkForModuleStep]) and the
- * chooser ([org.elixir_lang.sdk.choice.SdkChoiceState]).
+ * Execution-environment identity for SDK homes and wizard target directories, for the chooser
+ * ([org.elixir_lang.sdk.choice.SdkChoiceState]).
  *
  * ProjectSdksModel.reset() filters SDKs to the project's environment, but during import and New
  * Project the wizard supplies the default project, which always resolves to the local
@@ -24,11 +21,11 @@ import java.nio.file.Path
  * implementing Project to fake the path violates @NonExtendable on Project -- see
  * https://youtrack.jetbrains.com/issue/IJPL-243914. Instead, the target environment is resolved
  * from the wizard's directory with the public (experimental) Path.getEelDescriptor(), and
- * matching SDKs are re-added via the public ProjectSdksModel.addSdk() in [syncTargetSdks].
+ * matching SDKs are re-added via the public ProjectSdksModel.addSdk() by the chooser.
  *
  * Environments are compared by EelMachine, resolved from the descriptor with
- * getResolvedEelMachine(), because that is what the internal syncSdks(EelMachine) this replicates
- * keys on. Descriptor equality is finer: it includes the UNC root, so `\\wsl$\<distro>` and
+ * getResolvedEelMachine(), because that is what the internal syncSdks(EelMachine) keys on.
+ * Descriptor equality is finer: it includes the UNC root, so `\\wsl$\<distro>` and
  * `\\wsl.localhost\<distro>` are different descriptors but one machine. The path is still
  * normalized with WslCompatService.canonicalizeWslPrefix first, because Path.of needs it to parse
  * the UNC form at all. Comparison is permissive when either machine cannot be resolved, so SDK
@@ -86,24 +83,5 @@ object SdkEnvironment {
         val targetMachine = targetDescriptor?.getResolvedEelMachine() ?: return { true }
 
         return { candidateHome -> eelDescriptor(candidateHome)?.getResolvedEelMachine()?.equals(targetMachine) ?: true }
-    }
-
-    /**
-     * Re-adds registered SDKs that reset() filtered out because the default project resolves to
-     * the local environment. Replicates the internal ProjectSdksModel.syncSdks(EelMachine) using
-     * public API: addSdk() clones the SDK into the model and fires sdkAdded, as syncSdks() does,
-     * and apply() treats SDKs already present in ProjectJdkTable as updates, not additions.
-     */
-    fun syncTargetSdks(sdksModel: ProjectSdksModel, targetDescriptor: EelDescriptor?) {
-        val targetMachine = targetDescriptor?.getResolvedEelMachine() ?: return
-        val projectSdks = sdksModel.projectSdks
-
-        for (sdk in ProjectJdkTable.getInstance().allJdks) {
-            if (projectSdks.containsKey(sdk) || projectSdks.containsValue(sdk)) continue
-
-            if (sdkDescriptor(sdk)?.getResolvedEelMachine() == targetMachine) {
-                sdksModel.addSdk(sdk)
-            }
-        }
     }
 }

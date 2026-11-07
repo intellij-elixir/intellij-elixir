@@ -10,7 +10,13 @@ import com.intellij.util.messages.Topic
 import org.elixir_lang.jps.shared.tool_manager.ToolManagerSettingsState
 
 /** What a chooser's boxes ask of the tool manager named [manager]: to turn it on, and its environment when [environment]. */
-data class ToolManagerOptIns(val manager: String, val environment: Boolean)
+data class ToolManagerOptIns(val manager: String, val environment: Boolean) {
+    /** Turns on [manager] in [state], with its environment as [environment] says. */
+    fun adoptInto(state: ToolManagerSettingsState) {
+        state.enabledManagers.add(manager)
+        if (environment) state.environmentManagers.add(manager) else state.environmentManagers.remove(manager)
+    }
+}
 
 /** Listener notified whenever a tool manager is enabled or disabled. */
 fun interface ToolManagerSettingsListener {
@@ -89,10 +95,7 @@ internal class ToolManagerSettings : PersistentStateComponent<ToolManagerSetting
          * settings' listeners, as the settings page's apply does.
          */
         fun adopt(project: Project, optIns: ToolManagerOptIns) {
-            getInstance(project).run {
-                setEnabled(optIns.manager, true)
-                setEnvironmentEnabled(optIns.manager, optIns.environment)
-            }
+            optIns.adoptInto(getInstance(project).state)
             project.messageBus.syncPublisher(SETTINGS_CHANGED_TOPIC).toolManagerSettingsChanged()
         }
     }

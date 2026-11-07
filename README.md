@@ -369,22 +369,17 @@ If you've already created a `mix` project, you can load it as an Elixir project 
 
    ![File > New Project > From Existing Sources > Import project from external model > Mix](/screenshots/features/project/from_existing_sources/import_project_from_external_model/Mix.png?raw=true "Import Mix Project")
 5. Click Next
-6. Select a Project SDK directory by clicking Configure.
-7. The plugin will automatically find the newest version of Elixir installed. (**NOTE: SDK detection only works for
-   Linux, homebrew installs on OSX, and Windows.  [Open an issue](https://github.com/intellij-elixir/intellij-elixir/issues)
-   with information about Elixir install locations on your operating system and package manager to have SDK detection
-   added for it.**)
-8. If the automatic detection doesn't find your Elixir SDK or you want to use an older version, manually select select
-   the directory above the `bin` directory containing `elixir`, `elixirc`, `iex`, and `mix`. (On Windows it is the
-   directory containing `elixir.bat`, `elixirc.bat`, `iex.bat`, and `mix.bat`.)
-9. Click Finish after you select SDK name from the Project SDK list.
-10. The "Mix project root" will be filled in with the selected directory.
-11. (Optional) Uncheck "Fetch dependencies with mix" if you don't want to run `mix deps.get` when importing the project
-    * If "Fetch dependencies with mix" is checked both `mix local.hex --force` and `mix deps.get` will be run.
-12. Click Next
-13. All directories with `mix.exs` files will be selected as "Mix projects to import".  To import just the main project and not its dependencies, click Unselect All.
-14. Check the box next to the project root to use only its `mix.exs`.  (It will likely be the first checkbox at the top.)
-15. Click Finish
+6. Pick an Elixir SDK from the list, which shows each with its Erlang SDK and picks none for you, or click **Add...** to add one. Next is refused until you pick one.
+7. Click Next
+8. The "Mix project root" will be filled in with the selected directory.
+9. (Optional) Uncheck "Fetch deps with mix" if you don't want to run `mix deps.get` when importing the project
+    * If "Fetch deps with mix" is checked, `mix local.hex --force`, `mix local.rebar --force` and `mix deps.get` run with the Elixir SDK you picked, and with mise's environment if you ticked "Use mise's environment for Mix and the build" when you picked it.
+10. Click Next
+11. All directories with `mix.exs` files will be selected as "Mix projects to import".  To import just the main project and not its dependencies, click Unselect All.
+12. Check the box next to the project root to use only its `mix.exs`.  (It will likely be the first checkbox at the top.)
+13. Click Finish. Every module the import makes gets the Elixir SDK you picked.
+
+File > New > Module from Existing Sources... and Project Structure's + > Import Module take the same steps, and add the modules to the open project.
 
 ##### Create project from existing sources
 If you've already created a (non-`mix`) project, you can load it as an Elixir project into the plugin.
@@ -401,16 +396,10 @@ If you've already created a (non-`mix`) project, you can load it as an Elixir pr
 9. You'll be prompted with a list of detected Elixir project roots to add to the project.  Each root contains a
    `mix.exs`.  Uncheck any project roots that you don't want added.
 10. Click Next.
-11. Select a Project SDK directory by clicking Configure.
-12. The plugin will automatically find the newest version of Elixir installed. (**NOTE: SDK detection only works for
-    Linux, homebrew installs on OSX, and Windows.  [Open an issue](https://github.com/intellij-elixir/intellij-elixir/issues)
-    with information about Elixir install locations on your operating system and package manager to have SDK detection
-    added for it.**)
-13. If the automatic detection doesn't find your Elixir SDK or you want to use an older version, manually select select
-    the directory above the `bin` directory containing `elixir`, `elixirc`, `iex`, and `mix`.
-14. Click Next after you select SDK name from the Project SDK list.
-15. Click Finish on the framework page.  (*No framework detection is implemented yet for Elixir.*)
-16. Choose whether to open in a New Window or in This Window.
+11. Pick an Elixir SDK from the list, which shows each with its Erlang SDK and picks none for you, or click **Add...** to add one. Next is refused until you pick one. The project's module gets the Elixir SDK you pick.
+12. Click Next.
+13. Click Finish on the framework page.  (*No framework detection is implemented yet for Elixir.*)
+14. Choose whether to open in a New Window or in This Window.
 
 #### New
 
