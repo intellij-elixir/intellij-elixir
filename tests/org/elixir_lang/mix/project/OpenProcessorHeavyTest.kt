@@ -4,13 +4,18 @@ import com.intellij.ide.impl.ProjectUtil
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
+import com.intellij.openapi.progress.EmptyProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
+import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.io.FileUtil
+import com.intellij.openapi.vcs.checkout.CheckoutListener
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.projectImport.ProjectImportBuilder
 import com.intellij.testFramework.IndexingTestUtil
@@ -30,7 +35,8 @@ import java.util.concurrent.Callable
 import kotlin.io.path.writeText
 
 /**
- * A Mix project with no `.idea`, opened as File > Open on a folder: the open gives its module no earlier import's pick.
+ * A Mix project with no `.idea`, opened as File > Open on a folder and as Get from VCS opens a checkout: the open attaches
+ * no JDK and no earlier import's pick.
  */
 class OpenProcessorHeavyTest : HeavyTestCase() {
     /** The open dispatches to `Dispatchers.EDT`, which a [runBlocking] on the EDT would never reach. */
@@ -61,6 +67,14 @@ class OpenProcessorHeavyTest : HeavyTestCase() {
         }
     }
 
+    fun testANewestJdkIsNotMadeTheProjectSdk() = opened(::fileOpen) { project ->
+        assertNoProjectSdk(project)
+    }
+
+    fun testGetFromVcsWithoutIdeaAttachesNoJdk() = opened(::getFromVcs) { project ->
+        assertNoProjectSdk(project)
+    }
+
     /** A Mix project with no `.idea` opened by [open], given to [body], then closed. */
     private fun opened(open: (Path) -> Project, body: (Project) -> Unit) {
         assertContainsElements(ProjectJdkTable.getInstance().allJdks.toList(), jdk, elixir)
@@ -82,6 +96,16 @@ class OpenProcessorHeavyTest : HeavyTestCase() {
         ProjectUtil.openOrImportAsync(dir, createTestOpenProjectOptions().copy(projectRootDir = dir))
     } ?: error("File > Open on $dir opened no project")
 
+    /** As Get from VCS hands a checkout to the checkout listeners, under the indicator of its background task. */
+    private fun getFromVcs(dir: Path): Project {
+        ProgressManager.getInstance().runProcess({
+            CheckoutListener.EP_NAME.extensionList.firstOrNull { it.processCheckedOutDirectory(project, dir) }
+                ?: error("no checkout listener opened $dir")
+        }, EmptyProgressIndicator())
+        return ProjectManager.getInstance().openProjects.firstOrNull { FileUtil.pathsEqual(it.basePath, dir.toString()) }
+            ?: error("Get from VCS on $dir opened no project")
+    }
+
     /** Indexing done and the EDT drained, so what the open posted for the smart project has run. */
     private fun settle(project: Project) {
         IndexingTestUtil.waitUntilIndexesAreReady(project)
@@ -90,6 +114,9 @@ class OpenProcessorHeavyTest : HeavyTestCase() {
     }
 
     private fun module(project: Project): Module = ModuleManager.getInstance(project).modules.single()
+
+    private fun assertNoProjectSdk(project: Project) =
+        assertEquals("the project SDK", null, ProjectRootManager.getInstance(project).projectSdk?.name)
 
     private fun <T> read(compute: () -> T): T = ReadAction.nonBlocking(Callable(compute)).executeSynchronously()
 

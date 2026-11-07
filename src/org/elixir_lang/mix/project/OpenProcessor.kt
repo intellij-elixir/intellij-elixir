@@ -75,6 +75,8 @@ class OpenProcessor : ProjectOpenProcessorBase<Builder>() {
         // The builder is application-wide, and a cancelled import wizard leaves its SDK step's pick on it.
         builder.elixirSdk = null
 
+        builder.openContext = wizardContext
+
         return true
     }
 }

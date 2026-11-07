@@ -1,6 +1,7 @@
 package org.elixir_lang.mix.project._import
 
 import com.intellij.compiler.CompilerWorkspaceConfiguration
+import com.intellij.ide.util.projectWizard.WizardContext
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ex.ApplicationInfoEx
 import com.intellij.openapi.diagnostic.Logger
@@ -42,6 +43,9 @@ class Builder : ProjectImportBuilder<OtpApp>() {
     /** Elixir SDK to assign to each created module. Set by ElixirSdkForModuleStep.updateDataModel(). */
     var elixirSdk: Sdk? = null
 
+    /** File > Open's context, whose `projectJdk` the platform applies to the project after [validate]. */
+    var openContext: WizardContext? = null
+
     override fun getIcon(): Icon = Icons.PROJECT
     override fun getName(): String = "Mix"
     override fun isSuitableSdkType(sdkType: SdkTypeId): Boolean = sdkType === Type.instance
@@ -69,6 +73,7 @@ class Builder : ProjectImportBuilder<OtpApp>() {
         myFoundOtpApps = emptyList()
         mySelectedOtpApps = emptyList()
         myNeedsScan = false
+        openContext = null
     }
 
     /**
@@ -76,6 +81,9 @@ class Builder : ProjectImportBuilder<OtpApp>() {
      *
      */
     override fun validate(currentProject: Project?, project: Project): Boolean {
+        // File > Open would otherwise make the newest JDK the project SDK.
+        openContext?.projectJdk = null
+
         if (!findIdeaModuleFiles(mySelectedOtpApps, myProjectRoot)) {
             return true
         }
