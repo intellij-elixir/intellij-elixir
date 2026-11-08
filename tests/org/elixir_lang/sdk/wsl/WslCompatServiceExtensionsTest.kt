@@ -2,6 +2,7 @@ package org.elixir_lang.sdk.wsl
 
 import com.intellij.execution.wsl.WSLDistribution
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.util.system.OS
 import org.elixir_lang.PlatformTestCase
@@ -188,6 +189,15 @@ class WslCompatServiceExtensionsTest : PlatformTestCase() {
     fun testPathsEqualWslAware_treatsWindowsDriveLettersCaseInsensitively() {
         if (OS.CURRENT != OS.Windows) return
         assertTrue(wslCompatMock.pathsEqualWslAware("C:\\Elixir", "c:/elixir"))
+    }
+
+    fun testTheWslHomeRethrowsCancellation() {
+        val distribution = mock(WSLDistribution::class.java)
+        `when`(distribution.userHome).thenThrow(ProcessCanceledException())
+
+        val outcome = onPooledThread { runCatching { WslCompatServiceImpl().getWslUserHome(distribution) } }
+
+        assertInstanceOf(outcome.exceptionOrNull(), ProcessCanceledException::class.java)
     }
 
     // -------------------------------------------------------------------------

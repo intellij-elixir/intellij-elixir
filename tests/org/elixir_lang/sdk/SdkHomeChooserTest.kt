@@ -1,13 +1,19 @@
 package org.elixir_lang.sdk
 
+import com.intellij.execution.wsl.WSLDistribution
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.runBlockingCancellable
 import com.intellij.openapi.project.guessProjectDir
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.testFramework.PsiTestUtil
-import com.intellij.openapi.progress.ProgressManager
+import com.intellij.util.concurrency.AppExecutorUtil
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.sdk.erlang_dependent.Asked
 import org.elixir_lang.sdk.erlang_dependent.ScriptedFileChooserFactory
 import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
+import org.elixir_lang.sdk.wsl.WslCompatServiceImpl
+import org.mockito.Mockito
+import java.util.concurrent.TimeUnit
 
 class SdkHomeChooserTest : HeavyTestCase() {
     fun testTheErlangSdkTypeCreatesThroughItsOwnDialog() {
@@ -40,6 +46,21 @@ class SdkHomeChooserTest : HeavyTestCase() {
                 indicator,
             )
         }
+    }
+
+    fun testTheWslHomeIsReadInsideTheScansModalProgress() {
+        val distribution = Mockito.mock(WSLDistribution::class.java)
+        Mockito.`when`(distribution.userHome).thenAnswer { runBlockingCancellable { "/home/tester" } }
+        var home: String? = null
+
+        val finished = SdkHomeChooser.scanUnderProgress("t", { WslCompatServiceImpl().getWslUserHome(distribution) }) { await ->
+            val indicator = ProgressManager.getInstance().progressIndicator
+            AppExecutorUtil.getAppScheduledExecutorService().schedule({ indicator.cancel() }, 20, TimeUnit.SECONDS)
+            home = await()
+        }
+
+        assertTrue("the home's read never finished behind the scan's progress", finished)
+        assertEquals("/home/tester", home)
     }
 
     fun testTheStartFolderFallsBackToTheBasePath() {
