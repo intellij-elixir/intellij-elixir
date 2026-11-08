@@ -290,7 +290,7 @@ class BuilderCommitTest : HeavyTestCase() {
     private fun assertPhoenixIsALibraryOf(name: String) = assertPhoenixIsALibraryOf(
         project,
         ModuleManager.getInstance(project).findModuleByName(moduleName(name))!!,
-        umbrella.findFileByRelativePath("apps/$name")!!,
+        appRoot(name),
     )
 
     /** The app [name] under the umbrella's `apps/`, whose module file the import finds and loads when [reused]. */
@@ -304,7 +304,7 @@ class BuilderCommitTest : HeavyTestCase() {
     /** The apps [names] found under the umbrella and all selected, each [app] made reused with its module file. */
     private fun importing(vararg names: String) {
         val apps = names.map { name ->
-            val root = umbrella.findFileByRelativePath("apps/$name")!!
+            val root = appRoot(name)
             OtpApp(root, root.findChild("mix.exs")!!)
         }
         moduleNames = org.elixir_lang.mix.Project.moduleNameForOtpApps(apps, umbrella).mapKeys { it.key.name }
