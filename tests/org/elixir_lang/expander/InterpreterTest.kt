@@ -1279,9 +1279,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
      * it stops the module, or the file at its top level.
      */
     fun testAnErrorAfterAnAssumedApplicationReadStops() {
-        val compileEnv =
-            if (COMPILE_ENV_TAKES_ENV_FIRST.isSufficient(legLevel())) "Application.compile_env(env, :nope, :k, nil)"
-            else "Application.__compile_env__(:nope, :k, nil, env)"
+        val compileEnv = legCompileEnv(":nope", ":k", "nil", "env")
         val stopped = "top unported `:ok = :bad`\nmodule Elixir.A stopped `:ok = :bad`"
 
         assertFile("defmodule A do\n  @x Application.compile_env!(:nope, :k)\n  :ok = :bad\nend", stopped)
