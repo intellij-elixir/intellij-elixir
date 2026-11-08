@@ -149,6 +149,9 @@ fun Driver.sdksAt(home: String): List<String> = withReadAction {
         .map { it.getName() }
 }
 
+/** Project Structure's SDKs page's button, which no other page shows. */
+const val ADD_NEW_SDK = "//div[@visible_text='Add New SDK' or @accessiblename='Add New SDK']"
+
 /**
  * Project Structure opened from this window on its SDKs page, with [body] inside; the body closes the dialog. Opened by
  * its action, not its shortcut: under Xvfb the welcome screen doesn't answer one. Not `now`, as the dialog is modal.
@@ -161,7 +164,7 @@ fun WindowUiComponent.inProjectStructureSdks(body: ProjectStructureUI.() -> Unit
             // On a real display a click right after the dialog opens can leave its first page showing.
             waitFor("the SDKs page", 30.seconds, 1.seconds) {
                 driver.selectItemByAccessibleName("Project structure categories", "SDKs")
-                x("//div[@visible_text='Add New SDK' or @accessiblename='Add New SDK']").present()
+                x(ADD_NEW_SDK).present()
             }
         } else {
             driver.selectItemByAccessibleName("Project structure categories", "SDKs")

@@ -104,7 +104,7 @@ internal fun Driver.asksWithTheChooser(rows: Rows, row: String, title: String, e
 }
 
 /** The text [wizard] shows, or none once it has closed. */
-private fun UiComponent.texts(): String = runCatching { getAllTexts().joinToString("") { it.text } }.getOrDefault("")
+internal fun UiComponent.texts(): String = runCatching { getAllTexts().joinToString("") { it.text } }.getOrDefault("")
 
 /** Whether [dialog] closes within [timeout]. */
 private fun closes(dialog: UiComponent, timeout: Duration = 1.minutes): Boolean =

@@ -1,6 +1,7 @@
 package org.elixir_lang.ui.sdk_choice
 
 import com.intellij.driver.client.Driver
+import com.intellij.driver.sdk.openFile
 import com.intellij.driver.sdk.ui.components.UiComponent
 import com.intellij.driver.sdk.ui.components.common.ideFrame
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
@@ -29,6 +30,7 @@ import org.elixir_lang.ui.sdk_settings.addErlangOnPage
 import org.elixir_lang.ui.sdk_settings.appears
 import org.elixir_lang.ui.sdk_settings.closeInternalErrors
 import org.elixir_lang.ui.sdk_settings.dialogShown
+import org.elixir_lang.ui.sdk_settings.openInThisWindow
 import org.elixir_lang.ui.sdk_settings.openSettings
 import java.io.File
 import java.nio.file.Path
@@ -140,6 +142,20 @@ internal fun Driver.clickBannerLabel(text: String) {
     val label = bannerLabel(text)
     waitFor("the banner's '$text'", 2.minutes) { label.present() }
     label.click()
+}
+
+/** The file at [sourcePath] opened and the banner's "Choose Elixir SDK..." clicked: the chooser shows. */
+internal fun Driver.askTheChooser(rows: Rows, row: String, sourcePath: String) {
+    openFile(sourcePath, waitForCodeAnalysis = false)
+    clickBannerLabel(CHOOSE_LABEL)
+    rows.check(row, "the banner asks the chooser", appears("the chooser", 30.seconds) { dialogShown(CHOOSER_TITLE) })
+}
+
+/** The staged [project] opened from the welcome screen. */
+internal fun Driver.open(project: Path) {
+    ensureWelcomeScreenInForeground()
+    closeInternalErrors("setup")
+    openInThisWindow(project)
 }
 
 /** The chooser's [list] lists [elixir] paired with [erlang], and nothing is picked. */
