@@ -8,13 +8,10 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiFile
-import com.intellij.psi.PsiManager
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.interpreter.ARM_BUDGET
-import org.elixir_lang.junit.HeavyTestCase
-import org.elixir_lang.model.psi.config.disableMixDepsCheck
 import org.elixir_lang.psi.ElixirFile
 import java.io.File
 
@@ -22,27 +19,14 @@ import java.io.File
  * A module body's `Application` env reads answer from what a default build of the project sees: the project's config,
  * else a dependency's `.app`. The project's own app is built from the sources being expanded, so its `.app` is not read.
  */
-class ProjectAppEnvHeavyTest : HeavyTestCase() {
-    private val holder: ProjectModules get() = ProjectModules.getInstance(project)
-
+class ProjectAppEnvHeavyTest : ConfigHeavyTestCase() {
     override fun setUp() {
         super.setUp()
-        disableMixDepsCheck(testRootDisposable)
-        LegSdk.setUp(module, testRootDisposable)
         enableExpander(testRootDisposable)
-    }
-
-    override fun tearDown() {
-        try {
-            LegSdk.tearDown(module)
-        } finally {
-            super.tearDown()
-        }
     }
 
     fun testEachSourceAnswersAndAnEditMovesTheHeldExpansion() {
         val root = project(
-            "mix.exs" to MIX_EXS,
             "config/config.exs" to "import Config\n\nconfig :dep, :configured, :value\n",
             // The project's own build, in its content, as a library too.
             "_build/dev/lib/app/ebin/app.app" to app("app", "{key, value}"),
@@ -75,7 +59,7 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
 
     /** A dependency built in several envs has a `.app` in each: copies that declare the same env answer as one. */
     fun testADependencyBuiltInSeveralEnvsAnswersWhereItsCopiesAgree() {
-        val root = project("mix.exs" to MIX_EXS, "lib/declared.ex" to module("Declared", "Application.get_env(:dep, :key)", ":value"))
+        val root = project("lib/declared.ex" to module("Declared", "Application.get_env(:dep, :key)", ":value"))
         val dev = ebin(app("dep", "{key, value}"))
         val test = ebin(app("dep", "{key, value}"))
         library("dep", dev, test)
@@ -94,7 +78,6 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
      */
     fun testAConfigFileThatReadsTheEnvBesideAnAliasKeyExpands() {
         val root = project(
-            "mix.exs" to MIX_EXS,
             "config/config.exs" to
                 "import Config\n\n_ = Application.get_env(:dep, :key)\nconfig :dep, App.Repo, a: 1\nconfig :dep, :configured, Application.get_env(:dep, :key)\n",
             "lib/configured.ex" to module("Configured", "Application.get_env(:dep, :configured)", "nil"),
@@ -112,7 +95,6 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
      */
     fun testAConfigFileThatCompilesAModuleReadingTheEnvBesideAnAliasKeyExpands() {
         val root = project(
-            "mix.exs" to MIX_EXS,
             "config/config.exs" to
                 "import Config\n\nCode.require_file(\"../lib/helpers.ex\", __DIR__)\nimport App.Helpers\nconfig :dep, App.Repo, a: 1\n",
             "lib/helpers.ex" to module("App.Helpers", "Application.get_env(:dep, :key)", "nil"),
@@ -126,7 +108,6 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
     /** A setting a default build doesn't run, in another env's config file or under a condition, leaves the key unset. */
     fun testASettingADefaultBuildMayNotRunLeavesWhetherTheKeyIsSetUnknown() {
         val root = project(
-            "mix.exs" to MIX_EXS,
             "config/config.exs" to "import Config\n\nif false, do: config(:dep, :conditional, true)\n",
             "config/prod.exs" to "import Config\n\nconfig :dep, :prod, true\n",
             "lib/conditional.ex" to
@@ -144,7 +125,6 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
     /** A setting whose key, options or app only the evaluation can read answers its value; another app's keys their `.app`. */
     fun testASettingTheIndexCantReadLeavesTheKeysItMaySetUnknown() {
         val root = project(
-            "mix.exs" to MIX_EXS,
             "config/config.exs" to "import Config\n\nkey = :key\nconfig :dep, key, :value\n",
             "lib/dep.ex" to module("Dep", "Application.get_env(:dep, :key)", ":value"),
             "lib/other.ex" to module("Other", "Application.get_env(:other, :key)", ":value"),
@@ -178,7 +158,6 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
      */
     fun testAConfigInputTheIndexCantReadLeavesTheKeysItMaySetUnknown() {
         val root = project(
-            "mix.exs" to MIX_EXS,
             "config/config.exs" to "import Config\n",
             "config/dev.exs" to "import Config\n",
             "config/envs/dev.exs" to "import Config\n\nconfig :dep, :key, :other\n",
@@ -271,7 +250,6 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
      */
     fun testAnEditToAModuleAConfigFilesExpansionReadsMovesTheHeldExpansion() {
         val root = project(
-            "mix.exs" to MIX_EXS,
             "config/config.exs" to "import Config\n\nuse App.Helper\nC.config(:dep, :key, :other)\n:ok\n",
             "lib/helper.ex" to helper("Other"),
             "lib/dep.ex" to module("Dep", "Application.get_env(:dep, :key)", ":value"),
@@ -302,7 +280,6 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
      */
     fun testAnAppFileOfAnotherAppOrCopiesDifferingInAZerosSignLeaveTheKeysUnknown() {
         val root = project(
-            "mix.exs" to MIX_EXS,
             "lib/named.ex" to module("Named", "Application.get_env(:dep, :key)", ":value"),
             "lib/zero.ex" to module("Zero", "Application.get_env(:zero, :key) === 0.0", "true"),
         )
@@ -434,7 +411,7 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
     /** The issue's example: a module reading the keys beside a system read and a build path, on 1.20.4 and 1.11.4. */
     fun testASettingFromSystemGetEnvLeavesOnlyItsKeyUnknown() {
         val root = project(
-            "mix.exs" to "defmodule MyApp.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :my_app, version: \"0.1.0\", elixir: \"~> 1.11\"]\nend\n",
+            "mix.exs" to MY_APP_MIX_EXS,
             "config/config.exs" to
                 "import Config\n\nconfig :my_app, port: String.to_integer(System.get_env(\"PORT\") || \"4000\")\n" +
                 "config :my_app, node_path: [Path.expand(\"../deps\", __DIR__), Mix.Project.build_path()]\nconfig :my_app, feature: true\n",
@@ -452,7 +429,6 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
     /** `mix phx.new` 1.8.13's config: the esbuild key holds the build path, and `dev.exs` turns the dev routes on. */
     fun testAGeneratedConfigsBuildPathLeavesTheDevRoutesKnown() {
         val root = project(
-            "mix.exs" to MIX_EXS,
             "config/config.exs" to
                 "import Config\n\nconfig :esbuild,\n  version: \"0.17.11\",\n  app: [\n    args: ~w(js/app.js --bundle),\n" +
                 "    cd: Path.expand(\"../assets\", __DIR__),\n" +
@@ -475,7 +451,6 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
      */
     fun testAWriteByAFunctionInAConfigValueIsNotSeen() {
         val root = project(
-            "mix.exs" to MIX_EXS,
             "config/config.exs" to "import Config\n\nconfig :dep, setter: fn -> Application.put_env(:dep, :key, :other) end\nconfig :dep, key: :value\n",
             "lib/dep.ex" to module("Dep", "(Application.get_env(:dep, :setter).(); Application.get_env(:dep, :key))", ":value"),
         )
@@ -487,7 +462,6 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
     /** A known divergence (#4509): Elixir defines `different/0`. */
     fun testAWriteByAFunctionNestedInAConfigValueIsNotSeen() {
         val root = project(
-            "mix.exs" to MIX_EXS,
             "config/config.exs" to "import Config\n\nconfig :dep, setter: [run: {fn -> Application.put_env(:dep, :key, :other) end}]\nconfig :dep, key: :value\n",
             "lib/dep.ex" to module("Dep", "(elem(Application.get_env(:dep, :setter)[:run], 0).(); Application.get_env(:dep, :key))", ":value"),
         )
@@ -499,7 +473,6 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
     /** A remote capture names its function, so it runs in its caller's run. */
     fun testARemoteCaptureInAConfigValueAnswersFromTheTable() {
         val root = project(
-            "mix.exs" to MIX_EXS,
             "config/config.exs" to "import Config\n\nconfig :dep, key: &:erlang.is_atom/1\n",
             "lib/dep.ex" to module("Dep", "Application.get_env(:dep, :key).(:a)", "true"),
         )
@@ -547,7 +520,6 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
     /** A config file that doubles `t` forty times by [doubling], then ends in [last], answers a module reading `:dep`'s `:key` in bounded work. */
     private fun assertSharedValueIsReadInBoundedWork(last: String, doubling: String = "t = {t, t}\n") {
         val root = project(
-            "mix.exs" to MIX_EXS,
             "config/config.exs" to "import Config\n\nt = []\n${doubling.repeat(40)}$last",
             "lib/dep.ex" to module("Dep", "Application.get_env(:dep, :key)", ":value"),
         )
@@ -607,9 +579,7 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
     /** Which `_build` env's config a dependency built in two reads isn't known, so the settings index answers. */
     fun testADependencyBuiltInTwoEnvsAnswersAsMainDoes() {
         val root = project(
-            "mix.exs" to MIX_EXS,
             "config/config.exs" to "import Config\n\nconfig :dep, :key, :other\n",
-            "lib/reader.ex" to "defmodule Reader do\nend\n",
             "deps/dep/mix.exs" to "defmodule Dep.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :dep, version: \"0.1.0\"]\nend\n",
             "deps/dep/lib/in_dep.ex" to module("InDep", "Application.get_env(:dep, :key)", ":value"),
             "_build/dev/lib/dep/ebin/dep.app" to app("dep", "{key, value}"),
@@ -643,7 +613,6 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
      */
     fun testAWriteInAReadLeavesItsAppUnknown() {
         val root = project(
-            "mix.exs" to MIX_EXS,
             "config/config.exs" to "import Config\n",
             "lib/dep.ex" to module("Dep", "Application.get_env(:dep, :key)", ":value"),
             "lib/undeclared.ex" to module("Undeclared", "Application.get_env(:dep, :other_key)", "nil"),
@@ -688,7 +657,7 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
             "  if @repo == [pool_size: 10, log: false], do: def(test_repo, do: 1)\n" +
             "  if Application.compile_env(:my_app, :feature), do: def(feature, do: :on)\n"
         val root = project(
-            "mix.exs" to "defmodule MyApp.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :my_app, version: \"0.1.0\", elixir: \"~> 1.11\"]\nend\n",
+            "mix.exs" to MY_APP_MIX_EXS,
             "config/config.exs" to
                 "import Config\n\nconfig :my_app, MyApp.Repo, pool_size: 10, log: false\nconfig :my_app, feature: true\n\nimport_config \"#{config_env()}.exs\"\n",
             "config/dev.exs" to "import Config\n\nconfig :my_app, MyApp.Repo, pool_size: 2\n",
@@ -696,8 +665,6 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
             "lib/my_app.ex" to "defmodule MyApp do\n${body}end\n",
             "test/support/my_app_test_support.ex" to "defmodule MyAppTestSupport do\n${body}end\n",
         )
-        PsiTestUtil.addSourceRoot(module, root.findChild("test")!!, true)
-        IndexingTestUtil.waitUntilIndexesAreReady(project)
 
         assertEquals("Elixir.MyApp compiled dev_repo/0 feature/0", ended(psi(root, "lib/my_app.ex")))
         assertEquals("Elixir.MyAppTestSupport compiled test_repo/0", ended(psi(root, "test/support/my_app_test_support.ex")))
@@ -706,7 +673,6 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
     /** A module reading `:dep`'s `:key`, which `dev.exs` sets, beside `test.exs` and a file no read reaches. */
     private fun envReader(): VirtualFile {
         val root = project(
-            "mix.exs" to MIX_EXS,
             "config/config.exs" to "import Config\n\nimport_config \"#{config_env()}.exs\"\n",
             "config/dev.exs" to "import Config\n\nconfig :dep, :key, :other\n",
             "config/test.exs" to "import Config\n",
@@ -721,7 +687,6 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
     /** The modules reading `:dep`'s and `:other`'s `:key`, each declared `:value`, under the config file [config]. */
     private fun readers(config: String, vararg imported: Pair<String, String>): Pair<PsiFile, PsiFile> {
         val root = project(
-            "mix.exs" to MIX_EXS,
             "config/config.exs" to config,
             *imported,
             "lib/dep.ex" to module("Dep", "Application.get_env(:dep, :key)", ":value"),
@@ -753,18 +718,6 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
             }
         }
 
-    private fun project(vararg sources: Pair<String, String>): VirtualFile {
-        val directory = createTempDir("app")
-        sources.forEach { (path, text) -> FileUtil.writeToFile(File(directory, path), text) }
-        val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!
-        VfsUtil.markDirtyAndRefresh(false, true, true, root)
-        PsiTestUtil.addContentRoot(module, root)
-        PsiTestUtil.addSourceRoot(module, root.findChild("lib")!!)
-        IndexingTestUtil.waitUntilIndexesAreReady(project)
-
-        return root
-    }
-
     /** The dependency [app]'s `ebin`, outside the project's content, holding only its `.app` file, [text]. */
     private fun ebin(text: String, app: String = "dep"): VirtualFile {
         val directory = createTempDir("$app-ebin")
@@ -781,11 +734,10 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
     private fun rewrite(file: VirtualFile, text: String) =
         WriteAction.runAndWait<Throwable> { VfsUtil.saveText(file, text) }
 
-    private fun psi(root: VirtualFile, path: String): PsiFile =
-        PsiManager.getInstance(project).findFile(root.findFileByRelativePath(path)!!)!!
-
     private companion object {
-        const val MIX_EXS = "defmodule App.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :app, version: \"0.1.0\"]\nend\n"
+        /** The issue's `mix.exs`, for `:my_app`. */
+        const val MY_APP_MIX_EXS =
+            "defmodule MyApp.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :my_app, version: \"0.1.0\", elixir: \"~> 1.11\"]\nend\n"
 
         fun app(name: String, env: String) = "{application, $name, [{vsn, \"0.1.0\"}, {modules, []}, {env, [$env]}]}.\n"
 
