@@ -3,6 +3,7 @@ package org.elixir_lang.sdk.choice
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.util.ui.UIUtil
 import java.awt.Component
+import java.util.concurrent.TimeUnit
 import javax.swing.AbstractButton
 import javax.swing.JComponent
 import javax.swing.JLabel
@@ -15,6 +16,15 @@ internal fun JComponent.waitFor(what: String, matches: (String) -> Boolean): JCo
     var found: JComponent? = null
     PlatformTestUtil.waitWithEventsDispatching("not found: $what", { shown(matches)?.also { found = it } != null }, 10)
     return found!!
+}
+
+/** Dispatches the EDT's events for half a second, long enough for an answer already on its way to arrive. */
+internal fun dispatchForAWhile() {
+    val until = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(500)
+    while (System.nanoTime() < until) {
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+        Thread.sleep(20)
+    }
 }
 
 /** The component under this one whose text [matches], when it and everything holding it under this one is visible. */

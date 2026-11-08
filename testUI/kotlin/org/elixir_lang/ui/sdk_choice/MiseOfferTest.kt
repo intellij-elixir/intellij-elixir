@@ -2,6 +2,8 @@ package org.elixir_lang.ui.sdk_choice
 
 import com.intellij.driver.client.Driver
 import com.intellij.driver.sdk.openFile
+import com.intellij.driver.sdk.ui.components.UiComponent
+import com.intellij.driver.sdk.ui.components.elements.JCheckBoxUi
 import com.intellij.driver.sdk.ui.components.elements.dialog
 import com.intellij.driver.sdk.ui.ui
 import com.intellij.driver.sdk.ui.xQuery
@@ -106,6 +108,49 @@ class MiseOfferTest {
         rows.assertAllHeld()
     }
 
+    @Test
+    @EnabledOnOs(OS.LINUX)
+    fun `on IntelliJ IDEA the second radio and a row give that row with the offer's boxes disabled`() {
+        val row = "IU-another"
+        onIdeaWithThePins(row) { rows, install, erlang -> takeTheOfferThenUseAnother(rows, row, install, erlang) }
+    }
+
+    @Test
+    @EnabledOnOs(OS.LINUX)
+    fun `on PyCharm the second radio and a row give that row with the offer's boxes disabled`() {
+        val row = "PY-another"
+        onPyCharmWithThePins(row) { rows, install, erlang -> takeTheOfferThenUseAnother(rows, row, install, erlang) }
+    }
+
+    /** IntelliJ IDEA open on a module with no SDK, whose mise config pins a staged Elixir and Erlang: [body] is row [row]. */
+    private fun onIdeaWithThePins(row: String, body: Driver.(rows: Rows, install: String, erlang: Home) -> Unit) {
+        val rows = Rows()
+        launchIdea("MiseOfferTest-$row", { withEnv("PATH", stubbedPath()) }) { homes ->
+            val install = stageElixirInstall()
+            val project = stageProject(NAME, moduleIml("ELIXIR_MODULE"), mapOf(SOURCE_PATH to SOURCE))
+            pinWithMise(project, install, homes.erlang)
+            open(project)
+            runCatching { body(rows, install, homes.erlang) }.onFailure { failure -> failed(rows, row, failure) }
+        }
+        rows.assertAllHeld()
+    }
+
+    /** PyCharm open on a facet with no SDK, whose mise config pins a staged Elixir and Erlang: [body] is row [row]. */
+    private fun onPyCharmWithThePins(row: String, body: Driver.(rows: Rows, install: String, erlang: Home) -> Unit) {
+        val rows = Rows()
+        launchPyCharm("MiseOfferTest-$row", { withEnv("PATH", stubbedPath()) }) { homes ->
+            val install = stageElixirInstall()
+            val project = stageProject(NAME, moduleIml("PYTHON_MODULE", "<configuration />"), mapOf(SOURCE_PATH to SOURCE))
+            pinWithMise(project, install, homes.erlang)
+            closeInternalErrors("setup")
+            runCatching {
+                openInThisWindow(project)
+                body(rows, install, homes.erlang)
+            }.onFailure { failure -> failed(rows, row, failure) }
+        }
+        rows.assertAllHeld()
+    }
+
     private fun Driver.open(project: Path) {
         ensureWelcomeScreenInForeground()
         closeInternalErrors("setup")
@@ -119,17 +164,36 @@ class MiseOfferTest {
         rows.check(row, "the banner asks the chooser", appears("the chooser", 30.seconds) { dialogShown(CHOOSER_TITLE) })
     }
 
-    /** The chooser offers mise's Elixir at [install] and its [erlang]; taken, with the tool manager's box ticked, and OK. */
-    private fun Driver.takeTheOffer(rows: Rows, row: String, install: String, erlang: Home) {
+    /** The chooser offers mise's Elixir at [install] and its [erlang]; taken, then [then] with the box keeping the SDKs in step. */
+    private fun Driver.withTheOfferTaken(rows: Rows, row: String, install: String, erlang: Home, then: UiComponent.(JCheckBoxUi) -> Unit) {
         askTheChooser(rows, row)
         ui.dialog(xQuery { byTitle(CHOOSER_TITLE) }) {
             waitUntilReady()
             val inStep = takeMisesOffer(rows, row, install, erlang)
             rows.check(row, "its box can be ticked once the offer is taken", appears("the box enabled", 30.seconds) { inStep.isEnabled() })
+            then(inStep)
+        }
+    }
+
+    /** The offer taken, with the tool manager's box ticked, and OK. */
+    private fun Driver.takeTheOffer(rows: Rows, row: String, install: String, erlang: Home) =
+        withTheOfferTaken(rows, row, install, erlang) { inStep ->
             inStep.check()
             clickButtonText("OK")
         }
-    }
+
+    /** The offer taken, then "Use another SDK:" and the list's only row: that row picked, OK on and the offer's box disabled. */
+    private fun Driver.takeTheOfferThenUseAnother(rows: Rows, row: String, install: String, erlang: Home) =
+        withTheOfferTaken(rows, row, install, erlang) { inStep ->
+            x(xQuery { byAccessibleName("Use another SDK:") }).click()
+            rows.check(row, "the second radio disables the box", appears("the box disabled", 30.seconds) { !inStep.isEnabled() })
+            val list = chooserList()
+            list.clickItemAtIndex(0)
+            rows.check(row, "the row is picked: ${list.selectedItems}", list.selectedItems.isNotEmpty())
+            rows.check(row, "OK is on", x { byAccessibleName("OK") }.isEnabled())
+            rows.check(row, "and the box stays disabled", !inStep.isEnabled())
+            clickButtonText("Cancel")
+        }
 
     /** [elixir] is paired with an Erlang SDK at mise's [erlang] install. */
     private fun Driver.pairedWithMisesErlang(rows: Rows, row: String, elixir: String?, erlang: Home) {

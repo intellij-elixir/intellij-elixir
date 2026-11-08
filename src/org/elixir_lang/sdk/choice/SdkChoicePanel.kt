@@ -14,6 +14,7 @@ import com.intellij.ui.components.AnActionLink
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
+import com.intellij.ui.components.JBRadioButton
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.panels.VerticalLayout
 import com.intellij.util.concurrency.annotations.RequiresEdt
@@ -30,18 +31,20 @@ import java.awt.BorderLayout
 import java.awt.FlowLayout
 import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicBoolean
+import javax.swing.ButtonGroup
 import javax.swing.JButton
 import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.ListSelectionModel
+import javax.swing.Timer
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * The chooser's list of [state]'s Elixir SDKs, each with its pairing, with nothing selected, Add... and Manage SDKs...,
- * following the table until [parentDisposable] goes. When a tool manager pins an Elixir for [state]'s folders, a button
- * offers it, with boxes that would turn the manager on. [onPick] hears each change of the pick or its opt-ins, null
- * included.
+ * following the table until [parentDisposable] goes. When a tool manager pins an Elixir for [state]'s folders, a first
+ * radio offers it, with boxes that would turn the manager on, and a second radio stands for the list. [onPick] hears each
+ * change of the pick or its opt-ins, null included.
  */
 class SdkChoicePanel(
     internal val state: SdkChoiceState,
@@ -51,7 +54,8 @@ class SdkChoicePanel(
     private val list = JBList(state.listModel).apply {
         selectionMode = ListSelectionModel.SINGLE_SELECTION
         cellRenderer = EntryRenderer()
-        addListSelectionListener { event -> if (!event.valueIsAdjusting) pick(selectedValue) }
+        // A selection the state already has is the state's own change, not the user's.
+        addListSelectionListener { event -> if (!event.valueIsAdjusting && selectedValue != state.selected) pick(selectedValue) }
     }
 
     internal val addButton = JButton("Add...").apply { addActionListener { state.add(list)?.let(::pick) } }
@@ -60,9 +64,27 @@ class SdkChoicePanel(
         override fun actionPerformed(e: AnActionEvent) = SdkSettingsOpener.getInstance().open(e, SettingsPage.SDKS)
     })
 
-    private val offerButton = JButton().apply {
-        isVisible = false
-        addActionListener { pick(state.take(this@SdkChoicePanel)) }
+    private val offerRadio = JBRadioButton().apply {
+        addActionListener {
+            // Cancelling the progress throws, with this radio already selected by its group.
+            try {
+                state.take(this@SdkChoicePanel)
+            } finally {
+                showSelection()
+            }
+        }
+    }
+
+    private val anotherRadio = JBRadioButton("Use another SDK:").apply {
+        addActionListener {
+            state.chooseAnother()
+            showSelection()
+        }
+    }
+
+    private val radioGroup = ButtonGroup().apply {
+        add(offerRadio)
+        add(anotherRadio)
     }
 
     private val inStepBox = JBCheckBox().apply { addActionListener { ticked() } }
@@ -71,9 +93,23 @@ class SdkChoicePanel(
     private val settingsPage = JBLabel("Change these in Settings > Languages & Frameworks > Elixir > Tool Managers.").apply { isVisible = !state.hostCommits }
     private val boxes = JPanel(VerticalLayout(0)).apply {
         isVisible = false
+        border = JBUI.Borders.emptyLeft(20)
         add(inStepBox)
         add(environmentBox.apply { border = JBUI.Borders.emptyLeft(20) })
         add(settingsPage)
+    }
+
+    private val severalLine = JBLabel("Several SDKs use this Elixir. Pick one in the list.").apply {
+        isVisible = false
+        border = JBUI.Borders.emptyLeft(20)
+    }
+
+    private val radios = JPanel(VerticalLayout(JBUI.scale(4))).apply {
+        isVisible = false
+        add(offerRadio)
+        add(boxes)
+        add(severalLine)
+        add(anotherRadio)
     }
 
     private val errorMessage = JBLabel()
@@ -86,16 +122,19 @@ class SdkChoicePanel(
     private val reloadQueued = AtomicBoolean()
     private val alive = Disposer.newCheckedDisposable(parentDisposable)
 
+    // Shown only when the check takes long enough to be noticed.
+    private val checkingNotice = Timer(CHECKING_NOTICE_MILLIS) { showChecking() }.apply { isRepeats = false }
+
     init {
+        Disposer.register(alive) { checkingNotice.stop() }
+        add(radios, BorderLayout.NORTH)
         add(JBScrollPane(list).apply { preferredSize = JBUI.size(520, 200) }, BorderLayout.CENTER)
         add(JPanel(VerticalLayout(JBUI.scale(8))).apply {
             add(JPanel(FlowLayout(FlowLayout.LEADING, JBUI.scale(8), 0)).apply {
                 add(addButton)
-                add(offerButton)
                 add(manageSdksLink)
             })
             add(errorRow)
-            add(boxes)
         }, BorderLayout.SOUTH)
         // The Elixir SDKs it lists, and the Erlang SDKs their rows name.
         SdkTableChanges.follow(alive, { it.sdkType === Type.instance || staticIsValidDependency(it) }) { _, _ ->
@@ -119,7 +158,7 @@ class SdkChoicePanel(
 
     private fun reload() {
         state.reload()
-        pick(state.selected)
+        showSelection()
     }
 
     /** Lists the Elixir SDKs of [target]'s environment instead, and asks the tool managers about [folders]. */
@@ -127,7 +166,7 @@ class SdkChoicePanel(
     @Suppress("UnstableApiUsage") // EelDescriptor is the platform's only name for an environment.
     fun retarget(target: EelDescriptor?, folders: List<Path>) {
         val refolded = state.retarget(target, folders)
-        pick(state.selected)
+        showSelection()
         if (refolded) {
             show(null)
             // A location typed in changes with each key: its check starts once the typing pauses, so one the next key
@@ -136,21 +175,33 @@ class SdkChoicePanel(
         }
     }
 
-    private fun check(after: Duration = Duration.ZERO): Unit = state.check(list, after) { answer ->
-        show(answer)
-        changed()
+    private fun check(after: Duration = Duration.ZERO) {
+        checkingNotice.restart()
+        state.check(list, after) { answer ->
+            checkingNotice.stop()
+            show(answer)
+            showSelection()
+        }
+    }
+
+    /** A disabled first radio says the check is still running, beside the second. */
+    private fun showChecking() {
+        offerRadio.text = "Checking mise..."
+        offerRadio.isEnabled = false
+        radios.isVisible = true
     }
 
     /** Shows [answer]'s offer and boxes, or its error, or neither. */
     private fun show(answer: ToolManagerCheck?) {
         val offer = answer as? ToolManagerCheck.Offer
         val error = answer as? ToolManagerCheck.Error
-        offerButton.isVisible = offer != null
+        offerRadio.isEnabled = true
+        radios.isVisible = offer != null
         boxes.isVisible = offer != null
         errorRow.isVisible = error != null
         if (offer != null) {
             val manager = offer.manager.displayName
-            offerButton.text = "Use $manager's Elixir ${offer.elixir.version}" + (offer.versions.erlang?.let { " and Erlang ${it.version}" } ?: "")
+            offerRadio.text = "Use $manager's Elixir ${offer.elixir.version}" + (offer.versions.erlang?.let { " and Erlang ${it.version}" } ?: "")
             inStepBox.text = "Keep the SDKs in step with $manager"
             environmentBox.text = "Use $manager's environment for Mix and the build"
             environmentBox.isVisible = providesEnvironment(offer.manager)
@@ -160,18 +211,25 @@ class SdkChoicePanel(
 
     private fun ticked() {
         state.tick(inStepBox.isSelected, environmentBox.isSelected)
-        changed()
+        showSelection()
     }
 
+    /** The user's pick in the list, which moves the radio. */
     internal fun pick(entry: SdkChoiceEntry?) {
-        state.select(entry)
+        state.choose(entry)
+        showSelection()
+    }
+
+    /** Shows the pick, radios and boxes as [state] has them, then tells [onPick]. */
+    private fun showSelection() {
         val selected = state.selected
         if (list.selectedValue != selected) list.setSelectedValue(selected, true)
-        changed()
-    }
-
-    /** Shows the boxes as [state] has them, then tells [onPick]. */
-    private fun changed() {
+        when {
+            state.offerChosen -> offerRadio.isSelected = true
+            state.anotherChosen -> anotherRadio.isSelected = true
+            else -> radioGroup.clearSelection()
+        }
+        severalLine.isVisible = state.offerChosen && selected == null
         inStepBox.isSelected = state.toolManagerBox
         environmentBox.isSelected = state.environmentBox
         inStepBox.isEnabled = state.optInsOpen
@@ -198,5 +256,9 @@ class SdkChoicePanel(
                 SimpleTextAttributes.GRAYED_ATTRIBUTES,
             )
         }
+    }
+
+    private companion object {
+        const val CHECKING_NOTICE_MILLIS = 300
     }
 }

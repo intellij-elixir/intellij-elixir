@@ -16,6 +16,8 @@ import org.elixir_lang.tool_manager.ToolManagerResult
 import org.elixir_lang.tool_manager.mise.MiseToolManager
 import org.elixir_lang.tool_manager.versions
 import java.nio.file.Path
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /** A tool manager whose answer per folder is [answer], recording what it was asked and where from. */
 internal class FakeToolManager(override val name: String = MiseToolManager.NAME) : ElixirToolManager {
@@ -40,10 +42,31 @@ internal class FakeToolManager(override val name: String = MiseToolManager.NAME)
         this.answer = { answer }
     }
 
+    /** The pins [OFFER] names, at installs made for them. */
+    fun offeredPins(): ToolManagerResult = success(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+
+    /** Answers [offeredPins] in every folder. */
+    fun pinsTheOffer() {
+        val answer = offeredPins()
+        this.answer = { answer }
+    }
+
+    /** Answers [offeredPins] in every folder once the latch this returns is released. */
+    fun holdsTheOffer(): CountDownLatch {
+        val answer = offeredPins()
+        val release = CountDownLatch(1)
+        this.answer = {
+            release.await(10, TimeUnit.SECONDS)
+            answer
+        }
+        return release
+    }
+
     /** Answers [pins]' pins everywhere but [folder], which pins another Elixir, as [FOLDER_OFFER] names it. */
     fun pinsAnotherIn(folder: Path) {
-        val there = success(ToolEntry("1.17.3-otp-27", elixirInstall("1.17.3", "27"), true), ToolEntry("27.3.4", install("27", "27.3.4"), true))
-        val elsewhere = success(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+        val erlang = install("27", "27.3.4")
+        val there = success(ToolEntry("1.17.3-otp-27", elixirInstall("1.17.3", "27"), true), ToolEntry("27.3.4", erlang, true))
+        val elsewhere = success(elixirInstall("1.18.4", "27"), erlang)
         answer = { if (it == folder) there else elsewhere }
     }
 
