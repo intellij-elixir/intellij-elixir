@@ -187,6 +187,34 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
         assertEquals("declined", read(root, env = "test"))
     }
 
+    /** Elixir's later calls get the imported file's definition, which the plugin's read doesn't take in, so it declines. */
+    fun testAModuleAnImportedFileRedefinesIsDeclined() {
+        val root = project(
+            CONFIG to "import Config\ndefmodule H do\n  def value, do: 0\nend\nimport_config \"helper.exs\"\nconfig :app, k: H.value()\n",
+            "config/helper.exs" to HELPER_BY_ENV,
+        )
+
+        assertEquals("declined", read(root, env = "test"))
+    }
+
+    /** A module an imported file defines declines the read, whether or not a call after it reads it. */
+    fun testAModuleInAnImportedFileNothingCallsIsDeclined() {
+        val root = project(CONFIG to "import Config\nimport_config \"helper.exs\"\nconfig :app, k: 1\n", "config/helper.exs" to HELPER_BY_ENV)
+
+        assertEquals("declined", read(root, env = "test"))
+    }
+
+    /** A module nested in one that raises is defined before the raise, so Elixir's later call gets the import's `T.U`. */
+    fun testAModuleNestedInOneAnImportedFileRaisesInIsDeclined() {
+        val root = project(
+            CONFIG to "import Config\ndefmodule T.U do\n  def f, do: 0\nend\n" +
+                "try do\n  import_config \"dev.exs\"\nrescue\n  _ -> :ok\nend\nconfig :app, k: T.U.f()\n",
+            DEV to "import Config\ndefmodule T do\n  defmodule U do\n    def f, do: 1\n  end\n\n  raise \"x\"\nend\n",
+        )
+
+        assertEquals("declined", read(root))
+    }
+
     fun testAModuleTheReadsOwnFileDefinesIsRead() {
         assertEquals(
             "[{app,[{k,t}]}] [config/config.exs]",

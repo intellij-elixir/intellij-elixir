@@ -3047,6 +3047,11 @@ internal class Natives(private val evaluation: Evaluation) {
 
         val expansion = evaluation.importing(read) { evaluation.run.files.imported(text, read) }
             ?: decline("Config.__import__!/1 of %s, which can't be read", path)
+        // Elixir's later calls get the modules the file defines, which the importing run doesn't take in. Past a raise
+        // from the file, no later call runs: the raise ends the read, or declines where a `try` may catch it.
+        if (expansion.top !is Expansion.Error && expansion.modules.isNotEmpty()) {
+            decline("Config.__import__!/1 of %s, which defines a module", path)
+        }
 
         when (val top = expansion.top) {
             is Expansion.Error -> {

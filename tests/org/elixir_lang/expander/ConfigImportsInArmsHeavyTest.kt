@@ -45,6 +45,18 @@ class ConfigImportsInArmsHeavyTest : ConfigHeavyTestCase() {
         assertEquals(listOf("config/config.exs", "config/o.exs"), table.files.mapNotNull { FileUtil.getRelativePath(root.path, it, '/') }.sorted())
     }
 
+    /** The arm may import a file that redefines a module the config reads past the arm. */
+    fun testAModuleAFileImportedInAnArmRedefinesDeclines() =
+        assertEquals(
+            "declined",
+            keys(
+                "defmodule H do\n  def v, do: 0\nend\n\nif System.get_env(\"X\") do\n  import_config \"o.exs\"\nend\n\nconfig :app, k: H.v(), k1: 1\n",
+                "k",
+                "k1",
+                extra = arrayOf("config/o.exs" to "import Config\n\ndefmodule H do\n  def v, do: 1\nend\n"),
+            ),
+        )
+
     fun testAFileImportedInAnArmThenAgainDeclines() =
         assertEquals(
             "declined",
