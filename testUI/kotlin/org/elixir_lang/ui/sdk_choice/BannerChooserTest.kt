@@ -2,11 +2,9 @@ package org.elixir_lang.ui.sdk_choice
 
 import com.intellij.driver.client.Driver
 import com.intellij.driver.sdk.invokeAction
-import com.intellij.driver.sdk.openFile
 import org.elixir_lang.ui.framework.core.CHOOSER_TITLE
 import org.elixir_lang.ui.sdk_settings.Rows
 import org.elixir_lang.ui.sdk_settings.appears
-import org.elixir_lang.ui.sdk_settings.dialogShown
 import org.elixir_lang.ui.sdk_settings.failedErlangStepRow
 import org.elixir_lang.ui.sdk_settings.launchIdea
 import org.elixir_lang.ui.sdk_settings.launchPyCharm
@@ -90,10 +88,7 @@ class BannerChooserTest {
      * [erlang], with OK disabled until it is picked; then picked, and OK.
      */
     private fun Driver.chooseFromBanner(rows: Rows, row: String, elixir: String, erlang: String) {
-        openFile(SOURCE_PATH, waitForCodeAnalysis = false)
-        clickBannerLabel(CHOOSE_LABEL)
-        val asked = appears("the chooser", 30.seconds) { dialogShown(CHOOSER_TITLE) }
-        rows.check(row, "the banner asks the chooser", asked)
+        askTheChooser(rows, row, SOURCE_PATH)
         pickInChooser(rows, row, elixir, erlang)
     }
 

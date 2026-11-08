@@ -35,6 +35,7 @@ import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.elixir.ElixirSdkAssignment
 import org.elixir_lang.sdk.elixir.Type
 import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResolver
+import org.elixir_lang.sdk.erlang_dependent.elixirAdditionalData
 import org.elixir_lang.tool_manager.BuiltInToolManagers
 import org.elixir_lang.tool_manager.ElixirToolManager
 import org.elixir_lang.tool_manager.PinsModel
@@ -95,11 +96,29 @@ class SdkChoiceState @RequiresEdt constructor(
     /** The tool manager's pins the last check offered, or null when it offered none. */
     private var offer: ToolManagerCheck.Offer? = null
 
-    /** The Elixir SDKs taking an offer found, with the pins they were found for. */
-    private class Taken(val pins: ToolManagerVersions, val sdks: List<Sdk>)
+    private sealed interface Radio
 
-    /** What taking the offer found, kept while each answer since offers the same pins. */
-    private var taken: Taken? = null
+    /** The first radio: the Elixir SDKs taking the offer found, the pins they were found for, and the SDK selected before. */
+    private class Taken(private val pins: ToolManagerVersions, sdks: List<Sdk>, val before: Sdk?) : Radio {
+        private val found = sdks.map { it to homes(it) }
+
+        /** Whether [offer] still pins what these were found for. */
+        fun pinnedBy(offer: ToolManagerCheck.Offer?): Boolean = offer != null && pins.samePins(offer.versions)
+
+        /** Whether [sdk] is one of those found, on the homes it had then: on others the pins no longer describe it. */
+        fun restsOn(sdk: Sdk?): Boolean = found.any { (it, homes) -> it === sdk && homes == homes(it) }
+
+        private fun homes(sdk: Sdk) = sdk.homePath to sdk.elixirAdditionalData?.getErlangSdkHomePath()
+    }
+
+    /** The second radio: the pick is the list's selection. */
+    private object Another : Radio
+
+    /** The radio chosen, or null when neither is. */
+    private var radio: Radio? = null
+
+    val offerChosen: Boolean get() = radio is Taken
+    val anotherChosen: Boolean get() = radio === Another
 
     private var toolManagerTicked = false
     private var environmentTicked = false
@@ -110,8 +129,8 @@ class SdkChoiceState @RequiresEdt constructor(
     private val handsOverOptIns: Boolean
         get() = hostCommits && offer?.let { !settings.isEnabled(it.manager) } == true
 
-    /** Whether the boxes can be ticked: they hand over opt-ins, and the pick is an Elixir SDK the offer found. */
-    val optInsOpen: Boolean get() = handsOverOptIns && selected?.sdk in taken?.sdks.orEmpty()
+    /** Whether the boxes can be ticked: they hand over opt-ins, and the first radio is chosen. */
+    val optInsOpen: Boolean get() = handsOverOptIns && offerChosen
 
     /** Whether the environment's box can be ticked: the boxes can be, and the tool manager's is. */
     val environmentOpen: Boolean get() = optInsOpen && toolManagerBox
@@ -140,8 +159,27 @@ class SdkChoiceState @RequiresEdt constructor(
         reload(null)
     }
 
-    fun select(entry: SdkChoiceEntry?) {
+    /** Picks the row of [sdk], or none when it has no row. */
+    private fun selectRowOf(sdk: Sdk?) {
+        selected = entries.find { it.sdk === sdk }
+    }
+
+    /** The user picks [entry] in the list: the second radio, unless the first radio can rest on it. */
+    fun choose(entry: SdkChoiceEntry?) {
         selected = entry?.takeIf(listModel::contains)
+        if ((radio as? Taken)?.restsOn(selected?.sdk) != true) radio = Another
+    }
+
+    /** The user chooses the second radio: coming from the first, the SDK selected before the offer was taken is back. */
+    fun chooseAnother() {
+        (radio as? Taken)?.let { selectRowOf(it.before) }
+        radio = Another
+    }
+
+    /** Puts the choice back: the row of [before] under the second radio, or with no such row neither radio. */
+    private fun rollBack(before: Sdk?) {
+        selectRowOf(before)
+        radio = if (selected != null) Another else null
     }
 
     /** Ticks or unticks the boxes: [toolManager]'s, and [environment]'s. */
@@ -167,31 +205,39 @@ class SdkChoiceState @RequiresEdt constructor(
     }
 
     /**
-     * Makes [offer]'s pins into an Elixir SDK as the tool manager does, with [parent] over its Erlang step, and picks it.
-     * When the install has several Elixir SDKs and no Erlang pin to tell them apart, or the step was cancelled, nothing
-     * is picked. Answers the pick.
+     * Chooses the first radio, once: makes [offer]'s pins into an Elixir SDK as the tool manager does, with [parent] over
+     * its Erlang step, and picks it. When the install has several Elixir SDKs and no Erlang pin to tell them apart, nothing
+     * is picked yet; when the step was cancelled, the choice is put back.
      */
     @RequiresEdt
-    fun take(parent: JComponent): SdkChoiceEntry? {
-        val offer = offer ?: return selected
+    fun take(parent: JComponent) {
+        if (radio is Taken) return
+        val offer = offer ?: return
+        val before = selected?.sdk
         val model = runWithModalProgressBlocking(ModalTaskOwner.component(parent), "Configuring Elixir SDK from ${offer.manager.displayName}") {
             ToolManagerPins.model(offer.elixir.installPath, listOf(offer.versions), project, parent)
         }
-        taken = Taken(
-            offer.versions,
-            when (model) {
-                is PinsModel.Found -> listOf(model.sdk)
-                is PinsModel.Several -> model.sdks
-                PinsModel.None -> emptyList()
-            },
-        )
-        reload((model as? PinsModel.Found)?.sdk)
-        return selected
+        val sdks = when (model) {
+            is PinsModel.Found -> listOf(model.sdk)
+            is PinsModel.Several -> model.sdks
+            PinsModel.None -> emptyList()
+        }
+        reload(sdks.singleOrNull())
+        if (sdks.isEmpty()) rollBack(before) else radio = Taken(offer.versions, sdks, before)
     }
 
-    /** Lists the table's Elixir SDKs again, keeping the pick while the table still has that SDK, renamed or not. */
+    /**
+     * Lists the table's Elixir SDKs again, keeping the pick while the table still has that SDK, renamed or not. The first
+     * radio stands while it can rest on the SDK picked, or with none picked on any listed.
+     */
     @RequiresEdt
-    fun reload() = reload(selected?.sdk)
+    fun reload() {
+        val rested = selected?.sdk
+        reload(rested)
+        val taken = radio as? Taken ?: return
+        val standing = if (rested != null) taken.restsOn(selected?.sdk) else entries.any { taken.restsOn(it.sdk) }
+        if (!standing) rollBack(taken.before)
+    }
 
     /**
      * Lists the Elixir SDKs of [target]'s environment, keeping the pick while it is one of them, with [folders] as where
@@ -224,10 +270,9 @@ class SdkChoiceState @RequiresEdt constructor(
             val answer = withContext(Dispatchers.IO) { ToolManagerCheck.of(toolManagers, folders) }
             val modality = withContext(Dispatchers.UI + ModalityState.any().asContextElement()) { ModalityState.stateForComponent(component) }
             withContext(Dispatchers.UI + modality.asContextElement()) {
-                val answered = answer as? ToolManagerCheck.Offer
-                val samePins = answered != null && taken?.pins?.samePins(answered.versions) == true
-                if (!samePins) taken = null
-                offer = answered
+                offer = answer as? ToolManagerCheck.Offer
+                val taken = radio as? Taken
+                if (taken != null && !taken.pinnedBy(offer)) rollBack(taken.before)
                 onAnswer(answer)
             }
         }
@@ -241,8 +286,11 @@ class SdkChoiceState @RequiresEdt constructor(
         // model's, so the target's go in too.
         model.reset(project)
         syncTargetSdks()
-        listModel.replaceAll(load())
-        select(entries.find { it.sdk === sdk })
+        val rows = load()
+        // Before the rows go, so the list's emptying agrees with the pick and isn't taken for the user's.
+        selected = null
+        listModel.replaceAll(rows)
+        selectRowOf(sdk)
     }
 
     /**

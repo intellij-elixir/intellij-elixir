@@ -1,11 +1,12 @@
 package org.elixir_lang.sdk.elixir
 
 import com.intellij.ide.actions.ShowSettingsUtilImpl
-import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.ProjectManager
+import com.intellij.openapi.roots.ui.configuration.ProjectStructureConfigurable
+import com.intellij.ui.navigation.Place
 import org.elixir_lang.settings.SettingsPageId
 
 /** Which settings a notice sends the user to; IntelliJ IDEA has one Project Structure for both. */
@@ -39,10 +40,15 @@ internal class SettingsSdkSettingsOpener : SdkSettingsOpener {
 
 internal class ProjectStructureSdkSettingsOpener : SdkSettingsOpener {
     override fun open(event: AnActionEvent, page: SettingsPage) {
-        val action = ActionManager.getInstance().getAction("ShowProjectStructureSettings")
-        if (action != null) {
-            ActionUtil.performAction(action, event)
+        val project = event.project ?: ProjectManager.getInstance().defaultProject
+        val config = ProjectStructureConfigurable.getInstance(project)
+        // The default project has no Modules page.
+        val place = if (page == SettingsPage.MODULE_SDKS && !project.isDefault) {
+            config.createModulesPlace()
+        } else {
+            Place().putPath(ProjectStructureConfigurable.CATEGORY, config.jdkConfig)
         }
+        ShowSettingsUtil.getInstance().editConfigurable(project, config) { config.navigateTo(place, true) }
     }
 
     override fun targetName(): String = "Project Structure"

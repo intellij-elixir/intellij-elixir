@@ -57,7 +57,7 @@ class ElixirModuleTypeStepTest : HeavyTestCase() {
     }
 
     fun testUnderProjectStructuresModulesTheBoxesAreDisabledAndNoOptInsReachTheBuilder() {
-        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+        toolManager.pinsTheOffer()
         val step = step(project, ModulesProvider.EMPTY_MODULES_PROVIDER)
         step.updateStep()
 
@@ -72,7 +72,7 @@ class ElixirModuleTypeStepTest : HeavyTestCase() {
     }
 
     fun testUnderTheProjectsOwnModulesTheTickedOptInsReachTheBuilder() {
-        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+        toolManager.pinsTheOffer()
         val step = step(project, DefaultModulesProvider.createForProject(project))
 
         step.takeTheOfferInStep()

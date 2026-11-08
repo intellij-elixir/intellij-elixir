@@ -153,7 +153,7 @@ class DirectoryConfiguratorHeavyTest : SmallIdeFacetHeavyTestCase() {
         val dir = createTempDir("mix_attached")
         stage(dir, "mix.exs" to "hub", "apps/alpha/mix.exs" to "alpha")
         val alphaIdea = File(dir, "apps/alpha/.idea")
-        val alphaFile = File(alphaIdea, "alpha.iml").path
+        val alphaFile = File(alphaIdea, "alpha.iml").toPath()
         val alpha = createModuleAt("alpha", project, ModuleTypeManager.getInstance().defaultModuleType, alphaIdea.toPath())
         val alphaRoot = getVirtualFile(File(dir, "apps/alpha"))
         runInEdtAndWait { ModuleRootModificationUtil.addContentRoot(alpha, alphaRoot) }
@@ -161,7 +161,7 @@ class DirectoryConfiguratorHeavyTest : SmallIdeFacetHeavyTestCase() {
         configureDirectory(dir)
 
         assertEquals(setOf(module, alpha), modules())
-        assertEquals("alpha's module file", alphaFile, alpha.moduleFilePath)
+        assertEquals("alpha's module file", alphaFile, Path.of(alpha.moduleFilePath))
         assertNotNull("alpha has the Elixir facet", elixirFacet(alpha))
         assertMixFoldersAreMarkedInItsOnlyContentRoot(alpha, alphaRoot)
     }

@@ -5,7 +5,7 @@ import com.intellij.execution.wsl.WslDistributionManager
 import com.intellij.execution.wsl.WslPath
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.runBlockingMaybeCancellable
 import java.util.concurrent.CancellationException
 
 /**
@@ -85,15 +85,10 @@ internal class WslCompatServiceImpl : WslCompatService {
 
     override fun getWslUserHome(distribution: WSLDistribution): String? {
         return try {
-            // getUserHome() requires a progress context in newer IntelliJ versions
-            // Wrap the call with ProgressManager to provide the required context
-            ProgressManager.getInstance().runProcessWithProgressSynchronously<String?, Exception>(
-                { distribution.userHome },
-                "Getting WSL User Home",
-                false,
-                null
-            )
+            // Waiting on getUserHome() needs a job or an indicator, and the home scan's thread has neither.
+            runBlockingMaybeCancellable { distribution.userHome }
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             log.debug("Error getting WSL user home for distribution: ${distribution.msId}", e)
             null
         }

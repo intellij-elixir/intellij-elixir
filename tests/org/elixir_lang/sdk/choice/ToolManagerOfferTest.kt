@@ -147,15 +147,6 @@ class ToolManagerOfferTest : HeavyTestCase() {
     private fun state(vararg folders: Path): SdkChoiceState =
         SdkChoiceState(project, null, null, folders.toList(), hostCommits = true).also { Disposer.register(testRootDisposable, it) }
 
-    /** Dispatches the EDT's events for half a second, long enough for an answer already on its way to arrive. */
-    private fun dispatchForAWhile() {
-        val until = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(500)
-        while (System.nanoTime() < until) {
-            PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
-            Thread.sleep(20)
-        }
-    }
-
     /** The answer a state over [folders] hears, once it comes. */
     private fun check(vararg folders: Path): ToolManagerCheck? {
         val state = state(*folders)

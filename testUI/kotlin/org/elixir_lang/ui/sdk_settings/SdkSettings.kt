@@ -78,15 +78,18 @@ private const val INTERNAL_ERRORS_CLOSE =
  * B, copies of them in the private home whose version files name another version.
  */
 fun launchPyCharm(name: String, vmOptions: VMOptions.() -> Unit = {}, body: Driver.(Homes) -> Unit) =
-    launch(name, IdeProductProvider.PY, vmOptions, body)
+    launch(name, IdeProductProvider.PY, vmOptions, {}, body)
 
-/** One IntelliJ IDEA launch under the guard, with the homes of [launchPyCharm] and [vmOptions] applied. */
-fun launchIdea(name: String, vmOptions: VMOptions.() -> Unit = {}, body: Driver.(Homes) -> Unit) =
-    launch(name, IdeProductProvider.IU, vmOptions, body)
+/**
+ * One IntelliJ IDEA launch under the guard, with the homes of [launchPyCharm] and [vmOptions] applied, and [configure]
+ * given the IDE's configuration folder before it starts.
+ */
+fun launchIdea(name: String, vmOptions: VMOptions.() -> Unit = {}, configure: (Path) -> Unit = {}, body: Driver.(Homes) -> Unit) =
+    launch(name, IdeProductProvider.IU, vmOptions, configure, body)
 
-private fun launch(name: String, product: IdeInfo, vmOptions: VMOptions.() -> Unit, body: Driver.(Homes) -> Unit) {
+private fun launch(name: String, product: IdeInfo, vmOptions: VMOptions.() -> Unit, configure: (Path) -> Unit, body: Driver.(Homes) -> Unit) {
     val homes = Homes.stage()
-    val context = IdeTestContext.setupTestContext(name, product).applyVMOptionsPatch {
+    val context = IdeTestContext.setupTestContext(name, product).apply { configure(paths.configDir) }.applyVMOptionsPatch {
         // The private home sits under the real one, so mise's config walk would reach the real home's configs.
         withEnv("MISE_CEILING_PATHS", NoScreen.privateHome.toString())
         // The logger mutes an exception's repeats, so a second row's identical throw would reach no error check.

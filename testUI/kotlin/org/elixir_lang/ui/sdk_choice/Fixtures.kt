@@ -1,6 +1,7 @@
 package org.elixir_lang.ui.sdk_choice
 
 import com.intellij.driver.client.Driver
+import com.intellij.driver.sdk.openFile
 import com.intellij.driver.sdk.ui.components.UiComponent
 import com.intellij.driver.sdk.ui.components.common.ideFrame
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
@@ -8,7 +9,6 @@ import com.intellij.driver.sdk.ui.components.elements.JCheckBoxUi
 import com.intellij.driver.sdk.ui.components.elements.JListUiComponent
 import com.intellij.driver.sdk.ui.components.elements.checkBoxWithName
 import com.intellij.driver.sdk.ui.components.elements.dialog
-import com.intellij.driver.sdk.ui.components.elements.jBlist
 import com.intellij.driver.sdk.ui.components.settings.settingsDialog
 import com.intellij.driver.sdk.ui.ui
 import com.intellij.driver.sdk.ui.xQuery
@@ -29,6 +29,7 @@ import org.elixir_lang.ui.sdk_settings.addErlangOnPage
 import org.elixir_lang.ui.sdk_settings.appears
 import org.elixir_lang.ui.sdk_settings.closeInternalErrors
 import org.elixir_lang.ui.sdk_settings.dialogShown
+import org.elixir_lang.ui.sdk_settings.openInThisWindow
 import org.elixir_lang.ui.sdk_settings.openSettings
 import java.io.File
 import java.nio.file.Path
@@ -142,6 +143,20 @@ internal fun Driver.clickBannerLabel(text: String) {
     label.click()
 }
 
+/** The file at [sourcePath] opened and the banner's "Choose Elixir SDK..." clicked: the chooser shows. */
+internal fun Driver.askTheChooser(rows: Rows, row: String, sourcePath: String) {
+    openFile(sourcePath, waitForCodeAnalysis = false)
+    clickBannerLabel(CHOOSE_LABEL)
+    rows.check(row, "the banner asks the chooser", appears("the chooser", 30.seconds) { dialogShown(CHOOSER_TITLE) })
+}
+
+/** The staged [project] opened from the welcome screen. */
+internal fun Driver.open(project: Path) {
+    ensureWelcomeScreenInForeground()
+    closeInternalErrors("setup")
+    openInThisWindow(project)
+}
+
 /** The chooser's [list] lists [elixir] paired with [erlang], and nothing is picked. */
 internal fun Rows.listsPairedWithNothingPicked(row: String, list: JListUiComponent, elixir: String, erlang: String) {
     val entries = list.items
@@ -161,7 +176,7 @@ private fun List<String>.entryOf(elixir: String): String? = firstOrNull { it.sta
 internal fun Driver.pickInChooser(rows: Rows, row: String, elixir: String, erlang: String) {
     ui.dialog(xQuery { byTitle(CHOOSER_TITLE) }) {
         waitUntilReady()
-        val list = jBlist()
+        val list = chooserList()
         rows.listsPairedWithNothingPicked(row, list, elixir, erlang)
         rows.check(row, "OK is disabled before a pick", !x { byAccessibleName("OK") }.isEnabled())
         list.pickEntry(elixir)
