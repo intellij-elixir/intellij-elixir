@@ -9,7 +9,6 @@ import com.intellij.driver.sdk.ui.components.elements.JCheckBoxUi
 import com.intellij.driver.sdk.ui.components.elements.JListUiComponent
 import com.intellij.driver.sdk.ui.components.elements.checkBoxWithName
 import com.intellij.driver.sdk.ui.components.elements.dialog
-import com.intellij.driver.sdk.ui.components.elements.jBlist
 import com.intellij.driver.sdk.ui.components.settings.settingsDialog
 import com.intellij.driver.sdk.ui.ui
 import com.intellij.driver.sdk.ui.xQuery
@@ -177,7 +176,7 @@ private fun List<String>.entryOf(elixir: String): String? = firstOrNull { it.sta
 internal fun Driver.pickInChooser(rows: Rows, row: String, elixir: String, erlang: String) {
     ui.dialog(xQuery { byTitle(CHOOSER_TITLE) }) {
         waitUntilReady()
-        val list = jBlist()
+        val list = chooserList()
         rows.listsPairedWithNothingPicked(row, list, elixir, erlang)
         rows.check(row, "OK is disabled before a pick", !x { byAccessibleName("OK") }.isEnabled())
         list.pickEntry(elixir)

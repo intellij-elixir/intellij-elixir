@@ -13,7 +13,6 @@ import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.platform.eel.EelDescriptor
 import com.intellij.platform.eel.EelOsFamily
@@ -909,9 +908,7 @@ class SdkChoiceTest : HeavyTestCase() {
     }
 
     fun testAnElixirPinAloneWithSeveralModelsSelectsNothing() {
-        val elixirHome = elixirInstall("1.18.4", "27")
-        twoSdksOnTheInstall(elixirHome, "Choice several")
-        toolManager.pins(elixirHome, null)
+        severalOnTheInstall()
         val dialog = offerDialog()
 
         dialog.panel.waitFor(ELIXIR_ONLY_OFFER).doClick()
@@ -922,7 +919,7 @@ class SdkChoiceTest : HeavyTestCase() {
     }
 
     fun testTheEnvironmentBoxFollowsTheToolManagerBox() {
-        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+        toolManager.pinsTheOffer()
         val dialog = offerDialog()
         dialog.panel.waitFor(OFFER).doClick()
         val inStep = dialog.panel.waitFor(IN_STEP)
@@ -943,7 +940,7 @@ class SdkChoiceTest : HeavyTestCase() {
             setEnabled(toolManager, true)
             setEnvironmentEnabled(toolManager, true)
         }
-        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+        toolManager.pinsTheOffer()
         val dialog = offerDialog()
 
         dialog.panel.waitFor(OFFER).doClick()
@@ -967,7 +964,7 @@ class SdkChoiceTest : HeavyTestCase() {
         toolManager.answer = { ToolManagerResult.Error(toolManager.name, MiseToolManager.untrustedConfigDescription("/project/mise.toml")) }
         val dialog = offerDialog()
         dialog.panel.waitFor("is not trusted") { "is not trusted" in it }
-        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+        toolManager.pinsTheOffer()
 
         dialog.panel.waitFor(CHECK_AGAIN).doClick()
 
@@ -976,39 +973,19 @@ class SdkChoiceTest : HeavyTestCase() {
     }
 
     fun testTheListWorksWhileTheCheckRuns() {
-        elixir("Choice A")
-        val elixirHome = elixirInstall("1.18.4", "27")
-        val erlangHome = install("27", "27.3.4")
-        val release = CountDownLatch(1)
-        toolManager.answer = {
-            release.await(10, TimeUnit.SECONDS)
-            toolManager.success(elixirHome, erlangHome)
-        }
-        try {
-            val dialog = offerDialog()
-
-            dialog.panel.pick(dialog.panel.state.entries.single { it.sdk.name == "Choice A" })
-
+        pickWhileTheCheckRuns(whileHeld = { dialog ->
             assertTrue(dialog.isOKActionEnabled)
             assertNull(dialog.panel.shownOffer())
-
-            release.countDown()
-
-            dialog.panel.waitFor(OFFER)
-            assertEquals("Choice A", dialog.panel.state.selected?.sdk?.name)
-        } finally {
-            release.countDown()
-        }
+        })
     }
 
     fun testAChangedLocationTakesTheOldOfferAway() {
-        val elixirHome = elixirInstall("1.18.4", "27")
-        val erlangHome = install("27", "27.3.4")
-        val elsewhere = FileUtil.createTempDirectory("sdk-choice-elsewhere", null, true).toPath()
+        val pins = toolManager.offeredPins()
+        val elsewhere = newFolder()
         val release = CountDownLatch(1)
         toolManager.answer = { folder ->
             if (folder != offerFolder) release.await(10, TimeUnit.SECONDS)
-            toolManager.success(elixirHome, erlangHome)
+            pins
         }
         try {
             val panel = offerDialog().panel
@@ -1028,12 +1005,12 @@ class SdkChoiceTest : HeavyTestCase() {
     }
 
     fun testATakenOfferStandsAtALocationPinningTheSame() {
-        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+        toolManager.pinsTheOffer()
         val panel = offerDialog().panel
         panel.waitFor(OFFER).doClick()
         assertTrue("the boxes once the offer is taken", panel.waitFor(IN_STEP).isEnabled)
 
-        panel.retarget(project.getEelDescriptor(), listOf(FileUtil.createTempDirectory("sdk-choice-same-pins", null, true).toPath()))
+        panel.retarget(project.getEelDescriptor(), listOf(newFolder()))
         assertNull("the old location's offer", panel.shownOffer())
 
         assertTrue("the offer's radio at a location pinning the same", panel.waitFor(OFFER).isSelected)
@@ -1058,7 +1035,7 @@ class SdkChoiceTest : HeavyTestCase() {
     }
 
     fun testBoxesTickedAfterThePickAreHandedOver() {
-        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+        toolManager.pinsTheOffer()
         val picks = mutableListOf<SdkChoicePick?>()
         val panel = offerPanel { picks += it }
         panel.waitFor(OFFER).doClick()
@@ -1076,10 +1053,8 @@ class SdkChoiceTest : HeavyTestCase() {
     }
 
     fun testAListedPickHandsOverTheOptInsAndAnUnlistedOneDisablesTheBoxes() {
-        val elixirHome = elixirInstall("1.18.4", "27")
-        val several = twoSdksOnTheInstall(elixirHome, "Choice several")
+        val several = severalOnTheInstall()
         elixir("Choice A")
-        toolManager.pins(elixirHome, null)
         val picks = mutableListOf<SdkChoicePick?>()
         val panel = offerPanel { picks += it }
         panel.waitFor(ELIXIR_ONLY_OFFER).doClick()
@@ -1087,14 +1062,14 @@ class SdkChoiceTest : HeavyTestCase() {
         val environment = panel.waitFor(ENVIRONMENT)
         assertTrue("the boxes follow the radio, with nothing picked yet", inStep.isEnabled)
 
-        panel.pick(panel.state.entries.single { it.sdk === several[1] })
+        panel.pickRow(several[1].name)
         assertTrue(inStep.isEnabled)
         inStep.doClick()
         environment.doClick()
 
         assertEquals(ToolManagerOptIns(toolManager.name, environment = true), picks.last()?.optIns)
 
-        panel.pick(panel.state.entries.single { it.sdk.name == "Choice A" })
+        panel.pickRow("Choice A")
 
         assertEquals(listOf(false, false), listOf(inStep.isEnabled, environment.isEnabled))
         assertEquals("Choice A", picks.last()?.entry?.sdk?.name)
@@ -1102,9 +1077,8 @@ class SdkChoiceTest : HeavyTestCase() {
     }
 
     fun testATickedBoxShowsUntickedWhileItHandsOverNothing() {
-        val elixirHome = elixirInstall("1.18.4", "27")
         elixir("Choice A")
-        toolManager.pins(elixirHome, install("27", "27.3.4"))
+        toolManager.pinsTheOffer()
         val picks = mutableListOf<SdkChoicePick?>()
         val panel = offerPanel { picks += it }
         val first = panel.waitFor(OFFER).also { it.doClick() }
@@ -1113,7 +1087,7 @@ class SdkChoiceTest : HeavyTestCase() {
         inStep.doClick()
         environment.doClick()
 
-        panel.pick(panel.state.entries.single { it.sdk.name == "Choice A" })
+        panel.pickRow("Choice A")
 
         assertNull(picks.last()?.optIns)
         assertEquals("shown ticked", listOf(false, false), listOf(inStep.isSelected, environment.isSelected))
@@ -1125,7 +1099,7 @@ class SdkChoiceTest : HeavyTestCase() {
     }
 
     fun testUntickingTheToolManagerShowsTheEnvironmentUnticked() {
-        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+        toolManager.pinsTheOffer()
         val picks = mutableListOf<SdkChoicePick?>()
         val panel = offerPanel { picks += it }
         panel.waitFor(OFFER).doClick()
@@ -1142,7 +1116,7 @@ class SdkChoiceTest : HeavyTestCase() {
 
     fun testAStoredEnvironmentFlagFollowsTheUntickedBox() {
         ToolManagerSettings.getInstance(project).setEnvironmentEnabled(toolManager, true)
-        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+        toolManager.pinsTheOffer()
 
         askWithTheOffer { panel ->
             panel.waitFor(OFFER).doClick()
@@ -1171,7 +1145,7 @@ class SdkChoiceTest : HeavyTestCase() {
     }
 
     fun testUntickedBoxesLeaveTheToolManagerOff() {
-        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+        toolManager.pinsTheOffer()
         val changes = settingsChanges(project, testRootDisposable) {}
 
         val written = askWithTheOffer { panel -> panel.waitFor(OFFER).doClick() }
@@ -1202,7 +1176,7 @@ class SdkChoiceTest : HeavyTestCase() {
     private fun offerPanel(onPick: (SdkChoicePick?) -> Unit): SdkChoicePanel =
         SdkChoicePanel(state(folders = listOf(offerFolder)), testRootDisposable, onPick)
 
-    private val offerFolder: Path by lazy { FileUtil.createTempDirectory("sdk-choice-offer", null, true).toPath() }
+    private val offerFolder: Path by lazy { newFolder() }
 
     /** The chooser's dialog for [module], with the tool managers asked about a folder of its own. */
     private fun offerDialog(): SdkChoiceDialog = dialog(listOf(offerFolder))

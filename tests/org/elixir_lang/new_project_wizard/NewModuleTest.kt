@@ -170,7 +170,7 @@ class NewModuleTest : HeavyTestCase() {
                 ToolManagerEnvironment.Variables(TOOL_MANAGER_PROBE)
             }),
         )
-        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+        toolManager.pinsTheOffer()
         val wizard = opened()
         wizard.panel.waitFor(OFFER).doClick()
         wizard.panel.waitFor(IN_STEP).doClick()

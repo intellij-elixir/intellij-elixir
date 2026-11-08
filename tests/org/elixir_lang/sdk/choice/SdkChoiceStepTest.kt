@@ -15,7 +15,6 @@ import org.elixir_lang.sdk.SdkDetectionContext
 import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.SdkFixtures.storedErlangName
 import org.elixir_lang.sdk.erlang_dependent.elixirInstall
-import org.elixir_lang.sdk.erlang_dependent.install
 import java.nio.file.Path
 
 /** The Mix import's SDK step, built by `Provider` as the import wizard builds it. */
@@ -81,7 +80,7 @@ class SdkChoiceStepTest : PlatformTestCase() {
     }
 
     fun testInANewProjectTheOfferAndAnEnabledFirstBoxShow() {
-        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+        toolManager.pinsTheOffer()
         val step = sdkStep(newProject())
         step.updateStep()
 
@@ -91,7 +90,7 @@ class SdkChoiceStepTest : PlatformTestCase() {
     }
 
     fun testAddingToAnOpenProjectShowsTheBoxesDisabled() {
-        toolManager.pins(elixirInstall("1.18.4", "27"), install("27", "27.3.4"))
+        toolManager.pinsTheOffer()
         val step = sdkStep(WizardContext(project, Disposer.newDisposable(testRootDisposable)))
         step.updateStep()
 

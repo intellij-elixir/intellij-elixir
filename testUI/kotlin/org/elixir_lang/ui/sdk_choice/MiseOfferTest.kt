@@ -1,7 +1,6 @@
 package org.elixir_lang.ui.sdk_choice
 
 import com.intellij.driver.client.Driver
-import com.intellij.driver.sdk.openFile
 import com.intellij.driver.sdk.ui.components.UiComponent
 import com.intellij.driver.sdk.ui.components.elements.JCheckBoxUi
 import com.intellij.driver.sdk.ui.components.elements.dialog
@@ -9,7 +8,6 @@ import com.intellij.driver.sdk.ui.ui
 import com.intellij.driver.sdk.ui.xQuery
 import org.elixir_lang.ui.framework.core.CHOOSER_TITLE
 import org.elixir_lang.ui.framework.core.clickButtonText
-import org.elixir_lang.ui.framework.core.ensureWelcomeScreenInForeground
 import org.elixir_lang.ui.framework.core.sdksAt
 import org.elixir_lang.ui.framework.core.waitUntilReady
 import org.elixir_lang.ui.sdk_settings.Home
@@ -17,7 +15,6 @@ import org.elixir_lang.ui.sdk_settings.Rows
 import org.elixir_lang.ui.sdk_settings.appears
 import org.elixir_lang.ui.sdk_settings.cancelSettings
 import org.elixir_lang.ui.sdk_settings.closeInternalErrors
-import org.elixir_lang.ui.sdk_settings.dialogShown
 import org.elixir_lang.ui.sdk_settings.failedErlangStepRow
 import org.elixir_lang.ui.sdk_settings.launchIdea
 import org.elixir_lang.ui.sdk_settings.launchPyCharm
@@ -26,7 +23,6 @@ import org.elixir_lang.ui.sdk_settings.stored
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledOnOs
 import org.junit.jupiter.api.condition.OS
-import java.nio.file.Path
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -42,44 +38,27 @@ class MiseOfferTest {
     @Test
     @EnabledOnOs(OS.LINUX)
     fun `on IntelliJ IDEA taking mise's offer sets the module's SDK and turns mise on`() {
-        val rows = Rows()
         val row = "IU"
-        launchIdea("MiseOfferTest-IU", { withEnv("PATH", stubbedPath()) }) { homes ->
-            val install = stageElixirInstall()
-            val project = stageProject(NAME, moduleIml("ELIXIR_MODULE"), mapOf(SOURCE_PATH to SOURCE))
-            pinWithMise(project, install, homes.erlang)
-            open(project)
-            runCatching {
-                takeTheOffer(rows, row, install, homes.erlang)
-                val set = appears("the module's SDK", 30.seconds) { moduleSdk() in sdksAt(install) }
-                rows.check(row, "the module's SDK '${moduleSdk()}' is at mise's install", set)
-                pairedWithMisesErlang(rows, row, moduleSdk(), homes.erlang)
-                rows.check(row, "Tool Managers shows mise on", toolManagersShowMiseOn())
-            }.onFailure { failure -> failed(rows, row, failure) }
+        onIdeaWithThePins(row) { rows, install, erlang ->
+            takeTheOffer(rows, row, install, erlang)
+            val set = appears("the module's SDK", 30.seconds) { moduleSdk() in sdksAt(install) }
+            rows.check(row, "the module's SDK '${moduleSdk()}' is at mise's install", set)
+            pairedWithMisesErlang(rows, row, moduleSdk(), erlang)
+            rows.check(row, "Tool Managers shows mise on", toolManagersShowMiseOn())
         }
-        rows.assertAllHeld()
     }
 
     @Test
     @EnabledOnOs(OS.LINUX)
     fun `on PyCharm taking mise's offer names it in the facet and turns mise on`() {
-        val rows = Rows()
         val row = "PY"
-        launchPyCharm("MiseOfferTest-PY", { withEnv("PATH", stubbedPath()) }) { homes ->
-            val install = stageElixirInstall()
-            val project = stageProject(NAME, moduleIml("PYTHON_MODULE", "<configuration />"), mapOf(SOURCE_PATH to SOURCE))
-            pinWithMise(project, install, homes.erlang)
-            closeInternalErrors("setup")
-            runCatching {
-                openInThisWindow(project)
-                takeTheOffer(rows, row, install, homes.erlang)
-                val named = appears("the facet to name an SDK", 30.seconds) { facetSdkName() in sdksAt(install) }
-                rows.check(row, "the facet names '${facetSdkName()}', at mise's install", named)
-                pairedWithMisesErlang(rows, row, facetSdkName(), homes.erlang)
-                rows.check(row, "Tool Managers shows mise on", toolManagersShowMiseOn())
-            }.onFailure { failure -> failed(rows, row, failure) }
+        onPyCharmWithThePins(row) { rows, install, erlang ->
+            takeTheOffer(rows, row, install, erlang)
+            val named = appears("the facet to name an SDK", 30.seconds) { facetSdkName() in sdksAt(install) }
+            rows.check(row, "the facet names '${facetSdkName()}', at mise's install", named)
+            pairedWithMisesErlang(rows, row, facetSdkName(), erlang)
+            rows.check(row, "Tool Managers shows mise on", toolManagersShowMiseOn())
         }
-        rows.assertAllHeld()
     }
 
     @Test
@@ -94,7 +73,7 @@ class MiseOfferTest {
             stubMise(project, """echo 'mise ERROR Config files in $config are not trusted.' >&2; exit 1""", TOOLS)
             open(project)
             runCatching {
-                askTheChooser(rows, row)
+                askTheChooser(rows, row, SOURCE_PATH)
                 ui.dialog(xQuery { byTitle(CHOOSER_TITLE) }) {
                     waitUntilReady()
                     val message = x("//div[contains(@visible_text, 'is not trusted') or contains(@accessiblename, 'is not trusted')]")
@@ -151,22 +130,9 @@ class MiseOfferTest {
         rows.assertAllHeld()
     }
 
-    private fun Driver.open(project: Path) {
-        ensureWelcomeScreenInForeground()
-        closeInternalErrors("setup")
-        openInThisWindow(project)
-    }
-
-    /** The banner's "Choose Elixir SDK..." clicked, with the source file open, and the chooser shown. */
-    private fun Driver.askTheChooser(rows: Rows, row: String) {
-        openFile(SOURCE_PATH, waitForCodeAnalysis = false)
-        clickBannerLabel(CHOOSE_LABEL)
-        rows.check(row, "the banner asks the chooser", appears("the chooser", 30.seconds) { dialogShown(CHOOSER_TITLE) })
-    }
-
     /** The chooser offers mise's Elixir at [install] and its [erlang]; taken, then [then] with the box keeping the SDKs in step. */
     private fun Driver.withTheOfferTaken(rows: Rows, row: String, install: String, erlang: Home, then: UiComponent.(JCheckBoxUi) -> Unit) {
-        askTheChooser(rows, row)
+        askTheChooser(rows, row, SOURCE_PATH)
         ui.dialog(xQuery { byTitle(CHOOSER_TITLE) }) {
             waitUntilReady()
             val inStep = takeMisesOffer(rows, row, install, erlang)

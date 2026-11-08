@@ -23,7 +23,7 @@ internal fun mixImportStep(context: WizardContext, builder: Builder): SdkChoiceS
 internal fun SdkChoicePanel.pickRow(name: String) = pick(state.entries.single { it.sdk.name == name })
 
 /** Picks the Elixir SDK named [name] in the step's chooser. */
-internal fun SdkChoiceStep.pick(name: String) = panel.pick(panel.state.entries.single { it.sdk.name == name })
+internal fun SdkChoiceStep.pick(name: String) = panel.pickRow(name)
 
 /** Shows the step, picks the Elixir SDK named [name], and presses Next. */
 internal fun SdkChoiceStep.pickAndNext(name: String) {
