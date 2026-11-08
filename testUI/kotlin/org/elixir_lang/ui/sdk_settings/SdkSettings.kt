@@ -2,13 +2,13 @@ package org.elixir_lang.ui.sdk_settings
 
 import com.intellij.driver.client.Driver
 import com.intellij.driver.client.Remote
-import com.intellij.driver.client.utility
 import com.intellij.driver.sdk.getOpenProjects
 import com.intellij.driver.sdk.invokeAction
 import com.intellij.driver.sdk.step
 import com.intellij.driver.sdk.ui.components.UiComponent
 import com.intellij.driver.sdk.ui.components.common.IdeaFrameUI
 import com.intellij.driver.sdk.ui.components.common.ideFrame
+import com.intellij.driver.sdk.ui.components.common.welcomeScreen
 import com.intellij.driver.sdk.ui.components.elements.JListUiComponent
 import com.intellij.driver.sdk.ui.components.elements.comboBox
 import com.intellij.driver.sdk.ui.components.settings.SettingsDialogUiComponent
@@ -397,6 +397,9 @@ fun Driver.settingsTab(frame: IdeaFrameUI, page: SdkPage): SettingsDialogUiCompo
 
 /** File > Open of [project] from the project frame PyCharm starts in, into this window, waited for until indexed. */
 fun Driver.openInThisWindow(project: Path) = step("File > Open $project") {
+    // PyCharm's start project joins the open projects seconds after its frame shows, and an open before then asks no
+    // This Window question and takes a second frame. IntelliJ IDEA opens from the welcome screen, with no project.
+    waitFor("a project or the welcome screen", 2.minutes) { getOpenProjects().isNotEmpty() || welcomeScreen().present() }
     invokeAction("OpenFile", now = false)
     choosePath("Open File or Project", project.toString())
     val thisWindow = ui.x("//div[@visible_text='This Window' or @accessiblename='This Window']")

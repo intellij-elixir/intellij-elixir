@@ -1,0 +1,88 @@
+package org.elixir_lang.mix
+
+import com.intellij.openapi.progress.EmptyProgressIndicator
+import com.intellij.openapi.vfs.VirtualFile
+import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.mix.project.mixExs
+
+/** Which folders below a scanned folder hold its apps. */
+class ProjectFindOtpAppsTest : PlatformTestCase() {
+    /**
+     * A directory whose name starts with `.` holds tooling state, such as `.claude/worktrees/<name>/` checkouts of
+     * the same project, so a `mix.exs` below one is not an app of the project. Counting it would make a project
+     * with one app read as an umbrella.
+     */
+    fun testMixExsBelowAHiddenDirectoryIsNotAnApp() {
+        addMixExs("proj", "proj")
+        addMixExs("proj/.claude/worktrees/a", "proj")
+        addMixExs("proj/.claude/worktrees/b", "proj")
+
+        assertEquals(listOf("/"), appPaths("proj"))
+    }
+
+    fun testAnyHiddenDirectoryIsSkipped() {
+        addMixExs("proj", "proj")
+        addMixExs("proj/.anything/nested", "nested")
+
+        assertEquals(listOf("/"), appPaths("proj"))
+    }
+
+    fun testAnUmbrellasChildAppsAreStillFound() {
+        addMixExs("umbrella", "umbrella")
+        addMixExs("umbrella/apps/a", "a")
+        addMixExs("umbrella/apps/b", "b")
+
+        assertEquals(listOf("/", "/apps/a", "/apps/b"), appPaths("umbrella"))
+    }
+
+    fun testAProjectRootThatIsItselfHiddenStillFindsItsApp() {
+        addMixExs(".hidden_proj", "hidden_proj")
+
+        assertEquals(listOf("/"), appPaths(".hidden_proj"))
+    }
+
+    fun testAProjectsFetchedDependenciesBelowTheFolderAreNotApps() {
+        addMixExs("folder/backend", "backend")
+        addMixExs("folder/backend/deps/dep", "dep")
+
+        assertEquals(listOf("/backend"), appPaths("folder"))
+    }
+
+    fun testTheFoldersOwnDependenciesAreNotAppsWhenItHoldsNoMixExs() {
+        addMixExs("folder/backend", "backend")
+        addMixExs("folder/deps/dep", "dep")
+
+        assertEquals(listOf("/backend"), appPaths("folder"))
+    }
+
+    fun testAFolderOpenedInsideAProjectsDependenciesFindsTheirApps() {
+        addMixExs("folder/backend", "backend")
+        addMixExs("folder/backend/deps/dep", "dep")
+
+        assertEquals(listOf("/dep"), appPaths("folder/backend/deps"))
+    }
+
+    fun testAFolderNamedAssetsFindsItsOwnApp() {
+        addMixExs("assets", "assets")
+
+        assertEquals(listOf("/"), appPaths("assets"))
+    }
+
+    fun testAProjectsBuildOutputBelowTheFolderIsNotAnApp() {
+        addMixExs("folder/backend", "backend")
+        addMixExs("folder/backend/_build/dev/lib/dep", "dep")
+
+        assertEquals(listOf("/backend"), appPaths("folder"))
+    }
+
+    private fun addMixExs(directory: String, app: String) {
+        myFixture.addFileToProject("$directory/mix.exs", mixExs(app))
+    }
+
+    /** Each app's path relative to [rootDirectory], so `/` is the app at the root. */
+    private fun appPaths(rootDirectory: String): List<String> {
+        val root: VirtualFile = myFixture.tempDirFixture.getFile(rootDirectory)!!
+
+        return Project.findOtpApps(root, EmptyProgressIndicator()).map { it.root.path.removePrefix(root.path).ifEmpty { "/" } }.sorted()
+    }
+}

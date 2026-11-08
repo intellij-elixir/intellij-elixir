@@ -237,6 +237,8 @@
 
 ### Bug Fixes
 
+- [#4657](https://github.com/intellij-elixir/intellij-elixir/pull/4657) [@sh41](https://github.com/sh41)
+  - **Opening a Mix project that has no `.idea` folder gives each app of an umbrella, or an app in a subfolder, its own Elixir module instead of a notification or a `.idea` in the app's folder, and asks once for the Elixir SDK of all of them after indexing, on PyCharm, RubyMine and the other IDEs that aren't IntelliJ IDEA, and on IntelliJ IDEA for a folder whose apps are all in subfolders; opening or importing a Mix project no longer takes the fetched dependencies of a project in a subfolder for apps, and finds the app of a project whose folder is named `assets`.** Fixes [#4623](https://github.com/intellij-elixir/intellij-elixir/issues/4623).
 - [#4652](https://github.com/intellij-elixir/intellij-elixir/pull/4652) [@sh41](https://github.com/sh41)
   - **On IntelliJ IDEA, opening a Mix project that has no `.idea` folder, by File > Open or Get from VCS, no longer makes a JDK the project SDK or gives its modules the Elixir SDK picked in a cancelled import, and asks for the modules' Elixir SDK once the project has opened.** Fixes [#4618](https://github.com/intellij-elixir/intellij-elixir/issues/4618). Part of [#4623](https://github.com/intellij-elixir/intellij-elixir/issues/4623).
 - [#4646](https://github.com/intellij-elixir/intellij-elixir/pull/4646) [@sh41](https://github.com/sh41)

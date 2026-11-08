@@ -11,9 +11,9 @@ import org.elixir_lang.mix.sync.MixSyncTestHelpers
 import org.elixir_lang.mix.sync.contentRootToken
 import org.elixir_lang.mix.sync.scopedDepLibraryName
 
-/** The `mix.exs` of the Mix app [app] in [dir], the least the import finds as an app. */
+/** The `mix.exs` of the Mix app [app] in [dir]. */
 internal fun mixExs(dir: VirtualFile, app: String): VirtualFile =
-    VfsTestUtil.createFile(dir, "mix.exs", "defmodule ${app.replaceFirstChar(Char::uppercase)}.MixProject do\n  def project, do: [app: :$app]\nend\n")
+    VfsTestUtil.createFile(dir, "mix.exs", org.elixir_lang.mix.project.mixExs(app))
 
 /** The Mix app [app] in [dir], declaring `phoenix`, which it has fetched and built. */
 internal fun mixAppUsingPhoenix(project: Project, dir: VirtualFile, app: String) {

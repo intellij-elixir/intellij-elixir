@@ -5,6 +5,7 @@ import com.intellij.driver.sdk.openFile
 import com.intellij.driver.sdk.ui.components.elements.dialog
 import com.intellij.driver.sdk.ui.ui
 import com.intellij.driver.sdk.ui.xQuery
+import org.elixir_lang.ui.framework.core.CHOOSER_TITLE
 import org.elixir_lang.ui.framework.core.clickButtonText
 import org.elixir_lang.ui.framework.core.ensureWelcomeScreenInForeground
 import org.elixir_lang.ui.framework.core.sdksAt
@@ -92,7 +93,7 @@ class MiseOfferTest {
             open(project)
             runCatching {
                 askTheChooser(rows, row)
-                ui.dialog(xQuery { byTitle(TITLE) }) {
+                ui.dialog(xQuery { byTitle(CHOOSER_TITLE) }) {
                     waitUntilReady()
                     val message = x("//div[contains(@visible_text, 'is not trusted') or contains(@accessiblename, 'is not trusted')]")
                     rows.check(row, "the chooser says the config is not trusted", appears("the message", 30.seconds) { message.present() })
@@ -114,14 +115,14 @@ class MiseOfferTest {
     /** The banner's "Choose Elixir SDK..." clicked, with the source file open, and the chooser shown. */
     private fun Driver.askTheChooser(rows: Rows, row: String) {
         openFile(SOURCE_PATH, waitForCodeAnalysis = false)
-        clickBannerLabel(CHOOSE)
-        rows.check(row, "the banner asks the chooser", appears("the chooser", 30.seconds) { dialogShown(TITLE) })
+        clickBannerLabel(CHOOSE_LABEL)
+        rows.check(row, "the banner asks the chooser", appears("the chooser", 30.seconds) { dialogShown(CHOOSER_TITLE) })
     }
 
     /** The chooser offers mise's Elixir at [install] and its [erlang]; taken, with the tool manager's box ticked, and OK. */
     private fun Driver.takeTheOffer(rows: Rows, row: String, install: String, erlang: Home) {
         askTheChooser(rows, row)
-        ui.dialog(xQuery { byTitle(TITLE) }) {
+        ui.dialog(xQuery { byTitle(CHOOSER_TITLE) }) {
             waitUntilReady()
             val inStep = takeMisesOffer(rows, row, install, erlang)
             rows.check(row, "its box can be ticked once the offer is taken", appears("the box enabled", 30.seconds) { inStep.isEnabled() })
@@ -138,14 +139,12 @@ class MiseOfferTest {
 
     private fun Driver.failed(rows: Rows, row: String, failure: Throwable) =
         failedErlangStepRow(rows, row, failure) {
-            cancelDialogs(TITLE)
+            cancelDialogs(CHOOSER_TITLE)
             cancelSettings()
         }
 
     private companion object {
         const val NAME = "mise_offer"
-        const val CHOOSE = "Choose Elixir SDK..."
-        const val TITLE = "Choose Elixir SDK"
         const val SOURCE_PATH = "lib/$NAME.ex"
         const val SOURCE = "defmodule MiseOffer do\nend"
         val TOOLS = listOf("elixir", "erlang")

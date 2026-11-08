@@ -21,7 +21,6 @@ import com.intellij.openapi.vcs.checkout.CheckoutListener
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.projectImport.ProjectImportBuilder
 import com.intellij.testFramework.IndexingTestUtil
-import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.closeProjectAsync
 import com.intellij.testFramework.createTestOpenProjectOptions
 import com.intellij.testFramework.runInEdtAndGet
@@ -39,6 +38,7 @@ import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 import org.elixir_lang.sdk.elixir.sdk
 import java.nio.file.Path
 import java.util.concurrent.Callable
+import kotlin.io.path.createParentDirectories
 import kotlin.io.path.writeText
 
 /**
@@ -110,6 +110,14 @@ class OpenProcessorHeavyTest : HeavyTestCase() {
         assertNoProjectSdk(project)
     }
 
+    fun testAProjectsFetchedDependenciesBelowTheFolderGetNoModule() = opened(
+        ::fileOpen,
+        "backend/mix.exs" to mixExs("backend"),
+        "backend/deps/jason/mix.exs" to mixExs("jason"),
+    ) { project ->
+        assertEquals(setOf("test_app", "backend"), ModuleManager.getInstance(project).modules.map(Module::getName).toSet())
+    }
+
     fun testAModuleWithAnElixirSdkIsNotAsked() {
         val (a, b) = runInEdtAndGet { elixirModule("a") to elixirModule("b") }
         ModuleRootModificationUtil.setModuleSdk(b, elixir)
@@ -120,11 +128,13 @@ class OpenProcessorHeavyTest : HeavyTestCase() {
         recorded.assertChooserAskedFor(a)
     }
 
-    /** A Mix project with no `.idea` opened by [open], given to [body], then closed. */
-    private fun opened(open: (Path) -> Project, body: (Project) -> Unit) {
+    /** A Mix project with no `.idea`, holding [files] by path too, opened by [open], given to [body], then closed. */
+    private fun opened(open: (Path) -> Project, vararg files: Pair<String, String>, body: (Project) -> Unit) {
         assertContainsElements(ProjectJdkTable.getInstance().allJdks.toList(), jdk, elixir)
         val dir = createTempDir("mix_open").toPath()
-        dir.resolve("mix.exs").writeText(MIX_EXS)
+        for ((path, text) in listOf("mix.exs" to MIX_EXS) + files) {
+            dir.resolve(path).createParentDirectories().writeText(text)
+        }
         LocalFileSystem.getInstance().refreshAndFindFileByNioFile(dir) ?: error("$dir not found in VFS after refresh")
 
         val project = open(dir)
@@ -151,13 +161,10 @@ class OpenProcessorHeavyTest : HeavyTestCase() {
             ?: error("Get from VCS on $dir opened no project")
     }
 
-    /**
-     * Indexing done and the chooser asked. The ask waits for smart mode, and when a scan is running as it is posted, the
-     * platform's smart-mode queue holds it until a pooled thread sees the scan end, which draining the EDT does not wait for.
-     */
+    /** Indexing done and the chooser asked. */
     private fun settle(project: Project) {
         IndexingTestUtil.waitUntilIndexesAreReady(project)
-        runInEdtAndWait { PlatformTestUtil.waitWithEventsDispatching("the chooser was not asked", { recorded.chooserAsked.isNotEmpty() }, 60) }
+        recorded.awaitAsk()
     }
 
     private fun module(project: Project): Module = ModuleManager.getInstance(project).modules.single()

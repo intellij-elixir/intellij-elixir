@@ -3,12 +3,7 @@ package org.elixir_lang.ui.sdk_choice
 import com.intellij.driver.client.Driver
 import com.intellij.driver.sdk.invokeAction
 import com.intellij.driver.sdk.openFile
-import com.intellij.driver.sdk.ui.components.elements.dialog
-import com.intellij.driver.sdk.ui.components.elements.jBlist
-import com.intellij.driver.sdk.ui.ui
-import com.intellij.driver.sdk.ui.xQuery
-import org.elixir_lang.ui.framework.core.clickButtonText
-import org.elixir_lang.ui.framework.core.waitUntilReady
+import org.elixir_lang.ui.framework.core.CHOOSER_TITLE
 import org.elixir_lang.ui.sdk_settings.Rows
 import org.elixir_lang.ui.sdk_settings.appears
 import org.elixir_lang.ui.sdk_settings.dialogShown
@@ -96,17 +91,10 @@ class BannerChooserTest {
      */
     private fun Driver.chooseFromBanner(rows: Rows, row: String, elixir: String, erlang: String) {
         openFile(SOURCE_PATH, waitForCodeAnalysis = false)
-        clickBannerLabel(CHOOSE)
-        val asked = appears("the chooser", 30.seconds) { dialogShown(TITLE) }
+        clickBannerLabel(CHOOSE_LABEL)
+        val asked = appears("the chooser", 30.seconds) { dialogShown(CHOOSER_TITLE) }
         rows.check(row, "the banner asks the chooser", asked)
-        ui.dialog(xQuery { byTitle(TITLE) }) {
-            waitUntilReady()
-            val list = jBlist()
-            rows.listsPairedWithNothingPicked(row, list, elixir, erlang)
-            rows.check(row, "OK is disabled before a pick", !x { byAccessibleName("OK") }.isEnabled())
-            list.pickEntry(elixir)
-            clickButtonText("OK")
-        }
+        pickInChooser(rows, row, elixir, erlang)
     }
 
     /** Whether [file], once the IDE has saved everything, holds [text]. */
@@ -116,12 +104,10 @@ class BannerChooserTest {
     }
 
     private fun Driver.failed(rows: Rows, row: String, failure: Throwable) =
-        failedErlangStepRow(rows, row, failure) { cancelDialogs(TITLE) }
+        failedErlangStepRow(rows, row, failure) { cancelDialogs(CHOOSER_TITLE) }
 
     private companion object {
         const val NAME = "banner_chooser"
-        const val CHOOSE = "Choose Elixir SDK..."
-        const val TITLE = "Choose Elixir SDK"
         const val SOURCE_PATH = "lib/$NAME.ex"
         const val SOURCE = "defmodule BannerChooser do\nend"
     }
