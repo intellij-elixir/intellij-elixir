@@ -2837,8 +2837,6 @@ internal class Natives(private val evaluation: Evaluation) {
 
     private fun isList(term: OtpErlangObject) = typed(term).let { it is OtpErlangList || it is OtpErlangString }
 
-    private fun bitSize(bitstring: OtpErlangBitstr) = bitstring.binaryValue().size * 8 - bitstring.pad_bits()
-
     private fun isBinary(term: OtpErlangObject) = typed(term).let { it is OtpErlangBitstr && it.pad_bits() == 0 }
 
     private fun binaries(key: String, args: List<OtpErlangObject>): OtpErlangObject? =

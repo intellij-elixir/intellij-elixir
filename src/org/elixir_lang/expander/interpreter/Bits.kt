@@ -132,7 +132,7 @@ internal class Bits(private val evaluation: Evaluation) {
             if (value is UnknownValue) return value
             if (value !is OtpErlangBitstr) evaluation.error(tuple(atom("badarg"), value))
 
-            writer.bitstring(value, bitLength(value))
+            writer.bitstring(value, bitSize(value))
         }
 
         return writer.bitstring()
@@ -146,7 +146,7 @@ internal class Bits(private val evaluation: Evaluation) {
         pending: PatternBindings,
     ): Boolean {
         val bitstring = value as? OtpErlangBitstr ?: return false
-        val length = bitLength(bitstring)
+        val length = bitSize(bitstring)
 
         return matchFrom(spliced(segments, frame), bitstring, 0, length, frame, pending) == length
     }
@@ -193,7 +193,7 @@ internal class Bits(private val evaluation: Evaluation) {
         val segments = spliced(written, frame)
         val bitstring = value as? OtpErlangBitstr
             ?: evaluation.error(tuple(atom(if (comprehension) "bad_generator" else "badarg"), value))
-        val length = bitLength(bitstring)
+        val length = bitSize(bitstring)
         val skip = when {
             comprehension -> Skip.LITERALS
             reduceSkips(segments, frame, outer) -> Skip.ALL
@@ -484,7 +484,7 @@ internal class Bits(private val evaluation: Evaluation) {
             }
             Type.BINARY, Type.BITSTRING -> {
                 val bitstring = value as? OtpErlangBitstr ?: return false
-                val length = bitLength(bitstring)
+                val length = bitSize(bitstring)
 
                 when {
                     takesWhole(spec, size, length) -> writer.bitstring(bitstring, length)
@@ -701,8 +701,6 @@ internal class Bits(private val evaluation: Evaluation) {
                 else -> count - 1 - (position - whole)
             }
         }
-
-        fun bitLength(value: OtpErlangBitstr) = value.binaryValue().size * 8 - value.pad_bits()
 
         /** The IEEE 754 binary16 [half] as a double. */
         fun halfToDouble(half: Int): Double {

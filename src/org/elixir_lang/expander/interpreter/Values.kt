@@ -780,6 +780,9 @@ internal inline fun keyValue(
 
 internal fun isNumber(term: OtpErlangObject) = term is OtpErlangLong || term is OtpErlangDouble
 
+/** [bitstring]'s length in bits, Erlang's `bit_size/1`. */
+internal fun bitSize(bitstring: OtpErlangBitstr) = bitstring.binaryValue().size * 8 - bitstring.pad_bits()
+
 /** Erlang's `==` where [exact] is false, else `=:=` ([termsEqual]); declines on terms whose order only the VM knows. */
 internal fun equal(left: OtpErlangObject, right: OtpErlangObject, exact: Boolean, level: ElixirLanguageLevel): Boolean =
     ordered(left, right, true) { termsEqual(left, right, exact, level) }
