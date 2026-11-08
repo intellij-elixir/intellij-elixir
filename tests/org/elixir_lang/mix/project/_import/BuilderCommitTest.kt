@@ -293,7 +293,7 @@ class BuilderCommitTest : HeavyTestCase() {
         appRoot(name),
     )
 
-    /** The app [name] under the umbrella's `apps/`, whose module file the import finds and loads when [reused]. */
+    /** The app [name] under the umbrella's `apps/`, whose module file the import finds when [reused]. */
     private fun app(name: String, reused: Boolean = false): String {
         val root = VfsTestUtil.createDir(umbrella, "apps/$name")
         mixExs(root, name)
