@@ -1209,7 +1209,8 @@ internal class Evaluation(
     /**
      * `Module.create/3`: [args]' module compiled here, through the compile `defmodule` reaches, from the env its third
      * argument gives and no variables, once its quoted body is code. `null`, for its clauses to raise, where Elixir's
-     * guards refuse the arguments or `:file` is missing. Its `binary` and the value of its last expression aren't known.
+     * guards refuse the arguments or `:file` is missing. Its `binary` and the value of its last expression aren't known,
+     * and the value may be or hold a module being compiled ([ModuleUnknown]).
      * A body, a name or an env that isn't known declines, and so does a module that stops; one that raises raises its
      * exception, whose fields aren't known. One that compiled where it may have raised isn't taken to have raised
      * ([assumeNoRaise]), and neither is the code the evaluator went on past to reach the call ([reachingAnEffect]).
@@ -1240,7 +1241,7 @@ internal class Evaluation(
             null -> {
                 if (!result.certain) assumeNoRaise()
 
-                tuple(atom("module"), atom(name), Unknown, Unknown)
+                tuple(atom("module"), atom(name), Unknown, ModuleUnknown)
             }
             is Expansion.Error -> raiseFieldsUnknown(
                 Expansion.Error.exception(outcome.kind, run.level) ?: decline("Module.create/3 of a body whose raise isn't known"),
@@ -1320,11 +1321,14 @@ internal class Evaluation(
     /** [term], a file `elixir_utils:get_file/2` takes, as text; any other term declines. */
     private fun fileText(term: OtpErlangObject): String = natives.utf8(term) ?: decline("a file that isn't UTF-8 text %s", term)
 
-    /** Raises [exception] with every field but those that make it an exception unknown, since Elixir's aren't known. */
+    /**
+     * Raises [exception] with every field but those that make it an exception unknown, since Elixir's aren't known: they
+     * may hold a struct of a module being compiled.
+     */
     fun raiseFieldsUnknown(exception: String): Nothing =
         error(
             mapOf(
-                entries(exceptionStruct(exception)).map { (key, value) -> key to if (key == STRUCT || key == EXCEPTION) value else Unknown },
+                entries(exceptionStruct(exception)).map { (key, value) -> key to if (key == STRUCT || key == EXCEPTION) value else ModuleUnknown },
                 run.level,
             ),
         )

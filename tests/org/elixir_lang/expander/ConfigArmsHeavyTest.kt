@@ -1075,6 +1075,42 @@ class ConfigArmsHeavyTest : ConfigHeavyTestCase() {
             extra = arrayOf("config/o.exs" to "import Config\nApplication.put_env(:other2, :s, Application.get_env(:other, :s))\n"),
         )
 
+    /** The value of a created module's last expression may be a struct of a module the file defines. */
+    fun testAStringOfACreatedModulesLastValueThatMayBeAStructDeclines() =
+        assertStructDeclines(
+            CHARS,
+            "{:module, _, _, v} = Module.create(M, quote(do: struct(S)), Macro.Env.location(__ENV__))\nconfig :app, j: to_string(v), k1: 1\n",
+        )
+
+    /** What `Config.__import__!/1` gives holds the file's value, which may be a struct of a module the file importing it defines. */
+    fun testAStringOfAnImportedFilesValueThatMayBeAStructDeclines() =
+        assertStructDeclines(
+            CHARS,
+            "Application.put_env(:other, :s, struct(S))\n{v, _} = Config.__import__!(Path.expand(\"o.exs\", __DIR__))\n" +
+                "config :app, j: to_string(v), k1: 1\n",
+            extra = arrayOf("config/o.exs" to "import Config\nApplication.get_env(:other, :s)\n"),
+        )
+
+    /** A field of the exception a created module's body raises may be a struct of a module the file defines. */
+    fun testAStringOfAFieldOfAnExceptionACreatedModuleRaisesDeclines() =
+        assertStructDeclines(
+            CHARS,
+            "try do\n  Module.create(M, quote(do: {:a} = struct(S)), Macro.Env.location(__ENV__))\nrescue\n" +
+                "  e in MatchError -> config(:app, j: to_string(e.term))\nend\n\nconfig :app, k1: 1\n",
+        )
+
+    /**
+     * What `Config.__import__!/1` gives holds the file's binding, which may hold a struct of a module the file importing
+     * it defines.
+     */
+    fun testAStringOfAVariableAnImportedFileBindsThatMayBeAStructDeclines() =
+        assertStructDeclines(
+            CHARS,
+            "Application.put_env(:other, :s, struct(S))\n{_, [s: s]} = Config.__import__!(Path.expand(\"o.exs\", __DIR__))\n" +
+                "config :app, j: to_string(s), k1: 1\n",
+            extra = arrayOf("config/o.exs" to "import Config\ns = Application.get_env(:other, :s)\n1\n"),
+        )
+
     /**
      * A setting that isn't a keyword list, overridden by a value not known, is that value: `Config`'s deep merge keeps the
      * value it replaces only where both are keyword lists.
