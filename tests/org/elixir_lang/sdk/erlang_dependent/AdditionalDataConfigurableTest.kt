@@ -543,6 +543,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     }
 
     fun testTheOtpWarningFollowsThePick() {
+        onProjectStructure()
         val matching = SdkFixtures.erlangSdk("Field OTP matching Erlang", install("27", "27.3.4"))
         val mismatching = SdkFixtures.erlangSdk("Field OTP mismatching Erlang", install("26", "26.2.5"))
         val model = model(matching, mismatching, SdkFixtures.elixirSdk("Field OTP", elixirInstall("1.18.4", "27")))
@@ -556,6 +557,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     }
 
     fun testTheLastOfTwoPicksIsStored() {
+        onProjectStructure()
         val first = erlang("Field two picks first Erlang", "27", "27.3.4")
         val second = erlang("Field two picks second Erlang", "26", "26.2.5")
         val model = model(first, second, unpaired("Field two picks"))
@@ -569,6 +571,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     }
 
     fun testAPickThenCancelLeavesTheStoredPairing() {
+        onProjectStructure()
         val stored = saved(erlang("Field cancel stored Erlang", "27", "27.3.4"))
         val picked = saved(erlang("Field cancel picked Erlang", "26", "26.2.5"))
         val elixir = saved(paired("Field cancel", stored.name, stored.homePath!!))
@@ -581,6 +584,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     }
 
     fun testASavedModelWithNoDataIsLeftAlone() {
+        onProjectStructure()
         val erlang = saved(erlang("Field saved no data Erlang", "27", "27.3.4"))
         val model = model(erlang, saved(unpaired("Field saved no data")))
         val page = open(model, "Field saved no data")
@@ -607,6 +611,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     }
 
     fun testASavedModelWithAnEmptyPairingShowsNoMessage() {
+        onProjectStructure()
         val elixir = unpaired("Field saved empty").also { SdkFixtures.commit(it, SdkAdditionalData(it)) }
         val model = model(saved(erlang("Field saved empty Erlang", "27", "27.3.4")), saved(elixir))
         val page = open(model, "Field saved empty")
@@ -616,6 +621,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     }
 
     fun testASavedModelWhoseErlangIsGoneIsLeftAlone() {
+        onProjectStructure()
         val model = model(saved(paired("Field saved gone", "Field gone Erlang", "/gone/erlang")))
         val page = open(model, "Field saved gone")
 
@@ -627,6 +633,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
 
     /** The resolver still finds it in the table, and the field has no row for it. */
     fun testAStoredErlangRemovedWithNoPickShowsNothing() {
+        onProjectStructure()
         val stored = saved(erlang("Field stored removed Erlang", "27", "27.3.4"))
         val model = model(stored, saved(paired("Field stored removed", stored.name, stored.homePath!!)))
         val page = open(model, "Field stored removed")
@@ -638,6 +645,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     }
 
     fun testARemovedHeldPickRestoresASavedModel() {
+        onProjectStructure()
         val (stored, elixir) = pairedInTable("Field restore held")
         val model = model(stored, elixir)
         val page = open(model, "Field restore held")
@@ -649,6 +657,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     }
 
     fun testARemovedRegisteredPickRestoresASavedModel() {
+        onProjectStructure()
         val (stored, elixir) = pairedInTable("Field restore registered")
         val picked = saved(SdkFixtures.withCodePaths(erlang("Field restore registered Erlang", "26", "26.2.5")))
         val model = model(stored, picked, elixir)
@@ -661,6 +670,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     }
 
     fun testARemovedPickLeavesASavedModelWithNoDataAlone() {
+        onProjectStructure()
         val erlang = saved(erlang("Field restore no data Erlang", "27", "27.3.4"))
         val model = model(erlang, saved(unpaired("Field restore no data")))
         val page = open(model, "Field restore no data")
@@ -902,13 +912,8 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
 
         val field: SdkComboBox get() = assertInstanceOf(combo, SdkComboBox::class.java)
 
-        /** Today's combo holds [Sdk]s; the platform's field holds rows, whose own [Sdk] is the model's copy. */
-        val shown: Sdk?
-            get() = when (val item = combo.selectedItem) {
-                is SdkListItem.SdkItem -> item.sdk
-                is Sdk -> item
-                else -> null
-            }
+        /** The model's copy the platform's field shows. */
+        val shown: Sdk? get() = (combo.selectedItem as? SdkListItem.SdkItem)?.sdk
 
         /** The model's copy of [erlang] picked, in whichever field the page has. */
         fun pick(erlang: Sdk) {
@@ -928,16 +933,11 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
 
         /** [erlang] added to [model] and picked, returning its copy. The platform's add rows pick inside `doAdd`'s callback. */
         fun holdAndPick(model: ProjectSdksModel, erlang: Sdk): Sdk {
-            val platformField = combo as? SdkComboBox
-            if (platformField == null) {
-                model.doAdd(erlang, null)
-                return model.findSdk(erlang.name)!!.also { combo.selectedItem = it }
-            }
             lateinit var copy: Sdk
             model.doAdd(erlang) { added ->
                 copy = added
-                platformField.reloadModel()
-                platformField.selectedItem = platformField.model.listModel.findSdkItem(added)!!
+                field.reloadModel()
+                pick(added)
             }
             return copy
         }

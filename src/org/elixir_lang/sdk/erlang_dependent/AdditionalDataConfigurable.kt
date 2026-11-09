@@ -73,7 +73,8 @@ class AdditionalDataConfigurable(
         if (ProcessOutput.isSmallIde) null else SdkPageInDialog.getInstance().projectOf(sdkModel)
     private val onProjectStructure: Boolean get() = projectStructureProject != null
 
-    private val erlangSdkField: ErlangSdkField = ComboErlangSdkField(sdkModel)
+    private val erlangSdkField: ErlangSdkField =
+        projectStructureProject?.let { PlatformErlangSdkField(it, sdkModel as ProjectSdksModel) } ?: ComboErlangSdkField(sdkModel)
 
     /**
      * The model this editor is over, while it is open, whose Elixir SDK copies [PairingRepairs] repairs too when an Erlang
@@ -101,6 +102,9 @@ class AdditionalDataConfigurable(
 
     /** A write at the pick moved the stored Erlang home, so what follows a move is still owed at [apply]. */
     private var homeMoved = false
+
+    /** The copy's pairing before the first pick since the last reset or Apply, for a pick written to the copy and then voided. */
+    private var pairingBeforePick: SdkAdditionalData? = null
 
     /** The suppress checkbox as the SDK stores it, when last reset or applied. */
     private var suppressedAsStored = false
@@ -138,9 +142,17 @@ class AdditionalDataConfigurable(
         onProjectStructure && (sdkModel as ProjectSdksModel).findSdk(sdk)?.let(service<SdksService>()::inTable) == false
 
     /** `ProjectSdksModel.canApply` skips an SDK with no data, and this page's own modificator refuses data. */
-    private fun installEmptyPairing(sdk: Sdk) {
+    private fun installEmptyPairing(sdk: Sdk) = commitOntoCopy(sdk, SdkAdditionalData(sdk))
+
+    /**
+     * A modificator can't take data away: `SdkBridgeImpl.reloadAdditionalData` keeps the old on a blank. So a saved SDK with
+     * none, which the check skips, is written by [apply] and is left with none if its pick is voided.
+     */
+    private val writesAtThePick: Boolean get() = onProjectStructure && pairingBeforePick != null
+
+    private fun commitOntoCopy(sdk: Sdk, data: SdkAdditionalData) {
         val modificator = sdk.sdkModificator
-        modificator.sdkAdditionalData = SdkAdditionalData(sdk)
+        modificator.sdkAdditionalData = data
         WriteActions.runWriteAction(modificator::commitChanges)
     }
 
@@ -256,8 +268,9 @@ class AdditionalDataConfigurable(
                         internalErlangSdk,
                         sdkModificator,
                     )
+                    if (!pairingPicked) pairingBeforePick = myElixirSdk.elixirAdditionalData?.clone() as SdkAdditionalData?
                     pairingPicked = true
-                    if (onProjectStructure) homeMoved = writeInternalErlangSdk(myElixirSdk) || homeMoved
+                    if (writesAtThePick) homeMoved = writeInternalErlangSdk(myElixirSdk) || homeMoved
                     updateLabels(saveHint = !onProjectStructure)
                 }
             }
@@ -332,7 +345,6 @@ class AdditionalDataConfigurable(
         updateLabels(saveHint = false)
     }
 
-    /** Shows or hides the hint to save and reopen, and refreshes both warnings. */
     private fun updateLabels(saveHint: Boolean) {
         saveHintLabel.isVisible = saveHint
         updateWarningLabel()
@@ -379,9 +391,16 @@ class AdditionalDataConfigurable(
         if (picked == null || myElixirSdk == null) return
 
         pairingPicked = false
+        if (writesAtThePick) restorePairingBeforePick(myElixirSdk)
         removeCodePathsFromInternalErlangSdk(myElixirSdk, picked, sdkModificator)
         frozen { showStoredPairing(myElixirSdk) }
         updateLabels(saveHint = false)
+    }
+
+    private fun restorePairingBeforePick(sdk: Sdk) {
+        homeMoved = false
+        commitOntoCopy(sdk, pairingBeforePick!!)
+        sdk.putUserData(Type.ERLANG_SDK_KEY, null)
     }
 
     private inline fun <T> frozen(block: () -> T): T {

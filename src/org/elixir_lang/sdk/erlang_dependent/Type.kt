@@ -109,8 +109,10 @@ abstract class Type protected constructor(name: String) : DependentSdkType(name)
         @JvmStatic
         val ERLANG_SDK_KEY = com.intellij.openapi.util.Key.create<Sdk>("ERLANG_SDK_FOR_ELIXIR")
 
-        fun staticIsValidDependency(sdk: Sdk): Boolean {
-            val sdkTypeCanonicalName = sdk.sdkType.javaClass.canonicalName
+        fun staticIsValidDependency(sdk: Sdk): Boolean = staticIsValidDependency(sdk.sdkType)
+
+        fun staticIsValidDependency(sdkType: SdkTypeId): Boolean {
+            val sdkTypeCanonicalName = sdkType.javaClass.canonicalName
 
             return if (isSmallIde) {
                 sdkTypeCanonicalName == ERLANG_SDK_FOR_ELIXIR_SDK_TYPE_CANONICAL_NAME
