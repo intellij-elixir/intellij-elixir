@@ -102,6 +102,9 @@ class AdditionalDataConfigurable(
     /** The user picked an Erlang SDK in the combo; only then does [apply] write the pairing. */
     private var pairingPicked = false
 
+    /** A write at the pick moved the stored Erlang home, so what follows a move is still owed at [apply]. */
+    private var homeMoved = false
+
     /** The suppress checkbox as the SDK stores it, when last reset or applied. */
     private var suppressedAsStored = false
     private val suppressionChanged: Boolean get() = suppressOtpMismatchWarningCheckBox.isSelected != suppressedAsStored
@@ -277,7 +280,8 @@ class AdditionalDataConfigurable(
                         sdkModificator,
                     )
                     pairingPicked = true
-                    updateLabels(saveHint = true)
+                    if (onProjectStructure) homeMoved = writeInternalErlangSdk(myElixirSdk) || homeMoved
+                    updateLabels(saveHint = !onProjectStructure)
                 }
             }
         }
@@ -295,7 +299,7 @@ class AdditionalDataConfigurable(
     override fun apply() {
         val myElixirSdk = elixirSdk ?: return
         if (pairingPicked) {
-            if (writeInternalErlangSdk(myElixirSdk)) ElixirSdkPathConfigurator.followErlangHome(listOf(myElixirSdk), sdkModel)
+            if (writeInternalErlangSdk(myElixirSdk) || homeMoved) ElixirSdkPathConfigurator.followErlangHome(listOf(myElixirSdk), sdkModel)
         } else if (suppressionChanged) {
             WriteActions.runWriteAction {
                 ElixirSdkMutation.setOtpMismatchWarningSuppressed(myElixirSdk, suppressOtpMismatchWarningCheckBox.isSelected)
@@ -308,6 +312,7 @@ class AdditionalDataConfigurable(
     /** What the combo and the checkbox show is now what the SDK stores. */
     private fun markStored() {
         pairingPicked = false
+        homeMoved = false
         suppressedAsStored = suppressOtpMismatchWarningCheckBox.isSelected
     }
 
