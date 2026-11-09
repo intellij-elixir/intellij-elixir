@@ -286,39 +286,29 @@ class AdditionalDataConfigurable(
             ),
         )
         suppressOtpMismatchWarningCheckBox.addItemListener { updateOtpMismatchWarning() }
-        erlangSdkField.addSelectionListener { stateChange, internalErlangSdk ->
-            if (!freeze) {
-                val myElixirSdk = elixirSdk ?: return@addSelectionListener
-
-                // Update UI path editors only. The actual SDK will be updated when the user
-                // clicks Apply, via Editor.apply() which calls pathEditor.apply(sdkModificator).
-                // The sdkModificator parameter is a UI-only wrapper that updates the path editors
-                // displayed in the dialog tabs.
-                if (stateChange == ItemEvent.DESELECTED) {
-                    removeCodePathsFromInternalErlangSdk(
-                        myElixirSdk,
-                        internalErlangSdk,
-                        sdkModificator,
-                    )
-                } else if (stateChange == ItemEvent.SELECTED) {
-                    addNewCodePathsFromInternErlangSdk(
-                        myElixirSdk,
-                        internalErlangSdk,
-                        sdkModificator,
-                    )
-                    if (!pairingPicked) pairingBeforePick = myElixirSdk.elixirAdditionalData?.clone()
-                    pairingPicked = true
-                    if (writesAtThePick) homeMoved = writeInternalErlangSdk(myElixirSdk) || homeMoved
-                    updateLabels(saveHint = !onProjectStructure)
-                }
-            }
-        }
+        erlangSdkField.addSelectionListener(::selectionChanged)
 
         if (onProjectStructure) installAskingOutline()
         updateWarningLabel()
         updateOtpMismatchWarning()
 
         return wholePanel
+    }
+
+    private fun selectionChanged(stateChange: Int, internalErlangSdk: Sdk) {
+        if (freeze) return
+        val myElixirSdk = elixirSdk ?: return
+
+        when (stateChange) {
+            ItemEvent.DESELECTED -> removeCodePathsFromInternalErlangSdk(myElixirSdk, internalErlangSdk, sdkModificator)
+            ItemEvent.SELECTED -> {
+                addNewCodePathsFromInternErlangSdk(myElixirSdk, internalErlangSdk, sdkModificator)
+                if (!pairingPicked) pairingBeforePick = myElixirSdk.elixirAdditionalData?.clone()
+                pairingPicked = true
+                if (writesAtThePick) homeMoved = writeInternalErlangSdk(myElixirSdk) || homeMoved
+                updateLabels(saveHint = !onProjectStructure)
+            }
+        }
     }
 
     /**
