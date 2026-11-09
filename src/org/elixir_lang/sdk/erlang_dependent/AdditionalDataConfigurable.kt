@@ -15,10 +15,14 @@ import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.SdkModificator
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
+import com.intellij.openapi.ui.ComponentValidator
+import com.intellij.openapi.ui.ValidationInfo
+import com.intellij.openapi.util.Disposer
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.NamedColorUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -39,10 +43,12 @@ import org.elixir_lang.sdk.elixir.OtpMatch
 import org.elixir_lang.sdk.elixir.SdkPageInDialog
 import org.elixir_lang.sdk.erlang.PairingRepairs
 import org.elixir_lang.util.ElixirAppCoroutineService
+import org.elixir_lang.util.ReadActions
 import org.elixir_lang.util.WriteActions
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.event.ItemEvent
+import java.util.function.Supplier
 import javax.swing.*
 
 class AdditionalDataConfigurable(
@@ -50,6 +56,10 @@ class AdditionalDataConfigurable(
     private val sdkModificator: SdkModificator,
 ) : AdditionalDataConfigurable {
     private val internalErlangSdkLabel = JLabel("Internal Erlang SDK:")
+    private val erlangNotChosenLabel = JLabel(SdkAdditionalData.ERLANG_SDK_NOT_CHOSEN).apply {
+        foreground = NamedColorUtil.getErrorForeground()
+        isVisible = false
+    }
     private val classpathWarningLabel = JLabel("Erlang classpath entries missing from Elixir SDK").apply {
         icon = AllIcons.General.Warning
         isVisible = false
@@ -106,6 +116,8 @@ class AdditionalDataConfigurable(
     /** The copy's pairing before the first pick since the last reset or Apply, for a pick written to the copy and then voided. */
     private var pairingBeforePick: SdkAdditionalData? = null
 
+    private val validatorDisposable = Disposer.newDisposable("Elixir SDK page's Erlang SDK field")
+
     /** The suppress checkbox as the SDK stores it, when last reset or applied. */
     private var suppressedAsStored = false
     private val suppressionChanged: Boolean get() = suppressOtpMismatchWarningCheckBox.isSelected != suppressedAsStored
@@ -140,6 +152,12 @@ class AdditionalDataConfigurable(
     /** By the object behind [sdk], as a Model can take the name of an SDK removed in this dialog, which the table still holds. */
     private fun madeInThisDialog(sdk: Sdk): Boolean =
         onProjectStructure && (sdkModel as ProjectSdksModel).findSdk(sdk)?.let(service<SdksService>()::inTable) == false
+
+    /** A Model made in this dialog with no Erlang SDK chosen; a saved one is left to say nothing. */
+    private fun asksForAnErlangSdk(): Boolean {
+        val sdk = elixirSdk?.takeIf(::madeInThisDialog) ?: return false
+        return ReadActions.compute { ErlangSdkResolver.getInstance().resolveErlangSdkResult(sdk, sdkModel) }.erlangNotChosen
+    }
 
     /** `ProjectSdksModel.canApply` skips an SDK with no data, and this page's own modificator refuses data. */
     private fun installEmptyPairing(sdk: Sdk) = commitOntoCopy(sdk, SdkAdditionalData(sdk))
@@ -187,6 +205,22 @@ class AdditionalDataConfigurable(
                 GridBagConstraints.EAST,
                 GridBagConstraints.HORIZONTAL,
                 JBUI.insetsLeft(30),
+                0,
+                0,
+            ),
+        )
+        wholePanel.add(
+            erlangNotChosenLabel,
+            GridBagConstraints(
+                1,
+                GridBagConstraints.RELATIVE,
+                1,
+                1,
+                1.0,
+                0.0,
+                GridBagConstraints.WEST,
+                GridBagConstraints.HORIZONTAL,
+                JBUI.insets(4, 30, 0, 0),
                 0,
                 0,
             ),
@@ -276,10 +310,18 @@ class AdditionalDataConfigurable(
             }
         }
 
+        if (onProjectStructure) installAskingOutline()
         updateWarningLabel()
         updateOtpMismatchWarning()
 
         return wholePanel
+    }
+
+    private fun installAskingOutline() {
+        val field = erlangSdkField.component
+        ComponentValidator(validatorDisposable)
+            .withValidator(Supplier { if (erlangNotChosenLabel.isVisible) ValidationInfo(SdkAdditionalData.ERLANG_SDK_NOT_CHOSEN, field) else null })
+            .installOn(field)
     }
 
     override fun isModified(): Boolean = pairingPicked || suppressionChanged
@@ -347,6 +389,8 @@ class AdditionalDataConfigurable(
 
     private fun updateLabels(saveHint: Boolean) {
         saveHintLabel.isVisible = saveHint
+        erlangNotChosenLabel.isVisible = asksForAnErlangSdk()
+        ComponentValidator.getInstance(erlangSdkField.component).ifPresent(ComponentValidator::revalidate)
         updateWarningLabel()
         updateOtpMismatchWarning()
     }
@@ -372,6 +416,7 @@ class AdditionalDataConfigurable(
         sdkModel.removeListener(sdkModelListener)
         opened?.let(PairingRepairs.getInstance()::release)
         opened = null
+        Disposer.dispose(validatorDisposable)
     }
 
     private fun otpScope(): CoroutineScope =
