@@ -97,32 +97,25 @@ class ErlangStepTest : PlatformTestCase() {
         assertEquals(OtpMatch.Unknown, entries.getValue(unreadHome).otpMatch)
     }
 
-    fun testAnErlangAnExistingSdkOnThisInstallPairsWithCannotBePicked() {
+    fun testAnErlangAnExistingSdkOnThisInstallPairsWithCanBePicked() {
         val paired = SdkFixtures.erlangSdk("Step paired Erlang", fakeHome("erlang/27.3.4"))
-        val free = SdkFixtures.erlangSdk("Step free Erlang", fakeHome("erlang/27.2"))
         val existing = pairedElixirSdk("Step existing Elixir", elixirHome, paired)
-        val elsewhere = pairedElixirSdk("Step Elixir elsewhere", fakeHome("elixir/elsewhere"), free)
 
-        val state = state(listOf(paired, free, existing, elsewhere))
+        val state = state(listOf(paired, existing))
         val entries = state.entries.associateBy { it.sdk?.name }
 
-        assertEquals(Unpickable.PairedWith("Step existing Elixir"), entries.getValue("Step paired Erlang").unpickable)
-        assertNull("a pairing on another install leaves the Erlang free", entries.getValue("Step free Erlang").unpickable)
+        assertNull(entries.getValue("Step paired Erlang").unpickable)
         state.select(entries.getValue("Step paired Erlang"))
-        assertNull("an entry already paired on this install can't be picked", state.selected)
+        assertSame(entries.getValue("Step paired Erlang"), state.selected)
     }
 
-    fun testAnInstallAnExistingSdkOnThisInstallStoresCannotBePicked() {
+    fun testAnInstallAnExistingSdkOnThisInstallStoresCanBePicked() {
         val home = fakeHome("erlang/27.3.4")
         val existing = pairedElixirSdk("Step existing Elixir", elixirHome, SdkFixtures.erlangSdk("Step deleted Erlang", home))
 
         val entry = ErlangStep.state(elixirHome, listOf(existing), installHomes = listOf(home)).entries.single()
 
-        assertEquals(
-            "the Erlang SDK is gone, but a pick of its install would pair this install with that home a second time",
-            Unpickable.PairedWith("Step existing Elixir"),
-            entry.unpickable,
-        )
+        assertTrue(entry.pickable)
     }
 
     fun testTheAskedSdksOwnInstallCanBePicked() {
@@ -135,15 +128,15 @@ class ErlangStepTest : PlatformTestCase() {
         assertTrue(ErlangStep.state(elixirHome, listOf(asked), installHomes = emptyList(), asking = asked).browsed(home).pickable)
     }
 
-    fun testBrowseToAHomeAnExistingSdkOnThisInstallStoresCannotBePicked() {
+    fun testBrowseToAHomeAnExistingSdkOnThisInstallStoresCanBePicked() {
         val home = fakeHome("erlang/27.3.4")
         val existing = pairedElixirSdk("Step existing Elixir", elixirHome, SdkFixtures.erlangSdk("Step deleted Erlang", home))
         val state = state(listOf(existing))
 
         state.browsed(home)
 
-        assertEquals(Unpickable.PairedWith("Step existing Elixir"), state.entries.single().unpickable)
-        assertNull(state.selected)
+        assertTrue(state.entries.single().pickable)
+        assertSame(state.entries.single(), state.selected)
     }
 
     fun testBrowseToAHomeOnAnotherMachineCannotBePicked() {
@@ -156,7 +149,7 @@ class ErlangStepTest : PlatformTestCase() {
         assertNull("an Erlang on another machine can't run this Elixir install", state.selected)
     }
 
-    fun testBothErlangSdksAtAPairedHomeCannotBePicked() {
+    fun testBothErlangSdksAtAPairedHomeCanBePicked() {
         val sharedHome = fakeHome("erlang/27.3.4")
         val named = SdkFixtures.erlangSdk("Step named Erlang", sharedHome)
         val twin = SdkFixtures.erlangSdk("Step named Erlang (2)", sharedHome)
@@ -164,11 +157,7 @@ class ErlangStepTest : PlatformTestCase() {
 
         val entries = ErlangStep.state(elixirHome, listOf(twin, named, existing), installHomes = emptyList()).entries
 
-        assertEquals(
-            "the pairing stores its home, so both SDKs at it are that pairing",
-            listOf(Unpickable.PairedWith("Step existing Elixir"), Unpickable.PairedWith("Step existing Elixir")),
-            entries.map { it.unpickable },
-        )
+        assertEquals(listOf(true, true), entries.map { it.pickable })
     }
 
     fun testBrowseToAListedHomeSelectsThatEntry() {

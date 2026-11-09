@@ -1,10 +1,13 @@
 package org.elixir_lang.sdk.erlang_dependent
 
 import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
+import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
 import org.jdom.Element
@@ -183,6 +186,34 @@ class SdkAdditionalDataTest: PlatformTestCase() {
         assertTrue(SdkAdditionalData(elixirSdk).apply { readExternal(element) }.isSuppressOtpMismatchWarning())
         assertTrue((original.clone() as SdkAdditionalData).isSuppressOtpMismatchWarning())
     }
+
+    fun testCheckValidWithNoErlangChosenSaysSo() {
+        assertEquals(NO_ERLANG, refusal(elixirHolding { SdkAdditionalData(it) }))
+    }
+
+    fun testCheckValidSaysSoWithOtherErlangSdksPresent() {
+        SdkFixtures.register(createMockSdk("Erlang present", "/fake/erlang/present"), testRootDisposable)
+
+        assertEquals(NO_ERLANG, refusal(elixirHolding { SdkAdditionalData(it) }))
+    }
+
+    fun testCheckValidKeepsItsTextWhenTheChosenErlangIsGone() {
+        val gone = createMockSdk("Erlang gone", "/fake/erlang/gone")
+
+        assertEquals("No Erlang SDK found. Please configure an Erlang SDK first.", refusal(elixirHolding { SdkAdditionalData(gone, it) }))
+    }
+
+    /** The check asks the resolver, which reads the pairing off the SDK. */
+    private fun elixirHolding(data: (Sdk) -> SdkAdditionalData): Sdk =
+        SdkFixtures.elixirSdk("Elixir", "/fake/elixir").also { SdkFixtures.commit(it, data(it)) }
+
+    private fun refusal(elixir: Sdk): String? =
+        try {
+            elixir.elixirAdditionalData!!.checkValid(ProjectSdksModel())
+            null
+        } catch (e: ConfigurationException) {
+            e.message
+        }
 
     // Helper method to create a lightweight SDK instance
     private fun createMockSdk(name: String, homePath: String? = null): Sdk {

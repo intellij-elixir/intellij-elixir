@@ -77,17 +77,17 @@ class ErlangStepDialogTest : PlatformTestCase() {
 
     fun testBrowsingToAnErlangThatCannotBePickedLeavesNothingPicked() {
         val free = fakeHome("erlang/27.3.4")
-        val paired = fakeHome("erlang/26.2.5")
+        val elsewhere = fakeHome("erlang/26.2.5")
         val entries = listOf(
             ErlangStepEntry(null, free, "27.3.4", OtpMatch.Match, unpickable = null),
-            ErlangStepEntry(null, paired, "26.2.5", OtpMatch.Mismatch("27", "26"), Unpickable.PairedWith("Dialog paired Elixir")),
+            ErlangStepEntry(null, elsewhere, "26.2.5", OtpMatch.Mismatch("27", "26"), Unpickable.OnAnotherMachine),
         )
-        val dialog = dialog(ErlangStepState(entries) { error("a listed home makes no entry") }, browse = { paired })
+        val dialog = dialog(ErlangStepState(entries) { error("a listed home makes no entry") }, browse = { elsewhere })
         dialog.pick(dialog.state.entries.first())
 
         dialog.browsed()
 
-        assertNull("an Erlang already paired on this install can't be picked", dialog.state.selected)
+        assertNull("an Erlang on another machine can't be picked", dialog.state.selected)
         assertFalse("OK is enabled only on a pick", dialog.isOKActionEnabled)
     }
 
