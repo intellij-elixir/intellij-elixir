@@ -11,6 +11,10 @@ import com.intellij.openapi.util.WriteExternalException
 import org.elixir_lang.sdk.wsl.wslCompat
 import org.jdom.Element
 
+/** The pairing names no Erlang SDK: what the page asks about and the check refuses with [SdkAdditionalData.ERLANG_SDK_NOT_CHOSEN]. */
+internal val ErlangSdkResult.erlangNotChosen: Boolean
+    get() = this is ErlangSdkResult.Missing && reason == MissingErlangSdkReason.NOT_CONFIGURED
+
 /**
  * Stores the reference from an Elixir SDK to its dependent Erlang SDK.
  *
@@ -61,6 +65,7 @@ class SdkAdditionalData :
     private var cachedErlangSdk: Sdk? = null
 
     companion object {
+        internal const val ERLANG_SDK_NOT_CHOSEN = "An Erlang SDK must be chosen."
         private const val ERLANG_SDK_HOME_PATH = "erlang-sdk-home-path"
         private const val ERLANG_SDK_NAME = "erlang-sdk-name"
         private const val SUPPRESS_OTP_MISMATCH = "suppress-otp-mismatch"
@@ -91,19 +96,17 @@ class SdkAdditionalData :
     override fun checkValid(sdkModel: SdkModel) {
         LOG.debug("checkValid called for Elixir SDK: ${elixirSdk.name} (homePath: ${elixirSdk.homePath})")
 
-        // Allow auto-discovery during validation - if the configured SDK is missing,
-        // we'll find another one automatically
-        val erlangSdk = getErlangSdk(sdkModel)
+        val result = ErlangSdkResolver.getInstance().resolveErlangSdkResult(elixirSdk, sdkModel)
 
-        if (erlangSdk == null) {
+        if (result is ErlangSdkResult.Missing) {
             val available = ProjectJdkTable.getInstance().allJdks
                 .filter { Type.staticIsValidDependency(it) }
                 .joinToString(", ") { it.name }
 
-            val message = if (available.isEmpty()) {
-                "No Erlang SDK found. Please configure an Erlang SDK first."
-            } else {
-                "No valid Erlang SDK configured. Available: $available"
+            val message = when {
+                result.erlangNotChosen -> ERLANG_SDK_NOT_CHOSEN
+                available.isEmpty() -> "No Erlang SDK found. Please configure an Erlang SDK first."
+                else -> "No valid Erlang SDK configured. Available: $available"
             }
 
             LOG.debug("Validation failed for ${elixirSdk.name}: $message")

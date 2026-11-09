@@ -29,6 +29,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.elixir_lang.debug
+import org.elixir_lang.facet.SdksService
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkVersionsFiller
 import org.elixir_lang.sdk.elixir.ElixirErlangClasspath.addNewCodePathsFromInternErlangSdk
@@ -75,6 +76,7 @@ class AdditionalDataConfigurable(
     /** The project of the Project Structure this page is on; null on a small IDE's page and under any other host. */
     private val projectStructureProject: Project? =
         if (ProcessOutput.isSmallIde) null else SdkPageInDialog.getInstance().projectOf(sdkModel)
+    private val onProjectStructure: Boolean get() = projectStructureProject != null
 
     /**
      * The model this editor is over, while it is open, whose Elixir SDK copies [PairingRepairs] repairs too when an Erlang
@@ -133,6 +135,18 @@ class AdditionalDataConfigurable(
     override fun setSdk(sdk: Sdk) {
         LOG.debug("[setSdk] Setting Elixir SDK: ${sdk.name} (additionalData=${sdk.sdkAdditionalData?.javaClass?.simpleName})")
         elixirSdk = sdk
+        if (sdk.sdkAdditionalData == null && madeInThisDialog(sdk)) installEmptyPairing(sdk)
+    }
+
+    /** By the object behind [sdk], as a Model can take the name of an SDK removed in this dialog, which the table still holds. */
+    private fun madeInThisDialog(sdk: Sdk): Boolean =
+        onProjectStructure && (sdkModel as ProjectSdksModel).findSdk(sdk)?.let(service<SdksService>()::inTable) == false
+
+    /** `ProjectSdksModel.canApply` skips an SDK with no data, and this page's own modificator refuses data. */
+    private fun installEmptyPairing(sdk: Sdk) {
+        val modificator = sdk.sdkModificator
+        modificator.sdkAdditionalData = SdkAdditionalData(sdk)
+        WriteActions.runWriteAction(modificator::commitChanges)
     }
 
     override fun createComponent(): JComponent {
