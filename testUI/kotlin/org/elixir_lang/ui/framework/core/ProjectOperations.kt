@@ -130,13 +130,11 @@ fun WindowUiComponent.addElixirSdkFromDisk(sdkPath: String, erlang: String): Add
 /** Project Structure > SDKs with [add] run, then its OK: the name of the SDK it added at [sdkPath], and what [add] returned. */
 private fun <T> WindowUiComponent.addedAt(sdkPath: String, add: ProjectStructureUI.() -> T): Pair<String, T> {
     val before = driver.sdksAt(sdkPath)
-    val added = mutableListOf<T>()
-    inProjectStructureSdks {
-        added += add()
-        clickButtonText("OK")
+    val added = inProjectStructureSdks {
+        add().also { clickButtonText("OK") }
     }
     waitUntilReady()
-    return (driver.sdksAt(sdkPath) - before).single() to added.single()
+    return (driver.sdksAt(sdkPath) - before).single() to added
 }
 
 /**
@@ -156,9 +154,9 @@ const val ADD_NEW_SDK = "//div[@visible_text='Add New SDK' or @accessiblename='A
  * Project Structure opened from this window on its SDKs page, with [body] inside; the body closes the dialog. Opened by
  * its action, not its shortcut: under Xvfb the welcome screen doesn't answer one. Not `now`, as the dialog is modal.
  */
-fun WindowUiComponent.inProjectStructureSdks(body: ProjectStructureUI.() -> Unit) = step("Project Structure > SDKs") {
+fun <T> WindowUiComponent.inProjectStructureSdks(body: ProjectStructureUI.() -> T): T = step("Project Structure > SDKs") {
     driver.invokeAction("ShowProjectStructureSettings", now = false, component = component)
-    projectStructure {
+    projectStructure().run {
         waitUntilReady()
         if (NoScreen.onScreen) {
             // On a real display a click right after the dialog opens can leave its first page showing.
@@ -171,6 +169,57 @@ fun WindowUiComponent.inProjectStructureSdks(body: ProjectStructureUI.() -> Unit
         }
         body()
     }
+}
+
+/** Add New SDK's popup, the Detected row [matches] accepts clicked once detection has reported it. */
+fun ProjectStructureUI.clickDetectedRow(matches: (String) -> Boolean) =
+    step("Add New SDK: the Detected row") {
+        clickPopupRow("the Detected row", matches) { clickButtonText("Add New SDK") }
+    }
+
+/** The list of the row popup showing: Add New SDK's or an SDK field's. */
+fun Driver.popupList() = ui.jBlist(xQuery { byClass("MyList") })
+
+/** The popup [open] shows, once a row [matches] accepts is listed; every row it listed, in order. */
+private fun ProjectStructureUI.popupRows(what: String, matches: (String) -> Boolean, open: () -> Unit): List<String> {
+    open()
+    val list = driver.popupList()
+    waitFor(what, 60.seconds) { list.present() && list.items.any(matches) }
+    return list.items
+}
+
+/** The row [matches] accepts clicked, in the popup [open] shows. */
+private fun ProjectStructureUI.clickPopupRow(what: String, matches: (String) -> Boolean, open: () -> Unit) {
+    driver.popupList().clickItem(popupRows(what, matches, open).first(matches), fullMatch = true)
+}
+
+/** The platform's SDK field on an Elixir SDK's page: the only `SdkComboBox` on the SDKs page. */
+const val SDK_FIELD = "//div[@class='SdkComboBox']"
+
+/** Project Structure's Project page's SDK field. */
+private const val PROJECT_SDK_FIELD = "//div[@class='JdkComboBox']"
+
+/**
+ * The SDK field opened, once a row [matches] accepts is listed; every row it listed, in order. Its popup is not Swing's,
+ * so the driver's combo select can't reach it.
+ */
+fun ProjectStructureUI.openSdkField(matches: (String) -> Boolean): List<String> =
+    step("the SDK field's rows") { popupRows("the field's row", matches) { x(SDK_FIELD).click() } }
+
+/** The SDK field's row [matches] accepts clicked. */
+fun ProjectStructureUI.clickSdkFieldRow(matches: (String) -> Boolean) =
+    step("the SDK field: click a row") { clickPopupRow("the field's row", matches) { x(SDK_FIELD).click() } }
+
+/** The SDK field's first row clicked, as soon as it shows; the driver reads the highlighted first row as blank, so not by text. */
+fun ProjectStructureUI.clickSdkFieldFirstRow(): List<String> = step("the SDK field: click the first row") {
+    val rows = openSdkField { true }
+    driver.popupList().clickItemAtIndex(0)
+    rows
+}
+
+/** The Project page's SDK field's Detected row [matches] accepts clicked. */
+fun ProjectStructureUI.clickProjectSdkFieldRow(matches: (String) -> Boolean) = step("the Project SDK field: click a row") {
+    clickPopupRow("the Project SDK field's row", matches) { x(PROJECT_SDK_FIELD).click() }
 }
 
 /** Add New SDK > Erlang, at [sdkPath]. */

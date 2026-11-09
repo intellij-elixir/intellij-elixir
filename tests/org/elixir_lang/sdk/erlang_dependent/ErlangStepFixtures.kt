@@ -45,6 +45,8 @@ internal fun elixirInstall(vsn: String, otpMajor: String): String =
         SdkVersionsStore.getInstance().setElixirVersions(it, ElixirVersions(vsn, OtpMajor.Known(otpMajor)))
     }
 
+internal const val NO_ERLANG = "An Erlang SDK must be chosen."
+
 /** A dialog's model holding [sdks], as `reset` would from a table holding only them. */
 internal fun model(vararg sdks: Sdk): ProjectSdksModel = ProjectSdksModel().apply { sdks.forEach(::addSdk) }
 

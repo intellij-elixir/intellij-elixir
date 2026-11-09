@@ -200,6 +200,9 @@
         <applicationService serviceInterface="org.elixir_lang.sdk.elixir.SdkSettingsOpener"
                             serviceImplementation="org.elixir_lang.sdk.elixir.SettingsSdkSettingsOpener"
                             open="true"/>
+        <applicationService serviceInterface="org.elixir_lang.sdk.elixir.SdkPageInDialog"
+                            serviceImplementation="org.elixir_lang.sdk.elixir.NoProjectStructureSdkPage"
+                            open="true"/>
 
         <!-- Tool Manager settings, SDK checker, and settings page. Registered here (base
              descriptor) so they load in every IDE including small IDEs (RubyMine). SDK

@@ -96,18 +96,21 @@ class ElixirSdkAddTest : PlatformTestCase() {
         assertEquals("applying updates the Erlang SDK already in the table", 1, tableErlangSdksAt(install).size)
     }
 
-    fun testASecondAddInOneDialogCannotPickTheFirstsErlang() {
-        val model = model(registeredErlang("Add shared Erlang", "27", "27.3.4"))
-        val step = script(ScriptedErlangStep.pick("Add shared Erlang"), ScriptedErlangStep.cancel, homes = listOf(elixirHome, elixirHome))
-        val first = addedSdk(model)
+    fun testPickingAPairedErlangMakesASecondUniquelyNamedModel() {
+        val erlang = registeredErlang("Add shared Erlang", "27", "27.3.4")
+        val model = model(erlang)
+        val pick = ScriptedErlangStep.pick("Add shared Erlang")
+        val step = script(pick, pick, pick, homes = listOf(elixirHome, elixirHome, elixirHome))
 
-        add(model)
+        val added = listOf(addedSdk(model), addedSdk(model), addedSdk(model))
 
-        assertEquals(
-            "the first add is only in the dialog's model, not yet in the table",
-            Unpickable.PairedWith(first.name),
-            step.offered.last().single { it.sdk?.name == "Add shared Erlang" }.unpickable,
+        assertTrue(
+            "the first add is only in the dialog's model, and pairing with its Erlang again is a second Model",
+            step.offered[1].single { it.sdk?.name == "Add shared Erlang" }.pickable,
         )
+        assertEquals(listOf(erlang.name, erlang.name, erlang.name), added.map { (it.sdkAdditionalData as SdkAdditionalData).getErlangSdkName() })
+        assertEquals(added.size, added.map(Sdk::getName).toSet().size)
+        assertTrue(added.last().name, added.last().name.endsWith(" (2)"))
     }
 
     fun testThePairingIsThePick() {

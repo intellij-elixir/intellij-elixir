@@ -11,6 +11,8 @@ import com.intellij.driver.sdk.ui.components.common.ideFrame
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
 import com.intellij.driver.sdk.ui.components.elements.JListUiComponent
 import com.intellij.driver.sdk.ui.components.elements.comboBox
+import com.intellij.driver.sdk.ui.components.elements.textField
+import com.intellij.driver.sdk.ui.components.idea.ProjectStructureUI
 import com.intellij.driver.sdk.ui.components.settings.SettingsDialogUiComponent
 import com.intellij.driver.sdk.ui.components.settings.settingsDialog
 import com.intellij.driver.sdk.ui.remote.Component
@@ -33,6 +35,7 @@ import org.elixir_lang.ui.framework.core.cancelErlangStep
 import org.elixir_lang.ui.framework.core.choosePath
 import org.elixir_lang.ui.framework.core.clickButtonText
 import org.elixir_lang.ui.framework.core.pickInErlangStep
+import org.elixir_lang.ui.framework.core.projectStructure
 import org.elixir_lang.ui.framework.core.sdksAt
 import org.junit.jupiter.api.Assertions.fail
 import java.awt.event.KeyEvent
@@ -280,6 +283,17 @@ fun Driver.cancelSettings() {
     val dialog = modalSettings()
     if (dialog.present()) dialog.clickButtonText("Cancel")
 }
+
+/** A Project Structure a failed row left open, closed; an Apply relabels its Cancel as Close. */
+fun Driver.closeProjectStructure() {
+    val dialog = ui.projectStructure()
+    if (!dialog.present()) return
+    val close = listOf("Cancel", "Close").firstOrNull { dialog.x { byVisibleText(it) }.present() }
+    if (close != null) dialog.clickButtonText(close)
+}
+
+/** The Name field of the SDK page Project Structure shows. */
+fun ProjectStructureUI.nameField() = textField { and(byType(JTextField::class.java), byAccessibleName("Name:")) }
 
 fun Driver.frameOf(project: String): IdeaFrameUI =
     ui.x("//div[@class='IdeFrameImpl' and contains(@accessiblename, '$project')]", IdeaFrameUI::class.java)

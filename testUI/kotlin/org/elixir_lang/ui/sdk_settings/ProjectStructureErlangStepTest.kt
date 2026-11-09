@@ -3,20 +3,16 @@ package org.elixir_lang.ui.sdk_settings
 import com.intellij.driver.client.Driver
 import com.intellij.driver.sdk.ui.components.common.welcomeScreen
 import com.intellij.driver.sdk.ui.components.elements.WindowUiComponent
-import com.intellij.driver.sdk.ui.components.elements.textField
 import com.intellij.driver.sdk.ui.components.elements.tree
 import com.intellij.driver.sdk.ui.components.idea.ProjectStructureUI
-import com.intellij.driver.sdk.ui.ui
 import org.elixir_lang.ui.framework.core.ERLANG_STEP_TITLE
 import org.elixir_lang.ui.framework.core.addElixirSdkFromDisk
 import org.elixir_lang.ui.framework.core.addErlangSdkFromDisk
 import org.elixir_lang.ui.framework.core.clickButtonText
 import org.elixir_lang.ui.framework.core.ensureWelcomeScreenInForeground
 import org.elixir_lang.ui.framework.core.inProjectStructureSdks
-import org.elixir_lang.ui.framework.core.projectStructure
 import org.elixir_lang.ui.framework.core.sdksAt
 import org.junit.jupiter.api.Test
-import javax.swing.JTextField
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -92,7 +88,7 @@ class ProjectStructureErlangStepTest {
     /** The SDK named [name] selected on the SDKs page and its name field set to [newName]. */
     private fun ProjectStructureUI.rename(name: String, newName: String) {
         tree().clickRow { it == name }
-        textField { and(byType(JTextField::class.java), byAccessibleName("Name:")) }.text = newName
+        nameField().text = newName
     }
 
     /**
@@ -114,11 +110,6 @@ class ProjectStructureErlangStepTest {
         }.onFailure { failure -> driver.failed(rows, row, failure) }
     }
 
-    private fun Driver.failed(rows: Rows, row: String, failure: Throwable) = failedErlangStepRow(rows, row, failure) {
-        val projectStructure = ui.projectStructure()
-        if (!projectStructure.present()) return@failedErlangStepRow
-        // An Apply relabels Cancel as Close.
-        val close = listOf("Cancel", "Close").firstOrNull { projectStructure.x { byVisibleText(it) }.present() }
-        if (close != null) projectStructure.clickButtonText(close)
-    }
+    private fun Driver.failed(rows: Rows, row: String, failure: Throwable) =
+        failedErlangStepRow(rows, row, failure) { closeProjectStructure() }
 }

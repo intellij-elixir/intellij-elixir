@@ -134,8 +134,7 @@ class ErlangStepDialog(
                 },
                 if (value.otpMatch is OtpMatch.Mismatch) SimpleTextAttributes.ERROR_ATTRIBUTES else SimpleTextAttributes.GRAYED_ATTRIBUTES,
             )
-            when (val unpickable = value.unpickable) {
-                is Unpickable.PairedWith -> "already Elixir SDK '${unpickable.elixirSdkName}'"
+            when (value.unpickable) {
                 Unpickable.OnAnotherMachine -> "on another machine than the Elixir install"
                 null -> null
             }?.let { append("  $it", SimpleTextAttributes.GRAYED_ITALIC_ATTRIBUTES) }

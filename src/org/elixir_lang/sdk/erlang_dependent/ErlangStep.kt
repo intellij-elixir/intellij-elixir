@@ -12,7 +12,6 @@ import com.intellij.util.concurrency.annotations.RequiresEdt
 import org.elixir_lang.facet.SdksService
 import org.elixir_lang.sdk.SdkEnvironment
 import org.elixir_lang.sdk.SdkHomeChooser
-import org.elixir_lang.sdk.SdkRegistrar
 import org.elixir_lang.sdk.SdkVersionsFiller
 import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.elixir.ElixirSdkValidation
@@ -39,9 +38,6 @@ data class ErlangStepEntry(
 
 /** Why an [ErlangStepEntry] can't be picked. */
 sealed interface Unpickable {
-    /** The Elixir SDK named [elixirSdkName], on this install, is already paired with this Erlang; a second pairing would duplicate it. */
-    data class PairedWith(val elixirSdkName: String) : Unpickable
-
     /** The Erlang is on another machine than the Elixir install, which can't run on it. */
     data object OnAnotherMachine : Unpickable
 }
@@ -136,7 +132,7 @@ class ErlangStep internal constructor(
         if (!scanned) return null
 
         val browseFrom = SdkHomeChooser.firstUnregistered(installs, sdkHomes) ?: elixirHome
-        val answer = dialog.show(parent, state(elixirHome, sdks, installs, asking, inEnvironment), browseFrom, asking, chooseAnotherInstall)
+        val answer = dialog.show(parent, state(elixirHome, sdks, installs, inEnvironment), browseFrom, asking, chooseAnotherInstall)
         return (answer as? ErlangStepAnswer.Picked)?.let { sdkFor(it.entry, sdkModel) }
     }
 
@@ -184,19 +180,16 @@ class ErlangStep internal constructor(
          * at a home [inEnvironment] keeps, then the [installHomes] none of them has, and an entry for a home browsed to
          * that no entry has. Reads only [SdkVersionsStore], so the homes are read first.
          *
-         * An entry can't be picked when [inEnvironment] doesn't keep its home, or when an Elixir SDK on this install
-         * other than [asking], the Elixir SDK being re-paired, is paired with it.
+         * An entry can't be picked when [inEnvironment] doesn't keep its home.
          */
         internal fun state(
             elixirHome: String,
             sdks: List<Sdk>,
             installHomes: List<String>,
-            asking: Sdk? = null,
             inEnvironment: (home: String) -> Boolean = SdkEnvironment.sameEnvironmentAs(elixirHome),
         ): ErlangStepState {
-            val pairedWith = pairedWith(elixirHome, sdks, asking)
             val row = { sdk: Sdk?, home: String ->
-                entry(elixirHome, sdk, home, if (inEnvironment(home)) pairedWith(home, sdk?.name) else Unpickable.OnAnotherMachine)
+                entry(elixirHome, sdk, home, if (inEnvironment(home)) null else Unpickable.OnAnotherMachine)
             }
             val registered = listable(sdks, inEnvironment).sortedBy(Sdk::getName)
             val registeredEntries = registered.map { sdk -> row(sdk, sdk.homePath!!) }
@@ -211,18 +204,6 @@ class ErlangStep internal constructor(
             sdks.filter { sdk ->
                 Type.staticIsValidDependency(sdk) && sdk.homePath.let { !it.isNullOrBlank() && inInstallsEnvironment(it) }
             }
-
-        /**
-         * Why an Erlang at a home, named as an SDK or null for an install, can't be picked for the Elixir install at
-         * [elixirHome]: the Elixir SDK in [sdks] other than [asking] already paired with it there, by the registrar's
-         * variant rule.
-         */
-        private fun pairedWith(elixirHome: String, sdks: List<Sdk>, asking: Sdk?): (home: String, name: String?) -> Unpickable? {
-            val otherSdks = sdks.filter { it !== asking }
-            return { home, name ->
-                SdkRegistrar.findElixirSdkByVariant(otherSdks, elixirHome, home, name)?.let { Unpickable.PairedWith(it.name) }
-            }
-        }
 
         private fun entry(elixirHome: String, sdk: Sdk?, home: String, unpickable: Unpickable?): ErlangStepEntry =
             ErlangStepEntry(
