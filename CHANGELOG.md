@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4667](https://github.com/intellij-elixir/intellij-elixir/pull/4667) [@sh41](https://github.com/sh41)
+  - **On Project Structure, an Elixir SDK added from a detected install opens its own page and asks for its Erlang SDK there, Apply is refused until one is chosen, and the Erlang step no longer refuses an Erlang SDK another Elixir SDK on that install already uses.** Refs [#4666](https://github.com/intellij-elixir/intellij-elixir/issues/4666).
+
 - [#4661](https://github.com/intellij-elixir/intellij-elixir/pull/4661) [@sh41](https://github.com/sh41)
   - **The Elixir SDK chooser offers mise's Elixir and Erlang as a radio choice beside "Use another SDK:", Manage SDKs... opens Project Structure on its SDKs page, and Add... no longer hangs on a WSL project.** Refs [#4660](https://github.com/intellij-elixir/intellij-elixir/issues/4660).
 
