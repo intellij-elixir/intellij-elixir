@@ -69,15 +69,12 @@ class AdditionalDataConfigurable(
         icon = AllIcons.General.Warning
         isVisible = false
     }
-    private val suppressOtpMismatchWarningCheckBox = JBCheckBox("Suppress OTP version mismatch warning").apply {
-        isSelected = false
-    }
+    private val suppressOtpMismatchWarningCheckBox = JBCheckBox("Suppress OTP version mismatch warning")
     private val saveHintLabel =
         JLabel("After changing the Erlang SDK, save settings and reopen this dialog to see updates").apply {
             icon = AllIcons.General.Information
             isVisible = false
         }
-    private val sdkModelListener: SdkModel.Listener
 
     /** The project of the Project Structure this page is on; null on a small IDE's page and under any other host. */
     private val projectStructureProject: Project? =
@@ -126,24 +123,24 @@ class AdditionalDataConfigurable(
     /** Set while the configurable changes the combo itself, so its item events are not taken for a pick. */
     private var freeze = false
 
-    init {
-        sdkModelListener =
-            object : SdkModel.Listener {
-                override fun sdkAdded(sdk: Sdk) {
-                    if (Type.staticIsValidDependency(sdk)) {
-                        // A row's add picks the SDK just before this, and the platform's tree then moves away from this page.
-                        val addedByThisField = erlangSdkField.selectedSdk === sdk
-                        erlangSdkField.added(sdk)
-                        if (addedByThisField) selectThisPageLater()
-                    }
-                }
-
-                override fun beforeSdkRemove(sdk: Sdk) {
-                    if (Type.staticIsValidDependency(sdk)) {
-                        dropRemovedErlangSdks()
-                    }
-                }
+    private val sdkModelListener = object : SdkModel.Listener {
+        override fun sdkAdded(sdk: Sdk) {
+            if (Type.staticIsValidDependency(sdk)) {
+                // A row's add picks the SDK just before this, and the platform's tree then moves away from this page.
+                val addedByThisField = erlangSdkField.selectedSdk === sdk
+                erlangSdkField.added(sdk)
+                if (addedByThisField) selectThisPageLater()
             }
+        }
+
+        override fun beforeSdkRemove(sdk: Sdk) {
+            if (Type.staticIsValidDependency(sdk)) {
+                dropRemovedErlangSdks()
+            }
+        }
+    }
+
+    init {
         sdkModel.addListener(sdkModelListener)
     }
 
@@ -229,62 +226,22 @@ class AdditionalDataConfigurable(
                 0,
             ),
         )
-        wholePanel.add(
-            classpathWarningLabel,
-            GridBagConstraints(
-                0,
-                GridBagConstraints.RELATIVE,
-                2,
-                1,
-                1.0,
-                0.0,
-                GridBagConstraints.WEST,
-                GridBagConstraints.HORIZONTAL,
-                JBUI.insetsTop(8),
-                0,
-                0,
-            ),
-        )
-        wholePanel.add(
-            saveHintLabel,
-            GridBagConstraints(
-                0,
-                GridBagConstraints.RELATIVE,
-                2,
-                1,
-                1.0,
-                0.0,
-                GridBagConstraints.WEST,
-                GridBagConstraints.HORIZONTAL,
-                JBUI.insetsTop(4),
-                0,
-                0,
-            ),
-        )
-        wholePanel.add(
-            otpMismatchWarningLabel,
+        fun fullWidthRow(component: JComponent, topInset: Int) = wholePanel.add(
+            component,
             GridBagConstraints(
                 0,
                 GridBagConstraints.RELATIVE,
                 2, 1, 1.0, 0.0,
                 GridBagConstraints.WEST,
                 GridBagConstraints.HORIZONTAL,
-                JBUI.insetsTop(8),
+                JBUI.insetsTop(topInset),
                 0, 0,
             ),
         )
-        wholePanel.add(
-            suppressOtpMismatchWarningCheckBox,
-            GridBagConstraints(
-                0,
-                GridBagConstraints.RELATIVE,
-                2, 1, 1.0, 0.0,
-                GridBagConstraints.WEST,
-                GridBagConstraints.HORIZONTAL,
-                JBUI.insetsTop(4),
-                0, 0,
-            ),
-        )
+        fullWidthRow(classpathWarningLabel, topInset = 8)
+        fullWidthRow(saveHintLabel, topInset = 4)
+        fullWidthRow(otpMismatchWarningLabel, topInset = 8)
+        fullWidthRow(suppressOtpMismatchWarningCheckBox, topInset = 4)
         suppressOtpMismatchWarningCheckBox.addItemListener { updateOtpMismatchWarning() }
         erlangSdkField.addSelectionListener(::selectionChanged)
 
@@ -525,19 +482,12 @@ class AdditionalDataConfigurable(
     }
 
     private fun updateWarningLabel() {
-        if (elixirSdk == null) {
-            classpathWarningLabel.isVisible = false
-            return
-        }
-        val erlangSdk = erlangSdkField.selectedSdk ?: run {
-            classpathWarningLabel.isVisible = false
-            return
-        }
+        val erlangSdk = erlangSdkField.selectedSdk.takeIf { elixirSdk != null }
         // Check if Erlang classpath is in the UI modificator (not the persisted SDK).
         // This allows the warning to update immediately when the user changes the Erlang SDK selection,
         // even before clicking Apply. The sdkModificator reads from the UI path editors.
-        val classRoots = sdkModificator.getRoots(OrderRootType.CLASSES)
-        classpathWarningLabel.isVisible = !hasErlangClasspathInRoots(classRoots, erlangSdk)
+        classpathWarningLabel.isVisible =
+            erlangSdk != null && !hasErlangClasspathInRoots(sdkModificator.getRoots(OrderRootType.CLASSES), erlangSdk)
     }
 
     companion object {
