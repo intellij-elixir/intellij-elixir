@@ -133,8 +133,7 @@ class SdkAdditionalData :
         if (suppressOtpMismatchWarning) element.setAttribute(SUPPRESS_OTP_MISMATCH, "true")
     }
 
-    @Throws(CloneNotSupportedException::class)
-    public override fun clone(): Any {
+    public override fun clone(): SdkAdditionalData {
         val cloned = SdkAdditionalData(elixirSdk)
         cloned.erlangSdkHomePath = this.erlangSdkHomePath
         cloned.erlangSdkName = this.erlangSdkName

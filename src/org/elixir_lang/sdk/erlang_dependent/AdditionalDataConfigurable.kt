@@ -306,7 +306,7 @@ class AdditionalDataConfigurable(
                         internalErlangSdk,
                         sdkModificator,
                     )
-                    if (!pairingPicked) pairingBeforePick = myElixirSdk.elixirAdditionalData?.clone() as SdkAdditionalData?
+                    if (!pairingPicked) pairingBeforePick = myElixirSdk.elixirAdditionalData?.clone()
                     pairingPicked = true
                     if (writesAtThePick) homeMoved = writeInternalErlangSdk(myElixirSdk) || homeMoved
                     updateLabels(saveHint = !onProjectStructure)

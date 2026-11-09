@@ -13,7 +13,7 @@ import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
 import org.jdom.Element
 
 /**
- * Unit tests for SdkAdditionalData Phase 1 refactoring.
+ * Unit tests for SdkAdditionalData.
  *
  * These tests verify the core persistence and caching logic.
  * Integration tests with actual SDK creation/deletion should be done manually
@@ -143,7 +143,7 @@ class SdkAdditionalDataTest: PlatformTestCase() {
         val erlangSdk = createMockSdk("Erlang 26.0", "/fake/erlang/26.0")
 
         val original = SdkAdditionalData(erlangSdk, elixirSdk)
-        val cloned = original.clone() as SdkAdditionalData
+        val cloned = original.clone()
 
         // Name and home path should be copied
         assertEquals(original.getErlangSdkName(), cloned.getErlangSdkName())
@@ -184,7 +184,7 @@ class SdkAdditionalDataTest: PlatformTestCase() {
         original.writeExternal(element)
 
         assertTrue(SdkAdditionalData(elixirSdk).apply { readExternal(element) }.isSuppressOtpMismatchWarning())
-        assertTrue((original.clone() as SdkAdditionalData).isSuppressOtpMismatchWarning())
+        assertTrue(original.clone().isSuppressOtpMismatchWarning())
     }
 
     fun testCheckValidWithNoErlangChosenSaysSo() {
