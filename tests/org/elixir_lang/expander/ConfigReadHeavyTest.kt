@@ -3,7 +3,6 @@ package org.elixir_lang.expander
 import com.intellij.openapi.application.ReadAction
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.util.system.OS
-import org.elixir_lang.language_level.ElixirLanguageFeature.CONFIG_READ_CONFIG
 import org.elixir_lang.model.psi.config.ConfigFiles
 import java.util.concurrent.Callable
 
@@ -104,7 +103,7 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
     fun testAConfigReadingItsOwnKeyRunsOnce() {
         val root = project(CONFIG to "import Config\nconfig :app, k: [2 | (Config.read_config(:app)[:k] || [])]\n")
 
-        assertEquals(if (CONFIG_READ_CONFIG.isSufficient(legLevel())) "[{app,[{k,[2]}]}] [config/config.exs]" else "unknown", read(root))
+        assertRead("[{app,[{k,[2]}]}] [config/config.exs]", read(root), before = "unknown")
     }
 
     /** A result after an import takes its value from the last statement, without importing again. */
@@ -256,10 +255,7 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
             DEV to "import Config\n\nconfig :app, k2: read_config(:app)[:k]\n",
         )
 
-        assertEquals(
-            if (CONFIG_READ_CONFIG.isSufficient(legLevel())) "[{app,[{k,1},{k2,1}]}] [config/dev.exs, config/config.exs]" else "unknown",
-            read(root),
-        )
+        assertRead("[{app,[{k,1},{k2,1}]}] [config/dev.exs, config/config.exs]", read(root), before = "unknown")
     }
 
     fun testUseMixConfigWithImportAndWildcard() {
