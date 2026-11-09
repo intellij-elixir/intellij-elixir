@@ -2299,25 +2299,20 @@ internal class Natives(private val evaluation: Evaluation) {
         val envFirst = COMPILE_ENV_TAKES_ENV_FIRST.isSufficient(level)
 
         when (key) {
-            "get_env/3", "fetch_env/2", "fetch_env!/2" -> clauseGuard(args[0], key.substringBefore('/'), args)
+            "get_env/3", "fetch_env/2", "fetch_env!/2" -> {
+                clauseGuard(args[0], key.substringBefore('/'), args)
+
+                val fetched = fetched(args[0], args[1])
+
+                return when (key) {
+                    "fetch_env/2" -> fetched
+                    "fetch_env!/2" -> fetchedValue(fetched, args[0], null)
+                    else -> fetchedValue(fetched, args[0], args[2])
+                }
+            }
             "compile_env/4", "compile_env!/3" -> if (!envFirst) return null
             "__compile_env__/4", "__compile_env__!/3" -> if (envFirst) return null
             else -> return null
-        }
-
-        if (key.startsWith("get_env/") || key.startsWith("fetch_env")) {
-            val fetched = fetched(args[0], args[1])
-            val value = (fetched as? OtpErlangTuple)?.elementAt(1)
-
-            return when (key) {
-                "fetch_env/2" -> fetched
-                "fetch_env!/2" -> when {
-                    value != null -> value
-                    fetched == atom("error") -> argumentError()
-                    else -> evaluation.unlessRaised(fetched)
-                }
-                else -> if (fetched == atom("error")) args[2] else value ?: fetched
-            }
         }
 
         val env = if (envFirst) args[0] else args.last()
@@ -2363,15 +2358,29 @@ internal class Natives(private val evaluation: Evaluation) {
             else -> args[2]
         }
 
-        return when (traversed) {
-            is OtpErlangTuple if seen(traversed.elementAt(0)) == atom("ok") -> traversed.elementAt(1)
+        return fetchedValue(traversed, app, default, raisesOnUnknown = tail != null)
+    }
+
+    /**
+     * [read], `fetch_env/2`'s `{:ok, value}` or `:error`, or a value not known that may be either, as a read with
+     * [default] gives it: its value, else [default], else `ArgumentError`. Not known, it may raise where there is no
+     * [default] or where [raisesOnUnknown] says so ([Evaluation.raiseMayBeCaught]), and holds what the env of [app] may
+     * ([unfetched]).
+     */
+    private fun fetchedValue(
+        read: OtpErlangObject,
+        app: OtpErlangObject,
+        default: OtpErlangObject?,
+        raisesOnUnknown: Boolean = false,
+    ): OtpErlangObject =
+        when (read) {
+            is OtpErlangTuple if seen(read.elementAt(0)) == atom("ok") -> read.elementAt(1)
             atom("error") -> default ?: argumentError()
             else -> {
-                if (default == null || tail != null) evaluation.raiseMayBeCaught()
+                if (default == null || raisesOnUnknown) evaluation.raiseMayBeCaught()
                 unfetched((app as? OtpErlangAtom)?.atomValue())
             }
         }
-    }
 
     /**
      * [module]'s [function]`(`[args]`)`'s guard on [term], `is_atom` unless [passes] says otherwise: one that fails it
