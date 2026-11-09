@@ -34,6 +34,9 @@
         <applicationService serviceInterface="org.elixir_lang.sdk.elixir.SdkSettingsOpener"
                             serviceImplementation="org.elixir_lang.sdk.elixir.ProjectStructureSdkSettingsOpener"
                             overrides="true"/>
+        <applicationService serviceInterface="org.elixir_lang.sdk.elixir.SdkPageInDialog"
+                            serviceImplementation="org.elixir_lang.sdk.elixir.ProjectStructureSdkPage"
+                            overrides="true"/>
 
         <!-- Tool Manager settings, SDK checker, and settings page are registered in the base
              plugin.xml so they load in small IDEs (RubyMine, etc.) too. SDK configuration is
