@@ -51,6 +51,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     }
 
     override fun tearDown() = runAll(
+        { ProcessOutput.isSmallIdeOverride = null },
         { opened.forEach(AdditionalDataConfigurable::disposeUIResources) },
         { table.restore() },
         { super.tearDown() },
@@ -82,7 +83,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         page.suppress.isSelected = true
         page.configurable.apply()
 
-        val data = page.elixirSdk.sdkAdditionalData as SdkAdditionalData
+        val data = page.elixirSdk.elixirAdditionalData!!
         assertTrue("the flag is written", data.isSuppressOtpMismatchWarning())
         assertEquals("the pairing is not", "Combo suppress stored name", data.getErlangSdkName())
     }
@@ -97,7 +98,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         page.suppress.isSelected = true
         page.configurable.apply()
 
-        val data = page.elixirSdk.sdkAdditionalData as SdkAdditionalData
+        val data = page.elixirSdk.elixirAdditionalData!!
         assertTrue("the flag is written", data.isSuppressOtpMismatchWarning())
         assertNull("no Erlang is paired", data.getErlangSdkName())
     }
@@ -115,7 +116,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         page.suppress.isSelected = false
         assertTrue("an untick after the apply is a change to apply", page.configurable.isModified)
         page.configurable.apply()
-        assertFalse((page.elixirSdk.sdkAdditionalData as SdkAdditionalData).isSuppressOtpMismatchWarning())
+        assertFalse(page.elixirSdk.elixirAdditionalData!!.isSuppressOtpMismatchWarning())
     }
 
     fun testAStoredSuppressionIsNotModified() {
@@ -165,7 +166,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val model = model(named, atStoredHome, elixir)
         ElixirSdkPathConfigurator.configure(elixir, model)
         val page = open(model, elixir.name)
-        assertEquals("precondition: the stored home's SDK is shown", atStoredHome.name, (page.combo.selectedItem as Sdk?)?.name)
+        assertEquals("precondition: the stored home's SDK is shown", atStoredHome.name, page.comboName)
         assertEquals("precondition: the stored home's code paths", codePaths(atStoredHome), codePathsUnder(elixir, atStoredHome.homePath!!))
 
         page.combo.selectedItem = model.findSdk(named.name)
@@ -187,7 +188,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         page.combo.selectedItem = model.findSdk(picked.name)
         page.configurable.apply()
 
-        val data = page.elixirSdk.sdkAdditionalData as SdkAdditionalData
+        val data = page.elixirSdk.elixirAdditionalData!!
         assertEquals("precondition: the pick is written", picked.homePath, data.getErlangSdkHomePath())
         assertTrue("the flag applied with the pick", data.isSuppressOtpMismatchWarning())
     }
@@ -197,15 +198,11 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val model = model(renamed, paired("Combo editor", "Combo editor stored name", renamed.homePath!!))
         val elixirSdk = model.findSdk("Combo editor") as ProjectJdkImpl
         ProcessOutput.isSmallIdeOverride = true
-        try {
-            val editor = Editor(model, History(object : Place.Navigator {}), elixirSdk)
-            ConfigurableCardPanel.createConfigurableComponent(editor)
+        val editor = Editor(model, History(object : Place.Navigator {}), elixirSdk)
+        ConfigurableCardPanel.createConfigurableComponent(editor)
 
-            editor.apply()
-            editor.disposeUIResources()
-        } finally {
-            ProcessOutput.isSmallIdeOverride = null
-        }
+        editor.apply()
+        editor.disposeUIResources()
 
         assertEquals("Combo editor stored name", liveErlangName(elixirSdk))
     }
@@ -248,10 +245,10 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val model = model(kept, removed, paired("Combo removal", kept.name, kept.homePath!!))
         val page = open(model, "Combo removal")
 
-        model.removeSdk(model.findSdk(removed.name)!!)
+        model.removeCopyOf(removed)
 
         assertEquals(listOf(kept.name), page.listedNames())
-        assertEquals(kept.name, (page.combo.selectedItem as Sdk?)?.name)
+        assertEquals(kept.name, page.comboName)
         assertFalse(page.configurable.isModified)
     }
 
@@ -279,7 +276,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
 
         model.removeSdk(copy)
 
-        assertEquals(stored.name, (page.combo.selectedItem as Sdk?)?.name)
+        assertEquals(stored.name, page.comboName)
         assertEquals("the removed pick's code paths", emptyList<String>(), page.codePathsUnder(picked.homePath!!))
     }
 
@@ -289,7 +286,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val model = model(neighbour, deleted, paired("Combo paired removal", deleted.name, deleted.homePath!!))
         val page = open(model, "Combo paired removal")
 
-        model.removeSdk(model.findSdk(deleted.name)!!)
+        model.removeCopyOf(deleted)
 
         assertEquals(listOf(neighbour.name), page.listedNames())
         assertNull("the combo shows nothing for a pairing that no longer resolves", page.combo.selectedItem)
@@ -304,7 +301,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val page = open(model, "Combo pick removed")
 
         page.combo.selectedItem = model.findSdk(picked.name)
-        model.removeSdk(model.findSdk(picked.name)!!)
+        model.removeCopyOf(picked)
         page.configurable.apply()
 
         assertEquals("Combo pick removed gone Erlang", liveErlangName(page.elixirSdk))
@@ -318,9 +315,9 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         assertEquals("precondition: the stored pairing's code paths", codePaths(stored), page.codePathsUnder(stored.homePath!!))
 
         page.combo.selectedItem = model.findSdk(picked.name)
-        model.removeSdk(model.findSdk(picked.name)!!)
+        model.removeCopyOf(picked)
 
-        assertEquals(stored.name, (page.combo.selectedItem as Sdk?)?.name)
+        assertEquals(stored.name, page.comboName)
         assertEquals("the stored pairing's code paths", codePaths(stored), page.codePathsUnder(stored.homePath!!))
         assertEquals("the removed pick's code paths", emptyList<String>(), page.codePathsUnder(picked.homePath!!))
         assertFalse(page.configurable.isModified)
@@ -469,7 +466,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val page = open(model, "Field void registered")
         page.pick(erlang)
 
-        model.removeSdk(model.findSdk(erlang.name)!!)
+        model.removeCopyOf(erlang)
 
         page.assertVoided()
         assertRefusedForNoErlang(model)
@@ -651,7 +648,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val model = model(stored, saved(paired("Field stored removed", stored.name, stored.homePath!!)))
         val page = open(model, "Field stored removed")
 
-        model.removeSdk(model.findSdk(stored.name)!!)
+        model.removeCopyOf(stored)
 
         assertNull(page.shown)
         assertFalse(page.configurable.isModified)
@@ -677,7 +674,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val page = open(model, "Field restore registered")
         page.pick(picked)
 
-        model.removeSdk(model.findSdk(picked.name)!!)
+        model.removeCopyOf(picked)
 
         page.assertRestored(stored, gone = picked)
     }
@@ -689,7 +686,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val page = open(model, "Field restore no data")
         page.pick(erlang)
 
-        model.removeSdk(model.findSdk(erlang.name)!!)
+        model.removeCopyOf(erlang)
 
         assertNull(page.elixirSdk.sdkAdditionalData)
         assertFalse(page.configurable.isModified)
@@ -706,7 +703,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         page.pick(first)
         page.pick(second)
 
-        model.removeSdk(model.findSdk(second.name)!!)
+        model.removeCopyOf(second)
 
         page.assertRestored(stored, gone = second)
     }
@@ -727,7 +724,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         SdkFixtures.settle()
         assertEquals("precondition: the repair reached the copy", "Field repaired renamed Erlang", liveErlangName(page.elixirSdk))
         page.pick(picked)
-        model.removeSdk(model.findSdk(picked.name)!!)
+        model.removeCopyOf(picked)
 
         assertEquals("Field repaired renamed Erlang", liveErlangName(page.elixirSdk))
         assertEquals(movedHome, page.elixirSdk.elixirAdditionalData?.getErlangSdkHomePath())
@@ -737,7 +734,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         onProjectStructure()
         val erlang = SdkFixtures.withCodePaths(erlang("Field project row Erlang", "27", "27.3.4"))
         val model = model(erlang, unpaired("Field project row"))
-        model.projectSdk = model.findSdk(erlang.name)
+        model.projectSdkIsCopyOf(erlang)
         val page = open(model, "Field project row")
 
         page.pickProjectRow()
@@ -754,7 +751,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val first = erlang("Field project row second first Erlang", "27", "27.3.4")
         val row = erlang("Field project row second row Erlang", "26", "26.2.5")
         val model = model(first, row, unpaired("Field project row second"))
-        model.projectSdk = model.findSdk(row.name)
+        model.projectSdkIsCopyOf(row)
         val page = open(model, "Field project row second")
         page.pick(first)
 
@@ -769,7 +766,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val (stored, elixir) = pairedInTable("Field project row paths")
         val row = saved(SdkFixtures.withCodePaths(erlang("Field project row paths row Erlang", "26", "26.2.5")))
         val model = model(stored, row, elixir)
-        model.projectSdk = model.findSdk(row.name)
+        model.projectSdkIsCopyOf(row)
         val page = open(model, "Field project row paths")
 
         page.pickProjectRow()
@@ -784,7 +781,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val row = SdkFixtures.withCodePaths(erlang("Field project row left row Erlang", "27", "27.3.4"))
         val next = erlang("Field project row left next Erlang", "26", "26.2.5")
         val model = model(row, next, unpaired("Field project row left"))
-        model.projectSdk = model.findSdk(row.name)
+        model.projectSdkIsCopyOf(row)
         val page = open(model, "Field project row left")
         page.pickProjectRow()
 
@@ -797,7 +794,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         onProjectStructure()
         val mismatching = SdkFixtures.erlangSdk("Field project row OTP Erlang", install("26", "26.2.5"))
         val model = model(mismatching, SdkFixtures.elixirSdk("Field project row OTP", elixirInstall("1.18.4", "27")))
-        model.projectSdk = model.findSdk(mismatching.name)
+        model.projectSdkIsCopyOf(mismatching)
         val page = open(model, "Field project row OTP")
 
         page.pickProjectRow()
@@ -809,11 +806,11 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         onProjectStructure()
         val erlang = saved(erlang("Field project row void Erlang", "27", "27.3.4"))
         val model = model(erlang, unpaired("Field project row void"))
-        model.projectSdk = model.findSdk(erlang.name)
+        model.projectSdkIsCopyOf(erlang)
         val page = open(model, "Field project row void")
         page.pickProjectRow()
 
-        model.removeSdk(model.findSdk(erlang.name)!!)
+        model.removeCopyOf(erlang)
 
         page.assertVoided()
         assertRefusedForNoErlang(model)
@@ -825,11 +822,11 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val chosen = erlang("Field project row kept chosen Erlang", "27", "27.3.4")
         val later = erlang("Field project row kept later Erlang", "26", "26.2.5")
         val model = model(chosen, later, unpaired("Field project row kept"))
-        model.projectSdk = model.findSdk(chosen.name)
+        model.projectSdkIsCopyOf(chosen)
         val page = open(model, "Field project row kept")
         page.pickProjectRow()
 
-        model.projectSdk = model.findSdk(later.name)
+        model.projectSdkIsCopyOf(later)
         page.configurable.apply()
 
         assertEquals(chosen.name, liveErlangName(page.elixirSdk))
@@ -841,10 +838,10 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         val picked = SdkFixtures.withCodePaths(erlang("Field project row none picked Erlang", "27", "27.3.4"))
         val gone = erlang("Field project row none gone Erlang", "26", "26.2.5")
         val model = model(picked, gone, unpaired("Field project row none"))
-        model.projectSdk = model.findSdk(gone.name)
+        model.projectSdkIsCopyOf(gone)
         val page = open(model, "Field project row none")
         page.pick(picked)
-        model.removeSdk(model.findSdk(gone.name)!!)
+        model.removeCopyOf(gone)
 
         page.pickProjectRow()
         page.configurable.apply()
@@ -857,9 +854,9 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         onProjectStructure()
         val gone = erlang("Field project row no pick gone Erlang", "26", "26.2.5")
         val model = model(gone, unpaired("Field project row no pick"))
-        model.projectSdk = model.findSdk(gone.name)
+        model.projectSdkIsCopyOf(gone)
         val page = open(model, "Field project row no pick")
-        model.removeSdk(model.findSdk(gone.name)!!)
+        model.removeCopyOf(gone)
 
         page.pickProjectRow()
 
@@ -870,11 +867,7 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
     fun testASmallIdesPageIsUnchanged() {
         onProjectStructure()
         ProcessOutput.isSmallIdeOverride = true
-        try {
-            assertPageIsThePlainCombo("Field small")
-        } finally {
-            ProcessOutput.isSmallIdeOverride = null
-        }
+        assertPageIsThePlainCombo("Field small")
     }
 
     /** `ProjectJdksConfigurable`'s one-argument constructor creates the same service and takes its model, with no UI up. */
@@ -922,6 +915,8 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
 
         /** The code paths under [home] the page's path editors hold, before any Apply. */
         fun codePathsUnder(home: String): List<String> = SdkFixtures.pathsUnder(modificator.getRoots(OrderRootType.CLASSES), home)
+
+        val comboName: String? get() = (combo.selectedItem as Sdk?)?.name
 
         val field: SdkComboBox get() = assertInstanceOf(combo, SdkComboBox::class.java)
 
@@ -1088,4 +1083,10 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
 
     /** The Erlang SDK name the live additional data holds, unlike [SdkFixtures.storedErlangName]'s XML read. */
     private fun liveErlangName(sdk: Sdk): String? = sdk.elixirAdditionalData?.getErlangSdkName()
+
+    private fun ProjectSdksModel.removeCopyOf(sdk: Sdk) = removeSdk(findSdk(sdk.name)!!)
+
+    private fun ProjectSdksModel.projectSdkIsCopyOf(sdk: Sdk) {
+        projectSdk = findSdk(sdk.name)
+    }
 }
