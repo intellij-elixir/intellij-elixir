@@ -4,6 +4,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.serviceIfCreated
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
+import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.roots.ui.configuration.ProjectStructureConfigurable
 
@@ -11,6 +12,9 @@ import com.intellij.openapi.roots.ui.configuration.ProjectStructureConfigurable
 interface SdkPageInDialog {
     /** The project whose Project Structure, its UI up, is over [sdkModel]; null under any other host of the page. */
     fun projectOf(sdkModel: SdkModel): Project?
+
+    /** Moves the SDK list of [project]'s Project Structure to [sdk], a copy in its model. */
+    fun selectInList(project: Project, sdk: Sdk)
 
     companion object {
         fun getInstance(): SdkPageInDialog =
@@ -20,6 +24,8 @@ interface SdkPageInDialog {
 
 internal class NoProjectStructureSdkPage : SdkPageInDialog {
     override fun projectOf(sdkModel: SdkModel): Project? = null
+
+    override fun selectInList(project: Project, sdk: Sdk) = Unit
 }
 
 internal class ProjectStructureSdkPage : SdkPageInDialog {
@@ -32,5 +38,9 @@ internal class ProjectStructureSdkPage : SdkPageInDialog {
         return (manager.openProjects.asSequence() + manager.defaultProject).firstOrNull { project ->
             project.serviceIfCreated<ProjectStructureConfigurable>()?.let { it.isUiInitialized && it.projectJdksModel === sdkModel } == true
         }
+    }
+
+    override fun selectInList(project: Project, sdk: Sdk) {
+        ProjectStructureConfigurable.getInstance(project).jdkConfig.selectNodeInTree(sdk)
     }
 }

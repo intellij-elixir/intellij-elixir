@@ -1,6 +1,7 @@
 package org.elixir_lang.sdk.erlang_dependent
 
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.UI
 import com.intellij.openapi.application.asContextElement
@@ -130,7 +131,10 @@ class AdditionalDataConfigurable(
             object : SdkModel.Listener {
                 override fun sdkAdded(sdk: Sdk) {
                     if (Type.staticIsValidDependency(sdk)) {
+                        // A row's add picks the SDK just before this, and the platform's tree then moves away from this page.
+                        val addedByThisField = erlangSdkField.selectedSdk === sdk
                         erlangSdkField.added(sdk)
+                        if (addedByThisField) selectThisPageLater()
                     }
                 }
 
@@ -315,6 +319,20 @@ class AdditionalDataConfigurable(
         updateOtpMismatchWarning()
 
         return wholePanel
+    }
+
+    /**
+     * After the tree's own move to the added row. By then a new Model's page has left the window, which leaves the field
+     * no modality to give.
+     */
+    private fun selectThisPageLater() {
+        val myElixirSdk = elixirSdk ?: return
+        val project = projectStructureProject ?: return
+        ApplicationManager.getApplication().invokeLater(
+            { SdkPageInDialog.getInstance().selectInList(project, myElixirSdk) },
+            ModalityState.current(),
+            project.disposed,
+        )
     }
 
     private fun installAskingOutline() {

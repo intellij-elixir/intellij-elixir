@@ -542,6 +542,19 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         assertEquals(second.name, SdkFixtures.storedErlangName(table.findJdk("Field replaced")!!))
     }
 
+    /** The platform's tree moves to the added SDK; the page whose row made it, and no other, moves the list back. */
+    fun testOnlyThePageThatAddedAnErlangGetsTheListBack() {
+        val selectedInList = onProjectStructure()
+        val model = model(unpaired("Field back"), unpaired("Field back other"))
+        val holding = open(model, "Field back")
+        open(model, "Field back other")
+
+        holding.holdAndPick(model, erlang("Field back Erlang", "27", "27.3.4"))
+        SdkFixtures.settle()
+
+        assertEquals(listOf(holding.elixirSdk), selectedInList)
+    }
+
     fun testTheOtpWarningFollowsThePick() {
         onProjectStructure()
         val matching = SdkFixtures.erlangSdk("Field OTP matching Erlang", install("27", "27.3.4"))
@@ -1003,16 +1016,25 @@ class AdditionalDataConfigurableTest : PlatformTestCase() {
         )
     }
 
-    /** The page answers that it is on a Project Structure over its model, as a bare `ProjectSdksModel` otherwise isn't. */
-    private fun onProjectStructure() {
+    /**
+     * The page answers that it is on a Project Structure over its model, as a bare `ProjectSdksModel` otherwise isn't.
+     * Returns the SDKs the list is moved to.
+     */
+    private fun onProjectStructure(): List<Sdk> {
         val onProject = project
+        val selectedInList = mutableListOf<Sdk>()
         ApplicationManager.getApplication().replaceService(
             SdkPageInDialog::class.java,
             object : SdkPageInDialog {
                 override fun projectOf(sdkModel: SdkModel): Project = onProject
+
+                override fun selectInList(project: Project, sdk: Sdk) {
+                    selectedInList += sdk
+                }
             },
             testRootDisposable,
         )
+        return selectedInList
     }
 
     /** A new Model with no data is left so, the plain combo stays, and a pick shows the hint and writes nothing yet. */
