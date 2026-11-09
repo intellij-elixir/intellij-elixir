@@ -114,12 +114,8 @@ abstract class Type protected constructor(name: String) : DependentSdkType(name)
         fun staticIsValidDependency(sdkType: SdkTypeId): Boolean {
             val sdkTypeCanonicalName = sdkType.javaClass.canonicalName
 
-            return if (isSmallIde) {
-                sdkTypeCanonicalName == ERLANG_SDK_FOR_ELIXIR_SDK_TYPE_CANONICAL_NAME
-            } else {
-                sdkTypeCanonicalName == ERLANG_SDK_TYPE_CANONICAL_NAME ||
-                        sdkTypeCanonicalName == ERLANG_SDK_FOR_ELIXIR_SDK_TYPE_CANONICAL_NAME
-            }
+            return sdkTypeCanonicalName == ERLANG_SDK_FOR_ELIXIR_SDK_TYPE_CANONICAL_NAME ||
+                    (!isSmallIde && sdkTypeCanonicalName == ERLANG_SDK_TYPE_CANONICAL_NAME)
         }
     }
 }
