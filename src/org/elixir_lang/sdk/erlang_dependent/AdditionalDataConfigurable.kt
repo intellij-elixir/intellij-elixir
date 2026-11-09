@@ -15,8 +15,6 @@ import com.intellij.openapi.projectRoots.SdkModel
 import com.intellij.openapi.projectRoots.SdkModificator
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
-import com.intellij.openapi.ui.ComboBox
-import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresEdt
@@ -28,7 +26,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.elixir_lang.debug
 import org.elixir_lang.facet.SdksService
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.SdkVersionsFiller
@@ -53,8 +50,6 @@ class AdditionalDataConfigurable(
     private val sdkModificator: SdkModificator,
 ) : AdditionalDataConfigurable {
     private val internalErlangSdkLabel = JLabel("Internal Erlang SDK:")
-    private val internalErlangSdksComboBoxModel = PairingComboBoxModel()
-    private val internalErlangSdksComboBox = ComboBox(internalErlangSdksComboBoxModel)
     private val classpathWarningLabel = JLabel("Erlang classpath entries missing from Elixir SDK").apply {
         icon = AllIcons.General.Warning
         isVisible = false
@@ -77,6 +72,8 @@ class AdditionalDataConfigurable(
     private val projectStructureProject: Project? =
         if (ProcessOutput.isSmallIde) null else SdkPageInDialog.getInstance().projectOf(sdkModel)
     private val onProjectStructure: Boolean get() = projectStructureProject != null
+
+    private val erlangSdkField: ErlangSdkField = ComboErlangSdkField(sdkModel)
 
     /**
      * The model this editor is over, while it is open, whose Elixir SDK copies [PairingRepairs] repairs too when an Erlang
@@ -117,7 +114,7 @@ class AdditionalDataConfigurable(
             object : SdkModel.Listener {
                 override fun sdkAdded(sdk: Sdk) {
                     if (Type.staticIsValidDependency(sdk)) {
-                        addErlangSdk(sdk)
+                        erlangSdkField.added(sdk)
                     }
                 }
 
@@ -128,11 +125,6 @@ class AdditionalDataConfigurable(
                 }
             }
         sdkModel.addListener(sdkModelListener)
-    }
-
-    private fun updateJdkList() {
-        internalErlangSdksComboBoxModel.removeAllElements()
-        sdkModel.sdks.filter { Type.staticIsValidDependency(it) }.forEach(internalErlangSdksComboBoxModel::addElement)
     }
 
     override fun setSdk(sdk: Sdk) {
@@ -172,7 +164,7 @@ class AdditionalDataConfigurable(
             ),
         )
         wholePanel.add(
-            internalErlangSdksComboBox,
+            erlangSdkField.component,
             GridBagConstraints(
                 1,
                 GridBagConstraints.RELATIVE,
@@ -244,24 +236,9 @@ class AdditionalDataConfigurable(
             ),
         )
         suppressOtpMismatchWarningCheckBox.addItemListener { updateOtpMismatchWarning() }
-        internalErlangSdksComboBox.setRenderer(
-            object : SimpleListCellRenderer<Sdk>() {
-                override fun customize(
-                    list: JList<out Sdk>,
-                    value: Sdk?,
-                    index: Int,
-                    selected: Boolean,
-                    hasFocus: Boolean,
-                ) {
-                    text = value?.name
-                }
-            },
-        )
-        internalErlangSdksComboBox.addItemListener { itemEvent: ItemEvent ->
+        erlangSdkField.addSelectionListener { stateChange, internalErlangSdk ->
             if (!freeze) {
-                val stateChange = itemEvent.stateChange
-                val internalErlangSdk = itemEvent.item as Sdk
-                val myElixirSdk = elixirSdk ?: return@addItemListener
+                val myElixirSdk = elixirSdk ?: return@addSelectionListener
 
                 // Update UI path editors only. The actual SDK will be updated when the user
                 // clicks Apply, via Editor.apply() which calls pathEditor.apply(sdkModificator).
@@ -318,7 +295,7 @@ class AdditionalDataConfigurable(
 
     /** Returns whether the stored Erlang home changed. */
     private fun writeInternalErlangSdk(myElixirSdk: Sdk): Boolean {
-        val erlangSdk = internalErlangSdksComboBox.selectedItem as? Sdk
+        val erlangSdk = erlangSdkField.selectedSdk
         LOG.trace { "[${myElixirSdk.name}] Persisting Erlang SDK dependency: ${erlangSdk?.name ?: "null"}" }
 
         var rehomed = false
@@ -338,8 +315,7 @@ class AdditionalDataConfigurable(
         LOG.debug("[$sdkName] reset() called")
 
         frozen {
-            updateJdkList()
-            LOG.debug("[$sdkName] Populated combo box with ${internalErlangSdksComboBoxModel.size} Erlang SDKs")
+            erlangSdkField.reload()
 
             if (sdk == null) {
                 LOG.debug("[$sdkName] No Elixir SDK set, skipping Erlang SDK selection")
@@ -366,17 +342,10 @@ class AdditionalDataConfigurable(
     /** Selects the Erlang SDK [sdk]'s pairing resolves to in [sdkModel], and adds its code paths when they are missing. */
     private fun showStoredPairing(sdk: Sdk) {
         val erlangSdk = sdk.elixirAdditionalData?.getErlangSdk(sdkModel)
+        erlangSdkField.show(erlangSdk)
         if (erlangSdk == null) {
             LOG.debug("[${sdk.name}] No Erlang SDK found to select")
             return
-        }
-
-        val index = internalErlangSdksComboBoxModel.indexOfName(erlangSdk.name)
-        if (index != null) {
-            LOG.debug("[${sdk.name}] Found Erlang SDK '${erlangSdk.name}' at index $index, selecting")
-            internalErlangSdksComboBox.selectedIndex = index
-        } else {
-            LOG.debug { ("[${sdk.name}] Erlang SDK '${erlangSdk.name}' not found in combo box (size=${internalErlangSdksComboBoxModel.size})") }
         }
 
         if (!hasErlangClasspathInRoots(sdkModificator.getRoots(OrderRootType.CLASSES), erlangSdk)) {
@@ -399,24 +368,13 @@ class AdditionalDataConfigurable(
                 .supervisedChildScope("AdditionalDataConfigurable.otpMismatch")
                 .also { otpScope = it }
 
-    private fun addErlangSdk(sdk: Sdk) {
-        internalErlangSdksComboBoxModel.addElement(sdk)
-    }
-
     /**
      * `ProjectSdksModel.removeSdk` fires with the table's SDK once its copy, which the combo lists and which may carry
      * another name, has left the model. Removing the picked SDK voids the pick: the page shows the stored pairing again,
      * with its code paths in place of the pick's.
      */
     private fun dropRemovedErlangSdks() {
-        val held = sdkModel.sdks
-        fun gone(item: Sdk) = held.none { it === item }
-        val picked = (internalErlangSdksComboBox.selectedItem as? Sdk)?.takeIf { pairingPicked && gone(it) }
-        frozen {
-            for (index in (0 until internalErlangSdksComboBoxModel.size).reversed()) {
-                if (gone(internalErlangSdksComboBoxModel.getElementAt(index))) internalErlangSdksComboBoxModel.removeElementAt(index)
-            }
-        }
+        val picked = frozen { erlangSdkField.dropGone() }?.takeIf { pairingPicked }
         val myElixirSdk = elixirSdk
         if (picked == null || myElixirSdk == null) return
 
@@ -426,9 +384,9 @@ class AdditionalDataConfigurable(
         updateLabels(saveHint = false)
     }
 
-    private inline fun frozen(block: () -> Unit) {
+    private inline fun <T> frozen(block: () -> T): T {
         freeze = true
-        try {
+        return try {
             block()
         } finally {
             freeze = false
@@ -456,7 +414,7 @@ class AdditionalDataConfigurable(
         otpMismatchJob = null
 
         val myElixirSdk = elixirSdk
-        val selectedErlangSdk = internalErlangSdksComboBox.selectedItem as? Sdk
+        val selectedErlangSdk = erlangSdkField.selectedSdk
 
         if (myElixirSdk == null || selectedErlangSdk == null || suppressOtpMismatchWarningCheckBox.isSelected) {
             hideOtpMismatchWarning()
@@ -499,7 +457,7 @@ class AdditionalDataConfigurable(
             classpathWarningLabel.isVisible = false
             return
         }
-        val erlangSdk = (internalErlangSdksComboBox.selectedItem as? Sdk) ?: run {
+        val erlangSdk = erlangSdkField.selectedSdk ?: run {
             classpathWarningLabel.isVisible = false
             return
         }
@@ -508,21 +466,6 @@ class AdditionalDataConfigurable(
         // even before clicking Apply. The sdkModificator reads from the UI path editors.
         val classRoots = sdkModificator.getRoots(OrderRootType.CLASSES)
         classpathWarningLabel.isVisible = !hasErlangClasspathInRoots(classRoots, erlangSdk)
-    }
-
-    /**
-     * `DefaultComboBoxModel` selects the first element added to an empty model, and a neighbour of a selected element
-     * removed, either of which would show a pairing nobody picked.
-     */
-    private class PairingComboBoxModel : DefaultComboBoxModel<Sdk>() {
-        override fun addElement(anObject: Sdk) = insertElementAt(anObject, size)
-
-        override fun removeElementAt(index: Int) {
-            if (selectedItem === getElementAt(index)) selectedItem = null
-            super.removeElementAt(index)
-        }
-
-        fun indexOfName(name: String): Int? = (0 until size).firstOrNull { getElementAt(it).name == name }
     }
 
     companion object {
