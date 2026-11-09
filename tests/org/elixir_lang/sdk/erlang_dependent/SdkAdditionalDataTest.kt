@@ -1,6 +1,5 @@
 package org.elixir_lang.sdk.erlang_dependent
 
-import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
@@ -8,7 +7,6 @@ import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.sdk.SdkFixtures
-import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
 import org.jdom.Element
 
