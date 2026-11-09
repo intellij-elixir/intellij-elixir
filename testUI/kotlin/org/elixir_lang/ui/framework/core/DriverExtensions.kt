@@ -89,9 +89,7 @@ fun UiComponent.clickButtonText(buttonNameOrVisibleText: String) {
  * @throws Exception if the list or item cannot be found
  */
 fun Driver.selectItemFromList(item: String, list: JListUiComponent? = null) {
-    val myList = list ?: ui.jBlist(xQuery {
-        byClass("MyList")
-    })
+    val myList = list ?: popupList()
     myList.waitUntilReady()
     myList.clickItem(item, fullMatch = false)
 }
