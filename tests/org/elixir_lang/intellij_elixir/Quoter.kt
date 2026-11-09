@@ -289,7 +289,7 @@ object Quoter {
      * every failure in it. The path plus the diverging subterm is what identifies the defect; the
      * identical 99.9% of both trees never is.
      *
-     * Set -Delixir.quoter.fullDump=true to restore the complete side-by-side dump.
+     * Set `-PquoterFullDump=true` (`elixir.quoter.fullDump`) to restore the complete side-by-side dump.
      */
     internal fun assertQuotedCorrectly(
         expectedQuoted: OtpErlangObject,
@@ -460,7 +460,7 @@ object Quoter {
 
         return buildList {
             addAll(lines.take(MAX_PREVIEW_LINES))
-            add("... ${lines.size - MAX_PREVIEW_LINES} more lines; re-run with -D$FULL_DUMP_PROPERTY=true for the complete terms")
+            add("... ${lines.size - MAX_PREVIEW_LINES} more lines; re-run with -PquoterFullDump=true ($FULL_DUMP_PROPERTY) for the complete terms")
         }.joinToString("\n")
     }
 

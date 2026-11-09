@@ -13,7 +13,8 @@ import java.lang.ref.Reference
 import kotlin.math.ceil
 
 /**
- * Times a cold `exports(M)` of every module name the Phoenix app `-Dorg.elixir_lang.expander.phoenix` names defines,
+ * Times a cold `exports(M)` of every module name the Phoenix app named by
+ * `-PexpanderPhoenix=<dir>` (`org.elixir_lang.expander.phoenix`) defines,
  * asked from `lib/demo.ex`, and the cold expansion of each of its app files, as macro bodies are evaluated, over five
  * runs, each on a new holder with no file's PSI held. Measures the heap the clause cache retains after the runs. Writes
  * each figure to `build/reports/interpreter-budget/<elixir version>/`, and fails on a p95 or the cache over its bound.
