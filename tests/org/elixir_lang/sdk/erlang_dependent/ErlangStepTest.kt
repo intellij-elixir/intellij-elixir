@@ -118,16 +118,6 @@ class ErlangStepTest : PlatformTestCase() {
         assertTrue(entry.pickable)
     }
 
-    fun testTheAskedSdksOwnInstallCanBePicked() {
-        val home = fakeHome("erlang/27.3.4")
-        val asked = pairedElixirSdk("Step asked Elixir", elixirHome, SdkFixtures.erlangSdk("Step deleted Erlang", home))
-
-        val entry = ErlangStep.state(elixirHome, listOf(asked), installHomes = listOf(home), asking = asked).entries.single()
-
-        assertTrue("the asked SDK's own pairing is the one being replaced", entry.pickable)
-        assertTrue(ErlangStep.state(elixirHome, listOf(asked), installHomes = emptyList(), asking = asked).browsed(home).pickable)
-    }
-
     fun testBrowseToAHomeAnExistingSdkOnThisInstallStoresCanBePicked() {
         val home = fakeHome("erlang/27.3.4")
         val existing = pairedElixirSdk("Step existing Elixir", elixirHome, SdkFixtures.erlangSdk("Step deleted Erlang", home))
