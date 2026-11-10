@@ -537,19 +537,11 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** The value of [module]'s attribute [name] here, `null` where it isn't known. */
     fun attributeAt(module: String, name: String): OtpErlangObject? =
-        try {
-            getAttribute(listOf(atom(module), atom(name)), NIL)
-        } catch (_: Declined) {
-            null
-        }
+        orOnDecline(null) { getAttribute(listOf(atom(module), atom(name)), NIL) }
 
     /** Whether a delete of [module]'s attribute [name] is known to change nothing here. */
     fun deleteChangesNothing(module: String, name: String): Boolean =
-        try {
-            attributesOf(atom(module), atom(module)).deleteChanges(name) == false
-        } catch (_: Declined) {
-            false
-        }
+        orOnDecline(false) { attributesOf(atom(module), atom(module)).deleteChanges(name) == false }
 
     /** Whether [module]'s [function] of [arity] never returns ([NEVER_RETURNS]). */
     fun neverReturns(module: String, function: String, arity: Int): Boolean =

@@ -234,11 +234,7 @@ internal object Interpreter {
 
             Evaluated.Declined(declined.given, declined.holds, declined)
         } catch (thrown: Thrown) {
-            val exception = try {
-                thrown.takeIf { it.kind == "error" }?.let(evaluation::exceptionModule)
-            } catch (_: Declined) {
-                null
-            }
+            val exception = orOnDecline(null) { thrown.takeIf { it.kind == "error" }?.let(evaluation::exceptionModule) }
 
             Evaluated.Raised(exception)
         }
