@@ -1965,8 +1965,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
 
             Use.specification(head, attribute)!!
         }
-        var dumb: String? = null
-        DumbModeTestUtils.runInDumbModeSynchronously(project) { dumb = absence(file, "missing(x)", "missing(x)") }
+        val dumb = DumbModeTestUtils.computeInDumbModeSynchronously(project) { absence(file, "missing(x)", "missing(x)") }
         val specifiedAbsence = read { ExpanderSource.answer(specified, false) }.absence?.name ?: "certain"
         ModuleRootModificationUtil.setModuleSdk(module, null)
 
