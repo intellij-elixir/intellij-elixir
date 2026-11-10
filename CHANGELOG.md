@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4670](https://github.com/intellij-elixir/intellij-elixir/pull/4670) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, a call is coloured by what the macro expander finds it calls, so a call to a function or macro that a macro defines gets its function or macro colour.** Refs [#4596](https://github.com/intellij-elixir/intellij-elixir/issues/4596).
+
 - [#4655](https://github.com/intellij-elixir/intellij-elixir/pull/4655) [@sh41](https://github.com/sh41)
   - **The expander reads a project's config files past values only the build machine knows, and past a `try` that rescues an application environment read, so the keys beside them, such as a generated Phoenix project's `dev_routes`, keep the values the config gives them.** Refs [#4636](https://github.com/intellij-elixir/intellij-elixir/issues/4636).
 
