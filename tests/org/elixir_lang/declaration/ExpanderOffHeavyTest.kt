@@ -44,6 +44,7 @@ class ExpanderOffHeavyTest : ConfigHeavyTestCase() {
     }
 
     fun testNoServiceStartsOnAConfigAskWithTheSettingOff() {
+        disableExpander(testRootDisposable)
         val root = configProject()
 
         assertEquals("before any ask", emptyList<String>(), started())

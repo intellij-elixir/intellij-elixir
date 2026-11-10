@@ -9,6 +9,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.GtduNavigation
 import org.elixir_lang.code_insight.gtduNavigationAtCaret
 import org.elixir_lang.declaration.SOURCE_PROPERTY
+import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.LegSdk
 import org.elixir_lang.inspection.UnreadConfigKey
@@ -29,6 +30,7 @@ class ConfigFlagOffTest : PlatformTestCase() {
         savedProperty = System.getProperty(SOURCE_PROPERTY)
         System.clearProperty(SOURCE_PROPERTY)
         disableMixDepsCheck(testRootDisposable)
+        disableExpander(testRootDisposable)
         LegSdk.setUp(module, testRootDisposable)
         myFixture.addFileToProject("mix.exs", MIX_EXS)
     }
