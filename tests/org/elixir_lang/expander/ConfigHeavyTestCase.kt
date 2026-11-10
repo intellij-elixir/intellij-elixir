@@ -140,8 +140,10 @@ abstract class ConfigHeavyTestCase : HeavyTestCase() {
     }
 
     /** [expected], from `Config.read_config/1`; before it, where its call raises, [before]. */
-    protected fun assertRead(expected: String, actual: String, before: String = "raised") =
-        assertEquals(if (CONFIG_READ_CONFIG.isSufficient(legLevel())) expected else before, actual)
+    protected fun assertRead(expected: String, actual: String, before: String = "raised") = assertEquals(onLeg(expected, before), actual)
+
+    /** [expected] on a leg with `Config.read_config/1`, else [before]. */
+    protected fun onLeg(expected: String, before: String): String = if (CONFIG_READ_CONFIG.isSufficient(legLevel())) expected else before
 
     /** [before], then a `try` around a second import of `config/o.exs`, which may raise, so the read declines. */
     protected fun assertImportedAgainDeclines(before: String) =

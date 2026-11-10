@@ -757,6 +757,15 @@ enum class ElixirLanguageFeature(
     COMPILE_ENV_TAKES_ENV_FIRST(sinceElixir = "1.14.0-rc.0"),
 
     /**
+     * `String.split/3` with `trim: true` and no `:parts` splits with `:binary.split/3` and `:trim_all`. Before it, it
+     * compiles the pattern with `:binary.compile_pattern/1` and splits one part at a time.
+     *
+     * `elixir-lang/elixir@0ce9b18f5` ("`String.split/3`: special case some additional arguments (#11154)"), first
+     * released in v1.13.0-rc.0.
+     */
+    STRING_SPLIT_TRIMS_IN_BINARY_SPLIT(sinceElixir = "1.13.0-rc.0"),
+
+    /**
      * `Config.read_config/1` reads a root key the config read has set so far.
      *
      * `elixir-lang/elixir@14595bb63` ("Add Config.read_config/1 (#13754)"), first released in v1.18.0-rc.0.
