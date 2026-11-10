@@ -67,8 +67,8 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
 
     private var declined = false
 
-    /** The apps whose env the read wrote, across every file it imports, `null` once it wrote one that isn't known. */
-    private var written: MutableSet<String>? = HashSet()
+    /** The apps whose env the read wrote, across every file it imports. */
+    val written = WrittenApps()
 
     /** A unit of the read declined, or code it doesn't follow ran, so its table isn't what Elixir's is. */
     fun unitDeclined() {
@@ -187,11 +187,6 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
     fun join(before: Snapshot, returned: List<Snapshot>) =
         restore(joined(before, returned, emptyList(), caught = false))
 
-    /** Records that the read wrote [app]'s env, or, `null`, an app that isn't known. */
-    fun wroteEnv(app: String?) {
-        if (app == null) written = null else written?.add(app)
-    }
-
     /**
      * The read's outcome, as `Config.__eval__!/3` takes it: where no `config` call wrote any, a list [result] validated. A
      * [result] that isn't known is declined, as whether it is that list isn't known, and so is one that is or may be a
@@ -218,7 +213,7 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
     /** The read's outcome where it raised, or its result holds a value not known. */
     fun raised(): ConfigTable = ConfigTable(OtpErlangList(), imports.toList(), declined, unknown = true)
 
-    private fun outcome(config: OtpErlangObject) = ConfigTable(config, imports.toList(), declined, written?.toSet())
+    private fun outcome(config: OtpErlangObject) = ConfigTable(config, imports.toList(), declined, written.copy())
 
     /** Whether `Config.validate!/2` lets [result] by: before [CONFIG_VALIDATES_EVERY_ENTRY], the first entry not `{atom, _}` ends its check. */
     private fun isValid(result: OtpErlangObject, level: ElixirLanguageLevel): Boolean {
@@ -236,6 +231,38 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
 /** How many arms that may not be taken evaluations have run ([Run.takeArm]). */
 internal class ArmsTaken {
     var count = 0
+}
+
+/** The apps whose env evaluations wrote: every app once one wrote an app that isn't known. */
+internal class WrittenApps {
+    /** The apps written, `null` once one isn't known. */
+    private var apps: MutableSet<String>? = HashSet()
+
+    /** Records that an evaluation wrote [app]'s env, or, `null`, an app that isn't known. */
+    fun add(app: String?) {
+        if (app == null) apps = null else apps?.add(app)
+    }
+
+    /** Whether an evaluation wrote [app]'s env, or, `null`, that of any app. */
+    operator fun contains(app: String?): Boolean = apps?.let { if (app == null) it.isNotEmpty() else app in it } != false
+
+    /** Whether [other] holds the same apps, or every app as this does. */
+    fun isAt(other: WrittenApps): Boolean = apps == other.apps
+
+    /** Puts the apps back to [other]'s, as code run again from where they were starts there. */
+    fun restore(other: WrittenApps) {
+        apps = other.apps?.toHashSet()
+    }
+
+    /** Adds [other]'s apps. */
+    fun addAll(other: WrittenApps) {
+        val more = other.apps
+
+        if (more == null) apps = null else apps?.addAll(more)
+    }
+
+    /** The apps written so far, apart from later writes. */
+    fun copy(): WrittenApps = WrittenApps().also { it.restore(this) }
 }
 
 /** Whether [left] and [right] are one state of a read: the same config ([sameTerm]), shape and files, or no read. */
@@ -339,13 +366,13 @@ private fun firstPairs(keywords: OtpErlangObject): Map<OtpErlangObject, OtpErlan
  * as the build then fails, or its result was a list holding a value not known, so no key's value is known.
  *
  * @property declined whether a unit of the read declined, so [config] isn't what Elixir's is
- * @property written the apps whose env the read wrote, `null` where one isn't known
+ * @property written the apps whose env the read wrote
  */
 internal class ConfigTable(
     val config: OtpErlangObject,
     val files: List<String>,
     val declined: Boolean = false,
-    private val written: Set<String>? = emptySet(),
+    private val written: WrittenApps = WrittenApps(),
     val unknown: Boolean = false,
 ) {
     /**
@@ -360,7 +387,7 @@ internal class ConfigTable(
         val value = valueOf(config, atom(app))?.let { settings -> valueOf(settings, key) }
 
         return when {
-            value == null -> if (written?.contains(app) != false) AppEnvValue.Unreadable else null
+            value == null -> if (app in written) AppEnvValue.Unreadable else null
             holdsUnknown(value) || holdsClosure(value) -> AppEnvValue.Configured
             else -> AppEnvValue.Declared(value)
         }

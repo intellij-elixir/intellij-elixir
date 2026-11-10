@@ -293,9 +293,9 @@ internal class UnitRun(val value: OtpErlangObject, val declined: Boolean)
  * What of a [Run] the code run later reads, which the code running may change: its config [read] ([ConfigRead.snapshot])
  * and the apps whose env it wrote ([written], [Run.wroteEnvOf]).
  */
-internal class RunState(val read: ConfigRead.Snapshot?, val written: Set<String>?) {
+internal class RunState(val read: ConfigRead.Snapshot?, val written: WrittenApps) {
     /** Whether [other] is the same state: the same read ([sameRead]) and apps written. */
-    fun isAt(other: RunState) = written == other.written && sameRead(read, other.read)
+    fun isAt(other: RunState) = written.isAt(other.written) && sameRead(read, other.read)
 }
 
 /** What every recursive expansion of one [Expander.expand] call shares. */
@@ -339,32 +339,23 @@ internal class Run(
      */
     var assumptions = 0
 
-    /** The apps whose env the run's evaluations wrote, `null` once one wrote an app that isn't known. */
-    private var written: MutableSet<String>? = HashSet()
+    /** The apps whose env the run's evaluations wrote: under a [config], those its read wrote in any of its files. */
+    private val written = config?.written ?: WrittenApps()
 
     /** Records that an evaluation wrote [app]'s env, or, `null`, an app that isn't known. */
-    fun wroteEnv(app: String?) {
-        if (app == null) written = null else written?.add(app)
-        config?.wroteEnv(app)
-    }
+    fun wroteEnv(app: String?) = written.add(app)
 
     /** The run's state as the code run later reads it ([RunState]). */
-    fun state() = RunState(config?.snapshot(), written?.toSet())
+    fun state() = RunState(config?.snapshot(), written.copy())
 
     /** Puts the run back to [state], as code run again from there starts. */
     fun restore(state: RunState) {
         state.read?.let { config?.restore(it) }
-        written = state.written?.toHashSet()
+        written.restore(state.written)
     }
 
     /** Where code run again from a state doesn't return, keeps the apps [ended] wrote written: code past it may read them. */
-    fun keepWritten(ended: List<RunState>) {
-        for (state in ended) {
-            val more = state.written
-
-            if (more == null) written = null else written?.addAll(more)
-        }
-    }
+    fun keepWritten(ended: List<RunState>) = ended.forEach { written.addAll(it.written) }
 
     /**
      * The states where code that started at [from] may have ended, joined: [returned], or [raised] where it raised, which
@@ -379,15 +370,16 @@ internal class Run(
         } else {
             read.joined(from.read!!, returned.map { it.read!! }, raised.map { it.read!! }, caught)
         }
-        val written = (returned + raised).fold(from.written) { apps, state -> state.written?.let { apps?.plus(it) } }
+        val written = from.written.copy().also { apps -> (returned + raised).forEach { apps.addAll(it.written) } }
 
         return RunState(joined, written)
     }
 
     /**
-     * Whether an evaluation in the run wrote [app]'s env, or, `null`, that of any app, so its value isn't [appEnv]'s.
+     * Whether an evaluation in the run, or under its [config] in any of the read's files, wrote [app]'s env, or, `null`,
+     * that of any app, so its value isn't [appEnv]'s.
      */
-    fun wroteEnvOf(app: String?): Boolean = written?.let { if (app == null) it.isNotEmpty() else app in it } != false
+    fun wroteEnvOf(app: String?): Boolean = app in written
 
     /**
      * The modules being compiled that calls declined in the module-body code or macro being run were given, any of

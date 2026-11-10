@@ -105,9 +105,16 @@ abstract class ConfigHeavyTestCase : HeavyTestCase() {
     /** What [keys] answers for `k` and `k1` once [statements] bind `k`, which the config sets beside `k1: 1`. */
     protected fun keyBound(statements: String): String = keys(statements + "config :app, k: k, k1: 1\n", "k", "k1")
 
-    /** [struct], then [implementation], which writes `k`, then `k`'s first value, then [statements], which run it. */
-    protected fun assertStructDeclines(implementation: String, statements: String, struct: String = STRUCT) =
-        assertEquals("declined", keys(struct + implementation + "config :app, k: 0\n" + statements, "k", "k1"))
+    /**
+     * [struct], then [implementation], which writes `k`, then `k`'s first value, then [statements], which run it, with
+     * the [extra] files beside the config.
+     */
+    protected fun assertStructDeclines(
+        implementation: String,
+        statements: String,
+        struct: String = STRUCT,
+        extra: Array<Pair<String, String>> = emptyArray(),
+    ) = assertEquals("declined", keys(struct + implementation + "config :app, k: 0\n" + statements, "k", "k1", extra = extra))
 
     private fun answer(table: ConfigTable, key: String): String {
         val app = key.substringBefore(':', "app")
@@ -155,6 +162,9 @@ abstract class ConfigHeavyTestCase : HeavyTestCase() {
 
         /** `String.Chars` for [STRUCT], whose `to_string/1` [WRITES]. */
         const val CHARS = "defimpl String.Chars, for: S do\n  def to_string(_) do\n$WRITES"
+
+        /** `k: 0`, then a struct `S` whose implementation of `String.Chars` configures `k`. */
+        const val CONFIGURING_STRUCT = "config :app, k: 0\n\ndefmodule S do\nend\n\n$CHARS"
 
         const val MIX_EXS = "defmodule App.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :app, version: \"0.1.0\"]\nend\n"
         const val READER = "defmodule Reader do\nend\n"

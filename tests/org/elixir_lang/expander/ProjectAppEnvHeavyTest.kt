@@ -12,6 +12,7 @@ import com.intellij.psi.PsiManager
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.declaration.enableExpander
+import org.elixir_lang.expander.interpreter.ARM_BUDGET
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.model.psi.config.disableMixDepsCheck
 import org.elixir_lang.psi.ElixirFile
@@ -347,6 +348,59 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
             "Elixir.Dep compiled different/0 equal/0\nElixir.Other compiled different/0 equal/0",
             "${ended(dep)}\n${ended(other)}",
         )
+    }
+
+    /**
+     * In `H.f/0`, an arm over a value not known writes `:dep`'s env, and an arm after it declines. The module's code goes
+     * on past the decline, and its read of `:dep`'s key is of an app the first arm may have written: Elixir defines
+     * `different/0` where `X` is unset, `equal/0` where it is set.
+     */
+    fun testAnAppAnArmWroteBeforeAnArmThatDeclinedIsWrittenPastTheDecline() {
+        val root = project(
+            "lib/dep.ex" to "defmodule H do\n  def f do\n    case System.get_env(\"X\") do\n" +
+                "      nil -> Application.put_env(:dep, :key, :new)\n      _ -> :file.set_cwd(\".\")\n    end\n  end\nend\n\n" +
+                past("H.f()\n"),
+        )
+        library("dep", ebin(app("dep", "{key, value}")))
+
+        assertEquals("Elixir.H compiled f/0\nElixir.Dep compiled different/0 equal/0", ended(psi(root, "lib/dep.ex")))
+    }
+
+    /**
+     * `H.f/1` runs again for a count not known. Its first pass writes `:dep`'s env, its loop's arms use up those a run
+     * takes ([ARM_BUDGET]), and its next pass declines. The module's code goes on past the decline, and its read of
+     * `:dep`'s key is of an app the first pass may have written: Elixir defines `equal/0` where `X` is unset,
+     * `different/0` where it is a count above 0.
+     */
+    fun testAnAppAPassWroteBeforeAPassThatDeclinedIsWrittenPastTheDecline() {
+        val root = project(
+            "lib/dep.ex" to "defmodule H do\n  def g(x), do: if(x, do: f(String.to_integer(x)), else: :ok)\n\n  def f(0), do: :ok\n\n  def f(n) do\n" +
+                "    case System.get_env(\"X\") do\n      nil -> 1\n      \"a\" -> 2\n      _ -> 3\n    end\n\n" +
+                "    for _ <- 1..${ARM_BUDGET / 2 - 4}, do: if(System.get_env(\"X\"), do: 1, else: 2)\n" +
+                "    f(n - 1)\n    Application.put_env(:dep, :key, :new)\n  end\nend\n\n" +
+                past("H.g(System.get_env(\"X\"))\n"),
+        )
+        library("dep", ebin(app("dep", "{key, value}")))
+
+        assertEquals("Elixir.H compiled f/1 g/1\nElixir.Dep compiled different/0 equal/0", ended(psi(root, "lib/dep.ex")))
+    }
+
+    /**
+     * In `H.f/0`, inside an arm over a value not known, one arm writes `:dep`'s env and the arm after it loops past the
+     * thread's stack. The module's read of `:dep`'s key is of an app the first arm may have written: Elixir defines
+     * `different/0` where `Y` is set and `X` unset, `equal/0` otherwise.
+     */
+    fun testAnAppAnArmWroteBeforeAnArmThatOverflowedIsWrittenPastTheDecline() {
+        val root = project(
+            "lib/dep.ex" to "defmodule H do\n  def f do\n    if System.get_env(\"Y\") do\n      case System.get_env(\"X\") do\n" +
+                "        nil -> Application.put_env(:dep, :key, :new)\n" +
+                "        _ -> loop(String.to_integer(System.get_env(\"X\")), [])\n      end\n    end\n  end\n\n" +
+                "  def loop(0, acc), do: acc\n  def loop(n, acc), do: loop(n - 1, [:yes | acc])\nend\n\n" +
+                past("H.f()\n"),
+        )
+        library("dep", ebin(app("dep", "{key, value}")))
+
+        assertEquals("Elixir.H compiled f/0 loop/2\nElixir.Dep compiled different/0 equal/0", ended(psi(root, "lib/dep.ex")))
     }
 
     /** Elixir writes `:dep`'s key here: the code the arm's assumption passes over may write the read's config. */
@@ -735,9 +789,16 @@ class ProjectAppEnvHeavyTest : HeavyTestCase() {
 
         fun app(name: String, env: String) = "{application, $name, [{vsn, \"0.1.0\"}, {modules, []}, {env, [$env]}]}.\n"
 
-        /** A module defining `equal/0` where [read] gives [value] and `different/0` where it doesn't. */
-        fun module(name: String, read: String, value: String) =
-            "defmodule $name do\n  if $read == $value, do: def(equal, do: 1)\n  if $read != $value, do: def(different, do: 1)\nend\n"
+        /** `Dep`, which runs [statements], then defines `equal/0` where `:dep`'s key is `:value`, else `different/0`. */
+        fun past(statements: String) = module("Dep", "Application.get_env(:dep, :key)", ":value", "  $statements\n")
+
+        /**
+         * A module running [statements], then defining `equal/0` where [read] gives [value] and `different/0` where it
+         * doesn't.
+         */
+        fun module(name: String, read: String, value: String, statements: String = "") =
+            "defmodule $name do\n$statements  if $read == $value, do: def(equal, do: 1)\n" +
+                "  if $read != $value, do: def(different, do: 1)\nend\n"
 
         /** `App.Helper`, whose `__using__/1` aliases [module] as `C`. */
         fun helper(module: String) =

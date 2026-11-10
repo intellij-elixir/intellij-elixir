@@ -329,9 +329,6 @@ class ConfigBoundHeavyTest : ConfigHeavyTestCase() {
         } + "config :app, k: v19, k1: 1\n"
 
     private companion object {
-        /** `k: 0`, then a struct `S` whose implementation of `String.Chars` configures `k`. */
-        const val CONFIGURING_STRUCT = "config :app, k: 0\n\ndefmodule S do\nend\n\n$CHARS"
-
         /** A read of `:other`'s `:s`, bound to `v`, then a write of an `S` there. */
         const val READ_THEN_WRITE_ENV = "  v = Application.get_env(:other, :s)\n  Application.put_env(:other, :s, %{__struct__: S})\n"
 

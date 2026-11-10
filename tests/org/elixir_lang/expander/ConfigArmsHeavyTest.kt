@@ -303,6 +303,22 @@ class ConfigArmsHeavyTest : ConfigHeavyTestCase() {
             ),
         )
 
+    /**
+     * An arm that may be taken reads an app's env that an arm before it writes as Elixir does, unwritten, as that arm
+     * didn't run: `to_string/1` of what it reads gives no `S`, whose `to_string/1` would configure `k` 2.
+     */
+    fun testAnArmReadsAnAppsEnvAnArmBeforeItWritesUnwritten() =
+        assertEquals(
+            "k=0 k1=1",
+            keys(
+                CONFIGURING_STRUCT +
+                    "case System.get_env(\"X\") do\n  nil -> Application.put_env(:other, :a, %{__struct__: S})\n" +
+                    "  _ -> to_string(Application.get_env(:other, :a))\nend\n\nconfig :app, k1: 1\n",
+                "k",
+                "k1",
+            ),
+        )
+
     fun testACaseOfAProcessLookup() =
         assertEquals(
             "k1=1 k2=2",
@@ -1040,6 +1056,23 @@ class ConfigArmsHeavyTest : ConfigHeavyTestCase() {
             CHARS,
             "Application.put_env(:other, :s, struct(S))\nconfig :app, s: 1\nconfig :app, s: Application.get_env(:other, :s)\n" +
                 "[k: 0, s: s] = Config.read_config(:app)\nconfig :app, j: to_string(s), k1: 1\n",
+        )
+
+    /** An imported file runs apart from the file that imports it, but reads back what that file wrote to an app's env. */
+    fun testAStringOfAnAppEnvTheImportingFileWroteAStructToDeclines() =
+        assertStructDeclines(
+            CHARS,
+            "Application.put_env(:other, :s, struct(S))\nimport_config \"o.exs\"\nconfig :app, k1: 1\n",
+            extra = arrayOf("config/o.exs" to "import Config\nconfig :app, j: to_string(Application.get_env(:other, :s))\n"),
+        )
+
+    /** The file that imports another reads back what the imported file wrote to an app's env. */
+    fun testAStringOfAnAppEnvAnImportedFileWroteAStructToDeclines() =
+        assertStructDeclines(
+            CHARS,
+            "Application.put_env(:other, :s, struct(S))\nimport_config \"o.exs\"\n" +
+                "config :app, j: to_string(Application.get_env(:other2, :s)), k1: 1\n",
+            extra = arrayOf("config/o.exs" to "import Config\nApplication.put_env(:other2, :s, Application.get_env(:other, :s))\n"),
         )
 
     /**
