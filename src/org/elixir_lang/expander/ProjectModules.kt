@@ -648,9 +648,9 @@ internal class ProjectModules(private val project: Project) {
     ): AppEnv {
         val level = inputs.level
         val configFiles = ArrayList<VirtualFile>()
-        // Which files are config files: a `mix.exs` names its config directory, where a file created or deleted moves it.
+        // Which files are config files: a `mix.exs` names its config directory.
         val scope by lazy {
-            stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+            stamps.track(names.exsFiles)
             FilenameIndex.getVirtualFilesByName(MIX_EXS, GlobalSearchScope.projectScope(project)).forEach(stamps::source)
 
             ConfigFiles.scope(project)
@@ -731,7 +731,7 @@ internal class ProjectModules(private val project: Project) {
         transient: (Transient) -> Unit,
     ): ConfigTable? {
         // A `mix.exs` created or deleted above the file moves which project's config it reads.
-        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+        stamps.track(names.above(file.path))
         val (mixExs, configPath) = generateSequence(file.parent) { it.parent }
             .mapNotNull { it.findChild(MIX_EXS) }
             .firstNotNullOfOrNull { mixExs -> ConfigFiles.configPath(project, mixExs)?.let { mixExs to it } }
@@ -752,11 +752,9 @@ internal class ProjectModules(private val project: Project) {
         stamps.source(mixExs)
         val written = configPath as? ProjectKeywords.ConfigPath.Written ?: return null
         val path = ConfigFiles.configFilePath(mixExs, written)
-        // The file created or deleted moves the answer.
-        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
         // Where it is missing, empty for the default path, as `Mix.Tasks.Loadconfig` then reads none, and else unknown, as it
         // raises. That reads how `mix.exs` wrote the path, so it isn't held by the path.
-        val configFile = mixExs.fileSystem.findFileByPath(path)?.takeUnless { it.isDirectory }
+        val configFile = stamps.find(mixExs.fileSystem, path)?.takeUnless { it.isDirectory }
             ?: return if (written.isDefault) ConfigTable.EMPTY else ConfigTable.UNKNOWN
         val directory = mixExs.parent.path
         val key = TableKey(path, directory, env, target, inputs)
@@ -792,7 +790,7 @@ internal class ProjectModules(private val project: Project) {
         transient: (Transient) -> Unit,
     ): ConfigTable {
         // The file created or deleted moves the table.
-        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+        stamps.track(names.path(configFile.path))
         val psi = read(configFile) ?: return ConfigTable.UNKNOWN
         read.imports.add(runPath(configFile, inputs.os, OS.CURRENT) ?: configFile.path)
         val computed = compute(psi, inputs, emptyMap(), Memo(), config = read)

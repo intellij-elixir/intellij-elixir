@@ -1175,6 +1175,17 @@ class HeldAgainstFreshHeavyTest : HeavyTestCase() {
                 write("sub$n/mix.exs", mixExs("Sub$n", "sub$n", ", config_path: \"config/c.exs\""))
             }
         }
+        row("site", "site-scope-kept", "app env read with no table, a `.txt` created beside the reader", changes = false) {
+            dep1App("k$n")
+            val reader = dep1Reader()
+            Scene(listOf(reader), listOf(atom("Reader")), emptyList(), reader) to { write("deps/dep1/lib/notes$n.txt", "x\n") }
+        }
+        row("site", "site-table-kept", "a config table read, a `.txt` created in its config directory", changes = false) {
+            subProject()
+            subConfig()
+            val reader = subReader()
+            Scene(listOf(asker("$p.Reader.two()")), listOf(atom("Reader")), emptyList(), reader) to { write("sub$n/config/notes.txt", "x\n") }
+        }
         /** A [scene] of `one/0`, defined when `dep1`'s `:app_key<n>` is 1. */
         fun Ctx.appKeyScene(): Scene {
             val f = bodyAsker("e.ex", "  if Application.compile_env(:dep1, :app_key$n) == 1 do\n    def one, do: 1\n  end")
