@@ -1,6 +1,7 @@
 package org.elixir_lang.annotator
 
 import com.intellij.openapi.editor.colors.TextAttributesKey
+import com.intellij.openapi.util.Disposer
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.FUNCTION_CALL
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.IGNORED_VARIABLE
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.MACRO_CALL
@@ -10,6 +11,8 @@ import org.elixir_lang.ElixirSyntaxHighlighter.Companion.TYPE
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.VARIABLE
 import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.declaration.DistinctKeyScheme
+import org.elixir_lang.declaration.enableExpander
+import org.elixir_lang.expander.LegSdk
 import java.io.File
 
 /** What the editor colours a call by, whatever the called thing is: a variable, a macro, a type, a `Kernel` function. */
@@ -168,6 +171,68 @@ class CallableHighlightingTest : BeamLibraryTestCase() {
         configure(CODE)
 
         assertEquals(setOf(PARAMETER), keysAt("fn snoc -> snoc", "snoc"))
+    }
+
+    fun testACallIntoAModuleWithTwoCopiesTakesTheirKeyWithTheExpanderOn() {
+        expanderOn()
+        myFixture.addFileToProject("lib/first.ex", "defmodule Twice do\n  def g(a), do: a\nend\n")
+        myFixture.addFileToProject("lib/second.ex", "defmodule Twice do\n  def g(a), do: a\nend\n")
+        configure("defmodule Caller do\n  def f, do: Twice.g(1)\nend\n")
+
+        assertEquals(setOf(FUNCTION_CALL), keysAt("Twice.g(1)", "g"))
+    }
+
+    fun testACallPastAStopToANameOnlyTheIndexHoldsTakesItsKeyWithTheExpanderOn() {
+        expanderOn()
+        configure(
+            """
+            defmodule Stopped do
+              1.f()
+              def after_stop, do: later(1)
+              def later(a), do: a
+            end
+            """.trimIndent() + "\n"
+        )
+
+        assertEquals(setOf(FUNCTION_CALL), keysAt("do: later(1)", "later"))
+    }
+
+    fun testAParameterNamedLikeAnotherModulesFunctionIsOnlyAParameter() {
+        assertEquals(setOf(PARAMETER), keysAtParameterNamedLikeAFunction(""))
+    }
+
+    fun testAParameterNamedLikeAnotherModulesFunctionIsOnlyAParameterWithTheExpanderOnAndNoSdk() {
+        enableExpander(testRootDisposable)
+
+        assertEquals(setOf(PARAMETER), keysAtParameterNamedLikeAFunction(""))
+    }
+
+    fun testAParameterNamedLikeAnotherModulesFunctionIsOnlyAParameterPastAStopWithTheExpanderOn() {
+        expanderOn()
+
+        assertEquals(setOf(PARAMETER), keysAtParameterNamedLikeAFunction("  1.stop()\n"))
+    }
+
+    fun testACallAfterAnElixirRootedAliasTakesItsKeyWithTheExpanderOnAndNoSdk() {
+        enableExpander(testRootDisposable)
+        myFixture.addFileToProject("lib/target.ex", "defmodule Target do\n  def f(a), do: a\nend\n")
+        configure("defmodule Caller do\n  def go, do: Elixir.Target.f(1)\nend\n")
+
+        assertEquals(setOf(FUNCTION_CALL), keysAt("Elixir.Target.f(1)", "f"))
+    }
+
+    /** The keys on `f` where `def g(f), do: f` uses its parameter, in a module that starts with [start]. */
+    private fun keysAtParameterNamedLikeAFunction(start: String): Set<TextAttributesKey> {
+        myFixture.addFileToProject("lib/other.ex", "defmodule Other do\n  def f, do: 1\nend\n")
+        configure("defmodule User do\n${start}  def g(f), do: f\nend\n")
+
+        return keysAt("do: f", "f")
+    }
+
+    private fun expanderOn() {
+        LegSdk.setUp(module, testRootDisposable)
+        Disposer.register(testRootDisposable) { LegSdk.tearDown(module) }
+        enableExpander(testRootDisposable)
     }
 
     private fun configure(code: String) {

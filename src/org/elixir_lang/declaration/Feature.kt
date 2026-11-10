@@ -18,7 +18,19 @@ enum class Feature {
     HEEX_COMPONENTS;
 
     /** Whether the feature's rule takes a definition that may not be Elixir's; one that states no rule takes none. */
-    val takesUncertain: Boolean get() = false
+    val takesUncertain: Boolean
+        get() = when (this) {
+            // A colour is a hint, so a suggestion is worth more than none.
+            HIGHLIGHTING -> true
+            SYMBOL_REFERENCES,
+            DOCUMENTATION,
+            PARAMETER_INFO,
+            REFERENCES_INSPECTION,
+            COMPLETION,
+            FIND_USAGES_AND_RENAME,
+            STRUCTURE_VIEW,
+            HEEX_COMPONENTS -> false
+        }
 }
 
 /** Set to [EXPANDER] only by the test harness, to put [ExpanderSource] behind every feature. */

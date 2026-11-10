@@ -2039,10 +2039,10 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
     }
 
     /**
-     * A feature whose rule takes no uncertain answer gets none of a module's several copies, though the expander finds
-     * each of them.
+     * Highlighting, whose rule takes an uncertain answer, gets each of a module's several copies; a feature whose rule
+     * takes none gets none of them, though the expander finds each.
      */
-    fun testAFeatureWithNoRuleGetsNoneOfSeveralCopies() {
+    fun testOnlyHighlightingGetsSeveralCopies() {
         file("defmodule Twice do\n  def g(a), do: a\nend\n")
         file("defmodule Twice do\n  def g(a), do: a\nend\n")
         val caller = file("defmodule Caller do\n  def f, do: Twice.g(1)\nend\n")
@@ -2056,11 +2056,14 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         }
 
         assertEquals(listOf(Uncertain.SEVERAL, Uncertain.SEVERAL), found)
-        assertEquals(Feature.entries.associateWith { 0 }, stepped)
+        assertEquals(Feature.entries.associateWith { if (it == Feature.HIGHLIGHTING) 2 else 0 }, stepped)
     }
 
-    /** A delegation in several copies may not be the one Elixir loads, so neither is the target it reaches. */
-    fun testAFeatureWithNoRuleGetsNoTargetOfADelegationInSeveralCopies() {
+    /**
+     * A delegation in several copies may not be the one Elixir loads, so neither is the target it reaches: only
+     * highlighting gets the copies.
+     */
+    fun testOnlyHighlightingGetsADelegationInSeveralCopies() {
         file("defmodule Twice do\n  defdelegate g(a), to: Target\nend\n")
         file("defmodule Twice do\n  defdelegate g(a), to: Target\nend\n")
         file("defmodule Target do\n  def g(a), do: a\nend\n")
@@ -2078,7 +2081,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             listOf("OWN SEVERAL", "DELEGATION_TARGET SEVERAL", "OWN SEVERAL", "DELEGATION_TARGET SEVERAL"),
             found,
         )
-        assertEquals(Feature.entries.associateWith { 0 }, stepped)
+        assertEquals(Feature.entries.associateWith { if (it == Feature.HIGHLIGHTING) 2 else 0 }, stepped)
     }
 
     /** Past a stop every feature keeps the env's find, marked STOP. */
@@ -2086,13 +2089,13 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val file = file(
             """
             defmodule Stopped do
-              def target(a), do: a
+              def kept(a), do: a
               1.f()
-              def after_stop, do: target(1)
+              def after_stop, do: kept(1)
             end
             """
         )
-        val use = use(file, "target(1)", "target(1)")
+        val use = use(file, "kept(1)", "kept(1)")
 
         val stepped = withExpanderSwitch {
             read { Feature.entries.associateWith { feature -> Resolved.step(use, false, feature = feature).map { it.found.uncertain } } }
@@ -2477,6 +2480,24 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
 
         assertEquals("Foo.f/1 INDEXED VALID via [] line 2 INDEX", candidates(file, "Foo.f(1)", "Foo.f(1)"))
+    }
+
+    /** A `defdelegate` defines the function each of its heads names, so past a stop the index gives the head. */
+    fun testPastAStopTheIndexGivesADelegationsHead() {
+        val file = file(
+            """
+            defmodule Callee do
+              defdelegate d(a), to: Target, as: :g
+            end
+
+            defmodule User do
+              1.f()
+              def go, do: d(1)
+            end
+            """
+        )
+
+        assertEquals("Callee.d/1 INDEXED VALID via [] line 2 INDEX", candidates(file, "d(1)", "d(1)"))
     }
 
     /**

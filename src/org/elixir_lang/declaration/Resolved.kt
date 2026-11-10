@@ -25,16 +25,20 @@ object Resolved {
     ): List<Preferred> =
         preferred(
             use,
-            sourceFor(feature).candidates(use, incompleteCode).filter { reaches(use, it) && takes(feature, it) },
+            sourceFor(feature).candidates(use, incompleteCode).filter { reaches(use, it) && takes(feature, it, bound) },
             incompleteCode,
             bound
         )
 
-    /** Whether [feature] takes [found]: a definition that may not be Elixir's only where its rule takes one, any other find. */
-    private fun takes(feature: Feature, found: Found): Boolean =
+    /**
+     * Whether [feature] takes [found]: a definition that may not be Elixir's only where its rule takes one, and an index
+     * find, only a definition of the name somewhere, not where a variable binds the name ([bound]); any other find.
+     */
+    private fun takes(feature: Feature, found: Found, bound: Boolean): Boolean =
         when (found.uncertain) {
             null, Uncertain.STOP, Uncertain.OPAQUE, Uncertain.UNREACHED -> true
-            Uncertain.SEVERAL, Uncertain.INDEX -> feature.takesUncertain
+            Uncertain.SEVERAL -> feature.takesUncertain
+            Uncertain.INDEX -> feature.takesUncertain && !bound
             // An absence's marks, which no find carries.
             Uncertain.MODULE, Uncertain.NO_EXPANSION -> true
         }
