@@ -47,18 +47,23 @@ import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Definition
+import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.QualifiableAlias
+import org.elixir_lang.psi.QuoteMacro
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.definition
+import org.elixir_lang.psi.impl.indexName
 import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.stub.index.AllName
 import org.elixir_lang.psi.stub.type.Named
+import org.elixir_lang.structure_view.element.CallDefinitionHead
+import org.elixir_lang.structure_view.element.Delegation
 import org.jetbrains.annotations.TestOnly
 import java.util.EnumMap
 import java.util.concurrent.ConcurrentHashMap
@@ -74,14 +79,7 @@ internal object ExpanderSource : CandidateSource {
     )
 
     @RequiresReadLock
-    override fun candidates(use: Use, incompleteCode: Boolean): List<Found> {
-        ThreadingAssertions.assertReadAccess()
-
-        return when (use) {
-            is Use.OfCall -> inputs(use.entrance)?.let { answerWith(use, it).found }.orEmpty()
-            is Use.Specified, is Use.Remote, is Use.Tag, is Use.Link -> emptyList()
-        }
-    }
+    override fun candidates(use: Use, incompleteCode: Boolean): List<Found> = answer(use, incompleteCode).found
 
     /** The absence is the first gap the lookups met: the use's env mark, then each lookup's, in the order met. */
     @RequiresReadLock
@@ -89,9 +87,28 @@ internal object ExpanderSource : CandidateSource {
         ThreadingAssertions.assertReadAccess()
 
         return when (use) {
-            is Use.OfCall -> inputs(use.entrance)?.let { answerWith(use, it) }
-            is Use.Specified, is Use.Remote, is Use.Tag, is Use.Link -> null
-        } ?: Answer(emptyList(), Uncertain.NO_EXPANSION)
+            is Use.OfCall ->
+                inputs(use.entrance)?.let { answerWith(use, it) } ?: Answer(indexFound(use), Uncertain.NO_EXPANSION)
+            is Use.Specified, is Use.Remote, is Use.Tag, is Use.Link -> Answer(emptyList(), Uncertain.NO_EXPANSION)
+        }
+    }
+
+    /**
+     * With no SDK inputs no env is reached, so [use]'s finds are what the name index defines its name as: after a
+     * qualifier, in the module it names as written; else in any module, a private one only in the module the use is in.
+     * None for a use with no name, after a qualifier that is neither an alias nor an atom, and in dumb mode.
+     */
+    private fun indexFound(use: Use.OfCall): List<Found> {
+        val name = (use as? Use.Named)?.name ?: return emptyList()
+        val call = use.entrance
+        val file = call.containingFile as? ElixirFile ?: return emptyList()
+        if (DumbService.isDumb(file.project)) return emptyList()
+        val wanted: (String) -> Boolean =
+            if (call is Qualified) writtenModule(call.qualifier()) ?: return emptyList() else { _ -> true }
+        val own by lazy { ownModular(call)?.let(::indexNames).orEmpty() }
+        val indexed = indexed(file, name, use.arity, { it in own }, wanted)
+
+        return beside(emptyList(), indexed, name, use.arity, remote = call is Qualified).mapNotNull { found(it, use, null) }
     }
 
     /** [use]'s candidates, its file expanded with [inputs] in place of its SDK's. */
@@ -131,19 +148,19 @@ internal object ExpanderSource : CandidateSource {
                 addAll(specialForms(at, name, use.arity))
                 // Past where the env is known, what the code after it brings in may be any definition of the name; on
                 // reached code in a module not known to its end, any the module defines.
-                val own = own(at)
+                val isOwn = isOwn(at)
                 val wanted: ((String) -> Boolean)? = when {
                     at.uncertain != null -> { _ -> true }
-                    ownUnknown -> { module -> module == own }
+                    ownUnknown -> isOwn
                     else -> null
                 }
                 if (name != null && wanted != null) {
-                    addAll(beside(this, indexed(at, name, use.arity, own, wanted), name, use.arity, remote = false))
+                    addAll(beside(this, indexed(at.file, name, use.arity, isOwn, wanted), name, use.arity, remote = false))
                 }
             }
         }
 
-        return reached.mapNotNull { found(at, it, use) }
+        return reached.mapNotNull { found(it, use, at.uncertain) }
     }
 
     /**
@@ -162,17 +179,31 @@ internal object ExpanderSource : CandidateSource {
         val tail = if (at.uncertain == null) null else aliasTail(qualifier)
         if (key == null && tail == null) return found
 
-        val indexed = indexed(at, name, arity, own(at)) { it == key || (tail != null && it.endsWith(tail)) }
+        val indexed = indexed(at.file, name, arity, isOwn(at)) { it == key || (tail != null && it.endsWith(tail)) }
 
         return found + beside(found, indexed, name, arity, remote = true)
     }
+
+    /**
+     * Whether a module is the one [qualifier] names as written: an atom's, or one whose name ends in an alias's, as an
+     * `alias` may name it; `null` for any other qualifier.
+     */
+    private fun writtenModule(qualifier: PsiElement): ((String) -> Boolean)? =
+        when (val written = qualifier.stripAccessExpressionAndParentheses()) {
+            is ElixirAtom -> written.indexName()?.let { atom -> { module -> module == atom } }
+            else -> aliasTail(qualifier)?.let { tail -> { module -> ".$module".endsWith(tail) } }
+        }
 
     /** `.` and the alias [qualifier] is as written, which ends the name of each module it may name; `null` for none. */
     private fun aliasTail(qualifier: PsiElement): String? =
         (qualifier.stripAccessExpressionAndParentheses() as? QualifiableAlias)?.fullyQualifiedName()?.let { ".$it" }
 
-    /** The index name of the module [at] is in. */
-    private fun own(at: At): String? = at.env.module?.let(Module::indexName)
+    /** Whether a module is the one [at] is in, by its index name. */
+    private fun isOwn(at: At): (String) -> Boolean {
+        val own = at.env.module?.let(Module::indexName)
+
+        return { it == own }
+    }
 
     /**
      * At an unqualified call, the definitions of the module it is in, what its env imports and `Kernel.SpecialForms`;
@@ -577,17 +608,18 @@ internal object ExpanderSource : CandidateSource {
     }
 
     /**
-     * The name index's definitions of [name] admitting [arity], in each module [wanted] takes, each [Uncertain.INDEX]:
-     * the public ones, and the private ones of [own], the module the use is in. One for each module and name, as Elixir
-     * has one function of each among those admitting an arity, so a library's source and its `.beam` give one.
+     * The name index's definitions of [name] admitting [arity] in [file]'s scope, in each module [wanted] takes, each
+     * [Uncertain.INDEX]: the public ones, and the private ones of each module [own] takes, the modules the use is in. One
+     * for each module and name, as Elixir has one function of each among those admitting an arity, so a library's source
+     * and its `.beam` give one.
      */
-    private fun indexed(at: At, name: String, arity: Int?, own: String?, wanted: (String) -> Boolean): List<Defined> =
-        indexed(at.file, name)
+    private fun indexed(file: PsiFile, name: String, arity: Int?, own: (String) -> Boolean, wanted: (String) -> Boolean): List<Defined> =
+        indexed(file, name)
             .filter { defined ->
                 defined.declaration.name == name &&
                     defined.admits(arity) &&
                     wanted(defined.module) &&
-                    (defined.declaration.visibility != Visibility.PRIVATE || defined.module == own)
+                    (defined.declaration.visibility != Visibility.PRIVATE || own(defined.module))
             }
             .distinctBy { it.key }
 
@@ -623,7 +655,8 @@ internal object ExpanderSource : CandidateSource {
 
     /**
      * What [element] defines, in each module the module index keys its module under: a source definition's nearest
-     * `defmodule`, `defimpl` or `defprotocol`, whose names it is indexed by, and none in any other, such as a `quote`.
+     * `defmodule`, `defimpl` or `defprotocol`, whose names it is indexed by, and none in any other, such as a `quote`. A
+     * `defdelegate` is indexed by each of its heads.
      */
     private fun indexedDefined(element: NamedElement): List<Defined> =
         when (element) {
@@ -634,16 +667,39 @@ internal object ExpanderSource : CandidateSource {
             }
             is Call if CallDefinitionClause.`is`(element) -> {
                 val declaration = CallDefinitionClause.declaration(element, ResolveState.initial()) ?: return emptyList()
-                val modular = CallDefinitionClause.enclosingModularMacroCall(element) ?: return emptyList()
-                val definition = definition(modular)?.takeIf { it.type == Definition.Type.MODULAR } ?: return emptyList()
-                val written = DeclaringForm.head(element, Form.CLAUSE, declaration.name, declaration.arity)
 
-                Named.indexedNames(definition, SyntacticCall.of(modular).canonicalNameSet()).map { module ->
-                    Defined(declaration, element, written, module, null, uncertain = Uncertain.INDEX)
-                }
+                indexedIn(element, Form.CLAUSE, declaration)
+            }
+            is Call -> {
+                val delegation = CallDefinitionHead.enclosingDelegationCall(element) ?: return emptyList()
+                val declaration = Delegation.declaration(delegation, element, ResolveState.initial()) ?: return emptyList()
+
+                indexedIn(delegation, Form.DELEGATION, declaration)
             }
             else -> emptyList()
         }
+
+    /** [declaration], which [declaring] makes as [form], in each module [declaring]'s nearest modular call is indexed under. */
+    private fun indexedIn(declaring: Call, form: Form, declaration: Declaration): List<Defined> {
+        val modules = CallDefinitionClause.enclosingModularMacroCall(declaring)?.let(::indexNames).orEmpty()
+        if (modules.isEmpty()) return emptyList()
+        val written = DeclaringForm.head(declaring, form, declaration.name, declaration.arity)
+
+        return modules.map { module -> Defined(declaration, declaring, written, module, null, uncertain = Uncertain.INDEX) }
+    }
+
+    /** The names the module index keys [modular] under, where it is a `defmodule`, `defimpl` or `defprotocol`. */
+    private fun indexNames(modular: Call): Collection<String> {
+        val definition = definition(modular)?.takeIf { it.type == Definition.Type.MODULAR } ?: return emptySet()
+
+        return Named.indexedNames(definition, SyntacticCall.of(modular).canonicalNameSet())
+    }
+
+    /** The `defmodule`, `defimpl` or `defprotocol` [call] is written in, past any clause; none inside a `quote`. */
+    private fun ownModular(call: Call): Call? =
+        generateSequence(CallDefinitionClause.enclosingModularMacroCall(call), CallDefinitionClause::enclosingModularMacroCall)
+            .takeWhile { !QuoteMacro.`is`(it) }
+            .firstOrNull { definition(it)?.type == Definition.Type.MODULAR }
 
     /**
      * [indexed]'s definitions that none of [found] admitting [arity] has the module and name of, each [Reach.INDEXED],
@@ -798,7 +854,7 @@ internal object ExpanderSource : CandidateSource {
     private fun receiver(at: At, qualifier: PsiElement): String? =
         EnvAtom.receiver(qualifier, at.receivers, at.env, at.lowering, at.inputs, at.holder)
 
-    private fun found(at: At, reached: Reached, use: Use.OfCall): Found? =
+    private fun found(reached: Reached, use: Use.OfCall, envUncertain: Uncertain?): Found? =
         applicability(reached, use)?.let { applicability ->
             Found(
                 Candidate(reached.defined.declaration, reached.reach, applicability),
@@ -806,7 +862,7 @@ internal object ExpanderSource : CandidateSource {
                 reached.paths + reached.delegations,
                 reached.defined.head,
                 reached.through,
-                reached.defined.uncertain ?: at.uncertain,
+                reached.defined.uncertain ?: envUncertain,
             )
         }
 

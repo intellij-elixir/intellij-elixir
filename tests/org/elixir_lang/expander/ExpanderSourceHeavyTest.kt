@@ -19,6 +19,7 @@ import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.Signature
+import org.elixir_lang.declaration.Answer
 import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
@@ -1973,6 +1974,65 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             listOf("NO_EXPANSION", "NO_EXPANSION", "NO_EXPANSION"),
             listOf(dumb, specifiedAbsence, absence(file, "missing(x)", "missing(x)")),
         )
+    }
+
+    /**
+     * With no SDK no env is reached, so a call's finds are what the name index defines its name as, each INDEX: after an
+     * alias or an atom, in the module it names as written, and after any other qualifier none; at a local call, in any
+     * module, a private one only in its own.
+     */
+    fun testWithNoSdkTheFindsAreTheIndexs() {
+        file("defmodule Callee do\n  def g(a), do: a\n  defp hidden(a), do: a\n  defdelegate d(a), to: Other, as: :g\nend\n")
+        file("defmodule Other do\n  def g(a), do: a\nend\n")
+        file("defmodule :callee do\n  def g(a), do: a\nend\n")
+        val caller = file(
+            """
+            defmodule Caller do
+              def f, do: Callee.g(1)
+              def e, do: Callee.d(1)
+              def a, do: :callee.g(1)
+              def m, do: __MODULE__.g(1)
+              def v(x), do: x.g(1)
+              def h, do: local(1)
+              def i, do: hidden(1)
+              defp local(a), do: a
+            end
+            """
+        )
+        ModuleRootModificationUtil.setModuleSdk(module, null)
+
+        val calls = listOf("Callee.g(1)", "Callee.d(1)", ":callee.g(1)", "__MODULE__.g(1)", "x.g(1)", "local(1)", "hidden(1)")
+        val answers = calls.associateWith { call ->
+            val use = use(caller, call, call)
+            val answer = read { ExpanderSource.answer(use, false) }
+
+            answer.found.map { "${name(it)} ${it.uncertain}" } to answer.absence
+        }
+
+        assertEquals(
+            mapOf(
+                "Callee.g(1)" to (listOf("Callee.g/1 INDEX") to Uncertain.NO_EXPANSION),
+                "Callee.d(1)" to (listOf("Callee.d/1 INDEX") to Uncertain.NO_EXPANSION),
+                ":callee.g(1)" to (listOf(":callee.g/1 INDEX") to Uncertain.NO_EXPANSION),
+                "__MODULE__.g(1)" to (emptyList<String>() to Uncertain.NO_EXPANSION),
+                "x.g(1)" to (emptyList<String>() to Uncertain.NO_EXPANSION),
+                "local(1)" to (listOf("Caller.local/1 INDEX") to Uncertain.NO_EXPANSION),
+                "hidden(1)" to (emptyList<String>() to Uncertain.NO_EXPANSION),
+            ),
+            answers,
+        )
+    }
+
+    /** With no SDK, while the IDE indexes, the name index can't be read, so a call has no finds. */
+    fun testWithNoSdkWhileIndexingACallHasNoFinds() {
+        file("defmodule Callee do\n  def g(a), do: a\nend\n")
+        val caller = file("defmodule Caller do\n  def f, do: Callee.g(1)\nend\n")
+        ModuleRootModificationUtil.setModuleSdk(module, null)
+        val use = use(caller, "Callee.g(1)", "Callee.g(1)")
+
+        val answer = DumbModeTestUtils.computeInDumbModeSynchronously(project) { read { ExpanderSource.answer(use, false) } }
+
+        assertEquals(Answer(emptyList(), Uncertain.NO_EXPANSION), answer)
     }
 
     /**
