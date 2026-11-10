@@ -16,6 +16,7 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.ericsson.otp.erlang.OtpOutputStream
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
+import org.elixir_lang.expander.Run
 import org.elixir_lang.expander.differInSign
 import org.elixir_lang.expander.UnorderedTerms
 import org.elixir_lang.expander.termOrder
@@ -417,6 +418,8 @@ internal class Closure(
     val marks: () -> List<OtpErlangObject> = { emptyList() },
     /** The `fn` the closure is of, where it is one the evaluator built from code. */
     val fn: ElixirAst? = null,
+    /** The run whose state its body reads, where the evaluator built it from code. */
+    val run: Run? = null,
     val invoke: (List<OtpErlangObject>) -> OtpErlangObject,
 ) :
     OtpErlangFun(OtpErlangPid("nonode@nohost", 0, 0, 0), "erl_eval", 0L, 0L, arrayOf()) {

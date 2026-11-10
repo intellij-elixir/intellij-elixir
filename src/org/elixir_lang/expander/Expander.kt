@@ -389,9 +389,9 @@ internal class Run(
     var declinedGiven: Given? = null
 
     /**
-     * How many bodies of a `try` with `catch` or `rescue` are being evaluated around the unit the evaluator runs where it
-     * reaches it ([reached]), or around the import of this run's file ([ConfigRead.catching]), any of which may catch a
-     * raise in the unit's code.
+     * How many bodies of a `try` with `catch` or `rescue` are being evaluated, in this run, around the import of its
+     * file ([ConfigRead.catching]) or around another run's call of a function it made, any of which may catch a raise in
+     * the code running now, whichever evaluation, or `fn`, it is of.
      */
     var catching = config?.catching ?: 0
 

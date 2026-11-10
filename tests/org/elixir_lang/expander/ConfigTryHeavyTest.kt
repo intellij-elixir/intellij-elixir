@@ -490,6 +490,238 @@ class ConfigTryHeavyTest : ConfigHeavyTestCase() {
             afterBefore("  try do\n    System.fetch_env!(\"Y\")\n  catch\n    _, _ -> System.fetch_env!(\"X\")\n  after\n    config :app, k: 1\n  end\n"),
         )
 
+    /**
+     * A raise that may come in an `fn` defined before the `try` around its call may be rescued there, so the write past
+     * the call may not run.
+     */
+    fun testARaiseInAnFnDefinedBeforeTheTryAroundItsCallMayBeRescued() =
+        assertEquals(
+            "k=Configured k1=1",
+            keys(
+                "config :app, k: 0\n\nf = fn -> System.fetch_env!(\"X\") end\n\n" + tryCalling("f.()") + "\nconfig :app, k1: 1\n",
+                "k",
+                "k1",
+            ),
+        )
+
+    /** An `after` in a function called between a raise that may come and the `try` that rescues it writes before that rescue. */
+    fun testAnAfterInAFunctionBetweenARaiseThatMayComeAndItsRescueWritesBeforeIt() =
+        assertEquals(
+            "k=Configured k1=1",
+            afterBefore("  f.()", defined = "f = fn ->\n  try do\n    System.fetch_env!(\"X\")\n  after\n    config :app, k: 1\n  end\nend\n\n"),
+        )
+
+    /**
+     * A raise in an `fn` an imported file made may be rescued by the `try` around its call, as one in an `fn` this file
+     * made may. Before `Config.read_config/1`, its call raises.
+     */
+    fun testARaiseInAnFnAnImportedFileMadeMayBeRescuedByTheTryAroundItsCall() =
+        assertRead(
+            "k=Configured k1=1",
+            importingFns(tryCalling("Config.read_config(:app)[:f].()") + "\nconfig :app, k1: 1\n", "f: fn -> System.fetch_env!(\"X\") end"),
+            before = "k=0 k1=1",
+        )
+
+    /** So may one in an `fn` the importing file made, by a `try` around its call in the file it imports. */
+    fun testARaiseInAnFnTheImportingFileMadeMayBeRescuedByATryInTheImportedFile() =
+        assertRead(
+            "k=Configured k1=1",
+            keys(
+                "config :app, k: 0, f: fn -> System.fetch_env!(\"X\") end\n\nimport_config \"o.exs\"\n\nconfig :app, k1: 1\n",
+                "k",
+                "k1",
+                extra = arrayOf("config/o.exs" to "import Config\n\n" + tryCalling("Config.read_config(:app)[:f].()")),
+            ),
+            before = "k=0 k1=1",
+        )
+
+    /**
+     * An atom an `fn` an imported file made makes in an arm that may not be taken may not exist past the arm, so another
+     * `fn` of that file reading it may raise into the `try` around its call. Before `Config.read_config/1`, the call in
+     * the arm raises.
+     */
+    fun testAnAtomAnFnAnImportedFileMadeMakesInAnArmThatMayNotBeTakenMayNotExistPastIt() =
+        assertRead(
+            "k=Configured k1=1",
+            importingFns(
+                "if System.get_env(\"X\"), do: Config.read_config(:app)[:f].(\"atom_made_in_another_file\")\n\n" +
+                    tryCalling("Config.read_config(:app)[:g].(\"atom_made_in_another_file\")") + "\nconfig :app, k1: 1\n",
+                "f: fn name -> String.to_atom(name) end, g: fn name -> String.to_existing_atom(name) end",
+            ),
+            before = "declined",
+        )
+
+    /** A raise that may come in it, in that arm and outside a `try`, is taken not to come, as one in an `fn` this file made is. */
+    fun testARaiseInAnFnAnImportedFileMadeInAnArmThatMayNotBeTakenIsTakenNotToCome() =
+        assertRead(
+            "k=0 k1=1",
+            importingFns(CALL_IN_AN_ARM, "f: fn -> System.fetch_env!(\"Y\") end"),
+            before = "declined",
+        )
+
+    /** A write in it, in that arm, joins as one in an `fn` this file made does. */
+    fun testAWriteInAnFnAnImportedFileMadeInAnArmThatMayNotBeTakenJoins() =
+        assertRead(
+            "k=Configured k1=1",
+            importingFns(CALL_IN_AN_ARM, "f: fn -> Config.config(:app, k: 2) end"),
+            before = "declined",
+        )
+
+    /** Called outside any `try` or arm that may not be taken, it runs as it would in that file. */
+    fun testAnFnAnImportedFileMadeCalledOutsideATryOrArmGoesOn() =
+        assertRead(
+            "k=1 k1=1",
+            importingFns("config :app, k: Config.read_config(:app)[:f].(), k1: 1\n", "f: fn -> 1 end"),
+        )
+
+    /** Made by a file imported in a `try` that has ended, its raise is taken not to come, as one in that file would be. */
+    fun testAnFnAFileImportedInATryMadeTakesARaisePastTheTryNotToCome() =
+        assertRead(
+            "k=2 k1=1",
+            importingFns(
+                "Config.read_config(:app)[:f].()\nconfig :app, k1: 1\n",
+                "f: fn -> if System.get_env(\"X\"), do: raise(\"x\"), else: Config.config(:app, k: 2) end",
+                importing = "try do\n  import_config \"o.exs\"\nrescue\n  _ -> :ok\nend\n",
+            ),
+        )
+
+    /** Made by the importing file and called by the file it imports in a `try`, its raise may be rescued there. */
+    fun testAnFnTheImportingFileMadeCalledFromAnImportInATryMayBeRescuedByIt() =
+        assertRead(
+            "k=Configured k1=1",
+            keys(
+                "config :app, k: 0, f: fn -> System.fetch_env!(\"X\") end\n\n" +
+                    tryCalling("import_config \"o.exs\"") + "\nconfig :app, k1: 1\n",
+                "k",
+                "k1",
+                extra = arrayOf("config/o.exs" to "import Config\n\nConfig.read_config(:app)[:f].()\n"),
+            ),
+            before = "declined",
+        )
+
+    /**
+     * A call in the tail of an `fn` an imported file made runs inside the `try`s around that `fn`'s call, so a raise in
+     * the `fn` it calls may be rescued there. Before `Config.read_config/1`, its call raises.
+     */
+    fun testATailCallInAnFnAnImportedFileMadeRunsInsideTheTryAroundItsCall() =
+        assertRead(
+            "k=Configured k1=1",
+            importingFns(
+                tryCalling("Config.read_config(:app)[:f].(fn -> System.fetch_env!(\"X\") end)") + "\nconfig :app, k1: 1\n",
+                "f: fn h -> h.() end",
+            ),
+            before = "k=0 k1=1",
+        )
+
+    /** As does one of another `fn` that file made. */
+    fun testATailCallOfAnotherFnTheImportedFileMadeRunsInsideTheTryAroundItsCall() =
+        assertRead(
+            "k=Configured k1=1",
+            keys(
+                "config :app, k: 0\n\nimport_config \"o.exs\"\n\n" + tryCalling("Config.read_config(:app)[:f].()") + "\nconfig :app, k1: 1\n",
+                "k",
+                "k1",
+                extra = arrayOf("config/o.exs" to "import Config\n\ng = fn -> System.fetch_env!(\"X\") end\nconfig :app, f: fn -> g.() end\n"),
+            ),
+            before = "k=0 k1=1",
+        )
+
+    /**
+     * A tail call in such an `fn` past a raise there that may be rescued around the `fn`'s call may not run, so an atom it
+     * makes may not exist past that `try`. Before `Config.read_config/1`, its call raises.
+     */
+    fun testAnAtomATailCallPastARaiseInAnFnAnImportedFileMadeMakesMayNotExistPastIt() =
+        assertRead(
+            "k=Configured k1=1",
+            importingFns(
+                F_THEN_G_IN_TRIES,
+                "h: fn -> String.to_atom(\"atom_a_tail_call_past_a_raise_makes\") end,\n" +
+                    "  f: fn ->\n    System.fetch_env!(\"X\")\n    Config.read_config(:app)[:h].()\n  end,\n" +
+                    "  g: fn -> String.to_existing_atom(\"atom_a_tail_call_past_a_raise_makes\") end",
+            ),
+            before = "k=0 k1=1",
+        )
+
+    /** As may one of an `fn` another imported file made, there. */
+    fun testAnAtomATailCallPastARaiseInAnFnAnImportedFileMadeMakesInAnotherFileMayNotExistPastIt() =
+        assertRead(
+            "k=Configured k1=1",
+            keys(
+                "config :app, k: 0\n\nimport_config \"o.exs\"\nimport_config \"p.exs\"\n\n$F_THEN_G_IN_TRIES",
+                "k",
+                "k1",
+                extra = arrayOf(
+                    "config/o.exs" to "import Config\n\nconfig :app, f: fn ->\n  System.fetch_env!(\"X\")\n  Config.read_config(:app)[:h].()\nend\n",
+                    "config/p.exs" to "import Config\n\nconfig :app,\n" +
+                        "  h: fn -> String.to_atom(\"atom_a_tail_call_past_a_raise_makes_elsewhere\") end,\n" +
+                        "  g: fn -> String.to_existing_atom(\"atom_a_tail_call_past_a_raise_makes_elsewhere\") end\n",
+                ),
+            ),
+            before = "k=0 k1=1",
+        )
+
+    /**
+     * A loop of tail calls between an `fn` and one an imported file made runs one call after another, as on the BEAM,
+     * however many calls it makes. Before `Config.read_config/1`, its call raises.
+     */
+    fun testATailLoopBetweenAnFnAndOneAnImportedFileMadeRunsPastTheStacksDepth() =
+        assertRead(
+            "k=1",
+            keys(
+                "config :app, k: 0, f: fn 0 -> 1; n -> Config.read_config(:app)[:g].(n - 1) end\n\nimport_config \"o.exs\"\n\n" +
+                    "config :app, k: Config.read_config(:app)[:f].(100_000)\n",
+                "k",
+                extra = arrayOf("config/o.exs" to "import Config\n\nconfig :app, g: fn n -> Config.read_config(:app)[:f].(n) end\n"),
+            ),
+        )
+
+    /** As does one between `fn`s two imported files made. */
+    fun testATailLoopBetweenFnsTwoImportedFilesMadeRunsPastTheStacksDepth() =
+        assertRead("k=1", tailLoop("1", "config :app, k: Config.read_config(:app)[:f].(100_000)\n", "k"))
+
+    /**
+     * And a raise at its end may be rescued by the `try` around its call, so the code after the call there may not run.
+     * Before `Config.read_config/1`, its call raises.
+     */
+    fun testARaiseAtTheEndOfATailLoopBetweenFnsTwoImportedFilesMadeMayBeRescuedAroundItsCall() =
+        assertRead(
+            "k=Configured k1=1",
+            tailLoop("System.fetch_env!(\"X\")", tryCalling("Config.read_config(:app)[:f].(100_000)") + "\nconfig :app, k1: 1\n", "k", "k1"),
+            before = "k=0 k1=1",
+        )
+
+    /** And an atom such a tail call makes in an arm that may not be taken may not exist past the arm. */
+    fun testAnAtomATailCallInAnFnAnImportedFileMadeMakesInAnArmMayNotExistPastIt() =
+        assertRead(
+            "k=Configured k1=1",
+            importingFns(
+                "if System.get_env(\"X\"), do: Config.read_config(:app)[:f].(\"atom_a_tail_call_made\")\n\n" +
+                    tryCalling("Config.read_config(:app)[:g].(\"atom_a_tail_call_made\")") + "\nconfig :app, k1: 1\n",
+                "h: fn name -> String.to_atom(name) end,\n  f: fn name -> Config.read_config(:app)[:h].(name) end,\n" +
+                    "  g: fn name -> String.to_existing_atom(name) end",
+            ),
+            before = "declined",
+        )
+
+    /**
+     * An atom an `fn` the importing file made makes, called by a file imported past a raise a `try` may catch, may not
+     * exist past that `try`, so another `fn` of that file reading it may raise. Before `Config.read_config/1`, the
+     * imported file raises.
+     */
+    fun testAnAtomAnFnTheImportingFileMadeMakesInAFileImportedPastARaiseMayNotExistPastIt() =
+        assertRead(
+            "k=Configured k1=1",
+            keys(
+                "config :app, k: 0, f: fn name -> String.to_atom(name) end, g: fn name -> String.to_existing_atom(name) end\n\n" +
+                    "try do\n  System.fetch_env!(\"X\")\n  import_config \"o.exs\"\nrescue\n  _ -> :ok\nend\n\n" +
+                    tryCalling("Config.read_config(:app)[:g].(\"atom_made_past_a_raise_elsewhere\")") + "\nconfig :app, k1: 1\n",
+                "k",
+                "k1",
+                extra = arrayOf("config/o.exs" to "import Config\n\nConfig.read_config(:app)[:f].(\"atom_made_past_a_raise_elsewhere\")\n"),
+            ),
+            before = "declined",
+        )
+
     /** An `after` past a raise its own `try` may rescue doesn't decline. */
     fun testAnAfterPastARaiseItsOwnTryRescuesDoesNotDecline() =
         assertEquals(
@@ -682,9 +914,38 @@ class ConfigTryHeavyTest : ConfigHeavyTestCase() {
     /** `k: 5`, then [expression], in a `try` that writes `k: 0` past it: `k` is `0` where [expression] can't raise. */
     private fun assertCantRaise(expression: String) = assertEquals("k=0 k1=1", afterBefore("  config :app, k: 5\n  _ = $expression\n"))
 
-    /** `k: 0`, then a `try` that rescues a raise of [inner], then writes `k: 0` past it, with the [extra] files beside the config. */
-    private fun afterBefore(inner: String, extra: Array<Pair<String, String>> = emptyArray()) =
-        keys("config :app, k: 0\n\ntry do\n$inner\n  config :app, k: 0\nrescue\n  _ -> :ok\nend\n\nconfig :app, k1: 1\n", "k", "k1", extra = extra)
+    /** `k: 0`, then [defined], then a `try` that rescues a raise of [inner], then writes `k: 0` past it, with the [extra] files beside the config. */
+    private fun afterBefore(inner: String, defined: String = "", extra: Array<Pair<String, String>> = emptyArray()) =
+        keys("config :app, k: 0\n\n${defined}try do\n$inner\n  config :app, k: 0\nrescue\n  _ -> :ok\nend\n\nconfig :app, k1: 1\n", "k", "k1", extra = extra)
+
+    /** A `try` that runs [call], then writes `k: 2`, rescuing any raise. */
+    private fun tryCalling(call: String) = "try do\n  $call\n  config :app, k: 2\nrescue\n  _ -> :ok\nend\n"
+
+    /**
+     * `k: 0`, then `config/o.exs`'s `f/1`, which gives [end] at 0, else calls `config/p.exs`'s `g/1` with one less, which
+     * calls `f/1` with it, both in tail position, then [statements], then the keys [read].
+     */
+    private fun tailLoop(end: String, statements: String, vararg read: String) =
+        keys(
+            "config :app, k: 0\n\nimport_config \"o.exs\"\nimport_config \"p.exs\"\n\n$statements",
+            *read,
+            extra = arrayOf(
+                "config/o.exs" to "import Config\n\nconfig :app, f: fn 0 -> $end; n -> Config.read_config(:app)[:g].(n - 1) end\n",
+                "config/p.exs" to "import Config\n\nconfig :app, g: fn n -> Config.read_config(:app)[:f].(n) end\n",
+            ),
+        )
+
+    /**
+     * The answers for `k` and `k1`, with `k: 0`, then [importing], an import of `o.exs`, which configures [fns], then
+     * [statements].
+     */
+    private fun importingFns(statements: String, fns: String, importing: String = "import_config \"o.exs\"\n") =
+        keys(
+            "config :app, k: 0\n\n$importing\n$statements",
+            "k",
+            "k1",
+            extra = arrayOf("config/o.exs" to "import Config\n\nconfig :app, $fns\n"),
+        )
 
     /** A `catch` of [head] around a raise that may come, inside a `try` that rescues it, beside a write after the inner `try`. */
     private fun caughtBeside(head: String) =
@@ -742,5 +1003,16 @@ class ConfigTryHeavyTest : ConfigHeavyTestCase() {
 
     private companion object {
         const val CREATE = "Module.create(H, quote(do: def(v, do: 1)), Macro.Env.location(__ENV__))"
+
+        /** A call of the `fn` the imported file configures as `f`, in an arm that may not be taken, then `k1`. */
+        const val CALL_IN_AN_ARM = "if System.get_env(\"X\"), do: Config.read_config(:app)[:f].()\n\nconfig :app, k1: 1\n"
+
+        /**
+         * A call of the `fn` configured as `f` in a `try` that rescues it, then one of `g` in a `try` that then configures
+         * `k` 1, then `k1`.
+         */
+        const val F_THEN_G_IN_TRIES =
+            "try do\n  Config.read_config(:app)[:f].()\nrescue\n  _ -> :ok\nend\n\n" +
+                "try do\n  Config.read_config(:app)[:g].()\n  config :app, k: 1\nrescue\n  _ -> :ok\nend\n\nconfig :app, k1: 1\n"
     }
 }

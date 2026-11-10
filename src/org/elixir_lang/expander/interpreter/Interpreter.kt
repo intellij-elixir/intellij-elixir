@@ -101,7 +101,15 @@ internal object Interpreter {
         val output = declining(run) {
             try {
                 run.unlessTooDeepToRun({ return null }) {
-                    Evaluation(node, state, env, run).output(dispatch, node.arguments.orEmpty())
+                    // A macro's code runs where its call expands, inside no `try` that is running.
+                    val outer = run.catching
+
+                    run.catching = 0
+                    try {
+                        Evaluation(node, state, env, run).output(dispatch, node.arguments.orEmpty())
+                    } finally {
+                        run.catching = outer
+                    }
                 }
             } catch (_: Declined) {
                 // The macro's code ran where the expander lost it.
@@ -193,7 +201,7 @@ internal object Interpreter {
         declinesTooDeep: Boolean = true,
         value: (Evaluation) -> OtpErlangObject,
     ): Evaluated =
-        declining(run) { evaluatedIn(Evaluation(node, state, env, run, run.catching), declinesTooDeep, value) }
+        declining(run) { evaluatedIn(Evaluation(node, state, env, run), declinesTooDeep, value) }
 
     /** [block], recording what the calls that decline in it are given ([Run.declinedGiven]) unless an outer one does. */
     private inline fun <T> declining(run: Run, block: () -> T): T {
@@ -399,11 +407,6 @@ internal class Evaluation(
     private val state: ExState,
     private val env: Env,
     val run: Run,
-    /**
-     * How many bodies of a `try` with `catch` or `rescue` are being evaluated, any of which may catch a raise: this
-     * evaluation's, and those around the unit it runs ([Run.catching]).
-     */
-    private var catching: Int = 0,
 ) {
     /** Each term made from an argument's node, so the output keeps the nodes the macro passed through. */
     private val nodes = IdentityHashMap<OtpErlangObject, ElixirAst>()
@@ -766,7 +769,7 @@ internal class Evaluation(
         // what that one does, which isn't known and may be anything its body builds, or raises as it may.
         if (!run.mayNotRun || !anyHeld(args, visit = ::isUnknown)) return clauseRun(module, clauses, function, args, arity)
 
-        val running = RunningCall(module.module, function, args, run.state(), catching, run.config?.raisedAt)
+        val running = RunningCall(module.module, function, args, run.state(), run.catching, run.config?.raisedAt)
 
         run.runningOverUnknown.firstOrNull(running::repeats)?.let { matched ->
             // It stands for Elixir's call inside, which ends where the one it repeats may: it leaves the run where that
@@ -902,7 +905,7 @@ internal class Evaluation(
 
     /**
      * Elixir may raise here on what the evaluator doesn't know: a value it doesn't know, or what a read of the machine
-     * finds. Under a `try` that may catch it ([catching]), the `try`'s rescues may run, from the read as it is here
+     * finds. Under a `try` that may catch it ([Run.catching]), the `try`'s rescues may run, from the read as it is here
      * ([ConfigRead.raisedAt]); see [mayHaveRaised].
      */
     fun raiseMayBeCaught() {
@@ -910,7 +913,7 @@ internal class Evaluation(
         val at = read?.raisedAt
 
         // A read no config or import has changed since the last raise joins as that one does, so only a change is copied.
-        if (catching > 0 && at != null && !read.isAt(at.lastOrNull())) {
+        if (run.catching > 0 && at != null && !read.isAt(at.lastOrNull())) {
             at += read.snapshot()
         }
         mayHaveRaised()
@@ -918,15 +921,15 @@ internal class Evaluation(
 
     /**
      * Elixir may have raised by here, which is taken not to happen ([assume]); under a `try` that may catch it
-     * ([catching]), the code after here may not run ([Run.raisedOverUnknown]).
+     * ([Run.catching]), the code after here may not run ([Run.raisedOverUnknown]).
      */
     private fun mayHaveRaised() {
-        if (catching > 0) run.raisedOverUnknown = true
+        if (run.catching > 0) run.raisedOverUnknown = true
         assume()
     }
 
     /**
-     * [file] imported in [read] here, its run inside the `try`s around this code that may catch its raise ([catching]).
+     * [file] imported in [read] here, its run inside the `try`s around this code that may catch its raise ([Run.catching]).
      * The file has its own run, so the code after the import learns only here that the file may have raised. The file's
      * own run has already recorded where it may have raised ([ConfigRead.raisedAt]).
      */
@@ -934,7 +937,7 @@ internal class Evaluation(
         val outer = read.catching
         val assumed = read.assumed
 
-        read.catching = catching
+        read.catching = run.catching
         val imported = try {
             file()
         } finally {
@@ -945,15 +948,25 @@ internal class Evaluation(
         return imported
     }
 
+    /** The [Carry] of a call, from the code here, of a closure another run [made], `null` where none did. */
+    private fun carry(made: Run?): Carry? =
+        if (made == null || made === run) {
+            null
+        } else {
+            // The `try`s around the call alone. One that ended in the made run, its file's import's among them, is around
+            // nothing now; one still around the made run's code is around the import that runs this code too.
+            Carry(made, run.catching, run.mayNotRun, run).pastRaiseOfMade()
+        }
+
     /** [value], where Elixir may raise instead ([raiseMayBeCaught]). */
     fun unlessRaised(value: OtpErlangObject): OtpErlangObject = value.also { raiseMayBeCaught() }
 
     /**
-     * Code that may raise ran. Under a `try` that may catch the raise ([catching]), the build goes on either way, so it
+     * Code that may raise ran. Under a `try` that may catch the raise ([Run.catching]), the build goes on either way, so it
      * declines.
      */
     fun mayRaise() {
-        if (catching > 0) decline("a raise a `try` may catch")
+        if (run.catching > 0) decline("a raise a `try` may catch")
     }
 
     /** An answer that holds only where what it reads stays as read (`Run.assumptions`, [ConfigRead.assumed]). */
@@ -989,15 +1002,12 @@ internal class Evaluation(
 
         // A unit of the statement being run, which the walk runs where the evaluator reaches it.
         run.reached[node]?.let { unit ->
-            val outer = run.catching
             val outerUse = run.reachedUse
-            run.catching = catching
             run.reachedUse = use
 
             val reached = try {
                 unit(frame.vars)
             } finally {
-                run.catching = outer
                 run.reachedUse = outerUse
             }
             if (reached.declined) mayRaise()
@@ -1726,7 +1736,7 @@ internal class Evaluation(
         val closed = frame.copy()
         val arity = clauseHead(arrowParts(arrows.first()).first).first.size
 
-        return Closure(arity, { marks(arrows, closed) }, node) { values ->
+        return Closure(arity, { marks(arrows, closed) }, node, run) { values ->
             run.entered += node
             run.running.addLast(node)
 
@@ -2136,7 +2146,7 @@ internal class Evaluation(
             ?.takeIf { !it.kind.macro }
             ?: decline("a capture of $name/$arity, which isn't a function of ${module.module}")
 
-        return Closure(arity, { listOf(OtpErlangAtom(module.module)) }) { values -> invoked(module, definition, name, values, values.size) }
+        return Closure(arity, { listOf(OtpErlangAtom(module.module)) }, run = run) { values -> invoked(module, definition, name, values, values.size) }
     }
 
     /** [function] applied to [args]; in [tail] position, the call is made, not run ([called]). */
@@ -2148,7 +2158,9 @@ internal class Evaluation(
             is Closure ->
                 if (function.arity == args.size) {
                     // A closure's body makes the call in its tail position, which this runs.
-                    calling(args) { called(tail) { using(ValueUse.READ) { function.invoke(args) } } }
+                    val carry = carry(function.run)
+
+                    calling(args) { called(tail) { using(ValueUse.READ) { carried(carry) { function.invoke(args) } } } }
                 } else {
                     error(tuple(atom("badarity"), tuple(function, list(args))))
                 }
@@ -2438,7 +2450,7 @@ internal class Evaluation(
                     val outerAt = read?.raisedAt
 
                     if (catches) {
-                        catching++
+                        run.catching++
                         read?.raisedAt = raisedAt
                     }
                     run.raisedOverUnknown = false
@@ -2447,7 +2459,7 @@ internal class Evaluation(
                         eval(doOption(options), frame.copy())
                     } finally {
                         if (catches) {
-                            catching--
+                            run.catching--
                             read?.raisedAt = outerAt
                         }
                     }
@@ -3381,7 +3393,7 @@ internal class Evaluation(
         val raisedIn = ArrayList<RunState>()
         val raised = ArrayList<Thrown>()
         var raises = false
-        val caught = catching > 0
+        val caught = run.catching > 0
 
         val outermost = run.speculating == 0
         var ran = false
@@ -3796,7 +3808,7 @@ internal class RunningCall(
  * A call in tail position, made but not run: [Evaluation.looped] runs it by [evaluate], once its caller has returned,
  * and makes the marks [gives] makes where it declines.
  */
-private class TailCall(val evaluate: () -> OtpErlangObject, val gives: (Declined) -> Declined = { it }) : OtpErlangObject() {
+private open class TailCall(val evaluate: () -> OtpErlangObject, val gives: (Declined) -> Declined = { it }) : OtpErlangObject() {
     override fun encode(buf: OtpOutputStream) = throw UnsupportedOperationException("a tail call isn't a term")
 
     override fun equals(other: Any?) = this === other
@@ -3805,3 +3817,56 @@ private class TailCall(val evaluate: () -> OtpErlangObject, val gives: (Declined
 
     override fun toString() = "#TailCall"
 }
+
+/**
+ * How a call of a closure another run [made] runs that run's code, from code of the run [into]: inside the [catching]
+ * `try`s around the call, which may catch its raise ([Run.catching]), as code that may not run where [mayNotRun]
+ * ([Run.mayNotRun]), and with a raise it may make under them that code's ([Run.raisedOverUnknown]). It is taken where
+ * the call is made, so a call made in a tail runs as carried once the code it was made in has ended.
+ */
+private data class Carry(val made: Run, val catching: Int, val mayNotRun: Boolean, val into: Run) {
+    /**
+     * This carry, as code that may not run where the made run's code is past a raise of its own ([Run.raisedOverUnknown]),
+     * which [carried] sets aside while the call's body runs: where the call is made, and where the body has returned the
+     * call in its tail.
+     */
+    fun pastRaiseOfMade(): Carry = if (made.raisedOverUnknown && !mayNotRun) copy(mayNotRun = true) else this
+}
+
+/**
+ * [call] of a closure, as its [carry] says. A call in the body's tail is the made run's code too, so where the loop
+ * around this call runs it ([Evaluation.looped]), it runs carried ([CarriedCall]).
+ */
+private inline fun carried(carry: Carry?, call: () -> OtpErlangObject): OtpErlangObject {
+    if (carry == null) return call()
+
+    val made = carry.made
+    val catching = made.catching
+    val raised = made.raisedOverUnknown
+
+    made.catching = carry.catching
+    if (carry.mayNotRun) made.speculating++
+    made.raisedOverUnknown = false
+    try {
+        return when (val value = call()) {
+            // The tail call of the closure this body called in its tail, whose body has ended: a raise there is the
+            // code's this call returns to.
+            is CarriedCall -> CarriedCall(value.carry.copy(into = carry.into), value.call)
+            is TailCall -> CarriedCall(carry.pastRaiseOfMade(), value)
+            else -> value
+        }
+    } finally {
+        val raisedThere = made.raisedOverUnknown
+
+        made.catching = catching
+        if (carry.mayNotRun) made.speculating--
+        made.raisedOverUnknown = raised
+        if (raisedThere) carry.into.raisedOverUnknown = true
+    }
+}
+
+/**
+ * [call], made in the tail of a closure's body, run as [carry] says once the loop it is given to reaches it: a loop of
+ * them runs one after another.
+ */
+private class CarriedCall(val carry: Carry, val call: TailCall) : TailCall({ carried(carry) { call.evaluate() } }, call.gives)
