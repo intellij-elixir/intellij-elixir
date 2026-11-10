@@ -16,6 +16,7 @@ import com.intellij.openapi.util.ModificationTracker
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.openapi.vfs.VirtualFileSystem
 import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -36,6 +37,7 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.mix.Project.MIX_EXS
+import org.elixir_lang.mix.Project.isDepsOfAMixProject
 import org.elixir_lang.mix.ProjectKeywords
 import org.elixir_lang.mix.buildEnv
 import org.elixir_lang.mix.defaultBuildEnv
@@ -591,8 +593,8 @@ internal class ProjectModules(private val project: Project) {
                 }
             },
             file = {
-                // A rename or move raises the count, which discards this run's answers.
-                stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+                // A rename or move discards this run's answers.
+                stamps.track(names.askerPath(virtualFile))
                 runPath(virtualFile, inputs.os, OS.CURRENT)
             },
             virtualFile = virtualFile,
@@ -602,7 +604,7 @@ internal class ProjectModules(private val project: Project) {
             files = runFiles(virtualFile, inputs, within, memo, stamps) { transients += it },
             directories = { path ->
                 // A `mix.exs` created or deleted above the file moves its answer.
-                stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+                stamps.track(names.above(path))
                 virtualFile?.fileSystem?.findFileByPath(path)?.let(::compileDirectory)
             },
             clauses = { atom ->
@@ -829,15 +831,12 @@ internal class ProjectModules(private val project: Project) {
         return object : RunFiles {
             override fun exists(path: String): Boolean? {
                 val fileSystem = pathFileSystem ?: return null
-                // A file created or deleted at the path moves the answer.
-                stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
 
-                return fileSystem.findFileByPath(path) != null
+                return stamps.find(fileSystem, path) != null
             }
 
             override fun imported(path: String, read: ConfigRead): FileExpansion? {
-                stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
-                val target = pathFileSystem?.findFileByPath(path)?.takeUnless { it in within } ?: return null
+                val target = stamps.find(pathFileSystem, path)?.takeUnless { it in within } ?: return null
                 val psi = read(target) ?: return null
                 val child = compute(psi, inputs, within, memo, config = read)
                 stamps.addAll(child.loaded.stamps)
@@ -851,7 +850,7 @@ internal class ProjectModules(private val project: Project) {
                 val slash = pattern.lastIndexOf('/')
                 val prefix = pattern.substring(0, slash.coerceAtLeast(0))
                 if (prefix.any { it in ConfigFiles.WILDCARD }) return null
-                stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+                stamps.track(names.listing(prefix))
                 val glob = pattern.substring(slash + 1)
                 val matcher = try {
                     FileSystems.getDefault().getPathMatcher("glob:$glob")
@@ -875,13 +874,17 @@ internal class ProjectModules(private val project: Project) {
         read?.let { return BuildTarget(it.env, it.env, it.target) }
         file ?: return null
         // A `deps`, `_build` or `mix.exs` created or deleted moves the build.
-        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+        stamps.track(names.above(file.path))
         buildEnv(file)?.let { return BuildTarget(it, null) }
-        val deps = generateSequence(file.parent) { it.parent }.firstOrNull { it.name == "deps" && it.parent?.findChild(MIX_EXS) != null }
+        val deps = generateSequence(file.parent) { it.parent }.firstOrNull { isDepsOfAMixProject(it) }
 
         if (deps != null) {
             val dependency = generateSequence(file) { it.parent }.first { it.parent == deps }.name
-            val envs = deps.parent.findChild("_build")?.children.orEmpty().filter { it.findFileByRelativePath("lib/$dependency") != null }
+            val build = deps.parent.findChild("_build")?.children.orEmpty()
+            // An env, or the dependency in one, created or deleted moves the build.
+            stamps.track(names.listing("${deps.parent.path}/_build"))
+            build.forEach { env -> stamps.track(names.path("${env.path}/lib/$dependency")) }
+            val envs = build.filter { it.findFileByRelativePath("lib/$dependency") != null }
 
             return BuildTarget(envs.singleOrNull()?.name, null)
         }
@@ -910,7 +913,7 @@ internal class ProjectModules(private val project: Project) {
      * or by a zero's sign, which the VM keeps where `=:=` can't tell it.
      */
     private fun appFile(app: String, level: ElixirLanguageLevel, stamps: Stamps): AppFile? {
-        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+        stamps.track(names.appFiles)
         stamps.track(ProjectRootManager.getInstance(project))
         val facetSdkRoots = FacetModels.getInstance(project).named()
             .flatMap { it.rootProvider.getFiles(OrderRootType.CLASSES).asList() }
@@ -919,7 +922,7 @@ internal class ProjectModules(private val project: Project) {
             .filter(::isDependencyOutput)
             .distinct()
             .map { file ->
-                stamps.file(file)
+                stamps.onDisk(file)
 
                 try {
                     AppFile.read(VfsUtilCore.loadText(file), level)
@@ -1147,18 +1150,21 @@ internal class ProjectModules(private val project: Project) {
         }
 
         /**
-         * A copy's file on disk, not its PSI, so that a keystroke keeps it: it moves when the file goes, moves or changes.
-         * Keyed apart from [source] and [file], so that [reads] doesn't see it.
+         * A file read from disk, not through its PSI, so that a keystroke keeps it: it moves when the file goes, moves or
+         * changes. Keyed apart from [source], so that [reads] doesn't see it.
          */
         fun onDisk(virtualFile: VirtualFile) {
-            read.getOrPut(OnDisk(virtualFile)) {
-                Stamp { if (virtualFile.isValid) 31L * virtualFile.path.hashCode() + virtualFile.modificationStamp else -1L }
-            }
+            val key = OnDisk(virtualFile)
+            if (key in read) return
+            track(names.path(virtualFile.path))
+            read[key] = Stamp { if (virtualFile.isValid) virtualFile.modificationStamp else -1L }
         }
 
-        /** A file read from disk, not through its PSI. */
-        fun file(virtualFile: VirtualFile) {
-            read.getOrPut(virtualFile) { Stamp(virtualFile::getModificationStamp) }
+        /** The file at [path] in [fileSystem], held on [path], so that a file created or deleted there moves the answer. */
+        fun find(fileSystem: VirtualFileSystem?, path: String): VirtualFile? {
+            track(names.path(path))
+
+            return fileSystem?.findFileByPath(path)
         }
 
         fun addAll(stamps: Stamps) {

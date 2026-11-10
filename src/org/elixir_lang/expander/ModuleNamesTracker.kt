@@ -7,8 +7,10 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectFileIndex
+import com.intellij.openapi.util.CompositeModificationTracker
 import com.intellij.openapi.util.ModificationTracker
 import com.intellij.openapi.util.SimpleModificationTracker
+import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
@@ -35,6 +37,7 @@ import org.elixir_lang.psi.call.StubBased
 import org.elixir_lang.psi.definition
 import org.elixir_lang.psi.stub.call.Stubbic
 import org.elixir_lang.psi.stub.type.Named
+import org.elixir_lang.sdk.foldsCase
 import org.jetbrains.annotations.TestOnly
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
@@ -42,12 +45,14 @@ import org.elixir_lang.beam.FileType as BeamFileType
 
 /**
  * Moves a module's name, as the index names it, when an Elixir or `.beam` file may have come to define it or stopped:
- * [name] is one name's count, and this tracker's own count moves with every name's.
+ * [name] is one name's count, and this tracker's own count moves with every name's. Moves a path when a file or
+ * directory comes or goes there: [path], [above], [listing], [exsFiles] and [appFiles].
  *
- * Read a count under a read action. A file changed through its PSI is named from its PSI at the next read. A file
- * written through the VFS other than by a save, created or copied into the project's content or libraries, or moved or
- * renamed, waits for the next read and is named from its stub, as is each file under a directory arriving so; in dumb
- * mode every name moves instead. A file's deletion moves no name.
+ * Read a name's count under a read action. A file changed through its PSI is named from its PSI at the next read. A
+ * file in the project's content or libraries written through the VFS other than by a save, or created or copied there,
+ * a file moved or renamed anywhere, and a directory moved or renamed in, out of or within the project, wait for the
+ * next read and are named from their stubs, as is each file under such a directory; in dumb mode every name moves
+ * instead. A file's deletion moves no name.
  */
 @Service(Service.Level.PROJECT)
 internal class ModuleNamesTracker @JvmOverloads constructor(
@@ -81,6 +86,21 @@ internal class ModuleNamesTracker @JvmOverloads constructor(
     /** Moved when every name moves. */
     private val everyName = AtomicLong()
 
+    /** Each path asked about, moved when a file or directory comes or goes there. */
+    private val selves = ConcurrentHashMap<String, AtomicLong>()
+
+    private val pathTrackers = ConcurrentHashMap<String, ModificationTracker>()
+    private val aboveTrackers = ConcurrentHashMap<String, ModificationTracker>()
+
+    /** Each directory listed, moved as its path and when an entry comes or goes in it. */
+    private val listings = ConcurrentHashMap<String, CompositeModificationTracker>()
+
+    /** Moves when an `.exs` comes or goes anywhere, or a directory does, which names no file under it. */
+    val exsFiles = SimpleModificationTracker()
+
+    /** Moves when an `.app` comes or goes anywhere, or a directory does. */
+    val appFiles = SimpleModificationTracker()
+
     private inner class NameCount : ModificationTracker {
         val own = AtomicLong()
 
@@ -112,7 +132,10 @@ internal class ModuleNamesTracker @JvmOverloads constructor(
             VirtualFileManager.VFS_CHANGES,
             object : BulkFileListener {
                 override fun after(events: List<VFileEvent>) {
-                    events.forEach(::arrived)
+                    for (event in events) {
+                        arrived(event)
+                        cameOrWent(event)
+                    }
 
                     // A deleted directory's events name only the directory.
                     if (events.any { it is VFileDeleteEvent }) names.keys.removeIf { !it.isValid }
@@ -124,18 +147,34 @@ internal class ModuleNamesTracker @JvmOverloads constructor(
     /** What moves when a module named [atom] may have come or gone. */
     fun name(atom: String): ModificationTracker = byName.computeIfAbsent(Module.indexName(atom)) { NameCount() }
 
-    /**
-     * What moves when [file], an asker, moves: its path's hash, unsigned, as a `CachedValue` takes a negative count to be
-     * out of date. Out of date when the file is gone; never moves for a light asker, which has no file.
-     */
-    fun askerPath(file: VirtualFile?): ModificationTracker =
-        ModificationTracker {
-            when {
-                file == null -> 0L
-                file.isValid -> file.path.hashCode().toUInt().toLong()
-                else -> -1L
-            }
+    /** Moves when a file or directory comes or goes at [path] or a directory above it. */
+    fun path(path: String): ModificationTracker = pathOf(normal(path))
+
+    /** [path] for a path already [normal]. */
+    private fun pathOf(normal: String): ModificationTracker =
+        pathTrackers.computeIfAbsent(normal) {
+            val chain = chain(normal).map { selves.computeIfAbsent(it) { AtomicLong() } }.toList()
+
+            ModificationTracker { chain.sumOf(AtomicLong::get) }
         }
+
+    /** As [path], and when a `mix.exs` comes or goes in a directory above [path]. */
+    fun above(path: String): ModificationTracker =
+        aboveTrackers.computeIfAbsent(normal(path)) { normal ->
+            val own = pathOf(normal)
+            val manifests = chain(normal).drop(1)
+                .map { selves.computeIfAbsent("$it/$MIX_EXS") { AtomicLong() } }
+                .toList()
+
+            ModificationTracker { own.modificationCount + manifests.sumOf(AtomicLong::get) }
+        }
+
+    /** As [path] for [directory], and when an entry comes or goes in it. */
+    fun listing(directory: String): ModificationTracker =
+        listings.computeIfAbsent(normal(directory)) { CompositeModificationTracker(pathOf(it)) }
+
+    /** What moves when [file], an asker, moves or goes: its [path]. Never moves for a light asker, which has no file. */
+    fun askerPath(file: VirtualFile?): ModificationTracker = file?.let { path(it.path) } ?: NEVER_CHANGED
 
     override fun getModificationCount(): Long {
         drain()
@@ -173,13 +212,33 @@ internal class ModuleNamesTracker @JvmOverloads constructor(
         }
     }
 
-    /** A file, or a directory whose old parent or new place is in the project: one moved elsewhere names nothing here. */
-    private fun movedHere(file: VirtualFile, oldParent: VirtualFile?): Boolean =
-        !file.isDirectory || inProject(file) || oldParent?.let(::inProject) == true
+    private fun cameOrWent(event: VFileEvent) {
+        val paths = when (event) {
+            is VFileCreateEvent, is VFileCopyEvent, is VFileDeleteEvent -> listOf(event.path)
+            is VFileMoveEvent -> listOf(event.oldPath, event.newPath)
+            is VFilePropertyChangeEvent -> if (event.isRename) listOf(event.oldPath, event.newPath) else return
+            else -> return
+        }
+        val directory = if (event is VFileCreateEvent) event.isDirectory else event.file?.isDirectory == true
+
+        for (path in paths) cameOrWent(path, directory)
+    }
+
+    private fun cameOrWent(path: String, directory: Boolean) {
+        val normal = normal(path)
+        selves[normal]?.incrementAndGet()
+        listings[normal.substringBeforeLast('/', "")]?.incModificationCount()
+        if (directory || normal.endsWith(".exs")) exsFiles.incModificationCount()
+        if (directory || normal.endsWith(".app")) appFiles.incModificationCount()
+    }
 
     private fun arrived(file: VirtualFile) {
         if (file.isDirectory) arrivedDirectories += file else if (definesModules(file)) pending += file
     }
+
+    /** A file, or a directory whose old parent or new place is in the project: one moved elsewhere names nothing here. */
+    private fun movedHere(file: VirtualFile, oldParent: VirtualFile?): Boolean =
+        !file.isDirectory || inProject(file) || oldParent?.let(::inProject) == true
 
     private fun definesModules(file: VirtualFile): Boolean = file.fileType.let { it is ElixirFileType || it is BeamFileType }
 
@@ -265,6 +324,20 @@ internal class ModuleNamesTracker @JvmOverloads constructor(
 
     companion object {
         fun getInstance(project: Project): ModuleNamesTracker = project.service()
+
+        /** [path] as an event and an ask both key it: canonical, lowered where [foldsCase] says so, else its drive letter. */
+        private fun normal(path: String): String =
+            FileUtil.toCanonicalPath(path).let {
+                when {
+                    foldsCase(it) -> it.lowercase()
+                    it.length > 1 && it[1] == ':' -> it.replaceFirstChar(Char::lowercase)
+                    else -> it
+                }
+            }
+
+        /** [normal] and each directory above it. */
+        private fun chain(normal: String): Sequence<String> =
+            generateSequence(normal) { it.substringBeforeLast('/', "").ifEmpty { null } }
 
         private fun stubNames(project: Project, file: VirtualFile): Set<String> {
             val tree = StubTreeLoader.getInstance().readOrBuild(project, file, null) ?: return emptySet()

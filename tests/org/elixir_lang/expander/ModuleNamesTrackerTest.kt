@@ -261,21 +261,27 @@ class ModuleNamesTrackerTest : PlatformTestCase() {
         assertHolds(askerPath)
     }
 
-    fun testALightAskerHoldsWhatIsHeldOnIt() {
-        assertHolds(ModuleNamesTracker.getInstance(project).askerPath(null))
+    fun testAnAskerMovedToAPathOfTheSameHashMoves() {
+        val file = myFixture.addFileToProject("Aa/x.ex", "").virtualFile
+        val to = myFixture.tempDirFixture.findOrCreateDir("BB")
+        assertEquals("the two paths hash alike", file.path.hashCode(), "${to.path}/x.ex".hashCode())
+        val askerPath = ModuleNamesTracker.getInstance(project).askerPath(file)
+        val before = askerPath.modificationCount
+
+        WriteAction.runAndWait<Throwable> { file.move(this, to) }
+
+        assertFalse("askerPath moved with the asker", askerPath.modificationCount == before)
     }
 
-    fun testAFileWrittenOutsideTheProjectIsNotNamed() {
-        val named = ConcurrentLinkedQueue<VirtualFile>()
-        val tracker = tracker(naming = { named += it; namesOf(it) })
-        outside("outside") { outside ->
-            val a = WriteAction.computeAndWait<VirtualFile, Throwable> { outside.createChildData(this, "a.ex") }
-            count(tracker)
-            WriteAction.runAndWait<Throwable> { a.setBinaryContent("defmodule A do\nend\n".toByteArray()) }
-            count(tracker)
+    fun testTwoNamesDifferingInCaseUnderAWslPathStayTwo() {
+        val tracker = ModuleNamesTracker.getInstance(project)
 
-            assertEquals(emptyList<VirtualFile>(), named.toList())
-        }
+        // A WSL distro's file system is case-sensitive even where the host's isn't.
+        assertNotSame(tracker.path("//wsl.localhost/Ubuntu/p/lib/Foo.ex"), tracker.path("//wsl.localhost/Ubuntu/p/lib/foo.ex"))
+    }
+
+    fun testALightAskerHoldsWhatIsHeldOnIt() {
+        assertHolds(ModuleNamesTracker.getInstance(project).askerPath(null))
     }
 
     fun testADirectoryMovedOrRenamedOutsideTheProjectIsNotWalked() {
@@ -305,6 +311,19 @@ class ModuleNamesTrackerTest : PlatformTestCase() {
             count(tracker)
 
             assertEquals(listOf(x), named.toList())
+        }
+    }
+
+    fun testAFileWrittenOutsideTheProjectIsNotNamed() {
+        val named = ConcurrentLinkedQueue<VirtualFile>()
+        val tracker = tracker(naming = { named += it; namesOf(it) })
+        outside("outside") { outside ->
+            val a = WriteAction.computeAndWait<VirtualFile, Throwable> { outside.createChildData(this, "a.ex") }
+            count(tracker)
+            WriteAction.runAndWait<Throwable> { a.setBinaryContent("defmodule A do\nend\n".toByteArray()) }
+            count(tracker)
+
+            assertEquals(emptyList<VirtualFile>(), named.toList())
         }
     }
 
