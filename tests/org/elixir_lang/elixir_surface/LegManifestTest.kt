@@ -17,8 +17,7 @@ class LegManifestTest : UnitTestCase() {
         super.setUp()
         root = FileUtil.createTempDirectory("manifest", null)
         summary = File(root, "summary.md")
-        savedSummary = System.getProperty(CommittedGolden.STEP_SUMMARY_PROPERTY)
-        System.setProperty(CommittedGolden.STEP_SUMMARY_PROPERTY, summary.path)
+        savedSummary = SystemProperties.setProperty(CommittedGolden.STEP_SUMMARY_PROPERTY, summary.path)
     }
 
     override fun tearDown() {

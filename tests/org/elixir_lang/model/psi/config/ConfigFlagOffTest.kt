@@ -28,8 +28,7 @@ class ConfigFlagOffTest : PlatformTestCase() {
 
     override fun setUp() {
         super.setUp()
-        savedProperty = System.getProperty(SOURCE_PROPERTY)
-        System.clearProperty(SOURCE_PROPERTY)
+        savedProperty = SystemProperties.setProperty(SOURCE_PROPERTY, null)
         disableMixDepsCheck(testRootDisposable)
         disableExpander(testRootDisposable)
         LegSdk.setUp(module, testRootDisposable)

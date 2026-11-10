@@ -13,9 +13,8 @@ class ExpanderFlagTest : LightTestCase() {
 
     override fun setUp() {
         super.setUp()
-        savedProperty = System.getProperty(SOURCE_PROPERTY)
+        savedProperty = SystemProperties.setProperty(SOURCE_PROPERTY, null)
         savedSetting = ElixirExperimentalSettings.instance.state.enableExpander
-        System.clearProperty(SOURCE_PROPERTY)
     }
 
     override fun tearDown() {

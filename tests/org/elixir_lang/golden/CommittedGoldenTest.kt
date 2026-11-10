@@ -18,8 +18,7 @@ class CommittedGoldenTest : UnitTestCase() {
         directory = createTempDirectory("committed-golden").toFile()
         golden = File(directory, "golden.txt")
         summary = File(directory, "summary.md")
-        savedSummary = System.getProperty(CommittedGolden.STEP_SUMMARY_PROPERTY)
-        System.setProperty(CommittedGolden.STEP_SUMMARY_PROPERTY, summary.path)
+        savedSummary = SystemProperties.setProperty(CommittedGolden.STEP_SUMMARY_PROPERTY, summary.path)
     }
 
     override fun tearDown() {

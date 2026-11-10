@@ -41,8 +41,7 @@ abstract class LegSdkFixtureTestCase : UsefulTestCase() {
     }
 
     override fun setUp() {
-        savedProperty = System.getProperty(SOURCE_PROPERTY)
-        System.clearProperty(SOURCE_PROPERTY)
+        savedProperty = SystemProperties.setProperty(SOURCE_PROPERTY, null)
         super.setUp()
 
         val factory = IdeaTestFixtureFactory.getFixtureFactory()

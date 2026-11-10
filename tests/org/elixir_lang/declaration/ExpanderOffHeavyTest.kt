@@ -31,8 +31,7 @@ class ExpanderOffHeavyTest : ConfigHeavyTestCase() {
     private var savedProperty: String? = null
 
     override fun setUp() {
-        savedProperty = System.getProperty(SOURCE_PROPERTY)
-        System.clearProperty(SOURCE_PROPERTY)
+        savedProperty = SystemProperties.setProperty(SOURCE_PROPERTY, null)
         super.setUp()
     }
 

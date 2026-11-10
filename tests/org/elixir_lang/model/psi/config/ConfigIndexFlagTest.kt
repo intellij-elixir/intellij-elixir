@@ -15,8 +15,7 @@ class ConfigIndexFlagTest : PlatformTestCase() {
 
     override fun setUp() {
         super.setUp()
-        savedProperty = System.getProperty(SOURCE_PROPERTY)
-        System.clearProperty(SOURCE_PROPERTY)
+        savedProperty = SystemProperties.setProperty(SOURCE_PROPERTY, null)
         LegSdk.setUp(module, testRootDisposable)
     }
 

@@ -52,8 +52,7 @@ class ExpanderPathToggleHeavyTest : ConfigHeavyTestCase() {
         expanderBefore = original.enableExpander
         htmlInjectionBefore = original.enableHtmlInjection
         mixDepsCheckBefore = original.enableMixDepsCheck
-        savedProperty = System.getProperty(SOURCE_PROPERTY)
-        System.clearProperty(SOURCE_PROPERTY)
+        savedProperty = SystemProperties.setProperty(SOURCE_PROPERTY, null)
         super.setUp()
         original.enableExpander = false
     }
