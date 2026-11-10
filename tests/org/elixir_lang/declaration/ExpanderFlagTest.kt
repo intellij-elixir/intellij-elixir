@@ -30,14 +30,18 @@ class ExpanderFlagTest : LightTestCase() {
         assertFalse(ElixirExperimentalSettings.State().enableExpander)
     }
 
-    fun testTheSettingOnMovesNoFeature() {
+    fun testTheSettingOnMovesHighlightingOnly() {
         ElixirExperimentalSettings.instance.state.enableExpander = false
         assertFalse(expanderFlagOn())
+        assertEquals(Feature.entries.associateWith { LegacyWalkSource }, Feature.entries.associateWith(::sourceFor))
 
         enableExpander(testRootDisposable)
 
         assertTrue(expanderFlagOn())
-        assertEquals(Feature.entries.associateWith { LegacyWalkSource }, Feature.entries.associateWith(::sourceFor))
+        assertEquals(
+            Feature.entries.associateWith { if (it == Feature.HIGHLIGHTING) ExpanderSource else LegacyWalkSource },
+            Feature.entries.associateWith(::sourceFor),
+        )
     }
 
     fun testThePropertyIsTheWholeTableWithTheSettingOff() {

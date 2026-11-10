@@ -5975,7 +5975,7 @@ If you're okay with disabling the background for all injections:
 
 The expander is the plugin's own implementation of how Elixir expands code: imports, aliases, `use` and macros, answered the way the compiler does. It is off by default, and the **Run the expander** box under [Settings | Languages & Frameworks | Elixir | Experimental Settings](jetbrains://Idea/settings?name=Languages+%26+Frameworks--Elixir--Experimental+Settings) turns it on, for every open project, without a restart.
 
-Today the expander answers the keys of `config` files: usages, navigation, completion and the unread config key inspection.
+Today the expander answers the keys of `config` files: usages, navigation, completion and the unread config key inspection. It also colours a call by what it finds the call reaches, so a call to a function or macro that a macro defines gets its function or macro colour.
 
 With the box off, a config key written as a module (`config :my_app, MyApp.Repo, ...`), a read through an alias or a nested import, and a setting in a file `import_config` reaches from a subfolder (`config/prod/database.exs`), are not answered. The unread config key inspection can warn on a key that is read that way; turning the box on removes the warning.
 

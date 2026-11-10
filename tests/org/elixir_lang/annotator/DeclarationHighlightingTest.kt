@@ -11,6 +11,7 @@ import org.elixir_lang.ElixirSyntaxHighlighter.Companion.MACRO_DECLARATION
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.declaration.DistinctKeyScheme
 import org.elixir_lang.declaration.disableExpander
+import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.LegSdk
 
 /**
@@ -34,6 +35,13 @@ class DeclarationHighlightingTest : PlatformTestCase() {
         disableExpander(testRootDisposable)
         myFixture.copyFileToProject("eex.ex")
         myFixture.copyFileToProject("mix_generator.ex")
+
+        assertEveryFormHighlightsByItsKind()
+    }
+
+    /** The expander runs the SDK's `EEx` and `Mix.Generator`, which a stand-in in the project would replace. */
+    fun testEveryFormHighlightsByItsKindWithTheExpanderOn() {
+        enableExpander(testRootDisposable)
 
         assertEveryFormHighlightsByItsKind()
     }

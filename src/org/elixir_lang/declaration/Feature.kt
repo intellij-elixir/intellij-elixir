@@ -42,10 +42,10 @@ fun sourceFor(feature: Feature): CandidateSource =
         ExpanderSource
     } else {
         when (feature) {
+            Feature.HIGHLIGHTING -> if (expanderFlagOn()) ExpanderSource else LegacyWalkSource
             Feature.SYMBOL_REFERENCES,
             Feature.DOCUMENTATION,
             Feature.PARAMETER_INFO,
-            Feature.HIGHLIGHTING,
             Feature.REFERENCES_INSPECTION,
             Feature.COMPLETION,
             Feature.FIND_USAGES_AND_RENAME,
