@@ -166,8 +166,8 @@ internal object ExpanderSource : CandidateSource {
     /**
      * [module], which [qualifier] names, and its definitions of [name], as a remote call reaches them. Where none of
      * them takes [arity] arguments, also the index's: in [module] when what it defines isn't known to its end, or past
-     * where the env is known when no module is [module]; and past where the env is known, in each module whose name
-     * ends in [qualifier] as written, as an `alias` written after that point is missing from the env.
+     * where the env is known when no module is [module]; and past where the env is known, in each module [qualifier]
+     * may name as written ([aliasNames]), as an `alias` written after that point is missing from the env.
      */
     private fun qualified(at: At, qualifier: PsiElement, module: String, name: String?, arity: Int): List<Reached> {
         val found = inModule(at, module, name, arity, imports = false, emptySet())
@@ -176,27 +176,35 @@ internal object ExpanderSource : CandidateSource {
         val unknown = Uncertain.MODULE in at.gaps ||
             (at.uncertain != null && at.holder.locate(at.file, module, at.inputs) == ProjectModules.Located.None)
         val key = Module.indexName(module).takeIf { unknown }
-        val tail = if (at.uncertain == null) null else aliasTail(qualifier)
-        if (key == null && tail == null) return found
+        val aliased = if (at.uncertain == null) null else aliasNames(qualifier)
+        if (key == null && aliased == null) return found
 
-        val indexed = indexed(at.file, name, arity, isOwn(at)) { it == key || (tail != null && it.endsWith(tail)) }
+        val indexed = indexed(at.file, name, arity, isOwn(at)) { it == key || aliased?.invoke(it) == true }
 
         return found + beside(found, indexed, name, arity, remote = true)
     }
 
     /**
-     * Whether a module is the one [qualifier] names as written: an atom's, or one whose name ends in an alias's, as an
-     * `alias` may name it; `null` for any other qualifier.
+     * Whether a module is the one [qualifier] names as written: an atom's, or an alias's ([aliasNames]); `null` for any
+     * other qualifier.
      */
     private fun writtenModule(qualifier: PsiElement): ((String) -> Boolean)? =
         when (val written = qualifier.stripAccessExpressionAndParentheses()) {
             is ElixirAtom -> written.indexName()?.let { atom -> { module -> module == atom } }
-            else -> aliasTail(qualifier)?.let { tail -> { module -> ".$module".endsWith(tail) } }
+            else -> aliasNames(qualifier)
         }
 
-    /** `.` and the alias [qualifier] is as written, which ends the name of each module it may name; `null` for none. */
-    private fun aliasTail(qualifier: PsiElement): String? =
-        (qualifier.stripAccessExpressionAndParentheses() as? QualifiableAlias)?.fullyQualifiedName()?.let { ".$it" }
+    /**
+     * Whether a module may be the one the alias [qualifier] names, as an `alias` may name it: the alias itself, or
+     * one whose name ends in `.` and the alias; only the module it spells after `Elixir.`, which no `alias` expands;
+     * `null` where [qualifier] isn't an alias.
+     */
+    private fun aliasNames(qualifier: PsiElement): ((String) -> Boolean)? =
+        (qualifier.stripAccessExpressionAndParentheses() as? QualifiableAlias)?.fullyQualifiedName()?.let { alias ->
+            val rooted = Module.inspectedAlias(alias)
+            val suffix = ".$alias"
+            if (rooted != null) { module -> module == rooted } else { module -> module == alias || module.endsWith(suffix) }
+        }
 
     /** Whether a module is the one [at] is in, by its index name. */
     private fun isOwn(at: At): (String) -> Boolean {

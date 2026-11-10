@@ -1978,12 +1978,13 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
 
     /**
      * With no SDK no env is reached, so a call's finds are what the name index defines its name as, each INDEX: after an
-     * alias or an atom, in the module it names as written, and after any other qualifier none; at a local call, in any
-     * module, a private one only in its own.
+     * alias or an atom, in the module it names as written, only the one it spells after `Elixir.`, which no `alias`
+     * expands, and after any other qualifier none; at a local call, in any module, a private one only in its own.
      */
     fun testWithNoSdkTheFindsAreTheIndexs() {
         file("defmodule Callee do\n  def g(a), do: a\n  defp hidden(a), do: a\n  defdelegate d(a), to: Other, as: :g\nend\n")
         file("defmodule Other do\n  def g(a), do: a\nend\n")
+        file("defmodule A.Other do\n  def g(a), do: a\nend\n")
         file("defmodule :callee do\n  def g(a), do: a\nend\n")
         val caller = file(
             """
@@ -1991,6 +1992,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
               def f, do: Callee.g(1)
               def e, do: Callee.d(1)
               def a, do: :callee.g(1)
+              def r, do: Elixir.Other.g(1)
               def m, do: __MODULE__.g(1)
               def v(x), do: x.g(1)
               def h, do: local(1)
@@ -2001,7 +2003,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
         ModuleRootModificationUtil.setModuleSdk(module, null)
 
-        val calls = listOf("Callee.g(1)", "Callee.d(1)", ":callee.g(1)", "__MODULE__.g(1)", "x.g(1)", "local(1)", "hidden(1)")
+        val calls = listOf("Callee.g(1)", "Callee.d(1)", ":callee.g(1)", "Elixir.Other.g(1)", "__MODULE__.g(1)", "x.g(1)", "local(1)", "hidden(1)")
         val answers = calls.associateWith { call ->
             val use = use(caller, call, call)
             val answer = read { ExpanderSource.answer(use, false) }
@@ -2014,6 +2016,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
                 "Callee.g(1)" to (listOf("Callee.g/1 INDEX") to Uncertain.NO_EXPANSION),
                 "Callee.d(1)" to (listOf("Callee.d/1 INDEX") to Uncertain.NO_EXPANSION),
                 ":callee.g(1)" to (listOf(":callee.g/1 INDEX") to Uncertain.NO_EXPANSION),
+                "Elixir.Other.g(1)" to (listOf("Other.g/1 INDEX") to Uncertain.NO_EXPANSION),
                 "__MODULE__.g(1)" to (emptyList<String>() to Uncertain.NO_EXPANSION),
                 "x.g(1)" to (emptyList<String>() to Uncertain.NO_EXPANSION),
                 "local(1)" to (listOf("Caller.local/1 INDEX") to Uncertain.NO_EXPANSION),
@@ -2448,6 +2451,32 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
                 candidates(file, "B.b_p(1)", "B.b_p(1)"),
             ),
         )
+    }
+
+    /**
+     * An `alias` written after a stop may also undo one before it, as `alias Foo` drops `alias A.Foo`, so past the stop
+     * the qualifier may name the module whose whole name it is.
+     */
+    fun testPastAStopAQualifierGetsTheIndexsDefinitionsInTheModuleItNamesAsWritten() {
+        val file = file(
+            """
+            defmodule Foo do
+              def f(a), do: a
+            end
+
+            defmodule A.Foo do
+            end
+
+            defmodule User do
+              alias A.Foo
+              1.f()
+              alias Foo
+              def go, do: Foo.f(1)
+            end
+            """
+        )
+
+        assertEquals("Foo.f/1 INDEXED VALID via [] line 2 INDEX", candidates(file, "Foo.f(1)", "Foo.f(1)"))
     }
 
     /**
