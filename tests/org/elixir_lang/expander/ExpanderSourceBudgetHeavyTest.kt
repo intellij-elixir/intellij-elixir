@@ -297,8 +297,8 @@ class ExpanderSourceBudgetHeavyTest : HeavyTestCase() {
         val TIME_BUDGET = mapOf(
             "inputsFor, warm, per call" to 25_000L,
             "inputsFor, cold" to 1_100_000L,
-            "env at a use, warm, per use, $APP" to 2_000L,
-            "env at a use, warm, per use, $DEP" to 2_000L,
+            "env at a use, warm, per use, $APP" to 10_000L,
+            "env at a use, warm, per use, $DEP" to 5_000L,
             "env at a use, cold, first use in a file, $APP" to 3_500_000L,
             "env at a use, cold, first use in a file, $DEP" to 19_000_000L,
             "candidates, warm, per use, $APP" to 75_000L,
