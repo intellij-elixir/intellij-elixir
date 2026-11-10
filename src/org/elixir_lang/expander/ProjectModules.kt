@@ -66,6 +66,9 @@ internal class ProjectModules(private val project: Project) {
 
     private val files = ByFile<Loaded>()
     private val beams = ByFile<Read>()
+
+    /** Module names' and paths' counts. */
+    private val names: ModuleNamesTracker by lazy { ModuleNamesTracker.getInstance(project) }
     @Volatile
     private var clauseCache = ClauseCache<VirtualFile, Clauses>(CLAUSE_BOUND, Clauses::weight)
 
@@ -284,33 +287,26 @@ internal class ProjectModules(private val project: Project) {
     }
 
     /**
-     * [choose]'s choice, with the stamps that move when it may: none where it is unknown, and a source copy's own
-     * stamps are its expansion's.
+     * [choose]'s choice, with the stamps that move when it may: none where it is unknown, else its entry's and each of
+     * several copies' own. A source copy's content stamps are its expansion's.
      */
     private fun chosen(asker: PsiFile, atom: String): Pair<Choice, Stamps> {
-        val choice = choose(asker, atom)
         val stamps = Stamps()
-        if (choice == Choice.Unknown) return choice to stamps
-        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
-        stamps.track(ModuleNamesTracker.getInstance(project))
-        stamps.track(ProjectRootManager.getInstance(project))
-
-        when (choice) {
-            is Choice.Several -> choice.copies.forEach { stamps.copy(it) }
-            is Choice.One -> {
-                (choice.copy as? Copy.Compiled)?.let { stamps.copy(it) }
-                choice.fallback.forEach { stamps.copy(it) }
-            }
-            Choice.None, Choice.Unknown -> Unit
-        }
+        val choice = choose(asker, atom, stamps)
+        if (choice is Choice.Several) choice.copies.forEach { stamps.copy(it) }
 
         return choice to stamps
     }
 
-    /** Which of [atom]'s copies Elixir loads for [asker]: unknown in dumb mode, else none, several or the one. */
-    private fun choose(asker: PsiFile, atom: String): Choice {
+    /**
+     * Which of [atom]'s copies Elixir loads for [asker]: unknown in dumb mode, else none, several or the one. [into]
+     * takes the stamps of its entry ([heldCopies]).
+     */
+    private fun choose(asker: PsiFile, atom: String, into: Stamps? = null): Choice {
         if (DumbService.isDumb(project)) return Choice.Unknown
-        val (chosen, fallback) = copies(asker, atom)
+        val held = heldCopies(asker, atom)
+        into?.addAll(held.stamps)
+        val (chosen, fallback) = copies(held)
 
         return when (val copy = chosen.singleOrNull()) {
             null -> if (chosen.isEmpty()) Choice.None else Choice.Several(chosen)
@@ -338,12 +334,11 @@ internal class ProjectModules(private val project: Project) {
     }
 
     /**
-     * The copies of [atom] Elixir may load for [asker], held on [asker] by file while the trackers [lookup] stamps are
-     * unchanged: the preferred ones, then the `.beam`s of the libraries and the SDK outside the project's content not
-     * among them. A reparse replaces a file's PSI and moves none of them, so each source copy's PSI is found again.
+     * The copies of [held]'s name Elixir may load for its asker: the preferred ones, then the `.beam`s of the libraries
+     * and the SDK outside the project's content not among them. A reparse replaces a file's PSI, so each source copy's
+     * PSI is found again.
      */
-    private fun copies(asker: PsiFile, atom: String): Pair<List<Copy>, List<Copy.Compiled>> {
-        val held = heldCopies(asker, atom)
+    private fun copies(held: HeldCopies): Pair<List<Copy>, List<Copy.Compiled>> {
         val chosen = held.chosen.mapNotNull { copy ->
             if (copy.compiled) {
                 compiledCopy(copy)
@@ -357,37 +352,52 @@ internal class ProjectModules(private val project: Project) {
 
     private fun compiledCopy(copy: HeldCopy): Copy.Compiled = Copy.Compiled(copy.virtualFile, copy.source)
 
-    /** What moves the copies a file holds: a file added, moved or deleted, a module name defined or dropped, a root. */
+    /** A file added, moved or deleted, a module name defined or dropped, a root. */
     fun copyTrackers(): Array<Any> =
         arrayOf(
             VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS,
-            ModuleNamesTracker.getInstance(project),
+            names,
             ProjectRootManager.getInstance(project),
         )
 
+    /**
+     * Held per asker while the roots and the asker's path hold, as they say which copies load for it, and each entry while
+     * its name, the roots and, on disk, every copy it is ruled from hold.
+     */
     private fun heldCopies(asker: PsiFile, atom: String): HeldCopies {
         val byAtom = CachedValuesManager.getManager(project).getCachedValue(
             asker,
             chosen,
             {
-                CachedValueProvider.Result.create(ConcurrentHashMap<String, HeldCopies>(), *copyTrackers())
+                CachedValueProvider.Result.create(
+                    ConcurrentHashMap<String, HeldCopies>(),
+                    ProjectRootManager.getInstance(project),
+                    names.askerPath(fileOf(asker)),
+                )
             },
             false,
         )
+        byAtom[atom]?.takeIf { it.stamps.isCurrent() }?.let { return it }
 
-        return byAtom.getOrPut(atom) {
-            val loadable = Module.resolveLoadable(asker, org.elixir_lang.Module.indexName(atom))
-            val chosen = Resolver.preferred(asker, false, loadable.loaded).mapNotNull { copy(it.element) }.distinctBy { it.virtualFile }
-            val chosenFiles = chosen.mapTo(HashSet()) { it.virtualFile }
-            val fallback = loadable.loaded.mapNotNull { copy(it.element) }
-                .filter { it.compiled && it.virtualFile !in chosenFiles && isDependencyOutput(it.virtualFile) }
-                .distinctBy { it.virtualFile }
-            val paired = { copy: HeldCopy ->
-                if (copy.compiled) HeldCopy(copy.virtualFile, true, loadable.sourceOf(copy.virtualFile)) else copy
-            }
-
-            HeldCopies(chosen.map(paired), fallback.map(paired))
+        val stamps = Stamps()
+        stamps.track(names.name(atom))
+        stamps.track(ProjectRootManager.getInstance(project))
+        val loadable = Module.resolveLoadable(asker, org.elixir_lang.Module.indexName(atom))
+        val chosen = Resolver.preferred(asker, false, loadable.loaded).mapNotNull { copy(it.element) }.distinctBy { it.virtualFile }
+        val chosenFiles = chosen.mapTo(HashSet()) { it.virtualFile }
+        val fallback = loadable.loaded.mapNotNull { copy(it.element) }
+            .filter { it.compiled && it.virtualFile !in chosenFiles && isDependencyOutput(it.virtualFile) }
+            .distinctBy { it.virtualFile }
+        // Each copy the choice is ruled from, kept or not, and so each source a `.beam` may pair with: a deletion, or a
+        // rename or a rewrite with no tree loaded, moves no name.
+        loadable.files.forEach(stamps::onDisk)
+        val paired = { copy: HeldCopy ->
+            if (copy.compiled) HeldCopy(copy.virtualFile, true, loadable.sourceOf(copy.virtualFile)) else copy
         }
+        val copies = HeldCopies(chosen.map(paired), fallback.map(paired), stamps)
+        byAtom[atom] = copies
+
+        return copies
     }
 
     private fun compiled(beam: VirtualFile): Answer {
@@ -948,9 +958,9 @@ internal class ProjectModules(private val project: Project) {
 
     /**
      * A name's copies as held: the [chosen], as [Resolver.preferred] orders them, and the [fallback], the `.beam`s of the
-     * libraries and the SDK outside the project's content not among them.
+     * libraries and the SDK outside the project's content not among them, with the [stamps] they hold while.
      */
-    private class HeldCopies(val chosen: List<HeldCopy>, val fallback: List<HeldCopy>)
+    private class HeldCopies(val chosen: List<HeldCopy>, val fallback: List<HeldCopy>, val stamps: Stamps)
 
     /** Where Elixir loads a module from. */
     internal sealed interface Copy {
@@ -1131,8 +1141,18 @@ internal class ProjectModules(private val project: Project) {
 
         fun copy(copy: Copy) {
             when (copy) {
-                is Copy.Compiled -> file(copy.virtualFile)
+                is Copy.Compiled -> onDisk(copy.virtualFile)
                 is Copy.Source -> source(copy.virtualFile)
+            }
+        }
+
+        /**
+         * A copy's file on disk, not its PSI, so that a keystroke keeps it: it moves when the file goes, moves or changes.
+         * Keyed apart from [source] and [file], so that [reads] doesn't see it.
+         */
+        fun onDisk(virtualFile: VirtualFile) {
+            read.getOrPut(OnDisk(virtualFile)) {
+                Stamp { if (virtualFile.isValid) 31L * virtualFile.path.hashCode() + virtualFile.modificationStamp else -1L }
             }
         }
 
@@ -1149,6 +1169,8 @@ internal class ProjectModules(private val project: Project) {
 
         fun reads(virtualFile: VirtualFile): Boolean = virtualFile in read
     }
+
+    private data class OnDisk(val virtualFile: VirtualFile)
 
     private class Stamp(private val count: () -> Long) {
         private val at = count()

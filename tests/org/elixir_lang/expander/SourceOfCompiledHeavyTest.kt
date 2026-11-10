@@ -327,6 +327,27 @@ class SourceOfCompiledHeavyTest : LegSdkFixtureTestCase() {
         )
     }
 
+    /** A `.beam` whose library attaches two files defining it keeps the `.beam`; one of them deleted, it answers from the other. */
+    fun testOneOfTwoSourcesDeletedAnswersFromTheOther() {
+        dependency()
+        File(FIXTURES, "phoenix_component.ex").copyTo(File(myFixture.tempDirPath, "deps/d/lib/copy.ex"))
+        VfsUtil.markDirtyAndRefresh(false, true, true, root())
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
+        val file = caller("defmodule Caller do\n  def single(s), do: Phoenix.Component.connected?(s)\nend\n")
+        val call = "Phoenix.Component.connected?(s)"
+        val before = candidates(file, call)
+
+        WriteAction.runAndWait<Throwable> { dir("deps/d/lib/copy.ex").delete(this) }
+
+        assertEquals(
+            rows(
+                "before" to "Phoenix.Component.connected?/1 OWN VALID via []",
+                "after" to "Phoenix.Component.connected?/1 OWN VALID via [] line 9",
+            ),
+            rows("before" to before, "after" to candidates(file, call)),
+        )
+    }
+
     /**
      * A library with CLASSES only keeps the `.beam`, though a sibling library attaches the same module's source, and so
      * does its protocol, whose consolidated copy's library has CLASSES only too.

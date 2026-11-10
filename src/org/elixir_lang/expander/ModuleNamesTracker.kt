@@ -124,6 +124,19 @@ internal class ModuleNamesTracker @JvmOverloads constructor(
     /** What moves when a module named [atom] may have come or gone. */
     fun name(atom: String): ModificationTracker = byName.computeIfAbsent(Module.indexName(atom)) { NameCount() }
 
+    /**
+     * What moves when [file], an asker, moves: its path's hash, unsigned, as a `CachedValue` takes a negative count to be
+     * out of date. Out of date when the file is gone; never moves for a light asker, which has no file.
+     */
+    fun askerPath(file: VirtualFile?): ModificationTracker =
+        ModificationTracker {
+            when {
+                file == null -> 0L
+                file.isValid -> file.path.hashCode().toUInt().toLong()
+                else -> -1L
+            }
+        }
+
     override fun getModificationCount(): Long {
         drain()
 

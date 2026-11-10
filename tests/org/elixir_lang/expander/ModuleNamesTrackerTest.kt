@@ -8,10 +8,13 @@ import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.ModificationTracker
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import com.intellij.psi.impl.PsiManagerEx
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
 import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.util.concurrency.AppExecutorUtil
 import org.elixir_lang.PlatformTestCase
@@ -24,7 +27,6 @@ import java.util.concurrent.TimeUnit.SECONDS
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicInteger
 
-/** [ModuleNamesTracker] moves when a file's module names change, and only then. */
 class ModuleNamesTrackerTest : PlatformTestCase() {
     fun testTypingInABodyDoesNotMove() {
         val file = myFixture.addFileToProject("a.ex", "defmodule A do\n  def f, do: 1\nend\n")
@@ -247,6 +249,22 @@ class ModuleNamesTrackerTest : PlatformTestCase() {
         )
     }
 
+    fun testAnAskerPathHashingNegativeHoldsWhatIsHeldOnIt() {
+        val directory = myFixture.tempDirFixture.findOrCreateDir("p").path
+        // The fixture's directory changes the hash, so the name is found here.
+        val name = generateSequence(0) { it + 1 }.map { "f$it.ex" }.first { "$directory/$it".hashCode() < 0 }
+        val file = myFixture.addFileToProject("p/$name", "").virtualFile
+        assertTrue("${file.path} hashes negative", file.path.hashCode() < 0)
+        val askerPath = ModuleNamesTracker.getInstance(project).askerPath(file)
+
+        assertTrue("askerPath's count is non-negative", askerPath.modificationCount >= 0)
+        assertHolds(askerPath)
+    }
+
+    fun testALightAskerHoldsWhatIsHeldOnIt() {
+        assertHolds(ModuleNamesTracker.getInstance(project).askerPath(null))
+    }
+
     fun testAFileWrittenOutsideTheProjectIsNotNamed() {
         val named = ConcurrentLinkedQueue<VirtualFile>()
         val tracker = tracker(naming = { named += it; namesOf(it) })
@@ -330,6 +348,13 @@ class ModuleNamesTrackerTest : PlatformTestCase() {
         } finally {
             WriteAction.runAndWait<Throwable> { directory.delete(this) }
         }
+    }
+
+    /** A value held on [tracker] is the same at two reads. */
+    private fun assertHolds(tracker: ModificationTracker) {
+        val held = CachedValuesManager.getManager(project).createCachedValue { CachedValueProvider.Result.create(Any(), tracker) }
+
+        assertSame(held.value, held.value)
     }
 
     /** `a.ex` defines `A`. */
