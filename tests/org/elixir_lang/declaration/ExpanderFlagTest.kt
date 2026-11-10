@@ -6,32 +6,34 @@ import org.elixir_lang.expander.ExpanderSource
 import org.elixir_lang.junit.LightTestCase
 import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 import org.elixir_lang.settings.ElixirExperimentalSettings
+import org.elixir_lang.settings.RUN_EXPANDER_PROPERTY
 
 class ExpanderFlagTest : LightTestCase() {
     private var savedProperty: String? = null
-    private var savedSetting = false
 
     override fun setUp() {
         super.setUp()
         savedProperty = SystemProperties.setProperty(SOURCE_PROPERTY, null)
-        savedSetting = ElixirExperimentalSettings.instance.state.enableExpander
+        disableExpander(testRootDisposable)
     }
 
     override fun tearDown() {
         try {
             SystemProperties.setProperty(SOURCE_PROPERTY, savedProperty)
-            ElixirExperimentalSettings.instance.state.enableExpander = savedSetting
         } finally {
             super.tearDown()
         }
     }
 
     fun testTheSettingIsOffByDefault() {
-        assertFalse(ElixirExperimentalSettings.State().enableExpander)
+        assertFalse(defaultWithRunExpander(null))
+    }
+
+    fun testTheHarnessPropertyTurnsTheDefaultOn() {
+        assertTrue(defaultWithRunExpander("true"))
     }
 
     fun testTheSettingOnMovesHighlightingOnly() {
-        ElixirExperimentalSettings.instance.state.enableExpander = false
         assertFalse(expanderFlagOn())
         assertEquals(Feature.entries.associateWith { LegacyWalkSource }, Feature.entries.associateWith(::sourceFor))
 
@@ -45,7 +47,6 @@ class ExpanderFlagTest : LightTestCase() {
     }
 
     fun testThePropertyIsTheWholeTableWithTheSettingOff() {
-        ElixirExperimentalSettings.instance.state.enableExpander = false
         System.setProperty(SOURCE_PROPERTY, EXPANDER)
 
         assertFalse(expanderFlagOn())
@@ -81,6 +82,15 @@ class ExpanderFlagTest : LightTestCase() {
 
             Disposer.dispose(disposable)
             assertEquals(original, state.enableExpander)
+        }
+    }
+
+    private fun defaultWithRunExpander(value: String?): Boolean {
+        val saved = SystemProperties.setProperty(RUN_EXPANDER_PROPERTY, value)
+        return try {
+            ElixirExperimentalSettings.State().enableExpander
+        } finally {
+            SystemProperties.setProperty(RUN_EXPANDER_PROPERTY, saved)
         }
     }
 }

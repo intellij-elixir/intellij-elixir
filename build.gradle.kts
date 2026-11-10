@@ -1246,6 +1246,9 @@ tasks.named<Test>("test") {
         outputs.upToDateWhen { false }
         outputs.cacheIf { false }
     }
+    if (providers.gradleProperty("runExpander").map(String::toBoolean).getOrElse(false)) {
+        systemProperty("org.elixir_lang.expander.run", "true")
+    }
     inputs.property("declarationSource", providers.gradleProperty("declarationSource").orElse(""))
     providers.gradleProperty("declarationSource").orNull?.takeIf { it.isNotBlank() }?.let {
         systemProperty("org.elixir_lang.declaration.source", it)
