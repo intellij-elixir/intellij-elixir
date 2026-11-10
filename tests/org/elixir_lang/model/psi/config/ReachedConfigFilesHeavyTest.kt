@@ -7,6 +7,7 @@ import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileVisitor
 import com.intellij.testFramework.IndexingTestUtil
+import com.intellij.util.SystemProperties
 import org.elixir_lang.declaration.SOURCE_PROPERTY
 import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.ConfigHeavyTestCase
@@ -34,7 +35,7 @@ class ReachedConfigFilesHeavyTest : ConfigHeavyTestCase() {
         try {
             super.tearDown()
         } finally {
-            savedProperty?.let { System.setProperty(SOURCE_PROPERTY, it) } ?: System.clearProperty(SOURCE_PROPERTY)
+            SystemProperties.setProperty(SOURCE_PROPERTY, savedProperty)
         }
     }
 

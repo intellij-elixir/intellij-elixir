@@ -2,6 +2,7 @@ package org.elixir_lang.model.psi.config
 
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.util.SystemProperties
 import com.intellij.util.indexing.FileContentImpl
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.declaration.SOURCE_PROPERTY
@@ -22,7 +23,7 @@ class ConfigIndexFlagTest : PlatformTestCase() {
     override fun tearDown() {
         try {
             LegSdk.tearDown(module)
-            savedProperty?.let { System.setProperty(SOURCE_PROPERTY, it) } ?: System.clearProperty(SOURCE_PROPERTY)
+            SystemProperties.setProperty(SOURCE_PROPERTY, savedProperty)
         } finally {
             super.tearDown()
         }

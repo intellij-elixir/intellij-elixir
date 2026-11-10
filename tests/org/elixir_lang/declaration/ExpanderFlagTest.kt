@@ -1,6 +1,7 @@
 package org.elixir_lang.declaration
 
 import com.intellij.openapi.util.Disposer
+import com.intellij.util.SystemProperties
 import org.elixir_lang.expander.ExpanderSource
 import org.elixir_lang.junit.LightTestCase
 import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
@@ -19,7 +20,7 @@ class ExpanderFlagTest : LightTestCase() {
 
     override fun tearDown() {
         try {
-            savedProperty?.let { System.setProperty(SOURCE_PROPERTY, it) } ?: System.clearProperty(SOURCE_PROPERTY)
+            SystemProperties.setProperty(SOURCE_PROPERTY, savedProperty)
             ElixirExperimentalSettings.instance.state.enableExpander = savedSetting
         } finally {
             super.tearDown()

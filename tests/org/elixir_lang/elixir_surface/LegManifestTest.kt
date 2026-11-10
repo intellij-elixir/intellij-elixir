@@ -3,6 +3,7 @@ package org.elixir_lang.elixir_surface
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.platform.testFramework.core.FileComparisonFailedError
 import com.intellij.testFramework.UsefulTestCase
+import com.intellij.util.SystemProperties
 import org.elixir_lang.golden.CommittedGolden
 import org.elixir_lang.junit.UnitTestCase
 import java.io.File
@@ -22,9 +23,7 @@ class LegManifestTest : UnitTestCase() {
 
     override fun tearDown() {
         try {
-            savedSummary
-                ?.let { System.setProperty(CommittedGolden.STEP_SUMMARY_PROPERTY, it) }
-                ?: System.clearProperty(CommittedGolden.STEP_SUMMARY_PROPERTY)
+            SystemProperties.setProperty(CommittedGolden.STEP_SUMMARY_PROPERTY, savedSummary)
             root.deleteRecursively()
         } finally {
             super.tearDown()

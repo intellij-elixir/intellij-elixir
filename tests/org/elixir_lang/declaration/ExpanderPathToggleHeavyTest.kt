@@ -23,6 +23,7 @@ import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.impl.CodeInsightTestFixtureImpl
+import com.intellij.util.SystemProperties
 import kotlinx.coroutines.runBlocking
 import org.elixir_lang.expander.ConfigHeavyTestCase
 import org.elixir_lang.expander.edit
@@ -65,7 +66,7 @@ class ExpanderPathToggleHeavyTest : ConfigHeavyTestCase() {
             if (ElixirExperimentalSettings.instance.state !== original) ElixirExperimentalSettings.instance.loadState(original)
             super.tearDown()
         } finally {
-            savedProperty?.let { System.setProperty(SOURCE_PROPERTY, it) } ?: System.clearProperty(SOURCE_PROPERTY)
+            SystemProperties.setProperty(SOURCE_PROPERTY, savedProperty)
         }
 
         assertEquals(

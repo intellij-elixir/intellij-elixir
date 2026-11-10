@@ -5,6 +5,7 @@ import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.PsiFile
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.util.SystemProperties
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.GtduNavigation
 import org.elixir_lang.code_insight.gtduNavigationAtCaret
@@ -38,7 +39,7 @@ class ConfigFlagOffTest : PlatformTestCase() {
     override fun tearDown() {
         try {
             LegSdk.tearDown(module)
-            savedProperty?.let { System.setProperty(SOURCE_PROPERTY, it) } ?: System.clearProperty(SOURCE_PROPERTY)
+            SystemProperties.setProperty(SOURCE_PROPERTY, savedProperty)
         } finally {
             super.tearDown()
         }
