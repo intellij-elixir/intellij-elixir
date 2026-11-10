@@ -746,13 +746,8 @@ internal fun properElements(term: OtpErlangObject): List<OtpErlangObject>? =
     cells(term)?.takeIf { it.second == null }?.first
 
 /** `Keyword.keyword?/1`, declining on an unknown value before its type is tested. */
-internal fun isKeyword(term: OtpErlangObject): Boolean {
-    val (elements, tail) = cells(term) ?: return false
-
-    return tail == null && elements.all { element ->
-        (seen(element) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elementAt(0)?.let(::seen) is OtpErlangAtom
-    }
-}
+internal fun isKeyword(term: OtpErlangObject): Boolean =
+    properElements(term)?.all { element -> pairKey(seen(element))?.let(::seen) is OtpErlangAtom } == true
 
 /** The key of [term] where it is a pair, as a keyword list or a map's entries hold one, else `null`. */
 internal fun pairKey(term: OtpErlangObject): OtpErlangObject? =

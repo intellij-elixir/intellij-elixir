@@ -1744,7 +1744,7 @@ internal class Natives(private val evaluation: Evaluation) {
                         if (!isKeyword(right)) argumentError()
 
                         val kept = filter(left) { pair ->
-                            val name = (seen(pair) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elementAt(0)?.let(::seen) as? OtpErlangAtom
+                            val name = pairKey(seen(pair))?.let(::seen) as? OtpErlangAtom
                                 ?: argumentError()
 
                             lists("keymember/3", listOf(name, integer(1), right)) == FALSE
@@ -1762,7 +1762,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 if (!isList(keywords) || !isList(keys)) noClause(key.substringBefore('/'))
 
                 filter(keywords) { pair ->
-                    val name = (seen(pair) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elementAt(0)
+                    val name = pairKey(seen(pair))
                         ?: functionClause("Elixir.Keyword", "-${key.substringBefore('/')}/2-fun-0-", listOf(pair))
 
                     (lists("member/2", listOf(name, keys)) == TRUE) == take
@@ -2442,10 +2442,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 when (val elements = if (isUnknown(config)) null else properElements(config)) {
                     null -> evaluation.run.wroteEnv(null)
                     else -> elements.forEach { element ->
-                        when {
-                            isUnknown(element) -> evaluation.run.wroteEnv(null)
-                            element is OtpErlangTuple && element.arity() == 2 -> wroteEnv(element.elementAt(0))
-                        }
+                        (if (isUnknown(element)) element else pairKey(element))?.let(::wroteEnv)
                     }
                 }
 
