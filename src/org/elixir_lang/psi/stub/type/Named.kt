@@ -27,6 +27,10 @@ abstract class Named<S : NamedStubBase<T>, T : PsiNameIdentifierOwner>(@NonNls d
             // A module named only at run time has no name a use could write.
             if (definition?.type == Definition.Type.MODULAR) nameSet.filter { Module.atom(it) != null } else nameSet
 
+        /** The names a call defining [definition] with [nameSet] is indexed under as a module: none if it defines none. */
+        inline fun modularNames(definition: Definition?, nameSet: () -> Set<String>): Collection<String> =
+            if (definition?.type == Definition.Type.MODULAR) indexedNames(definition, nameSet()) else emptyList()
+
         @JvmStatic
         fun <T : Stubbic> indexStubbic(stubbic: T, sink: IndexSink) {
             val nameSet = stubbic.canonicalNameSet()
@@ -37,26 +41,24 @@ abstract class Named<S : NamedStubBase<T>, T : PsiNameIdentifierOwner>(@NonNls d
                 sink.occurrence<NamedElement, String>(AllName.KEY, name)
             }
 
-            if (definition != null) {
-                if (definition.type == Definition.Type.MODULAR) {
-                    nameKeys.forEach { name ->
-                        sink.occurrence<NamedElement, String>(ModularName.KEY, name)
-                    }
+            modularNames(definition) { nameSet }.forEach { name ->
+                sink.occurrence<NamedElement, String>(ModularName.KEY, name)
+            }
 
-                    if (definition == Definition.IMPLEMENTATION) {
-                        stubbic.implementedProtocolName?.let { implementedProtocolName ->
-                            sink.occurrence<NamedElement, String>(ImplementedProtocolName.KEY, implementedProtocolName)
-                        }
+            when (definition) {
+                Definition.IMPLEMENTATION ->
+                    stubbic.implementedProtocolName?.let { implementedProtocolName ->
+                        sink.occurrence<NamedElement, String>(ImplementedProtocolName.KEY, implementedProtocolName)
                     }
-                } else if (definition == Definition.MODULE_ATTRIBUTE) {
+                Definition.MODULE_ATTRIBUTE ->
                     nameSet.forEach { name ->
-                        sink.occurrence<NamedElement, String>(QuoteModuleAttributeName.KEY,  name)
+                        sink.occurrence<NamedElement, String>(QuoteModuleAttributeName.KEY, name)
                     }
-                } else if (definition == Definition.VARIABLE) {
+                Definition.VARIABLE ->
                     nameSet.forEach { name ->
                         sink.occurrence<NamedElement, String>(QuoteVariableName.KEY, name)
                     }
-                }
+                else -> Unit
             }
         }
     }
