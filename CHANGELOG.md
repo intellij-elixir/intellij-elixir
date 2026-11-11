@@ -80,7 +80,7 @@
   - **The variables written in an ExUnit `setup` body, and in a `test` body on Elixir 1.16 and earlier, keep their place in the source, so the expander finds each where it is written rather than at the `setup` or `test` around it.** Refs [#4546](https://github.com/intellij-elixir/intellij-elixir/issues/4546).
 
 - [#4570](https://github.com/intellij-elixir/intellij-elixir/pull/4570) [@sh41](https://github.com/sh41)
-  - **A new "Run the expander" box in Experimental Settings lets the plugin answer config keys written as modules and reads through an alias or a nested import; with it off, those keys are not answered and the unread config key inspection can warn on them.** Refs [#4567](https://github.com/intellij-elixir/intellij-elixir/issues/4567).
+  - **A new "Run the expander" setting in Experimental Settings lets the plugin answer config keys written as modules and reads through an alias or a nested import; with it off, those keys are not answered and the unread config key inspection can warn on them.** Refs [#4567](https://github.com/intellij-elixir/intellij-elixir/issues/4567).
 
 - [#4569](https://github.com/intellij-elixir/intellij-elixir/pull/4569) [@sh41](https://github.com/sh41)
   - **The expander reads a project's config files as Mix does, under `:test` for a file in a test source folder and `:dev` for any other, so a function defined under `Application.compile_env` is seen with the value the config gives it.** Fixes [#4563](https://github.com/intellij-elixir/intellij-elixir/issues/4563).
