@@ -338,18 +338,16 @@ internal class Callable : Annotator, DumbAware {
         }
     }
 
-    companion object {
-        private val IGNORED_VARIABLE_TEXT_ATTRIBUTE_KEYS = arrayOf(ElixirSyntaxHighlighter.IGNORED_VARIABLE)
-        private val PARAMETER_TEXT_ATTRIBUTE_KEYS = arrayOf(ElixirSyntaxHighlighter.PARAMETER)
-
-        private val PREDEFINED_MODULE_NAMES = setOf(KERNEL, KERNEL_SPECIAL_FORMS)
-        private val VARIABLE_TEXT_ATTRIBUTE_KEYS = arrayOf(ElixirSyntaxHighlighter.VARIABLE)
-
-        private fun referrerTextAttributesKeys(declared: Found, key: TextAttributesKey): Array<TextAttributesKey> =
-            if (declared.declaringModuleName() in PREDEFINED_MODULE_NAMES) {
-                arrayOf(key, ElixirSyntaxHighlighter.PREDEFINED_CALL)
-            } else {
-                arrayOf(key)
-            }
-    }
+    private fun referrerTextAttributesKeys(declared: Found, key: TextAttributesKey): Array<TextAttributesKey> =
+        if (declared.declaringModuleName() in PREDEFINED_MODULE_NAMES) {
+            arrayOf(key, ElixirSyntaxHighlighter.PREDEFINED_CALL)
+        } else {
+            arrayOf(key)
+        }
 }
+
+private val IGNORED_VARIABLE_TEXT_ATTRIBUTE_KEYS = arrayOf(ElixirSyntaxHighlighter.IGNORED_VARIABLE)
+private val PARAMETER_TEXT_ATTRIBUTE_KEYS = arrayOf(ElixirSyntaxHighlighter.PARAMETER)
+
+private val PREDEFINED_MODULE_NAMES = setOf(KERNEL, KERNEL_SPECIAL_FORMS)
+private val VARIABLE_TEXT_ATTRIBUTE_KEYS = arrayOf(ElixirSyntaxHighlighter.VARIABLE)
