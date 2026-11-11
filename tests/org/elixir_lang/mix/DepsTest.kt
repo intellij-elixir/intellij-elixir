@@ -77,6 +77,33 @@ class DepsTest : PlatformTestCase() {
         assertEquals(setOf("foo"), gatherer.depSet.map { it.application }.toSet())
     }
 
+    /** A `project/0` written `def project, do: [...]` returns its list as a `do:` value, as one with a `do` block does. */
+    fun testAProjectFunctionWrittenWithADoKeywordHasItsDepsAndDepsPath() {
+        val gatherer = gathered(
+            """
+            defmodule Sample.MixProject do
+              def project, do: [deps_path: "../../deps", deps: deps()]
+
+              defp deps do
+                [{:foo, "~> 1.0"}]
+              end
+            end
+            """.trimIndent()
+        )
+
+        assertEquals(setOf("foo"), gatherer.depSet.map { it.application }.toSet())
+        assertEquals("../../deps", gatherer.depsPath)
+    }
+
+    fun testAProjectFunctionReturningAnEmptyListHasNoDeps() {
+        listOf("def project, do: []", "def project do\n  []\nend").forEach { project ->
+            val gatherer = gathered("defmodule Sample.MixProject do\n${project.prependIndent("  ")}\nend\n")
+
+            assertEmpty(project, gatherer.depSet)
+            assertNull(project, gatherer.depsPath)
+        }
+    }
+
     /** A dependency's app is its tuple's first atom, whatever the requirement or options say, and nothing is resolved. */
     fun testDeclaredNamesAreEachTuplesFirstAtom() {
         assertDeclared(
