@@ -26,29 +26,40 @@ object ProjectKeywords {
     @RequiresReadLock
     fun keywords(mixExs: ElixirFile): QuotableKeywordList? = list(mixExs)?.keywords
 
-    /** The project's `app:`. */
+    /**
+     * The project's `app:`: [Reading.Absent] where the list `project/0` returns is `[]` or keywords without one, as an
+     * umbrella root's is; [Reading.Unknown] where the app is not a literal atom or the list is not a literal one.
+     */
     @RequiresReadLock
-    fun app(mixExs: ElixirFile): String? =
-        (keywords(mixExs)?.keywordValue("app")?.stripAccessExpressionAndParentheses() as? ElixirAtom)?.let(AtomName::of)
+    fun app(mixExs: ElixirFile): Reading<String> =
+        keyword(mixExs, "app", Reading.Absent) { (it as? ElixirAtom)?.let(AtomName::of)?.let { app -> Reading.Written(app) } }
 
     /**
      * The project's `config_path:`, Mix's default when the list `project/0` returns is `[]` or keywords without one;
      * [Reading.Unknown] for any other list. Never [Reading.Absent]: Mix's default is the answer.
      */
     @RequiresReadLock
-    fun configPath(mixExs: ElixirFile): Reading<String> {
-        val list = list(mixExs) ?: return Reading.Unknown
-        val keywords = list.keywords
-            ?: return if (list.children.isEmpty()) Reading.Written(DEFAULT_CONFIG_PATH) else Reading.Unknown
-        val value = keywords.keywordValue("config_path")?.stripAccessExpressionAndParentheses()
-            ?: return Reading.Written(DEFAULT_CONFIG_PATH)
+    fun configPath(mixExs: ElixirFile): Reading<String> =
+        keyword(mixExs, "config_path", Reading.Written(DEFAULT_CONFIG_PATH)) { value ->
+            (value as? ElixirLine)
+                ?.takeUnless { it.isCharList }
+                ?.let { content(it, it.pieces(), ElixirLanguageLevelResolver.languageLevelFor(it)) }
+                ?.let(AtomName::literalText)
+                ?.let { Reading.Written(it) }
+        }
 
-        return (value as? ElixirLine)
-            ?.takeUnless { it.isCharList }
-            ?.let { content(it, it.pieces(), ElixirLanguageLevelResolver.languageLevelFor(it)) }
-            ?.let(AtomName::literalText)
-            ?.let { Reading.Written(it) }
-            ?: Reading.Unknown
+    /**
+     * What the list `project/0` returns says of [name]: [absent] where the list is `[]` or keywords without it, the
+     * [read] of its value, with parentheses and access expressions stripped, where it has one, and [Reading.Unknown]
+     * where [read] gives none or the list is not a literal one of keywords.
+     */
+    @RequiresReadLock
+    internal fun <T> keyword(mixExs: ElixirFile, name: String, absent: Reading<T>, read: (PsiElement) -> Reading<T>?): Reading<T> {
+        val list = list(mixExs) ?: return Reading.Unknown
+        val keywords = list.keywords ?: return if (list.children.isEmpty()) absent else Reading.Unknown
+        val value = keywords.keywordValue(name)?.stripAccessExpressionAndParentheses() ?: return absent
+
+        return read(value) ?: Reading.Unknown
     }
 
     /** Whether [path], a written `config_path:`, is Mix's default, the only path that may be missing. */
@@ -85,6 +96,8 @@ object ProjectKeywords {
                 name == "project" && arityInterval.contains(0)
             } == true
 
-    private fun returned(definition: Call): PsiElement? =
+    /** The expression a function definition returns, the last of its `do` block or its `do:` value. */
+    @RequiresReadLock
+    internal fun returned(definition: Call): PsiElement? =
         definition.doBlock?.stab?.stabBody?.children?.lastOrNull() ?: definition.keywordArgument("do")
 }

@@ -423,7 +423,7 @@ class ConfigIndexTest : PlatformTestCase() {
               end
             end
             """.trimIndent(),
-            "Project app=Written(my_app) configPath=Written(../../config/config.exs)",
+            "Project app=Written(my_app) configPath=Written(../../config/config.exs) deps=Written()",
             fileName = "mix.exs"
         )
 
@@ -438,7 +438,7 @@ class ConfigIndexTest : PlatformTestCase() {
               defp deps, do: []
             end
             """.trimIndent(),
-            "Project app=Absent configPath=Written(config/config.exs)",
+            "Project app=Absent configPath=Written(config/config.exs) deps=Written()",
             fileName = "mix.exs"
         )
 
@@ -453,7 +453,35 @@ class ConfigIndexTest : PlatformTestCase() {
               def project, do: [app: @app]
             end
             """.trimIndent(),
-            "Project app=Unknown configPath=Written(config/config.exs)",
+            "Project app=Unknown configPath=Written(config/config.exs) deps=Written()",
+            fileName = "mix.exs"
+        )
+
+    fun testMixExsRecordsTheNamesOfItsDeps() =
+        assertEntries(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              def project, do: [app: :my_app, deps: deps()]
+
+              defp deps, do: [{:phoenix, "~> 1.7"}, {:foo, path: "../bar"}]
+            end
+            """.trimIndent(),
+            "Project app=Written(my_app) configPath=Written(config/config.exs) deps=Written(foo, phoenix)",
+            fileName = "mix.exs"
+        )
+
+    fun testMixExsWithDepsItCannotReadRecordsUnknown() =
+        assertEntries(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              def project, do: [app: :my_app, deps: deps() ++ extra()]
+            end
+            """.trimIndent(),
+            "Project app=Written(my_app) configPath=Written(config/config.exs) deps=Unknown",
             fileName = "mix.exs"
         )
 
@@ -475,7 +503,9 @@ class ConfigIndexTest : PlatformTestCase() {
         when (entry) {
             is ConfigEntry.KeyEntry ->
                 render(file, entry)?.let { kind -> "${render(key)} $kind ${render(entry.key)} `${entry.range.substring(text)}`" }
-            is ConfigEntry.ProjectEntry -> "${render(key)} app=${entry.app} configPath=${render(entry.configPath)}"
+            is ConfigEntry.ProjectEntry ->
+                "${render(key)} app=${render(entry.app)} configPath=${render(entry.configPath)} " +
+                    "deps=${render(entry.deps) { it.sorted().joinToString() }}"
         }
 
     /** [entry]'s kind: a read's as indexed, any other's as decided; `null` where it is none. */
@@ -507,9 +537,11 @@ class ConfigIndexTest : PlatformTestCase() {
             WrittenKey.All -> "All"
         }
 
-    private fun render(reading: ProjectKeywords.Reading<String>): String =
+    private fun render(reading: ProjectKeywords.Reading<String>): String = render(reading) { it }
+
+    private fun <T> render(reading: ProjectKeywords.Reading<T>, value: (T) -> String): String =
         when (reading) {
-            is ProjectKeywords.Reading.Written -> "Written(${reading.value})"
+            is ProjectKeywords.Reading.Written -> "Written(${value(reading.value)})"
             ProjectKeywords.Reading.Absent -> "Absent"
             ProjectKeywords.Reading.Unknown -> "Unknown"
         }

@@ -22,7 +22,7 @@ private fun app(appMixFile: VirtualFile): String =
     }
 
 private fun app(appMixFile: VirtualFile, appMixFileText: String): String =
-    computeReadAction { ProjectKeywords.app(elixirFile(appMixFileText)) } ?: appFromPath(appMixFile)
+    computeReadAction { ProjectKeywords.app(elixirFile(appMixFileText)) }.written ?: appFromPath(appMixFile)
 
 private fun appFromPath(appMixFile: VirtualFile): String = Paths.get(appMixFile.path).parent.fileName.toString()
 

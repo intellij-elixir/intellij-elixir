@@ -5,16 +5,22 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
+import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.NameArity
+import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.package_manager.DepGatherer
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.CallDefinitionClause.capabilities
 import org.elixir_lang.psi.CallDefinitionClause.modularChildCalls
 import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.call.foldChildrenWhile
 import org.elixir_lang.psi.impl.keywordValue
 import org.elixir_lang.psi.impl.stripAccessExpression
+import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
+import org.elixir_lang.psi.impl.stripAccessExpressions
 import org.elixir_lang.util.AccumulatorContinue
 
 /**
@@ -58,8 +64,37 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
     }
 
     companion object {
-        /** The names of the dependencies [mixExs] declares, read from its source alone. */
-        fun declared(mixExs: ElixirFile): ProjectKeywords.Reading<Set<String>> = ProjectKeywords.Reading.Unknown
+        /**
+         * The names of the dependencies [mixExs] declares, read from its source alone, as an index must: each element of
+         * the list `deps:` calls for is a tuple, whose first atom is the app Mix loads whatever its requirement or options
+         * say. [ProjectKeywords.Reading.Unknown] where any part of that can't be read: a `deps:` that isn't a call of a
+         * function its module defines, a definer that returns no list, or an element that isn't a tuple whose first element
+         * is a literal atom. A `mix.exs` with no `deps:` declares none.
+         */
+        @RequiresReadLock
+        fun declared(mixExs: ElixirFile): ProjectKeywords.Reading<Set<String>> =
+            ProjectKeywords.keyword(mixExs, "deps", ProjectKeywords.Reading.Written(emptySet())) { value ->
+                names(mixExs, value)?.let { ProjectKeywords.Reading.Written(it) }
+            }
+
+        @RequiresReadLock
+        private fun names(mixExs: ElixirFile, deps: PsiElement): Set<String>? {
+            val nameArity = (deps as? Call)?.takeUnless { it is Qualified }?.nameArity() ?: return null
+
+            return mixExs.modulars()
+                .filter { PsiTreeUtil.isAncestor(it, deps, true) }
+                .flatMap { modularChildCalls(it) }
+                .filter { isDefining(it, nameArity) }
+                .ifEmpty { return null }
+                .flatMapTo(mutableSetOf()) { definer ->
+                    val list = ProjectKeywords.returned(definer)?.stripAccessExpressionAndParentheses() as? ElixirList ?: return null
+
+                    list.children.map { name(it.stripAccessExpression()) ?: return null }
+                }
+        }
+
+        private fun name(element: PsiElement): String? =
+            ((element as? ElixirTuple)?.children?.stripAccessExpressions()?.firstOrNull() as? ElixirAtom)?.let(AtomName::of)
     }
 }
 
@@ -166,15 +201,10 @@ private fun Call.lastKeywordList(): QuotableKeywordList? =
                 }
                 .accumulator
 
-private fun QuotableKeywordList.depsNameArity(): NameArity? =
-        keywordValue("deps")
-                ?.let { it as? Call }
-                ?.let { depsCall ->
-                    depsCall.functionName()
-                            ?.let { name ->
-                                NameArity(name, depsCall.resolvedFinalArity())
-                            }
-                }
+private fun QuotableKeywordList.depsNameArity(): NameArity? = (keywordValue("deps") as? Call)?.nameArity()
+
+/** The name and arity this call calls. */
+private fun Call.nameArity(): NameArity? = functionName()?.let { NameArity(it, resolvedFinalArity()) }
 
 private fun ElixirList.deps(isDependency: Boolean): List<Dep> =
     children.map { it.stripAccessExpression() }.asSequence().flatMap { Deps.from(it, isDependency) }.toList()

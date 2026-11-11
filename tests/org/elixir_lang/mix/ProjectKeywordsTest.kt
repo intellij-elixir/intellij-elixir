@@ -18,7 +18,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals("my_app", ProjectKeywords.app(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs))
     }
 
     fun testParenthesizedAppIsTheAtom() {
@@ -34,7 +34,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals("my_app", ProjectKeywords.app(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs))
     }
 
     fun testKeywordsAreTheBodysLastExpression() {
@@ -52,7 +52,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
         )
 
         assertEquals(":returned", ProjectKeywords.keywords(mixExs)?.keywordValue("app")?.text)
-        assertEquals("returned", ProjectKeywords.app(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("returned"), ProjectKeywords.app(mixExs))
     }
 
     fun testKeywordDoProjectHasKeywords() {
@@ -67,7 +67,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
         )
 
         assertEquals("\"0.1.0\"", ProjectKeywords.keywords(mixExs)?.keywordValue("version")?.text)
-        assertEquals("my_app", ProjectKeywords.app(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs))
     }
 
     fun testNoProjectFunctionHasNoKeywords() {
@@ -86,7 +86,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
         )
 
         assertNull(ProjectKeywords.keywords(mixExs))
-        assertNull(ProjectKeywords.app(mixExs))
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
     }
 
     fun testConfigPathIsTheWrittenString() {

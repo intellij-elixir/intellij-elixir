@@ -138,14 +138,31 @@ object ConfigFiles {
 
     /** The apps the content `mix.exs` files name. */
     @RequiresReadLock
-    fun ownApps(project: Project): kotlin.collections.Set<String> = projects(project).mapNotNullTo(mutableSetOf()) { (_, entry) -> entry.app }
+    fun ownApps(project: Project): kotlin.collections.Set<String> =
+        projects(project).mapNotNullTo(mutableSetOf()) { (_, entry) -> entry.app.written }
 
     /** Each app a content `mix.exs` file names, and the folders of the `mix.exs` files that name it. */
     @RequiresReadLock
     fun ownAppFolders(project: Project): Map<String, List<VirtualFile>> =
         projects(project)
-            .mapNotNull { (mixExs, entry) -> entry.app?.let { app -> mixExs.parent?.let { app to it } } }
+            .mapNotNull { (mixExs, entry) -> entry.app.written?.let { app -> mixExs.parent?.let { app to it } } }
             .groupBy({ it.first }, { it.second })
+
+    /**
+     * Whether a content `mix.exs` file may name [app] as its own app or a dependency: one does, or one has an `app:` or
+     * `deps:` that can't be read.
+     */
+    @RequiresReadLock
+    fun mayHave(project: Project, app: String): Boolean =
+        projects(project).any { (_, entry) -> entry.app.mayHold { it == app } || entry.deps.mayHold { app in it } }
+
+    /** Whether this reading may hold a value that [holds]: it is written and does, or it is unknown. */
+    private fun <T> ProjectKeywords.Reading<T>.mayHold(holds: (T) -> Boolean): Boolean =
+        when (this) {
+            is ProjectKeywords.Reading.Written -> holds(value)
+            ProjectKeywords.Reading.Absent -> false
+            ProjectKeywords.Reading.Unknown -> true
+        }
 
     /** The config path [mixExs] names, `null` where [mixExs] is no content project's `mix.exs`. */
     @RequiresReadLock
