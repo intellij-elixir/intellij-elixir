@@ -51,6 +51,16 @@ class ConfigTableEditsHeavyTest : ConfigHeavyTestCase() {
         assertEquals("[{dep,[{k,1}]}] [config/config.exs]", read(root))
     }
 
+    fun testAModuleTheConfigAsksAboutDeleted() {
+        val root = project(CONFIG to "import Config\n\nconfig :dep, k: Code.ensure_loaded?(Gone)\n", "lib/gone.ex" to "defmodule Gone do\nend\n")
+
+        assertEquals("declined", read(root))
+
+        WriteAction.runAndWait<Throwable> { root.findFileByRelativePath("lib/gone.ex")!!.delete(this) }
+
+        assertEquals("[{dep,[{k,false}]}] [config/config.exs]", read(root))
+    }
+
     /** Mix compares `config_path:` as written: a missing default is no config, and the same file spelled otherwise raises. */
     fun testAMissingConfigPathRespelledInMixExs() {
         val root = project()

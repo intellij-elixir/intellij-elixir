@@ -4,6 +4,7 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import com.intellij.psi.impl.PsiManagerEx
@@ -31,6 +32,13 @@ internal fun exports(
  */
 internal fun dropPsi(project: Project) {
     WriteAction.runAndWait<Throwable> { PsiManagerEx.getInstanceEx(project).fileManager.cleanupForNextTest() }
+}
+
+/** Whether [file]'s PSI is gone once nothing holds it: after collecting, no view provider is cached for it. */
+internal fun psiLetGo(project: Project, file: VirtualFile): Boolean {
+    repeat(3) { System.gc() }
+
+    return PsiManagerEx.getInstanceEx(project).fileManager.findCachedViewProvider(file) == null
 }
 
 /** [file]'s expansion from a holder that has cached nothing. */

@@ -158,5 +158,5 @@ internal fun installationKey(homePath: String?): String? =
  * [SystemInfoRt.isFileSystemCaseSensitive] answers for the host, which is wrong inside a WSL distro: folding there
  * would make two different directories one entry.
  */
-private fun foldsCase(normalizedPath: String): Boolean =
+internal fun foldsCase(normalizedPath: String): Boolean =
     !SystemInfoRt.isFileSystemCaseSensitive && !wslCompat.isWslUncPath(normalizedPath)

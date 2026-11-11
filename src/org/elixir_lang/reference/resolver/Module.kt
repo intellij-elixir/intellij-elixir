@@ -135,6 +135,9 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
             roots.map { (classes, sources) -> classes.toSet() to sources }
         }
 
+        /** The files of [all], every copy [loaded] is ruled from. */
+        val files: Set<VirtualFile> by lazy(LazyThreadSafetyMode.NONE) { all.mapNotNullTo(HashSet()) { it.file } }
+
         /** The files of [all]'s source copies. */
         private val sourceFiles: Set<VirtualFile> by lazy(LazyThreadSafetyMode.NONE) {
             all.filterNot { it.isBeam }.mapNotNullTo(HashSet()) { it.file }

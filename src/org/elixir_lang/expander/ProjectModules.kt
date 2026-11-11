@@ -16,6 +16,7 @@ import com.intellij.openapi.util.ModificationTracker
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.openapi.vfs.VirtualFileSystem
 import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -36,6 +37,7 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.mix.Project.MIX_EXS
+import org.elixir_lang.mix.Project.isDepsOfAMixProject
 import org.elixir_lang.mix.ProjectKeywords
 import org.elixir_lang.mix.buildEnv
 import org.elixir_lang.mix.defaultBuildEnv
@@ -66,6 +68,9 @@ internal class ProjectModules(private val project: Project) {
 
     private val files = ByFile<Loaded>()
     private val beams = ByFile<Read>()
+
+    /** Module names' and paths' counts. */
+    private val names: ModuleNamesTracker by lazy { ModuleNamesTracker.getInstance(project) }
     @Volatile
     private var clauseCache = ClauseCache<VirtualFile, Clauses>(CLAUSE_BOUND, Clauses::weight)
 
@@ -284,33 +289,26 @@ internal class ProjectModules(private val project: Project) {
     }
 
     /**
-     * [choose]'s choice, with the stamps that move when it may: none where it is unknown, and a source copy's own
-     * stamps are its expansion's.
+     * [choose]'s choice, with the stamps that move when it may: none where it is unknown, else its entry's and each of
+     * several copies' own. A source copy's content stamps are its expansion's.
      */
     private fun chosen(asker: PsiFile, atom: String): Pair<Choice, Stamps> {
-        val choice = choose(asker, atom)
         val stamps = Stamps()
-        if (choice == Choice.Unknown) return choice to stamps
-        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
-        stamps.track(ModuleNamesTracker.getInstance(project))
-        stamps.track(ProjectRootManager.getInstance(project))
-
-        when (choice) {
-            is Choice.Several -> choice.copies.forEach { stamps.copy(it) }
-            is Choice.One -> {
-                (choice.copy as? Copy.Compiled)?.let { stamps.copy(it) }
-                choice.fallback.forEach { stamps.copy(it) }
-            }
-            Choice.None, Choice.Unknown -> Unit
-        }
+        val choice = choose(asker, atom, stamps)
+        if (choice is Choice.Several) choice.copies.forEach { stamps.copy(it) }
 
         return choice to stamps
     }
 
-    /** Which of [atom]'s copies Elixir loads for [asker]: unknown in dumb mode, else none, several or the one. */
-    private fun choose(asker: PsiFile, atom: String): Choice {
+    /**
+     * Which of [atom]'s copies Elixir loads for [asker]: unknown in dumb mode, else none, several or the one. [into]
+     * takes the stamps of its entry ([heldCopies]).
+     */
+    private fun choose(asker: PsiFile, atom: String, into: Stamps? = null): Choice {
         if (DumbService.isDumb(project)) return Choice.Unknown
-        val (chosen, fallback) = copies(asker, atom)
+        val held = heldCopies(asker, atom)
+        into?.addAll(held.stamps)
+        val (chosen, fallback) = copies(held)
 
         return when (val copy = chosen.singleOrNull()) {
             null -> if (chosen.isEmpty()) Choice.None else Choice.Several(chosen)
@@ -338,12 +336,11 @@ internal class ProjectModules(private val project: Project) {
     }
 
     /**
-     * The copies of [atom] Elixir may load for [asker], held on [asker] by file while the trackers [lookup] stamps are
-     * unchanged: the preferred ones, then the `.beam`s of the libraries and the SDK outside the project's content not
-     * among them. A reparse replaces a file's PSI and moves none of them, so each source copy's PSI is found again.
+     * The copies of [held]'s name Elixir may load for its asker: the preferred ones, then the `.beam`s of the libraries
+     * and the SDK outside the project's content not among them. A reparse replaces a file's PSI, so each source copy's
+     * PSI is found again.
      */
-    private fun copies(asker: PsiFile, atom: String): Pair<List<Copy>, List<Copy.Compiled>> {
-        val held = heldCopies(asker, atom)
+    private fun copies(held: HeldCopies): Pair<List<Copy>, List<Copy.Compiled>> {
         val chosen = held.chosen.mapNotNull { copy ->
             if (copy.compiled) {
                 compiledCopy(copy)
@@ -357,37 +354,52 @@ internal class ProjectModules(private val project: Project) {
 
     private fun compiledCopy(copy: HeldCopy): Copy.Compiled = Copy.Compiled(copy.virtualFile, copy.source)
 
-    /** What moves the copies a file holds: a file added, moved or deleted, a module name defined or dropped, a root. */
+    /** A file added, moved or deleted, a module name defined or dropped, a root. */
     fun copyTrackers(): Array<Any> =
         arrayOf(
             VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS,
-            ModuleNamesTracker.getInstance(project),
+            names,
             ProjectRootManager.getInstance(project),
         )
 
+    /**
+     * Held per asker while the roots and the asker's path hold, as they say which copies load for it, and each entry while
+     * its name, the roots and, on disk, every copy it is ruled from hold.
+     */
     private fun heldCopies(asker: PsiFile, atom: String): HeldCopies {
         val byAtom = CachedValuesManager.getManager(project).getCachedValue(
             asker,
             chosen,
             {
-                CachedValueProvider.Result.create(ConcurrentHashMap<String, HeldCopies>(), *copyTrackers())
+                CachedValueProvider.Result.create(
+                    ConcurrentHashMap<String, HeldCopies>(),
+                    ProjectRootManager.getInstance(project),
+                    names.askerPath(fileOf(asker)),
+                )
             },
             false,
         )
+        byAtom[atom]?.takeIf { it.stamps.isCurrent() }?.let { return it }
 
-        return byAtom.getOrPut(atom) {
-            val loadable = Module.resolveLoadable(asker, org.elixir_lang.Module.indexName(atom))
-            val chosen = Resolver.preferred(asker, false, loadable.loaded).mapNotNull { copy(it.element) }.distinctBy { it.virtualFile }
-            val chosenFiles = chosen.mapTo(HashSet()) { it.virtualFile }
-            val fallback = loadable.loaded.mapNotNull { copy(it.element) }
-                .filter { it.compiled && it.virtualFile !in chosenFiles && isDependencyOutput(it.virtualFile) }
-                .distinctBy { it.virtualFile }
-            val paired = { copy: HeldCopy ->
-                if (copy.compiled) HeldCopy(copy.virtualFile, true, loadable.sourceOf(copy.virtualFile)) else copy
-            }
-
-            HeldCopies(chosen.map(paired), fallback.map(paired))
+        val stamps = Stamps()
+        stamps.track(names.name(atom))
+        stamps.track(ProjectRootManager.getInstance(project))
+        val loadable = Module.resolveLoadable(asker, org.elixir_lang.Module.indexName(atom))
+        val chosen = Resolver.preferred(asker, false, loadable.loaded).mapNotNull { copy(it.element) }.distinctBy { it.virtualFile }
+        val chosenFiles = chosen.mapTo(HashSet()) { it.virtualFile }
+        val fallback = loadable.loaded.mapNotNull { copy(it.element) }
+            .filter { it.compiled && it.virtualFile !in chosenFiles && isDependencyOutput(it.virtualFile) }
+            .distinctBy { it.virtualFile }
+        // Each copy the choice is ruled from, kept or not, and so each source a `.beam` may pair with: a deletion, or a
+        // rename or a rewrite with no tree loaded, moves no name.
+        loadable.files.forEach(stamps::onDisk)
+        val paired = { copy: HeldCopy ->
+            if (copy.compiled) HeldCopy(copy.virtualFile, true, loadable.sourceOf(copy.virtualFile)) else copy
         }
+        val copies = HeldCopies(chosen.map(paired), fallback.map(paired), stamps)
+        byAtom[atom] = copies
+
+        return copies
     }
 
     private fun compiled(beam: VirtualFile): Answer {
@@ -581,8 +593,8 @@ internal class ProjectModules(private val project: Project) {
                 }
             },
             file = {
-                // A rename or move raises the count, which discards this run's answers.
-                stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+                // A rename or move discards this run's answers.
+                stamps.track(names.askerPath(virtualFile))
                 runPath(virtualFile, inputs.os, OS.CURRENT)
             },
             virtualFile = virtualFile,
@@ -592,7 +604,7 @@ internal class ProjectModules(private val project: Project) {
             files = runFiles(virtualFile, inputs, within, memo, stamps) { transients += it },
             directories = { path ->
                 // A `mix.exs` created or deleted above the file moves its answer.
-                stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+                stamps.track(names.above(path))
                 virtualFile?.fileSystem?.findFileByPath(path)?.let(::compileDirectory)
             },
             clauses = { atom ->
@@ -636,9 +648,9 @@ internal class ProjectModules(private val project: Project) {
     ): AppEnv {
         val level = inputs.level
         val configFiles = ArrayList<VirtualFile>()
-        // Which files are config files: a `mix.exs` names its config directory, where a file created or deleted moves it.
+        // Which files are config files: a `mix.exs` names its config directory.
         val scope by lazy {
-            stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+            stamps.track(names.exsFiles)
             FilenameIndex.getVirtualFilesByName(MIX_EXS, GlobalSearchScope.projectScope(project)).forEach(stamps::source)
 
             ConfigFiles.scope(project)
@@ -719,7 +731,7 @@ internal class ProjectModules(private val project: Project) {
         transient: (Transient) -> Unit,
     ): ConfigTable? {
         // A `mix.exs` created or deleted above the file moves which project's config it reads.
-        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+        stamps.track(names.above(file.path))
         val (mixExs, configPath) = generateSequence(file.parent) { it.parent }
             .mapNotNull { it.findChild(MIX_EXS) }
             .firstNotNullOfOrNull { mixExs -> ConfigFiles.configPath(project, mixExs)?.let { mixExs to it } }
@@ -740,11 +752,9 @@ internal class ProjectModules(private val project: Project) {
         stamps.source(mixExs)
         val written = configPath as? ProjectKeywords.ConfigPath.Written ?: return null
         val path = ConfigFiles.configFilePath(mixExs, written)
-        // The file created or deleted moves the answer.
-        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
         // Where it is missing, empty for the default path, as `Mix.Tasks.Loadconfig` then reads none, and else unknown, as it
         // raises. That reads how `mix.exs` wrote the path, so it isn't held by the path.
-        val configFile = mixExs.fileSystem.findFileByPath(path)?.takeUnless { it.isDirectory }
+        val configFile = stamps.find(mixExs.fileSystem, path)?.takeUnless { it.isDirectory }
             ?: return if (written.isDefault) ConfigTable.EMPTY else ConfigTable.UNKNOWN
         val directory = mixExs.parent.path
         val key = TableKey(path, directory, env, target, inputs)
@@ -780,7 +790,7 @@ internal class ProjectModules(private val project: Project) {
         transient: (Transient) -> Unit,
     ): ConfigTable {
         // The file created or deleted moves the table.
-        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+        stamps.track(names.path(configFile.path))
         val psi = read(configFile) ?: return ConfigTable.UNKNOWN
         read.imports.add(runPath(configFile, inputs.os, OS.CURRENT) ?: configFile.path)
         val computed = compute(psi, inputs, emptyMap(), Memo(), config = read)
@@ -819,15 +829,12 @@ internal class ProjectModules(private val project: Project) {
         return object : RunFiles {
             override fun exists(path: String): Boolean? {
                 val fileSystem = pathFileSystem ?: return null
-                // A file created or deleted at the path moves the answer.
-                stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
 
-                return fileSystem.findFileByPath(path) != null
+                return stamps.find(fileSystem, path) != null
             }
 
             override fun imported(path: String, read: ConfigRead): FileExpansion? {
-                stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
-                val target = pathFileSystem?.findFileByPath(path)?.takeUnless { it in within } ?: return null
+                val target = stamps.find(pathFileSystem, path)?.takeUnless { it in within } ?: return null
                 val psi = read(target) ?: return null
                 val child = compute(psi, inputs, within, memo, config = read)
                 stamps.addAll(child.loaded.stamps)
@@ -841,7 +848,7 @@ internal class ProjectModules(private val project: Project) {
                 val slash = pattern.lastIndexOf('/')
                 val prefix = pattern.substring(0, slash.coerceAtLeast(0))
                 if (prefix.any { it in ConfigFiles.WILDCARD }) return null
-                stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+                stamps.track(names.listing(prefix))
                 val glob = pattern.substring(slash + 1)
                 val matcher = try {
                     FileSystems.getDefault().getPathMatcher("glob:$glob")
@@ -865,13 +872,17 @@ internal class ProjectModules(private val project: Project) {
         read?.let { return BuildTarget(it.env, it.env, it.target) }
         file ?: return null
         // A `deps`, `_build` or `mix.exs` created or deleted moves the build.
-        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+        stamps.track(names.above(file.path))
         buildEnv(file)?.let { return BuildTarget(it, null) }
-        val deps = generateSequence(file.parent) { it.parent }.firstOrNull { it.name == "deps" && it.parent?.findChild(MIX_EXS) != null }
+        val deps = generateSequence(file.parent) { it.parent }.firstOrNull { isDepsOfAMixProject(it) }
 
         if (deps != null) {
             val dependency = generateSequence(file) { it.parent }.first { it.parent == deps }.name
-            val envs = deps.parent.findChild("_build")?.children.orEmpty().filter { it.findFileByRelativePath("lib/$dependency") != null }
+            val build = deps.parent.findChild("_build")?.children.orEmpty()
+            // An env, or the dependency in one, created or deleted moves the build.
+            stamps.track(names.listing("${deps.parent.path}/_build"))
+            build.forEach { env -> stamps.track(names.path("${env.path}/lib/$dependency")) }
+            val envs = build.filter { it.findFileByRelativePath("lib/$dependency") != null }
 
             return BuildTarget(envs.singleOrNull()?.name, null)
         }
@@ -900,7 +911,7 @@ internal class ProjectModules(private val project: Project) {
      * or by a zero's sign, which the VM keeps where `=:=` can't tell it.
      */
     private fun appFile(app: String, level: ElixirLanguageLevel, stamps: Stamps): AppFile? {
-        stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+        stamps.track(names.appFiles)
         stamps.track(ProjectRootManager.getInstance(project))
         val facetSdkRoots = FacetModels.getInstance(project).named()
             .flatMap { it.rootProvider.getFiles(OrderRootType.CLASSES).asList() }
@@ -909,7 +920,7 @@ internal class ProjectModules(private val project: Project) {
             .filter(::isDependencyOutput)
             .distinct()
             .map { file ->
-                stamps.file(file)
+                stamps.onDisk(file)
 
                 try {
                     AppFile.read(VfsUtilCore.loadText(file), level)
@@ -948,9 +959,9 @@ internal class ProjectModules(private val project: Project) {
 
     /**
      * A name's copies as held: the [chosen], as [Resolver.preferred] orders them, and the [fallback], the `.beam`s of the
-     * libraries and the SDK outside the project's content not among them.
+     * libraries and the SDK outside the project's content not among them, with the [stamps] they hold while.
      */
-    private class HeldCopies(val chosen: List<HeldCopy>, val fallback: List<HeldCopy>)
+    private class HeldCopies(val chosen: List<HeldCopy>, val fallback: List<HeldCopy>, val stamps: Stamps)
 
     /** Where Elixir loads a module from. */
     internal sealed interface Copy {
@@ -1131,14 +1142,27 @@ internal class ProjectModules(private val project: Project) {
 
         fun copy(copy: Copy) {
             when (copy) {
-                is Copy.Compiled -> file(copy.virtualFile)
+                is Copy.Compiled -> onDisk(copy.virtualFile)
                 is Copy.Source -> source(copy.virtualFile)
             }
         }
 
-        /** A file read from disk, not through its PSI. */
-        fun file(virtualFile: VirtualFile) {
-            read.getOrPut(virtualFile) { Stamp(virtualFile::getModificationStamp) }
+        /**
+         * A file read from disk, not through its PSI, so that a keystroke keeps it: it moves when the file goes, moves or
+         * changes. Keyed apart from [source], so that [reads] doesn't see it.
+         */
+        fun onDisk(virtualFile: VirtualFile) {
+            val key = OnDisk(virtualFile)
+            if (key in read) return
+            track(names.path(virtualFile.path))
+            read[key] = Stamp { if (virtualFile.isValid) virtualFile.modificationStamp else -1L }
+        }
+
+        /** The file at [path] in [fileSystem], held on [path], so that a file created or deleted there moves the answer. */
+        fun find(fileSystem: VirtualFileSystem?, path: String): VirtualFile? {
+            track(names.path(path))
+
+            return fileSystem?.findFileByPath(path)
         }
 
         fun addAll(stamps: Stamps) {
@@ -1149,6 +1173,8 @@ internal class ProjectModules(private val project: Project) {
 
         fun reads(virtualFile: VirtualFile): Boolean = virtualFile in read
     }
+
+    private data class OnDisk(val virtualFile: VirtualFile)
 
     private class Stamp(private val count: () -> Long) {
         private val at = count()

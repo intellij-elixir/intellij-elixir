@@ -633,7 +633,7 @@ internal object ExpanderSource : CandidateSource {
 
     /**
      * What the name index defines [name] as in [file]'s resolve scope, held on [file] until a tracker of
-     * [ProjectModules.copyTrackers] or any PSI change moves: a `.beam` rewritten in place moves only the PSI.
+     * [ProjectModules.copyTrackers] or any PSI change moves.
      */
     private fun indexed(file: PsiFile, name: String): List<Defined> {
         val project = file.project
@@ -697,11 +697,8 @@ internal object ExpanderSource : CandidateSource {
     }
 
     /** The names the module index keys [modular] under, where it is a `defmodule`, `defimpl` or `defprotocol`. */
-    private fun indexNames(modular: Call): Collection<String> {
-        val definition = definition(modular)?.takeIf { it.type == Definition.Type.MODULAR } ?: return emptySet()
-
-        return Named.indexedNames(definition, SyntacticCall.of(modular).canonicalNameSet())
-    }
+    private fun indexNames(modular: Call): Collection<String> =
+        Named.modularNames(definition(modular)) { SyntacticCall.of(modular).canonicalNameSet() }
 
     /** The `defmodule`, `defimpl` or `defprotocol` [call] is written in, past any clause; none inside a `quote`. */
     private fun ownModular(call: Call): Call? =
