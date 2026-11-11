@@ -27,26 +27,9 @@ class RenderedDocDeclarationHighlightingTest : PlatformTestCase() {
     }
 
     fun testADeclaredNameHighlightsByItsKind() {
-        val code = """
-            defmodule Sample do
-              def function_clause(a), do: a
-              defmacro macro_clause(a), do: a
-              defguard guard_clause(a) when a > 0
-              defguardp private_guard_clause(a) when a > 0
-            end
-        """.trimIndent()
-        val keysByStart = keysByStart(code)
+        val keysByStart = keysByStart(CLAUSES)
 
-        assertEquals(
-            mapOf(
-                "function_clause" to setOf(FUNCTION_DECLARATION),
-                "macro_clause" to setOf(MACRO_DECLARATION),
-                "guard_clause" to setOf(GUARD_DECLARATION),
-                "private_guard_clause" to setOf(GUARD_DECLARATION)
-            ),
-            listOf("function_clause", "macro_clause", "guard_clause", "private_guard_clause")
-                .associateWith { keysByStart[code.indexOf("$it(")] }
-        )
+        assertEquals(CLAUSE_KEYS, CLAUSE_KEYS.keys.associateWith { keysByStart[CLAUSES.indexOf("$it(")] })
     }
 
     /** On a project SDK with the expander on, each name a declaring call writes is a declaration, and a clause's word stays one. */
@@ -125,26 +108,9 @@ class RenderedDocDeclarationHighlightingTest : PlatformTestCase() {
 
     /** The semantic ranges are only half the result: a head is also a call, and the block shows the two merged. */
     fun testTheRenderedBlockColoursADeclaredNameByItsKind() {
-        val code = """
-            defmodule Sample do
-              def function_clause(a), do: a
-              defmacro macro_clause(a), do: a
-              defguard guard_clause(a) when a > 0
-              defguardp private_guard_clause(a) when a > 0
-            end
-        """.trimIndent()
-        val html = RenderedDocCodeBlockRenderer.render(project, ElixirLanguage, code)
+        val html = RenderedDocCodeBlockRenderer.render(project, ElixirLanguage, CLAUSES)
 
-        assertEquals(
-            mapOf(
-                "function_clause" to setOf(FUNCTION_DECLARATION),
-                "macro_clause" to setOf(MACRO_DECLARATION),
-                "guard_clause" to setOf(GUARD_DECLARATION),
-                "private_guard_clause" to setOf(GUARD_DECLARATION)
-            ),
-            listOf("function_clause", "macro_clause", "guard_clause", "private_guard_clause")
-                .associateWith { keysOf(html, it) }
-        )
+        assertEquals(CLAUSE_KEYS, CLAUSE_KEYS.keys.associateWith { keysOf(html, it) })
     }
 
     companion object {
@@ -156,6 +122,15 @@ class RenderedDocDeclarationHighlightingTest : PlatformTestCase() {
             "guard_clause" to setOf(GUARD_DECLARATION),
             "private_guard_clause" to setOf(GUARD_DECLARATION)
         )
+
+        private val CLAUSES = """
+            defmodule Sample do
+              def function_clause(a), do: a
+              defmacro macro_clause(a), do: a
+              defguard guard_clause(a) when a > 0
+              defguardp private_guard_clause(a) when a > 0
+            end
+        """.trimIndent()
 
         /** The names declaring calls other than a plain clause write: a delegation's, a list's, an `unquote`d atom, an EEx's and an embed's atoms. */
         private val WRITTEN = listOf("single", "listed", "also_listed", "quoted", "\"a b\"", "rendered", "page")
