@@ -423,7 +423,37 @@ class ConfigIndexTest : PlatformTestCase() {
               end
             end
             """.trimIndent(),
-            "Project app=my_app configPath=Written(../../config/config.exs)",
+            "Project app=Written(my_app) configPath=Written(../../config/config.exs)",
+            fileName = "mix.exs"
+        )
+
+    fun testMixExsWithNoAppRecordsAbsent() =
+        assertEntries(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              def project, do: [apps_path: "apps", deps: deps()]
+
+              defp deps, do: []
+            end
+            """.trimIndent(),
+            "Project app=Absent configPath=Written(config/config.exs)",
+            fileName = "mix.exs"
+        )
+
+    fun testMixExsWithAnAppNamedThroughAnAttributeRecordsUnknown() =
+        assertEntries(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              @app :my_app
+
+              def project, do: [app: @app]
+            end
+            """.trimIndent(),
+            "Project app=Unknown configPath=Written(config/config.exs)",
             fileName = "mix.exs"
         )
 

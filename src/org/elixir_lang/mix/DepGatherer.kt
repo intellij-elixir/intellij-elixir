@@ -56,6 +56,11 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
                     .let { depSet.addAll(it) }
         }
     }
+
+    companion object {
+        /** The names of the dependencies [mixExs] declares, read from its source alone. */
+        fun declared(mixExs: ElixirFile): ProjectKeywords.Reading<Set<String>> = ProjectKeywords.Reading.Unknown
+    }
 }
 
 private fun Call.deps(isDependency: Boolean): List<Dep> = lastList()?.deps(isDependency) ?: emptyList()

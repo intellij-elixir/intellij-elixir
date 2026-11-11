@@ -179,6 +179,66 @@ class ProjectKeywordsTest : PlatformTestCase() {
         assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.configPath(mixExs))
     }
 
+    fun testAppIsAbsentWhereTheListHasNone() {
+        val mixExs = mixExs(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              def project, do: [apps_path: "apps", deps: deps()]
+
+              defp deps, do: []
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Absent, ProjectKeywords.app(mixExs))
+    }
+
+    fun testAppIsAbsentFromAnEmptyProjectList() {
+        val mixExs = mixExs(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              def project, do: []
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Absent, ProjectKeywords.app(mixExs))
+    }
+
+    fun testAppNamedThroughAnAttributeIsUnknown() {
+        val mixExs = mixExs(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              @app :my_app
+
+              def project, do: [app: @app, version: "0.1.0"]
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
+    }
+
+    fun testAppOfAProjectListThatIsNotKeywordsIsUnknown() {
+        val mixExs = mixExs(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              def project, do: [{:app, :my_app}]
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
+    }
+
     private fun mixExs(text: String): ElixirFile =
         myFixture.configureByText(Project.MIX_EXS, text.trimIndent()) as ElixirFile
 }
