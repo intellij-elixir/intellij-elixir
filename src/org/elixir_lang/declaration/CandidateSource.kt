@@ -39,7 +39,17 @@ interface CandidateSource {
     /** What completion offers at the call [position]. */
     @RequiresReadLock
     fun visible(position: Call): List<Visible> = visible(CompletionPosition.OfCall(position))
+
+    /** The names the declaring [call] writes beyond a clause's own head word. */
+    @RequiresReadLock
+    fun writtenNames(call: Call): List<WrittenName>
 }
+
+/**
+ * A name [element] a declaring call writes, how it presents, and why it may not be a name Elixir defines, [uncertain],
+ * `null` where it is.
+ */
+data class WrittenName(val element: PsiElement, val presentation: Presentation, val uncertain: Uncertain?)
 
 /** Where completion asks what is visible. */
 sealed class CompletionPosition {

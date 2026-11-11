@@ -5,6 +5,7 @@ import com.intellij.psi.PsiElementResolveResult
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveResult
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.psi.call.Call
 import org.elixir_lang.structure_view.element.Delegation
 
 /**
@@ -25,21 +26,27 @@ object Resolved {
     ): List<Preferred> =
         preferred(
             use,
-            sourceFor(feature).candidates(use, incompleteCode).filter { reaches(use, it) && takes(feature, it, bound) },
+            sourceFor(feature).candidates(use, incompleteCode).filter { reaches(use, it) && takes(feature, it.uncertain, bound) },
             incompleteCode,
             bound
         )
 
+    /** [sourceFor]([feature])'s written names of [call] that [feature] takes, by [step]'s rule: a name is no variable's use. */
+    @RequiresReadLock
+    fun writtenNames(call: Call, feature: Feature): List<WrittenName> =
+        sourceFor(feature).writtenNames(call).filter { takes(feature, it.uncertain, bound = false) }
+
     /**
-     * Whether [feature] takes [found]: a definition that may not be Elixir's only where its rule takes one, and an index
-     * find, only a definition of the name somewhere, not where a variable binds the name ([bound]); any other find.
+     * Whether [feature] takes what is marked [uncertain]: a definition that may not be Elixir's only where its rule takes
+     * one, and an index find, only a definition of the name somewhere, not where a variable binds the name ([bound]);
+     * anything else.
      */
-    private fun takes(feature: Feature, found: Found, bound: Boolean): Boolean =
-        when (found.uncertain) {
+    private fun takes(feature: Feature, uncertain: Uncertain?, bound: Boolean): Boolean =
+        when (uncertain) {
             null, Uncertain.STOP, Uncertain.OPAQUE, Uncertain.UNREACHED -> true
             Uncertain.SEVERAL -> feature.takesUncertain
             Uncertain.INDEX -> feature.takesUncertain && !bound
-            // An absence's marks, which no find carries.
+            // An absence's marks, which no find or written name carries.
             Uncertain.MODULE, Uncertain.NO_EXPANSION -> true
         }
 

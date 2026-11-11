@@ -38,6 +38,7 @@ import org.elixir_lang.declaration.Reach
 import org.elixir_lang.declaration.Uncertain
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
+import org.elixir_lang.declaration.WrittenName
 import org.elixir_lang.declaration.importedArities
 import org.elixir_lang.declaration.admits
 import org.elixir_lang.Module
@@ -291,6 +292,9 @@ internal object ExpanderSource : CandidateSource {
             byElement.getValue(clause)
         } + compiled
     }
+
+    @RequiresReadLock
+    override fun writtenNames(call: Call): List<WrittenName> = emptyList()
 
     /**
      * Where a use is, as its file's expansion saw it, what each receiver it reached expanded to, the [lowering] it
