@@ -179,7 +179,7 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
         } else {
             candidates
         }
-        val loadable = sdkCopyOverStale(asker, index, sourceRuled)
+        val loadable = sdkCopyOverStale(asker, sourceRuled)
         val consolidated = { candidate: VisitedElementSetResolveResult ->
             candidate.isBeam && isConsolidated(index, candidate.file)
         }
@@ -197,25 +197,36 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
         }
     }
 
-    /**
-     * [copies] without those outside the project's content that [asker]'s SDK does not hold, when several `.beam`s
-     * are left and the SDK holds one. An exclusion is ignored ([ProjectFileIndex.getContentRootForFile]): Mix sync
-     * excludes a dependency's build, which loads before the SDK's copy.
-     */
+    /** [copies] without those [loads] drops, judged by the `.beam`s among them. */
     private fun sdkCopyOverStale(
         asker: PsiElement,
-        index: ProjectFileIndex,
         copies: List<VisitedElementSetResolveResult>,
     ): List<VisitedElementSetResolveResult> {
-        if (copies.count { it.isBeam } < 2) return copies
+        val loads = loads(asker, copies.mapNotNull { copy -> copy.file?.takeIf { copy.isBeam } }) ?: return copies
+
+        return copies.filter { it.file?.let(loads) == true }
+    }
+
+    /**
+     * Which files of [compiled], the copies of one module's `.beam` or one app's `.app` on the code path, Elixir loads
+     * for [asker]: where there are several and [asker]'s SDK holds one, those the SDK holds and those in the project's
+     * content, a stale library's copy loading after the SDK's. An exclusion is ignored
+     * ([ProjectFileIndex.getContentRootForFile]): Mix sync excludes a dependency's build, which loads before the SDK's
+     * copy. `null` where it may load any of them.
+     */
+    @RequiresReadLock
+    internal fun loads(asker: PsiElement, compiled: List<VirtualFile>): ((VirtualFile) -> Boolean)? {
+        if (compiled.size < 2) return null
 
         val roots = ElixirSdkLookup.mostSpecificSdk(asker)?.rootProvider?.getFiles(OrderRootType.CLASSES)?.toSet()
-            ?: return copies
-        val inSdk = { copy: VisitedElementSetResolveResult -> copy.file?.let { VfsUtilCore.isUnder(it, roots) } == true }
+            ?: return null
+        val inSdk = { file: VirtualFile -> VfsUtilCore.isUnder(file, roots) }
 
-        if (copies.none { it.isBeam && inSdk(it) }) return copies
+        if (compiled.none(inSdk)) return null
 
-        return copies.filterNot { !inSdk(it) && it.file?.let { f -> index.getContentRootForFile(f, false) } == null }
+        val index = ProjectFileIndex.getInstance(asker.project)
+
+        return { file -> inSdk(file) || index.getContentRootForFile(file, false) != null }
     }
 
     /** The file of this copy's modular. */

@@ -176,9 +176,10 @@ class AppEnvTest : PlatformTestCase() {
         roots.ebin.refresh(false, true)
         FacetModelFixtures.nameFacet(module, models.register("App Env Test Logger", roots).name)
         FacetModelFixtures.settle(project)
+        val asker = myFixture.addFileToProject("lib/asker.ex", "")
 
         val level = ReadAction.computeBlocking<AppEnvValue, Throwable> {
-            ProjectModules.getInstance(project).appEnv(ProjectModules.Inputs(legLevel(), legKernel, OS.CURRENT))
+            ProjectModules.getInstance(project).appEnv(ProjectModules.Inputs(legLevel(), legKernel, OS.CURRENT), asker)
                 .of("logger", OtpErlangAtom("level"))
         }
 

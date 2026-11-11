@@ -557,7 +557,7 @@ internal class ProjectModules(private val project: Project) {
             inputs.level,
             { ask(it).exports },
             { ask(it).struct },
-            appEnv(inputs, stamps, virtualFile, buildTarget, config, inProgress) { transients += it },
+            appEnv(inputs, stamps, virtualFile, file, buildTarget, config, inProgress) { transients += it },
             object : ExpansionObserver by observer {
                 override fun entering(node: ElixirAst, state: ExState, env: Env) {
                     envs?.entering(node, env)
@@ -622,9 +622,9 @@ internal class ProjectModules(private val project: Project) {
         return Held(Loaded(inputs, modules, uncompiled, stamps), expansion, results, lowering, transient, envs, receivers)
     }
 
-    /** The app env a default build of the project sees, for an expansion that keeps no stamps. */
+    /** The app env a default build of the project sees, for an expansion that keeps no stamps, of the `.app` files [asker] loads. */
     @RequiresReadLock
-    fun appEnv(inputs: Inputs): AppEnv = appEnv(inputs, Stamps(), null, null, null, emptyMap()) {}
+    fun appEnv(inputs: Inputs, asker: PsiFile): AppEnv = appEnv(inputs, Stamps(), null, asker, null, null, emptyMap()) {}
 
     /**
      * The app env a default build of the project sees: the config table [file]'s build reads where its read declined
@@ -635,12 +635,15 @@ internal class ProjectModules(private val project: Project) {
      * read made expanding [file], a config file that counts or one a config [read] evaluates, is configured: Mix loads the
      * config before the dependencies' `.app` files. So is one made while a config file's expansion runs above [file]'s
      * ([inProgress]), which holds only while it runs. [stamps] gain what each answer read, and [transient] what holds
-     * only for this run: in dumb mode nothing can be read, and each answer is unreadable.
+     * only for this run: in dumb mode nothing can be read, and each answer is unreadable. Where an app has several
+     * `.app` copies, [asker] chooses among them as it does among a module's `.beam`s ([Module.loads]); it moves no other
+     * answer.
      */
     private fun appEnv(
         inputs: Inputs,
         stamps: Stamps,
         file: VirtualFile?,
+        asker: PsiFile,
         buildTarget: BuildTarget?,
         read: ConfigRead?,
         inProgress: Map<VirtualFile, Map<String, Answer>>,
@@ -671,7 +674,7 @@ internal class ProjectModules(private val project: Project) {
             return running.isNotEmpty()
         }
 
-        val appFileOf = { app: String -> appFiles.getOrPut(app) { Optional.ofNullable(appFile(app, level, stamps)) }.orElse(null) }
+        val appFileOf = { app: String -> appFiles.getOrPut(app) { Optional.ofNullable(appFile(app, level, asker, stamps)) }.orElse(null) }
         val env = AppEnv.of(
             { app, key -> (key as? OtpErlangAtom)?.let { ConfigSettings.of(project, app, it.atomValue(), config).isNotEmpty() } == true },
             { app -> ConfigSettings.unread(project, app, config) },
@@ -906,19 +909,20 @@ internal class ProjectModules(private val project: Project) {
     }
 
     /**
-     * [app]'s `.app` file as read from its copies on the code path, as a build in any of their envs sees it: `null`
-     * where there is none, one can't be read or names another app, or two differ in env, as `=:=` tells on [level]'s VM
-     * or by a zero's sign, which the VM keeps where `=:=` can't tell it.
+     * [app]'s `.app` file as read from those of its copies on the code path that [asker] loads ([Module.loads]), as a
+     * build in any of their envs sees it: `null` where there is none, one can't be read or names another app, or two
+     * differ in env, as `=:=` tells on [level]'s VM or by a zero's sign, which the VM keeps where `=:=` can't tell it.
      */
-    private fun appFile(app: String, level: ElixirLanguageLevel, stamps: Stamps): AppFile? {
+    private fun appFile(app: String, level: ElixirLanguageLevel, asker: PsiFile, stamps: Stamps): AppFile? {
         stamps.track(names.appFiles)
         stamps.track(ProjectRootManager.getInstance(project))
         val facetSdkRoots = FacetModels.getInstance(project).named()
             .flatMap { it.rootProvider.getFiles(OrderRootType.CLASSES).asList() }
-        val copies = (OrderEnumerator.orderEntries(project).classes().roots.asList() + facetSdkRoots)
+        val onPath = (OrderEnumerator.orderEntries(project).classes().roots.asList() + facetSdkRoots)
             .mapNotNull { it.findChild("$app.app") }
             .filter(::isDependencyOutput)
             .distinct()
+        val copies = (Module.loads(asker, onPath)?.let(onPath::filter) ?: onPath)
             .map { file ->
                 stamps.onDisk(file)
 
