@@ -88,7 +88,7 @@ object ProjectKeywords {
             .asSequence()
             .flatMap { modularChildCalls(it).asSequence() }
             .filter(::isProject)
-            .firstNotNullOfOrNull { returned(it)?.stripAccessExpressionAndParentheses() as? ElixirList }
+            .firstNotNullOfOrNull(::returnedList)
 
     /** Whether [call] defines `project/0`. */
     @RequiresReadLock
@@ -100,6 +100,11 @@ object ProjectKeywords {
 
     /** The expression a function definition returns, the last of its `do` block or its `do:` value. */
     @RequiresReadLock
-    internal fun returned(definition: Call): PsiElement? =
+    private fun returned(definition: Call): PsiElement? =
         definition.doBlock?.stab?.stabBody?.children?.lastOrNull() ?: definition.keywordArgument("do")
+
+    /** The list a function definition returns ([returned]), `null` where it returns something else. */
+    @RequiresReadLock
+    internal fun returnedList(definition: Call): ElixirList? =
+        returned(definition)?.stripAccessExpressionAndParentheses() as? ElixirList
 }

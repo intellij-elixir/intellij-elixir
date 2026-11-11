@@ -19,7 +19,6 @@ import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.call.foldChildrenWhile
 import org.elixir_lang.psi.impl.keywordValue
 import org.elixir_lang.psi.impl.stripAccessExpression
-import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.impl.stripAccessExpressions
 import org.elixir_lang.util.AccumulatorContinue
 
@@ -87,7 +86,7 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
                 .filter { isDefining(it, nameArity) }
                 .ifEmpty { return null }
                 .flatMapTo(mutableSetOf()) { definer ->
-                    val list = ProjectKeywords.returned(definer)?.stripAccessExpressionAndParentheses() as? ElixirList ?: return null
+                    val list = ProjectKeywords.returnedList(definer) ?: return null
 
                     list.children.map { name(it.stripAccessExpression()) ?: return null }
                 }
@@ -98,16 +97,7 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
     }
 }
 
-private fun Call.deps(isDependency: Boolean): List<Dep> = lastList()?.deps(isDependency) ?: emptyList()
-
-private fun Call.lastList(): ElixirList? =
-    foldChildrenWhile(null as ElixirList?) { child, acc ->
-        if (child is ElixirList) {
-            AccumulatorContinue(child, true)
-        } else {
-            AccumulatorContinue(acc, true)
-        }
-    }.accumulator
+private fun Call.deps(isDependency: Boolean): List<Dep> = ProjectKeywords.returnedList(this)?.deps(isDependency) ?: emptyList()
 
 private fun <R> Array<Call>.foldDepsDefinersWhile(
         initial: R,
