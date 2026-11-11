@@ -10,7 +10,7 @@
 # We must be on the exact versions they recommend, depending on which minimum version of IntelliJ we support.
 
 # https://plugins.jetbrains.com/docs/intellij/using-kotlin.html#kotlin-standard-library
-# Tracks 2026.2 (ci-versions.json's additionalToTest, the newest tested platform), not the
+# Tracks 2026.3 (ci-versions.json's additionalToTest, the newest tested platform), not the
 # minimumSupported floor - this compiler must be able to emit whatever JVM bytecode target the
 # newest tested platform needs (compileKotlin's javaVersionStr can reach "25", and
 # JvmTarget.JVM_25 doesn't exist before Kotlin 2.3.20). Stdlib compliance with the floor is a
@@ -20,7 +20,7 @@
 kotlin = "2.4.0"
 
 # Unpinned/non-stdlib bundled packages
-intellij-platform = "2.19.0"
+intellij-platform = "2.20.0"
 gradle-download = "5.7.0"
 test-logger = "4.0.0"
 versions = "0.67.0"

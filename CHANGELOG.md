@@ -914,6 +914,8 @@
 
 - [#4654](https://github.com/intellij-elixir/intellij-elixir/pull/4654) [@mvanhorn](https://github.com/mvanhorn)
   - **`./gradlew test` forwards `-PexpanderPhoenix`, `-PdeclarationSource`, and `-PquoterFullDump` into the test JVM. A run using a Phoenix directory named with `-PexpanderPhoenix` is never up to date or restored from the build cache.** Fixes [#4649](https://github.com/intellij-elixir/intellij-elixir/issues/4649).
+- [#4665](https://github.com/intellij-elixir/intellij-elixir/pull/4665) [@dependabot](https://github.com/dependabot) [@sh41](https://github.com/sh41)
+  - **CI tests IntelliJ IDEA 2026.3, and the build moves to IntelliJ Platform Gradle Plugin 2.20.0, naming the test runner module that 2026.2 moved out of the core platform.**
 - [#4621](https://github.com/intellij-elixir/intellij-elixir/pull/4621) [@sh41](https://github.com/sh41)
   - **The nightly real IDE tests (`./gradlew testUI`) pass again: five fixed known failures are unmarked, and the import test gives the IDE five minutes to index instead of thirty seconds.** Fixes [#4619](https://github.com/intellij-elixir/intellij-elixir/issues/4619).
 - [#4617](https://github.com/intellij-elixir/intellij-elixir/pull/4617) [@sh41](https://github.com/sh41)

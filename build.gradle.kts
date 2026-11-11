@@ -160,10 +160,10 @@ val actualPlatformVersion: String = if (useDynamicEapVersion) {
 // default (gradle.properties), which tracks the minimum supported platform.
 //
 // This functionality copies what the IntelliJ Platform Gradle Plugin's PlatformJavaVersions does (permalinks
-// pinned to the 2.18.1 tag; repin when bumping the plugin):
-// https://github.com/JetBrains/intellij-platform-gradle-plugin/blob/d59281043510b321093f75fec7892d1774ac3060/src/main/kotlin/org/jetbrains/intellij/platform/gradle/utils/PlatformJavaVersions.kt#L11-L17
-// https://github.com/JetBrains/intellij-platform-gradle-plugin/blob/d59281043510b321093f75fec7892d1774ac3060/src/main/kotlin/org/jetbrains/intellij/platform/gradle/plugins/project/IntelliJPlatformBasePlugin.kt#L500-L516
-// https://github.com/JetBrains/intellij-platform-gradle-plugin/blob/d59281043510b321093f75fec7892d1774ac3060/src/main/kotlin/org/jetbrains/intellij/platform/gradle/plugins/project/IntelliJPlatformModulePlugin.kt#L79-L89
+// pinned to the 2.20.0 tag; repin when bumping the plugin):
+// https://github.com/JetBrains/intellij-platform-gradle-plugin/blob/92c91325a4e2214139ce3b351dfef6a825976a04/src/main/kotlin/org/jetbrains/intellij/platform/gradle/utils/PlatformJavaVersions.kt#L11-L17
+// https://github.com/JetBrains/intellij-platform-gradle-plugin/blob/92c91325a4e2214139ce3b351dfef6a825976a04/src/main/kotlin/org/jetbrains/intellij/platform/gradle/plugins/project/IntelliJPlatformBasePlugin.kt#L549-L556
+// https://github.com/JetBrains/intellij-platform-gradle-plugin/blob/92c91325a4e2214139ce3b351dfef6a825976a04/src/main/kotlin/org/jetbrains/intellij/platform/gradle/plugins/project/IntelliJPlatformModulePlugin.kt#L102-L112
 // Background: https://github.com/JetBrains/intellij-platform-gradle-plugin/commit/467e0c7d
 val platformBuildNumber: Int = actualPlatformVersion
     .substringBefore('-') // strip EAP/SNAPSHOT suffixes, e.g. "262-EAP-SNAPSHOT"
@@ -1216,6 +1216,9 @@ tasks.named<Test>("test") {
     // Headless as on CI. With a display (WSLg exports WAYLAND_DISPLAY), the JBR starts a real toolkit whose
     // WLKeyboard.KeyRepeatManager thread the platform's leak check reports against whichever test is running.
     systemProperty("java.awt.headless", "true")
+    // 2026.3 stopped warning about a service requested from a class initializer unless this is set; the warning is
+    // what fails a plugin test that does so. Read once at class load, so it must be a JVM property.
+    systemProperty("ide.assert.get.service.in.static.init", "true")
     // With it, `assertSameLinesWithFile` rewrites each committed golden from the actual output before comparing. The
     // goldens are in `testData`, a declared input, so a repeat run would otherwise be up to date or from the cache and
     // rewrite nothing.

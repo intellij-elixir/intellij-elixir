@@ -58,6 +58,7 @@
     "minimumSupported": { "version": "2026.1.5", "java": "21", "verify": [ "ideaIU", "rubymine" ] },
     "additionalToTest": [
       { "version": "2026.2.2", "java": "25", "verify": [ "ideaIU", "rubymine" ] },
+      { "version": "2026.3", "java": "25", "verify": [ "ideaIU", "rubymine" ] },
       { "version": "LATEST-EAP-SNAPSHOT", "java": "25", "verify": [ "ideaIU", "rubymine" ], "continue-on-error": true }
     ]
   },
