@@ -16,7 +16,6 @@ import org.elixir_lang.psi.CallDefinitionClause.modularChildCalls
 import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
-import org.elixir_lang.psi.impl.call.foldChildrenWhile
 import org.elixir_lang.psi.impl.keywordValue
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.stripAccessExpressions
@@ -51,7 +50,7 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
         if (element is Call && Module.`is`(element)) {
             val childCalls = modularChildCalls(element).toTypedArray()
 
-            childCalls.projectKeywordList()?.depsPath()?.let { depsPath = it }
+            childCalls.projectKeywordLists().firstOrNull()?.depsPath()?.let { depsPath = it }
 
             childCalls
                     .foldDepsDefinersWhile(listOf<Dep>()) { depsDefiner, acc ->
@@ -122,55 +121,25 @@ private fun <R> Array<Call>.foldDepsDefinersWhile(
     return final
 }
 
+/** The keywords of each list a `project/0` definition returns, in order. */
 @RequiresReadLock
-private fun Array<Call>.projectKeywordList(): QuotableKeywordList? {
-    for (call in this) {
-        ProgressManager.checkCanceled()
-
-        if (ProjectKeywords.isProject(call)) {
-            call.lastKeywordList()?.let { return it }
-        }
-    }
-
-    return null
-}
+private fun Array<Call>.projectKeywordLists(): Sequence<QuotableKeywordList> =
+    asSequence()
+        .onEach { ProgressManager.checkCanceled() }
+        .filter(ProjectKeywords::isProject)
+        .mapNotNull { ProjectKeywords.returnedList(it)?.keywords }
 
 private fun QuotableKeywordList.depsPath(): String? =
     (keywordValue("deps_path")?.stripAccessExpression() as? ElixirLine)?.body?.text
 
 @RequiresReadLock
-private fun Array<Call>.depsNameArity(): NameArity? {
-    var nameArity: NameArity? = null
-
-    for (call in this) {
-        if (ProjectKeywords.isProject(call)) {
-            nameArity = call.lastKeywordList()?.depsNameArity()
-
-            if (nameArity != null) {
-                break
-            }
-        }
-    }
-
-    return nameArity
-}
+private fun Array<Call>.depsNameArity(): NameArity? = projectKeywordLists().firstNotNullOfOrNull { it.depsNameArity() }
 
 private fun isDefining(call: Call, nameArity: NameArity): Boolean =
     capabilities(call)?.runtimeFunction == true &&
         nameArityInterval(call, ResolveState.initial())?.let { (name, arityInterval) ->
             name == nameArity.name && arityInterval.contains(nameArity.arity)
         } == true
-
-private fun Call.lastKeywordList(): QuotableKeywordList? =
-        foldChildrenWhile(null as QuotableKeywordList?) { projectChild, acc ->
-                    if (projectChild is ElixirList) {
-                        val lastKeywordList = projectChild.children.last { it is QuotableKeywordList } as QuotableKeywordList?
-                        AccumulatorContinue(lastKeywordList, true)
-                    } else {
-                        AccumulatorContinue(acc, true)
-                    }
-                }
-                .accumulator
 
 private fun QuotableKeywordList.depsNameArity(): NameArity? = (keywordValue("deps") as? Call)?.nameArity()
 
