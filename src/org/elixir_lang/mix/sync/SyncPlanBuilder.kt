@@ -87,10 +87,7 @@ private fun resolvePathShapedRequest(
             if (!isContentRootCandidate(contentRoot, contentRootUrls)) {
                 null
             } else {
-                contentRoot
-                    .findChild("deps")
-                    ?.findChild(request.depName)
-                    ?.takeIf { it.isValid && it.isDirectory }
+                MixProject.depFolder(contentRoot, request.depName)
                     ?.let { SyncRequest.DepRoot(it) }
                     // No such dep: the project's own app, whose build holds a regular project's consolidated
                     // protocols, or an umbrella child or `path:` dep, for which the consolidated rescan is merely
