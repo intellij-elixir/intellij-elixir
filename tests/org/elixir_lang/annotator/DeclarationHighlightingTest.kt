@@ -4,6 +4,7 @@ import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.util.Disposer
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.FUNCTION_CALL
+import org.elixir_lang.ElixirSyntaxHighlighter.Companion.FUNCTION_DECLARATION
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.GUARD_CALL
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.GUARD_DECLARATION
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.MACRO_CALL
@@ -68,6 +69,34 @@ class DeclarationHighlightingTest : PlatformTestCase() {
         )
     }
 
+    /** With the expander on, each name a declaring call writes is a declaration, and a clause's own word stays one. */
+    fun testEveryWrittenNameHighlightsAsADeclarationWithTheExpanderOn() {
+        enableExpander(testRootDisposable)
+
+        assertEquals(expected(setOf(FUNCTION_DECLARATION)), declarationKeys())
+    }
+
+    /** With the expander off only a clause's own word is a declaration. */
+    fun testOnlyAClausesOwnWordHighlightsAsADeclarationWithTheExpanderOff() {
+        disableExpander(testRootDisposable)
+        myFixture.copyFileToProject("eex.ex")
+        myFixture.copyFileToProject("mix_generator.ex")
+
+        assertEquals(expected(emptySet()), declarationKeys())
+    }
+
+    /** The declaration keys on each name `Sample` declares, where its declaration writes it. */
+    private fun declarationKeys(): kotlin.collections.Map<String, Set<TextAttributesKey>> {
+        myFixture.configureByText(ElixirFileType.INSTANCE, CODE)
+        val sample = CODE.indexOf("defmodule Sample")
+
+        return (CLAUSE_KEYS.keys + WRITTEN).associateWith { name ->
+            val offset = Regex("""(?<=[\s\[:])${Regex.escape(name)}(?=[(,)])""").find(CODE, sample)!!.range.first
+
+            keysAt(offset, name.length).intersect(DECLARATION_KEYS)
+        }
+    }
+
     fun testAGuardsKeysFallBackToTheMacroKeys() {
         assertEquals(
             listOf(MACRO_CALL, MACRO_DECLARATION),
@@ -100,6 +129,22 @@ class DeclarationHighlightingTest : PlatformTestCase() {
             .toSet()
 
     companion object {
+        private val DECLARATION_KEYS = setOf(FUNCTION_DECLARATION, MACRO_DECLARATION, GUARD_DECLARATION)
+
+        private val CLAUSE_KEYS = mapOf(
+            "function_clause" to setOf(FUNCTION_DECLARATION),
+            "macro_clause" to setOf(MACRO_DECLARATION),
+            "guard_clause" to setOf(GUARD_DECLARATION),
+            "private_guard_clause" to setOf(GUARD_DECLARATION)
+        )
+
+        /** The names declaring calls other than a plain clause write: a delegation's, a list's, an `unquote`d atom, an EEx's and an embed's atoms. */
+        private val WRITTEN = listOf("untargeted", "targeted", "listed", "also_listed", "quoted", "\"a b\"", "rendered", "banner")
+
+        /** [CLAUSE_KEYS], and [written] on each of [WRITTEN]. */
+        private fun expected(written: Set<TextAttributesKey>): kotlin.collections.Map<String, Set<TextAttributesKey>> =
+            CLAUSE_KEYS + WRITTEN.associateWith { written }
+
         private val CALLED = listOf(
             "function_clause",
             "macro_clause",
@@ -154,6 +199,9 @@ class DeclarationHighlightingTest : PlatformTestCase() {
               defguardp private_guard_clause(a) when is_integer(a)
               defdelegate untargeted(a), to: Missing
               defdelegate targeted(a), to: Target, as: :delegated_target
+              defdelegate [listed(a), also_listed(a)], to: Target, as: :delegated_target
+              def unquote(:quoted)(a), do: a
+              def unquote(:"a b")(x), do: x
               defexception [:message]
               EEx.function_from_string(:def, :rendered, "<%= a %>", [:a])
               Mix.Generator.embed_text(:banner, "Banner")
