@@ -90,7 +90,9 @@ object ProjectKeywords {
             .filter(::isProject)
             .firstNotNullOfOrNull { returned(it)?.stripAccessExpressionAndParentheses() as? ElixirList }
 
-    private fun isProject(call: Call): Boolean =
+    /** Whether [call] defines `project/0`. */
+    @RequiresReadLock
+    internal fun isProject(call: Call): Boolean =
         capabilities(call)?.remoteCallable == true &&
             nameArityInterval(call, ResolveState.initial())?.let { (name, arityInterval) ->
                 name == "project" && arityInterval.contains(0)

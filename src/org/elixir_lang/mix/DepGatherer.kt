@@ -132,11 +132,12 @@ private fun <R> Array<Call>.foldDepsDefinersWhile(
     return final
 }
 
+@RequiresReadLock
 private fun Array<Call>.projectKeywordList(): QuotableKeywordList? {
     for (call in this) {
         ProgressManager.checkCanceled()
 
-        if (isDefiningProject(call)) {
+        if (ProjectKeywords.isProject(call)) {
             call.lastKeywordList()?.let { return it }
         }
     }
@@ -147,11 +148,12 @@ private fun Array<Call>.projectKeywordList(): QuotableKeywordList? {
 private fun QuotableKeywordList.depsPath(): String? =
     (keywordValue("deps_path")?.stripAccessExpression() as? ElixirLine)?.body?.text
 
+@RequiresReadLock
 private fun Array<Call>.depsNameArity(): NameArity? {
     var nameArity: NameArity? = null
 
     for (call in this) {
-        if (isDefiningProject(call)) {
+        if (ProjectKeywords.isProject(call)) {
             nameArity = call.lastKeywordList()?.depsNameArity()
 
             if (nameArity != null) {
@@ -164,31 +166,10 @@ private fun Array<Call>.depsNameArity(): NameArity? {
 }
 
 private fun isDefining(call: Call, nameArity: NameArity): Boolean =
-        if (capabilities(call)?.runtimeFunction == true) {
-            nameArityInterval(call, ResolveState.initial())?.let { definedNameArityInterval ->
-                if (definedNameArityInterval.name == nameArity.name &&
-                        definedNameArityInterval.arityInterval.contains(nameArity.arity)) {
-                    true
-                } else {
-                    null
-                }
-            }
-        } else {
-            null
-        } ?: false
-
-private fun isDefiningProject(call: Call): Boolean =
-        if (capabilities(call)?.remoteCallable == true) {
-            nameArityInterval(call, ResolveState.initial())?.let { nameArityRange ->
-                if (nameArityRange.name == "project" && nameArityRange.arityInterval.contains(0)) {
-                    true
-                } else {
-                    null
-                }
-            }
-        } else {
-            null
-        } ?: false
+    capabilities(call)?.runtimeFunction == true &&
+        nameArityInterval(call, ResolveState.initial())?.let { (name, arityInterval) ->
+            name == nameArity.name && arityInterval.contains(nameArity.arity)
+        } == true
 
 private fun Call.lastKeywordList(): QuotableKeywordList? =
         foldChildrenWhile(null as QuotableKeywordList?) { projectChild, acc ->
