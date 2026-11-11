@@ -365,7 +365,6 @@ internal fun contentRootToken(systemIndependentBasePath: String?, contentRootUrl
  * @param depName  The Mix application/dep name (e.g. `"phoenix"`).
  * @return A scoped library name such as `"phoenix [apps/child]"`.
  */
-@VisibleForTesting
 internal fun scopedDepLibraryName(contentRootToken: String, depName: String): String =
     "$depName [$contentRootToken]"
 
@@ -373,7 +372,6 @@ internal fun scopedDepLibraryName(contentRootToken: String, depName: String): St
  * Inverse of [scopedDepLibraryName]: extracts the embedded scope token from a root-scoped library
  * name, or returns null when [libraryName] does not have the `"<dep> [<token>]"` shape.
  */
-@VisibleForTesting
 internal fun scopedLibraryNameToken(libraryName: String): String? {
     if (!libraryName.endsWith("]")) return null
     // First occurrence, not last: dep names are Mix app atoms and can never contain " [", but
