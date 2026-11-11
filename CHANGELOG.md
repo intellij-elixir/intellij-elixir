@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4670](https://github.com/intellij-elixir/intellij-elixir/pull/4670) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, a call is coloured by what the macro expander finds it calls, so a call to a function or macro that a macro defines gets its function or macro colour.** Refs [#4596](https://github.com/intellij-elixir/intellij-elixir/issues/4596).
+
 - [#4655](https://github.com/intellij-elixir/intellij-elixir/pull/4655) [@sh41](https://github.com/sh41)
   - **The expander reads a project's config files past values only the build machine knows, and past a `try` that rescues an application environment read, so the keys beside them, such as a generated Phoenix project's `dev_routes`, keep the values the config gives them.** Refs [#4636](https://github.com/intellij-elixir/intellij-elixir/issues/4636).
 
@@ -80,7 +83,7 @@
   - **The variables written in an ExUnit `setup` body, and in a `test` body on Elixir 1.16 and earlier, keep their place in the source, so the expander finds each where it is written rather than at the `setup` or `test` around it.** Refs [#4546](https://github.com/intellij-elixir/intellij-elixir/issues/4546).
 
 - [#4570](https://github.com/intellij-elixir/intellij-elixir/pull/4570) [@sh41](https://github.com/sh41)
-  - **A new "Run the expander" box in Experimental Settings lets the plugin answer config keys written as modules and reads through an alias or a nested import; with it off, those keys are not answered and the unread config key inspection can warn on them.** Refs [#4567](https://github.com/intellij-elixir/intellij-elixir/issues/4567).
+  - **A new "Run the expander" setting in Experimental Settings lets the plugin answer config keys written as modules and reads through an alias or a nested import; with it off, those keys are not answered and the unread config key inspection can warn on them.** Refs [#4567](https://github.com/intellij-elixir/intellij-elixir/issues/4567).
 
 - [#4569](https://github.com/intellij-elixir/intellij-elixir/pull/4569) [@sh41](https://github.com/sh41)
   - **The expander reads a project's config files as Mix does, under `:test` for a file in a test source folder and `:dev` for any other, so a function defined under `Application.compile_env` is seen with the value the config gives it.** Fixes [#4563](https://github.com/intellij-elixir/intellij-elixir/issues/4563).

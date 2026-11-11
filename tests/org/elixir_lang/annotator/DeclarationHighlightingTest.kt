@@ -1,6 +1,7 @@
 package org.elixir_lang.annotator
 
 import com.intellij.openapi.editor.colors.TextAttributesKey
+import com.intellij.openapi.util.Disposer
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.FUNCTION_CALL
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.GUARD_CALL
@@ -9,6 +10,9 @@ import org.elixir_lang.ElixirSyntaxHighlighter.Companion.MACRO_CALL
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.MACRO_DECLARATION
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.declaration.DistinctKeyScheme
+import org.elixir_lang.declaration.disableExpander
+import org.elixir_lang.declaration.enableExpander
+import org.elixir_lang.expander.LegSdk
 
 /**
  * A call is highlighted by what the called declaration can do, whichever form declares it: a clause, a delegation, an
@@ -21,12 +25,28 @@ class DeclarationHighlightingTest : PlatformTestCase() {
 
     override fun setUp() {
         super.setUp()
+        LegSdk.setUp(module, testRootDisposable)
+        Disposer.register(testRootDisposable) { LegSdk.tearDown(module) }
         scheme = DistinctKeyScheme(testRootDisposable)
     }
 
+    /** The walk knows `EEx` and `Mix.Generator` only from source, so this copies stand-ins for them. */
     fun testEveryFormHighlightsByItsKindWhereDeclaredAndWhereCalled() {
+        disableExpander(testRootDisposable)
         myFixture.copyFileToProject("eex.ex")
         myFixture.copyFileToProject("mix_generator.ex")
+
+        assertEveryFormHighlightsByItsKind()
+    }
+
+    /** The expander runs the SDK's `EEx` and `Mix.Generator`, which a stand-in in the project would replace. */
+    fun testEveryFormHighlightsByItsKindWithTheExpanderOn() {
+        enableExpander(testRootDisposable)
+
+        assertEveryFormHighlightsByItsKind()
+    }
+
+    private fun assertEveryFormHighlightsByItsKind() {
         myFixture.configureByText(ElixirFileType.INSTANCE, CODE)
 
         val usage = CODE.indexOf("def usage")

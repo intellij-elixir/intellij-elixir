@@ -2,6 +2,7 @@ package org.elixir_lang.golden
 
 import com.intellij.platform.testFramework.core.FileComparisonFailedError
 import com.intellij.testFramework.UsefulTestCase
+import com.intellij.util.SystemProperties
 import org.elixir_lang.junit.UnitTestCase
 import java.io.File
 import kotlin.io.path.createTempDirectory
@@ -17,15 +18,12 @@ class CommittedGoldenTest : UnitTestCase() {
         directory = createTempDirectory("committed-golden").toFile()
         golden = File(directory, "golden.txt")
         summary = File(directory, "summary.md")
-        savedSummary = System.getProperty(CommittedGolden.STEP_SUMMARY_PROPERTY)
-        System.setProperty(CommittedGolden.STEP_SUMMARY_PROPERTY, summary.path)
+        savedSummary = SystemProperties.setProperty(CommittedGolden.STEP_SUMMARY_PROPERTY, summary.path)
     }
 
     override fun tearDown() {
         try {
-            savedSummary
-                ?.let { System.setProperty(CommittedGolden.STEP_SUMMARY_PROPERTY, it) }
-                ?: System.clearProperty(CommittedGolden.STEP_SUMMARY_PROPERTY)
+            SystemProperties.setProperty(CommittedGolden.STEP_SUMMARY_PROPERTY, savedSummary)
             directory.deleteRecursively()
         } finally {
             super.tearDown()

@@ -9,6 +9,7 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiRecursiveElementWalkingVisitor
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.util.SystemProperties
 import org.elixir_lang.expander.ConfigHeavyTestCase
 import org.elixir_lang.expander.ModuleNamesTracker
 import org.elixir_lang.expander.ProjectModules
@@ -30,8 +31,7 @@ class ExpanderOffHeavyTest : ConfigHeavyTestCase() {
     private var savedProperty: String? = null
 
     override fun setUp() {
-        savedProperty = System.getProperty(SOURCE_PROPERTY)
-        System.clearProperty(SOURCE_PROPERTY)
+        savedProperty = SystemProperties.setProperty(SOURCE_PROPERTY, null)
         super.setUp()
     }
 
@@ -39,11 +39,12 @@ class ExpanderOffHeavyTest : ConfigHeavyTestCase() {
         try {
             super.tearDown()
         } finally {
-            savedProperty?.let { System.setProperty(SOURCE_PROPERTY, it) } ?: System.clearProperty(SOURCE_PROPERTY)
+            SystemProperties.setProperty(SOURCE_PROPERTY, savedProperty)
         }
     }
 
     fun testNoServiceStartsOnAConfigAskWithTheSettingOff() {
+        disableExpander(testRootDisposable)
         val root = configProject()
 
         assertEquals("before any ask", emptyList<String>(), started())

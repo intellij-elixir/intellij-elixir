@@ -41,7 +41,7 @@ class ElixirExperimentalSettingsTest : LightTestCase() {
 
     fun testALaterLoadPublishesAChange() {
         val settings = ElixirExperimentalSettings().apply { initializeComponent() }
-        val loaded = ElixirExperimentalSettings.State(enableExpander = true)
+        val loaded = ElixirExperimentalSettings.State().run { copy(enableExpander = !enableExpander) }
 
         settings.loadState(loaded)
 

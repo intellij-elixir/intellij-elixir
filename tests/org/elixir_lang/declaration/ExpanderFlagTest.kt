@@ -1,47 +1,52 @@
 package org.elixir_lang.declaration
 
 import com.intellij.openapi.util.Disposer
+import com.intellij.util.SystemProperties
 import org.elixir_lang.expander.ExpanderSource
 import org.elixir_lang.junit.LightTestCase
 import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 import org.elixir_lang.settings.ElixirExperimentalSettings
+import org.elixir_lang.settings.RUN_EXPANDER_PROPERTY
 
 class ExpanderFlagTest : LightTestCase() {
     private var savedProperty: String? = null
-    private var savedSetting = false
 
     override fun setUp() {
         super.setUp()
-        savedProperty = System.getProperty(SOURCE_PROPERTY)
-        savedSetting = ElixirExperimentalSettings.instance.state.enableExpander
-        System.clearProperty(SOURCE_PROPERTY)
+        savedProperty = SystemProperties.setProperty(SOURCE_PROPERTY, null)
+        disableExpander(testRootDisposable)
     }
 
     override fun tearDown() {
         try {
-            savedProperty?.let { System.setProperty(SOURCE_PROPERTY, it) } ?: System.clearProperty(SOURCE_PROPERTY)
-            ElixirExperimentalSettings.instance.state.enableExpander = savedSetting
+            SystemProperties.setProperty(SOURCE_PROPERTY, savedProperty)
         } finally {
             super.tearDown()
         }
     }
 
     fun testTheSettingIsOffByDefault() {
-        assertFalse(ElixirExperimentalSettings.State().enableExpander)
+        assertFalse(defaultWithRunExpander(null))
     }
 
-    fun testTheSettingOnMovesNoFeature() {
-        ElixirExperimentalSettings.instance.state.enableExpander = false
+    fun testTheHarnessPropertyTurnsTheDefaultOn() {
+        assertTrue(defaultWithRunExpander("true"))
+    }
+
+    fun testTheSettingOnMovesHighlightingOnly() {
         assertFalse(expanderFlagOn())
+        assertEquals(Feature.entries.associateWith { LegacyWalkSource }, Feature.entries.associateWith(::sourceFor))
 
         enableExpander(testRootDisposable)
 
         assertTrue(expanderFlagOn())
-        assertEquals(Feature.entries.associateWith { LegacyWalkSource }, Feature.entries.associateWith(::sourceFor))
+        assertEquals(
+            Feature.entries.associateWith { if (it == Feature.HIGHLIGHTING) ExpanderSource else LegacyWalkSource },
+            Feature.entries.associateWith(::sourceFor),
+        )
     }
 
     fun testThePropertyIsTheWholeTableWithTheSettingOff() {
-        ElixirExperimentalSettings.instance.state.enableExpander = false
         System.setProperty(SOURCE_PROPERTY, EXPANDER)
 
         assertFalse(expanderFlagOn())
@@ -77,6 +82,15 @@ class ExpanderFlagTest : LightTestCase() {
 
             Disposer.dispose(disposable)
             assertEquals(original, state.enableExpander)
+        }
+    }
+
+    private fun defaultWithRunExpander(value: String?): Boolean {
+        val saved = SystemProperties.setProperty(RUN_EXPANDER_PROPERTY, value)
+        return try {
+            ElixirExperimentalSettings.State().enableExpander
+        } finally {
+            SystemProperties.setProperty(RUN_EXPANDER_PROPERTY, saved)
         }
     }
 }

@@ -19,6 +19,7 @@ import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.Signature
+import org.elixir_lang.declaration.Answer
 import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
@@ -1965,8 +1966,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
 
             Use.specification(head, attribute)!!
         }
-        var dumb: String? = null
-        DumbModeTestUtils.runInDumbModeSynchronously(project) { dumb = absence(file, "missing(x)", "missing(x)") }
+        val dumb = DumbModeTestUtils.computeInDumbModeSynchronously(project) { absence(file, "missing(x)", "missing(x)") }
         val specifiedAbsence = read { ExpanderSource.answer(specified, false) }.absence?.name ?: "certain"
         ModuleRootModificationUtil.setModuleSdk(module, null)
 
@@ -1977,10 +1977,72 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
     }
 
     /**
-     * A feature whose rule takes no uncertain answer gets none of a module's several copies, though the expander finds
-     * each of them.
+     * With no SDK no env is reached, so a call's finds are what the name index defines its name as, each INDEX: after an
+     * alias or an atom, in the module it names as written, only the one it spells after `Elixir.`, which no `alias`
+     * expands, and after any other qualifier none; at a local call, in any module, a private one only in its own.
      */
-    fun testAFeatureWithNoRuleGetsNoneOfSeveralCopies() {
+    fun testWithNoSdkTheFindsAreTheIndexs() {
+        file("defmodule Callee do\n  def g(a), do: a\n  defp hidden(a), do: a\n  defdelegate d(a), to: Other, as: :g\nend\n")
+        file("defmodule Other do\n  def g(a), do: a\nend\n")
+        file("defmodule A.Other do\n  def g(a), do: a\nend\n")
+        file("defmodule :callee do\n  def g(a), do: a\nend\n")
+        val caller = file(
+            """
+            defmodule Caller do
+              def f, do: Callee.g(1)
+              def e, do: Callee.d(1)
+              def a, do: :callee.g(1)
+              def r, do: Elixir.Other.g(1)
+              def m, do: __MODULE__.g(1)
+              def v(x), do: x.g(1)
+              def h, do: local(1)
+              def i, do: hidden(1)
+              defp local(a), do: a
+            end
+            """
+        )
+        ModuleRootModificationUtil.setModuleSdk(module, null)
+
+        val calls = listOf("Callee.g(1)", "Callee.d(1)", ":callee.g(1)", "Elixir.Other.g(1)", "__MODULE__.g(1)", "x.g(1)", "local(1)", "hidden(1)")
+        val answers = calls.associateWith { call ->
+            val use = use(caller, call, call)
+            val answer = read { ExpanderSource.answer(use, false) }
+
+            answer.found.map { "${name(it)} ${it.uncertain}" } to answer.absence
+        }
+
+        assertEquals(
+            mapOf(
+                "Callee.g(1)" to (listOf("Callee.g/1 INDEX") to Uncertain.NO_EXPANSION),
+                "Callee.d(1)" to (listOf("Callee.d/1 INDEX") to Uncertain.NO_EXPANSION),
+                ":callee.g(1)" to (listOf(":callee.g/1 INDEX") to Uncertain.NO_EXPANSION),
+                "Elixir.Other.g(1)" to (listOf("Other.g/1 INDEX") to Uncertain.NO_EXPANSION),
+                "__MODULE__.g(1)" to (emptyList<String>() to Uncertain.NO_EXPANSION),
+                "x.g(1)" to (emptyList<String>() to Uncertain.NO_EXPANSION),
+                "local(1)" to (listOf("Caller.local/1 INDEX") to Uncertain.NO_EXPANSION),
+                "hidden(1)" to (emptyList<String>() to Uncertain.NO_EXPANSION),
+            ),
+            answers,
+        )
+    }
+
+    /** With no SDK, while the IDE indexes, the name index can't be read, so a call has no finds. */
+    fun testWithNoSdkWhileIndexingACallHasNoFinds() {
+        file("defmodule Callee do\n  def g(a), do: a\nend\n")
+        val caller = file("defmodule Caller do\n  def f, do: Callee.g(1)\nend\n")
+        ModuleRootModificationUtil.setModuleSdk(module, null)
+        val use = use(caller, "Callee.g(1)", "Callee.g(1)")
+
+        val answer = DumbModeTestUtils.computeInDumbModeSynchronously(project) { read { ExpanderSource.answer(use, false) } }
+
+        assertEquals(Answer(emptyList(), Uncertain.NO_EXPANSION), answer)
+    }
+
+    /**
+     * Highlighting, whose rule takes an uncertain answer, gets each of a module's several copies; a feature whose rule
+     * takes none gets none of them, though the expander finds each.
+     */
+    fun testOnlyHighlightingGetsSeveralCopies() {
         file("defmodule Twice do\n  def g(a), do: a\nend\n")
         file("defmodule Twice do\n  def g(a), do: a\nend\n")
         val caller = file("defmodule Caller do\n  def f, do: Twice.g(1)\nend\n")
@@ -1994,11 +2056,14 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         }
 
         assertEquals(listOf(Uncertain.SEVERAL, Uncertain.SEVERAL), found)
-        assertEquals(Feature.entries.associateWith { 0 }, stepped)
+        assertEquals(Feature.entries.associateWith { if (it == Feature.HIGHLIGHTING) 2 else 0 }, stepped)
     }
 
-    /** A delegation in several copies may not be the one Elixir loads, so neither is the target it reaches. */
-    fun testAFeatureWithNoRuleGetsNoTargetOfADelegationInSeveralCopies() {
+    /**
+     * A delegation in several copies may not be the one Elixir loads, so neither is the target it reaches: only
+     * highlighting gets the copies.
+     */
+    fun testOnlyHighlightingGetsADelegationInSeveralCopies() {
         file("defmodule Twice do\n  defdelegate g(a), to: Target\nend\n")
         file("defmodule Twice do\n  defdelegate g(a), to: Target\nend\n")
         file("defmodule Target do\n  def g(a), do: a\nend\n")
@@ -2016,7 +2081,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             listOf("OWN SEVERAL", "DELEGATION_TARGET SEVERAL", "OWN SEVERAL", "DELEGATION_TARGET SEVERAL"),
             found,
         )
-        assertEquals(Feature.entries.associateWith { 0 }, stepped)
+        assertEquals(Feature.entries.associateWith { if (it == Feature.HIGHLIGHTING) 2 else 0 }, stepped)
     }
 
     /** Past a stop every feature keeps the env's find, marked STOP. */
@@ -2024,13 +2089,13 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val file = file(
             """
             defmodule Stopped do
-              def target(a), do: a
+              def kept(a), do: a
               1.f()
-              def after_stop, do: target(1)
+              def after_stop, do: kept(1)
             end
             """
         )
-        val use = use(file, "target(1)", "target(1)")
+        val use = use(file, "kept(1)", "kept(1)")
 
         val stepped = withExpanderSwitch {
             read { Feature.entries.associateWith { feature -> Resolved.step(use, false, feature = feature).map { it.found.uncertain } } }
@@ -2389,6 +2454,50 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
                 candidates(file, "B.b_p(1)", "B.b_p(1)"),
             ),
         )
+    }
+
+    /**
+     * An `alias` written after a stop may also undo one before it, as `alias Foo` drops `alias A.Foo`, so past the stop
+     * the qualifier may name the module whose whole name it is.
+     */
+    fun testPastAStopAQualifierGetsTheIndexsDefinitionsInTheModuleItNamesAsWritten() {
+        val file = file(
+            """
+            defmodule Foo do
+              def f(a), do: a
+            end
+
+            defmodule A.Foo do
+            end
+
+            defmodule User do
+              alias A.Foo
+              1.f()
+              alias Foo
+              def go, do: Foo.f(1)
+            end
+            """
+        )
+
+        assertEquals("Foo.f/1 INDEXED VALID via [] line 2 INDEX", candidates(file, "Foo.f(1)", "Foo.f(1)"))
+    }
+
+    /** A `defdelegate` defines the function each of its heads names, so past a stop the index gives the head. */
+    fun testPastAStopTheIndexGivesADelegationsHead() {
+        val file = file(
+            """
+            defmodule Callee do
+              defdelegate d(a), to: Target, as: :g
+            end
+
+            defmodule User do
+              1.f()
+              def go, do: d(1)
+            end
+            """
+        )
+
+        assertEquals("Callee.d/1 INDEXED VALID via [] line 2 INDEX", candidates(file, "d(1)", "d(1)"))
     }
 
     /**

@@ -11,6 +11,7 @@ import com.intellij.testFramework.UsefulTestCase
 import com.intellij.testFramework.builders.EmptyModuleFixtureBuilder
 import com.intellij.testFramework.fixtures.CodeInsightTestFixture
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
+import com.intellij.util.SystemProperties
 import com.intellij.util.ThrowableRunnable
 import org.elixir_lang.code_insight.GtduNavigation
 import org.elixir_lang.code_insight.gtduNavigationAtCaret
@@ -40,8 +41,7 @@ abstract class LegSdkFixtureTestCase : UsefulTestCase() {
     }
 
     override fun setUp() {
-        savedProperty = System.getProperty(SOURCE_PROPERTY)
-        System.clearProperty(SOURCE_PROPERTY)
+        savedProperty = SystemProperties.setProperty(SOURCE_PROPERTY, null)
         super.setUp()
 
         val factory = IdeaTestFixtureFactory.getFixtureFactory()
@@ -96,7 +96,7 @@ abstract class LegSdkFixtureTestCase : UsefulTestCase() {
             LegSdk.tearDown(module)
             myFixture.tearDown()
         } finally {
-            savedProperty?.let { System.setProperty(SOURCE_PROPERTY, it) } ?: System.clearProperty(SOURCE_PROPERTY)
+            SystemProperties.setProperty(SOURCE_PROPERTY, savedProperty)
             super.tearDown()
         }
     }

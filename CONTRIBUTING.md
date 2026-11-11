@@ -371,6 +371,13 @@ command line stays on Gradle's JVM):
 - `-PexpanderPhoenix=<dir>` sets `org.elixir_lang.expander.phoenix` to the directory's absolute path;
   blank values are ignored. With this property set to a non-blank directory, `test` is never up to date
   or taken from the build cache, because the corpus files and the reports are not declared task inputs or outputs.
+- `-PexpanderMirror=true` sets `org.elixir_lang.expander.mirror` to `true` for `MirrorExpansionHeavyTest`'s sweep.
+  Other values leave it unset. With it, `test` is never up to date or taken from the build cache, because the
+  `.beam` files the sweep reads and the report it writes are not declared task inputs or outputs.
+- `-PexpanderMirrorDeps=<dir>` sets `org.elixir_lang.expander.mirror.deps` to the directory's absolute path, the Mix
+  build's `lib` whose deps the sweep adds.
+- `-PrunExpander=true` sets `org.elixir_lang.expander.run` to `true`, so Run the expander is on by default.
+  Other values leave it unset.
 - `-PdeclarationSource=expander` sets `org.elixir_lang.declaration.source` to `expander`. Non-blank values
   pass through unchanged, and the value is a task input so switching it invalidates cached results.
 - `-PquoterFullDump=true` sets `elixir.quoter.fullDump` to `true` for complete quoting-mismatch dumps.

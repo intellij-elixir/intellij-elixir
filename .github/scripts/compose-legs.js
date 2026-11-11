@@ -133,7 +133,8 @@ async function main() {
     { part: 'rest', prefix: '' },
     { part: 'heavy', prefix: 'heavy ' },
   ];
-  const leg = async (os, idea, beam, legLabel) => {
+  // `run-expander` runs the leg with Run the expander on by default (-PrunExpander).
+  const leg = async (os, idea, beam, legLabel, runExpander = false) => {
     const build = await buildFor('IU', idea.version);
     const continueOnError = Boolean(idea['continue-on-error'] || beam['continue-on-error']);
     return (
@@ -147,6 +148,7 @@ async function main() {
           beam,
           baseline: beam === base,
           part,
+          'run-expander': runExpander,
           label,
           job: `test (${label}${buildSuffix(idea.version, build)})`,
           'continue-on-error': continueOnError,
@@ -161,6 +163,7 @@ async function main() {
         leg('ubuntu-24.04-arm', idea, base, `IDEA ${idea.version}`),
       ),
       ...pairs.map((beam) => leg('ubuntu-24.04-arm', minimumSupported, beam, `${beam.elixir}+${beam.otp}`)),
+      leg('ubuntu-24.04-arm', minimumSupported, base, `expander on ${base.elixir}+${base.otp}`, true),
       includeWindows(event) && leg('windows-2025', minimumSupported, base, `Win25, IDEA ${minimumSupported.version}`),
     ])
   )

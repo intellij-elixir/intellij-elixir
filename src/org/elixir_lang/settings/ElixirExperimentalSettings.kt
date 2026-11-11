@@ -14,6 +14,9 @@ interface ElixirExperimentalSettingsListener {
 
 private val LOG = logger<ElixirExperimentalSettings>()
 
+/** Set only by the test harness, to run a suite with Run the expander on by default. */
+internal const val RUN_EXPANDER_PROPERTY = "org.elixir_lang.expander.run"
+
 @State(
     name = "org.elixir_lang.settings.ElixirExperimentalSettings",
     storages = [Storage("elixir.experimental.xml")]
@@ -26,7 +29,7 @@ class ElixirExperimentalSettings : PersistentStateComponent<ElixirExperimentalSe
         var enableStatusBarWidget : Boolean = false,
         var enableLiteralSigilInjection: Boolean = false,
         var enableMixDepsCheck: Boolean = true,
-        var enableExpander: Boolean = false
+        var enableExpander: Boolean = java.lang.Boolean.getBoolean(RUN_EXPANDER_PROPERTY)
     )
 
     private var elixirSettingsState = State()
