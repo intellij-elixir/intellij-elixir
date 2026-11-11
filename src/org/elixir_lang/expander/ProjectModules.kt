@@ -11,6 +11,7 @@ import com.intellij.openapi.roots.OrderEnumerator
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.roots.ProjectRootManager
+import com.intellij.openapi.roots.impl.libraries.LibraryEx
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.ModificationTracker
 import com.intellij.openapi.vfs.VfsUtilCore
@@ -37,10 +38,14 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.mix.Project.MIX_EXS
+import org.elixir_lang.mix.Project.depFolder
 import org.elixir_lang.mix.Project.isDepsOfAMixProject
 import org.elixir_lang.mix.ProjectKeywords
 import org.elixir_lang.mix.buildEnv
 import org.elixir_lang.mix.defaultBuildEnv
+import org.elixir_lang.mix.library.Kind as MixLibraryKind
+import org.elixir_lang.mix.sync.scopedDepLibraryName
+import org.elixir_lang.mix.sync.scopedLibraryNameToken
 import org.elixir_lang.model.psi.config.ConfigFiles
 import org.elixir_lang.model.psi.config.ConfigSettings
 import org.elixir_lang.navigation.isDecompiled
@@ -52,7 +57,6 @@ import org.jetbrains.annotations.TestOnly
 import java.io.IOException
 import java.nio.file.FileSystems
 import java.nio.file.Path
-import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.PatternSyntaxException
 
@@ -651,10 +655,10 @@ internal class ProjectModules(private val project: Project) {
     ): AppEnv {
         val level = inputs.level
         val configFiles = ArrayList<VirtualFile>()
+        val trackedMixExs by lazy { trackMixExs(stamps) }
         // Which files are config files: a `mix.exs` names its config directory.
         val scope by lazy {
-            stamps.track(names.exsFiles)
-            FilenameIndex.getVirtualFilesByName(MIX_EXS, GlobalSearchScope.projectScope(project)).forEach(stamps::source)
+            trackedMixExs
 
             ConfigFiles.scope(project)
         }
@@ -664,7 +668,7 @@ internal class ProjectModules(private val project: Project) {
                 configFiles.forEach(stamps::source)
             }
         }
-        val appFiles = HashMap<String, Optional<AppFile>>()
+        val declarations = HashMap<String, AppDeclaration>()
 
         // Whether this file is expanded within a config file's expansion.
         fun configRunning(): Boolean {
@@ -674,11 +678,11 @@ internal class ProjectModules(private val project: Project) {
             return running.isNotEmpty()
         }
 
-        val appFileOf = { app: String -> appFiles.getOrPut(app) { Optional.ofNullable(appFile(app, level, asker, stamps)) }.orElse(null) }
+        val declaration = { app: String -> declarations.getOrPut(app) { appFile(app, level, asker, stamps) { trackedMixExs; mayHave(app) } } }
         val env = AppEnv.of(
             { app, key -> (key as? OtpErlangAtom)?.let { ConfigSettings.of(project, app, it.atomValue(), config).isNotEmpty() } == true },
             { app -> ConfigSettings.unread(project, app, config) },
-            appFileOf,
+            declaration,
         )
         val table by lazy {
             val configEnv = buildTarget?.configEnv
@@ -694,7 +698,7 @@ internal class ProjectModules(private val project: Project) {
                 }
                 read != null || file != null && scope.contains(file) || configRunning() -> AppEnvValue.Configured
                 else -> table?.takeUnless { it.declined }?.let { table ->
-                    table.of(app, key) ?: AppEnv.declared(appFileOf(app), key)
+                    table.of(app, key) ?: AppEnv.declared(declaration(app), key)
                 } ?: env.of(app, key).also {
                     // Whether a config file's call sets or writes a key rests on the module its expansion names, so on
                     // what that expansion read.
@@ -909,19 +913,30 @@ internal class ProjectModules(private val project: Project) {
     }
 
     /**
-     * [app]'s `.app` file as read from those of its copies on the code path that [asker] loads ([Module.loads]), as a
-     * build in any of their envs sees it: `null` where there is none, one can't be read or names another app, or two
-     * differ in env, as `=:=` tells on [level]'s VM or by a zero's sign, which the VM keeps where `=:=` can't tell it.
+     * What the project declares of [app]. Its `.app` file as read from those of its copies on the code path that [asker]
+     * loads ([Module.loads]), as a build in any of their envs sees it. [AppDeclaration.Absent] where no `.app` of that name
+     * is at any class root and the project can't have the app otherwise ([mayHave]). Else [AppDeclaration.Unknown], also
+     * where a copy can't be read or names another app, or two differ in env, as `=:=` tells on [level]'s VM or by a
+     * zero's sign, which the VM keeps where `=:=` can't tell it.
      */
-    private fun appFile(app: String, level: ElixirLanguageLevel, asker: PsiFile, stamps: Stamps): AppFile? {
+    private fun appFile(
+        app: String,
+        level: ElixirLanguageLevel,
+        asker: PsiFile,
+        stamps: Stamps,
+        mayHaveApp: () -> Boolean,
+    ): AppDeclaration {
         stamps.track(names.appFiles)
         stamps.track(ProjectRootManager.getInstance(project))
         val facetSdkRoots = FacetModels.getInstance(project).named()
             .flatMap { it.rootProvider.getFiles(OrderRootType.CLASSES).asList() }
-        val onPath = (OrderEnumerator.orderEntries(project).classes().roots.asList() + facetSdkRoots)
+        val anywhere = (OrderEnumerator.orderEntries(project).classes().roots.asList() + facetSdkRoots)
             .mapNotNull { it.findChild("$app.app") }
-            .filter(::isDependencyOutput)
             .distinct()
+
+        if (anywhere.isEmpty()) return if (mayHaveApp()) AppDeclaration.Unknown else AppDeclaration.Absent
+
+        val onPath = anywhere.filter(::isDependencyOutput)
         val copies = (Module.loads(asker, onPath)?.let(onPath::filter) ?: onPath)
             .map { file ->
                 stamps.onDisk(file)
@@ -930,10 +945,42 @@ internal class ProjectModules(private val project: Project) {
                     AppFile.read(VfsUtilCore.loadText(file), level)
                 } catch (_: IOException) {
                     null
-                } ?: return null
+                } ?: return AppDeclaration.Unknown
             }
 
-        return copies.firstOrNull()?.takeIf { first -> copies.all { it.name == app && sameEnv(it.env, first.env, level) } }
+        return copies.firstOrNull()
+            ?.takeIf { first -> copies.all { it.name == app && sameEnv(it.env, first.env, level) } }
+            ?.let(AppDeclaration::Read)
+            ?: AppDeclaration.Unknown
+    }
+
+    /**
+     * Whether the project may have [app] though no `.app` of it is on the code path: a `deps/[app]` folder directly under
+     * a content root, a library Mix sync made for it, or a content `mix.exs` that may name it ([ConfigFiles.mayHave]).
+     */
+    private fun mayHave(app: String): Boolean =
+        ProjectRootManager.getInstance(project).contentRoots.any { depFolder(it, app) != null } ||
+            hasMixLibrary(app) ||
+            ConfigFiles.mayHave(project, app)
+
+    /** Whether a library of Mix's kind named for [app] ([scopedDepLibraryName]) is among the project's order entries. */
+    private fun hasMixLibrary(app: String): Boolean {
+        var found = false
+
+        OrderEnumerator.orderEntries(project).forEachLibrary { library ->
+            found = (library as? LibraryEx)?.kind == MixLibraryKind &&
+                library.name?.let { name -> name == scopedLibraryNameToken(name)?.let { scopedDepLibraryName(it, app) } } == true
+
+            !found
+        }
+
+        return found
+    }
+
+    /** The content `mix.exs` files name the apps and dependencies the answers about the project's apps rest on. */
+    private fun trackMixExs(stamps: Stamps) {
+        stamps.track(names.exsFiles)
+        FilenameIndex.getVirtualFilesByName(MIX_EXS, GlobalSearchScope.projectScope(project)).forEach(stamps::source)
     }
 
     private fun sameEnv(left: Map<OtpErlangObject, OtpErlangObject>, right: Map<OtpErlangObject, OtpErlangObject>, level: ElixirLanguageLevel) =

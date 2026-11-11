@@ -11,25 +11,41 @@ internal fun interface AppEnv {
         /**
          * The env in which a key a counted config file sets ([configured]) isn't known, nor is any other key of an app
          * a setting that can't be read may set ([unread]), else a key the app's `.app` declares is its term, else the
-         * key is unset, where [appFile] gives the app's `.app` as read, `null` where it can't be read.
+         * key is unset, where [declaration] says what the project declares of the app.
          */
         fun of(
             configured: (app: String, key: OtpErlangObject) -> Boolean,
             unread: (app: String) -> Boolean,
-            appFile: (app: String) -> AppFile?,
+            declaration: (app: String) -> AppDeclaration,
         ): AppEnv =
             AppEnv { app, key ->
                 when {
                     configured(app, key) -> AppEnvValue.Configured
                     unread(app) -> AppEnvValue.Unreadable
-                    else -> declared(appFile(app), key)
+                    else -> declared(declaration(app), key)
                 }
             }
 
-        /** What [appFile], an app's `.app` as read, `null` where it can't be read, answers for [key]. */
-        fun declared(appFile: AppFile?, key: OtpErlangObject): AppEnvValue =
-            appFile?.let { file -> file.env[key]?.let(AppEnvValue::Declared) ?: AppEnvValue.Unset } ?: AppEnvValue.Unreadable
+        /** What [declaration] answers for [key]. */
+        fun declared(declaration: AppDeclaration, key: OtpErlangObject): AppEnvValue =
+            when (declaration) {
+                is AppDeclaration.Read -> declaration.appFile.env[key]?.let(AppEnvValue::Declared) ?: AppEnvValue.Unset
+                AppDeclaration.Absent -> AppEnvValue.Unset
+                AppDeclaration.Unknown -> AppEnvValue.Unreadable
+            }
     }
+}
+
+/** What the project declares of an app: the `.app` file Elixir loads for it, that it can't have the app, or neither is known. */
+internal sealed interface AppDeclaration {
+    /** The app's `.app` file, as every copy Elixir may load agrees. */
+    data class Read(val appFile: AppFile) : AppDeclaration
+
+    /** No `.app`, folder, library or `mix.exs` of the project's has the app, so Elixir never loads it. */
+    data object Absent : AppDeclaration
+
+    /** A copy can't be read or names another app, copies differ, or the project may have the app without a copy yet. */
+    data object Unknown : AppDeclaration
 }
 
 internal sealed class AppEnvValue {
@@ -42,7 +58,7 @@ internal sealed class AppEnvValue {
     /** The key's value is [term], from the config table or the app's `.app`. */
     data class Declared(val term: OtpErlangObject) : AppEnvValue()
 
-    /** Nothing sets the key. */
+    /** Nothing sets the key, or the project can't have the app, so Elixir never loaded it. */
     data object Unset : AppEnvValue()
 
     /**

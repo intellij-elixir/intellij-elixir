@@ -11,9 +11,7 @@ import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import java.io.File
-import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.jvm.optionals.getOrNull
 import kotlin.time.Duration.Companion.seconds
 
 /** The leg's Elixir, and its Erlang/OTP when the test JVM is told it: an empty or missing version leaves it unknown. */
@@ -69,14 +67,14 @@ internal fun legAppEnv(
     unread: (app: String) -> Boolean = { false },
 ): AppEnv {
     val level = legLevel()
-    val cache = ConcurrentHashMap<String, Optional<AppFile>>()
+    val cache = ConcurrentHashMap<String, AppDeclaration>()
 
     return AppEnv.of(configured, unread) { app ->
         cache.computeIfAbsent(app) {
             val text = apps[app] ?: legEbins.map { File(it, "$app.app") }.firstOrNull(File::isFile)?.readText()
 
-            Optional.ofNullable(text?.let { AppFile.read(it, level) })
-        }.getOrNull()
+            text?.let { AppFile.read(it, level) }?.let(AppDeclaration::Read) ?: AppDeclaration.Unknown
+        }
     }
 }
 
