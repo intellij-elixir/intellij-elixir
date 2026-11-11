@@ -102,7 +102,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(ProjectKeywords.ConfigPath.Written("../../config/config.exs"), ProjectKeywords.configPath(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("../../config/config.exs"), ProjectKeywords.configPath(mixExs))
     }
 
     fun testParenthesizedConfigPathIsTheString() {
@@ -118,7 +118,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(ProjectKeywords.ConfigPath.Written("../../config/config.exs"), ProjectKeywords.configPath(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("../../config/config.exs"), ProjectKeywords.configPath(mixExs))
     }
 
     fun testNonLiteralConfigPathIsUnknown() {
@@ -134,7 +134,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(ProjectKeywords.ConfigPath.Unknown, ProjectKeywords.configPath(mixExs))
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.configPath(mixExs))
     }
 
     fun testAbsentConfigPathIsMixsDefault() {
@@ -148,7 +148,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(ProjectKeywords.ConfigPath.Written("config/config.exs"), ProjectKeywords.configPath(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("config/config.exs"), ProjectKeywords.configPath(mixExs))
     }
 
     fun testEmptyProjectListHasTheDefaultConfigPath() {
@@ -162,7 +162,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(ProjectKeywords.ConfigPath.Written("config/config.exs"), ProjectKeywords.configPath(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("config/config.exs"), ProjectKeywords.configPath(mixExs))
     }
 
     fun testTupleProjectListHasAnUnknownConfigPath() {
@@ -176,7 +176,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(ProjectKeywords.ConfigPath.Unknown, ProjectKeywords.configPath(mixExs))
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.configPath(mixExs))
     }
 
     private fun mixExs(text: String): ElixirFile =

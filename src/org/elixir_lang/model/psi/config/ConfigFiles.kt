@@ -58,7 +58,7 @@ object ConfigFiles {
      */
     @RequiresReadLock
     fun unread(project: Project, scope: GlobalSearchScope): Boolean {
-        if (projects(project).any { (_, entry) -> entry.configPath == ProjectKeywords.ConfigPath.Unknown }) return true
+        if (projects(project).any { (_, entry) -> entry.configPath == ProjectKeywords.Reading.Unknown }) return true
         val imports = ConfigIndexing.written(project, ConfigIndexKey.AnyApp, scope, ConfigIndexing.Decided.IMPORT)
         if (imports.isEmpty()) return false
         val directories = directories(project)
@@ -124,14 +124,14 @@ object ConfigFiles {
     /** The directory of each content `mix.exs` file's `config_path:`. */
     private fun directories(project: Project): kotlin.collections.Set<VirtualFile> =
         projects(project).mapNotNullTo(mutableSetOf()) { (mixExs, entry) ->
-            (entry.configPath as? ProjectKeywords.ConfigPath.Written)?.let { written ->
+            entry.configPath.written?.let { written ->
                 mixExs.fileSystem.findFileByPath(PathUtil.getParentPath(configFilePath(mixExs, written)))?.takeIf { it.isDirectory }
             }
         }
 
     /** Where [written], [mixExs]'s `config_path:`, points: `Path.expand/2` of it against [mixExs]'s directory. */
-    fun configFilePath(mixExs: VirtualFile, written: ProjectKeywords.ConfigPath.Written): String {
-        val path = FileUtil.toSystemIndependentName(written.path)
+    fun configFilePath(mixExs: VirtualFile, written: String): String {
+        val path = FileUtil.toSystemIndependentName(written)
 
         return FileUtil.toCanonicalPath(if (FileUtil.isAbsolutePlatformIndependent(path)) path else "${mixExs.parent.path}/$path")
     }
@@ -149,7 +149,7 @@ object ConfigFiles {
 
     /** The config path [mixExs] names, `null` where [mixExs] is no content project's `mix.exs`. */
     @RequiresReadLock
-    fun configPath(project: Project, mixExs: VirtualFile): ProjectKeywords.ConfigPath? =
+    fun configPath(project: Project, mixExs: VirtualFile): ProjectKeywords.Reading<String>? =
         projects(project).firstOrNull { it.first == mixExs }?.second?.configPath
 
     /** Each content `mix.exs` file and its project entry. */

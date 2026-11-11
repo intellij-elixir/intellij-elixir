@@ -33,32 +33,39 @@ object ProjectKeywords {
 
     /**
      * The project's `config_path:`, Mix's default when the list `project/0` returns is `[]` or keywords without one;
-     * [ConfigPath.Unknown] for any other list.
+     * [Reading.Unknown] for any other list. Never [Reading.Absent]: Mix's default is the answer.
      */
     @RequiresReadLock
-    fun configPath(mixExs: ElixirFile): ConfigPath {
-        val list = list(mixExs) ?: return ConfigPath.Unknown
+    fun configPath(mixExs: ElixirFile): Reading<String> {
+        val list = list(mixExs) ?: return Reading.Unknown
         val keywords = list.keywords
-            ?: return if (list.children.isEmpty()) ConfigPath.Written(DEFAULT_CONFIG_PATH) else ConfigPath.Unknown
+            ?: return if (list.children.isEmpty()) Reading.Written(DEFAULT_CONFIG_PATH) else Reading.Unknown
         val value = keywords.keywordValue("config_path")?.stripAccessExpressionAndParentheses()
-            ?: return ConfigPath.Written(DEFAULT_CONFIG_PATH)
+            ?: return Reading.Written(DEFAULT_CONFIG_PATH)
 
         return (value as? ElixirLine)
             ?.takeUnless { it.isCharList }
             ?.let { content(it, it.pieces(), ElixirLanguageLevelResolver.languageLevelFor(it)) }
             ?.let(AtomName::literalText)
-            ?.let(ConfigPath::Written)
-            ?: ConfigPath.Unknown
+            ?.let { Reading.Written(it) }
+            ?: Reading.Unknown
     }
 
-    /** Where a `mix.exs` file's `config_path:` points: a [Written] path, as it wrote it, or [Unknown]. */
-    sealed interface ConfigPath {
-        data class Written(val path: String) : ConfigPath {
-            /** Whether this is Mix's default, the only path that may be missing. */
-            val isDefault: Boolean get() = path == DEFAULT_CONFIG_PATH
-        }
+    /** Whether [path], a written `config_path:`, is Mix's default, the only path that may be missing. */
+    fun isDefault(path: String): Boolean = path == DEFAULT_CONFIG_PATH
 
-        data object Unknown : ConfigPath
+    /** What a `mix.exs` file's `project/0` says of a keyword: a [Written] value, [Absent], or [Unknown]. */
+    sealed interface Reading<out T> {
+        /** The written value, `null` where [Absent] or [Unknown]. */
+        val written: T? get() = (this as? Written)?.value
+
+        data class Written<out T>(val value: T) : Reading<T>
+
+        /** The list `project/0` returns is readable and has no such keyword. */
+        data object Absent : Reading<Nothing>
+
+        /** The keyword, or the list `project/0` returns, can't be read. */
+        data object Unknown : Reading<Nothing>
     }
 
     private const val DEFAULT_CONFIG_PATH = "config/config.exs"

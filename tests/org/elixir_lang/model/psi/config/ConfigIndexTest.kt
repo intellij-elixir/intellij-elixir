@@ -477,10 +477,11 @@ class ConfigIndexTest : PlatformTestCase() {
             WrittenKey.All -> "All"
         }
 
-    private fun render(configPath: ProjectKeywords.ConfigPath): String =
-        when (configPath) {
-            is ProjectKeywords.ConfigPath.Written -> "Written(${configPath.path})"
-            ProjectKeywords.ConfigPath.Unknown -> "Unknown"
+    private fun render(reading: ProjectKeywords.Reading<String>): String =
+        when (reading) {
+            is ProjectKeywords.Reading.Written -> "Written(${reading.value})"
+            ProjectKeywords.Reading.Absent -> "Absent"
+            ProjectKeywords.Reading.Unknown -> "Unknown"
         }
 
     private fun render(qualifier: CallModule.Qualifier): String =

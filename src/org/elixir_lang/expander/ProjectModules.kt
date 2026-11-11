@@ -745,7 +745,7 @@ internal class ProjectModules(private val project: Project) {
 
     private fun configTable(
         mixExs: VirtualFile,
-        configPath: ProjectKeywords.ConfigPath,
+        configPath: ProjectKeywords.Reading<String>,
         env: String,
         target: String,
         inputs: Inputs,
@@ -753,12 +753,12 @@ internal class ProjectModules(private val project: Project) {
         transient: (Transient) -> Unit,
     ): ConfigTable? {
         stamps.source(mixExs)
-        val written = configPath as? ProjectKeywords.ConfigPath.Written ?: return null
+        val written = configPath.written ?: return null
         val path = ConfigFiles.configFilePath(mixExs, written)
         // Where it is missing, empty for the default path, as `Mix.Tasks.Loadconfig` then reads none, and else unknown, as it
         // raises. That reads how `mix.exs` wrote the path, so it isn't held by the path.
         val configFile = stamps.find(mixExs.fileSystem, path)?.takeUnless { it.isDirectory }
-            ?: return if (written.isDefault) ConfigTable.EMPTY else ConfigTable.UNKNOWN
+            ?: return if (ProjectKeywords.isDefault(written)) ConfigTable.EMPTY else ConfigTable.UNKNOWN
         val directory = mixExs.parent.path
         val key = TableKey(path, directory, env, target, inputs)
 
