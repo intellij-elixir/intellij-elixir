@@ -61,6 +61,7 @@ import org.elixir_lang.psi.definition
 import org.elixir_lang.psi.impl.indexName
 import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
+import org.elixir_lang.psi.scope.call_definition_clause.Declarations
 import org.elixir_lang.psi.stub.index.AllName
 import org.elixir_lang.psi.stub.type.Named
 import org.elixir_lang.structure_view.element.CallDefinitionHead
@@ -293,8 +294,31 @@ internal object ExpanderSource : CandidateSource {
         } + compiled
     }
 
+    /**
+     * The names [call] writes ([DeclaringForm.writtenName]) whose heads its module's table holds, matched by the call
+     * that writes or injects each, a stopped module's as its table stood at the stop; for one the table doesn't hold, as
+     * past a stop or with no env reached, the name index's head at the call, marked [Uncertain.INDEX].
+     */
     @RequiresReadLock
-    override fun writtenNames(call: Call): List<WrittenName> = emptyList()
+    override fun writtenNames(call: Call): List<WrittenName> {
+        ThreadingAssertions.assertReadAccess()
+
+        val form = DeclaringForm.shapedForm(call) ?: return emptyList()
+        val file = call.containingFile as? ElixirFile ?: return emptyList()
+        val at by lazy(LazyThreadSafetyMode.NONE) { inputs(call)?.let { at(call, it) } }
+        val indexReady = !DumbService.isDumb(file.project)
+
+        return Declarations.of(form, call, ResolveState.initial()).mapNotNull { spelled ->
+            val declaration = spelled.declaration ?: return@mapNotNull null
+            val head = DeclaringForm.head(call, form, declaration.name, declaration.arity) ?: return@mapNotNull null
+            val element = DeclaringForm.writtenName(call, form, head) ?: return@mapNotNull null
+            val writes = { defined: Defined -> defined.injectedBy == call || defined.element == call && defined.written == head }
+            val defined = at?.let { ownDefined(it, declaration.name) }.orEmpty().firstOrNull(writes)
+                ?: if (indexReady) indexed(file, declaration.name).firstOrNull(writes) else null
+
+            defined?.let { WrittenName(element, it.declaration.capabilities.presentation, it.uncertain) }
+        }
+    }
 
     /**
      * Where a use is, as its file's expansion saw it, what each receiver it reached expanded to, the [lowering] it

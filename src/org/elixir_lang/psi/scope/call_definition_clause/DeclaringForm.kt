@@ -20,6 +20,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.stripAccessExpression
+import org.elixir_lang.psi.impl.writtenAtom
 import org.elixir_lang.psi.mix.Generator
 import org.elixir_lang.psi.scope.WalkProbe
 import org.elixir_lang.structure_view.element.CallDefinitionHead
@@ -130,6 +131,22 @@ object DeclaringForm {
     /** The names [call] writes the functions it declares with [form] under: in `def unquote(:name)(...)`, the atom. */
     @RequiresReadLock
     fun names(call: Call, form: Form): List<PsiElement> = namedHeads(call, form).mapNotNull(CallDefinitionHead::nameElement)
+
+    /**
+     * The element [call] writes the name of its [head] as with [form], beyond a clause's own head word: a delegation
+     * head's name, a clause's `unquote`d atom, and an EEx's or an embed's atom; of an atom, its name after the colon.
+     */
+    @RequiresReadLock
+    fun writtenName(call: Call, form: Form, head: PsiElement): PsiElement? {
+        val name = when (form) {
+            Form.CLAUSE -> CallDefinitionHead.nameElement(head)?.takeUnless { it == CallDefinitionHead.nameIdentifier(head) }
+            Form.DELEGATION -> CallDefinitionHead.nameElement(head)
+            Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> heads(call, form).singleOrNull()?.let(CallDefinitionHead::nameElement)
+            Form.CALLBACK, Form.EXCEPTION -> null
+        }
+
+        return if (name is ElixirAtom) writtenAtom(name) else name
+    }
 
     /** The elements a caret is on a name [call] declares with [form] at: in `def unquote(:name)(...)`, also `unquote`. */
     @RequiresReadLock
