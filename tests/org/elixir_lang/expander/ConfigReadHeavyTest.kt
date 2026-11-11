@@ -3,7 +3,6 @@ package org.elixir_lang.expander
 import com.intellij.openapi.application.ReadAction
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.util.system.OS
-import org.elixir_lang.language_level.ElixirLanguageFeature.CONFIG_READ_CONFIG
 import org.elixir_lang.model.psi.config.ConfigFiles
 import java.util.concurrent.Callable
 
@@ -104,7 +103,7 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
     fun testAConfigReadingItsOwnKeyRunsOnce() {
         val root = project(CONFIG to "import Config\nconfig :app, k: [2 | (Config.read_config(:app)[:k] || [])]\n")
 
-        assertEquals(if (CONFIG_READ_CONFIG.isSufficient(legLevel())) "[{app,[{k,[2]}]}] [config/config.exs]" else "unknown", read(root))
+        assertRead("[{app,[{k,[2]}]}] [config/config.exs]", read(root), before = "unknown")
     }
 
     /** A result after an import takes its value from the last statement, without importing again. */
@@ -187,6 +186,34 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
         assertEquals("declined", read(root, env = "test"))
     }
 
+    /** Elixir's later calls get the imported file's definition, which the plugin's read doesn't take in, so it declines. */
+    fun testAModuleAnImportedFileRedefinesIsDeclined() {
+        val root = project(
+            CONFIG to "import Config\ndefmodule H do\n  def value, do: 0\nend\nimport_config \"helper.exs\"\nconfig :app, k: H.value()\n",
+            "config/helper.exs" to HELPER_BY_ENV,
+        )
+
+        assertEquals("declined", read(root, env = "test"))
+    }
+
+    /** A module an imported file defines declines the read, whether or not a call after it reads it. */
+    fun testAModuleInAnImportedFileNothingCallsIsDeclined() {
+        val root = project(CONFIG to "import Config\nimport_config \"helper.exs\"\nconfig :app, k: 1\n", "config/helper.exs" to HELPER_BY_ENV)
+
+        assertEquals("declined", read(root, env = "test"))
+    }
+
+    /** A module nested in one that raises is defined before the raise, so Elixir's later call gets the import's `T.U`. */
+    fun testAModuleNestedInOneAnImportedFileRaisesInIsDeclined() {
+        val root = project(
+            CONFIG to "import Config\ndefmodule T.U do\n  def f, do: 0\nend\n" +
+                "try do\n  import_config \"dev.exs\"\nrescue\n  _ -> :ok\nend\nconfig :app, k: T.U.f()\n",
+            DEV to "import Config\ndefmodule T do\n  defmodule U do\n    def f, do: 1\n  end\n\n  raise \"x\"\nend\n",
+        )
+
+        assertEquals("declined", read(root))
+    }
+
     fun testAModuleTheReadsOwnFileDefinesIsRead() {
         assertEquals(
             "[{app,[{k,t}]}] [config/config.exs]",
@@ -228,10 +255,7 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
             DEV to "import Config\n\nconfig :app, k2: read_config(:app)[:k]\n",
         )
 
-        assertEquals(
-            if (CONFIG_READ_CONFIG.isSufficient(legLevel())) "[{app,[{k,1},{k2,1}]}] [config/dev.exs, config/config.exs]" else "unknown",
-            read(root),
-        )
+        assertRead("[{app,[{k,1},{k2,1}]}] [config/dev.exs, config/config.exs]", read(root), before = "unknown")
     }
 
     fun testUseMixConfigWithImportAndWildcard() {
@@ -295,7 +319,7 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
     /** Elixir has the value here: the plugin doesn't read it, so nothing in the result is known. */
     fun testAKeywordListResultWithAnUnknownValueIsUnknown() {
         assertEquals("unknown", read(project(CONFIG to "[app: [k: Application.get_env(:app, :k)]]\n")))
-        assertEquals("a read that declined", "declined", read(project(CONFIG to "[app: [k: System.get_env(\"HOME\")]]\n")))
+        assertEquals("a system read", "unknown", read(project(CONFIG to "[app: [k: System.get_env(\"HOME\")]]\n")))
     }
 
     /** Elixir reads `[]`, as a `defmodule`'s value is no list; the plugin doesn't know that value, so the read is declined. */

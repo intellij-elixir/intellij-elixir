@@ -288,7 +288,7 @@ class ProjectModulesTest : PlatformTestCase() {
         add("dep.ex", "defmodule LoadedCopy.Dep do\n  :ok = :bad\nend\n")
         val a = add("a.ex", "defmodule A do\nend\n")
 
-        val located = ReadAction.nonBlocking(Callable { holder.locate(a, "Elixir.LoadedCopy.Dep", legInputs) }).executeSynchronously()
+        val located = locate(holder, a, "Elixir.LoadedCopy.Dep")
 
         assertEquals(
             located.toString(),
@@ -361,7 +361,7 @@ class ProjectModulesTest : PlatformTestCase() {
         val a = add("a.ex", "defmodule A do\nend\n")
 
         val exports = exports(holder, a, "Elixir.LoadedCopy.Dep")
-        val located = ReadAction.nonBlocking(Callable { holder.locate(a, "Elixir.LoadedCopy.Dep", legInputs) }).executeSynchronously()
+        val located = locate(holder, a, "Elixir.LoadedCopy.Dep")
         edit(project, dep, "defmodule B do\n  import LoadedCopy.Dep\nend\ndefmodule LoadedCopy.Dep do\n  def f, do: 1\nend\n")
         val rendered = render(dep, expansion(holder, dep))
 
@@ -498,7 +498,8 @@ class ProjectModulesTest : PlatformTestCase() {
                 "  def setb(m) do\n    set(m)\n    \"\"\n  end\n" +
                 "  def nb(_), do: receive(do: (x -> x), after: (0 -> \"\"))\n" +
                 "  def int(_), do: receive(do: (x -> x), after: (0 -> 1))\n" +
-                "  def set8(m) do\n    set(m)\n    8\n  end\nend\n" +
+                "  def set8(m) do\n    set(m)\n    8\n  end\n" +
+                "  def put(m, n), do: Module.put_attribute(m, n, :ok)\nend\n" +
                 "defmodule S do\n  defstruct [:module, :t]\nend\n" +
                 "defimpl Collectable, for: S do\n  def into(%S{module: m} = s) do\n    H.set(m)\n    {s, fn acc, _ -> acc end}\n  end\nend\n",
         )
@@ -619,6 +620,9 @@ class ProjectModulesTest : PlatformTestCase() {
                     "      H.set(A)\n    end\n  end",
                 "defmodule I do\n    {H.set(__MODULE__), (:ok = Module.get_attribute(__MODULE__, :x)), H.set(A)}\n  end",
                 "apply(H, :set, Application.get_env(:nope, :a, [__MODULE__]))",
+                "{f, m} = :erlang.setelement(Application.get_env(:nope, :i, 1), {__MODULE__, __MODULE__}, fn m -> H.set(m) end)\n  f.(m)",
+                "{f, m} = :erlang.setelement(Application.get_env(:nope, :i, 1), {__MODULE__, __MODULE__}, &H.set/1)\n  f.(m)",
+                "H.put(__MODULE__, Application.get_env(:nope, :n, :x))",
             ))
         }.mapNotNull { statement ->
             edit(project, a, "defmodule A do\n  @x :bad\n  $statement\n  def unquote(@x)(), do: 1\n  def g, do: 1\nend\n")
@@ -834,12 +838,16 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
-     * A declined call not given the module, and a `receive`, write nothing the expander reads: the module after them is
-     * read by another file as it defined itself.
+     * A declined call not given the module, a `receive`, and a read of the module's attribute whose name isn't known write
+     * nothing the expander reads: the module after them is read by another file as it defined itself.
      */
     fun testADeclineNotGivenTheModuleLeavesItLoaded() {
         addLegElixir()
-        add("h.ex", "defmodule H do\n  def noop(_), do: receive(do: (x -> x), after: (0 -> :ok))\nend\n")
+        add(
+            "h.ex",
+            "defmodule H do\n  def noop(_), do: receive(do: (x -> x), after: (0 -> :ok))\n" +
+                "  def get(m, n), do: Module.get_attribute(m, n)\nend\n",
+        )
         val a = add("a.ex", "")
         val b = add("b.ex", "defmodule B do\n  import A\n  def h, do: g()\nend\n")
 
@@ -849,6 +857,7 @@ class ProjectModulesTest : PlatformTestCase() {
             "H.noop(__ENV__.aliases)",
             "H.noop(\"#{inspect(__MODULE__)}\")",
             "receive(do: (x -> x), after: (0 -> :ok))",
+            "H.get(__MODULE__, Application.get_env(:nope, :n, :y))",
         ).mapNotNull { statement ->
             edit(project, a, "defmodule A do\n  @x :ok\n  $statement\n  def unquote(@x)(), do: 1\n  def g, do: 1\nend\n")
             val module = expansion(holder, a).modules.single { it.module == "Elixir.A" }
@@ -1913,7 +1922,10 @@ class ProjectModulesTest : PlatformTestCase() {
         val copy = completionCopy(a)
         val before = expansion(holder, copy)
 
-        replaceInCopy(a, copy, "defmodule ".length, "defmodule A".length, "C")
+        // The copy re-synced to the original's text with `A` renamed `C`, as completion re-syncs a reused copy.
+        WriteAction.runAndWait<Throwable> {
+            OffsetsInFile(a).replaceInCopy(copy, "defmodule ".length, "defmodule A".length, "C").ensureUpdatedAndGetNewOffsets()
+        }
 
         val after = expansion(holder, copy)
         assertNotSame(before, after)
@@ -1941,7 +1953,7 @@ class ProjectModulesTest : PlatformTestCase() {
         val b1 = add("b1.ex", "defmodule B do\n  def f, do: 1\nend\n")
         val b2 = add("b2.ex", "defmodule B do\n  def f, do: 1\nend\n")
 
-        val located = ReadAction.nonBlocking(Callable { holder.locate(a, "Elixir.B", legInputs) }).executeSynchronously()
+        val located = locate(holder, a, "Elixir.B")
 
         assertEquals(
             setOf(b1.virtualFile, b2.virtualFile),
@@ -1953,12 +1965,12 @@ class ProjectModulesTest : PlatformTestCase() {
     fun testAReparsedCopyIsLocatedAsItsNewFile() {
         val a = add("a.ex", "defmodule A do\nend\n")
         val b = add("b.ex", "defmodule B do\n  def f, do: 1\nend\n")
-        val locate = { ReadAction.nonBlocking(Callable { holder.locate(a, "Elixir.B", legInputs) }).executeSynchronously() }
-        assertSame(b, (locate() as ProjectModules.Located.Source).file)
+        val located = { locate(holder, a, "Elixir.B") }
+        assertSame(b, (located() as ProjectModules.Located.Source).file)
 
         FileContentUtilCore.reparseFiles(b.virtualFile)
 
-        val reparsed = (locate() as ProjectModules.Located.Source).file
+        val reparsed = (located() as ProjectModules.Located.Source).file
         assertTrue("the located file is valid", ReadAction.nonBlocking(Callable { reparsed.isValid }).executeSynchronously())
         assertSame(psiManager.findFile(b.virtualFile), reparsed)
     }
@@ -1968,7 +1980,7 @@ class ProjectModulesTest : PlatformTestCase() {
         add("b.ex", "defmodule B do\n  def f, do: 1\nend\n")
 
         DumbModeTestUtils.runInDumbModeSynchronously(project) {
-            val located = ReadAction.nonBlocking(Callable { holder.locate(a, "Elixir.B", legInputs) }).executeSynchronously()
+            val located = locate(holder, a, "Elixir.B")
 
             assertSame(ProjectModules.Located.Unknown, located)
         }
@@ -3046,13 +3058,6 @@ class ProjectModulesTest : PlatformTestCase() {
         ReadAction.nonBlocking(Callable { file.copy() as PsiFile }).executeSynchronously().also {
             assertNull("a copy has no virtual file", it.virtualFile)
         }
-
-    /** [copy] re-synced to [original]'s text with [replacement] in `start until end`, as completion re-syncs a reused copy. */
-    private fun replaceInCopy(original: PsiFile, copy: PsiFile, start: Int, end: Int, replacement: String) {
-        WriteAction.runAndWait<Throwable> {
-            OffsetsInFile(original).replaceInCopy(copy, start, end, replacement).ensureUpdatedAndGetNewOffsets()
-        }
-    }
 
     private fun assertFresh(
         message: String,

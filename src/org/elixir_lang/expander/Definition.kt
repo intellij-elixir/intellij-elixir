@@ -15,6 +15,7 @@ import org.elixir_lang.expander.interpreter.Evaluated
 import org.elixir_lang.expander.interpreter.NIL
 import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.expander.interpreter.codeOf
+import org.elixir_lang.expander.interpreter.holdsUnknown
 import org.elixir_lang.expander.interpreter.isUnknown
 import org.elixir_lang.expander.interpreter.properElements
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFAULT_ARGUMENTS_THREAD_STATE
@@ -468,6 +469,7 @@ internal fun unquoted(
                     // Before a tail the splice stands, at its `|`, for the whole list `tail_list/3` gives; elsewhere for
                     // the value the helper took, as the elements beside it are placed by their own nodes.
                     value?.let { if (checking.fragment.list != null) it else checking.term }
+                        ?.takeUnless(::holdsUnknown)
                         ?.let(::properElements)
                         ?.map { valueNode(it, call, run) }
                         ?.takeIf { elements -> elements.all { it != null } }

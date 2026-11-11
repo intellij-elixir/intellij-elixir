@@ -36,6 +36,8 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.GENERATED_HEADS_CHEC
 import org.elixir_lang.language_level.ElixirLanguageFeature.GENERATOR_RIGHT_SIDE_SCOPED
 import org.elixir_lang.language_level.ElixirLanguageFeature.INTEGERS_UP_TO_4_MBIT
 import org.elixir_lang.language_level.ElixirLanguageFeature.IN_REFUSES_UNESCAPED_RIGHT_SIDE
+import org.elixir_lang.language_level.ElixirLanguageFeature.IO_WARN_READS_THE_MESSAGE_FIRST
+import org.elixir_lang.language_level.ElixirLanguageFeature.IO_WARN_TAKES_AN_ENV_OR_OPTIONS
 import org.elixir_lang.language_level.ElixirLanguageFeature.KEY_ERROR_MESSAGE_INSPECTED_WITH_OPTIONS
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_SORT_KEEPS_EQUAL_ORDER
@@ -445,10 +447,10 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
         assertEquals(
             "top expanded\nmodule Elixir.A compiled [/proj/0 def]",
-            file(code, tables = true, run = RunInputs(OS.Linux, FILE, CompileDirectories { "/proj" })),
+            file(code, tables = true, run = RunInputs(OS.Linux, FILE, directories = { "/proj" })),
         )
         assertEquals(stopped, file(code, tables = true, run = RunInputs(OS.Linux, FILE)))
-        assertEquals(stopped, file(code, tables = true, run = RunInputs(OS.Linux, null, CompileDirectories { "/proj" })))
+        assertEquals(stopped, file(code, tables = true, run = RunInputs(OS.Linux, null, directories = { "/proj" })))
     }
 
     /** A call that declined may have changed the directory, so the directory after it is not known. */
@@ -461,7 +463,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
         assertEquals(
             "top expanded\nmodule Elixir.A stopped `unquote(:erlang.binary_to_atom(:unicode.characters_to_binary(cwd), :utf8))` []",
-            file(code, tables = true, run = RunInputs(OS.Linux, FILE, CompileDirectories { "/proj" })),
+            file(code, tables = true, run = RunInputs(OS.Linux, FILE, directories = { "/proj" })),
         )
     }
 
@@ -472,17 +474,17 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
         assertEquals(
             "top expanded\nmodule Elixir.M compiled [cd/0 defmacro]\nmodule Elixir.A stopped `M.cd()` []\nmodule Elixir.B stopped `$CWD_NAME` []",
-            file(code, tables = true, run = RunInputs(OS.Linux, FILE, CompileDirectories { "/proj" })),
+            file(code, tables = true, run = RunInputs(OS.Linux, FILE, directories = { "/proj" })),
         )
     }
 
     /** A module that stopped may have run code after the stop that changed the directory a later module reads. */
     fun testTheWorkingDirectoryAfterAStoppedModuleIsUnknown() {
-        val code = "defmodule A do\n  quote(location: :other, do: 1)\nend\n" + CWD_MODULE
+        val code = "defmodule A do\n  quote(location: :other, do: 1)\nend\n$CWD_MODULE"
 
         assertEquals(
             "top expanded\nmodule Elixir.A stopped `quote(location: :other, do: 1)` []\nmodule Elixir.B stopped `$CWD_NAME` []",
-            file(code, tables = true, run = RunInputs(OS.Linux, FILE, CompileDirectories { "/proj" })),
+            file(code, tables = true, run = RunInputs(OS.Linux, FILE, directories = { "/proj" })),
         )
     }
 
@@ -493,17 +495,17 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
         assertEquals(
             "top expanded\nmodule Elixir.A stopped `$CWD_NAME` []",
-            file(code, tables = true, run = RunInputs(OS.Linux, FILE, CompileDirectories { "/proj" })),
+            file(code, tables = true, run = RunInputs(OS.Linux, FILE, directories = { "/proj" })),
         )
     }
 
     /** A loop that goes on past an iteration that declined leaves the directory unknown too. */
     fun testTheWorkingDirectoryAfterALoopWhoseIterationDeclinedIsUnknown() {
-        val code = "defmodule A do\n  x = for i <- [1, 2], do: (:file.set_cwd(\"/other\"); i)\n  y = Enum.map([1], fn i -> :file.set_cwd(\"/other\"); i end)\n  def f, do: unquote(x ++ y)\nend\n" + CWD_MODULE
+        val code = "defmodule A do\n  x = for i <- [1, 2], do: (:file.set_cwd(\"/other\"); i)\n  y = Enum.map([1], fn i -> :file.set_cwd(\"/other\"); i end)\n  def f, do: unquote(x ++ y)\nend\n$CWD_MODULE"
 
         assertEquals(
             "top expanded\nmodule Elixir.A compiled [f/0 def]\nmodule Elixir.B stopped `$CWD_NAME` []",
-            file(code, tables = true, run = RunInputs(OS.Linux, FILE, CompileDirectories { "/proj" })),
+            file(code, tables = true, run = RunInputs(OS.Linux, FILE, directories = { "/proj" })),
         )
     }
 
@@ -513,7 +515,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
         assertEquals(
             "top expanded\nmodule Elixir.A compiled [c:/proj/0 def]",
-            file(code, tables = true, run = RunInputs(OS.Windows, "c:/proj/lib/a.ex", CompileDirectories { "C:/proj" })),
+            file(code, tables = true, run = RunInputs(OS.Windows, "c:/proj/lib/a.ex", directories = { "C:/proj" })),
         )
     }
 
@@ -522,7 +524,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
      * is in the run's file where that directory is known, and moved after code that may have changed it.
      */
     fun testARelativeFileOfADefinitionIsMovedAfterTheDirectoryMayHaveChanged() {
-        val run = RunInputs(OS.Linux, "/proj/lib/a.ex", CompileDirectories { "/proj" })
+        val run = RunInputs(OS.Linux, "/proj/lib/a.ex", directories = { "/proj" })
         val code = { cd: String ->
             "defmodule A do\n  $cd\n  @file \"lib/a.ex\"\n  defmacro n, do: __ENV__.file\nend\n" +
                 "defmodule B do\n  require A\n  def unquote(:erlang.binary_to_atom(A.n(), :utf8))(), do: 1\nend"
@@ -1277,9 +1279,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
      * it stops the module, or the file at its top level.
      */
     fun testAnErrorAfterAnAssumedApplicationReadStops() {
-        val compileEnv =
-            if (COMPILE_ENV_TAKES_ENV_FIRST.isSufficient(legLevel())) "Application.compile_env(env, :nope, :k, nil)"
-            else "Application.__compile_env__(:nope, :k, nil, env)"
+        val compileEnv = legCompileEnv(":nope", ":k", "nil", "env")
         val stopped = "top unported `:ok = :bad`\nmodule Elixir.A stopped `:ok = :bad`"
 
         assertFile("defmodule A do\n  @x Application.compile_env!(:nope, :k)\n  :ok = :bad\nend", stopped)
@@ -1290,6 +1290,18 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         assertFile("defmodule A do\n  read = &Application.fetch_env!(:nope, &1)\n  @a read.(:k)\n  :ok = :bad\nend", stopped)
         assertFile("_ = Application.fetch_env!(:nope, :k)\n:ok = :bad", "top unported `:ok = :bad`")
         assertFile("defmodule A do\n  _ = {Application.fetch_env!(:nope, :k), :ok = :bad}\nend", stopped)
+    }
+
+    /**
+     * A bang read of a key nothing sets raises, as Elixir does, so the module defines nothing after it. That nothing sets
+     * the key is assumed, so the module stops rather than raises.
+     */
+    fun testABangReadOfAKeyNothingSetsStops() {
+        for (read in listOf("fetch_env!", "compile_env!")) {
+            val statement = "@v Application.$read(:elixir, :no_such_key)"
+
+            assertFile("defmodule A do\n  $statement\n  def f, do: 1\nend", "top unported `$statement`\nmodule Elixir.A stopped `$statement`")
+        }
     }
 
     /** The reads that raise only on a guard raise nothing here, so the error after them is the module's. */
@@ -1582,7 +1594,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
         val module = expandedModule(code)
 
-        assertEquals(true, (module.ended as ExpansionResult.Ended.Stopped).mayRaise)
+        assertEquals(true, (module.ended as Ended.Stopped).mayRaise)
         assertTrue(module.units.single { it.owner == later() }.expansion is Expansion.Expanded)
     }
 
@@ -1759,10 +1771,37 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
     fun testADeclinedCallGivenTheModuleInAMapMarksTheWholeModule() = assertDeclinedCallMarksTheWholeModule("%{module: __MODULE__}")
 
-    private fun assertDeclinedCallMarksTheWholeModule(other: String) =
+    /** A `for` over a value not known may run its body no times, so it gives the accumulator it started from too. */
+    fun testAnAccumulatorOfAForOverAnUnknownMarksTheModuleItHolds() =
+        assertGivenLaterMarksTheWholeModule(
+            "acc =\n    for _ <- String.to_charlist(inspect(self())), reduce: __MODULE__ do\n      _ -> :done\n    end\n\n  Callee.given(acc)",
+        )
+
+    /** Before 1.18, `__struct__/1` builds on an attribute the evaluator doesn't know: the struct holds what it was given. */
+    fun testAStructOnAnUnknownStructMarksTheModuleItHolds() =
+        assertGivenLaterMarksTheWholeModule(
+            "s = %S{module: __MODULE__}\n  Callee.given(s)",
+            "defmodule S do\n  defstruct [:module]\nend\n",
+            "\nmodule Elixir.S compiled [__struct__/0 def, __struct__/1 def]",
+        )
+
+    private fun assertGivenLaterMarksTheWholeModule(statements: String, before: String = "", beforeReport: String = "") =
         assertFile(
-            "$CALLEE\ndefmodule M do\n  @other :o\n  Callee.runs(__MODULE__, :erlang.whereis(:foo), $other)\n  def unquote(@other)(), do: 1\nend",
-            "$CALLEE_REPORT\nmodule Elixir.M stopped `unquote(@other)` []",
+            "$CALLEE\n${before}defmodule M do\n  @other :o\n  $statements\n  def unquote(@other)(), do: 1\nend",
+            "$CALLEE_REPORT$beforeReport\nmodule Elixir.M stopped `unquote(@other)` []",
+            tables = true,
+        )
+
+    private fun assertDeclinedCallMarksTheWholeModule(other: String) =
+        assertGivenLaterMarksTheWholeModule("Callee.runs(__MODULE__, :erlang.whereis(:foo), $other)")
+
+    /** A recursion given the env, which holds what isn't known, ends on the attribute it pops, as in Elixir. */
+    fun testARecursionOverTheEnvThatEndsOnAnAttribute() =
+        assertFile(
+            "defmodule Q do\n  def drain(module, env) do\n    case Module.get_attribute(module, :pending) do\n      [] -> []\n\n" +
+                "      [h | t] ->\n        Module.put_attribute(module, :pending, t)\n        [h | drain(module, env)]\n    end\n  end\nend\n\n" +
+                "defmodule M do\n  @pending [:a, :b]\n  @names Q.drain(__MODULE__, __ENV__)\n  if @pending == [], do: def(done?, do: true)\nend\n",
+            "top expanded\nmodule Elixir.Q compiled [drain/2 def]\nmodule Elixir.M compiled [done?/0 def]",
             tables = true,
         )
 
@@ -2758,6 +2797,19 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         val UNPINNED: (Source, ElixirLanguageLevel) -> String? = { _, _ -> null }
         val DECLINED: (Source, ElixirLanguageLevel) -> String? = { _, _ -> OPAQUE }
 
+        /** [DECLINED] where `IO.warn/2` takes an env or options naming a file, which say where the warning is; before, either raises. */
+        val DECLINED_ONCE_IO_WARN_IS_LOCATED: (Source, ElixirLanguageLevel) -> String? = { _, level ->
+            OPAQUE.takeIf { IO_WARN_TAKES_AN_ENV_OR_OPTIONS.isSufficient(level) }
+        }
+
+        /**
+         * [DECLINED] where `IO.warn/2` takes any `Macro.Env` map and makes its stacktrace before the message, which reads
+         * keys a hand-built one may lack; before, and from [IO_WARN_READS_THE_MESSAGE_FIRST], it raises.
+         */
+        val DECLINED_WHERE_AN_ENV_IS_TAKEN_WHOLE: (Source, ElixirLanguageLevel) -> String? = { _, level ->
+            OPAQUE.takeIf { IO_WARN_TAKES_AN_ENV_OR_OPTIONS.isSufficient(level) && !IO_WARN_READS_THE_MESSAGE_FIRST.isSufficient(level) }
+        }
+
         /** From source the expander declines where [OPAQUE] says; `Dbgi` holds what Elixir compiled. */
         val DECLINED_FROM_SOURCE: (Source, ElixirLanguageLevel) -> String? = { source, _ ->
             OPAQUE.takeIf { source == Source.SOURCE }
@@ -2862,7 +2914,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             ends,
         )
 
-        /** A row whose case body `use`s the row's module with [options]. */
+        /** A row whose case body `use`s [module], the row's by default, with [options], then holds [after]. */
         fun use(
             id: String,
             defs: String,
@@ -2871,11 +2923,14 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             stopsAfter: String? = null,
             legs: (ElixirLanguageLevel) -> Boolean = EVERY_LEG,
             ends: (ElixirLanguageLevel) -> String? = { null },
+            after: String = "",
+            module: String = ROW,
         ): Row {
-            val use = "use $ROW" + if (options.isEmpty()) "" else ", $options"
-            val call = "$ROW.__using__(${options.ifEmpty { "[]" }})"
+            val use = "use $module" + if (options.isEmpty()) "" else ", $options"
+            val call = "$module.__using__(${options.ifEmpty { "[]" }})"
+            val body = if (after.isEmpty()) use else "$use\n$after"
 
-            return Row(id, defs.trimIndent(), call, use, use, listOf(ROW), source, legs, UNPINNED, stopsAfter, ends = ends)
+            return Row(id, defs.trimIndent(), call, body, use, listOf(module), source, legs, UNPINNED, stopsAfter, ends = ends)
         }
 
         /** A row whose `use` runs [statements] in the case module once it requires `EEx`. */
@@ -2950,26 +3005,11 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         val UNVERSIONED_VARS_LEGS: (ElixirLanguageLevel) -> Boolean = { !MACRO_ENV_VERSIONED_VARS.isSufficient(it) }
 
         /** A row whose case body `use`s the leg's [module], then holds [after]. */
-        fun leg(module: String, options: String = "", after: String = "", stopsAfter: String? = null): Row {
-            val use = "use $module" + if (options.isEmpty()) "" else ", $options"
-            val call = "$module.__using__(${options.ifEmpty { "[]" }})"
-
-            return Row(
-                "use:leg-" + module.lowercase(),
-                "",
-                call,
-                if (after.isEmpty()) use else "$use\n$after",
-                use,
-                listOf(module),
-                SourceRun.NONE,
-                EVERY_LEG,
-                UNPINNED,
-                stopsAfter,
-            )
-        }
+        fun leg(module: String, options: String = "", after: String = ""): Row =
+            use("use:leg-" + module.lowercase(), "", options, SourceRun.NONE, after = after, module = module)
 
         /** A `for` the evaluator declines, which holds a `def` whose name isn't known. */
-        val UNNAMED_IN_DECLINED_FOR = "for x <- String.to_charlist(inspect(self())) do\n    def unquote(x)(), do: 1\n  end"
+        const val UNNAMED_IN_DECLINED_FOR = "for x <- String.to_charlist(inspect(self())) do\n    def unquote(x)(), do: 1\n  end"
 
         /** A `def` named by whether the table holds `g/0`: unnamed where that isn't known. */
         const val NAMED_BY_DEFINES_OF_G = "def unquote(if Module.defines?(__MODULE__, {:g, 0}), do: :y, else: :n)(), do: 1"
@@ -3075,12 +3115,6 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
               end
             end
         """.trimIndent()
-
-        /**
-         * `GenServer.__before_compile__/1`, which warns through functions the evaluator doesn't port where the module
-         * doesn't define `init/1`.
-         */
-        const val GENSERVER_CALLBACK = "{{:., [], [GenServer, :__before_compile__]}"
 
         val ROWS: List<Row> = listOf(
             // `elixir_erl_pass:translate/3`
@@ -5489,7 +5523,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 """,
                 pins = DECLINED_FROM_SOURCE,
             ),
-            // `String.Chars`' implementations for a tuple aren't read.
+            // `String.Chars` has no implementation for a tuple, so a string of one raises.
             macro(
                 "pure:to-string-unknown",
                 """
@@ -5499,7 +5533,6 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                   :ok
                 end
                 """,
-                pins = DECLINED,
             ),
             macro("pure:append-lists", "defmacro m, do: [:lists.append([[1], [2]]), :lists.append([1], [2])]"),
             macro("pure:append-last-improper", "defmacro m, do: Macro.escape(:lists.append([[1], 2]))"),
@@ -5706,8 +5739,17 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             // The natives: warnings
             macro("native:io-warn-1", "defmacro m, do: IO.warn(\"w\")"),
             macro("native:io-warn-empty", "defmacro m, do: IO.warn(\"w\", [])"),
-            macro("native:io-warn-env", "defmacro m, do: IO.warn(\"w\", __CALLER__)", pins = DECLINED),
-            macro("native:io-warn-keyword", "defmacro m, do: IO.warn(\"w\", file: \"a.ex\", line: 1)", pins = DECLINED),
+            macro("native:io-warn-env", "defmacro m, do: IO.warn(\"w\", __CALLER__)", pins = DECLINED_ONCE_IO_WARN_IS_LOCATED),
+            macro("native:io-warn-keyword", "defmacro m, do: IO.warn(\"w\", file: \"a.ex\", line: 1)", pins = DECLINED_ONCE_IO_WARN_IS_LOCATED),
+            macro("native:io-warn-keyword-without-file", "defmacro m, do: IO.warn(\"w\", line: 1)"),
+            macro("native:io-warn-keyword-nil-file", "defmacro m, do: IO.warn(\"w\", file: nil, line: 1)"),
+            macro("native:io-warn-keyword-unreadable-column", "defmacro m, do: IO.warn({:t}, [{:file, \"a.ex\"}, {:column, 1, 2}])"),
+            macro("native:io-warn-keyword-unreadable-module", "defmacro m, do: IO.warn({:t}, [{:file, \"a.ex\"}, {:module, 1, 2}])"),
+            macro(
+                "native:io-warn-env-without-line-or-file",
+                "defmacro m, do: IO.warn(\"w\", %{__struct__: Macro.Env})",
+                pins = DECLINED_WHERE_AN_ENV_IS_TAKEN_WHOLE,
+            ),
             macro("native:io-warn-chardata", "defmacro m, do: IO.warn([?w], [])", pins = DECLINED),
             macro("native:io-warn-function-clause", "defmacro m, do: IO.warn(\"w\", :x)"),
 
@@ -6888,7 +6930,8 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 end
                 """,
                 "restart: :transient",
-                stopsAfter = GENSERVER_CALLBACK,
+                // The hook's table is the module's before `GenServer.__before_compile__/1` adds a missing `init/1`.
+                after = "def init(x), do: {:ok, x}",
             ),
             use(
                 "use:backend",
@@ -7647,7 +7690,6 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "before_compile:genserver-without-init",
                 "defmacro m, do: Macro.escape(function_exported?({row}.A, :init, 1))",
-                pins = DECLINED_FROM_SOURCE,
                 helper = """
                 defmodule {row}.A do
                   @before_compile GenServer
@@ -9760,7 +9802,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                   @a :before
                   try do
                     :lists.foreach(fn _ ->
-                      _ = Application.fetch_env!(:elixir, :unset_key)
+                      _ = Application.fetch_env!(:nope, :unset_key)
                       Module.put_attribute(__MODULE__, :a, :after)
                     end, [1])
                   rescue
@@ -9787,7 +9829,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 defmodule {row}.Caught do
                   @a :before
                   {row}.Safely.run(fn ->
-                    _ = Application.fetch_env!(:elixir, :unset_key)
+                    _ = Application.fetch_env!(:nope, :unset_key)
                     Module.put_attribute(__MODULE__, :a, :after)
                   end)
                   def r, do: @a
@@ -9813,7 +9855,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                   @a :before
                   {row}.Safely.run(fn ->
                     defmodule Inner do
-                      _ = Application.fetch_env!(:elixir, :unset_key)
+                      _ = Application.fetch_env!(:nope, :unset_key)
                     end
                     Module.put_attribute(__MODULE__, :a, :after)
                   end)
@@ -9839,7 +9881,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 end
                 {row}.Safely.run(fn ->
                   defmodule {row}.Inner do
-                    _ = Application.fetch_env!(:elixir, :unset_key)
+                    _ = Application.fetch_env!(:nope, :unset_key)
                   end
                   defmodule {row}.Later do
                     def r, do: :defined
@@ -10469,8 +10511,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 ends = { "stopped at `$ROW.m()`" },
             ),
             // A raising arm whose test the evaluator can't decide is passed over, as Elixir is taken to compile, and the
-            // next arm is tried. `Process.whereis/1` declines in `nillify/1`, so its arm's test does; `:erlang.whereis/1`
-            // is an unknown value, so a clause given it is tried.
+            // next arm is tried.
             macro(
                 "branch:raising-arm-unless",
                 """
@@ -10543,13 +10584,13 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 """,
                 pins = DECLINED,
             ),
-            // A raise taken not to happen, under a `try` that may catch it, declines: the build goes on either way.
+            // A raise taken not to happen, under a `try` that may catch it, declines.
             macro(
                 "branch:assumed-raise-rescued",
                 """
                 defmacro m do
                   try do
-                    Application.fetch_env!(:elixir, :unset_key)
+                    Application.fetch_env!(:nope, :unset_key)
                     :body
                   rescue
                     ArgumentError -> :rescued
@@ -10568,6 +10609,26 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                   rescue
                     ArgumentError -> :rescued
                   end
+                end
+                """,
+            ),
+            // A bang read of a key nothing sets raises `ArgumentError`, which a rescue of it takes.
+            macro(
+                "body:unset-bang-read-rescued",
+                "defmacro m, do: Macro.escape({row}.UR.r())",
+                helper = """
+                defmodule {row}.UR do
+                  @f (try do
+                    Application.fetch_env!(:elixir, :unset_key)
+                  rescue
+                    ArgumentError -> :rescued
+                  end)
+                  @c (try do
+                    Application.compile_env!(:elixir, [:unset_key, :sub])
+                  rescue
+                    ArgumentError -> :rescued
+                  end)
+                  def r, do: {@f, @c}
                 end
                 """,
             ),
@@ -10601,6 +10662,24 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 end
                 """,
             ),
+            // A `cond` test passed over may have raised, and the `try` around it caught it.
+            macro(
+                "branch:cond-test-passed-over-in-try",
+                """
+                defmacro m do
+                  try do
+                    cond do
+                      :file.set_cwd(".") == :ok -> raise "no"
+                      Process.whereis(:init) -> :ok
+                      true -> :ok
+                    end
+                  rescue
+                    _ -> :rescued
+                  end
+                end
+                """,
+                pins = DECLINED,
+            ),
             macro(
                 "branch:raising-arm-after-try",
                 """
@@ -10614,12 +10693,13 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 """,
             ),
             // A later arm whose test is unknown, no raising arm, an operand chosen by no arm, and a declined argument
-            // still decline.
+            // still decline. `Process.info/2` declines, as `:erlang.process_info/2` has no row, where a value that isn't
+            // known would be joined.
             macro(
                 "branch:two-arms-left",
                 """
                 defmacro m do
-                  case Process.whereis(:init) do
+                  case Process.info(self(), :status) do
                     nil -> raise "no init"
                     :a -> :a
                     _ -> :ok
@@ -10628,14 +10708,14 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 """,
                 pins = DECLINED,
             ),
-            macro("branch:no-raising-arm-single-clause", "defmacro m, do: if(Process.whereis(:init), do: :ok)", pins = DECLINED),
+            macro("branch:no-raising-arm-single-clause", "defmacro m, do: if(Process.info(self(), :status), do: :ok)", pins = DECLINED),
             macro("branch:andalso-unknown-left", "defmacro m, do: Process.whereis(:init) == nil and raise(\"no init\")"),
             macro(
                 "branch:raising-arm-call-argument",
                 """
                 defp check(nil), do: raise("no init")
                 defp check(_), do: :ok
-                defmacro m, do: check(Process.whereis(:init))
+                defmacro m, do: check(Process.info(self(), :status))
                 """,
                 pins = DECLINED,
             ),
@@ -10644,7 +10724,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "branch:raising-arm-subject-ended",
                 """
-                defp f, do: Process.whereis(:init)
+                defp f, do: Process.info(self(), :status)
 
                 defmacro m do
                   case {f(), Map.fetch!(%{}, :k)} do
@@ -10663,7 +10743,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 .map { (id, choice) ->
                     Row(
                         "branch:raising-arm-$id",
-                        "defp g(module) do\n  text = inspect(Process.whereis(:init))\n  Module.put_attribute(module, :a, 2)\n  text\nend\n\ndefmacro w do\n  $choice\nend\n\ndefmacro m, do: Module.get_attribute(__CALLER__.module, :a)",
+                        "defp g(module) do\n  text = inspect(Process.info(self(), :status))\n  Module.put_attribute(module, :a, 2)\n  text\nend\n\ndefmacro w do\n  $choice\nend\n\ndefmacro m, do: Module.get_attribute(__CALLER__.module, :a)",
                         "$ROW.m()",
                         "require $ROW\n$ROW.w()\n_ = $ROW.m()",
                         "$ROW.w()",
@@ -10681,13 +10761,29 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 "branch:raising-arm-reraise",
                 """
                 defmacro m do
-                  case Process.whereis(:init) do
+                  case Process.info(self(), :status) do
                     nil -> :erlang.raise(:error, :no_init, [])
                     _ -> :ok
                   end
                 end
                 """,
                 pins = DECLINED,
+            ),
+            // Arms nested past the thread's stack, which the BEAM's holds, decline at the outermost, given only what the
+            // arms were: the test that holds them declines given nothing, so the raising arm is passed over.
+            macro(
+                "branch:arms-nested-past-the-stack",
+                """
+                defmacro m do
+                  cond do
+                    (if Process.whereis(:init), do: deep(100_000), else: 0) == :never -> raise "never"
+                    true -> :ok
+                  end
+                end
+
+                defp deep(0), do: 0
+                defp deep(n), do: 1 + deep(n - 1)
+                """,
             ),
             // `ExUnit.Case.__using__/1`'s check before its `quote`, up to v1.13.4.
             use(

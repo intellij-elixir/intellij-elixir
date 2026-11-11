@@ -455,8 +455,14 @@ top__match_case__in_for_body.exs	match
 top__match_case__in_for_filter.exs	match
 top__match_case__in_if_body.exs	match
 top__match_case__in_if_condition.exs	match
-top__match_case__in_interpolation.exs	match
-top__match_case__in_keyword.exs	match
+top__match_case__in_interpolation.exs	diff
+top__match_case__in_interpolation.exs	@@ -167,1 +167,1 @@
+top__match_case__in_interpolation.exs	-error Elixir.Protocol.UndefinedError
+top__match_case__in_interpolation.exs	+not an expansion error: :ok []
+top__match_case__in_keyword.exs	diff
+top__match_case__in_keyword.exs	@@ -156,1 +156,1 @@
+top__match_case__in_keyword.exs	-error Elixir.Protocol.UndefinedError
+top__match_case__in_keyword.exs	+not an expansion error: :ok []
 top__match_case__in_list.exs	match
 top__match_case__in_map.exs	match
 top__match_case__in_map_update.exs	match

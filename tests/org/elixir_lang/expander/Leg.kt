@@ -8,6 +8,7 @@ import junit.framework.TestCase.assertEquals
 import org.elixir_lang.beam.ReadResult
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.intellij_elixir.Quoter
+import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import java.io.File
 import java.util.Optional
@@ -18,6 +19,16 @@ import kotlin.time.Duration.Companion.seconds
 /** The leg's Elixir, and its Erlang/OTP when the test JVM is told it: an empty or missing version leaves it unknown. */
 internal fun legLevel(): ElixirLanguageLevel =
     ElixirLanguageLevel.of(LegManifest.environment("ELIXIR_VERSION"), System.getenv("ERLANG_VERSION"))
+
+/** `compile_env/4`'s read of [path] in [app] under [env], else [default], in the leg's argument order. */
+internal fun legCompileEnv(app: String, path: String, default: String, env: String = "__ENV__"): String =
+    if (COMPILE_ENV_TAKES_ENV_FIRST.isSufficient(legLevel())) "Application.compile_env($env, $app, $path, $default)"
+    else "Application.__compile_env__($app, $path, $default, $env)"
+
+/** `compile_env!/3`'s read of [path] in [app] under [env], in the leg's argument order. */
+internal fun legCompileEnvBang(app: String, path: String, env: String): String =
+    if (COMPILE_ENV_TAKES_ENV_FIRST.isSufficient(legLevel())) "Application.compile_env!($env, $app, $path)"
+    else "Application.__compile_env__!($app, $path, $env)"
 
 /** Whether the leg's `Path.expand/2` reads the working directory only for a relative directory, as from 1.16.0-rc.1. */
 internal fun legExpandsPathsLazily(): Boolean = legLevel().elixir >= ElixirLanguageLevel.of("1.16.0-rc.1").elixir

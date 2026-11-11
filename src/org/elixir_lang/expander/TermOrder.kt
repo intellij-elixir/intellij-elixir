@@ -15,6 +15,7 @@ import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
+import org.elixir_lang.expander.interpreter.bitSize
 import org.elixir_lang.language_level.ElixirLanguageFeature.NEGATIVE_ZERO_IS_DISTINCT
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.TermKind
@@ -245,8 +246,8 @@ private fun compareElements(left: List<OtpErlangObject>, right: List<OtpErlangOb
 
 /** Bit by bit, a prefix first. */
 private fun compareBits(left: OtpErlangBitstr, right: OtpErlangBitstr): Int {
-    val leftBits = bits(left)
-    val rightBits = bits(right)
+    val leftBits = bitSize(left)
+    val rightBits = bitSize(right)
 
     for (i in 0 until minOf(leftBits, rightBits)) {
         ProgressManager.checkCanceled()
@@ -258,7 +259,5 @@ private fun compareBits(left: OtpErlangBitstr, right: OtpErlangBitstr): Int {
 
     return leftBits.compareTo(rightBits)
 }
-
-private fun bits(bitstring: OtpErlangBitstr): Int = bitstring.binaryValue().size * 8 - bitstring.pad_bits()
 
 private fun bit(bitstring: OtpErlangBitstr, index: Int): Int = (bitstring.binaryValue()[index / 8].toInt() shr (7 - index % 8)) and 1

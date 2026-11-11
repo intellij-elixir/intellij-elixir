@@ -52,6 +52,7 @@ internal class Bits(private val evaluation: Evaluation) {
     fun build(segments: List<ElixirAst>, frame: Frame): OtpErlangObject {
         val writer = Writer()
         var unknown = false
+        var bytes = true
         val writes = ArrayList<() -> Unit>()
         // `v3_core` evaluates every segment's value and then its size, in order, before it writes any: each is a part.
         val turn = InTurn<Thrown>()
@@ -92,7 +93,13 @@ internal class Bits(private val evaluation: Evaluation) {
             writes += {
                 val size = segmentSize?.let(::seen)
 
-                if (segmentValue === UnknownBinary && takesWhole(spec, size, null)) {
+                if (isUnknown(segmentValue) && takesWhole(spec, size, null)) {
+                    // A value not known may not be a binary, nor, where the unit takes bits, a whole number of bytes. In a
+                    // guard, that fails the guard instead of raising.
+                    if (segmentValue !== UnknownBinary) {
+                        if (!frame.guard) evaluation.raiseMayBeCaught()
+                        if (unit(spec) % 8 != 0) bytes = false
+                    }
                     unknown = true
                 } else if (!write(writer, seen(segmentValue), spec, size)) {
                     evaluation.error(atom("badarg"))
@@ -105,7 +112,7 @@ internal class Bits(private val evaluation: Evaluation) {
 
         return when {
             !unknown -> writer.bitstring()
-            writer.aligned -> UnknownBinary
+            writer.aligned && bytes -> UnknownBinary
             else -> Unknown
         }
     }
@@ -125,7 +132,7 @@ internal class Bits(private val evaluation: Evaluation) {
             if (value is UnknownValue) return value
             if (value !is OtpErlangBitstr) evaluation.error(tuple(atom("badarg"), value))
 
-            writer.bitstring(value, bitLength(value))
+            writer.bitstring(value, bitSize(value))
         }
 
         return writer.bitstring()
@@ -139,10 +146,33 @@ internal class Bits(private val evaluation: Evaluation) {
         pending: PatternBindings,
     ): Boolean {
         val bitstring = value as? OtpErlangBitstr ?: return false
-        val length = bitLength(bitstring)
+        val length = bitSize(bitstring)
 
         return matchFrom(spliced(segments, frame), bitstring, 0, length, frame, pending) == length
     }
+
+    /**
+     * Whether the [written] segments may match the start of a bitstring not known, in [frame]: not where a size is
+     * known to be negative or not an integer, or fails as a guard ([sizeIn]), as none matches then. A segment the
+     * evaluator can't read may match.
+     */
+    fun mayMatchUnknown(written: List<ElixirAst>, frame: Frame): Boolean {
+        val segments = orOnDecline(null) { spliced(written, frame) } ?: return true
+
+        return segments.all { segment ->
+            orOnDecline(true) {
+                val spec = segment(segment, frame).second
+                val size = spec.size ?: return@all true
+                val value = sizeIn(size, frame)
+
+                value != null && (isUnknown(value) || value is OtpErlangLong && bits(value, spec) != null)
+            }
+        }
+    }
+
+    /** [size]'s value in [scope], as a match reads it: `null` where it fails as a guard, as a size is from [BITSTRING_SIZE_EXPANDED_AS_GUARD]. */
+    private fun sizeIn(size: ElixirAst, scope: Frame): OtpErlangObject? =
+        if (BITSTRING_SIZE_EXPANDED_AS_GUARD.isSufficient(evaluation.run.level)) evaluation.guardValue(size, scope) else evaluation.eval(size, scope)
 
     /**
      * [emit] once per run of the [written] segments matched from the start of [value], each in a scope binding its variables. A run
@@ -163,7 +193,7 @@ internal class Bits(private val evaluation: Evaluation) {
         val segments = spliced(written, frame)
         val bitstring = value as? OtpErlangBitstr
             ?: evaluation.error(tuple(atom(if (comprehension) "bad_generator" else "badarg"), value))
-        val length = bitLength(bitstring)
+        val length = bitSize(bitstring)
         val skip = when {
             comprehension -> Skip.LITERALS
             reduceSkips(segments, frame, outer) -> Skip.ALL
@@ -294,15 +324,8 @@ internal class Bits(private val evaluation: Evaluation) {
                 continue
             }
 
-            val size = spec.size?.let {
-                val scope = frame.copy().also { scope -> scope.vars.putAll(pending.vars) }
-
-                if (BITSTRING_SIZE_EXPANDED_AS_GUARD.isSufficient(evaluation.run.level)) {
-                    evaluation.guardValue(it, scope) ?: return null
-                } else {
-                    evaluation.eval(it, scope)
-                }
-            } ?: spec.pinned?.let { pinnedSize(evaluation.eval(it, frame), spec) }
+            val size = spec.size?.let { sizeIn(it, frame.copy().also { scope -> scope.vars.putAll(pending.vars) }) ?: return null }
+                ?: spec.pinned?.let { pinnedSize(evaluation.eval(it, frame), spec) }
             val bits = when (size) {
                 // A literal binary matches its own bytes, not the rest.
                 null -> (pattern as? ElixirAst.Literal.Binary)?.let { it.bytes.size * 8 }
@@ -461,7 +484,7 @@ internal class Bits(private val evaluation: Evaluation) {
             }
             Type.BINARY, Type.BITSTRING -> {
                 val bitstring = value as? OtpErlangBitstr ?: return false
-                val length = bitLength(bitstring)
+                val length = bitSize(bitstring)
 
                 when {
                     takesWhole(spec, size, length) -> writer.bitstring(bitstring, length)
@@ -678,8 +701,6 @@ internal class Bits(private val evaluation: Evaluation) {
                 else -> count - 1 - (position - whole)
             }
         }
-
-        fun bitLength(value: OtpErlangBitstr) = value.binaryValue().size * 8 - value.pad_bits()
 
         /** The IEEE 754 binary16 [half] as a double. */
         fun halfToDouble(half: Int): Double {

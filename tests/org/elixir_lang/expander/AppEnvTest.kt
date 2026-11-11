@@ -55,7 +55,6 @@ class AppEnvTest : PlatformTestCase() {
     fun testFetchEnvBang() =
         assertAnswers(
             "Application.fetch_env!(:dep, :key)" to ":value",
-            "Application.fetch_env!(:dep, :missing)" to null,
             "Application.fetch_env!(:dep, :configured)" to null,
             "Application.fetch_env!(:own, :key)" to null,
         )
@@ -76,10 +75,19 @@ class AppEnvTest : PlatformTestCase() {
         assertAnswers(
             "Application.compile_env!(:dep, :key)" to ":value",
             "Application.compile_env!(:dep, [:keyword, :sub])" to "1",
-            "Application.compile_env!(:dep, :missing)" to null,
-            "Application.compile_env!(:dep, [:keyword, :missing])" to null,
             "Application.compile_env!(:own, :key)" to null,
         )
+
+    /** A bang read of a key the env doesn't hold raises `ArgumentError`, as Elixir does, from an answer that is assumed. */
+    fun testABangReadOfAKeyTheEnvLacksStops() {
+        for (read in listOf(
+            "Application.fetch_env!(:dep, :missing)",
+            "Application.compile_env!(:dep, :missing)",
+            "Application.compile_env!(:dep, [:keyword, :missing])",
+        )) {
+            assertFile("defmodule A do\n  require Application\n  @x $read\nend", "module Elixir.A stopped `@x $read`")
+        }
+    }
 
     /** A path through a value that holds no keys raises in `Access.fetch/2`, from an answer that is assumed. */
     fun testAPathThroughAValueHoldingNoKeysStops() =

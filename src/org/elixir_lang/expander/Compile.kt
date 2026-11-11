@@ -1062,9 +1062,9 @@ internal val Pending.inner: List<Pending>
         else -> emptyList()
     }
 
-/** Whether the entry's node is a statement of the body, a module's or the file's, whose [statements] these are. */
-internal fun Pending.isStatement(statements: Statements): Boolean =
-    when (this) {
+/** Whether the entry's node is a statement of the body, a module's or the file's. */
+internal val Pending.isStatement: Boolean
+    get() = when (this) {
         is Pending.Definition -> statement
         is Pending.Effect -> ordered
         is Pending.Check -> ordered
@@ -1148,7 +1148,7 @@ internal fun compilePending(run: Run): Walked {
     fun step(pending: Pending, bindings: HashMap<Binding, OtpErlangObject>, stopsAt: ElixirAst?): Stepped {
         ProgressManager.checkCanceled()
 
-        val statement = pending.isStatement(values.statements)
+        val statement = pending.isStatement
         var ordered = true
         val stepping = Stepping()
         val (raw, assumed) = run.assuming { when (pending) {
@@ -1296,7 +1296,7 @@ private fun reaching(
     evaluate: () -> Evaluated,
 ): Reached {
     val inner = pending.inner
-    val statement = pending.isStatement(values.statements)
+    val statement = pending.isStatement
     val reached: MutableSet<Pending> = Collections.newSetFromMap(IdentityHashMap())
     val callbacks = IdentityHashMap<Pending, (HashMap<Binding, OtpErlangObject>) -> UnitRun>()
     val outerEntered = run.entered
@@ -1310,6 +1310,8 @@ private fun reaching(
         val site = unit.site
 
         callbacks[unit] = { bindings ->
+            // In a config read compiling no module, a unit runs: the read joins the config it writes.
+            if (run.config == null || run.compiling.isNotEmpty()) run.unjoined("a unit")
             reached += unit
             values.reachedAfter(run.continuedDeclines, run.assumptions)
             // The unit's own node is evaluated inside its run, not reached again.
@@ -1318,7 +1320,11 @@ private fun reaching(
             try {
                 val stepped = step(if (statement) unit.asStatement() else unit, bindings, stopsAt)
 
-                if (stepped.ends) throw RunEnded(values)
+                // In code that may not run, the unit ends the code holding it ([Run.unjoined]), not the body's run.
+                if (stepped.ends) {
+                    run.unjoined("a raise", ends = true)
+                    throw RunEnded(values)
+                }
                 // The evaluator ends the loop or block holding the unit, as it does where it ran the raise itself.
                 stepped.endedDecline?.let { throw it }
                 // A match on the statement path whose value code takes declines that code, as one the walk ran before it
@@ -1387,7 +1393,7 @@ private fun reaching(
     val ended = values.unordered {
         unrun.any { unit ->
             // A statement of a body the walk follows that holds no unit runs only where the evaluator reaches it.
-            !(unit.inner.isEmpty() && !unit.isStatement(values.statements) && (unit is Pending.Match || unit is Pending.Statement)) &&
+            !(unit.inner.isEmpty() && !unit.isStatement && (unit is Pending.Match || unit is Pending.Statement)) &&
                 step(unit, values.bindings, stopsAt ?: pending.site).ends
         }
     }
@@ -1516,8 +1522,10 @@ private fun compile(
     bindings: HashMap<Binding, OtpErlangObject>,
     reached: Boolean,
 ): ExpansionResult {
+    run.unjoined("a module defined")
+
     val name = module.name
-    val statement = module.isStatement(enclosing.statements)
+    val statement = module.isStatement
     val placed = statement && module.placed
     val compiling = Compiling(module.body, run.level, statement && enclosing.runsOnce, placed, reached)
     val values = compiling.values
@@ -1594,7 +1602,7 @@ private fun compile(
         // Whether Elixir ran the unit where the expander did, and whether what it did there is known: code the unit
         // runs that the expander doesn't follow, a callback's or a nested module's, hides whether Elixir raised.
         var ordered = true
-        val statement = pending.isStatement(compiling.statements)
+        val statement = pending.isStatement
         val stepping = Stepping()
 
         // The unit's record, given its expansion once classified.

@@ -10,9 +10,9 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
-import org.elixir_lang.expander.interpreter.Declined
 import org.elixir_lang.expander.interpreter.keyValue
 import org.elixir_lang.expander.interpreter.mapOf
+import org.elixir_lang.expander.interpreter.orOnDecline
 import org.elixir_lang.language_level.ElixirLanguageFeature.ADJACENT_STRINGS_NEED_WHITE_SPACE
 import org.elixir_lang.language_level.ElixirLanguageFeature.APP_ENV_PARAMETERS_CHECKED
 import org.elixir_lang.language_level.ElixirLanguageFeature.CARET_NOTATION_CHECKED
@@ -212,11 +212,7 @@ private class Terms(private val text: CharSequence, private val level: ElixirLan
             }
         }
 
-        return try {
-            mapOf(pairs, level)
-        } catch (_: Declined) {
-            unreadable()
-        }
+        return orOnDecline(null) { mapOf(pairs, level) } ?: unreadable()
     }
 
     /** `<<Segment, ...>>`, each segment an integer, a character or a string, in 8 bits each, as no size or type is given. */

@@ -7,10 +7,13 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.io.OSAgnosticPathUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.util.system.OS
+import org.elixir_lang.expander.interpreter.ARM_BUDGET
 import org.elixir_lang.expander.interpreter.Binding
+import org.elixir_lang.expander.interpreter.Declined
 import org.elixir_lang.expander.interpreter.Evaluated
 import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.Given
+import org.elixir_lang.expander.interpreter.RunningCall
 import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.expander.interpreter.ValueUse
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
@@ -286,6 +289,15 @@ internal inline fun <T> Run.assuming(block: () -> T): Pair<T, Boolean> {
 /** What a unit the evaluator reached gives the code around it: its code's [value], and whether that code [declined]. */
 internal class UnitRun(val value: OtpErlangObject, val declined: Boolean)
 
+/**
+ * What of a [Run] the code run later reads, which the code running may change: its config [read] ([ConfigRead.snapshot])
+ * and the apps whose env it wrote ([written], [Run.wroteEnvOf]).
+ */
+internal class RunState(val read: ConfigRead.Snapshot?, val written: WrittenApps) {
+    /** Whether [other] is the same state: the same read ([sameRead]) and apps written. */
+    fun isAt(other: RunState) = written.isAt(other.written) && sameRead(read, other.read)
+}
+
 /** What every recursive expansion of one [Expander.expand] call shares. */
 internal class Run(
     val level: ElixirLanguageLevel,
@@ -327,17 +339,47 @@ internal class Run(
      */
     var assumptions = 0
 
-    /** The apps whose env the run's evaluations wrote, `null` once one wrote an app that isn't known. */
-    private var written: MutableSet<String>? = HashSet()
+    /** The apps whose env the run's evaluations wrote: under a [config], those its read wrote in any of its files. */
+    private val written = config?.written ?: WrittenApps()
 
     /** Records that an evaluation wrote [app]'s env, or, `null`, an app that isn't known. */
-    fun wroteEnv(app: String?) {
-        if (app == null) written = null else written?.add(app)
-        config?.wroteEnv(app)
+    fun wroteEnv(app: String?) = written.add(app)
+
+    /** The run's state as the code run later reads it ([RunState]). */
+    fun state() = RunState(config?.snapshot(), written.copy())
+
+    /** Puts the run back to [state], as code run again from there starts. */
+    fun restore(state: RunState) {
+        state.read?.let { config?.restore(it) }
+        written.restore(state.written)
     }
 
-    /** Whether an evaluation in the run wrote [app]'s env, so its value isn't [appEnv]'s. */
-    fun wroteEnvOf(app: String): Boolean = written?.contains(app) != false
+    /** Where code run again from a state doesn't return, keeps the apps [ended] wrote written: code past it may read them. */
+    fun keepWritten(ended: List<RunState>) = ended.forEach { written.addAll(it.written) }
+
+    /**
+     * The states where code that started at [from] may have ended, joined: [returned], or [raised] where it raised, which
+     * a `try` around it may have [caught]. The read joins as [ConfigRead.joined] joins it, and the apps written are those
+     * any of them wrote.
+     */
+    fun joinedState(from: RunState, returned: List<RunState>, raised: List<RunState> = emptyList(), caught: Boolean = false): RunState {
+        val read = config
+        val first = returned.firstOrNull()?.read
+        val joined = if (read == null || raised.isEmpty() && first != null && returned.all { sameRead(it.read, first) }) {
+            first
+        } else {
+            read.joined(from.read!!, returned.map { it.read!! }, raised.map { it.read!! }, caught)
+        }
+        val written = from.written.copy().also { apps -> (returned + raised).forEach { apps.addAll(it.written) } }
+
+        return RunState(joined, written)
+    }
+
+    /**
+     * Whether an evaluation in the run, or under its [config] in any of the read's files, wrote [app]'s env, or, `null`,
+     * that of any app, so its value isn't [appEnv]'s.
+     */
+    fun wroteEnvOf(app: String?): Boolean = app in written
 
     /**
      * The modules being compiled that calls declined in the module-body code or macro being run were given, any of
@@ -347,13 +389,54 @@ internal class Run(
     var declinedGiven: Given? = null
 
     /**
-     * How many bodies of a `try` with `catch` or `rescue` are being evaluated around the unit the evaluator runs where it
-     * reaches it ([reached]), any of which may catch a raise in the unit's code.
+     * How many bodies of a `try` with `catch` or `rescue` are being evaluated, in this run, around the import of its
+     * file ([ConfigRead.catching]) or around another run's call of a function it made, any of which may catch a raise in
+     * the code running now, whichever evaluation, or `fn`, it is of.
      */
-    var catching = 0
+    var catching = config?.catching ?: 0
 
     /** Whether the value of the unit the evaluator runs where it reaches it ([reached]) is read, `null` outside one. */
     var reachedUse: ValueUse? = null
+
+    /** How many arms that may not be taken are running ([mayNotRun]). */
+    var speculating = 0
+
+    /** Whether the body of the `try` being evaluated may have raised over a value that isn't known. */
+    var raisedOverUnknown = false
+
+    /** Whether an enclosing `try` body, or `else`, may have raised before the code now running. */
+    var pastRaise = false
+
+    /**
+     * Whether the code running may not run in Elixir: an arm taken over a value that isn't known, or code past a raise a
+     * `try` may catch. Only the config such code writes is joined.
+     */
+    val mayNotRun get() = speculating > 0 || raisedOverUnknown || pastRaise
+
+    /** The arms that may not be taken the run has run: under a [config], those its read's files have run. */
+    private val arms = config?.arms ?: ArmsTaken()
+
+    /**
+     * Counts an arm that may not be taken, declining past [ARM_BUDGET] arms across the run, or across a config read's
+     * files where it reads one.
+     */
+    fun takeArm() {
+        if (++arms.count > ARM_BUDGET) throw Declined("more arms over values not known than a run takes")
+    }
+
+    /**
+     * The calls running over a value that isn't known in code that may not run, innermost last: a call repeating one
+     * answers unknown.
+     */
+    val runningOverUnknown = ArrayList<RunningCall>()
+
+    /**
+     * Declines on [what], a unit, a module, an effect or a unit's raise, where the code running may not run
+     * ([mayNotRun]): nothing joins it. Where it [ends] that code, as a raise does, so does the decline.
+     */
+    fun unjoined(what: String, ends: Boolean = false) {
+        if (mayNotRun) throw Declined("$what in code that may not run").apply { if (ends) end(null) }
+    }
 
     /**
      * Whether code the expander doesn't follow ran, which may have changed the directory the compile runs in

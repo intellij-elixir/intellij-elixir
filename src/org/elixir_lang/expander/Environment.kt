@@ -4,6 +4,7 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import org.elixir_lang.expander.interpreter.EMPTY
 import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.FALSE
+import org.elixir_lang.expander.interpreter.MACRO_ENV
 import org.elixir_lang.expander.interpreter.ModuleUnknown
 import org.elixir_lang.expander.interpreter.NIL
 import org.elixir_lang.expander.interpreter.UnknownBinary
@@ -125,7 +126,7 @@ internal fun dirOf(run: Run, env: Env): ByteArray? {
  */
 private fun envField(field: String, env: Env, state: ExState, line: Int, escaped: Boolean, run: Run): OtpErlangObject =
     when (field) {
-        "__struct__" -> atom("Elixir.Macro.Env")
+        "__struct__" -> MACRO_ENV
         "module" -> atom(env.module ?: "nil")
         "file" -> fileOf(run, env)?.let(::binary) ?: UnknownBinary
         "line" -> integer(line.toLong())

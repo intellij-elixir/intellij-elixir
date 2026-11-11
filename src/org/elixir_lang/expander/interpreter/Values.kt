@@ -16,6 +16,7 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.ericsson.otp.erlang.OtpOutputStream
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
+import org.elixir_lang.expander.Run
 import org.elixir_lang.expander.differInSign
 import org.elixir_lang.expander.UnorderedTerms
 import org.elixir_lang.expander.termOrder
@@ -38,6 +39,9 @@ internal class Declined(val reason: String, stops: Boolean = false) : RuntimeExc
      * ([unknownOf]), the arguments a native that declined can return, and the other parts of a value it was a part of.
      */
     val holds = ArrayList<OtpErlangObject>()
+
+    /** Whether a test of a value already evaluated threw it, which ran no code: that value isn't known. */
+    var onValue = false
 
     /** Whether code after it raised ([InTurn]), which ends whatever holds it, as Elixir's raise would. */
     var ended = false
@@ -197,9 +201,11 @@ internal inline fun anyHeld(
     return false
 }
 
+/** Whether [term] is a function: a [Closure] or an external fun. */
+internal fun isFunction(term: OtpErlangObject): Boolean = term is Closure || term is OtpErlangExternalFun
+
 /** Whether a function is held in any of [terms] ([anyHeld]). */
-internal fun holdsAFunction(terms: List<OtpErlangObject>): Boolean =
-    anyHeld(terms) { it is Closure || it is OtpErlangExternalFun }
+internal fun holdsAFunction(terms: List<OtpErlangObject>): Boolean = anyHeld(terms, visit = ::isFunction)
 
 /** Declines for [reason], each `%s` in which names the next of [terms]. */
 internal fun decline(reason: String, vararg terms: OtpErlangObject): Nothing =
@@ -316,13 +322,70 @@ internal class EffectWritten(val module: String, val names: Set<String>) : Unkno
 /** A value the evaluator doesn't know, built from [parts] it does, any of which may be or hold a module being compiled. */
 internal class Holding(val parts: List<OtpErlangObject>) : UnknownValue()
 
-/** A value the evaluator doesn't know, built from [parts]: it came from a module being compiled where one of them did. */
-internal fun unknownOf(parts: List<OtpErlangObject>): UnknownValue =
-    when {
-        parts.any { it === ModuleUnknown } -> ModuleUnknown
-        parts.all { it === Unknown || it === UnknownBinary } -> Unknown
-        else -> Holding(parts)
+/** Whether [term] holds no module being compiled: [Unknown], [UnknownBinary], a number or a binary. */
+internal fun holdsNoModule(term: OtpErlangObject): Boolean =
+    term === Unknown || term === UnknownBinary || isNumber(term) || term is OtpErlangBitstr
+
+/** Whether [term] is a value not known that may be or hold a module being compiled: a [Holding] or [ModuleUnknown]. */
+internal fun fromCompiling(term: OtpErlangObject): Boolean = term is Holding || term === ModuleUnknown
+
+/**
+ * Whether [unknown] is a [Holding] that holds [part] already, so [unknownOf] of both would hold nothing more: each term
+ * [part] is built from holds no module ([holdsNoModule]) or is one [unknown] is built from.
+ */
+internal fun holdsAlready(unknown: OtpErlangObject, part: OtpErlangObject?): Boolean {
+    if (unknown !is Holding) return false
+    if (part == null || part === unknown) return true
+
+    // A leaf [unknown] shares is found by identity, without a compare: no leaf of [part] is a [Holding] it walked.
+    val walked = Collections.newSetFromMap(IdentityHashMap<OtpErlangObject, Boolean>())
+    val held = builtFrom(unknown, walked)
+    // One memo across every pair of leaves, so a part they share is compared once.
+    val same = SameTerm(held = true)
+
+    return builtFrom(part).all { leaf -> holdsNoModule(leaf) || leaf in walked || held.any { same.same(it, leaf) } }
+}
+
+/**
+ * The terms [term] is built from through its [Holding]s, each part read once, every term the walk reaches gathered in
+ * [walked]: [term] itself where it is none.
+ */
+private fun builtFrom(
+    term: OtpErlangObject,
+    walked: MutableSet<OtpErlangObject> = Collections.newSetFromMap(IdentityHashMap()),
+): List<OtpErlangObject> {
+    if (term !is Holding) return listOf(term)
+
+    val leaves = ArrayList<OtpErlangObject>()
+    val pending = ArrayDeque<OtpErlangObject>(listOf(term))
+
+    while (pending.isNotEmpty()) {
+        ProgressManager.checkCanceled()
+
+        val next = pending.removeLast()
+
+        if (!walked.add(next)) continue
+        if (next is Holding) pending.addAll(next.parts) else leaves += next
     }
+
+    return leaves
+}
+
+/**
+ * A value the evaluator doesn't know, built from [parts]: it came from a module being compiled where one of them did. A
+ * number or a binary holds no module, so a value built from one and an unknown is that unknown, and a call given it
+ * again is the same call ([RunningCall]); a value built from one [Holding] alone is that [Holding].
+ */
+internal fun unknownOf(parts: List<OtpErlangObject>): UnknownValue {
+    val adding = ArrayList<OtpErlangObject>()
+
+    for (part in parts) {
+        if (part === ModuleUnknown) return ModuleUnknown
+        if (!holdsNoModule(part)) adding += part
+    }
+
+    return if (adding.isEmpty()) Unknown else adding.singleOrNull() as? Holding ?: Holding(adding)
+}
 
 /**
  * A binary whose bytes the evaluator doesn't know, such as a message built by `inspect`: a binary segment takes it, as
@@ -355,6 +418,8 @@ internal class Closure(
     val marks: () -> List<OtpErlangObject> = { emptyList() },
     /** The `fn` the closure is of, where it is one the evaluator built from code. */
     val fn: ElixirAst? = null,
+    /** The run whose state its body reads, where the evaluator built it from code. */
+    val run: Run? = null,
     val invoke: (List<OtpErlangObject>) -> OtpErlangObject,
 ) :
     OtpErlangFun(OtpErlangPid("nonode@nohost", 0, 0, 0), "erl_eval", 0L, 0L, arrayOf()) {
@@ -369,6 +434,8 @@ internal val TRUE = OtpErlangAtom("true")
 internal val FALSE = OtpErlangAtom("false")
 internal val NIL = OtpErlangAtom("nil")
 internal val EMPTY = OtpErlangList()
+internal val STRUCT = OtpErlangAtom("__struct__")
+internal val MACRO_ENV = OtpErlangAtom("Elixir.Macro.Env")
 
 /**
  * The atom [name]. Past an atom's 255 characters it declines: Elixir refuses such an alias, or `__MODULE__`, when it
@@ -422,10 +489,11 @@ internal fun mapOf(entries: List<Pair<OtpErlangObject, OtpErlangObject>>, level:
         // Two captures of one function are one key in Elixir, but a closure is equal only to itself.
         if (holdsClosure(key)) decline("a function in a map key")
 
-        val at = indexIn(keys, key, level, byHash[hash(key)].orEmpty())
+        val hashed = hash(key)
+        val at = indexIn(keys, key, level, byHash[hashed].orEmpty())
 
         if (at == null) {
-            byHash.getOrPut(hash(key), ::mutableListOf) += keys.size
+            byHash.getOrPut(hashed, ::mutableListOf) += keys.size
             keys += key
             values += value
         } else {
@@ -449,16 +517,17 @@ internal fun valueAt(map: OtpErlangMap, key: OtpErlangObject, level: ElixirLangu
 
 /**
  * The index of the one of [keys] exactly equal to [key] at [level]. A key holding a float is compared with each key
- * holding one, as `hashCode` parts `0.0` from `-0.0` on every OTP; any other only with the [sameHash] keys.
+ * holding one, as `hashCode` parts `0.0` from `-0.0` on every OTP; any other only with the [candidates], which hold
+ * every key of its [hash].
  */
 private fun indexIn(
     keys: List<OtpErlangObject>,
     key: OtpErlangObject,
     level: ElixirLanguageLevel,
-    sameHash: Iterable<Int>,
+    candidates: Iterable<Int>,
 ): Int? =
     if (holdsFloat(key)) keys.indices.firstOrNull { holdsFloat(keys[it]) && equal(keys[it], key, true, level) }
-    else sameHash.firstOrNull { hash(keys[it]) == hash(key) && sameTerm(keys[it], key) }
+    else candidates.firstOrNull { sameTerm(keys[it], key, held = true) }
 
 /** [term]'s `hashCode` with each string in it as the list of integers it is, as [sameTerm] compares them. */
 private fun hash(term: OtpErlangObject): Int = listed(term).hashCode()
@@ -511,38 +580,90 @@ private fun listed(
     return listed
 }
 
-/**
- * Whether [left] and [right] are one term: as `equals` says, but with a string the list of integers it is, which
- * `equals` keeps apart. It checks for cancellation at each node: `equals` walks both whole, and a term can hold one part
- * in many places.
- */
-private fun sameTerm(left: OtpErlangObject?, right: OtpErlangObject?): Boolean {
-    ProgressManager.checkCanceled()
+/** Whether [left] and [right] are one known term ([sameTerm]): two parts either of which isn't known are never one. */
+internal fun sameKnownTerm(left: OtpErlangObject, right: OtpErlangObject): Boolean = sameTerm(left, right, held = false)
 
-    return when {
-        left === right -> true
-        left == null || right == null -> false
-        left is OtpErlangString && right is OtpErlangString -> left == right
-        left is OtpErlangString || right is OtpErlangString -> sameTerm(listed(left), listed(right))
-        left is OtpErlangTuple ->
-            right is OtpErlangTuple && left.arity() == right.arity() &&
-                (0 until left.arity()).all { sameTerm(left.elementAt(it), right.elementAt(it)) }
-        left is OtpErlangList ->
-            right is OtpErlangList && left.arity() == right.arity() &&
-                (0 until left.arity()).all { sameTerm(left.elementAt(it), right.elementAt(it)) } &&
-                sameTerm(left.lastTail, right.lastTail)
-        left is OtpErlangMap -> right is OtpErlangMap && left.arity() == right.arity() && sameEntries(left, right)
-        else -> left == right
-    }
+/** Whether [terms] are all one known term ([sameKnownTerm]), the first walked once however often it appears; not where none is. */
+internal fun oneKnownTerm(terms: List<OtpErlangObject>): Boolean {
+    val first = terms.firstOrNull() ?: return false
+    // Where another term is one known term with the first, the first holds nothing not known, so only a first alone is
+    // walked for that.
+    val others = terms.filter { it !== first }
+
+    return if (others.isEmpty()) !holdsUnknown(first) else others.all { sameKnownTerm(it, first) }
 }
 
-private fun sameEntries(left: OtpErlangMap, right: OtpErlangMap): Boolean {
-    val keys = right.keys().asList()
-    val values = right.values()
-    val byHash = keys.indices.groupBy { hash(keys[it]) }
+/**
+ * Whether [left] and [right] are one term: as `equals` says, but with a string the list of integers it is, and `0.0`
+ * and `-0.0` two floats ([differInSign]), where `equals` takes each pair for one. Two parts either of which isn't known
+ * are one only where [held] and they are one value the evaluator holds. Each pair of containers is compared once, and it
+ * checks for cancellation at each node, as a term can hold one part in many places.
+ */
+internal fun sameTerm(left: OtpErlangObject, right: OtpErlangObject, held: Boolean): Boolean =
+    if (left === right) held || !holdsUnknown(left) else SameTerm(held).same(left, right, root = true)
 
-    return entries(left).all { (key, value) ->
-        byHash[hash(key)].orEmpty().firstOrNull { sameTerm(keys[it], key) }?.let { sameTerm(values[it], value) } == true
+private class SameTerm(private val held: Boolean) {
+    /** Each pair of containers compared, and whether they were one term; made at the first pair. */
+    private var compared: IdentityHashMap<OtpErlangObject, IdentityHashMap<OtpErlangObject, Boolean>>? = null
+
+    fun same(left: OtpErlangObject, right: OtpErlangObject, root: Boolean = false): Boolean {
+        ProgressManager.checkCanceled()
+
+        if (left === right && held) return true
+
+        // A leaf costs less to compare again than to remember, and the root pair, which neither term holds, is met once.
+        val remembered = !root && (left is OtpErlangTuple || left is OtpErlangMap || left is OtpErlangList)
+
+        if (remembered) compared?.get(left)?.get(right)?.let { return it }
+
+        val same = when {
+            isUnknown(left) || isUnknown(right) -> false
+            left is OtpErlangString && right is OtpErlangString -> left == right
+            left is OtpErlangTuple ->
+                right is OtpErlangTuple && left.arity() == right.arity() &&
+                    (0 until left.arity()).all { same(left.elementAt(it), right.elementAt(it)) }
+            left is OtpErlangMap -> right is OtpErlangMap && left.arity() == right.arity() && sameEntries(left, right)
+            left is OtpErlangDouble -> left == right && !differInSign(left, right)
+            left is OtpErlangList && right is OtpErlangList ->
+                left.arity() == right.arity() && (0 until left.arity()).all { same(left.elementAt(it), right.elementAt(it)) } &&
+                    sameTails(left.lastTail, right.lastTail)
+            else -> {
+                // A string is the list of integers it is, made only where the other side may be a list too.
+                val lefts = if (right is OtpErlangList || right is OtpErlangString) cells(left) else null
+                val rights = lefts?.let { cells(right) }
+
+                if (lefts != null && rights != null) {
+                    val (leftElements, leftTail) = lefts
+                    val (rightElements, rightTail) = rights
+
+                    leftElements.size == rightElements.size && leftElements.indices.all { same(leftElements[it], rightElements[it]) } &&
+                        sameTails(leftTail, rightTail)
+                } else {
+                    left == right
+                }
+            }
+        }
+
+        if (remembered) compared().getOrPut(left) { IdentityHashMap(2) }[right] = same
+
+        return same
+    }
+
+    private fun sameTails(left: OtpErlangObject?, right: OtpErlangObject?): Boolean =
+        if (left == null || right == null) left === right else same(left, right)
+
+    // A left container mostly meets one right, the one at its place in the other term, and most terms compared are small.
+    private fun compared() = compared ?: IdentityHashMap<OtpErlangObject, IdentityHashMap<OtpErlangObject, Boolean>>(4).also { compared = it }
+
+    /** A key of [left] is one of [right]'s where they are one term, which only keys of one [hash] can be. */
+    private fun sameEntries(left: OtpErlangMap, right: OtpErlangMap): Boolean {
+        val keys = right.keys().asList()
+        val values = right.values()
+        val byHash = keys.indices.groupBy { hash(keys[it]) }
+
+        return entries(left).all { (key, value) ->
+            byHash[hash(key)].orEmpty().firstOrNull { same(keys[it], key) }?.let { same(values[it], value) } == true
+        }
     }
 }
 
@@ -562,7 +683,7 @@ internal fun entries(map: OtpErlangMap): List<Pair<OtpErlangObject, OtpErlangObj
 
 /** [term], which must hold nothing unknown ([isUnknown]), as a map key or a compared term must. */
 internal fun known(term: OtpErlangObject): OtpErlangObject =
-    if (holdsUnknown(term)) decline("an unknown value") else term
+    if (holdsUnknown(term)) throw onUnknown() else term
 
 /** Whether [term] is or holds anything unknown ([isUnknown]). */
 internal fun holdsUnknown(term: OtpErlangObject): Boolean = holds(term, ::isUnknown)
@@ -590,7 +711,10 @@ private fun holds(term: OtpErlangObject, matches: (OtpErlangObject) -> Boolean):
     return holds(term)
 }
 
-/** An attribute's [value], as the escaped value `@` gives in a function evaluates to; [seen] is told each atom in it. */
+/**
+ * An attribute's [value], as the escaped value `@` gives in a function evaluates to; [seen] is told each atom in it. A
+ * part the term doesn't know, other than a float, came from the module being compiled that holds it ([ModuleUnknown]).
+ */
 internal fun otpOf(value: Term, seen: (String) -> Unit = {}): OtpErlangObject {
     ProgressManager.checkCanceled()
 
@@ -603,7 +727,8 @@ internal fun otpOf(value: Term, seen: (String) -> Unit = {}): OtpErlangObject {
         is Term.List -> cons(value.elements.map(part), value.tail?.let(part) ?: EMPTY)
         is Term.Pair -> tuple(part(value.first), part(value.second))
         is Term.Tuple -> OtpErlangTuple(value.elements.map(part).toTypedArray())
-        else -> Unknown
+        Term.NonTuple -> Unknown
+        is Term.Node, Term.Unexpanded -> ModuleUnknown
     }
 }
 
@@ -621,13 +746,12 @@ internal fun properElements(term: OtpErlangObject): List<OtpErlangObject>? =
     cells(term)?.takeIf { it.second == null }?.first
 
 /** `Keyword.keyword?/1`, declining on an unknown value before its type is tested. */
-internal fun isKeyword(term: OtpErlangObject): Boolean {
-    val (elements, tail) = cells(term) ?: return false
+internal fun isKeyword(term: OtpErlangObject): Boolean =
+    properElements(term)?.all { element -> pairKey(seen(element))?.let(::seen) is OtpErlangAtom } == true
 
-    return tail == null && elements.all { element ->
-        (seen(element) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elementAt(0)?.let(::seen) is OtpErlangAtom
-    }
-}
+/** The key of [term] where it is a pair, as a keyword list or a map's entries hold one, else `null`. */
+internal fun pairKey(term: OtpErlangObject): OtpErlangObject? =
+    (term as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elementAt(0)
 
 /** `lists:keyfind/3`'s walk: the first tuple of [elements], each read by [read], whose element [n] [matches]. */
 internal inline fun keyFound(
@@ -653,6 +777,9 @@ internal inline fun keyValue(
 ): OtpErlangObject? = keyFound(elements, 1, read, matches)?.takeIf { it.arity() == 2 }?.elementAt(1)
 
 internal fun isNumber(term: OtpErlangObject) = term is OtpErlangLong || term is OtpErlangDouble
+
+/** [bitstring]'s length in bits, Erlang's `bit_size/1`. */
+internal fun bitSize(bitstring: OtpErlangBitstr) = bitstring.binaryValue().size * 8 - bitstring.pad_bits()
 
 /** Erlang's `==` where [exact] is false, else `=:=` ([termsEqual]); declines on terms whose order only the VM knows. */
 internal fun equal(left: OtpErlangObject, right: OtpErlangObject, exact: Boolean, level: ElixirLanguageLevel): Boolean =
@@ -682,9 +809,13 @@ private inline fun <T> ordered(left: OtpErlangObject, right: OtpErlangObject, sa
 /** [term], declining where it is unknown ([isUnknown]), before its type or value is tested. */
 internal fun seen(term: OtpErlangObject): OtpErlangObject = if (isUnknown(term)) unknown(term) else term
 
+/** Whether [term] is a tuple of [size] elements tagged [name], as Erlang's `is_record/3` tests. */
+internal fun isRecord(term: OtpErlangObject, size: Int, name: String): Boolean =
+    term is OtpErlangTuple && term.arity() == size && seen(term.elementAt(0)) == atom(name)
+
 /** [term] where it is a `%Macro.Env{}`, `null` where it is something else. */
 internal fun macroEnvOf(term: OtpErlangObject): OtpErlangMap? =
-    (seen(term) as? OtpErlangMap)?.takeIf { it.get(atom("__struct__"))?.let(::seen) == atom("Elixir.Macro.Env") }
+    (seen(term) as? OtpErlangMap)?.takeIf { it.get(STRUCT)?.let(::seen) == MACRO_ENV }
 
 /** The field [name] of [env], a `%Macro.Env{}`, declining where it lacks it or it isn't known. */
 internal fun macroEnvField(env: OtpErlangMap, name: String): OtpErlangObject = seen(macroEnvEntry(env, name))
@@ -703,7 +834,27 @@ internal fun nodeMeta(term: OtpErlangObject): OtpErlangList? =
 
 /** Declines on [term], an unknown value, keeping it where it came from a module being compiled ([Declined.holds]). */
 private fun unknown(term: OtpErlangObject): Nothing =
-    throw Declined("an unknown value").apply { if (term is Holding || term === ModuleUnknown) holds += term }
+    throw onUnknown().apply { if (fromCompiling(term)) holds += term }
+
+/** A decline on a value the evaluator doesn't know ([Declined.onValue]). */
+private fun onUnknown() = Declined("an unknown value").apply { onValue = true }
+
+/** What [block] gives, or [fallback] where it declines on a value not known ([Declined.onValue]). */
+internal inline fun <T> orOnUnknown(fallback: T, block: () -> T): T =
+    try {
+        block()
+    } catch (declined: Declined) {
+        if (!declined.onValue) throw declined
+        fallback
+    }
+
+/** What [block] gives, or [fallback] where it declines on anything, not only a value not known ([orOnUnknown]). */
+internal inline fun <T> orOnDecline(fallback: T, block: () -> T): T =
+    try {
+        block()
+    } catch (_: Declined) {
+        fallback
+    }
 
 internal fun truthy(term: OtpErlangObject): Boolean {
     if (term is UnknownValue) unknown(term)

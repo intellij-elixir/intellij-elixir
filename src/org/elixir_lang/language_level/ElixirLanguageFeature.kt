@@ -757,6 +757,15 @@ enum class ElixirLanguageFeature(
     COMPILE_ENV_TAKES_ENV_FIRST(sinceElixir = "1.14.0-rc.0"),
 
     /**
+     * `String.split/3` with `trim: true` and no `:parts` splits with `:binary.split/3` and `:trim_all`. Before it, it
+     * compiles the pattern with `:binary.compile_pattern/1` and splits one part at a time.
+     *
+     * `elixir-lang/elixir@0ce9b18f5` ("`String.split/3`: special case some additional arguments (#11154)"), first
+     * released in v1.13.0-rc.0.
+     */
+    STRING_SPLIT_TRIMS_IN_BINARY_SPLIT(sinceElixir = "1.13.0-rc.0"),
+
+    /**
      * `Config.read_config/1` reads a root key the config read has set so far.
      *
      * `elixir-lang/elixir@14595bb63` ("Add Config.read_config/1 (#13754)"), first released in v1.18.0-rc.0.
@@ -2663,6 +2672,31 @@ enum class ElixirLanguageFeature(
      * v1.12.0-rc.0.
      */
     STRING_TO_ATOM_REQUIRES_BINARY(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * `IO.warn/2` takes a `Macro.Env` or options for where the warning is, as well as `[]` or a stacktrace. Before it,
+     * an env or options raises `FunctionClauseError` before the message is read.
+     *
+     * `elixir-lang/elixir@3ee4e78cf` ("Support more stacktrace formats in IO.warn/2"), first released in v1.14.0-rc.0.
+     */
+    IO_WARN_TAKES_AN_ENV_OR_OPTIONS(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * `IO.warn/2` makes its message a string before the stacktrace of an env, or of one built from the options. Before
+     * it, that stacktrace is made first.
+     *
+     * `elixir-lang/elixir@3509fd963` ("Optimize IO.warn with Macro.Env"), first released in v1.16.0-rc.0.
+     */
+    IO_WARN_READS_THE_MESSAGE_FIRST(sinceElixir = "1.16.0-rc.0"),
+
+    /**
+     * `IO.warn/2` reads the `:line` and `:column` of options naming a file, then makes its message a string. Before it,
+     * the options' `:module`, `:function` and `:line` are read into an env, which `IO.warn/2` then takes as it takes
+     * any env ([IO_WARN_READS_THE_MESSAGE_FIRST]).
+     *
+     * `elixir-lang/elixir@1878e30bd` ("Improve docs and support column in IO.warn"), first released in v1.16.0.
+     */
+    IO_WARN_OPTIONS_TAKE_A_COLUMN(sinceElixir = "1.16.0"),
 
     /**
      * A macro's arguments that are calls or variables are marked `stop_generated: true` where an import dispatches the
