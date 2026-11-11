@@ -12,6 +12,7 @@ import org.elixir_lang.model.psi.variable.VariableSymbol
 import org.elixir_lang.ElixirSyntaxHighlighter
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
+import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.psi.AtOperation
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
@@ -20,6 +21,7 @@ import org.elixir_lang.psi.UnqualifiedBracketOperation
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.call.name.Module.KERNEL_SPECIAL_FORMS
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.reference.Callable.Companion.BIT_STRING_TYPES
 import org.elixir_lang.reference.Callable.Companion.isBitStreamSegmentOption
 import org.elixir_lang.reference.CaptureNameArity
@@ -90,6 +92,18 @@ internal class Callable : Annotator, DumbAware {
                         visitCallDefinitionClause(call)
                     } else {
                         visitPlainCall(call, call.reference)
+                    }
+
+                    visitWrittenNames(call)
+                }
+
+                private fun visitWrittenNames(call: Call) {
+                    if (DeclaringForm.shapedForm(call) != null) {
+                        Resolved.writtenNames(call, Feature.HIGHLIGHTING).forEach { written ->
+                            ElixirSyntaxHighlighter.declarationKey(written.presentation)?.let { key ->
+                                highlight(written.element, holder, key)
+                            }
+                        }
                     }
                 }
 

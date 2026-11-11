@@ -12,9 +12,12 @@ import com.intellij.psi.PsiRecursiveElementWalkingVisitor
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.ElixirLexer
 import org.elixir_lang.ElixirSyntaxHighlighter
+import org.elixir_lang.declaration.Feature
+import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.operation.Operation
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 
 /**
@@ -26,6 +29,7 @@ import org.elixir_lang.structure_view.element.CallDefinitionHead
  * - [ElixirAlias] -> alias color (e.g. `Enum`, `Logger`)
  * - [CallDefinitionClause] -> keyword+macro styling on `def`/`defp`/`defmacro`,
  *   plus function/macro declaration styling on the defined name
+ * - The names a declaring call writes ([Resolved.writtenNames]) -> declaration styling
  * - Named function/macro calls -> function call or macro call styling
  * - `end` keyword tokens -> keyword styling (via lexer scan, since `end` is not a Call)
  *
@@ -89,6 +93,8 @@ internal object ElixirRenderedDocSemanticHighlighter {
 			return
 		}
 
+		addWrittenNameRanges(call, ranges)
+
 		if (CallDefinitionClause.`is`(call)) {
 			call.functionNameElement()?.let { definitionMacro ->
 				addRange(
@@ -112,6 +118,16 @@ internal object ElixirRenderedDocSemanticHighlighter {
 				else arrayOf(ElixirSyntaxHighlighter.FUNCTION_CALL)
 
 			addRange(ranges, functionNameElement.textRange.startOffset, functionNameElement.textRange.endOffset, textAttributesKeys)
+		}
+	}
+
+	private fun addWrittenNameRanges(call: Call, ranges: MutableList<SemanticRange>) {
+		if (DeclaringForm.shapedForm(call) != null) {
+			Resolved.writtenNames(call, Feature.HIGHLIGHTING).forEach { written ->
+				ElixirSyntaxHighlighter.declarationKey(written.presentation)?.let { key ->
+					addRange(ranges, written.element.textRange.startOffset, written.element.textRange.endOffset, arrayOf(key))
+				}
+			}
 		}
 	}
 
