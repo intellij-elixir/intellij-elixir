@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4679](https://github.com/intellij-elixir/intellij-elixir/pull/4679) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, the names a `defdelegate`, an `EEx.function_from_*` call, a `Mix.Generator` embed and a clause's `unquote(:name)` write are coloured as the declarations the macro expander finds they make.** Refs [#4596](https://github.com/intellij-elixir/intellij-elixir/issues/4596).
+
 - [#4671](https://github.com/intellij-elixir/intellij-elixir/pull/4671) [@sh41](https://github.com/sh41)
   - **With "Run the expander" on, a file created, deleted, moved or written on disk re-expands only the files whose answers it can change, not every file the expander holds, and a `.beam` rewritten so it no longer defines a module stops answering with that module's old functions.** Refs [#4593](https://github.com/intellij-elixir/intellij-elixir/issues/4593).
 
