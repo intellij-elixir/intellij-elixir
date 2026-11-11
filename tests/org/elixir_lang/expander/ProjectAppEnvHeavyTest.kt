@@ -72,6 +72,56 @@ class ProjectAppEnvHeavyTest : ConfigHeavyTestCase() {
         assertEquals("the copies differ", "Elixir.Declared compiled different/0 equal/0", ended(declared))
     }
 
+    /** A stale install's `ex_unit.app` beside the SDK's, differing in env: the SDK's copy is the one the asker loads. */
+    fun testTheSdksAppFileAnswersBesideAStaleInstalls() {
+        val root = project(
+            "mix.exs" to MIX_EXS,
+            "lib/timeout.ex" to module("Timeout", "Application.get_env(:ex_unit, :assert_receive_timeout)", "100"),
+        )
+        staleExUnit()
+
+        assertEquals("Elixir.Timeout compiled equal/0", ended(psi(root, "lib/timeout.ex")))
+    }
+
+    /** `ExUnit.Case.test/3` reads `:ex_unit`'s env while it expands, so a stale install's `ex_unit.app` reaches it. */
+    fun testATestModuleCompilesBesideAStaleInstallsAppFile() {
+        val root = project(
+            "mix.exs" to MIX_EXS,
+            "lib/app.ex" to "defmodule App do\nend\n",
+            "test/a_test.exs" to "defmodule ATest do\n  use ExUnit.Case\n\n  test \"a\" do\n    assert 1 == 1\n  end\nend\n",
+        )
+        PsiTestUtil.addSourceRoot(module, root.findChild("test")!!, true)
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
+        val test = psi(root, "test/a_test.exs")
+        val alone = ended(test)
+        assertTrue(alone, alone.startsWith("Elixir.ATest compiled"))
+
+        staleExUnit()
+
+        assertEquals(alone, ended(test))
+    }
+
+    /**
+     * A copy under the project's content, though excluded as Mix sync excludes a build, loads before the SDK's: where
+     * the two differ, the key isn't known.
+     */
+    fun testAnExcludedBuildsAppFileBesideTheSdksLeavesADifferingKeyUnknown() {
+        val root = project(
+            "mix.exs" to MIX_EXS,
+            "_build/dev/lib/ex_unit/ebin/ex_unit.app" to app("ex_unit", "{assert_receive_timeout, 200}"),
+            "lib/timeout.ex" to module("Timeout", "Application.get_env(:ex_unit, :assert_receive_timeout)", "100"),
+        )
+        PsiTestUtil.addExcludedRoot(module, root.findChild("_build")!!)
+        library("ex_unit", root.findFileByRelativePath("_build/dev/lib/ex_unit/ebin")!!)
+
+        assertEquals("Elixir.Timeout compiled different/0 equal/0", ended(psi(root, "lib/timeout.ex")))
+    }
+
+    /** A module library holding another install's `ex_unit` `ebin`, whose `.app` sets `:assert_receive_timeout` to 200. */
+    private fun staleExUnit() {
+        library("mise Elixir 1.19.6-otp-28", ebin(app("ex_unit", "{assert_receive_timeout, 200}"), "ex_unit"))
+    }
+
     /**
      * A config file that reads the env, beside a setting whose key its own expansion names, expands, and so does a file
      * that reads the env it sets. A read in a config file isn't known.
