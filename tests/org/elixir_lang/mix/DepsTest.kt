@@ -60,6 +60,23 @@ class DepsTest : PlatformTestCase() {
         assertEmpty(gatherer.depSet)
     }
 
+    /** A `deps` function written `defp deps, do: [...]` returns its list as a `do:` value, as one with a `do` block does. */
+    fun testADepsFunctionWrittenWithADoKeywordHasItsDeps() {
+        val gatherer = gathered(
+            """
+            defmodule Sample.MixProject do
+              def project do
+                [deps: deps()]
+              end
+
+              defp deps, do: [{:foo, "~> 1.0"}]
+            end
+            """.trimIndent()
+        )
+
+        assertEquals(setOf("foo"), gatherer.depSet.map { it.application }.toSet())
+    }
+
     /** A dependency's app is its tuple's first atom, whatever the requirement or options say, and nothing is resolved. */
     fun testDeclaredNamesAreEachTuplesFirstAtom() {
         assertDeclared(
@@ -158,6 +175,13 @@ class DepsTest : PlatformTestCase() {
 
     fun testADepsDefinerThatReturnsNoListIsUnread() {
         assertUnread("def project, do: [deps: deps()]\n\ndefp deps, do: fetch()")
+    }
+
+    /** A [DepGatherer] that visited a `mix.exs` of [text]. */
+    private fun gathered(text: String): DepGatherer {
+        val psiFile = myFixture.configureByText("mix.exs", text)
+
+        return DepGatherer().also { gatherer -> ReadAction.run<Throwable> { psiFile.accept(gatherer) } }
     }
 
     private fun assertDeclared(expected: Set<String>, body: String) =
