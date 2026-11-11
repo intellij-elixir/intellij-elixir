@@ -12,7 +12,6 @@ import com.intellij.openapi.util.ModificationTracker
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
-import com.intellij.psi.impl.PsiManagerEx
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.testFramework.DumbModeTestUtils
@@ -100,8 +99,7 @@ class ModuleNamesTrackerTest : PlatformTestCase() {
 
     fun testAModuleWrittenOnDiskToAFileWithNoPsiMoves() {
         val file = myFixture.addFileToProject("a.ex", "defmodule A do\nend\n").virtualFile
-        repeat(3) { System.gc() }
-        assertNull("a.ex has no PSI", PsiManagerEx.getInstanceEx(project).fileManager.findCachedViewProvider(file))
+        assertTrue("a.ex has no PSI", psiLetGo(project, file))
         val before = count()
 
         WriteAction.runAndWait<Throwable> {

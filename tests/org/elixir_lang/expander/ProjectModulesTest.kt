@@ -1842,8 +1842,7 @@ class ProjectModulesTest : PlatformTestCase() {
         val unloaded = add("unloaded.ex", "defmodule Unloaded do\nend\n").virtualFile
         val held = add("held.ex", "defmodule Held do\nend\n").virtualFile
         val before = render(edited, expansion(holder, edited))
-        repeat(3) { System.gc() }
-        assertNull("unloaded.ex has no PSI", PsiManagerEx.getInstanceEx(project).fileManager.findCachedViewProvider(unloaded))
+        assertTrue("unloaded.ex has no PSI", psiLetGo(project, unloaded))
         val heldFile = psi(held)
         assertFalse("held.ex's tree is let go", (heldFile as PsiFileEx).isContentsLoaded)
 
