@@ -97,11 +97,7 @@ internal object ExpanderSource : CandidateSource {
     /** [use]'s candidates, its file expanded with [inputs] in place of its SDK's. */
     @TestOnly
     @RequiresReadLock
-    internal fun candidates(use: Use.OfCall, inputs: ProjectModules.Inputs): List<Found> {
-        ThreadingAssertions.assertReadAccess()
-
-        return answerWith(use, inputs).found
-    }
+    internal fun candidates(use: Use.OfCall, inputs: ProjectModules.Inputs): List<Found> = answer(use, inputs).found
 
     /** [use]'s answer, its file expanded with [inputs] in place of its SDK's. */
     @TestOnly
