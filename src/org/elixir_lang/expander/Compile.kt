@@ -934,7 +934,7 @@ internal class Statements {
 
     /** The bodies the `do:` of [options] runs: each clause's where it is a list of clauses, else the one body. */
     private fun doBodies(options: List<ElixirAst>): List<ElixirAst> {
-        val body = options.firstOrNull { keyOf(it) == "do" }?.let { (it as ElixirAst.Tuple).elements[1] } ?: return emptyList()
+        val body = options.firstOrNull { keyOf(it) == "do" }?.let(::valueOf) ?: return emptyList()
         val arrows = (body as? ElixirAst.ListNode)?.elements?.takeIf { it.isNotEmpty() }
 
         return arrows?.let { clauseBodies(it) }?.ifEmpty { null } ?: listOf(body)
