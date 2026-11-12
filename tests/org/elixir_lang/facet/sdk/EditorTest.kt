@@ -1,6 +1,6 @@
 package org.elixir_lang.facet.sdk
 
-import com.intellij.openapi.application.ApplicationListener
+import com.intellij.ide.IdeEventQueue
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.UI
@@ -32,7 +32,6 @@ import org.elixir_lang.sdk.erlang_dependent.getErlangSdk
 import org.elixir_lang.sdk.wsl.MockWslCompatService
 import org.elixir_lang.sdk.wsl.WslCompatService
 import java.io.File
-import java.util.concurrent.atomic.AtomicInteger
 import org.elixir_lang.facet.sdks.elixir.Configurable as ElixirSdksConfigurable
 import org.elixir_lang.facet.sdks.erlang.Configurable as ErlangSdksConfigurable
 import kotlin.time.Duration.Companion.seconds
@@ -89,11 +88,9 @@ class EditorTest : PlatformTestCase() {
         }
         // Created after the VFS listed its parent, so the VFS holds it as absent: a refreshing lookup of it fires an event.
         assertTrue(erlangHome.mkdir())
-        val writeActions = countWriteActions()
+        val component = onEdt { withoutWriteActions { ConfigurableCardPanel.createConfigurableComponent(editor) } }
 
-        onEdt { ConfigurableCardPanel.createConfigurableComponent(editor) }
-
-        assertEquals("the card panel resets the editor inside a read action, where a write action throws", 0, writeActions.get())
+        assertNotNull(component)
     }
 
     fun testTheEditorTheCardPanelShowsIsUnmodified() {
@@ -226,17 +223,20 @@ class EditorTest : PlatformTestCase() {
         return model().findSdk(name) as ProjectJdkImpl
     }
 
-    private fun countWriteActions(): AtomicInteger =
-        AtomicInteger().also { writeActions ->
-            ApplicationManager.getApplication().addApplicationListener(
-                object : ApplicationListener {
-                    override fun beforeWriteActionStart(action: Any) {
-                        writeActions.incrementAndGet()
-                    }
-                },
-                testRootDisposable,
-            )
+    /**
+     * [block], with any write action it starts on this thread thrown: the card panel resets inside a read action, where
+     * one throws in production, but the test EDT's write-intent lock lets it through.
+     */
+    @Suppress("JetBrainsInternalApiUsage")
+    private fun <T> withoutWriteActions(block: () -> T): T {
+        val allow = IdeEventQueue.getInstance().threadingSupport.prohibitWriteActionsInside()
+        // The EDT is shared with every later test.
+        try {
+            return block()
+        } finally {
+            allow()
         }
+    }
 
     private fun model() = SdksService.getInstance()!!.getModel()
 
