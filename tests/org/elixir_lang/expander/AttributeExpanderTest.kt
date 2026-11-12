@@ -1181,7 +1181,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertLevels(
             """
             defmodule A do
-              _ = fn -> @u 2 end
+              fns = [fn -> @u 2 end]
               def g(y), do: <<y::size(4)-unit(+@u)>>
             end
             """.trimIndent(),
@@ -1240,7 +1240,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              _ = fn -> @e ArgumentError end
+              fns = [fn -> @e ArgumentError end]
               def g, do: (try do :ok rescue x in [@e, 1] -> x end)
             end
             """.trimIndent(),
@@ -1369,7 +1369,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              _ = fn -> @x 1 end
+              fns = [fn -> @x 1 end]
               def f do
                 import Kernel, foo: @x
                 1
@@ -1389,7 +1389,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              _ = fn -> @x 1 end
+              fns = [fn -> @x 1 end]
               def f do
                 alias :lists, as: L, foo: @x
                 1
@@ -1410,7 +1410,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertSplit(
             """
             defmodule A do
-              _ = fn -> @x [is_atom: 1] end
+              fns = [fn -> @x [is_atom: 1] end]
               def f do
                 import Kernel, only: [is_atom: 1], except: @x
                 1
@@ -1459,7 +1459,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertSplit(
             """
             defmodule A do
-              _ = fn -> @x [is_atom: 1] end
+              fns = [fn -> @x [is_atom: 1] end]
               def f do
                 import Kernel, only: :foo, except: @x
                 1
@@ -1488,7 +1488,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertSplit(
             """
             defmodule A do
-              _ = fn -> @x [is_atom: 1] end
+              fns = [fn -> @x [is_atom: 1] end]
               def f do
                 import Kernel, only: @x, except: :foo
                 1
@@ -1517,7 +1517,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              _ = fn -> @x [is_atom: 1] end
+              fns = [fn -> @x [is_atom: 1] end]
               def f do
                 import Kernel, only: [{:is_list, 1} | @x]
                 1
@@ -1538,7 +1538,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              _ = fn -> @x [is_atom: 1] end
+              fns = [fn -> @x [is_atom: 1] end]
               def f do
                 import Kernel, [@x, foo: 1]
                 1
@@ -1600,7 +1600,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              _ = fn -> @x [is_atom: 1] end
+              fns = [fn -> @x [is_atom: 1] end]
               def f do
                 require Kernel, [{@x, L}, foo: 1]
                 1

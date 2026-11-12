@@ -777,6 +777,12 @@ internal class Run(
     val reached = IdentityHashMap<ElixirAst, (HashMap<Binding, OtpErlangObject>) -> UnitRun>()
 
     /**
+     * Each unit of an `fn` a match bound and kept, by its node, which runs where a later statement calls the `fn`: in
+     * [reached] for every statement run while the body holding it compiles.
+     */
+    val deferred = IdentityHashMap<ElixirAst, Deferred>()
+
+    /**
      * Each `fn` of a module body or the file's top level whose closure the evaluator has called in the run of the
      * statement being reached, by identity: the units its body holds ran where it did, so one the evaluator didn't
      * reach Elixir didn't run either. Each run of a statement has its own, which starts with the `fn`s [running] when it

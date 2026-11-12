@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import org.elixir_lang.expander.interpreter.Thrown
 import org.elixir_lang.language_level.ElixirLanguageFeature.INVALID_MODULE_NAME_IS_ARGUMENT_ERROR
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
@@ -39,6 +40,9 @@ sealed class Expansion {
      *   computed whose exception isn't known
      */
     data class Error(val kind: String?, val at: ElixirAst) : Stop() {
+        /** The raise as the evaluator ran it, where the error is one. In the body, as the raise isn't the answer. */
+        internal var thrown: Thrown? = null
+
         companion object {
             /**
              * The exception Elixir at [level] raises for an error of [kind]: an exception's module is itself; a bare

@@ -236,7 +236,7 @@ internal object Interpreter {
         } catch (thrown: Thrown) {
             val exception = orOnDecline(null) { thrown.takeIf { it.kind == "error" }?.let(evaluation::exceptionModule) }
 
-            Evaluated.Raised(exception)
+            Evaluated.Raised(exception, thrown)
         }
     }
 }
@@ -245,8 +245,12 @@ internal object Interpreter {
 internal sealed interface Evaluated {
     data class Value(val value: OtpErlangObject) : Evaluated
 
-    /** It raises [exception], or throws, exits or raises an exception that isn't known where that is `null`. */
-    data class Raised(val exception: String?) : Evaluated
+    /**
+     * It raises [exception], or throws, exits or raises an exception that isn't known where that is `null`.
+     *
+     * @property thrown the raise as the evaluator ran it
+     */
+    data class Raised(val exception: String?, val thrown: Thrown) : Evaluated
 
     /**
      * The evaluator declined it, in calls [given] the modules being compiled they may have written. The value it didn't
@@ -259,6 +263,24 @@ internal sealed interface Evaluated {
         val holds: List<OtpErlangObject> = emptyList(),
         val declined: org.elixir_lang.expander.interpreter.Declined? = null,
     ) : Evaluated
+}
+
+/**
+ * A raise the walk follows, passing out of the code the evaluator runs: a `try`'s `after` runs as it passes, through
+ * [aside].
+ *
+ * @property raised the raise as the evaluator ran it, which a `try`'s clauses are checked against, or `null` where it
+ * isn't known
+ */
+internal abstract class Passing(var raised: Thrown?) : RuntimeException(null, null, false, false) {
+    /** Runs [after], code Elixir runs while the raise passes, as the walk runs code before the raise. */
+    abstract fun aside(after: () -> Unit)
+
+    /** Puts back what the raise ended, where a `try` rescues or catches it. */
+    abstract fun caught()
+
+    /** The declines of the `after`s run as it passed: a `try` that takes it declines with them. */
+    var declined: Declined? = null
 }
 
 /**
@@ -2409,8 +2431,8 @@ internal class Evaluation(
      * raised, as the `after` leaves the read ([afterPassed]).
      */
     private fun evalTry(options: ElixirAst, frame: Frame, tail: Boolean): OtpErlangObject {
-        var declined: Declined? = null
-        var raised: Thrown? = null
+        // How the `try` left, where it raised or declined.
+        var escaped: RuntimeException? = null
         var passes = false
         val after = optionOrNull(options, "after")
         val armsTail = tail && after == null
@@ -2439,6 +2461,17 @@ internal class Evaluation(
             fun elsed(value: OtpErlangObject, inTail: Boolean): OtpErlangObject =
                 elses?.let { clauses(it, listOf(value), frame, tail = inTail) ?: error(tuple(atom("try_clause"), value)) } ?: value
 
+            /** The body and scope of the clause that takes [thrown], raised in the body, or `null` where none does. */
+            fun takingFromBody(thrown: Thrown): Pair<ElixirAst, Frame>? {
+                val raisedBefore = run.raisedOverUnknown
+
+                run.raisedOverUnknown = outerRaised || !catches && raisedBefore
+                // Which raise a rescue sees depends on whether the one over a value not known came first.
+                if (catches && raisedBefore) decline("a raise in a `try` body past one that may have come first")
+
+                return taking(thrown, rescueClauses, catchClauses, frame)
+            }
+
             if (outerRaised) run.pastRaise = true
 
             val value = try {
@@ -2453,6 +2486,13 @@ internal class Evaluation(
 
                     try {
                         eval(doOption(options), frame.copy())
+                    } catch (raise: Passing) {
+                        if (!catches || raise.raised != null) throw raise
+                        // A clause may take the raise, which the walk can't give it, and the code after the `try` runs on.
+                        raise.caught()
+                        throw Declined("a raise the walk follows, which a `try` may catch").apply {
+                            raise.declined?.let { absorb(it, holds = false) }
+                        }
                     } finally {
                         if (catches) {
                             run.catching--
@@ -2461,13 +2501,30 @@ internal class Evaluation(
                     }
                 }
             } catch (thrown: Thrown) {
-                val raisedBefore = run.raisedOverUnknown
+                val (body, scope) = takingFromBody(thrown) ?: throw thrown
 
-                run.raisedOverUnknown = outerRaised || !catches && raisedBefore
-                // Which raise a rescue sees depends on whether the one over a value not known came first.
-                if (catches && raisedBefore) decline("a raise in a `try` body past one that may have come first")
+                return eval(body, scope, armsTail)
+            } catch (raise: Passing) {
+                val thrown = raise.raised?.takeIf { catches } ?: throw raise
+                val (body, scope) = try {
+                    takingFromBody(thrown)
+                } catch (declined: Declined) {
+                    raise.caught()
+                    throw declined
+                } ?: throw raise
 
-                return rescued(thrown, rescueClauses, catchClauses, frame, armsTail) ?: throw thrown
+                raise.caught()
+
+                val value = eval(body, scope, armsTail)
+
+                // An `after` it passed declined, so what ran there isn't known.
+                raise.declined?.let { after ->
+                    throw Declined("an `after` a raise a `try` took passed").apply {
+                        absorb(after, holds = false)
+                        holds += value
+                    }
+                }
+                return value
             } catch (body: Declined) {
                 run.raisedOverUnknown = outerRaised
                 body.endedBy?.let { raise -> rescuedAfter(raise, body, rescueClauses, catchClauses, frame) }
@@ -2514,11 +2571,14 @@ internal class Evaluation(
             return elsed(value, armsTail)
         } catch (body: Declined) {
             run.declinedCodeRan()
-            declined = body
+            escaped = body
             throw body
         } catch (thrown: Thrown) {
-            raised = thrown
+            escaped = thrown
             throw thrown
+        } catch (raise: Passing) {
+            escaped = raise
+            throw raise
         } finally {
             run.pastRaise = outerPast
             passingRead?.raisedAt = enclosingAt
@@ -2527,13 +2587,23 @@ internal class Evaluation(
             var reached = passed
 
             if (after != null) {
-                val body = declined
+                val ending = escaped
 
                 // Nothing reads `after`'s value.
                 using(ValueUse.DISCARDED) {
-                    when {
-                        body != null -> afterDeclined(after, body, frame)
-                        raised != null -> afterRaised(after, raised, frame)
+                    when (ending) {
+                        is Declined -> afterDeclined(after, ending, frame)
+                        is Thrown -> afterRaised(after, ending, frame)
+                        is Passing -> try {
+                            ending.aside { eval(after, frame.copy()) }
+                        } catch (declined: Declined) {
+                            // The raise passes on, or one `after` raised in its place: either ends the code around it.
+                            // Which it is is known only where `after` raised past its decline.
+                            run.declinedCodeRan()
+                            ending.raised = declined.endedBy
+                            ending.declined = ending.declined?.apply { absorb(declined, holds = false) } ?: declined
+                            throw ending
+                        }
                         else -> {
                             if (start != null && passed.isNotEmpty()) reached = listOf(afterPassed(after, start, passed, frame))
                             eval(after, frame.copy())
@@ -2626,22 +2696,29 @@ internal class Evaluation(
         }
     }
 
-    /**
-     * The body of the first of [rescueClauses] or [catchClauses] [thrown] matches, evaluated, or `null` where none does; in
-     * [tail] position, a call in its tail position is made, not run ([called]).
-     */
+    /** The body of the first of [rescueClauses] or [catchClauses] [thrown] matches, evaluated, or `null` where none does. */
     private fun rescued(
         thrown: Thrown,
         rescueClauses: List<ElixirAst>,
         catchClauses: List<ElixirAst>,
         frame: Frame,
-        tail: Boolean = false,
-    ): OtpErlangObject? {
+    ): OtpErlangObject? = taking(thrown, rescueClauses, catchClauses, frame)?.let { (body, scope) -> eval(body, scope) }
+
+    /**
+     * The body of the first of [rescueClauses] or [catchClauses] [thrown] matches, and the scope it runs in, or `null`
+     * where none does.
+     */
+    private fun taking(
+        thrown: Thrown,
+        rescueClauses: List<ElixirAst>,
+        catchClauses: List<ElixirAst>,
+        frame: Frame,
+    ): Pair<ElixirAst, Frame>? {
         for (arrow in rescueClauses) {
             val (head, body) = arrowParts(arrow)
             val scope = frame.copy(thrown.stacktrace)
 
-            if (thrown.kind == "error" && rescue(head.single(), thrown, scope)) return eval(body, scope, tail)
+            if (thrown.kind == "error" && rescue(head.single(), thrown, scope)) return body to scope
         }
 
         for (arrow in catchClauses) {
@@ -2656,9 +2733,7 @@ internal class Evaluation(
             val values = listOfNotNull(kindPattern?.let { atom(thrown.kind) }, thrown.reason)
 
             if (kindPattern == null && thrown.kind != "throw") continue
-            if (matches(listOfNotNull(kindPattern, patterns.last()), values, scope) && guards(guards, scope)) {
-                return eval(body, scope, tail)
-            }
+            if (matches(listOfNotNull(kindPattern, patterns.last()), values, scope) && guards(guards, scope)) return body to scope
         }
 
         return null

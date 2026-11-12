@@ -2672,16 +2672,17 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
-     * A `def` in a module-body `for`, in an `fn` a call runs, or in a `case`'s selected branch is on the statement path:
-     * the module loads with what ran defined, a certain raise there leaves it absent, and a decline in the name or in
-     * the subject leaves it unreadable. A `cond` selects nothing, so a `def` in one leaves the module unreadable. A row
-     * labelled `expander` pins the expander's answer where Elixir loads the module with what it defines.
+     * A `def` in a module-body `for`, in an `fn` a call runs or one bound and called, in a `try` with only an `after`, or
+     * in a `case`'s selected branch is on the statement path: the module loads with what ran defined, a certain raise
+     * there leaves it absent, and a decline in the name or in the subject leaves it unreadable. A `cond` selects
+     * nothing, so a `def` in one leaves the module unreadable. A row labelled `expander` pins the expander's answer
+     * where Elixir loads the module with what it defines.
      */
     fun testASelectedBranchIsOnTheStatementPath() {
         addLegElixir()
         val a = add("a.ex", "")
         val b = add("b.ex", "defmodule B do\n  def f, do: A.f()\nend\n")
-        add("m.ex", "defmodule M do\n  defmacro m(e), do: quote(do: _ = unquote(e))\nend\n")
+        add("m.ex", "defmodule M do\n  defmacro m(e), do: quote(do: _ = unquote(e))\n  defmacro t(e), do: quote(do: try(do: unquote(e), after: :ok))\nend\n")
         val declined = "_ = (receive do after 0 -> 1 end)"
         val pair = "def f, do: 1\n      defp f, do: 2"
         // Each row is a module alone in a file; the label names its family and the answer, `expander` where Elixir's differs.
@@ -2711,10 +2712,26 @@ class ProjectModulesTest : PlatformTestCase() {
             Triple("for-unnamed-expander-unreadable", "for n <- [:f] do\n    def unquote((receive do after 0 -> n end))(), do: 1\n  end", "Unreadable Stopped"),
             Triple("each-unnamed-expander-unreadable", "Enum.each([:f], fn n ->\n    def unquote((receive do after 0 -> n end))(), do: 1\n  end)", "Unreadable Stopped"),
             Triple("if-defdelegate-loaded", "x = true\n  if x do\n    defdelegate f(l), to: :erlang, as: :length\n  end", "Present [f/1] Compiled"),
-            // Controls the walk doesn't follow: Elixir loads `f/0` from the `cond` and the `case` (#4508), none from the `fn`.
+            // Controls the walk doesn't follow: Elixir loads `f/0` from the `cond` and the `case` (#4508).
             Triple("cond-expander-unreadable", "cond do\n    true -> def f, do: 1\n  end", "Unreadable Compiled"),
             Triple("case-declined-expander-unreadable", "case (receive do after 0 -> :a end) do\n    :a -> def f, do: 1\n    _ -> :ok\n  end", "Unreadable Compiled"),
-            Triple("fn-unrun-expander-unreadable", "_ = fn -> def f, do: 1 end", "Unreadable Compiled"),
+            // An `fn` a match binds runs its body where a later statement calls it, however it is reached, and never else.
+            Triple("fn-unrun-loaded", "_ = fn -> def f, do: 1 end", "Present [] Compiled"),
+            Triple("fn-match-uncalled-loaded", "f = fn -> def f, do: 1 end", "Present [] Compiled"),
+            Triple("fn-match-called-loaded", "f = fn n -> def unquote(n)(), do: 1 end\n  f.(:a)\n  f.(:b)", "Present [a/0, b/0] Compiled"),
+            Triple("fn-match-given-loaded", "f = fn n -> def unquote(n)(), do: 1 end\n  Enum.each([:a, :b], f)", "Present [a/0, b/0] Compiled"),
+            Triple("fn-match-in-for-loaded", "f = fn n -> def unquote(n)(), do: 1 end\n  for n <- [:a, :b], do: f.(n)", "Present [a/0, b/0] Compiled"),
+            Triple("fn-match-rebound-loaded", "f = fn n -> def unquote(n)(), do: 1 end\n  g = f\n  g.(:a)", "Present [a/0] Compiled"),
+            Triple("fn-match-attribute-loaded", "f = fn -> def g, do: 1 end\n  @k f\n  @k.()", "Present [g/0] Compiled"),
+            Triple("for-fn-match-loaded", "for n <- [:a, :b] do\n    f = fn -> def unquote(n)(), do: 1 end\n    f.()\n  end", "Present [a/0, b/0] Compiled"),
+            Triple("fn-match-raised", "f = fn ->\n    $pair\n  end\n  f.()", "Absent Raised"),
+            // A statement the evaluator declines may have called it.
+            Triple("fn-match-declined-case-expander-unreadable", "f = fn -> def g, do: 1 end\n  case (receive do after 0 -> :a end) do\n    :a -> f.()\n    _ -> :ok\n  end", "Unreadable Compiled"),
+            // A `try` with only an `after` runs both bodies where it runs; one that rescues isn't followed (#4508).
+            Triple("try-after-loaded", "try do\n    def f, do: 1\n  after\n    def g, do: 1\n  end", "Present [f/0, g/0] Compiled"),
+            Triple("try-after-macro-loaded", "require M\n  M.t(def f, do: 1)", "Present [f/0] Compiled"),
+            Triple("try-after-raised", "try do\n    $pair\n  after\n    :ok\n  end", "Absent Raised"),
+            Triple("try-rescue-expander-unreadable", "try do\n    def f, do: 1\n  rescue\n    _ -> :ok\n  end", "Unreadable Compiled"),
             // A statement the evaluator declines may have run the units nested in its statements any number of times.
             Triple("case-declined-if-expander-unreadable", "case (receive do after 0 -> :a end) do\n    :a -> if true do def f, do: 1 end\n    _ -> :ok\n  end", "Unreadable Compiled"),
             Triple("case-declined-for-expander-unreadable", "case (receive do after 0 -> :a end) do\n    :a -> for n <- [:f], do: def unquote(n)(), do: 1\n    _ -> :ok\n  end", "Unreadable Compiled"),
@@ -2805,6 +2822,170 @@ class ProjectModulesTest : PlatformTestCase() {
 
         edit(project, a, "defmodule A do\n  x = true\n  if x do\n    defstruct [:a]\n  end\nend\n")
         assertEquals("if-defstruct-loaded", "Present [__struct__/0, __struct__/1]", describe(exports(ProjectModules(project), b, "Elixir.A")))
+    }
+
+    /**
+     * A raise in a unit the evaluator reached goes on out of the code around it as Elixir's does. A `try`'s `after` runs
+     * before it goes on, in an `fn` too: a module nested in the `after` loads, and one past the `try`, or past a raise in
+     * the `after`, is never defined, in a module or at the file's top level. A `rescue` takes it, and the body runs on. A
+     * row labelled `expander` pins the expander's answer where it declines and Elixir gives one.
+     */
+    fun testAUnitsRaisePassesTheCodeAroundIt() {
+        addLegElixir()
+        val a = add("a.ex", "")
+        val b = add("b.ex", "")
+        val made = "defmodule Made do\n      def f, do: 1\n    end"
+        val later = "\n  defmodule Later do\n    def g, do: 1\n  end"
+        val inA = { body: String -> "defmodule A do\n  $body\nend\n" }
+        val raised = "A Absent, A.Made Present [f/0], A.Later Absent, A.Past Absent"
+        val rows = listOf(
+            Triple("match", inA("try do\n    :ok = :bad\n  after\n    $made\n  end$later"), raised),
+            Triple("attribute", inA("try do\n    @a hd([])\n  after\n    $made\n  end"), raised),
+            Triple(
+                "after-raises",
+                inA("try do\n    :ok = :bad\n  after\n    $made\n    hd([])\n    defmodule Past do\n      def f, do: 1\n    end\n  end"),
+                raised,
+            ),
+            Triple("fn-after", inA("f = fn ->\n    try do\n      :ok = :bad\n    after\n      $made\n    end\n  end\n  f.()"), raised),
+            Triple(
+                "rescued-fn",
+                inA("f = fn -> :ok = :bad end\n  try do\n    f.()\n  rescue\n    _ -> :ok\n  end$later"),
+                "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent",
+            ),
+            Triple(
+                "rescued-bound-unit",
+                inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  rescue\n    _ -> :ok\n  end$later"),
+                "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent",
+            ),
+            Triple(
+                "rescued-bound-unit-in-each",
+                inA("f = fn -> @a hd([]) end\n  try do\n    Enum.each([1], fn _ -> f.() end)\n  rescue\n    _ -> :ok\n  end$later"),
+                "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent",
+            ),
+            Triple(
+                "rescue-defines-bound-expander",
+                inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  rescue\n    _ -> def h, do: 1\n  end"),
+                "A Unreadable, A.Made Unreadable, A.Later Unreadable, A.Past Unreadable",
+            ),
+            // Elixir defines a module the unit made before it raised.
+            Triple(
+                "rescued-bound-unit-made",
+                inA("f = fn ->\n    $made\n    @a hd([])\n  end\n  try do\n    f.()\n  rescue\n    _ -> :ok\n  end"),
+                "A Present [], A.Made Present [f/0], A.Later Absent, A.Past Absent",
+            ),
+            // A `try` around the module doesn't take a raise in its body, which ends the module.
+            Triple(
+                "rescued-around-module-expander",
+                "try do\n  defmodule A do\n    f = fn -> @a hd([]) end\n    f.()\n  end\nrescue\n  _ -> :ok\nend\ndefmodule A.Later do\n  def g, do: 1\nend\n",
+                "A Absent, A.Made Unreadable, A.Later Present [g/0], A.Past Unreadable",
+            ),
+            // A raise in an `after` the unit's raise passes takes its place, and a `rescue` around them takes it.
+            Triple(
+                "rescued-after-raises",
+                inA("f = fn -> @a hd([]) end\n  try do\n    try do\n      f.()\n    after\n      hd([])\n    end\n  rescue\n    _ -> :ok\n  end$later"),
+                "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent",
+            ),
+            Triple(
+                "unrescued-after-raises",
+                inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  after\n    hd([])\n  end$later"),
+                "A Absent, A.Made Absent, A.Later Absent, A.Past Absent",
+            ),
+            Triple(
+                "rescued-after-declines-expander",
+                inA(
+                    "f = fn -> @a hd([]) end\n  try do\n    try do\n      f.()\n    after\n      receive do\n        _ -> :ok\n      after\n        0 -> 1\n      end\n    end\n  rescue\n    _ -> :ok\n  end$later",
+                ),
+                "A Present [], A.Made Unreadable, A.Later Present [g/0], A.Past Unreadable",
+            ),
+            // What an `after` that stops defines isn't known, with the raise taken past it.
+            Triple(
+                "rescued-after-stops-expander",
+                inA(
+                    "f = fn -> @a hd([]) end\n  try do\n    try do\n      f.()\n    after\n      def unquote((receive do after 0 -> :h end))(), do: 1\n    end\n  rescue\n    _ -> :ok\n  end$later",
+                ),
+                "A Unreadable, A.Made Unreadable, A.Later Present [g/0], A.Past Unreadable",
+            ),
+            // A throw in an `after` that declined takes the raise's place: a `rescue` doesn't take it, and a `catch` does.
+            Triple(
+                "after-declines-throws-rescued-expander",
+                inA(
+                    "f = fn -> @a hd([]) end\n  try do\n    try do\n      f.()\n    after\n      receive do\n        _ -> :ok\n      after\n        0 -> :ok\n      end\n      throw(:stop)\n    end\n  rescue\n    _ -> :ok\n  end$later",
+                ),
+                "A Absent, A.Made Unreadable, A.Later Absent, A.Past Unreadable",
+            ),
+            Triple(
+                "after-declines-throws-caught-expander",
+                inA(
+                    "f = fn -> @a hd([]) end\n  try do\n    try do\n      f.()\n    after\n      receive do\n        _ -> :ok\n      after\n        0 -> :ok\n      end\n      throw(:stop)\n    end\n  catch\n    :stop -> :ok\n  end$later",
+                ),
+                "A Present [], A.Made Unreadable, A.Later Present [g/0], A.Past Unreadable",
+            ),
+            // Only a clause that takes the raise's kind and value takes it.
+            Triple("catch-throw-only", inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  catch\n    :x -> :ok\n  end$later"), "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            Triple("catch-exit-only", inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  catch\n    :exit, _ -> :ok\n  end$later"), "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            Triple("rescue-other", inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  rescue\n    KeyError -> :ok\n  end$later"), "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            Triple("catch-error", inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  catch\n    :error, _ -> :ok\n  end$later"), "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            Triple("rescue-named", inA("f = fn -> @a raise(\"x\") end\n  try do\n    f.()\n  rescue\n    RuntimeError -> :ok\n  end$later"), "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            // Through more than one `fn`, or one a call takes.
+            Triple("two-fns-catch-throw-only", inA("f = fn -> @a hd([]) end\n  g = fn -> f.() end\n  try do\n    g.()\n  catch\n    :x -> :ok\n  end$later"), "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            Triple("two-fns-rescued", inA("f = fn -> @a hd([]) end\n  g = fn -> f.() end\n  try do\n    g.()\n  rescue\n    _ -> :ok\n  end$later"), "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            Triple("in-each-catch-throw-only", inA("f = fn -> @a hd([]) end\n  try do\n    Enum.each([1], fn _ -> f.() end)\n  catch\n    :x -> :ok\n  end$later"), "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            // Past an `after` in the `fn`.
+            Triple("fn-after-catch-throw-only", inA("f = fn -> try do @a hd([]) after :ok end end\n  try do\n    f.()\n  catch\n    :x -> :ok\n  end$later"), "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            Triple("fn-after-rescued", inA("f = fn -> try do :ok = :bad after :ok end end\n  try do\n    f.()\n  rescue\n    _ -> :ok\n  end$later"), "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            // An `fn` never called raises nowhere.
+            Triple("uncalled", inA("f = fn -> try do :ok = :bad after :ok end end$later"), "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            // At the file's top level too.
+            Triple("top-catch-throw-only", "f = fn -> :ok = :bad end\ntry do f.() catch :stop -> :ok end\ndefmodule A.Later do\n  def g, do: 1\nend\n", "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            Triple("top-rescued", "f = fn -> :ok = :bad end\ntry do f.() rescue _ -> :ok end\ndefmodule A.Later do\n  def g, do: 1\nend\n", "A Absent, A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            Triple("top-after-catch-throw-only", "f = fn -> try do :ok = :bad after :ok end end\ntry do f.() catch :stop -> :ok end\ndefmodule A.Later do\n  def g, do: 1\nend\n", "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            Triple("top-after-rescued", "f = fn -> try do :ok = :bad after :ok end end\ntry do f.() rescue _ -> :ok end\ndefmodule A.Later do\n  def g, do: 1\nend\n", "A Absent, A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            Triple("top-uncalled", "f = fn -> try do :ok = :bad after :ok end end\ndefmodule A.Later do\n  def g, do: 1\nend\n", "A Absent, A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            // A raise in a module nested in the unit comes out of it to the `try`.
+            Triple("nested-module-catch-throw-only", inA("f = fn -> defmodule M do\n      hd([])\n    end end\n  try do\n    f.()\n  catch\n    :x -> :ok\n  end$later"), "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            Triple("nested-module-rescued", inA("f = fn -> defmodule M do\n      hd([])\n    end end\n  try do\n    f.()\n  rescue\n    _ -> :ok\n  end$later"), "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            Triple("top-nested-module-catch-throw-only", "f = fn -> defmodule A.Made do\n  hd([])\nend end\ntry do f.() catch :x -> :ok end\ndefmodule A.Later do\n  def g, do: 1\nend\n", "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            Triple("top-nested-module-rescued", "f = fn -> defmodule A.Made do\n  hd([])\nend end\ntry do f.() rescue _ -> :ok end\ndefmodule A.Later do\n  def g, do: 1\nend\n", "A Absent, A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            Triple(
+                "unrescued-after-declines-expander",
+                inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  after\n    receive do\n      _ -> :ok\n    after\n      0 -> 1\n    end\n  end$later"),
+                "A Absent, A.Made Unreadable, A.Later Absent, A.Past Unreadable",
+            ),
+            Triple(
+                "unrescued-bound-unit",
+                inA("f = fn -> @a hd([]) end\n  f.()$later"),
+                "A Absent, A.Made Absent, A.Later Absent, A.Past Absent",
+            ),
+            // A `try`'s clauses don't take a raise in its `else` or in a clause.
+            Triple(
+                "unrescued-in-else",
+                inA("f = fn -> @a hd([]) end\n  try do\n    :ok\n  rescue\n    _ -> :ok\n  else\n    _ -> f.()\n  end$later"),
+                "A Absent, A.Made Absent, A.Later Absent, A.Past Absent",
+            ),
+            Triple(
+                "unrescued-in-rescue",
+                inA("f = fn -> @a hd([]) end\n  try do\n    :ok = :bad\n  rescue\n    _ -> f.()\n  end$later"),
+                "A Absent, A.Made Absent, A.Later Absent, A.Past Absent",
+            ),
+            Triple("ok", inA("try do\n    :ok\n  after\n    $made\n  end"), "A Present [], A.Made Present [f/0], A.Later Absent, A.Past Absent"),
+            Triple(
+                "top",
+                "try do\n  :ok = :bad\nafter\n  defmodule A.Made do\n    def f, do: 1\n  end\nend\ndefmodule A.Later do\n  def g, do: 1\nend\n",
+                raised,
+            ),
+        )
+        val expected = rows.map { (label, _, answer) -> "$label: $answer" }
+
+        val actual = rows.map { (label, source, _) ->
+            edit(project, a, source)
+            val holder = ProjectModules(project)
+
+            "$label: " + listOf("A", "A.Made", "A.Later", "A.Past").joinToString(", ") { name ->
+                "$name ${describe(exports(holder, b, "Elixir.$name"))}"
+            }
+        }
+
+        assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }
 
     /**

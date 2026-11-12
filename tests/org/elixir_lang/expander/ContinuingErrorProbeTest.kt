@@ -22,25 +22,25 @@ class ContinuingErrorProbeTest : ProbeTestCase() {
     }
 
     /**
-     * A definition in an `fn` may not run, and the expander doesn't follow what calling the `fn` runs. Up to 1.14 an
-     * error raises where its body is expanded: one before the `fn` is the module's, and one inside it stops the module
-     * there. From 1.15 each error is reported and the module raises once its body has run, after the call, so it stops.
+     * A definition in an `fn` a match binds is stored where a later statement calls the `fn`, as Elixir stores it. The
+     * comparison places a definition's errors in source order, so where the `fn` is called after a later definition,
+     * the order is checked here: up to 1.14 that definition's error raises, and from 1.15 it is reported first.
      */
-    fun testErrorsInADefinitionThatMayNotRun() {
-        val continues = FUNCTION_ERRORS_CONTINUE.isSufficient(legLevel())
+    fun testErrorsInADefinitionAnFnHolds() {
+        assertMatchesElixir(listOf(BEFORE_A_FUNCTION, CALLED_IN_ORDER))
 
-        if (!continues) assertMatchesElixir(listOf(BEFORE_A_FUNCTION))
-
-        val stops = listOfNotNull((BEFORE_A_FUNCTION to "__CALLER__").takeIf { continues }) +
-            IN_A_FUNCTION.map { it to if (continues) "__STACKTRACE__" else "def g, do: __STACKTRACE__" }
+        val expansion = probes.expand(CALLED_AFTER_A_LATER_ERROR)
+        val errors = expansion.result.errors.joinToString(", ") { "${it.kind} `${expansion.source(it.at)}`" }
 
         assertEquals(
-            stops.joinToString("\n") { (code, at) -> "$code: stopped `$at`" },
-            stops.joinToString("\n") { (code, _) ->
-                val expansion = probes.expand(code)
-                val at = (expansion.ended as? ExpansionResult.Ended.Stopped)?.at
-
-                "$code: " + (at?.let { "stopped `${expansion.source(it)}`" } ?: expansion.ended.toString())
+            if (FUNCTION_ERRORS_CONTINUE.isSufficient(legLevel())) {
+                "Tainted: caller_not_allowed `__CALLER__`, stacktrace_not_allowed `__STACKTRACE__`"
+            } else {
+                "raised caller_not_allowed `__CALLER__`: "
+            },
+            when (val ended = expansion.ended) {
+                is ExpansionResult.Ended.Raised -> "raised ${ended.error.kind} `${expansion.source(ended.error.at)}`: $errors"
+                else -> "$ended: $errors"
             },
         )
     }
@@ -139,11 +139,11 @@ class ContinuingErrorProbeTest : ProbeTestCase() {
         /** `f` is a statement with nothing before it, so up to 1.14 its error raises before the `fn` is reached. */
         const val BEFORE_A_FUNCTION = "def f, do: __CALLER__\nlater = fn -> def g, do: __STACKTRACE__ end\nlater.()"
 
-        /** `g` is defined inside an `fn`, so its body may be expanded elsewhere in Elixir's order. */
-        val IN_A_FUNCTION = listOf(
-            "later = fn -> def g, do: __STACKTRACE__ end\ndef f, do: __CALLER__\nlater.()",
-            "later = fn -> def g, do: __STACKTRACE__ end\ndef f, do: :ok\nlater.()",
-        )
+        /** `g` is defined inside an `fn` called after `f`, so `f`'s error comes first in Elixir's order, not in source order. */
+        const val CALLED_AFTER_A_LATER_ERROR = "later = fn -> def g, do: __STACKTRACE__ end\ndef f, do: __CALLER__\nlater.()"
+
+        /** `g` is defined inside an `fn`, so its body is expanded where the `fn` is called, with no error in `f`. */
+        const val CALLED_IN_ORDER = "later = fn -> def g, do: __STACKTRACE__ end\ndef f, do: :ok\nlater.()"
 
         val LOCAL_CALLS = listOf(
             "def f, do: __STACKTRACE__\ndef g, do: nope()",
