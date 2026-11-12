@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4690](https://github.com/intellij-elixir/intellij-elixir/pull/4690) [@sh41](https://github.com/sh41)
+  - **Quick Documentation heads a function with the signature Elixir records for it, then its `@spec`s, then each clause's head as written, and Parameter Info names parameters by that signature, such as `connected?(socket)`, in source and compiled modules alike; completion names the parameters of the functions `defexception` and EEx write by it too.** Refs [#4609](https://github.com/intellij-elixir/intellij-elixir/issues/4609) and [#4682](https://github.com/intellij-elixir/intellij-elixir/issues/4682).
+
 - [#4679](https://github.com/intellij-elixir/intellij-elixir/pull/4679) [@sh41](https://github.com/sh41)
   - **With "Run the expander" on, the names a `defdelegate`, an `EEx.function_from_*` call, a `Mix.Generator` embed and a clause's `unquote(:name)` write are coloured as the declarations the macro expander finds they make.** Refs [#4596](https://github.com/intellij-elixir/intellij-elixir/issues/4596).
 
