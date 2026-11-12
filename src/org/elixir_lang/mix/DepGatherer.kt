@@ -16,9 +16,11 @@ import org.elixir_lang.psi.CallDefinitionClause.modularChildCalls
 import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
+import org.elixir_lang.psi.impl.blockKeyword
 import org.elixir_lang.psi.impl.keywordValue
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.stripAccessExpressions
+import org.elixir_lang.psi.operation.Match
 import org.elixir_lang.util.AccumulatorContinue
 
 /**
@@ -71,13 +73,18 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
          */
         @RequiresReadLock
         fun declared(mixExs: ElixirFile): ProjectKeywords.Reading<Set<String>> =
-            ProjectKeywords.keyword(mixExs, "deps", ProjectKeywords.Reading.Written(emptySet())) { value ->
+            ProjectKeywords.keyword(
+                mixExs,
+                "deps",
+                ProjectKeywords.Reading.Written(emptySet()),
+                ProjectKeywords.NeedsWhole.EVERY_ANSWER,
+            ) { value ->
                 names(mixExs, value)?.let { ProjectKeywords.Reading.Written(it) }
             }
 
         @RequiresReadLock
         private fun names(mixExs: ElixirFile, deps: PsiElement): Set<String>? {
-            val nameArity = (deps as? Call)?.takeUnless { it is Qualified }?.nameArity() ?: return null
+            val nameArity = calledFunction((deps as? Call)?.takeUnless { it is Qualified }) ?: return null
 
             return mixExs.modulars()
                 .filter { PsiTreeUtil.isAncestor(it, deps, true) }
@@ -85,7 +92,7 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
                 .filter { isDefining(it, nameArity) }
                 .ifEmpty { return null }
                 .flatMapTo(mutableSetOf()) { definer ->
-                    val list = ProjectKeywords.returnedList(definer) ?: return null
+                    val list = ProjectKeywords.returnedList(definer)?.takeIf { ProjectKeywords.returnsOnlyItsBody(definer) } ?: return null
 
                     list.children.map { name(it.stripAccessExpression()) ?: return null }
                 }
@@ -133,7 +140,8 @@ private fun QuotableKeywordList.depsPath(): String? =
     (keywordValue("deps_path")?.stripAccessExpression() as? ElixirLine)?.body?.text
 
 @RequiresReadLock
-private fun Array<Call>.depsNameArity(): NameArity? = projectKeywordLists().firstNotNullOfOrNull { it.depsNameArity() }
+private fun Array<Call>.depsNameArity(): NameArity? =
+    projectKeywordLists().firstNotNullOfOrNull { calledFunction(it.keywordValue("deps") as? Call) }
 
 private fun isDefining(call: Call, nameArity: NameArity): Boolean =
     capabilities(call)?.runtimeFunction == true &&
@@ -141,7 +149,49 @@ private fun isDefining(call: Call, nameArity: NameArity): Boolean =
             name == nameArity.name && arityInterval.contains(nameArity.arity)
         } == true
 
-private fun QuotableKeywordList.depsNameArity(): NameArity? = (keywordValue("deps") as? Call)?.nameArity()
+/**
+ * The function a `deps:` value [call]s, `null` for a bare name `project/0` binds first: that is a variable, as in Elixir,
+ * and its value is never read.
+ */
+@RequiresReadLock
+private fun calledFunction(call: Call?): NameArity? =
+    call?.takeUnless { it is UnqualifiedNoArgumentsCall<*> && isBoundBefore(it) }?.nameArity()
+
+/**
+ * Whether a match before the bare [name], in the `project/0` definition that holds it, binds that name in the
+ * definition's own clause. A pattern binds at any depth (`{deps, _} = ...`, `a = deps = ...`).
+ */
+@RequiresReadLock
+private fun isBoundBefore(name: Call): Boolean {
+    val project = generateSequence(name.parent) { it.parent }.filterIsInstance<Call>().firstOrNull(ProjectKeywords::isProject)
+        ?: return false
+    val variable = name.functionName()
+
+    return PsiTreeUtil.findChildrenOfType(project, Match::class.java).any { match ->
+        match.textOffset < name.textOffset &&
+            generateSequence(match.parent) { it.parent }.takeWhile { it !== project }.none { opensScope(project, it) } &&
+            PsiTreeUtil.collectElementsOfType(match.leftOperand(), UnqualifiedNoArgumentsCall::class.java)
+                .any { it.functionName() == variable }
+    }
+}
+
+/**
+ * Whether variables bound under [element] stay there: an `fn`, a `do`, `else`, `after`, `rescue` or `catch` body other than
+ * [project]'s own, written as a block or as a keyword, or a `with` or `for` clause. A match in the arguments of a call that
+ * opens a body, as in `case deps = x do`, binds outside it.
+ */
+private fun opensScope(project: Call, element: PsiElement): Boolean =
+    when (element) {
+        is ElixirAnonymousFunction -> true
+        is ElixirDoBlock -> PsiTreeUtil.getParentOfType(element, Call::class.java) !== project
+        is QuotableKeywordPair ->
+            element.blockKeyword() != null &&
+                PsiTreeUtil.getParentOfType(element, Call::class.java) !== project
+        is Call -> element !is Qualified && element.functionName() in CLAUSE_SCOPES
+        else -> false
+    }
+
+private val CLAUSE_SCOPES = setOf("with", "for")
 
 /** The name and arity this call calls. */
 private fun Call.nameArity(): NameArity? = functionName()?.let { NameArity(it, resolvedFinalArity()) }

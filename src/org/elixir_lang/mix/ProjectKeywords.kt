@@ -24,7 +24,7 @@ import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 object ProjectKeywords {
     /** The keywords of the list `project/0` returns. */
     @RequiresReadLock
-    fun keywords(mixExs: ElixirFile): QuotableKeywordList? = list(mixExs)?.keywords
+    fun keywords(mixExs: ElixirFile): QuotableKeywordList? = project(mixExs)?.second?.keywords
 
     /**
      * The project's `app:`: [Reading.Absent] where the list `project/0` returns is `[]` or keywords without one, as an
@@ -32,7 +32,7 @@ object ProjectKeywords {
      */
     @RequiresReadLock
     fun app(mixExs: ElixirFile): Reading<String> =
-        keyword(mixExs, "app", Reading.Absent) { (it as? ElixirAtom)?.let(AtomName::of)?.let { app -> Reading.Written(app) } }
+        keyword(mixExs, "app", Reading.Absent, NeedsWhole.ABSENT) { (it as? ElixirAtom)?.let(AtomName::of)?.let { app -> Reading.Written(app) } }
 
     /**
      * The project's `config_path:`, Mix's default when the list `project/0` returns is `[]` or keywords without one;
@@ -51,15 +51,40 @@ object ProjectKeywords {
     /**
      * What the list `project/0` returns says of [name]: [absent] where the list is `[]` or keywords without it, the
      * [read] of its value, with parentheses and access expressions stripped, where it has one, and [Reading.Unknown]
-     * where [read] gives none or the list is not a literal one of keywords.
+     * where [read] gives none or the list is not a literal one of keywords. [needsWhole] says which answers need the list
+     * to be all `project/0` can return ([returnsOnlyItsBody]) and to hold nothing but keywords, as a tuple before them
+     * may name the keyword first; the others read the body's keywords.
      */
     @RequiresReadLock
-    internal fun <T> keyword(mixExs: ElixirFile, name: String, absent: Reading<T>, read: (PsiElement) -> Reading<T>?): Reading<T> {
-        val list = list(mixExs) ?: return Reading.Unknown
-        val keywords = list.keywords ?: return if (list.children.isEmpty()) absent else Reading.Unknown
-        val value = keywords.keywordValue(name)?.stripAccessExpressionAndParentheses() ?: return absent
+    internal fun <T> keyword(
+        mixExs: ElixirFile,
+        name: String,
+        absent: Reading<T>,
+        needsWhole: NeedsWhole = NeedsWhole.NOTHING,
+        read: (PsiElement) -> Reading<T>?,
+    ): Reading<T> {
+        val (definition, list) = project(mixExs) ?: return Reading.Unknown
+        val whole = returnsOnlyItsBody(definition) && list.children.all { it is QuotableKeywordList }
+
+        if (needsWhole == NeedsWhole.EVERY_ANSWER && !whole) return Reading.Unknown
+
+        val missing = if (whole || needsWhole == NeedsWhole.NOTHING) absent else Reading.Unknown
+        val keywords = list.keywords ?: return if (list.children.isEmpty()) missing else Reading.Unknown
+        val value = keywords.keywordValue(name)?.stripAccessExpressionAndParentheses() ?: return missing
 
         return read(value) ?: Reading.Unknown
+    }
+
+    /** Which of [keyword]'s answers need the list `project/0` returns to be all it can return. */
+    internal enum class NeedsWhole {
+        /** None: the body's list answers, as it always has. */
+        NOTHING,
+
+        /** Only a keyword the list lacks. */
+        ABSENT,
+
+        /** Every answer. */
+        EVERY_ANSWER,
     }
 
     /** Whether [path], a written `config_path:`, is Mix's default, the only path that may be missing. */
@@ -81,14 +106,15 @@ object ProjectKeywords {
 
     private const val DEFAULT_CONFIG_PATH = "config/config.exs"
 
-    /** The list `project/0` returns, the last expression of its body, if it is written as one. */
-    private fun list(mixExs: ElixirFile): ElixirList? =
+    /** The first `project/0` definition that returns a list, and that list ([returnedList]). */
+    @RequiresReadLock
+    private fun project(mixExs: ElixirFile): Pair<Call, ElixirList>? =
         mixExs
             .modulars()
             .asSequence()
             .flatMap { modularChildCalls(it).asSequence() }
             .filter(::isProject)
-            .firstNotNullOfOrNull(::returnedList)
+            .firstNotNullOfOrNull { definition -> returnedList(definition)?.let { definition to it } }
 
     /** Whether [call] defines `project/0`. */
     @RequiresReadLock
@@ -107,4 +133,15 @@ object ProjectKeywords {
     @RequiresReadLock
     internal fun returnedList(definition: Call): ElixirList? =
         returned(definition)?.stripAccessExpressionAndParentheses() as? ElixirList
+
+    /**
+     * Whether the list [returnedList] reads is all [definition] can return. A `rescue`, `catch` or `else` block, written as
+     * a block or as a keyword, may return another value; an `after` block leaves the value alone.
+     */
+    @RequiresReadLock
+    internal fun returnsOnlyItsBody(definition: Call): Boolean =
+        definition.doBlock?.blockList?.blockItemList?.none { it.blockIdentifier.text in VALUE_CHANGING_BLOCKS } != false &&
+            VALUE_CHANGING_BLOCKS.none { definition.keywordArgument(it) != null }
+
+    private val VALUE_CHANGING_BLOCKS = setOf("rescue", "catch", "else")
 }
