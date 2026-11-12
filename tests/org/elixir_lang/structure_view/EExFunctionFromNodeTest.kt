@@ -85,6 +85,16 @@ class EExFunctionFromNodeTest : PlatformTestCase() {
         }
     }
 
+    /** `[:a | [:b]]` is the list `[:a, :b]`, so the node is `sample/2`. */
+    fun testTheArityCountsTheBindingsOfALiteralTail() {
+        myFixture.configureByText(
+            "tail_eex.ex",
+            EEX_DEFINITION + "defmodule M do\n  require EEx\n  EEx.function_from_string(:def, :sample, \"<%= a %>\", [:a | [:b]])\nend\n"
+        )
+
+        assertEquals("sample/2", elements().single().presentation.presentableText)
+    }
+
     private fun elements(): List<EExFunctionFrom> {
         val found = mutableListOf<EExFunctionFrom>()
 
