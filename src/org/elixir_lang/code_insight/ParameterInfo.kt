@@ -11,17 +11,18 @@ import org.elixir_lang.psi.ElixirTypes
 import org.elixir_lang.psi.call.Call
 
 class ParameterInfo : ParameterInfoHandler<Arguments, Signature> {
+    // The platform calls this off the UI thread and `showParameterInfo` on it, so the resolve and any `.beam` read
+    // happen here.
     override fun findElementForParameterInfo(context: CreateParameterInfoContext): Arguments? =
-        findArguments(context)
+        findArguments(context)?.also { arguments ->
+            PsiTreeUtil.getParentOfType(arguments, Call::class.java)?.let { context.itemsToShow = signatures(it).toTypedArray() }
+        }
 
     override fun findElementForUpdatingParameterInfo(context: UpdateParameterInfoContext): Arguments? =
         findArguments(context)
 
     override fun showParameterInfo(element: Arguments, context: CreateParameterInfoContext) {
-        val signatures = PsiTreeUtil.getParentOfType(element, Call::class.java)?.let(::signatures).orEmpty()
-
-        if (signatures.isNotEmpty()) {
-            context.itemsToShow = signatures.toTypedArray()
+        if (!context.itemsToShow.isNullOrEmpty()) {
             context.showHint(element, element.textRange.startOffset, this)
         }
     }

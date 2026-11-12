@@ -115,7 +115,6 @@ class BeamParameterInfoTest : BeamLibraryTestCase() {
         )
     }
 
-    /** The hint is built on the EDT, where decompiling a large module takes hundreds of milliseconds. */
     fun testHintDoesNotDecompileTheModule() {
         val math = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(File(ebinDirectory, "math.beam"))!!
         val beamFile = ReadAction.computeBlocking<BeamFileImpl, Throwable> {
