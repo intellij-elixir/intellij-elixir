@@ -106,6 +106,9 @@ sealed class FetchedDocs(open val module: String?) {
             val id: String get() = "arity-${arities.definition().first}"
         }
 
+        /** Whether there are several entries, so each is linked to its own anchor. */
+        val linked: Boolean get() = entries.size > 1
+
         /** The entry for the function used at [arity], if there is one. */
         fun entryAt(arity: Int): Entry? = entries.firstOrNull { arity in it.arities }
 

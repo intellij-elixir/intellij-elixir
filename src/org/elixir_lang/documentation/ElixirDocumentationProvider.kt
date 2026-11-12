@@ -99,7 +99,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
     private fun anchor(fetched: FetchedDocs, arity: Int?): String? =
         (fetched as? FetchedDocs.Arities)
-            ?.takeIf { it.entries.size > 1 }
+            ?.takeIf { it.linked }
             ?.let { arities -> arity?.let(arities::entryAt)?.id }
 
     /** The arity used where [original] is written: at a call, a capture, an MFA atom or a declaration's head. */
@@ -310,10 +310,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             is FetchedDocs.FunctionOrMacroDocumentation -> fetchedDocs.heading.appendTo(documentationHtml, link = null)
 
             is FetchedDocs.Arities -> {
-                val linked = fetchedDocs.entries.size > 1
-
                 for (entry in fetchedDocs.entries) {
-                    entry.documentation.heading.appendTo(documentationHtml, entry.id.takeIf { linked })
+                    entry.documentation.heading.appendTo(documentationHtml, entry.id.takeIf { fetchedDocs.linked })
                 }
             }
 
@@ -348,10 +346,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             is FetchedDocs.FunctionOrMacroDocumentation -> appendFunctionContent(documentationHtml, element, fetchedDocs)
 
             is FetchedDocs.Arities -> {
-                val linked = fetchedDocs.entries.size > 1
-
                 for (entry in fetchedDocs.entries) {
-                    if (linked) {
+                    if (fetchedDocs.linked) {
                         documentationHtml.append(DocumentationMarkup.CONTENT_START)
                         entry.documentation.heading.appendAnchorTo(documentationHtml, entry.id)
                         documentationHtml.append(DocumentationMarkup.CONTENT_END)
