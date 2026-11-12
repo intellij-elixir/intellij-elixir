@@ -1,13 +1,12 @@
 package org.elixir_lang.run
 
+import com.intellij.execution.CantRunException
 import com.intellij.execution.ExecutionException
 import com.intellij.execution.configurations.CommandLineState
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.runners.ExecutionEnvironment
-import com.intellij.openapi.application.ReadAction
 import com.intellij.platform.ide.progress.runWithModalProgressBlocking
-import java.util.concurrent.Callable
 
 abstract class WslSafeCommandLineState<T>(
     environment: ExecutionEnvironment,
@@ -18,13 +17,12 @@ abstract class WslSafeCommandLineState<T>(
 
     @Throws(ExecutionException::class)
     override fun startProcess(): ProcessHandler {
-        // configuration.commandLine() -> Mix/Elixir/IEx.commandLine() -> CliArguments.argsOrThrow()
-        // -> requireErlangSdkOrNotifyAndThrow() -> findErlangSdkByHomePath() which asserts a read
-        // lock. startProcess() is called by the execution infrastructure without a read lock, so
-        // we must acquire one here.
         val commandLine =
             try {
-                ReadAction.nonBlocking(Callable { configuration.commandLine() }).executeSynchronously()
+                configuration.commandLine()
+            } catch (e: CantRunException.CustomProcessedCantRunException) {
+                // Already reported where it can be fixed; `handleExecutionException` would report it again.
+                throw e
             } catch (e: ExecutionException) {
                 handleExecutionException(e)
                 throw e

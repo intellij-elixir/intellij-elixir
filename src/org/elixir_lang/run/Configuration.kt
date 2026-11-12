@@ -17,6 +17,7 @@ import org.elixir_lang.debugger.settings.stepping.ModuleFilter
 import org.elixir_lang.mix.ensureMostSpecificSdk
 import org.elixir_lang.run.configuration.Module
 import org.elixir_lang.sdk.wsl.wslCompat
+import org.elixir_lang.util.ReadActions
 import org.jdom.Element
 import com.intellij.openapi.util.io.FileUtil
 
@@ -206,6 +207,11 @@ abstract class Configuration(name: String, project: Project, configurationFactor
     }
 
     abstract fun commandLine(): GeneralCommandLine
+
+    fun ensureWorkingDirectoryAndSdk(): Pair<String, Sdk> =
+        ReadActions.compute {
+            ensureWorkingDirectory() to ensureMostSpecificSdk(ensureModule())
+        }
 
     fun ensureModule(): com.intellij.openapi.module.Module =
             configurationModule.module ?: ensureModule(ensureWorkingDirectory(), project)

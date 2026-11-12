@@ -3,6 +3,7 @@ import com.intellij.openapi.application.UI
 import com.intellij.openapi.application.readAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.progress.coroutineToIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
@@ -13,7 +14,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
-import com.intellij.openapi.progress.coroutineToIndicator
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -25,6 +26,7 @@ import org.elixir_lang.notification.setup_sdk.Notifier
 import org.elixir_lang.package_manager.DepsStatusResult
 import org.elixir_lang.package_manager.virtualFile
 import org.elixir_lang.sdk.elixir.findElixirSdkForRoot
+import org.elixir_lang.sdk.erlang_dependent.ElixirSdkSnapshot
 import org.elixir_lang.sdk.isElixirOrErlangSdk
 import org.elixir_lang.settings.ElixirExperimentalSettings
 import java.util.concurrent.atomic.AtomicLong
@@ -50,8 +52,7 @@ class DepsCheckerService(private val project: Project, private val cs: Coroutine
     private val pendingRoots: AtomicReference<Set<VirtualFile>> = AtomicReference(emptySet())
     /** If set, an empty pending set uses cached-only recompute (plus uncached roots) instead of full re-query. */
     private val useCachedOnlyWhenNoPending: AtomicReference<Boolean> = AtomicReference(false)
-    /** Last-known SDK name by root URL from the most recent checks. */
-    private val rootSdkNameSnapshot: AtomicReference<Map<String, String?>> = AtomicReference(emptyMap())
+    private val lastSnapshotByRootUrlRef: AtomicReference<Map<String, ElixirSdkSnapshot?>> = AtomicReference(emptyMap())
     /**
      * Last-known status for each top-level Mix root (keyed by root URL).
      * Mutated only inside [checkMutex]; no additional synchronisation needed.
@@ -85,10 +86,9 @@ class DepsCheckerService(private val project: Project, private val cs: Coroutine
         get() = useCachedOnlyWhenNoPending.get()
         set(v) { useCachedOnlyWhenNoPending.set(v) }
 
-    /** The last-committed SDK-name-by-root-URL snapshot. */
-    internal var sdkNameSnapshot: Map<String, String?>
-        get() = rootSdkNameSnapshot.get()
-        set(v) { rootSdkNameSnapshot.set(v) }
+    internal var lastSnapshotByRootUrl: Map<String, ElixirSdkSnapshot?>
+        get() = lastSnapshotByRootUrlRef.get()
+        set(v) { lastSnapshotByRootUrlRef.set(v) }
 
     /** Snapshot of root URLs currently in the status cache. */
     internal val statusCacheKeys: Set<String>
@@ -108,7 +108,7 @@ class DepsCheckerService(private val project: Project, private val cs: Coroutine
         checkGeneration.incrementAndGet()
         pendingRoots.set(emptySet())
         useCachedOnlyWhenNoPending.set(false)
-        rootSdkNameSnapshot.set(emptyMap())
+        lastSnapshotByRootUrl = emptyMap()
         rootStatusCache.clear()
     }
 
@@ -219,14 +219,14 @@ class DepsCheckerService(private val project: Project, private val cs: Coroutine
             val (changedRoots, removedRootExists) = readAction {
                 val allRoots = ProjectRootManager.getInstance(project).contentRoots.asList()
                 val allTopLevelRoots = MixEventClassifier.selectTopLevelMixRoots(allRoots)
-                val currentSdkByRootUrl = LinkedHashMap<String, String?>(allTopLevelRoots.size)
+                val currentSnapshotByRootUrl = LinkedHashMap<String, ElixirSdkSnapshot?>(allTopLevelRoots.size)
                 for (root in allTopLevelRoots) {
-                    currentSdkByRootUrl[root.url] = findElixirSdkForRoot(project, root)?.name
+                    currentSnapshotByRootUrl[root.url] = snapshotOf(root)
                 }
                 val delta = DepsCheckPlanner.computeSdkDelta(
                     allTopLevelRoots.map { it.url },
-                    currentSdkByRootUrl,
-                    rootSdkNameSnapshot.get(),
+                    currentSnapshotByRootUrl,
+                    lastSnapshotByRootUrl,
                 )
                 val changedRoots = allTopLevelRoots.filter { it.url in delta.changedRootUrls }
                 Pair(changedRoots, delta.removedRootExists)
@@ -309,17 +309,17 @@ class DepsCheckerService(private val project: Project, private val cs: Coroutine
                 "${rootsToCheck.size}/${allTopLevelRoots.size} root(s)"
         )
 
-        val sdkNameByRootUrl = rootSdkNameSnapshot.get().toMutableMap()
-        sdkNameByRootUrl.keys.retainAll(currentRootUrls)
+        val nextSnapshotByRootUrl = lastSnapshotByRootUrl.toMutableMap()
+        nextSnapshotByRootUrl.keys.retainAll(currentRootUrls)
 
         // Re-check and cache only the selected roots.
         for (root in rootsToCheck) {
-            val sdk = readAction { findElixirSdkForRoot(project, root) }
-            sdkNameByRootUrl[root.url] = sdk?.name
+            val snapshot = readAction { snapshotOf(root) }
+            nextSnapshotByRootUrl[root.url] = snapshot
             rootStatusCache[root.url] = when (
                 // `coroutineToIndicator`, so the blocking wait on `mix deps` ends when this coroutine is cancelled.
                 val statusResult = withContext(Dispatchers.IO) {
-                    coroutineToIndicator { depsStatusResult(project, root, sdk) }
+                    coroutineToIndicator { depsStatusResult(project, root, snapshot) }
                 }
             ) {
                 is DepsStatusResult.Available ->
@@ -328,7 +328,7 @@ class DepsCheckerService(private val project: Project, private val cs: Coroutine
                 DepsStatusResult.Unsupported -> CachedRootStatus.Unsupported
             }
         }
-        rootSdkNameSnapshot.set(sdkNameByRootUrl)
+        lastSnapshotByRootUrl = nextSnapshotByRootUrl
 
         // Derive the overall verdict from the full (now-updated) cache.
         var sawSupported = false
@@ -353,11 +353,14 @@ class DepsCheckerService(private val project: Project, private val cs: Coroutine
         }
     }
 
-    private fun depsStatusResult(project: Project, projectRoot: VirtualFile, sdk: Sdk?): DepsStatusResult {
+    @RequiresReadLock
+    private fun snapshotOf(root: VirtualFile): ElixirSdkSnapshot? = findElixirSdkForRoot(project, root)?.let(ElixirSdkSnapshot::of)
+
+    private fun depsStatusResult(project: Project, projectRoot: VirtualFile, snapshot: ElixirSdkSnapshot?): DepsStatusResult {
         val packageManagerVirtualFile = virtualFile(projectRoot)
             ?: return DepsStatusResult.Unsupported
         val (packageManager, packageVirtualFile) = packageManagerVirtualFile
-        return packageManager.depsStatus(project, packageVirtualFile, sdk)
+        return packageManager.depsStatus(project, packageVirtualFile, snapshot)
     }
 
     companion object {

@@ -87,9 +87,7 @@ open class Configuration(name: String, project: Project, configurationFactory: C
     private var mixArgumentList: MutableList<String> = mutableListOf()
 
     override fun commandLine(): GeneralCommandLine {
-        val workingDirectory = ensureWorkingDirectory()
-        val module = ensureModule()
-        val sdk = ensureMostSpecificSdk(module)
+        val (workingDirectory, sdk) = ensureWorkingDirectoryAndSdk()
         val commandLine = Mix.commandLine(
             envs,
             workingDirectory,

@@ -13,7 +13,10 @@ import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.testFramework.PlatformTestUtil
 import org.elixir_lang.mix.sync.MixTestFixtures
 import org.elixir_lang.notification.setup_sdk.Notifier
-import org.elixir_lang.package_manager.*
+import org.elixir_lang.package_manager.DepState
+import org.elixir_lang.package_manager.DepsStatusResult
+import org.elixir_lang.sdk.SdkFixtures
+import org.elixir_lang.sdk.erlang_dependent.ElixirSdkSnapshot
 import org.elixir_lang.sdk.elixir.Type as ElixirSdkType
 import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
 
@@ -188,7 +191,7 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
         runSuspendOnPooledThread { service.checkDepsStatus("prime") }
         resetDepsStatusCallCounts()
 
-        service.sdkNameSnapshot = mapOf(rootA.url to null, rootB.url to "stale-sdk-name")
+        service.lastSnapshotByRootUrl = mapOf(rootA.url to null, rootB.url to named("stale-sdk-name"))
 
         val triggerSdk = ProjectJdkImpl("Elixir trigger", ElixirSdkType.instance)
         withMixDepsCheckEnabled {
@@ -216,7 +219,7 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
         runSuspendOnPooledThread { service.checkDepsStatus("prime") }
 
         resetDepsStatusCallCounts()
-        service.sdkNameSnapshot = mapOf(rootA.url to "stale-sdk-name", rootB.url to null)
+        service.lastSnapshotByRootUrl = mapOf(rootA.url to named("stale-sdk-name"), rootB.url to null)
         val triggerSdk = ProjectJdkImpl("Elixir trigger", ElixirSdkType.instance)
         withMixDepsCheckEnabled {
             ApplicationManager.getApplication().messageBus
@@ -232,7 +235,7 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
         assertEquals(0, depsStatusCallCount(rootB))
 
         resetDepsStatusCallCounts()
-        service.sdkNameSnapshot = mapOf(rootA.url to null, rootB.url to "stale-sdk-name")
+        service.lastSnapshotByRootUrl = mapOf(rootA.url to null, rootB.url to named("stale-sdk-name"))
         withMixDepsCheckEnabled {
             ApplicationManager.getApplication().messageBus
                 .syncPublisher(ProjectJdkTable.JDK_TABLE_TOPIC)
@@ -255,7 +258,7 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
 
         val service = project.service<DepsCheckerService>()
         runSuspendOnPooledThread { service.checkDepsStatus("prime") }
-        service.sdkNameSnapshot = mapOf(rootA.url to null, rootB.url to null)
+        service.lastSnapshotByRootUrl = mapOf(rootA.url to null, rootB.url to null)
         resetDepsStatusCallCounts()
 
         val triggerSdk = ProjectJdkImpl("Elixir trigger", ElixirSdkType.instance)
@@ -279,7 +282,7 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
 
         val service = project.service<DepsCheckerService>()
         runSuspendOnPooledThread { service.checkDepsStatus("prime") }
-        service.sdkNameSnapshot = mapOf(rootA.url to "stale-a", rootB.url to "stale-b")
+        service.lastSnapshotByRootUrl = mapOf(rootA.url to named("stale-a"), rootB.url to named("stale-b"))
         resetDepsStatusCallCounts()
 
         val javaSdk = ProjectJdkImpl("Java Mock", SimpleJavaSdkType())
@@ -303,7 +306,7 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
 
         val service = project.service<DepsCheckerService>()
         runSuspendOnPooledThread { service.checkDepsStatus("prime") }
-        service.sdkNameSnapshot = mapOf(rootA.url to null, rootB.url to "stale-sdk-name")
+        service.lastSnapshotByRootUrl = mapOf(rootA.url to null, rootB.url to named("stale-sdk-name"))
         resetDepsStatusCallCounts()
 
         val erlangSdk = ProjectJdkImpl("Erlang trigger", ErlangSdkType.instance)
@@ -332,7 +335,7 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
 
         val service = project.service<DepsCheckerService>()
         runSuspendOnPooledThread { service.checkDepsStatus("prime") }
-        service.sdkNameSnapshot = mapOf(rootA.url to null, rootB.url to "stale-sdk-name")
+        service.lastSnapshotByRootUrl = mapOf(rootA.url to null, rootB.url to named("stale-sdk-name"))
         resetDepsStatusCallCounts()
 
         withMixDepsCheckEnabled { addContentRoot(rootB) }
@@ -362,10 +365,10 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
         val service = project.service<DepsCheckerService>()
         runSuspendOnPooledThread { service.checkDepsStatus("prime") }
         resetDepsStatusCallCounts()
-        service.sdkNameSnapshot = mapOf(
-            rootA.url to sdk.name,
-            rootB.url to "stale-sdk-name",
-            rootC.url to sdk.name,
+        service.lastSnapshotByRootUrl = mapOf(
+            rootA.url to ElixirSdkSnapshot.of(sdk),
+            rootB.url to named("stale-sdk-name"),
+            rootC.url to ElixirSdkSnapshot.of(sdk),
         )
 
         withMixDepsCheckEnabled { removeContentRoot(rootC) }
@@ -412,7 +415,7 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
         val service = project.service<DepsCheckerService>()
         runSuspendOnPooledThread { service.checkDepsStatus("prime") }
         resetDepsStatusCallCounts()
-        service.sdkNameSnapshot = mapOf(rootA.url to "stale-sdk-name-a", rootB.url to "stale-sdk-name-b")
+        service.lastSnapshotByRootUrl = mapOf(rootA.url to named("stale-sdk-name-a"), rootB.url to named("stale-sdk-name-b"))
 
         val triggerSdk = ProjectJdkImpl("Elixir trigger", ElixirSdkType.instance)
         withMixDepsCheckEnabled {
@@ -430,6 +433,58 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
         assertEquals(1, depsStatusCallCount(rootB))
     }
 
+    /** A root skipped because its Elixir SDK had no Erlang SDK is checked once one is paired, its Elixir SDK unchanged. */
+    fun testPairingAnErlangSdk_rechecksTheRootItsElixirSdkCouldNotCheck() {
+        val elixirSdk = SdkFixtures.register(
+            SdkFixtures.elixirSdk("Deps Elixir Without Erlang", SdkFixtures.elixirHome("1.18.4")),
+            testRootDisposable,
+        )
+        ModuleRootModificationUtil.setModuleSdk(module, elixirSdk)
+        val root = MixTestFixtures.createMixRoot(myFixture, "project_a")
+
+        val service = project.service<DepsCheckerService>()
+        runSuspendOnPooledThread { service.checkDepsStatus("prime") }
+        resetDepsStatusCallCounts()
+        val erlangSdk = SdkFixtures.withCodePaths(
+            SdkFixtures.register(
+                SdkFixtures.erlangSdk("Deps Erlang", SdkFixtures.erlangHomeWithEbin("27", "27.3.4")),
+                testRootDisposable,
+            ),
+        )
+
+        withMixDepsCheckEnabled { SdkFixtures.commitPairing(elixirSdk, erlangSdk) }
+
+        waitUntil("expected pairing an Erlang SDK to queue the root its Elixir SDK could not check") {
+            service.pendingRootUrls == setOf(root.url)
+        }
+        runSuspendOnPooledThread { service.checkDepsStatus("erlang-paired") }
+        assertEquals(1, depsStatusCallCount(root))
+    }
+
+    /** A root is checked again once its Elixir SDK moves to another installation under the same name. */
+    fun testMovingTheElixirSdk_rechecksItsRoot() {
+        val (_, elixirSdk) = SdkFixtures.pairedInTable("Deps Moving Elixir", add = { SdkFixtures.register(it, testRootDisposable) })
+        ModuleRootModificationUtil.setModuleSdk(module, elixirSdk)
+        val root = MixTestFixtures.createMixRoot(myFixture, "project_a")
+
+        val service = project.service<DepsCheckerService>()
+        runSuspendOnPooledThread { service.checkDepsStatus("prime") }
+        resetDepsStatusCallCounts()
+
+        withMixDepsCheckEnabled {
+            SdkFixtures.commit(elixirSdk) {
+                homePath = SdkFixtures.fakeHome("elixir/1.14.5")
+                versionString = "1.14.5"
+            }
+        }
+
+        waitUntil("expected moving the Elixir SDK to queue its root") {
+            service.pendingRootUrls == setOf(root.url)
+        }
+        runSuspendOnPooledThread { service.checkDepsStatus("elixir-moved") }
+        assertEquals(1, depsStatusCallCount(root))
+    }
+
     // ── Disabled-setting gating: listeners do no work when the feature is off ──
 
     fun testJdkTopic_disabledSettingSkipsListenerWork() {
@@ -440,12 +495,12 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
             statusByRootUrl[rootA.url] = depsStatus(DepState.OK)
             statusByRootUrl[rootB.url] = depsStatus(DepState.OK)
 
-            // Sentinel snapshot whose stale value for rootB would normally make the SDK-delta
+            // Sentinel map whose stale value for rootB would normally make the SDK-delta
             // listener queue rootB. With the feature disabled the listener must not run at all.
-            val sentinelSnapshot = mapOf(rootA.url to null, rootB.url to "stale-sdk-name")
+            val sentinelSnapshotByRootUrl = mapOf(rootA.url to null, rootB.url to named("stale-sdk-name"))
             service.setPendingRoots(emptySet())
             service.cachedOnlyMode = false
-            service.sdkNameSnapshot = sentinelSnapshot
+            service.lastSnapshotByRootUrl = sentinelSnapshotByRootUrl
 
             val triggerSdk = ProjectJdkImpl("Elixir trigger", ElixirSdkType.instance)
             ApplicationManager.getApplication().messageBus
@@ -463,9 +518,9 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
                 service.cachedOnlyMode,
             )
             assertEquals(
-                "disabled deps check must not perform SDK-delta diff work (snapshot unchanged)",
-                sentinelSnapshot,
-                service.sdkNameSnapshot,
+                "disabled deps check must not perform SDK-delta diff work (map unchanged)",
+                sentinelSnapshotByRootUrl,
+                service.lastSnapshotByRootUrl,
             )
         }
     }
@@ -478,10 +533,10 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
             statusByRootUrl[rootA.url] = depsStatus(DepState.OK)
             statusByRootUrl[rootB.url] = depsStatus(DepState.OK)
 
-            val sentinelSnapshot = mapOf(rootA.url to null, rootB.url to "stale-sdk-name")
+            val sentinelSnapshotByRootUrl = mapOf(rootA.url to null, rootB.url to named("stale-sdk-name"))
             service.setPendingRoots(emptySet())
             service.cachedOnlyMode = false
-            service.sdkNameSnapshot = sentinelSnapshot
+            service.lastSnapshotByRootUrl = sentinelSnapshotByRootUrl
 
             // Removing a content root fires ModuleRootListener.rootsChanged on the bus.
             removeContentRoot(rootB)
@@ -497,9 +552,9 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
                 service.cachedOnlyMode,
             )
             assertEquals(
-                "disabled deps check must not perform topology diff work (snapshot unchanged)",
-                sentinelSnapshot,
-                service.sdkNameSnapshot,
+                "disabled deps check must not perform topology diff work (map unchanged)",
+                sentinelSnapshotByRootUrl,
+                service.lastSnapshotByRootUrl,
             )
         }
     }
@@ -576,4 +631,6 @@ class DepsCheckerServiceTest : DepsCheckerServiceTestBase() {
             Thread.sleep(10)
         }
     }
+
+    private fun named(elixirSdkName: String) = ElixirSdkSnapshot(elixirSdkName, null, null, null)
 }

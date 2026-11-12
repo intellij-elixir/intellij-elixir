@@ -15,7 +15,6 @@ import org.elixir_lang.IEx
 import org.elixir_lang.debugger.Modules
 import org.elixir_lang.debugger.configuration.Debuggable
 import org.elixir_lang.debugger.settings.stepping.ModuleFilter
-import org.elixir_lang.mix.ensureMostSpecificSdk
 import org.elixir_lang.run.*
 import org.jdom.Element
 
@@ -68,9 +67,7 @@ class Configuration(name: String, project: Project, configurationFactory: Config
     var iexArgumentList: MutableList<String> = mutableListOf()
 
     override fun commandLine(): GeneralCommandLine {
-        val workingDirectory = ensureWorkingDirectory()
-        val module = ensureModule()
-        val sdk = ensureMostSpecificSdk(module)
+        val (workingDirectory, sdk) = ensureWorkingDirectoryAndSdk()
         val commandLine = IEx.commandLine(
                 environment = envs,
                 workingDirectory = workingDirectory,

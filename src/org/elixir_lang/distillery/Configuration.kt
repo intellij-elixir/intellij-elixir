@@ -18,6 +18,7 @@ import org.elixir_lang.debugger.configuration.Debuggable
 import org.elixir_lang.debugger.settings.stepping.ModuleFilter
 import org.elixir_lang.distillery.configuration.editor.CodeLoadingMode
 import org.elixir_lang.run.*
+import org.elixir_lang.util.ReadActions
 import org.jdom.Element
 import java.io.File
 import java.nio.file.Path
@@ -171,7 +172,7 @@ class Configuration(name: String, project: Project, configurationFactory: Config
         }
 
     override fun commandLine(): GeneralCommandLine {
-        val workingDirectory = ensureWorkingDirectory()
+        val workingDirectory = ReadActions.compute { ensureWorkingDirectory() }
         val commandLine = Distillery.commandLine(
             pty = pty,
             environment = envs,

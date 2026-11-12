@@ -1,17 +1,12 @@
 package org.elixir_lang.cli
 
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.execution.CantRunException
-import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.projectRoots.SdkModel
-import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.util.io.FileUtil
-import com.intellij.testFramework.registerOrReplaceServiceInstance
 import com.intellij.util.system.OS
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.jps.shared.cli.CliTool
 import org.elixir_lang.junit.logs.UnexpectedLogsRule
-import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResolver
+import org.elixir_lang.sdk.erlang_dependent.ElixirSdkSnapshot
 import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResult
 import org.elixir_lang.sdk.erlang_dependent.MissingErlangSdkReason
 import org.junit.Rule
@@ -21,7 +16,6 @@ import org.junit.runners.Parameterized
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.absolutePathString
-import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
 
 @RunWith(Parameterized::class)
 class CliArgumentsTest(private val targetOS: OS) : PlatformTestCase() {
@@ -37,25 +31,14 @@ class CliArgumentsTest(private val targetOS: OS) : PlatformTestCase() {
         )
     }
 
-    private val erlangSdkByElixirSdk: MutableMap<Sdk, Sdk> = mutableMapOf()
     private val createdPaths: MutableList<Path> = mutableListOf()
     private lateinit var erlangHome: Path
-    private lateinit var erlangSdk: Sdk
     private lateinit var erlangExec: String
-
-    private val erlangVersion = "28.0.2"
 
     override fun setUp() {
         super.setUp()
 
-        ApplicationManager.getApplication().registerOrReplaceServiceInstance(
-            ErlangSdkResolver::class.java,
-            ErlangSdkResolverMockImpl(erlangSdkByElixirSdk),
-            testRootDisposable,
-        )
-
         erlangHome = createErlangHome()
-        erlangSdk = mockSdk(erlangVersion, erlangHome)
         erlangExec = expectedErlExecPath(erlangHome, targetOS)
     }
 
@@ -63,7 +46,6 @@ class CliArgumentsTest(private val targetOS: OS) : PlatformTestCase() {
         try {
             cleanup(*createdPaths.toTypedArray())
             createdPaths.clear()
-            erlangSdkByElixirSdk.clear()
         } finally {
             super.tearDown()
         }
@@ -72,13 +54,12 @@ class CliArgumentsTest(private val targetOS: OS) : PlatformTestCase() {
     @Test
     fun testMixLegacyArguments() {
         val elixirHome = createElixirHome("eex", "elixir", "mix")
-        val args = CliArguments.args(
-            elixirSdk = mockSdk("1.14.5", elixirHome, erlangSdk),
+        val args = CliArguments.argsOrThrow(
+            snapshot = snapshot("1.14.5", elixirHome),
             tool = CliTool.MIX,
             os = targetOS
         )
-        assertNotNull(args)
-        val tokens = normalize(args!!.arguments)
+        val tokens = normalize(args.arguments)
         assertEquals(args.exePath, erlangExec)
         assertTrue(tokens.contains("-pa"))
         assertFalse(tokens.contains("-elixir_root"))
@@ -98,13 +79,12 @@ class CliArgumentsTest(private val targetOS: OS) : PlatformTestCase() {
     @Test
     fun testMixModernArguments() {
         val elixirHome = createElixirHome("elixir")
-        val args = CliArguments.args(
-            elixirSdk = mockSdk("1.18.4-otp-27", elixirHome, erlangSdk),
+        val args = CliArguments.argsOrThrow(
+            snapshot = snapshot("1.18.4-otp-27", elixirHome),
             tool = CliTool.MIX,
             os = targetOS
         )
-        assertNotNull(args)
-        val tokens = normalize(args!!.arguments)
+        val tokens = normalize(args.arguments)
         assertEquals(args.exePath, erlangExec)
 
         val libPath = normalize(elixirHome.resolve("bin/../lib").toString())
@@ -122,35 +102,32 @@ class CliArgumentsTest(private val targetOS: OS) : PlatformTestCase() {
     @Test
     fun testIexArgumentsAcrossVersions() {
         val elixirHome = createElixirHome("elixir")
-        val args150 = CliArguments.args(
-            elixirSdk = mockSdk("1.15.0", elixirHome, erlangSdk),
+        val args150 = CliArguments.argsOrThrow(
+            snapshot = snapshot("1.15.0", elixirHome),
             tool = CliTool.IEX,
             os = targetOS
         )
-        assertNotNull(args150)
-        val tokens150 = normalize(args150!!.arguments)
+        val tokens150 = normalize(args150.arguments)
         assertEquals(args150.exePath, erlangExec)
         assertContainsSequence(tokens150, listOf("-s", "elixir", "start_cli"))
         assertTrue(tokens150.contains(":elixir.start_iex()"))
 
-        val args161 = CliArguments.args(
-            elixirSdk = mockSdk("1.16.1", elixirHome, erlangSdk),
+        val args161 = CliArguments.argsOrThrow(
+            snapshot = snapshot("1.16.1", elixirHome),
             tool = CliTool.IEX,
             os = targetOS
         )
-        assertNotNull(args161)
-        val tokens161 = normalize(args161!!.arguments)
+        val tokens161 = normalize(args161.arguments)
         assertContainsSequence(tokens161, listOf("-s", "elixir", "start_iex"))
         assertContainsSequence(tokens161, listOf("-user", "elixir"))
         assertFalse(tokens161.contains(":elixir.start_iex()"))
 
-        val args170 = CliArguments.args(
-            elixirSdk = mockSdk("1.17.0", elixirHome, erlangSdk),
+        val args170 = CliArguments.argsOrThrow(
+            snapshot = snapshot("1.17.0", elixirHome),
             tool = CliTool.IEX,
             os = targetOS
         )
-        assertNotNull(args170)
-        val tokens170 = normalize(args170!!.arguments)
+        val tokens170 = normalize(args170.arguments)
         assertContainsSequence(tokens170, listOf("-user", "elixir"))
         assertTrue(tokens170.contains("+iex"))
         assertFalse(tokens170.contains("start_iex"))
@@ -160,13 +137,12 @@ class CliArgumentsTest(private val targetOS: OS) : PlatformTestCase() {
     @Test
     fun testUnparseableVersionFallsBackToLegacy() {
         val elixirHome = createElixirHome("eex", "elixir")
-        val args = CliArguments.args(
-            elixirSdk = mockSdk("Unknown", elixirHome, erlangSdk),
+        val args = CliArguments.argsOrThrow(
+            snapshot = snapshot("Unknown", elixirHome),
             tool = CliTool.ELIXIR,
             os = targetOS
         )
-        assertNotNull(args)
-        val tokens = normalize(args!!.arguments)
+        val tokens = normalize(args.arguments)
         assertEquals(args.exePath, erlangExec)
         assertTrue(tokens.contains("-pa"))
         assertFalse(tokens.contains("-elixir_root"))
@@ -175,42 +151,16 @@ class CliArgumentsTest(private val targetOS: OS) : PlatformTestCase() {
     @Test
     fun testArgsOrThrowMissingErlangSdkThrows() {
         val elixirHome = createElixirHome("elixir")
-        val elixirSdk = mockSdk("1.18.4", elixirHome)
-
-        ApplicationManager.getApplication().registerOrReplaceServiceInstance(
-            ErlangSdkResolver::class.java,
-            object : ErlangSdkResolver {
-                override fun resolveErlangSdkResult(
-                    elixirSdk: Sdk,
-                    sdkModel: SdkModel?
-                ): ErlangSdkResult {
-                    return ErlangSdkResult.Missing(
-                        elixirSdk,
-                        MissingErlangSdkReason.NOT_FOUND,
-                        "Erlang SDK"
-                    )
-                }
-            },
-            testRootDisposable,
-        )
+        val missing = ErlangSdkResult.Missing("1.18.4", MissingErlangSdkReason.NOT_FOUND, "Erlang SDK")
 
         assertThrows(CantRunException.CustomProcessedCantRunException::class.java) {
             CliArguments.argsOrThrow(
-                elixirSdk = elixirSdk,
+                snapshot = ElixirSdkSnapshot("1.18.4", elixirHome.toString(), "1.18.4", null, missing),
                 tool = CliTool.MIX,
                 os = targetOS,
                 project = null,
             )
         }
-    }
-
-    private fun mockSdk(version: String?, homePath: Path, erlangSdk: Sdk? = null): Sdk {
-        val name = version ?: homePath.fileName.toString()
-        val sdk = ProjectJdkImpl(name, ErlangSdkType.instance, homePath.toString(), version ?: "")
-        if (erlangSdk != null) {
-            erlangSdkByElixirSdk[sdk] = erlangSdk
-        }
-        return sdk
     }
 
     private fun expectedErlExecPath(erlangHome: Path, os: OS): String {
@@ -298,24 +248,12 @@ class CliArgumentsTest(private val targetOS: OS) : PlatformTestCase() {
         return false
     }
 
+    private fun snapshot(version: String, elixirHome: Path) =
+        ElixirSdkSnapshot(version, elixirHome.toString(), version, erlangHome.toString())
+
     private fun trackPath(path: Path): Path {
         createdPaths.add(path)
         return path
     }
 
-    private class ErlangSdkResolverMockImpl(
-        private val erlangSdkByElixirSdk: Map<Sdk, Sdk>
-    ) : ErlangSdkResolver {
-        override fun resolveErlangSdkResult(
-            elixirSdk: Sdk,
-            sdkModel: SdkModel?
-        ): ErlangSdkResult {
-            val erlangSdk = erlangSdkByElixirSdk[elixirSdk]
-                ?: return ErlangSdkResult.Missing(
-                    elixirSdk,
-                    MissingErlangSdkReason.NOT_FOUND,
-                )
-            return ErlangSdkResult.Success(erlangSdk)
-        }
-    }
 }

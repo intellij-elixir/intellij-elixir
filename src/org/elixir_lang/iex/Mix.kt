@@ -1,12 +1,12 @@
 package org.elixir_lang.iex
 
-import com.intellij.execution.ExecutionException
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.Sdk
 import org.elixir_lang.cli.getExecutableFilepathWslSafe
 import org.elixir_lang.jps.shared.cli.CliTool
 import org.elixir_lang.jps.shared.sdk.SdkPaths
+import org.elixir_lang.sdk.erlang_dependent.ElixirSdkSnapshot
 
 object Mix {
     fun commandLine(
@@ -17,24 +17,23 @@ object Mix {
             iexArgumentList: List<String>,
             project: Project? = null,
     ): GeneralCommandLine {
+        val snapshot = ElixirSdkSnapshot.of(elixirSdk)
         val commandLine =
             org.elixir_lang.IEx.commandLine(
                 environment,
                 workingDirectory,
-                elixirSdk,
+                snapshot,
                 erlArgumentList,
                 project,
-                SdkPaths.mixHomeEnvironment(elixirSdk.homePath),
+                SdkPaths.mixHomeEnvironment(snapshot.elixirHome),
             )
         commandLine.addParameters(iexArgumentList)
-        addMix(commandLine, elixirSdk)
+        addMix(commandLine, snapshot)
         return commandLine
     }
 
-    private fun addMix(commandLine: GeneralCommandLine, sdk: Sdk) {
-        val sdkHomePath =
-            sdk.homePath ?: throw ExecutionException("Elixir SDK home path is not configured")
-        val mixPath = CliTool.MIX.getExecutableFilepathWslSafe(sdkHomePath)
+    private fun addMix(commandLine: GeneralCommandLine, snapshot: ElixirSdkSnapshot) {
+        val mixPath = CliTool.MIX.getExecutableFilepathWslSafe(snapshot.elixirHomeOrThrow())
         commandLine.addParameters("-S", mixPath)
     }
 }

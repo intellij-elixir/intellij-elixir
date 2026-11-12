@@ -4,6 +4,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.util.ui.EDT
 import java.util.concurrent.Callable
+import java.util.concurrent.ExecutionException
 
 /**
  * Read-action helper for blocking callers whose thread context varies.
@@ -24,11 +25,19 @@ object ReadActions {
      * computation immediately it waits in `blockUntilWriteActionIsDone`, which asserts that the
      * calling thread holds *no* read access. On an EDT without a lock it fails `assertIsNonDispatchThread`, so the EDT
      * blocks instead; a background thread blocking would hold writers up.
+     *
+     * The non-blocking branch rethrows a checked exception wrapped in `java.util.concurrent.ExecutionException`; it is
+     * unwrapped so that every branch throws what [action] threw.
      */
     fun <T> compute(action: () -> T): T =
         when {
             ApplicationManager.getApplication().isReadAccessAllowed -> action()
             EDT.isCurrentThreadEdt() -> ReadAction.computeBlocking<T, RuntimeException> { action() }
-            else -> ReadAction.nonBlocking(Callable { action() }).executeSynchronously()
+            else ->
+                try {
+                    ReadAction.nonBlocking(Callable { action() }).executeSynchronously()
+                } catch (e: ExecutionException) {
+                    throw e.cause ?: e
+                }
         }
 }

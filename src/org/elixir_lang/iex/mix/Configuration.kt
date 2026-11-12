@@ -16,7 +16,6 @@ import org.elixir_lang.debugger.configuration.Debuggable
 import org.elixir_lang.debugger.settings.stepping.ModuleFilter
 import org.elixir_lang.iex.Mix
 import org.elixir_lang.iex.mix.configuration.Editor
-import org.elixir_lang.mix.ensureMostSpecificSdk
 import org.elixir_lang.run.*
 import org.jdom.Element
 
@@ -87,9 +86,7 @@ class Configuration(name: String, project: Project, configurationFactory: Config
     private var mixArgumentList: MutableList<String> = mutableListOf()
 
     override fun commandLine(): GeneralCommandLine {
-        val workingDirectory = ensureWorkingDirectory()
-        val module = ensureModule()
-        val sdk = ensureMostSpecificSdk(module)
+        val (workingDirectory, sdk) = ensureWorkingDirectoryAndSdk()
         val commandLine = Mix.commandLine(
                 environment = envs,
                 workingDirectory = workingDirectory,

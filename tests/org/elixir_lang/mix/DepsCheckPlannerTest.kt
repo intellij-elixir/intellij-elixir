@@ -1,6 +1,7 @@
 package org.elixir_lang.mix
 
 import org.elixir_lang.junit.UnitTestCase
+import org.elixir_lang.sdk.erlang_dependent.ElixirSdkSnapshot
 
 /**
  * Pure unit tests for [DepsCheckPlanner].
@@ -139,16 +140,16 @@ class DepsCheckPlannerTest : UnitTestCase() {
 
     fun testComputeSdkDelta_noChange_emptyDelta() {
         val all = listOf("url://a", "url://b")
-        val snapshot = mapOf("url://a" to "Elixir 1.18", "url://b" to null)
-        val delta = DepsCheckPlanner.computeSdkDelta(all, snapshot, snapshot)
-        assertTrue("Identical snapshots should produce no changed roots", delta.changedRootUrls.isEmpty())
-        assertFalse("Identical snapshots should not report a removed root", delta.removedRootExists)
+        val snapshotByRootUrl = mapOf("url://a" to named("Elixir 1.18"), "url://b" to null)
+        val delta = DepsCheckPlanner.computeSdkDelta(all, snapshotByRootUrl, snapshotByRootUrl)
+        assertTrue("Identical maps should produce no changed roots", delta.changedRootUrls.isEmpty())
+        assertFalse("Identical maps should not report a removed root", delta.removedRootExists)
     }
 
     fun testComputeSdkDelta_sdkAssignedToRoot_thatRootIsChanged() {
         val all = listOf("url://a", "url://b")
-        val previous = mapOf("url://a" to null, "url://b" to "Elixir 1.18")
-        val current  = mapOf("url://a" to "Elixir 1.18", "url://b" to "Elixir 1.18")
+        val previous = mapOf("url://a" to null, "url://b" to named("Elixir 1.18"))
+        val current  = mapOf("url://a" to named("Elixir 1.18"), "url://b" to named("Elixir 1.18"))
         val delta = DepsCheckPlanner.computeSdkDelta(all, current, previous)
         assertEquals(setOf("url://a"), delta.changedRootUrls)
         assertFalse(delta.removedRootExists)
@@ -156,8 +157,17 @@ class DepsCheckPlannerTest : UnitTestCase() {
 
     fun testComputeSdkDelta_sdkRemovedFromRoot_thatRootIsChanged() {
         val all = listOf("url://a")
-        val previous = mapOf("url://a" to "Elixir 1.18")
+        val previous = mapOf("url://a" to named("Elixir 1.18"))
         val current  = mapOf("url://a" to null)
+        val delta = DepsCheckPlanner.computeSdkDelta(all, current, previous)
+        assertEquals(setOf("url://a"), delta.changedRootUrls)
+        assertFalse(delta.removedRootExists)
+    }
+
+    fun testComputeSdkDelta_erlangSdkPaired_thatRootIsChanged() {
+        val all = listOf("url://a")
+        val previous = mapOf("url://a" to named("Elixir 1.18"))
+        val current  = mapOf("url://a" to ElixirSdkSnapshot("Elixir 1.18", null, null, "/erlang/27"))
         val delta = DepsCheckPlanner.computeSdkDelta(all, current, previous)
         assertEquals(setOf("url://a"), delta.changedRootUrls)
         assertFalse(delta.removedRootExists)
@@ -165,18 +175,18 @@ class DepsCheckPlannerTest : UnitTestCase() {
 
     fun testComputeSdkDelta_sdkRenamed_thatRootIsChanged() {
         val all = listOf("url://a")
-        val previous = mapOf("url://a" to "Elixir 1.17")
-        val current  = mapOf("url://a" to "Elixir 1.18")
+        val previous = mapOf("url://a" to named("Elixir 1.17"))
+        val current  = mapOf("url://a" to named("Elixir 1.18"))
         val delta = DepsCheckPlanner.computeSdkDelta(all, current, previous)
         assertEquals(setOf("url://a"), delta.changedRootUrls)
         assertFalse(delta.removedRootExists)
     }
 
     fun testComputeSdkDelta_rootRemovedFromProject_removedRootExistsIsTrue() {
-        // The removed root is no longer in allTopLevelRootUrls but WAS in the previous snapshot.
+        // The removed root is no longer in allTopLevelRootUrls but WAS in the previous map.
         val allNow = listOf("url://a")
-        val previous = mapOf("url://a" to "Elixir 1.18", "url://gone" to "Elixir 1.18")
-        val current  = mapOf("url://a" to "Elixir 1.18")
+        val previous = mapOf("url://a" to named("Elixir 1.18"), "url://gone" to named("Elixir 1.18"))
+        val current  = mapOf("url://a" to named("Elixir 1.18"))
         val delta = DepsCheckPlanner.computeSdkDelta(allNow, current, previous)
         assertTrue("Removed root should set the flag", delta.removedRootExists)
         assertTrue(
@@ -188,9 +198,9 @@ class DepsCheckPlannerTest : UnitTestCase() {
     fun testComputeSdkDelta_mixedChangedAndRemoved() {
         val allNow = listOf("url://a", "url://b")
         val previous = mapOf(
-            "url://a" to "stale-sdk",
+            "url://a" to named("stale-sdk"),
             "url://b" to null,
-            "url://gone" to "some-sdk",
+            "url://gone" to named("some-sdk"),
         )
         val current = mapOf(
             "url://a" to null,         // changed (sdk cleared)
@@ -202,10 +212,10 @@ class DepsCheckPlannerTest : UnitTestCase() {
     }
 
     fun testComputeSdkDelta_newRootWithNoMatchInPrevious_isReportedAsChanged() {
-        // A new root has no entry in the previous snapshot - null (absent) vs current value.
+        // A new root has no entry in the previous map - null (absent) vs current value.
         val allNow = listOf("url://a", "url://new")
-        val previous = mapOf("url://a" to "Elixir 1.18")  // "url://new" absent -> treated as null
-        val current  = mapOf("url://a" to "Elixir 1.18", "url://new" to "Elixir 1.18")
+        val previous = mapOf("url://a" to named("Elixir 1.18"))  // "url://new" absent -> treated as null
+        val current  = mapOf("url://a" to named("Elixir 1.18"), "url://new" to named("Elixir 1.18"))
         val delta = DepsCheckPlanner.computeSdkDelta(allNow, current, previous)
         assertEquals(setOf("url://new"), delta.changedRootUrls)
         assertFalse(delta.removedRootExists)
@@ -214,7 +224,7 @@ class DepsCheckPlannerTest : UnitTestCase() {
     fun testComputeSdkDelta_rootNotInAllTopLevel_notReportedAsChanged_butCanStillBeMarkedRemoved() {
         // Roots that are NOT in allTopLevelRootUrls are ignored by computeSdkDelta.
         val allNow = listOf("url://a")
-        val previous = mapOf("url://a" to null, "url://other" to "some-sdk")
+        val previous = mapOf("url://a" to null, "url://other" to named("some-sdk"))
         // Keep "url://other" out of the current map so it is treated as removed.
         val current  = mapOf("url://a" to null)
         val delta = DepsCheckPlanner.computeSdkDelta(allNow, current, previous)
@@ -230,8 +240,8 @@ class DepsCheckPlannerTest : UnitTestCase() {
     fun testComputeSdkDelta_rootNotInAllTopLevel_changedValue_isIgnoredAndNotMarkedRemoved() {
         // A root outside allTopLevelRootUrls is ignored for changedRootUrls even if its SDK value changes.
         val allNow = listOf("url://a")
-        val previous = mapOf("url://a" to null, "url://other" to "some-sdk")
-        val current = mapOf("url://a" to null, "url://other" to "different-sdk")
+        val previous = mapOf("url://a" to null, "url://other" to named("some-sdk"))
+        val current = mapOf("url://a" to null, "url://other" to named("different-sdk"))
 
         val delta = DepsCheckPlanner.computeSdkDelta(allNow, current, previous)
 
@@ -240,8 +250,10 @@ class DepsCheckPlannerTest : UnitTestCase() {
             delta.changedRootUrls.isEmpty(),
         )
         assertFalse(
-            "Root present in both snapshots is not removed, even if its SDK value changed",
+            "Root present in both maps is not removed, even if its SDK value changed",
             delta.removedRootExists,
         )
     }
+
+    private fun named(elixirSdkName: String) = ElixirSdkSnapshot(elixirSdkName, null, null, null)
 }

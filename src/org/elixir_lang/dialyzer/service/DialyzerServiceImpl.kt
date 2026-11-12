@@ -55,21 +55,15 @@ internal class DialyzerServiceImpl : DialyzerService {
         throw DialyzerException("Error while running Dialyzer: ${ex.message}", ex)
     }
 
-    /**
-     * The inspection runs with `isReadActionNeeded = false`, so the platform holds no read lock, and
-     * [Mix.commandLine] resolves the paired Erlang SDK, which needs one.
-     */
     internal fun commandLine(workingDirectory: String, elixirSdk: Sdk, project: Project): GeneralCommandLine =
-        ReadAction.nonBlocking(Callable {
-            Mix.commandLine(
-                emptyMap(),
-                workingDirectory,
-                elixirSdk,
-                ParametersList.parse(erlArguments).toList(),
-                ParametersList.parse(elixirArguments).toList(),
-                project = project,
-            )
-        }).executeSynchronously()
+        Mix.commandLine(
+            emptyMap(),
+            workingDirectory,
+            elixirSdk,
+            ParametersList.parse(erlArguments).toList(),
+            ParametersList.parse(elixirArguments).toList(),
+            project = project,
+        )
 
     private fun run(workingDirectory: String, elixirSdk: Sdk, project: Project): Pair<String, String> {
         log.info("Dialyzer starting...")
