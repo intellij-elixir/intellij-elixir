@@ -1986,6 +1986,8 @@ class ProjectModulesTest : PlatformTestCase() {
         WriteAction.runAndWait<Throwable> {
             elsewhereRoot.createChildData(this, "e.ex").setBinaryContent("defmodule E do\nend\n".toByteArray())
         }
+        // The writes queue a dumb-mode task, in which a fresh holder knows no module.
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
         assertFresh("(c) E defined in a new file outside content", outside, expansion(holder, outside))
 
         val editedBefore = render(edited, expansion(holder, edited))
