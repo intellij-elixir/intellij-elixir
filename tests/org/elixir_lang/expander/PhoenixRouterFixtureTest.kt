@@ -8,6 +8,7 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.util.io.FileUtil
 import org.elixir_lang.coverage.ExpanderProgress
+import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.lowering.inspect
@@ -48,6 +49,28 @@ class PhoenixRouterFixtureTest : HeavyTestCase() {
         val actual = helpers.map { "$it.Helpers ${exported(exports(holder, asker, "Elixir.$it.Helpers"))}" }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
+    }
+
+    /**
+     * Every helper `define/2` creates is declared, for another file's call, on the line Elixir's compiled module gives
+     * it: the router's `defmodule`, where the `@before_compile` callback that made it runs.
+     */
+    fun testACreatedHelperIsDeclaredWhereItsRoutersCallbackMadeIt() {
+        val compiled = shapes.getOrThrow() ?: return
+        val corpus = setUp(compiled)
+        val asker = corpus.psi(compiled.project, "lib/asker.ex")
+        val declared = declaredAt(field(compiled.routers, HELPERS_ROUTER, "helper_lines"), "user_path")
+        val call = "Routes.user_path(conn, :index)"
+
+        val expected = "$HELPERS_ROUTER.Helpers.user_path $declared"
+        val actual = ExpanderSourceRows.read {
+            val found = ExpanderSource.candidates(ExpanderSourceRows.use(asker, call, call), false)
+            val names = found.map { "${it.declaringModuleName()}.${it.candidate.declaration.name}" }.distinct()
+
+            "${names.joinToString(" ")} ${ExpanderSourceRows.declaredAt(found, compiled.project)}"
+        }
+
+        assertEquals(expected, actual)
     }
 
     /**

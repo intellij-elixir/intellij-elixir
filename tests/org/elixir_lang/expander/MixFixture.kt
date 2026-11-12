@@ -1,6 +1,11 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangBinary
+import com.ericsson.otp.erlang.OtpErlangList
+import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.execution.process.ProcessOutput
 import com.intellij.openapi.util.io.FileUtil
 import org.elixir_lang.beam.binaryToTerm
@@ -59,3 +64,15 @@ internal fun hasLegLock(fixture: File): Boolean = File(fixture, "locks/${LegMani
 
 /** The term an oracle wrote to [file]. */
 internal fun etf(file: File): OtpErlangObject = binaryToTerm(file.readBytes(), 0).first
+
+/**
+ * The `file:line`s of the clauses of [name] in [declared], an oracle's list of `{name, arity, file, line}`, each once, in
+ * order, space-separated.
+ */
+internal fun declaredAt(declared: OtpErlangObject, name: String): String =
+    (declared as OtpErlangList).elements().map { it as OtpErlangTuple }
+        .filter { (it.elementAt(0) as OtpErlangAtom).atomValue() == name }
+        .map { "${(it.elementAt(2) as OtpErlangBinary).binaryValue().decodeToString()}:${(it.elementAt(3) as OtpErlangLong).intValue()}" }
+        .distinct()
+        .sorted()
+        .joinToString(" ")

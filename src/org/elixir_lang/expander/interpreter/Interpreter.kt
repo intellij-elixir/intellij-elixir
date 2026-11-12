@@ -549,10 +549,13 @@ internal class Evaluation(
         return Summary.Output.Built(code(result) ?: decline("the result isn't quoted or is too large to copy"), injects = true)
     }
 
-    /** [term], evaluated at the call, as code ([rebuilt]), each node placed where its term was. */
-    private fun code(term: OtpErlangObject): ElixirAst? =
+    /**
+     * [term], evaluated at the call, as code ([rebuilt]), each node placed where its term was; where [callers], only
+     * where the caller wrote it ([placeOf]).
+     */
+    private fun code(term: OtpErlangObject, callers: Boolean = false): ElixirAst? =
         rebuilt(term, call.meta.origin, run, built = false, known = nodes::get) { each, node ->
-            placeOf(each)?.let { run.placedAt[node] = it }
+            placeOf(each, callers)?.let { run.placedAt[node] = it }
         }
 
     /**
@@ -723,7 +726,7 @@ internal class Evaluation(
             nodes[term] = each
             onNode(each, term)
             val place = run.placedAt[each] ?: Place(null, each.meta.origin)
-            metaOf(term).forEach { metaPlaces.putIfAbsent(it, IndexedValue(0, place)) }
+            metaOf(term).forEach { metaPlaces.putIfAbsent(it, IndexedValue(CALLERS, place)) }
         }
 
     /**
@@ -1065,10 +1068,14 @@ internal class Evaluation(
 
     /**
      * Where [term] was written: where its metadata was first built into a node, else where it was built, so a node the
-     * macro rebuilds, or whose metadata it edits, keeps the place its metadata was written at.
+     * macro rebuilds, or whose metadata it edits, keeps the place its metadata was written at. Where
+     * [callers], only a place the code the macro was given wrote ([termOf]), else `null`.
      */
-    private fun placeOf(term: OtpErlangObject): Place? =
-        metaOf(term).mapNotNull(metaPlaces::get).minByOrNull { it.index }?.value ?: places[term]
+    private fun placeOf(term: OtpErlangObject, callers: Boolean): Place? {
+        val first = metaOf(term).mapNotNull(metaPlaces::get).minByOrNull { it.index }
+
+        return if (callers) first?.takeIf { it.index == CALLERS }?.value else first?.value ?: places[term]
+    }
 
     /** The metadata entries of [term], when it is a `{form, meta, args}` node. */
     private fun metaOf(term: OtpErlangObject): List<OtpErlangObject> = nodeMeta(term)?.elements()?.asList().orEmpty()
@@ -1249,7 +1256,8 @@ internal class Evaluation(
             ?: createEnv(properElements(seen(args[2]))?.map(::seen) ?: return null)
             ?: return null
         val at = call as? ElixirAst.Call ?: decline("Module.create/3 outside a call")
-        val body = code(args[1]) ?: decline("Module.create/3 of a body that isn't code")
+        // The body is placed at the call that made the module, but for code a macro was given, which keeps its own.
+        val body = code(args[1], callers = true) ?: decline("Module.create/3 of a body that isn't code")
 
         reachingAnEffect()
 
@@ -3845,6 +3853,9 @@ internal fun shortCircuits(module: String, name: String, arity: Int): Boolean =
 
 /** The calls one tail loop runs before it is too deep to run, where the BEAM runs it until it ends. */
 private const val TAIL_CALLS = 1_000_000
+
+/** The build order of the metadata of code a macro is given, before any node its clauses build. */
+private const val CALLERS = 0
 
 /** The arms that may not be taken, past which the next declines, as arms calling functions with arms double. */
 internal const val ARM_BUDGET = 4096

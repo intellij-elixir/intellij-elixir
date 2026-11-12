@@ -13,6 +13,7 @@ import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.declaration.preferred
 import org.elixir_lang.expander.ExpanderSourceRows.arity
 import org.elixir_lang.expander.ExpanderSourceRows.lineOf
+import org.elixir_lang.expander.ExpanderSourceRows.withBeamLibrary
 import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.WalkTestSupport
@@ -208,6 +209,52 @@ class ExpanderSourceUseTest : PlatformTestCase() {
         assertEquals("A.f/0", "a.ex line 5 `def f, do: raise(\"x\")`", render(found(file, "A.f()")).substringAfter("] "))
     }
 
+    /**
+     * A `def` the caller wrote, which a macro rebuilds keeping its metadata and gives `Module.create/3`, is declared
+     * where the caller wrote it, as Elixir's compiled `Walked.Made` declares `f/0` at line 5.
+     */
+    fun testACallersDefAMacroRebuildsIntoACreatedModuleIsDeclaredWhereTheCallerWroteIt() {
+        add(
+            "deco.ex",
+            "defmodule Deco do\n  defmacro make(name, do: block) do\n" +
+                "    body = Macro.prewalk(block, &Macro.update_meta(&1, fn meta -> Keyword.put(meta, :walked, true) end))\n" +
+                "    Module.create(Macro.expand(name, __CALLER__), body, Macro.Env.location(__CALLER__))\n    :ok\n  end\nend\n",
+        )
+        add("walked.ex", "defmodule Walked do\n  require Deco\n\n  Deco.make Walked.Made do\n    def f, do: 1\n  end\nend\n")
+        val file = add("c.ex", "defmodule C do\n  def g, do: Walked.Made.f()\nend\n")
+
+        assertEquals("Walked.Made.f/0", "walked.ex line 5 `def f, do: 1`", render(found(file, "Walked.Made.f()")).substringAfter("] "))
+    }
+
+    /**
+     * A `quote` the user wrote for `Module.create/3` is declared at the `Module.create` call, line 2. Elixir's compiled
+     * `Quoted.Made` declares `f/0` at line 8, the env's line, which a `quote` with no line of its own takes.
+     */
+    fun testAUsersQuoteForACreatedModuleIsDeclaredAtTheCreatingCall() {
+        add(
+            "quoted.ex",
+            "defmodule Quoted do\n  Module.create(\n    Quoted.Made,\n    quote do\n      def f, do: 1\n    end,\n" +
+                "    Macro.Env.location(\n      __ENV__\n    )\n  )\nend\n",
+        )
+        val file = add("c.ex", "defmodule C do\n  def g, do: Quoted.Made.f()\nend\n")
+
+        assertEquals("Quoted.Made.f/0", "quoted.ex line 2 `Module.create(`", render(found(file, "Quoted.Made.f()")).substringAfter("] "))
+    }
+
+    /**
+     * A module a dependency's function creates with its own env is declared at the project's call that ran it: Elixir's
+     * compiled `DepCaller.Made` declares `f/0` in the dependency, `lib.ex:4`, where `Macro.Env.location(__ENV__)` is
+     * written, as `Mox.defmock/2`'s mocks are declared in `mox.ex`, but the call is the code the user can go to.
+     */
+    fun testAModuleALibraryFunctionCreatesWithItsOwnEnvIsDeclaredAtTheProjectsCall() {
+        add("dep_caller.ex", "defmodule DepCaller do\n\n  Lib.make(DepCaller.Made)\nend\n")
+        val file = add("c.ex", "defmodule C do\n  def g, do: DepCaller.Made.f()\nend\n")
+
+        withBeamLibrary(project, myFixture.module, testRootDisposable, "creating_library", File(CREATING_LIBRARY, "Elixir.Lib.beam")) {
+            assertEquals("DepCaller.Made.f/0", "dep_caller.ex line 3 `Lib.make(DepCaller.Made)`", render(found(file, "DepCaller.Made.f()")).substringAfter("] "))
+        }
+    }
+
     /** The heads of the many definitions a `use` injects are cancelled as each is declared. */
     fun testTheHeadsAUseInjectsAreCancelledAsTheyAreDeclared() {
         add(
@@ -256,6 +303,9 @@ class ExpanderSourceUseTest : PlatformTestCase() {
     private companion object {
         /** `InjectingUse`, whose `__using__` injects `foo/0` and `bar/0`, and its `.beam`. */
         val INJECTING_USE = File("testData/org/elixir_lang/expander/injecting_use")
+
+        /** `Lib`, whose `make/1` creates a module with its own env, and its `.beam`. */
+        val CREATING_LIBRARY = File("testData/org/elixir_lang/expander/creating_library")
 
         /** How many definitions a `use` injects, more than are written in one module. */
         const val INJECTED = 2_000

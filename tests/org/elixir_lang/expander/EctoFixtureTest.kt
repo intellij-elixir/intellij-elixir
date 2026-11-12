@@ -274,6 +274,36 @@ class EctoFixtureTest : HeavyTestCase() {
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }
 
+    /**
+     * What an inline embed's module defines is declared, for another file's calls, where its code is written: a `def`
+     * the `embeds_one` block holds on its own line, as Elixir's compiled module declares it, and what Ecto's macros
+     * inject into the module in Ecto's code, as for any macro's output. Elixir's compiled module declares those at the
+     * `embeds_one` instead, since a quote without `location: :keep` takes its caller's line.
+     */
+    fun testAnInlineEmbedsDefinitionsAreDeclaredWhereTheirCodeIsWritten() {
+        val compiled = compiled ?: return
+        val corpus = corpus!!
+        val declared = (etf(File(compiled.oracle, "declared.etf")) as OtpErlangMap).get(OtpErlangAtom("$INLINE.Meta"))
+        val asker = corpus.psi(compiled.project, "lib/inline_asker.ex")
+        val written = declaredAt(declared, "shout")
+        val calls = listOf("Meta.shout(meta)", "Meta.__schema__(:fields)", "Meta.__changeset__()", "Meta.__struct__()")
+
+        val expected = listOf("shout $written") +
+            listOf("__schema__", "__changeset__", "__struct__").map { "$it $ECTO_SCHEMA" }
+        val actual = calls.map { call ->
+            val lines = ExpanderSourceRows.read {
+                val found = ExpanderSource.candidates(ExpanderSourceRows.use(asker, call, call), false)
+
+                // A line of Ecto's decompiled code is its version's.
+                ExpanderSourceRows.declaredAt(found, compiled.project) { it != ECTO_SCHEMA }
+            }
+
+            "${call.substringAfter('.').substringBefore('(')} $lines"
+        }
+
+        assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
+    }
+
     /** It pins that nothing tells the expander of a module a `__deriving__` macro defines, where Elixir has loaded it. */
     fun testADerivedImplementationIsAbsent() {
         val compiled = compiled ?: return
@@ -348,6 +378,7 @@ class EctoFixtureTest : HeavyTestCase() {
         const val PROBE = "Elixir.EctoFixture.Probe"
         const val INLINE = "Elixir.EctoFixture.Inline"
         val INLINES = listOf(INLINE, "$INLINE.Meta")
+        const val ECTO_SCHEMA = "_build/dev/lib/ecto/ebin/Elixir.Ecto.Schema.beam"
         const val CALLED = "EctoFixture.Probe.called/3"
         const val HASH = ":hash"
 
