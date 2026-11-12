@@ -11,15 +11,12 @@ import org.elixir_lang.run.baseCommandLine
 import org.elixir_lang.sdk.erlang_dependent.elixirAdditionalData
 
 object Elixir {
-    /**
-     * Keep in-sync with [org.elixir_lang.jps.Builder.elixirCommandLine]
-     */
     @RequiresReadLock
     fun commandLine(
         environment: Map<String, String>,
         workingDirectory: String?,
         elixirSdk: Sdk,
-        erlArgumentList: kotlin.collections.List<String> = emptyList(),
+        erlArgumentList: List<String> = emptyList(),
         project: Project? = null,
     ): GeneralCommandLine {
         val args: CliArgs =
