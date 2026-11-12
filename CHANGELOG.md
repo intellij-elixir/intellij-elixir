@@ -22,6 +22,9 @@
 
 ### Enhancements
 
+- [#4692](https://github.com/intellij-elixir/intellij-elixir/pull/4692) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, a Phoenix router compiles in the expander, `helpers: false` too, so another file's calls to its `Routes` helpers resolve, and go to declaration on one lands on the router's `defmodule` line; a router can still stop, with helpers on once it has more than a few routes and with helpers off once it has many ([#4688](https://github.com/intellij-elixir/intellij-elixir/issues/4688)).** Refs [#4597](https://github.com/intellij-elixir/intellij-elixir/issues/4597).
+
 - [#4690](https://github.com/intellij-elixir/intellij-elixir/pull/4690) [@sh41](https://github.com/sh41)
   - **Quick Documentation heads a function with the signature Elixir records for it, then its `@spec`s, then each clause's head as written, and Parameter Info names parameters by that signature, such as `connected?(socket)`, in source and compiled modules alike; completion names the parameters of the functions `defexception` and EEx write by it too.** Refs [#4609](https://github.com/intellij-elixir/intellij-elixir/issues/4609) and [#4682](https://github.com/intellij-elixir/intellij-elixir/issues/4682).
 
