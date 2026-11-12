@@ -35,7 +35,10 @@ fun quotedAtomValue(quotable: Quotable): String? {
  * The text [atom] is written as, its quotes kept. It is the name an atom that quotes to no value, as an interpolated one,
  * keeps in place of [quotedAtomValue].
  */
-fun writtenAtomText(atom: ElixirAtom): String = atom.node.lastChildNode.text
+fun writtenAtomText(atom: ElixirAtom): String = writtenAtom(atom).text
+
+/** The element [atom]'s name is written as, after its colon, its quotes kept. */
+fun writtenAtom(atom: ElixirAtom): PsiElement = atom.node.lastChildNode.psi
 
 /**
  * The module [element] names, read without expansion. An atom, or an alias headed by `Elixir`, names its module outright

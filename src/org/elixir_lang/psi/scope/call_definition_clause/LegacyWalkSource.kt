@@ -26,6 +26,7 @@ import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Reach
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
+import org.elixir_lang.declaration.WrittenName
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Import
@@ -307,6 +308,9 @@ object LegacyWalkSource : CandidateSource {
             is CompletionPosition.Mfa -> visibleAfterModule(position, null)
         }
     }
+
+    @RequiresReadLock
+    override fun writtenNames(call: Call): List<WrittenName> = emptyList()
 
     /** What the walk finds visible at [position]. */
     private fun visibleByWalk(position: Call): List<Visible> {

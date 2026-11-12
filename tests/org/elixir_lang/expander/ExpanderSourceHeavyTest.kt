@@ -29,6 +29,7 @@ import org.elixir_lang.declaration.Uncertain
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.declaringModuleName
+import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.declaration.preferred
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.expander.ExpanderSourceRows.arity
@@ -2104,6 +2105,147 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(Feature.entries.associateWith { listOf(Uncertain.STOP) }, stepped)
     }
 
+    /**
+     * Each name a declaring call writes beyond a clause's own head word, from its module's table: each `defdelegate`
+     * head of a list, an EEx function's and an embed's atom, and a clause's `unquote`d atom, quoted or not.
+     */
+    fun testADeclaringCallWritesTheNamesItsModulesTableHolds() {
+        val file = file(WRITER)
+
+        assertEquals(
+            mapOf(
+                "defdelegate single(a), to: Target, as: :t" to listOf("single FUNCTION null"),
+                "defdelegate [first(a), second(a, b)], to: Target" to listOf("first FUNCTION null", "second FUNCTION null"),
+                "def unquote(:quoted)(a), do: a" to listOf("quoted FUNCTION null"),
+                "def unquote(:\"a b\")(x), do: x" to listOf("\"a b\" FUNCTION null"),
+                "defmacro unquote(:quoted_macro)(a), do: a" to listOf("quoted_macro MACRO null"),
+                "EEx.function_from_string(:def, :rendered, \"<%= a %>\", [:a])" to listOf("rendered FUNCTION null"),
+                "Mix.Generator.embed_template(:page, \"<%= @a %>\")" to listOf("page FUNCTION null"),
+                "Mix.Generator.embed_text(:banner, \"Banner\")" to listOf("banner FUNCTION null"),
+            ),
+            writtenNames(file, WRITER_CALLS),
+        )
+    }
+
+    /**
+     * A name nothing writes as an atom is computed, `defexception` writes none of the names it declares, and a plain
+     * clause's word is its own head's.
+     */
+    fun testADeclaringCallWritesNoNameItComputesOrDoesNotWrite() {
+        val file = file(
+            """
+            defmodule Nameless do
+              require EEx
+
+              name = :computed
+              def unquote(name)(a), do: a
+              EEx.function_from_string(:def, String.to_atom("comp" <> "uted_eex"), "x", [])
+              defexception [:message]
+              def plain(a), do: a
+            end
+            """
+        )
+        val calls = listOf(
+            "def unquote(name)(a), do: a",
+            "EEx.function_from_string(:def, String.to_atom(\"comp\" <> \"uted_eex\"), \"x\", [])",
+            "defexception [:message]",
+            "def plain(a), do: a",
+        )
+
+        assertEquals(calls.associateWith { emptyList<String>() }, writtenNames(file, calls))
+    }
+
+    /**
+     * A stopped module's table holds the heads written before the stop. Past it, a `defdelegate` head gets what the
+     * name index holds, marked INDEX, and an EEx function's or an embed's atom, which no index holds, nothing.
+     */
+    fun testPastAStopAWrittenNameIsTheIndexs() {
+        val file = file(STOPPED)
+
+        assertEquals(
+            mapOf(
+                "defdelegate before(a), to: Target" to listOf("before FUNCTION null"),
+                "defdelegate after_stop(a), to: Target" to listOf("after_stop FUNCTION INDEX"),
+                "EEx.function_from_string(:def, :after_eex, \"x\", [])" to emptyList(),
+                "Mix.Generator.embed_text(:after_embed, \"x\")" to emptyList(),
+            ),
+            writtenNames(file, STOPPED_CALLS),
+        )
+    }
+
+    /** With no SDK no table is read, so each written name is what the name index holds at its head, marked INDEX. */
+    fun testWithNoSdkAWrittenNameIsTheIndexs() {
+        val file = file(WRITER)
+        ModuleRootModificationUtil.setModuleSdk(module, null)
+
+        assertEquals(
+            mapOf(
+                "defdelegate single(a), to: Target, as: :t" to listOf("single FUNCTION INDEX"),
+                "defdelegate [first(a), second(a, b)], to: Target" to listOf("first FUNCTION INDEX", "second FUNCTION INDEX"),
+                "def unquote(:quoted)(a), do: a" to listOf("quoted FUNCTION INDEX"),
+                "def unquote(:\"a b\")(x), do: x" to listOf("\"a b\" FUNCTION INDEX"),
+                "defmacro unquote(:quoted_macro)(a), do: a" to listOf("quoted_macro MACRO INDEX"),
+                "EEx.function_from_string(:def, :rendered, \"<%= a %>\", [:a])" to emptyList(),
+                "Mix.Generator.embed_template(:page, \"<%= @a %>\")" to emptyList(),
+                "Mix.Generator.embed_text(:banner, \"Banner\")" to emptyList(),
+            ),
+            writtenNames(file, WRITER_CALLS),
+        )
+    }
+
+    /** With no SDK, while the IDE indexes, the name index can't be read, so a declaring call writes no name. */
+    fun testWithNoSdkWhileIndexingADeclaringCallWritesNoName() {
+        val file = file(WRITER)
+        ModuleRootModificationUtil.setModuleSdk(module, null)
+
+        val written = DumbModeTestUtils.computeInDumbModeSynchronously(project) { writtenNames(file, WRITER_CALLS) }
+
+        assertEquals(WRITER_CALLS.associateWith { emptyList<String>() }, written)
+    }
+
+    /** The walk colours a clause's own head word alone, so it gives no written name. */
+    fun testTheWalkWritesNoName() {
+        val file = file(WRITER)
+
+        assertEquals(WRITER_CALLS.associateWith { emptyList<String>() }, writtenNames(file, WRITER_CALLS, LegacyWalkSource))
+    }
+
+    /**
+     * A written name the table holds reaches every feature; one the index holds past a stop, marked INDEX, only
+     * highlighting, whose rule takes an uncertain answer.
+     */
+    fun testOnlyHighlightingGetsAWrittenNameTheIndexHolds() {
+        val file = file(STOPPED)
+        val calls = STOPPED_CALLS.take(2).map { ExpanderSourceRows.call(file, it, it) }
+
+        val (marks, taken) = withExpanderSwitch {
+            read {
+                calls.map { call -> ExpanderSource.writtenNames(call).map { it.uncertain } } to
+                    calls.map { call -> Feature.entries.associateWith { Resolved.writtenNames(call, it).size } }
+            }
+        }
+
+        assertEquals(listOf(listOf(null), listOf(Uncertain.INDEX)), marks)
+        assertEquals(
+            listOf(
+                Feature.entries.associateWith { 1 },
+                Feature.entries.associateWith { if (it == Feature.HIGHLIGHTING) 1 else 0 },
+            ),
+            taken,
+        )
+    }
+
+    /** With the setting alone only highlighting asks the expander, so every other feature gets the walk's none. */
+    fun testWithTheSettingOnlyHighlightingGetsAWrittenNameWithTheExpanderOn() {
+        enableExpander(testRootDisposable)
+        val file = file(STOPPED)
+        val before = STOPPED_CALLS.first().let { ExpanderSourceRows.call(file, it, it) }
+
+        val taken = read { Feature.entries.associateWith { Resolved.writtenNames(before, it).size } }
+
+        assertEquals(Feature.entries.associateWith { if (it == Feature.HIGHLIGHTING) 1 else 0 }, taken)
+    }
+
     /** A `.beam`'s definition is declared by its module as the module index names it, without `inspect`'s quotes. */
     fun testABeamsDefinitionIsDeclaredByItsModulesIndexName() {
         val ebin = File("testData/org/elixir_lang/beam/elixir_prefixed_atom_module/ebin").absoluteFile
@@ -2613,10 +2755,78 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
     private fun name(found: Found): String =
         "${found.declaringModuleName()}.${found.candidate.declaration.name}/${arity(found.candidate.declaration.arity)}"
 
+    /** What [source] says each of [calls], each written once in [file], writes, as `name presentation mark` per name. */
+    private fun writtenNames(file: PsiFile, calls: List<String>, source: CandidateSource = ExpanderSource): Map<String, List<String>> =
+        calls.associateWith { text ->
+            val call = ExpanderSourceRows.call(file, text, text)
+
+            read { source.writtenNames(call).map { "${it.element.text} ${it.presentation} ${it.uncertain}" } }
+        }
+
     /** What [ExpanderSource] makes visible at the call [call] in [context]. */
     private fun visible(file: PsiFile, context: String, call: String): List<Visible> {
         val position = use(file, context, call).entrance
 
         return read { ExpanderSource.visible(position) }
+    }
+
+    companion object {
+        private val WRITER = """
+            defmodule Target do
+              def t(a), do: a
+              def first(a), do: a
+              def second(a, b), do: {a, b}
+            end
+
+            defmodule Writer do
+              require EEx
+              require Mix.Generator
+
+              defdelegate single(a), to: Target, as: :t
+              defdelegate [first(a), second(a, b)], to: Target
+              def unquote(:quoted)(a), do: a
+              def unquote(:"a b")(x), do: x
+              defmacro unquote(:quoted_macro)(a), do: a
+              EEx.function_from_string(:def, :rendered, "<%= a %>", [:a])
+              Mix.Generator.embed_template(:page, "<%= @a %>")
+              Mix.Generator.embed_text(:banner, "Banner")
+            end
+        """
+
+        private val WRITER_CALLS = listOf(
+            "defdelegate single(a), to: Target, as: :t",
+            "defdelegate [first(a), second(a, b)], to: Target",
+            "def unquote(:quoted)(a), do: a",
+            "def unquote(:\"a b\")(x), do: x",
+            "defmacro unquote(:quoted_macro)(a), do: a",
+            "EEx.function_from_string(:def, :rendered, \"<%= a %>\", [:a])",
+            "Mix.Generator.embed_template(:page, \"<%= @a %>\")",
+            "Mix.Generator.embed_text(:banner, \"Banner\")",
+        )
+
+        private val STOPPED = """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Stopped do
+              require EEx
+              require Mix.Generator
+              require M
+
+              defdelegate before(a), to: Target
+              M.m()
+              defdelegate after_stop(a), to: Target
+              EEx.function_from_string(:def, :after_eex, "x", [])
+              Mix.Generator.embed_text(:after_embed, "x")
+            end
+        """
+
+        private val STOPPED_CALLS = listOf(
+            "defdelegate before(a), to: Target",
+            "defdelegate after_stop(a), to: Target",
+            "EEx.function_from_string(:def, :after_eex, \"x\", [])",
+            "Mix.Generator.embed_text(:after_embed, \"x\")",
+        )
     }
 }
