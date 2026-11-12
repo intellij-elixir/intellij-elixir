@@ -49,7 +49,7 @@ class SdkInputsHeavyTest : HeavyTestCase() {
 
     fun testAPairedSdkWithNoOtpVersionGivesTheUnpairedLevel() {
         val home = home("1.18.4", KERNEL)
-        val erlang = SdkFixtures.registerAndWaitForFill(
+        val erlang = SdkFixtures.register(
             SdkFixtures.erlangSdk("unread Erlang", SdkFixtures.fakeHome("erlang/sdk-inputs-unread")),
             testRootDisposable,
         )
@@ -209,7 +209,7 @@ class SdkInputsHeavyTest : HeavyTestCase() {
         val file = file(module, "unusable")
         assertEquals(SdkInputs.Answer.NoSdk, read { inputs.inputsFor(file) })
 
-        val unread = SdkFixtures.registerAndWaitForFill(
+        val unread = SdkFixtures.register(
             SdkFixtures.elixirSdk("version unread", SdkFixtures.fakeHome("elixir/sdk-inputs-unread")),
             testRootDisposable,
         )
@@ -288,7 +288,7 @@ class SdkInputsHeavyTest : HeavyTestCase() {
         }
 
     private fun sdk(name: String, home: String): Sdk {
-        val sdk = SdkFixtures.registerAndWaitForFill(SdkFixtures.elixirSdk(name, home), testRootDisposable)
+        val sdk = SdkFixtures.register(SdkFixtures.elixirSdk(name, home), testRootDisposable)
         WriteAction.runAndWait<Throwable> {
             sdk.sdkModificator.apply {
                 SdkRoots.addCodePaths(this)
@@ -301,7 +301,7 @@ class SdkInputsHeavyTest : HeavyTestCase() {
 
     /** An Erlang SDK whose OTP the store holds as [otp]. */
     private fun erlang(name: String, otp: String): Sdk {
-        val sdk = SdkFixtures.registerAndWaitForFill(
+        val sdk = SdkFixtures.register(
             SdkFixtures.erlangSdk(name, SdkFixtures.fakeHome("erlang/sdk-inputs-$otp")),
             testRootDisposable,
         )

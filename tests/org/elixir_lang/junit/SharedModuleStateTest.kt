@@ -47,7 +47,7 @@ class SharedModuleStateTest : PlatformTestCase() {
         val before = SharedModuleState.of(module)
         val sourceRootUrl = myFixture.tempDirFixture.findOrCreateDir("").url
         val home = myFixture.tempDirFixture.findOrCreateDir("restored_sdk_home").path
-        val sdk = SdkFixtures.registerAndWaitForFill(SdkFixtures.elixirSdk("Restored SDK", home), testRootDisposable)
+        val sdk = SdkFixtures.register(SdkFixtures.elixirSdk("Restored SDK", home), testRootDisposable)
         WriteAction.runAndWait<Throwable> {
             FacetUtil.addFacet(module, FacetType.findInstance(Type::class.java))
             FacetManager.getInstance(module).getFacetByType(Facet.ID)!!.sdk = sdk

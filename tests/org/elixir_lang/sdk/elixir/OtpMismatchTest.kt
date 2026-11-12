@@ -115,18 +115,26 @@ class OtpMismatchTest : PlatformTestCase() {
         val elixirSdk = registerElixirSdkPairedWith(erlangSdk, elixirOtpMajor = null)
         SdkVersionsStore.getInstance().setElixirVersions(elixirSdk.homePath!!, ElixirVersions("1.5.3", OtpMajor.None))
         val resolutions = AtomicInteger()
+        // Only the detection's own resolutions are counted: the mock replaces an application-level service, which the
+        // rewatch the store writes start resolves homes through too.
+        val detecting = ThreadLocal.withInitial { false }
         ApplicationManager.getApplication().registerOrReplaceServiceInstance(
             WslCompatService::class.java,
             object : WslCompatService by MockWslCompatService() {
-                override fun canonicalizePath(path: String): String = path.also { resolutions.incrementAndGet() }
+                override fun canonicalizePath(path: String): String =
+                    path.also { if (detecting.get()) resolutions.incrementAndGet() }
 
-                override fun canonicalizePathNullable(path: String?): String? =
-                    path?.also { resolutions.incrementAndGet() }
+                override fun canonicalizePathNullable(path: String?): String? = path?.let(::canonicalizePath)
             },
             testRootDisposable,
         )
 
-        assertNull(detectOnBackgroundThread(elixirSdk))
+        assertNull(
+            onPooledThread {
+                detecting.set(true)
+                ElixirSdkValidation.detectOtpMismatch(elixirSdk).also { detecting.remove() }
+            }
+        )
 
         assertEquals("resolving a home is uncached I/O that can boot a WSL distro", 0, resolutions.get())
     }
@@ -139,7 +147,7 @@ class OtpMismatchTest : PlatformTestCase() {
         onPooledThread { ElixirSdkValidation.detectOtpMismatch(elixirSdk) }
 
     private fun registerErlangSdk(homePath: String, otpVersion: String?): Sdk {
-        val sdk = SdkFixtures.registerAndWaitForFill(
+        val sdk = SdkFixtures.register(
             SdkFixtures.erlangSdk("OTP mismatch Erlang $homePath", homePath),
             testRootDisposable,
         )
@@ -154,7 +162,7 @@ class OtpMismatchTest : PlatformTestCase() {
         suppressWarning: Boolean = false,
     ): Sdk {
         val homePath = fakeHome("elixir/1.16")
-        val sdk = SdkFixtures.registerAndWaitForFill(
+        val sdk = SdkFixtures.register(
             SdkFixtures.elixirSdk("OTP mismatch Elixir ${erlangSdk.name}", homePath),
             testRootDisposable,
         )

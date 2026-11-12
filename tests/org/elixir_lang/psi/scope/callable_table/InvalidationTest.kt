@@ -92,7 +92,7 @@ class InvalidationTest : PlatformTestCase() {
     }
 
     fun testAddingAnSdkRoot() {
-        val sdk = SdkFixtures.registerAndWaitForFill(
+        val sdk = SdkFixtures.register(
             SdkFixtures.elixirSdk("Callable table roots", SdkFixtures.fakeHome("elixir/callable-table-roots")),
             testRootDisposable
         )

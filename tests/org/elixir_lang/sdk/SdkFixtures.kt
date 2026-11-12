@@ -84,17 +84,17 @@ internal object SdkFixtures {
     @RequiresEdt
     fun register(sdk: Sdk, parentDisposable: Disposable): Sdk {
         WriteAction.run<Throwable> { ProjectJdkTable.getInstance().addJdk(sdk, parentDisposable) }
+        waitForRegistrationFills()
         return sdk
     }
 
     /** Adds [sdk] to the table for a test that removes it itself, as [TableSnapshot.restore] does. */
     @RequiresEdt
-    fun register(sdk: Sdk): Sdk = sdk.also(SdkConfigurationUtil::addSdk)
-
-    /** [register], then [waitForRegistrationFills]. */
-    @RequiresEdt
-    fun registerAndWaitForFill(sdk: Sdk, parentDisposable: Disposable): Sdk =
-        register(sdk, parentDisposable).also { waitForRegistrationFills() }
+    fun register(sdk: Sdk): Sdk {
+        SdkConfigurationUtil.addSdk(sdk)
+        waitForRegistrationFills()
+        return sdk
+    }
 
     /**
      * Waits for the reads that registering an SDK starts once a project's startup has installed the SDK table
@@ -131,7 +131,7 @@ internal object SdkFixtures {
      */
     fun renameInTable(name: String, newName: String): Sdk {
         val sdk = ProjectJdkTable.getInstance().findJdk(name)!!
-        val clone = sdk.clone() as Sdk
+        val clone = sdk.clone()
 
         WriteAction.run<Throwable> {
             clone.sdkModificator.apply {
@@ -225,6 +225,8 @@ internal object SdkFixtures {
     fun settle() = PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
     /** [block] with a modal dialog open, as Settings and Project Structure are. */
+    // The platform has no public way to enter a modality without showing a window.
+    @Suppress("JetBrainsInternalApiUsage")
     @RequiresEdt
     fun inADialog(block: () -> Unit) {
         val dialog = Any()

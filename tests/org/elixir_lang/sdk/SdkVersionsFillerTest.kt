@@ -131,11 +131,11 @@ class SdkVersionsFillerTest : PlatformTestCase() {
 
     @RequiresEdt
     fun testFillingTheSdksAProjectUsesCoversThePairedErlangSdk() {
-        val erlangSdk = SdkFixtures.registerAndWaitForFill(
+        val erlangSdk = SdkFixtures.register(
             SdkFixtures.erlangSdk("Filler Erlang", erlangHome("26", "26.2.5.21")),
             testRootDisposable,
         )
-        val elixirSdk = SdkFixtures.registerAndWaitForFill(
+        val elixirSdk = SdkFixtures.register(
             SdkFixtures.elixirSdk("Filler Elixir", elixirHome("1.18.4")),
             testRootDisposable,
         )
@@ -156,11 +156,11 @@ class SdkVersionsFillerTest : PlatformTestCase() {
     fun testFillingWhatAProjectUsesSkipsAnInstallationAlreadyRead() {
         val erlangHomePath = erlangHome("27", "27.3.4")
         val elixirHomePath = elixirHome("1.19.5")
-        val erlangSdk = SdkFixtures.registerAndWaitForFill(
+        val erlangSdk = SdkFixtures.register(
             SdkFixtures.erlangSdk("Filler read once Erlang", erlangHomePath),
             testRootDisposable,
         )
-        val elixirSdk = SdkFixtures.registerAndWaitForFill(
+        val elixirSdk = SdkFixtures.register(
             SdkFixtures.elixirSdk("Filler read once Elixir", elixirHomePath),
             testRootDisposable,
         )
@@ -272,7 +272,7 @@ class SdkVersionsFillerTest : PlatformTestCase() {
     @RequiresEdt
     fun testFillingTheSdksAProjectUsesReadsAgainForAMajorNothingLearned() {
         val home = elixirHome("1.19.5")
-        val elixirSdk = SdkFixtures.registerAndWaitForFill(
+        val elixirSdk = SdkFixtures.register(
             SdkFixtures.elixirSdk("Unread Major", home),
             testRootDisposable,
         )

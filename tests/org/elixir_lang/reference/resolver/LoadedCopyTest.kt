@@ -628,7 +628,7 @@ class LoadedCopyTest : PlatformTestCase() {
 
     /** An Elixir SDK in the table with [classes] as CLASSES roots and [sources] as its SOURCES root, assigned to nothing. */
     private fun registerSdk(name: String, home: String, vararg classes: String, sources: String? = null): Sdk {
-        val sdk = SdkFixtures.registerAndWaitForFill(
+        val sdk = SdkFixtures.register(
             SdkFixtures.elixirSdk(name, SdkFixtures.fakeHome("elixir/$home")),
             testRootDisposable,
         )

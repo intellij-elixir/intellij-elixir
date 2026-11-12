@@ -54,7 +54,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
         val home = fakeHome("elixir/level-store")
         ModuleRootModificationUtil.setModuleSdk(
             module,
-            SdkFixtures.registerAndWaitForFill(SdkFixtures.elixirSdk("Level store Elixir", home), testRootDisposable),
+            SdkFixtures.register(SdkFixtures.elixirSdk("Level store Elixir", home), testRootDisposable),
         )
         SdkVersionsStore.getInstance().setElixirVersions(home, ElixirVersions("1.12.3", OtpMajor.Known("24")))
 
@@ -69,7 +69,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
     fun testAHomeNotReadYetKeepsTheVersionAlreadyOnTheDirectory() {
         ModuleRootModificationUtil.setModuleSdk(
             module,
-            SdkFixtures.registerAndWaitForFill(
+            SdkFixtures.register(
                 SdkFixtures.elixirSdk("Level unread Elixir", fakeHome("elixir/level-unread")),
                 testRootDisposable,
             ),
@@ -85,7 +85,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
         val home = fakeHome("elixir/level-read")
         ModuleRootModificationUtil.setModuleSdk(
             module,
-            SdkFixtures.registerAndWaitForFill(SdkFixtures.elixirSdk("Level read Elixir", home), testRootDisposable),
+            SdkFixtures.register(SdkFixtures.elixirSdk("Level read Elixir", home), testRootDisposable),
         )
         SdkVersionsStore.getInstance().setElixirVersions(home, ElixirVersions("1.18.4", OtpMajor.Known("27")))
         val directory = contentDirectory(module, "read")
@@ -137,7 +137,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
         val home = fakeHome("elixir/level-pushed-wins")
         ModuleRootModificationUtil.setModuleSdk(
             module,
-            SdkFixtures.registerAndWaitForFill(SdkFixtures.elixirSdk("Level pushed Elixir", home), testRootDisposable),
+            SdkFixtures.register(SdkFixtures.elixirSdk("Level pushed Elixir", home), testRootDisposable),
         )
         SdkVersionsStore.getInstance().setElixirVersions(home, ElixirVersions("1.18.4", OtpMajor.Known("27")))
         val file = elixirFile(module, "pushed-wins")
@@ -150,7 +150,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
         val home = fakeHome("elixir/level-store-fallback")
         ModuleRootModificationUtil.setModuleSdk(
             module,
-            SdkFixtures.registerAndWaitForFill(
+            SdkFixtures.register(
                 SdkFixtures.elixirSdk("Level fallback Elixir", home),
                 testRootDisposable,
             ),
@@ -167,7 +167,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
         val home = fakeHome("elixir/level-unreadable")
         ModuleRootModificationUtil.setModuleSdk(
             module,
-            SdkFixtures.registerAndWaitForFill(
+            SdkFixtures.register(
                 SdkFixtures.elixirSdk("Level unreadable Elixir", home),
                 testRootDisposable,
             )
@@ -197,7 +197,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
         val home = fakeHome("elixir/level-repush")
         ModuleRootModificationUtil.setModuleSdk(
             module,
-            SdkFixtures.registerAndWaitForFill(SdkFixtures.elixirSdk("Level repush Elixir", home), testRootDisposable),
+            SdkFixtures.register(SdkFixtures.elixirSdk("Level repush Elixir", home), testRootDisposable),
         )
         val file = elixirFile(module, "repush")
         PushedVersions.KEY.setPersistentValue(file.parent, "1.20.4")
@@ -215,7 +215,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
         val home = fakeHome("elixir/level-matching")
         ModuleRootModificationUtil.setModuleSdk(
             module,
-            SdkFixtures.registerAndWaitForFill(
+            SdkFixtures.register(
                 SdkFixtures.elixirSdk("Level matching Elixir", home),
                 testRootDisposable,
             ),
@@ -253,7 +253,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
         val home = fakeHome("elixir/level-not-elixir")
         ModuleRootModificationUtil.setModuleSdk(
             notElixir,
-            SdkFixtures.registerAndWaitForFill(SdkFixtures.elixirSdk("Level not Elixir", home), testRootDisposable),
+            SdkFixtures.register(SdkFixtures.elixirSdk("Level not Elixir", home), testRootDisposable),
         )
         SdkVersionsStore.getInstance().setElixirVersions(home, ElixirVersions("1.12.3", OtpMajor.Known("24")))
 
@@ -268,7 +268,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
         val home = fakeHome("elixir/level-open")
         ModuleRootModificationUtil.setModuleSdk(
             module,
-            SdkFixtures.registerAndWaitForFill(SdkFixtures.elixirSdk("Level open Elixir", home), testRootDisposable),
+            SdkFixtures.register(SdkFixtures.elixirSdk("Level open Elixir", home), testRootDisposable),
         )
         val directory = contentDirectory(module, "open")
         SdkVersionsStore.getInstance().setElixirVersions(home, ElixirVersions("1.12.3", OtpMajor.Known("24")))
@@ -293,7 +293,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
         val home = fakeHome("elixir/level-unfinished")
         ModuleRootModificationUtil.setModuleSdk(
             module,
-            SdkFixtures.registerAndWaitForFill(
+            SdkFixtures.register(
                 SdkFixtures.elixirSdk("Level unfinished Elixir", home),
                 testRootDisposable,
             ),
@@ -319,7 +319,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
         val home = fakeHome("elixir/level-finished")
         ModuleRootModificationUtil.setModuleSdk(
             module,
-            SdkFixtures.registerAndWaitForFill(
+            SdkFixtures.register(
                 SdkFixtures.elixirSdk("Level finished Elixir", home),
                 testRootDisposable,
             ),
@@ -399,7 +399,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
         val home = SdkFixtures.elixirHome("1.12.3")
         ModuleRootModificationUtil.setModuleSdk(
             module,
-            SdkFixtures.registerAndWaitForFill(SdkFixtures.elixirSdk("Level init Elixir", home), testRootDisposable),
+            SdkFixtures.register(SdkFixtures.elixirSdk("Level init Elixir", home), testRootDisposable),
         )
         // Assigning the SDK reads it on its own; that read has to land before the store is emptied, or it refills it.
         SdkFixtures.waitUntil("precondition: assigning the SDK reads its home") {
@@ -432,7 +432,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
         val home = fakeHome("elixir/otp-unpaired")
         ModuleRootModificationUtil.setModuleSdk(
             module,
-            SdkFixtures.registerAndWaitForFill(SdkFixtures.elixirSdk("OTP unpaired Elixir", home), testRootDisposable),
+            SdkFixtures.register(SdkFixtures.elixirSdk("OTP unpaired Elixir", home), testRootDisposable),
         )
         SdkVersionsStore.getInstance().setElixirVersions(home, ElixirVersions("1.18.4", OtpMajor.Known("27")))
 
@@ -443,7 +443,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
         val home = fakeHome("elixir/otp-unknown")
         ModuleRootModificationUtil.setModuleSdk(
             module,
-            SdkFixtures.registerAndWaitForFill(SdkFixtures.elixirSdk("OTP unknown Elixir", home), testRootDisposable),
+            SdkFixtures.register(SdkFixtures.elixirSdk("OTP unknown Elixir", home), testRootDisposable),
         )
         SdkVersionsStore.getInstance().setElixirVersions(home, ElixirVersions("1.5.3", OtpMajor.None))
 
@@ -546,7 +546,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
         val home = fakeHome("elixir/read-home-inner")
         ModuleRootModificationUtil.setModuleSdk(
             inner.first,
-            SdkFixtures.registerAndWaitForFill(SdkFixtures.elixirSdk("read-home-inner", home), testRootDisposable),
+            SdkFixtures.register(SdkFixtures.elixirSdk("read-home-inner", home), testRootDisposable),
         )
         SdkVersionsStore.getInstance().setElixirVersions(home, ElixirVersions("1.18.4", OtpMajor.Known("27")))
 
@@ -575,7 +575,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
         val outerHome = fakeHome("elixir/$name-outer")
         ModuleRootModificationUtil.setModuleSdk(
             module,
-            SdkFixtures.registerAndWaitForFill(SdkFixtures.elixirSdk("$name outer", outerHome), testRootDisposable),
+            SdkFixtures.register(SdkFixtures.elixirSdk("$name outer", outerHome), testRootDisposable),
         )
         SdkVersionsStore.getInstance().setElixirVersions(outerHome, ElixirVersions(outerVersion, OtpMajor.None))
         val outer = contentDirectory(module, "$name-outer")
@@ -649,11 +649,11 @@ class SdkVersionsPusherTest : HeavyTestCase() {
     }
 
     private fun pairedElixirSdk(name: String, elixirHome: String, erlangHome: String): Sdk {
-        val erlangSdk = SdkFixtures.registerAndWaitForFill(
+        val erlangSdk = SdkFixtures.register(
             SdkFixtures.erlangSdk("$name Erlang", erlangHome),
             testRootDisposable,
         )
-        val elixirSdk = SdkFixtures.registerAndWaitForFill(
+        val elixirSdk = SdkFixtures.register(
             SdkFixtures.elixirSdk("$name Elixir", elixirHome),
             testRootDisposable,
         )

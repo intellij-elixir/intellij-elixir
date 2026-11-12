@@ -49,7 +49,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
     fun testRemovingTheOnlySdkOnAHomeForgetsIt() {
         SdkVersionWatchService.install(testRootDisposable)
         val home = erlangHome("27", "27.3.4")
-        val erlangSdk = SdkFixtures.registerAndWaitForFill(
+        val erlangSdk = SdkFixtures.register(
             SdkFixtures.erlangSdk("Removed Erlang", home),
             testRootDisposable,
         )
@@ -67,11 +67,11 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
     @RequiresEdt
     fun testRemovingOneOfTwoSdksOnAHomeKeepsIt() {
         val home = elixirHome("1.20.5")
-        val removed = SdkFixtures.registerAndWaitForFill(
+        val removed = SdkFixtures.register(
             SdkFixtures.elixirSdk("Removed Elixir", home),
             testRootDisposable,
         )
-        SdkFixtures.registerAndWaitForFill(SdkFixtures.elixirSdk("Kept Elixir", home), testRootDisposable)
+        SdkFixtures.register(SdkFixtures.elixirSdk("Kept Elixir", home), testRootDisposable)
         runSuspendOnPooledThread { SdkVersionsFiller.fill(home) }
         WriteAction.run<Throwable> { ProjectJdkTable.getInstance().removeJdk(removed) }
 
@@ -115,7 +115,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
     fun testAnSdkAddedAfterInstallIsWatchedOffTheWriteAction() {
         val home = erlangHome("27", "27.3.4")
         val erlangSdk = SdkFixtures.erlangSdk("Watched After Add", home)
-        val elixirSdk = SdkFixtures.registerAndWaitForFill(
+        val elixirSdk = SdkFixtures.register(
             SdkFixtures.elixirSdk("Watching Elixir", elixirHome("1.20.5")),
             testRootDisposable,
         )
@@ -125,7 +125,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
 
         // The table publishes its add inside its own write action. Watching there trips the refusal inside
         // SdkVersionFileWatcher.watch on the publishing thread, which surfaces as a logged error, not an exception.
-        val (_, errors) = captureLoggedErrors { SdkFixtures.registerAndWaitForFill(erlangSdk, testRootDisposable) }
+        val (_, errors) = captureLoggedErrors { SdkFixtures.register(erlangSdk, testRootDisposable) }
 
         assertEmpty("adding an SDK must not watch inside the table's write action; got $errors", errors)
         val otpVersionFile = LocalFileSystem.getInstance()
@@ -141,11 +141,11 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
     @RequiresEdt
     fun testAVersionFileThatChangesIsReadAgain() {
         val home = erlangHome("27", "27.3.4")
-        val erlangSdk = SdkFixtures.registerAndWaitForFill(
+        val erlangSdk = SdkFixtures.register(
             SdkFixtures.erlangSdk("Watched For Changes", home),
             testRootDisposable,
         )
-        val elixirSdk = SdkFixtures.registerAndWaitForFill(
+        val elixirSdk = SdkFixtures.register(
             SdkFixtures.elixirSdk("Watching Elixir", elixirHome("1.20.5")),
             testRootDisposable,
         )
@@ -291,7 +291,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
         val home = erlangHome("27", "27.3.4")
         File(home, "releases/27/OTP_VERSION").writeText("")
         SdkVersionWatchService.install(testRootDisposable)
-        SdkFixtures.registerAndWaitForFill(SdkFixtures.erlangSdk("Blank Erlang", home), testRootDisposable)
+        SdkFixtures.register(SdkFixtures.erlangSdk("Blank Erlang", home), testRootDisposable)
         runSuspendOnPooledThread {
             SdkVersionsFiller.fill(home)
             SdkVersionWatchService.rewatch()
@@ -318,7 +318,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
         // Behind the VFS's back, so the watch loads the complete file as though nothing had changed.
         SdkVersionWatchService.beforeWatchRebuiltForTests = { otpVersionFile.writeText("27.3.7\n") }
 
-        SdkFixtures.registerAndWaitForFill(SdkFixtures.erlangSdk("Written Erlang", home), testRootDisposable)
+        SdkFixtures.register(SdkFixtures.erlangSdk("Written Erlang", home), testRootDisposable)
 
         SdkFixtures.waitUntil("a home read blank must be read once its watch starts, in case the write came first") {
             SdkVersionsStore.getInstance().otpVersion(home) == "27.3.7"
@@ -351,7 +351,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
         File(home.parentFile, "elsewhere").mkdirs()
         val configured = "${home.parentFile.path}/elsewhere/../${home.name}"
         SdkVersionWatchService.install(testRootDisposable)
-        val sdk = SdkFixtures.registerAndWaitForFill(SdkFixtures.erlangSdk("Blank Erlang", configured), testRootDisposable)
+        val sdk = SdkFixtures.register(SdkFixtures.erlangSdk("Blank Erlang", configured), testRootDisposable)
         runSuspendOnPooledThread { SdkVersionsFiller.fill(configured) }
         rewatch()
         assertTrue(
@@ -375,12 +375,12 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
         val home = erlangHome("27", "27.3.4")
         // Where the watch and the store stood after each step, for a failure that is otherwise only its end state.
         val timeline = mutableListOf(snapshot("start", home))
-        val erlangSdk = SdkFixtures.registerAndWaitForFill(
+        val erlangSdk = SdkFixtures.register(
             SdkFixtures.erlangSdk("Assigned Later Erlang", home),
             testRootDisposable,
         )
         timeline += snapshot("Erlang SDK registered", home)
-        val elixirSdk = SdkFixtures.registerAndWaitForFill(
+        val elixirSdk = SdkFixtures.register(
             SdkFixtures.elixirSdk("Assigned Later Elixir", elixirHome("1.20.5")),
             testRootDisposable,
         )

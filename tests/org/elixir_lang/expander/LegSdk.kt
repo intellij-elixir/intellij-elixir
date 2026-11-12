@@ -20,8 +20,8 @@ internal object LegSdk {
     fun setUp(module: Module, disposable: Disposable): Sdk {
         val erlangHome = LegManifest.environment("ERLANG_SDK_HOME")
         val elixirHome = LegManifest.environment("ELIXIR_LANG_ELIXIR_PATH")
-        val erlang = SdkFixtures.registerAndWaitForFill(SdkFixtures.erlangSdk(ERLANG, erlangHome), disposable)
-        val elixir = SdkFixtures.registerAndWaitForFill(SdkFixtures.elixirSdk("leg", elixirHome), disposable)
+        val erlang = SdkFixtures.register(SdkFixtures.erlangSdk(ERLANG, erlangHome), disposable)
+        val elixir = SdkFixtures.register(SdkFixtures.elixirSdk("leg", elixirHome), disposable)
         WriteAction.runAndWait<Throwable> {
             elixir.sdkModificator.apply {
                 SdkRoots.addCodePaths(this)

@@ -2926,7 +2926,7 @@ class ProjectModulesTest : PlatformTestCase() {
 
     /** An Elixir SDK registered for the test, holding a copy of [beam] as its class root when [beam] is given. */
     private fun sdkHolding(name: String, beam: File?): Sdk {
-        val sdk = SdkFixtures.registerAndWaitForFill(
+        val sdk = SdkFixtures.register(
             SdkFixtures.elixirSdk(name, SdkFixtures.fakeHome("elixir/${name.replace(' ', '-')}")),
             testRootDisposable,
         )

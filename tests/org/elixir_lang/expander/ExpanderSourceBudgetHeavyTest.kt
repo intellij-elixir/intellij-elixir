@@ -210,7 +210,7 @@ class ExpanderSourceBudgetHeavyTest : HeavyTestCase() {
     /** The leg's Elixir again, as an SDK of its own paired with the leg's Erlang. */
     private fun anotherLegSdk(name: String): Sdk {
         val erlang = ProjectJdkTable.getInstance().findJdk(LegSdk.ERLANG)!!
-        val elixir = SdkFixtures.registerAndWaitForFill(
+        val elixir = SdkFixtures.register(
             SdkFixtures.elixirSdk(name, environment("ELIXIR_LANG_ELIXIR_PATH")),
             testRootDisposable,
         )
