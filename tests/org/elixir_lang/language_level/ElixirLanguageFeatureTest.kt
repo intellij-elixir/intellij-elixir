@@ -292,6 +292,8 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             IO_WARN_OPTIONS_TAKE_A_COLUMN to ("1.16.0-rc.1" to "1.16.0"),
             MACRO_ARGUMENTS_STOP_GENERATED to ("1.19.5" to "1.20.0-rc.0"),
             PID_IN_FUNCTION_RAISES_MATCH_ERROR to ("1.12.3" to "1.13.0-rc.0"),
+            DOCS_SIGNATURE_NAMES_VAR_BANG to ("1.13.4" to "1.14.0-rc.0"),
+            DOCS_SIGNATURE_OF_FN_NAMES_CLAUSES to ("1.12.3" to "1.13.0-rc.0"),
             DUPLICATE_MATCH_UNPACKED_ONCE to ("1.18.0-rc.0" to "1.18.0"),
             IN_REFUSES_UNESCAPED_RIGHT_SIDE to ("1.13.4" to "1.14.0-rc.0"),
         )

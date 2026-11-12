@@ -126,6 +126,20 @@ data class Answer(val found: List<Found>, val absence: Uncertain?)
 fun Found.declaringModuleName(): String? = head.module
 
 /**
+ * Where a clause is defined in its module, as Elixir defines the module's clauses in order: [offset] in the module's
+ * file, of the clause's head or of the call that injects it, then [within], the head's offset in its own file, which
+ * orders the clauses one call injects.
+ */
+data class ClauseOrder(val offset: Int, val within: Int) : Comparable<ClauseOrder> {
+    override fun compareTo(other: ClauseOrder): Int = compareValuesBy(this, other, ClauseOrder::offset, ClauseOrder::within)
+
+    companion object {
+        /** A clause whose [head] is written in its own module. */
+        fun at(head: PsiElement): ClauseOrder = ClauseOrder(head.textOffset, head.textOffset)
+    }
+}
+
+/**
  * What completion offers as [lookupName] at a position. [name] and [declaration] are `null` exactly when the name has
  * no atom value. [importedArities] are the arities of [declaration]'s closed interval that the `import` it was reached
  * through brings in, `null` when no `import` reached it, that `import` brings in every arity of the interval, or the

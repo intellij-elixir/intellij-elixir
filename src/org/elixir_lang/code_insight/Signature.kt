@@ -12,14 +12,9 @@ import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.psi.ArityInterval
-import org.elixir_lang.psi.ElixirAtom
-import org.elixir_lang.psi.ElixirList
 import org.elixir_lang.psi.Exception as ElixirException
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.quotedAtomValue
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 
@@ -65,8 +60,8 @@ data class Signature(val nameArityInterval: NameArityInterval, val parameters: L
             val parameters = when (form) {
                 Form.CLAUSE, Form.DELEGATION -> headParameters(head)
                 Form.EXCEPTION -> exception(declaration.name)
-                Form.EEX_FUNCTION_FROM -> (head as? Call)?.let(::eexFunctionFrom)
-                Form.GENERATOR_EMBED -> (head as? Call)?.let(::embed)
+                Form.EEX_FUNCTION_FROM -> (head as? Call)?.let(::eexFunctionFromNames)?.map { it ?: "arg" }
+                Form.GENERATOR_EMBED -> (head as? Call)?.let { if (embedsAssigns(it)) listOf("assigns") else emptyList() }
                 Form.CALLBACK -> null
             }
 
@@ -83,21 +78,6 @@ data class Signature(val nameArityInterval: NameArityInterval, val parameters: L
                 ElixirException.MESSAGE.name -> listOf(ElixirException.EXCEPTION.name)
                 else -> emptyList()
             }
-
-        /**
-         * The macro's own `[:a, :b]` argument-name list, which no PSI head spells; a name that isn't an atom literal
-         * leaves a slot called `arg`.
-         */
-        private fun eexFunctionFrom(call: Call): List<String> =
-            call.finalArguments()
-                ?.getOrNull(3)
-                ?.let { (it.stripAccessExpression() as? ElixirList)?.children }
-                ?.map { child -> child.stripAccessExpression().let { it as? ElixirAtom }?.let(::quotedAtomValue) ?: "arg" }
-                .orEmpty()
-
-        /** `embed_template` defines a function of `assigns`, `embed_text` one of nothing. */
-        private fun embed(call: Call): List<String> =
-            if (call.functionName() == "embed_template") listOf("assigns") else emptyList()
 
         /**
          * The head [definition] is written with, at each arity its defaults cover. A stub stores no parameters for a
