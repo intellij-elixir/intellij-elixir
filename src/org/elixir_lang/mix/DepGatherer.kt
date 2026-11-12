@@ -21,7 +21,6 @@ import org.elixir_lang.psi.impl.keywordValue
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.stripAccessExpressions
 import org.elixir_lang.psi.operation.Match
-import org.elixir_lang.util.AccumulatorContinue
 
 /**
  * @param isDependency whether the `mix.exs` being visited belongs to a dependency; see [Dep.from].
@@ -52,14 +51,19 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
         if (element is Call && Module.`is`(element)) {
             val childCalls = modularChildCalls(element).toTypedArray()
 
-            childCalls.projectKeywordLists().firstOrNull()?.depsPath()?.let { depsPath = it }
+            val keywordLists = childCalls.projectKeywordLists().toList()
 
-            childCalls
-                    .foldDepsDefinersWhile(listOf<Dep>()) { depsDefiner, acc ->
-                        AccumulatorContinue(acc + depsDefiner.deps(isDependency), true)
-                    }
-                    .accumulator
-                    .let { depSet.addAll(it) }
+            keywordLists.firstOrNull()?.depsPath()?.let { depsPath = it }
+
+            keywordLists
+                .firstNotNullOfOrNull { calledFunction(it.keywordValue("deps") as? Call) }
+                ?.let { depsNameArity ->
+                    childCalls
+                        .asSequence()
+                        .onEach { ProgressManager.checkCanceled() }
+                        .filter { isDefining(it, depsNameArity) }
+                        .flatMapTo(depSet) { it.deps(isDependency) }
+                }
         }
     }
 
@@ -105,29 +109,6 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
 
 private fun Call.deps(isDependency: Boolean): List<Dep> = ProjectKeywords.returnedList(this)?.deps(isDependency) ?: emptyList()
 
-private fun <R> Array<Call>.foldDepsDefinersWhile(
-        initial: R,
-        operation: (Call, acc: R) -> AccumulatorContinue<R>
-): AccumulatorContinue<R> {
-    var final = AccumulatorContinue(initial, true)
-
-    depsNameArity()?.let { depsNameArity ->
-        for (childCall in this) {
-            ProgressManager.checkCanceled()
-
-            if (isDefining(childCall, depsNameArity)) {
-                final = operation(childCall, final.accumulator)
-
-                if (!final.`continue`) {
-                    break
-                }
-            }
-        }
-    }
-
-    return final
-}
-
 /** The keywords of each list a `project/0` definition returns, in order. */
 @RequiresReadLock
 private fun Array<Call>.projectKeywordLists(): Sequence<QuotableKeywordList> =
@@ -138,10 +119,6 @@ private fun Array<Call>.projectKeywordLists(): Sequence<QuotableKeywordList> =
 
 private fun QuotableKeywordList.depsPath(): String? =
     (keywordValue("deps_path")?.stripAccessExpression() as? ElixirLine)?.body?.text
-
-@RequiresReadLock
-private fun Array<Call>.depsNameArity(): NameArity? =
-    projectKeywordLists().firstNotNullOfOrNull { calledFunction(it.keywordValue("deps") as? Call) }
 
 private fun isDefining(call: Call, nameArity: NameArity): Boolean =
     capabilities(call)?.runtimeFunction == true &&
