@@ -1808,7 +1808,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
     /** An unknown attribute may hold 16, 32 or 64, which a float's size must be, so the segment stops. */
     fun testAnUnknownAttributeAsAFloatsSize() =
         assertUnknownStops(
-            "@n :erlang.length(:lists.duplicate(64, 1))",
+            "@n (receive do after 0 -> 64 end)",
             "def g(y), do: <<y::float-size(@n)>>",
             "size(@n)",
             "n",

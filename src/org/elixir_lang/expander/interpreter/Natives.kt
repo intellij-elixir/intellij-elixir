@@ -63,6 +63,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.IO_WARN_READS_THE_ME
 import org.elixir_lang.language_level.ElixirLanguageFeature.IO_WARN_TAKES_AN_ENV_OR_OPTIONS
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_SORT_KEEPS_EQUAL_ORDER
+import org.elixir_lang.language_level.ElixirLanguageFeature.MAKE_FUN_ARITY_CHECKED
 import org.elixir_lang.language_level.ElixirLanguageFeature.RAISE_FRAME_TAKES_A_CAPTURE
 import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_ESCAPED_IN_FIXED_FIELD_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_ATTRIBUTES_IN
@@ -73,6 +74,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.SPLICE_EMPTY_BEFORE_
 import org.elixir_lang.language_level.ElixirLanguageFeature.STATIC_OPTIONS_IN_PERSISTENT_TERM
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRING_TO_ATOM_REQUIRES_BINARY
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
+import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.fitsAnAtom
 import org.elixir_lang.model.psi.config.ConfigFiles
 import org.elixir_lang.psi.Import.Term
@@ -365,6 +367,7 @@ internal class Natives(private val evaluation: Evaluation) {
             },
             "ordsets" to reading { key, args -> if (key == "is_element/2") isElement(args[0], args[1]) else null },
             "binary" to reading(Natives::binaries),
+            "sets" to reading(Natives::sets),
             "os" to reading(Natives::os),
             "Elixir.System" to reading(Natives::system),
             // More reads of the machine or the run, as `system`'s are, each where its argument is one Erlang takes.
@@ -697,6 +700,16 @@ internal class Natives(private val evaluation: Evaluation) {
 
                 bool(arity(args[0])?.toBigInteger() == arity.bigIntegerValue())
             }
+            "make_fun/3" -> {
+                val (module, name) = args.take(2).map { seen(it) as? OtpErlangAtom ?: badarg() }
+                val arity = (seen(args[2]) as? OtpErlangLong)?.let { makeFunArity(it.bigIntegerValue(), level) } ?: badarg()
+
+                OtpErlangExternalFun(
+                    module.atomValue(),
+                    name.atomValue(),
+                    arity.takeIf { it <= Int.MAX_VALUE }?.toInt() ?: decline("a fun of an arity JInterface can't hold"),
+                )
+            }
             "element/2" -> {
                 val tuple = seen(args[1]) as? OtpErlangTuple ?: badarg()
 
@@ -1008,6 +1021,28 @@ internal class Natives(private val evaluation: Evaluation) {
                 append(lists, tail)
             }
             "append/2" -> erlang("++/2", args)
+            "unzip/1" -> {
+                val (elements, tail) = cells(seen(args[0])) ?: noClause("unzip", listOf(args[0], EMPTY, EMPTY))
+                val pairs = elements.asSequence().map(::seen).takeWhile { it is OtpErlangTuple && it.arity() == 2 }
+                    .filterIsInstance<OtpErlangTuple>().toList()
+                val xs = pairs.map { it.elementAt(0) }
+                val ys = pairs.map { it.elementAt(1) }
+
+                // `unzip/3`'s clauses take a pair or `[]`, its accumulators reversed.
+                if (pairs.size < elements.size || tail != null) {
+                    noClause("unzip", listOf(cons(elements.drop(pairs.size), tail ?: EMPTY), list(xs.reversed()), list(ys.reversed())))
+                }
+
+                tuple(list(xs), list(ys))
+            }
+            "duplicate/2" -> {
+                val count = (seen(args[0]) as? OtpErlangLong)?.bigIntegerValue()?.takeIf { it.signum() >= 0 }
+                    ?: noClause("duplicate", args)
+
+                if (count > BigInteger.valueOf(COPY_NODES.toLong())) decline("lists:duplicate/2 of %s copies", args[0])
+
+                OtpErlangList(Array(count.toInt()) { args[1] })
+            }
             "flatten/1" -> {
                 if (!isList(args[0])) noClause("flatten", args)
 
@@ -1468,6 +1503,35 @@ internal class Natives(private val evaluation: Evaluation) {
         return count
     }
 
+    /**
+     * `sets` at version 2, the one `MapSet` asks for: a map from each element to `[]`, its keys compared exactly. A
+     * version 1 set, or options that may ask for one, is left to `sets`' clauses; any other term has none.
+     */
+    private fun sets(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        fun version2(options: OtpErlangObject): Boolean =
+            properElements(seen(options))?.singleOrNull()?.let { equal(it, VERSION_2, true, level) } == true
+        // The set each of the other functions is given last; a version 1 set is a record, which only `sets`' clauses read.
+        fun set(): OtpErlangMap? =
+            when (val seen = seen(args.last())) {
+                is OtpErlangMap -> seen
+                is OtpErlangTuple -> null
+                else -> functionClause("sets", key.substringBefore('/'), args)
+            }
+
+        return when (key) {
+            "new/1" -> if (version2(args[0])) mapOf(emptyList(), level) else null
+            "from_list/2" -> if (version2(args[1])) maps("from_keys/2", listOf(args[0], EMPTY)) else null
+            "add_element/2" -> maps("put/3", listOf(args[0], EMPTY, set() ?: return null))
+            "del_element/2" -> maps("remove/2", listOf(args[0], set() ?: return null))
+            "is_element/2" -> maps("is_key/2", listOf(args[0], set() ?: return null))
+            "size/1" -> integer((set() ?: return null).arity().toLong())
+            "to_list/1" -> maps("keys/1", listOf(set() ?: return null))
+            // Only two maps take the first clause; the other folds over the sets, and its failure is `size/1`'s.
+            "union/2" -> maps("merge/2", args.map { seen(it) as? OtpErlangMap ?: return null })
+            else -> null
+        }
+    }
+
     private fun maps(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
         when (key) {
             "get/2" -> valueAt(map(args[1]), args[0], level) ?: evaluation.error(tuple(atom("badkey"), args[0]))
@@ -1475,6 +1539,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "find/2" -> valueAt(map(args[1]), args[0], level)?.let { tuple(atom("ok"), it) } ?: atom("error")
             "is_key/2" -> bool(valueAt(map(args[1]), args[0], level) != null)
             "put/3" -> mapOf(entries(map(args[2])) + (args[0] to args[1]), level)
+            "remove/2" -> mapOf(entries(map(args[1])).filterNot { equal(it.first, args[0], true, level) }, level)
             "update/3" -> {
                 val map = map(args[2])
 
@@ -1499,6 +1564,7 @@ internal class Natives(private val evaluation: Evaluation) {
                     level,
                 )
             }
+            "from_keys/2" -> mapOf((properElements(args[0]) ?: badargOf("maps", "from_keys", args)).map { it to args[1] }, level)
             "to_list/1" -> list(inOrder(map(args[0])).map { tuple(it.first, it.second) })
             "keys/1" -> list(inOrder(map(args[0])).map { it.first })
             else -> null
@@ -2840,41 +2906,68 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun binaries(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
         when (key) {
             "at/2" -> byteAt(args[0], args[1])
+            "compile_pattern/1" -> compilePattern(args[0])
             "last/1" -> lastByte(args[0])
-            "split/3" -> binarySplit(args[0], args[1], args[2])
-            "match/2" -> binaryMatches("binary:$key", args[0], args[1], global = false).firstOrNull()?.let(::part) ?: atom("nomatch")
-            "matches/2" -> list(binaryMatches("binary:$key", args[0], args[1], global = true).map(::part))
+            "split/2", "split/3" -> binarySplit("binary:$key", args)
+            "match/2" -> binaryMatches("binary:$key", args, global = false).firstOrNull()?.let(::part) ?: atom("nomatch")
+            "matches/2" -> list(binaryMatches("binary:$key", args, global = true).map(::part))
             else -> null
         }
 
-    private fun binaryMatches(function: String, subject: OtpErlangObject, pattern: OtpErlangObject, global: Boolean) =
-        Filename.binaryMatches(nameBytes(function, subject), patterns(function, pattern), global)
+    private fun binaryMatches(function: String, args: List<OtpErlangObject>, global: Boolean) =
+        Filename.binaryMatches(nameBytes(function, args[0]), patterns(function, args), global)
 
     private fun part(match: Pair<Int, Int>) = tuple(integer(match.first.toLong()), integer(match.second.toLong()))
 
     /**
-     * The binaries the pattern [pattern] of [function] is: one binary, or a list of them, none empty; anything else, such
-     * as a compiled pattern, declines.
+     * The binaries the pattern of [function], the second of [args], is: one binary, a list of them, none empty, or what
+     * [compilePattern] made of either; any other tuple raises `badarg`, as [args], the call's, give it, and anything else
+     * declines.
      */
-    private fun patterns(function: String, pattern: OtpErlangObject): List<ByteArray> =
-        (properElements(seen(pattern))?.takeIf { it.isNotEmpty() } ?: listOf(pattern)).map {
+    private fun patterns(function: String, args: List<OtpErlangObject>): List<ByteArray> {
+        val pattern = args[1]
+
+        (seen(pattern) as? OtpErlangTuple)?.let { tuple ->
+            val compiled = tuple.takeIf { it.arity() == 2 }?.let { seen(it.elementAt(1)) as? CompiledPattern }
+
+            return compiled?.takeIf { seen(tuple.elementAt(0)) == it.tag }?.bytes
+                ?: badargOf("binary", function.substringAfter(':').substringBefore('/'), args)
+        }
+
+        return (properElements(seen(pattern))?.takeIf { it.isNotEmpty() } ?: listOf(pattern)).map {
             nameBytes(function, it).takeIf { bytes -> bytes.isNotEmpty() } ?: decline("$function of an empty pattern")
         }
+    }
 
     /**
-     * `binary:split/3` of a binary at a binary or a list of them, none empty, with `[]` or `[global]`; any other
-     * argument, such as the `trim` options, declines.
+     * `binary:split/2,3`, [function], of a binary at a binary, a list of them, none empty, or a [compiled][compilePattern]
+     * pattern, with `global` and `trim_all` in any order; any other option, such as `trim` or `scope`, declines.
      */
-    private fun binarySplit(subject: OtpErlangObject, pattern: OtpErlangObject, options: OtpErlangObject): OtpErlangObject {
-        val patterns = patterns("binary:split/3", pattern)
-        val flags = properElements(seen(options)) ?: decline("binary:split/3 of %s, which is no list of options", options)
-        val global = when {
-            flags.isEmpty() -> false
-            flags.size == 1 && seen(flags[0]) == atom("global") -> true
-            else -> decline("binary:split/3 with the options %s", options)
-        }
+    private fun binarySplit(function: String, args: List<OtpErlangObject>): OtpErlangObject {
+        val patterns = patterns(function, args)
+        val options = args.getOrElse(2) { EMPTY }
+        val flags = (properElements(seen(options)) ?: decline("$function of %s, which is no list of options", options)).map(::seen)
 
-        return list(Filename.binarySplit(nameBytes("binary:split/3", subject), patterns, global).map(::OtpErlangBinary))
+        if (!flags.all { it == GLOBAL || it == TRIM_ALL }) decline("$function with the options %s", options)
+
+        val parts = Filename.binarySplit(nameBytes(function, args[0]), patterns, GLOBAL in flags)
+
+        return list((if (TRIM_ALL in flags) parts.filter { it.isNotEmpty() } else parts).map(::OtpErlangBinary))
+    }
+
+    /**
+     * `binary:compile_pattern/1`: `{bm, pattern}` for one binary, `{ac, patterns}` for a list of several, as Erlang tags
+     * them, where Erlang's second element is a reference to the compiled form, a [CompiledPattern]; `badarg` for any
+     * other term.
+     */
+    private fun compilePattern(pattern: OtpErlangObject): OtpErlangObject {
+        val bytes = (properElements(seen(pattern)) ?: listOf(pattern)).map { binaryBytes(it)?.takeIf(ByteArray::isNotEmpty) }
+
+        if (bytes.isEmpty() || null in bytes) badargOf("binary", "compile_pattern", listOf(pattern))
+
+        val tag = atom(if (bytes.size == 1) "bm" else "ac")
+
+        return tuple(tag, CompiledPattern(tag, bytes.requireNoNulls(), evaluation.run.nextRef()))
     }
 
     /** `os:type/0`: the OS family and name the run's SDK runs as. */
@@ -3539,6 +3632,26 @@ private val RANGE = atom("Elixir.Range")
 /** A binary that stands for [UnknownBinary] in a type test. */
 private val SOME_BINARY = OtpErlangBinary(ByteArray(0))
 
+private val GLOBAL = atom("global")
+private val TRIM_ALL = atom("trim_all")
+
+/**
+ * The reference `binary:compile_pattern/1` gives the patterns of [bytes] as, under [tag]: only one it made is a compiled
+ * pattern, as Erlang's is a magic reference that only it makes, so a tuple built by hand isn't.
+ */
+private class CompiledPattern(val tag: OtpErlangAtom, val bytes: List<ByteArray>, id: Int) :
+    OtpErlangRef(LOCAL_NODE, intArrayOf(id, 0, 0), 0) {
+    override fun equals(other: Any?) = this === other
+
+    override fun hashCode() = System.identityHashCode(this)
+}
+
+/** Erlang's `MAX_ARG`. */
+private const val MAX_ARITY = 255L
+
+/** The one option of `sets:new/1` and `sets:from_list/2` that their first clause takes. */
+private val VERSION_2 = tuple(atom("version"), integer(2))
+
 /** The text `erlang:binary_to_integer/1,2` takes: a sign at most, then digits, which the base must hold. */
 private val INTEGER_TEXT = Regex("[+-]?[0-9a-zA-Z]+")
 
@@ -3580,6 +3693,14 @@ private fun isListOf(term: OtpErlangObject, names: Set<String>): Boolean = prope
 
 /** The small integers of a 64-bit VM. */
 private val SMALL_INTEGERS = -(1L shl 59) until (1L shl 59)
+
+/**
+ * The arity `erlang:make_fun/3` makes a fun of from [arity] on [level]: a small integer, at most [MAX_ARITY] from
+ * [MAKE_FUN_ARITY_CHECKED], or `null` where it raises `badarg`.
+ */
+internal fun makeFunArity(arity: BigInteger, level: ElixirLanguageLevel): Long? =
+    arity.takeIf { it.bitLength() < Long.SIZE_BITS }?.toLong()
+        ?.takeIf { it >= 0 && it in SMALL_INTEGERS && (it <= MAX_ARITY || !MAKE_FUN_ARITY_CHECKED.isSufficient(level)) }
 
 /** The words in the VM's largest integer, `BIG_ARITY_MAX` on a 64-bit VM ([INTEGERS_UP_TO_4_MBIT]). */
 private const val INTEGER_WORDS = (1 shl 16) - 1

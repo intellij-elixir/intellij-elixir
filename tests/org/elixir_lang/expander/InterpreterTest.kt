@@ -6110,6 +6110,156 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro("native:binary-matches-list-subject", "defmacro m, do: Macro.escape(:binary.matches(~c\"abc\", \"b\"))", pins = DECLINED),
             macro("native:binary-match-atom-pattern", "defmacro m, do: Macro.escape(:binary.match(\"abc\", :b))", pins = DECLINED),
             macro(
+                "native:binary-split-trim-all",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :binary.split("/a//b/", "/", [:trim_all]),
+                    :binary.split("/a//b/", "/", [:global, :trim_all]),
+                    :binary.split("/a//b/", "/", [:trim_all, :global]),
+                    :binary.split("//", "/", [:global, :trim_all]),
+                    :binary.split("", "/", [:trim_all]),
+                    :binary.split("", "/", [:global, :trim_all]),
+                    :binary.split("a,b;", [",", ";"], [:trim_all, :global, :trim_all]),
+                    String.split(" a  b ", " ", trim: true)
+                  ])
+                end
+                """,
+            ),
+            macro("native:binary-split-trim-and-trim-all", "defmacro m, do: Macro.escape(:binary.split(\"a/\", \"/\", [:trim, :trim_all]))", pins = DECLINED),
+            macro("native:binary-split-scope", "defmacro m, do: Macro.escape(:binary.split(\"a/b\", \"/\", [{:scope, {0, 2}}]))", pins = DECLINED),
+            macro(
+                "native:binary-split-no-options",
+                "defmacro m, do: Macro.escape([:binary.split(\"a/b/c\", \"/\"), :binary.split(\"ab/\", :binary.compile_pattern([\"/\", \"b\"])), :binary.split(\"\", \"/\")])",
+            ),
+            // A compiled pattern is tagged as Erlang tags it, `bm` for one binary and `ac` for several, and read by each
+            // function a pattern is given to.
+            macro(
+                "native:binary-compile-pattern",
+                """
+                defmacro m do
+                  one = :binary.compile_pattern("/")
+                  several = :binary.compile_pattern(["/", "\\"])
+                  single = :binary.compile_pattern(["/"])
+
+                  Macro.escape([
+                    elem(one, 0),
+                    elem(several, 0),
+                    elem(single, 0),
+                    is_tuple(one),
+                    :binary.split("a/b\\c", several, [:global]),
+                    :binary.split("a/b", one, []),
+                    :binary.split("/a/", single, [:global, :trim_all]),
+                    :binary.matches("a/b/c", single),
+                    :binary.match("a\\b", several)
+                  ])
+                end
+                """,
+            ),
+            macro("native:binary-compile-pattern-empty", "defmacro m, do: :binary.compile_pattern(\"\")"),
+            macro("native:binary-compile-pattern-no-patterns", "defmacro m, do: :binary.compile_pattern([])"),
+            macro("native:binary-compile-pattern-an-empty-one", "defmacro m, do: :binary.compile_pattern([\"a\", \"\"])"),
+            macro("native:binary-compile-pattern-atom", "defmacro m, do: :binary.compile_pattern(:a)"),
+            macro("native:binary-compile-pattern-improper", "defmacro m, do: :binary.compile_pattern([\"a\" | \"b\"])"),
+            macro("native:binary-compile-pattern-bitstring", "defmacro m, do: :binary.compile_pattern(<<1::4>>)"),
+            macro("native:binary-compile-pattern-integer", "defmacro m, do: :binary.compile_pattern([1])"),
+            // Only `compile_pattern/1`'s own tuple is a compiled pattern: one built by hand, or tagged for the other kind,
+            // isn't.
+            macro("native:binary-split-hand-built-bm", "defmacro m, do: Macro.escape(:binary.split(\"a/b\", {:bm, \"/\"}))"),
+            macro("native:binary-split-hand-built-ac", "defmacro m, do: Macro.escape(:binary.split(\"a/b\", {:ac, [\"/\", \"b\"]}))"),
+            macro(
+                "native:binary-split-retagged-pattern",
+                "defmacro m, do: Macro.escape(:binary.split(\"a/b\", {:ac, elem(:binary.compile_pattern(\"/\"), 1)}))",
+            ),
+            // `sets` at version 2, the one `MapSet` asks for: a map whose keys are compared exactly, so `1.0` isn't `1`.
+            macro(
+                "native:sets",
+                """
+                defmacro m do
+                  s = :sets.from_list([3, 1, 2, 1], version: 2)
+                  t = :sets.add_element(1.0, :sets.add_element(4, s))
+
+                  Macro.escape([
+                    :sets.new(version: 2),
+                    s,
+                    t,
+                    :sets.del_element(1, t),
+                    :sets.del_element(9, t),
+                    :sets.is_element(1, t),
+                    :sets.is_element(1.0, s),
+                    :sets.size(t),
+                    :sets.to_list(t),
+                    :sets.union(s, :sets.from_list([5, 1.0], version: 2))
+                  ])
+                end
+                """,
+            ),
+            macro(
+                "native:map-set",
+                """
+                defmacro m do
+                  set = MapSet.new([2, 1]) |> MapSet.put(3) |> MapSet.delete(2)
+
+                  [MapSet.member?(set, 3), MapSet.size(set), MapSet.to_list(set), MapSet.to_list(MapSet.union(set, MapSet.new([4])))]
+                end
+                """,
+            ),
+            // A key is removed where it is exactly equal, so `1.0` leaves `1`.
+            macro(
+                "native:maps-remove",
+                "defmacro m, do: Macro.escape([:maps.remove(:a, %{a: 1, b: 2}), :maps.remove(:c, %{a: 1}), :maps.remove(1.0, %{1 => :x}), Map.delete(%{}, :a)])",
+            ),
+            macro("native:maps-remove-not-a-map", "defmacro m, do: :maps.remove(:a, :b)"),
+            // Each key once, exactly equal, so `1.0` and `1` are two.
+            macro("native:maps-from-keys", "defmacro m, do: Macro.escape([:maps.from_keys([:b, :a, :b], 0), :maps.from_keys([], 0), :maps.from_keys([1, 1.0], :x)])"),
+            macro("native:maps-from-keys-improper", "defmacro m, do: :maps.from_keys([:a | :b], 0)"),
+            // Erlang's order of a map's keys past 32 is its hash's.
+            macro(
+                "native:sets-to-list-past-32",
+                "defmacro m, do: :sets.to_list(:sets.from_list(Enum.to_list(1..33), version: 2))",
+                pins = DECLINED,
+            ),
+            macro("native:sets-size-not-a-set", "defmacro m, do: :sets.size(:a)"),
+            macro("native:sets-from-list-improper", "defmacro m, do: :sets.from_list([:a | :b], version: 2)"),
+            macro("native:sets-add-element-not-a-set", "defmacro m, do: :sets.add_element(1, :a)"),
+            macro("native:sets-del-element-not-a-set", "defmacro m, do: :sets.del_element(1, :a)"),
+            macro("native:sets-is-element-not-a-set", "defmacro m, do: :sets.is_element(1, :a)"),
+            macro("native:sets-to-list-not-a-set", "defmacro m, do: :sets.to_list(:a)"),
+            macro("native:unzip", "defmacro m, do: Macro.escape([:lists.unzip([{1, :a}, {2, :b}]), :lists.unzip([])])"),
+            macro("native:unzip-non-pair", "defmacro m, do: :lists.unzip([{1, :a}, {1, 2, 3}])"),
+            // `unzip/3` stops at the first element that isn't a pair, never reading the binary past it.
+            macro("native:unzip-non-pair-before-unknown", "defmacro m, do: :lists.unzip([:bad, Kernel.inspect(:x)])"),
+            macro("native:unzip-improper", "defmacro m, do: :lists.unzip([{1, :a} | :b])"),
+            macro("native:unzip-non-list", "defmacro m, do: :lists.unzip(:a)"),
+            macro("native:duplicate", "defmacro m, do: Macro.escape([:lists.duplicate(3, :a), :lists.duplicate(0, :a), List.duplicate(\"x\", 2)])"),
+            macro("native:duplicate-negative", "defmacro m, do: :lists.duplicate(-1, :a)"),
+            macro("native:duplicate-negative-past-a-long", "defmacro m, do: :lists.duplicate(-18_446_744_073_709_551_617, :a)"),
+            macro("native:duplicate-float", "defmacro m, do: :lists.duplicate(1.0, :a)"),
+            macro("native:duplicate-past-the-node-limit", "defmacro m, do: length(:lists.duplicate(2_000_000, :a))", pins = DECLINED),
+            macro(
+                "native:make-fun",
+                """
+                defmacro m do
+                  f = :erlang.make_fun(Kernel, :+, 2)
+
+                  [
+                    is_function(f, 2),
+                    f.(1, 2),
+                    :erlang.make_fun(Enum, :count, 1) == (&Enum.count/1),
+                    Function.capture(Enum, :count, 1).([1]),
+                    is_function(:erlang.make_fun(M, :f, 255), 255),
+                    is_function(:erlang.make_fun(M, :f, 0), 0)
+                  ]
+                end
+                """,
+            ),
+            macro("native:make-fun-module-not-atom", "defmacro m, do: :erlang.make_fun(\"Kernel\", :+, 2)"),
+            macro("native:make-fun-name-not-atom", "defmacro m, do: :erlang.make_fun(Kernel, \"+\", 2)"),
+            macro("native:make-fun-negative-arity", "defmacro m, do: :erlang.make_fun(Kernel, :+, -1)"),
+            macro("native:make-fun-arity-past-255", "defmacro m, do: :erlang.make_fun(Kernel, :+, 256)"),
+            macro("native:make-fun-arity-past-a-long", "defmacro m, do: :erlang.make_fun(Kernel, :+, 18_446_744_073_709_551_616)"),
+            macro("native:make-fun-float-arity", "defmacro m, do: :erlang.make_fun(Kernel, :+, 2.0)"),
+            macro(
                 "native:filename-dirname",
                 """
                 defmacro m do

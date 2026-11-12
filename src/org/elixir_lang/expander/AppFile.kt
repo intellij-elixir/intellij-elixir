@@ -11,12 +11,12 @@ import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.expander.interpreter.keyValue
+import org.elixir_lang.expander.interpreter.makeFunArity
 import org.elixir_lang.expander.interpreter.mapOf
 import org.elixir_lang.expander.interpreter.orOnDecline
 import org.elixir_lang.language_level.ElixirLanguageFeature.ADJACENT_STRINGS_NEED_WHITE_SPACE
 import org.elixir_lang.language_level.ElixirLanguageFeature.APP_ENV_PARAMETERS_CHECKED
 import org.elixir_lang.language_level.ElixirLanguageFeature.CARET_NOTATION_CHECKED
-import org.elixir_lang.language_level.ElixirLanguageFeature.MAKE_FUN_ARITY_CHECKED
 import org.elixir_lang.language_level.ElixirLanguageFeature.TRIPLE_QUOTED_STRINGS
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.erlScanReservedWord
@@ -257,15 +257,11 @@ private class Terms(private val text: CharSequence, private val level: ElixirLan
         expect('/')
         blank()
         val arity = (number() as? OtpErlangLong ?: unreadable()).bigIntegerValue()
-        // `erl_parse:normalise/1` makes it with `erlang:make_fun/3`, which takes a small arity: up to 255 from
-        // [MAKE_FUN_ARITY_CHECKED], else whole. One past an `Int` is refused, as JInterface can't hold it.
-        val made = when {
-            arity > MAX_SMALL -> unreadable()
-            MAKE_FUN_ARITY_CHECKED.isSufficient(level) -> arity.takeIf { it <= MAX_ARITY } ?: unreadable()
-            else -> arity
-        }
+        // `erl_parse:normalise/1` makes it with `erlang:make_fun/3`. One past an `Int` is refused, as JInterface can't
+        // hold it.
+        val made = makeFunArity(arity, level)?.takeIf { it <= Int.MAX_VALUE } ?: unreadable()
 
-        return OtpErlangExternalFun(module, function, made.takeIf { it.bitLength() < Int.SIZE_BITS }?.toInt() ?: unreadable())
+        return OtpErlangExternalFun(module, function, made.toInt())
     }
 
     /**
@@ -454,10 +450,6 @@ private class Terms(private val text: CharSequence, private val level: ElixirLan
     private fun unreadable(): Nothing = throw Unreadable()
 
     private companion object {
-        val MAX_ARITY: BigInteger = BigInteger.valueOf(255)
-
-        /** The largest small integer on a 64-bit VM. */
-        val MAX_SMALL: BigInteger = BigInteger.ONE.shiftLeft(59) - BigInteger.ONE
         const val MAX_ATOM_CHARACTERS = 255
         val MIN_BASE: BigInteger = BigInteger.TWO
         val MAX_BASE: BigInteger = BigInteger.valueOf(36)
