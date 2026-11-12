@@ -94,6 +94,10 @@ defmodule Matrix do
       # table writes it. Elixir evaluates the attribute, so the function is the same `def snoc/2`.
       %{id: "eex_function_from_kind", definer: "def", eex: true, eex_attribute: :kind},
       %{id: "eex_function_from_args", definer: "def", eex: true, eex_attribute: :args},
+      # The same call with its last binding list ending in a tail: a literal one, `[:q | [:x]]`, which is `[:q, :x]`, and an
+      # attribute's, `[:q | @rest]`, which Elixir evaluates before it counts the arity.
+      %{id: "eex_function_from_literal_tail", definer: "def", eex: true, eex_tail: :literal},
+      %{id: "eex_function_from_open_tail", definer: "def", eex: true, eex_attribute: :rest, eex_tail: :open},
       # The same call with a name nothing writes as an atom, which the compiler computes at its own run time.
       %{id: "eex_function_from_computed_name", definer: "def", eex: true, eex_computed: true},
       # `defexception [:message]` declares `exception/1` and `message/1`, whose names it does not write: the world
@@ -2734,13 +2738,13 @@ defmodule Matrix do
       |> Code.string_to_quoted!(emit_warnings: false)
       |> Macro.prewalk({[], %{}}, fn
         # A module attribute a later EEx call may read its kind or its arguments from.
-        {:@, _, [{attribute, _, [value]}]} = node, {acc, attributes} when attribute in [:kind, :args] ->
+        {:@, _, [{attribute, _, [value]}]} = node, {acc, attributes} when attribute in [:kind, :args, :rest] ->
           {node, {acc, Map.put(attributes, attribute, value)}}
 
         # A function declared by a call: its kind, name and parameters are the call's arguments.
         {{:., _, [{:__aliases__, _, [:EEx]}, :function_from_string]}, _, [kind, name, _template, arguments | _]} = node, {acc, attributes} ->
           kind = attribute_value(kind, attributes)
-          arguments = attribute_value(arguments, attributes)
+          arguments = arguments |> attribute_value(attributes) |> tail_arguments(attributes)
           name = computed_name(name)
           {node, {[head(kind, {name, [], Enum.map(arguments, &{&1, [], nil})}) | acc], attributes}}
 
@@ -2861,6 +2865,10 @@ defmodule Matrix do
   # `@name` read from the attributes set before it; anything else is itself.
   defp attribute_value({:@, _, [{attribute, _, context}]}, attributes) when is_atom(context), do: Map.fetch!(attributes, attribute)
   defp attribute_value(value, _attributes), do: value
+
+  # `[first | tail]` is the list `first` heads, whether the tail is written out or read from an attribute.
+  defp tail_arguments([{:|, _, [first, tail]}], attributes), do: [first | attribute_value(tail, attributes)]
+  defp tail_arguments(arguments, _attributes), do: arguments
 
   defp computed_name({{:., _, [{:__aliases__, _, [:String]}, :to_atom]}, _, [{:<>, _, [first, last]}]}), do: String.to_atom(first <> last)
   defp computed_name(name), do: name
@@ -3009,12 +3017,21 @@ defmodule Matrix do
     template = "\"<%= inspect({#{Enum.join(variables, ", ")}}) %>\""
     arguments = "[#{Enum.map_join(variables, ", ", &(":" <> &1))}]"
 
-    case form[:eex_attribute] do
+    arguments = eex_arguments(form[:eex_tail], variables, arguments)
+
+    case if(variables == [] and form[:eex_tail], do: nil, else: form[:eex_attribute]) do
+      :rest -> "  @rest [#{Enum.map_join(tl(variables), ", ", &(":" <> &1))}]\n  EEx.function_from_string(:#{form.definer}, :#{name}, #{template}, #{arguments})"
       :kind -> "  @kind :#{form.definer}\n  EEx.function_from_string(@kind, :#{name}, #{template}, #{arguments})"
       :args -> "  @args #{arguments}\n  EEx.function_from_string(:#{form.definer}, :#{name}, #{template}, @args)"
       nil -> "  EEx.function_from_string(:#{form.definer}, #{eex_name(form, name)}, #{template}, #{arguments})"
     end
   end
+
+  # The first binding, then the others after a `|`: written out, or read from `@rest`. A definition with no binding has
+  # no head for a tail, and is written as the base form writes it.
+  defp eex_arguments(:literal, [first | rest], _arguments), do: "[:#{first} | [#{Enum.map_join(rest, ", ", &(":" <> &1))}]]"
+  defp eex_arguments(:open, [first | _rest], _arguments), do: "[:#{first} | @rest]"
+  defp eex_arguments(_tail, _variables, arguments), do: arguments
 
   defp eex_name(%{eex_computed: true}, name) do
     {first, last} = String.split_at(name, -1)
@@ -3694,7 +3711,7 @@ defmodule Matrix do
              Regex.run(~r/^\s*EEx\.function_from_string\(\s*:(def|defp), :([^\s,]+), .*, \[(.*)\]\)$/u, text, return: :index) do
         [_, {definer_start, definer_length}, {name_start, name_length}, {parameters_start, parameters_length}] ->
           name = binary_part(text, name_start, name_length)
-          parameters = binary_part(text, parameters_start, parameters_length) |> String.split(", ", trim: true)
+          parameters = binary_part(text, parameters_start, parameters_length) |> String.replace(~r/ \| \[(.*)\]$/, ", \\1") |> String.split(", ", trim: true)
 
           if name in ["local_site", "local_forward", "uses", "__using__"] do
             []
@@ -3741,10 +3758,11 @@ defmodule Matrix do
   # An EEx call reading its kind or arguments from the attribute set on the line before, as that line spells them: the
   # position of the name is unchanged, since the attribute is only ever the first or the last argument.
   defp eex_with_attribute(text, previous) do
-    case {Regex.run(~r/^\s*@(kind|args) (.*)$/, previous), text} do
+    case {Regex.run(~r/^\s*@(kind|args|rest) (.*)$/, previous), text} do
       # Padded to `@kind`'s length, so the name after it keeps its column.
       {[_, "kind", ":" <> kind], _} -> String.replace(text, "EEx.function_from_string(@kind, ", "EEx.function_from_string(#{String.pad_leading(":" <> kind, 5)}, ")
       {[_, "args", arguments], _} -> String.replace_suffix(text, ", @args)", ", #{arguments})")
+      {[_, "rest", arguments], _} -> String.replace_suffix(text, "| @rest])", "| #{arguments}])")
       _ -> text
     end
   end
