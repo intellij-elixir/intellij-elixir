@@ -9,6 +9,7 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Doc
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByLanguage
 import org.elixir_lang.beam.term.inspect
+import org.elixir_lang.code_insight.definition
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
@@ -102,7 +103,7 @@ sealed class FetchedDocs(open val module: String?) {
     data class Arities(override val module: String?, val entries: List<Entry>) : FetchedDocs(module) {
         data class Entry(val arities: ArityInterval, val documentation: FunctionOrMacroDocumentation) {
             /** Names this entry in a link to it. */
-            val id: String get() = "arity-${arities.maximum ?: arities.minimum}"
+            val id: String get() = "arity-${arities.definition().first}"
         }
 
         /** The entry for the function used at [arity], if there is one. */
