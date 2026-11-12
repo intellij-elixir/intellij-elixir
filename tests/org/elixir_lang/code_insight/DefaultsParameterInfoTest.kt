@@ -46,19 +46,19 @@ class DefaultsParameterInfoTest : PlatformTestCase() {
         )
 
     fun testARemoteCallShowsTheDefaultsOfAFunctionWithNoHead() =
-        assertEquals(listOf(SNOC_HEAD), shown(snoc + "\n\ndefmodule Caller do\n  def calls(a), do: Definer.snoc(a<caret>)\nend\n"))
+        assertEquals(listOf(SNOC_HEAD), shown("$snoc\n\ndefmodule Caller do\n  def calls(a), do: Definer.snoc(a<caret>)\nend\n"))
 
     fun testACallThroughImportOnlyOfALowerArityShowsTheDefaults() =
         assertEquals(
             listOf(SNOC_HEAD),
-            shown(snoc + "\n\ndefmodule Caller do\n  import Definer, only: [snoc: 1]\n\n  def calls(a), do: snoc(a<caret>)\nend\n")
+            shown("$snoc\n\ndefmodule Caller do\n  import Definer, only: [snoc: 1]\n\n  def calls(a), do: snoc(a<caret>)\nend\n")
         )
 
     fun testAMacroShowsItsDefaults() =
         assertEquals(
             listOf(SNOC_HEAD),
             shown(
-                snoc + "\n\ndefmodule Caller do\n  require Definer\n\n  def calls(a), do: Definer.snoc_macro(a<caret>)\nend\n"
+                "$snoc\n\ndefmodule Caller do\n  require Definer\n\n  def calls(a), do: Definer.snoc_macro(a<caret>)\nend\n"
             )
         )
 
