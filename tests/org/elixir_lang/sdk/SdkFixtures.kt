@@ -131,7 +131,7 @@ internal object SdkFixtures {
      */
     fun renameInTable(name: String, newName: String): Sdk {
         val sdk = ProjectJdkTable.getInstance().findJdk(name)!!
-        val clone = sdk.clone() as Sdk
+        val clone = sdk.clone()
 
         WriteAction.run<Throwable> {
             clone.sdkModificator.apply {
@@ -225,6 +225,8 @@ internal object SdkFixtures {
     fun settle() = PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
     /** [block] with a modal dialog open, as Settings and Project Structure are. */
+    // The platform has no public way to enter a modality without showing a window.
+    @Suppress("JetBrainsInternalApiUsage")
     @RequiresEdt
     fun inADialog(block: () -> Unit) {
         val dialog = Any()
