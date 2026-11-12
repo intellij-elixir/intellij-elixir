@@ -15,8 +15,11 @@ import org.elixir_lang.intellij_elixir.Quoter
 import java.io.File
 import kotlin.time.Duration.Companion.seconds
 
-/** One build of a compiled library's module: `Compiled` renamed to [name], with its debug info or, as a Docs-only dependency ships, without. */
-internal class CompiledBuild(val name: String, val debugInfo: Boolean = true)
+/**
+ * One build of a compiled library's module: `Compiled` renamed to [name], with its debug info or, as a Docs-only
+ * dependency ships, without, and its `Docs` chunk naming [docsLanguage] as the language that compiled it.
+ */
+internal class CompiledBuild(val name: String, val debugInfo: Boolean = true, val docsLanguage: String = "elixir")
 
 /**
  * Compiles [source] with the leg's Elixir once for each of [builds], its module `Compiled` (and any module named under
@@ -25,7 +28,7 @@ internal class CompiledBuild(val name: String, val debugInfo: Boolean = true)
 internal fun CodeInsightTestFixture.addCompiledLibrary(source: String, vararg builds: CompiledBuild) {
     val compiled = Quoter.compile(
         """
-        compile = fn name, debug_info ->
+        compile = fn name, debug_info, docs_language ->
           [{module, binary} | _] =
             ${elixirString(source)}
             |> String.replace("Compiled", name)
@@ -35,16 +38,28 @@ internal fun CodeInsightTestFixture.addCompiledLibrary(source: String, vararg bu
           :code.delete(module)
           :code.purge(module)
 
-          if debug_info do
+          if debug_info and docs_language == :elixir do
             binary
           else
             {:ok, _, chunks} = :beam_lib.all_chunks(binary)
-            {:ok, docs_only} = :beam_lib.build_module(Enum.reject(chunks, fn {id, _} -> id == ~c"Dbgi" end))
-            docs_only
+
+            {:ok, rebuilt} =
+              chunks
+              |> Enum.reject(fn {id, _} -> not debug_info and id == ~c"Dbgi" end)
+              |> Enum.map(fn
+                {~c"Docs", docs} ->
+                  {~c"Docs", docs |> :erlang.binary_to_term() |> put_elem(2, docs_language) |> :erlang.term_to_binary()}
+
+                chunk ->
+                  chunk
+              end)
+              |> :beam_lib.build_module()
+
+            rebuilt
           end
         end
 
-        IntellijElixir.Quoter.Probe.send(__ENV__, [${builds.joinToString { "compile.(\"${it.name}\", ${it.debugInfo})" }}])
+        IntellijElixir.Quoter.Probe.send(__ENV__, [${builds.joinToString { "compile.(\"${it.name}\", ${it.debugInfo}, :${it.docsLanguage})" }}])
         """.trimIndent(),
         60.seconds,
     )

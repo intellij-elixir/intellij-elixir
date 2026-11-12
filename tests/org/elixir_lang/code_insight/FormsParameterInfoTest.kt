@@ -10,6 +10,10 @@ class FormsParameterInfoTest : PlatformTestCase() {
     fun testAnEExFunctionOfAssignsShowsAssigns() =
         assertEquals(listOf("assigns"), shownFromEEx("[:assigns]"))
 
+    /** `[:a | [:b]]` is the list `[:a, :b]`, so the function takes both. */
+    fun testAnEExFunctionShowsTheArgumentNamesOfALiteralTail() =
+        assertEquals(listOf("a, b"), shownFromEEx("[:a | [:b]]"))
+
     fun testAnEExFunctionWithoutArgumentsShowsNoParameters() =
         assertEquals(listOf("<no parameters>"), shownFromEEx("[]"))
 
@@ -19,17 +23,32 @@ class FormsParameterInfoTest : PlatformTestCase() {
     fun testEmbedTextShowsNoParameters() =
         assertEquals(listOf("<no parameters>"), shownFromEmbed("embed_text(:error, \"Error\")", "error_text(<caret>)"))
 
+    /** With a `:message` field, Elixir's own head is `exception(msg)`. */
     fun testDefexceptionShowsExceptionTakingAMessage() =
-        assertEquals(listOf("message"), shownFromException("E.exception(<caret>)"))
+        assertEquals(listOf("msg"), shownFromException("E.exception(<caret>)"))
 
     fun testDefexceptionShowsMessageTakingTheException() =
         assertEquals(listOf("exception"), shownFromException("E.message(<caret>)"))
 
+    /** `defexception @fields` takes the fields the attribute holds. */
+    fun testDefexceptionWithFieldsFromAnAttributeShowsExceptionTakingAMessage() =
+        assertEquals(listOf("msg"), shownFromException("E.exception(<caret>)", fields = "@fields"))
+
+    fun testDefexceptionWithFieldsFromAnAttributeShowsMessageTakingTheException() =
+        assertEquals(listOf("exception"), shownFromException("E.message(<caret>)", fields = "@fields"))
+
+    /** Fields known only once evaluated: `message/1` is still declared, and `exception/1` takes what every one does. */
+    fun testDefexceptionWithFieldsNotReadShowsMessageTakingTheException() =
+        assertEquals(listOf("exception"), shownFromException("E.message(<caret>)", fields = "fields()"))
+
+    fun testDefexceptionWithFieldsNotReadShowsExceptionTakingArgs() =
+        assertEquals(listOf("args"), shownFromException("E.exception(<caret>)", fields = "fields()"))
+
     /** The user's own `def` overrides the generated `exception/1`, so it is the one signature. */
     fun testAUsersExceptionOverridesTheGeneratedOne() =
         assertEquals(
-            listOf("msg"),
-            shownFromException("E.exception(<caret>)", "def exception(msg), do: %E{message: msg}")
+            listOf("reason"),
+            shownFromException("E.exception(<caret>)", "def exception(reason), do: %E{message: reason}")
         )
 
     /** A `@callback` declares a contract, not a function body, so it does not replace the generated function. */
@@ -78,15 +97,15 @@ class FormsParameterInfoTest : PlatformTestCase() {
             "comment.ex",
             """
             defmodule Pairs do
-              def pair({a, # the first
-                        b}), do: {a, b}
+              def pair(t \\ {1, # the first
+                             2}), do: t
 
               def calls(t), do: pair(t<caret>)
             end
             """.trimIndent()
         )
 
-        assertEquals(listOf("{a, b}"), myFixture.parameterInfoSignaturesAtCaret())
+        assertEquals(listOf("t \\\\ {1, 2}"), myFixture.parameterInfoSignaturesAtCaret())
     }
 
     fun testADefaultValueKeepsItsLiteralsAsWritten() {
@@ -153,12 +172,14 @@ class FormsParameterInfoTest : PlatformTestCase() {
         return myFixture.parameterInfoSignaturesAtCaret()
     }
 
-    private fun shownFromException(call: String, body: String = ""): List<String> {
+    private fun shownFromException(call: String, body: String = "", fields: String = "[:message]"): List<String> {
         myFixture.configureByText(
             "exception.ex",
             """
             defmodule E do
-              defexception [:message]
+              @fields [:message]
+
+              defexception $fields
               $body
             end
 

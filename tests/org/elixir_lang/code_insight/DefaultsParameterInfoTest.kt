@@ -102,10 +102,10 @@ class DefaultsParameterInfoTest : PlatformTestCase() {
             ).sorted()
         )
 
-    /** Clauses with no head to speak for them: the one that declares the defaults does, wherever the call stands. */
+    /** Clauses with no head: the defaults one of them declares are shown, wherever the call stands. */
     fun testACallInALaterClauseStillShowsTheDefaults() =
         assertEquals(
-            listOf("[], acc \\\\ []"),
+            listOf("list, acc \\\\ []"),
             shown(
                 """
                 defmodule Rec do

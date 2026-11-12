@@ -44,7 +44,7 @@ class ParameterInfo : ParameterInfoHandler<Arguments, Signature> {
             // The head shows its defaults, but a call leaves some out: the argument binds the parameter left at the call's arity.
             val highlightedIndex = PsiTreeUtil.getParentOfType(context.parameterOwner, Call::class.java)
                 ?.resolvedPrimaryArity()
-                ?.let { ParameterText.positionsReaching(p.parameters, it).getOrNull(currentParameterIndex) }
+                ?.let { ParameterText.positionsReaching(p.binding, it).getOrNull(currentParameterIndex) }
                 ?: currentParameterIndex
 
             val stringBuilder = StringBuilder()

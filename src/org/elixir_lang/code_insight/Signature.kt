@@ -19,9 +19,15 @@ import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 
 /**
- * The parameters one definition of a function or macro takes, as text. The guard is not a parameter.
+ * The parameters one definition of a function or macro takes, as text. The guard is not a parameter. [binding] are the
+ * parameters of the head that declares the defaults, which say which parameter each argument of a call binds: the
+ * names Elixir records can leave out a default a later clause declares.
  */
-data class Signature(val nameArityInterval: NameArityInterval, val parameters: List<String>) {
+data class Signature(
+    val nameArityInterval: NameArityInterval,
+    val parameters: List<String>,
+    val binding: List<String> = parameters
+) {
     /** What names a definition: its name and the arities it covers, by the largest, or by the least where open. */
     internal val definition: Pair<String, Pair<Int, Boolean>>
         get() = nameArityInterval.name to nameArityInterval.arityInterval.definition()
