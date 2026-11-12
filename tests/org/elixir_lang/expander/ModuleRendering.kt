@@ -63,7 +63,8 @@ internal fun exported(exports: ModuleExports): String =
 internal fun exported(functions: Collection<NameArity>, macros: Collection<NameArity>): String =
     "functions: ${names(functions)}; macros: ${names(macros)}"
 
-private fun nameArities(term: OtpErlangObject): List<NameArity> = (term as OtpErlangList).elements().map { NameArity.from(it)!! }
+/** The `{name, arity}` tuples of the list [term]. */
+internal fun nameArities(term: OtpErlangObject): List<NameArity> = (term as OtpErlangList).elements().map { NameArity.from(it)!! }
 
 private fun names(nameArities: Collection<NameArity>): String =
     nameArities.sortedWith(compareBy({ it.name }, { it.arity })).joinToString(", ") { "${it.name}/${it.arity}" }

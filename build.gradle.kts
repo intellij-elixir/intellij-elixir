@@ -1053,7 +1053,34 @@ val phoenixComponentFixture = lockedExpanderFixture(
     "Phoenix.Component",
 )
 
-val expanderFixtures = listOf(ectoFixture, phoenixComponentFixture)
+// The expander tests' Phoenix router fixture: a generated Phoenix project, whose lock resolved under the one Elixir its
+// `elixir-version` names, fetched for that Elixir alone.
+val phoenixRouterFixturePath: Directory = layout.projectDirectory.dir("testData/org/elixir_lang/expander/phoenix_router")
+
+val phoenixRouterFixture = expanderFixture(
+    "phoenixRouterFixture",
+    phoenixRouterFixturePath,
+    "Fetches the Phoenix router fixture's dependencies, for the Elixir its lock resolved under",
+    providers.fileContents(phoenixRouterFixturePath.file("elixir-version")).asText
+        .flatMap { version -> if (version.trim() == elixirVersion) digestOf(phoenixRouterFixturePath.file("mix.lock")) else providers.provider { "none" } },
+) {
+    for (name in listOf("mix.exs", "mix.lock", "elixir-version")) {
+        inputs.file(phoenixRouterFixturePath.file(name))
+            .withPropertyName(name)
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    }
+
+    // Mix takes a git dependency as checked out by its `.git`, which the build cache doesn't store.
+    outputs.doNotCacheIf("its git dependencies need their `.git`") { true }
+
+    val resolvedSdks = sdkPropertiesFile.get().asFile
+    val version = phoenixRouterFixturePath.file("elixir-version").asFile
+    onlyIf("the Phoenix router fixture's lock resolved under this Elixir") {
+        readPropertiesFile(resolvedSdks)["elixir.version"] == version.readText().trim()
+    }
+}
+
+val expanderFixtures = listOf(ectoFixture, phoenixComponentFixture, phoenixRouterFixture)
 
 // CI runs this before it saves the Elixir cache, so the cache holds every fixture's dependencies.
 val getExpanderFixtureDeps: TaskProvider<Task> = tasks.register("getExpanderFixtureDeps") {

@@ -91,6 +91,9 @@ internal class PhoenixCorpus(private val project: Project, disposable: Disposabl
 
     fun psi(file: File): ElixirFile? = PsiManager.getInstance(project).findFile(vf(file)) as? ElixirFile
 
+    /** The Elixir file at [path] under [root], which must be one. */
+    fun psi(root: File, path: String): ElixirFile = psi(File(root, path)) ?: error("no Elixir file at $path")
+
     /** Runs [body] with the lowering's logged errors counted rather than failing the test. */
     fun <T> quiet(body: () -> T): T {
         val processor = object : GuardedLoggedErrorProcessor() {
