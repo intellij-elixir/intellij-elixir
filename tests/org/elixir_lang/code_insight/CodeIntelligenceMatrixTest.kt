@@ -1515,7 +1515,11 @@ private class Group(val scenario: Scenario) {
         }
 
         if (signatures.size > 1) {
-            val entries = signatures.associateWith { html.indexOf(it, html.indexOf(it) + 1) }
+            val entriesStart = html.indexOf("<a id=\"arity-")
+
+            assertTrue("Quick Documentation at ${place.id} has no entry per arity: $html", entriesStart >= 0)
+
+            val entries = signatures.associateWith { html.indexOf(it, entriesStart) }
 
             assertEquals(
                 "Quick Documentation at ${place.id} shows no header listing every signature: $html",
@@ -1523,7 +1527,7 @@ private class Group(val scenario: Scenario) {
                 entries.filterValues { it < 0 }.keys.toList()
             )
 
-            val header = html.take(entries.values.min())
+            val header = html.take(entriesStart)
 
             assertTrue(
                 "Quick Documentation at ${place.id} lists the signatures among its entries rather than above them: $html",
