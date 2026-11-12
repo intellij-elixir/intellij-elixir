@@ -7,9 +7,11 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import org.elixir_lang.expander.interpreter.COPY_NODES
+import org.elixir_lang.expander.interpreter.UnknownBinary
 import org.elixir_lang.lowering.Aligned
 import org.elixir_lang.lowering.Aligner
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Meta
 import java.util.Collections
 import java.util.IdentityHashMap
 
@@ -162,8 +164,9 @@ internal class Origins : Aligner {
 
 /**
  * A value or a macro's result as code: [term] as [ElixirAst.fromOtp] reads it, each node it finds
- * in [run]'s record its source node or that node's origin. Everything else has [origin], and is marked built where
- * [built]. `null` where it isn't code or would hold more than [COPY_NODES] nodes.
+ * in [run]'s record its source node or that node's origin, and an [UnknownBinary] a [ElixirAst.Value] of it. Everything
+ * else has [origin], and is marked built where [built]. `null` where it isn't code or would hold more than [COPY_NODES]
+ * nodes.
  */
 internal fun rebuilt(
     term: OtpErlangObject,
@@ -172,4 +175,13 @@ internal fun rebuilt(
     built: Boolean,
     known: (OtpErlangObject) -> ElixirAst? = { null },
     onNode: ((OtpErlangObject, ElixirAst) -> Unit)? = null,
-): ElixirAst? = ElixirAst.fromOtp(term, origin, values = true, known, COPY_NODES, run.origins, built, onNode)
+): ElixirAst? {
+    val read = { each: OtpErlangObject ->
+        known(each) ?: if (each === UnknownBinary) ElixirAst.Value(Meta(origin, UNPLACED, UNPLACED, built = built), each) else null
+    }
+
+    return ElixirAst.fromOtp(term, origin, values = true, read, COPY_NODES, run.origins, built, onNode)
+}
+
+/** The position of a node [rebuilt] makes, as [ElixirAst.fromOtp] gives one: none. */
+private val UNPLACED = Meta.Position(0, 0)

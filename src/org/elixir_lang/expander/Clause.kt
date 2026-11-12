@@ -8,6 +8,8 @@ import org.elixir_lang.expander.ExState.Prematch.Bitsize
 import org.elixir_lang.expander.ExState.Prematch.InMatch
 import org.elixir_lang.expander.ExState.Prematch.OutsideMatch
 import org.elixir_lang.expander.ExState.Write
+import org.elixir_lang.expander.interpreter.UnknownBinary
+import org.elixir_lang.expander.interpreter.termOf
 import org.elixir_lang.language_level.ElixirLanguageFeature.CURSOR_RAISES
 import org.elixir_lang.language_level.ElixirLanguageFeature.INVALID_TUPLE_CLAUSE
 import org.elixir_lang.language_level.ElixirLanguageFeature.MISPLACED_TYPE_AND_CONS_OPERATORS
@@ -697,12 +699,21 @@ internal enum class Clause(vararg val heads: Head) {
             Expansion.Expanded(state, env, Term.NonTuple, run.ast { node })
     },
 
+    /** A literal, a compiled value, or a binary whose bytes are unknown, which is a binary to whatever reads its value. */
     LITERAL(expandHead("V1 when is_number(V1); is_atom(V1); is_binary(V1)")) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
-            node is ElixirAst.Literal || node is ElixirAst.Placeholder && !node.stopsExpansion
+            node is ElixirAst.Literal || node is ElixirAst.Placeholder && !node.stopsExpansion ||
+                node is ElixirAst.Value && node.term === UnknownBinary
 
-        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            Expansion.Expanded(state, env, if (node is ElixirAst.Literal) literalValue(node) else NODE, run.ast { node })
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
+            val value = when (node) {
+                is ElixirAst.Literal -> literalValue(node)
+                is ElixirAst.Value -> termOf(node.term)
+                else -> NODE
+            }
+
+            return Expansion.Expanded(state, env, value, run.ast { node })
+        }
     },
 
     /** A function in a macro's result: a remote capture with no environment is `elixir_quote:fun_to_quoted/1`'s. */

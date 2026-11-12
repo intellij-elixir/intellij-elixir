@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import org.elixir_lang.declaration.MacroKey
 import org.elixir_lang.expander.interpreter.Interpreter
+import org.elixir_lang.expander.interpreter.UnknownBinary
 import org.elixir_lang.expander.interpreter.nodeMeta
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ARGUMENTS_STOP_GENERATED
 import org.elixir_lang.lowering.ElixirAst
@@ -89,8 +90,9 @@ internal inline fun expandArgument(
 
 internal fun isDirBinary(node: ElixirAst): Boolean = isVariableNamed(node, "__DIR__")
 
-/** `is_binary/1` of [node], an [expandArgument] result. */
-internal fun isBinaryValue(node: ElixirAst): Boolean = node is ElixirAst.Literal.Binary || isDirBinary(node)
+/** `is_binary/1` of [node], an [expandArgument] result: a binary, `__DIR__`, or a value whose bytes are unknown. */
+internal fun isBinaryValue(node: ElixirAst): Boolean =
+    node is ElixirAst.Literal.Binary || isDirBinary(node) || (node as? ElixirAst.Value)?.term === UnknownBinary
 
 /** The summary registry: each modelled macro, by its [MacroKey]. */
 internal object Summaries {

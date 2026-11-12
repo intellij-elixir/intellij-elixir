@@ -2243,8 +2243,7 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
-     * A light virtual file is not on disk, so it has no path: the function it would name stops at its head, and a value
-     * wholly unknown leaves a body unknown where a list holding it stops.
+     * A light virtual file is not on disk, so it has no path: the function it would name stops at its head.
      */
     fun testALightVirtualFileHasNoPath() {
         addLegElixir()
@@ -2254,7 +2253,7 @@ class ProjectModulesTest : PlatformTestCase() {
 
         assertEquals("stopped []", defines(psi(named)))
         assertEquals("compiled [f/0]", defines(psi(body)))
-        assertEquals("stopped [f/0]", defines(psi(list)))
+        assertEquals("compiled [f/0]", defines(psi(list)))
     }
 
     /** An Elixir code block injected into another file has no path of its own. */
