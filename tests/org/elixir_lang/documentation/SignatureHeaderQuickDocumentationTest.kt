@@ -252,19 +252,14 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
-        assertEquals(
-            documentation,
-            listOf(
-                "<i>module</i> <b>Linked</b>",
-                "<a href=\"#arity-1\">f(list)</a>",
-                "  def f([h | t])",
-                "<a href=\"#arity-2\">f(a, b)</a>",
-                "  def f(a, b)"
-            ),
-            definition(documentation)
+        val documentation = assertDefinitionAtCaret(
+            "<i>module</i> <b>Linked</b>",
+            "<a href=\"#arity-1\">f(list)</a>",
+            "  def f([h | t])",
+            "<a href=\"#arity-2\">f(a, b)</a>",
+            "  def f(a, b)"
         )
+
         assertTrue("Expected the first entry titled by its signature, got: $documentation", "<a id=\"arity-1\"></a><b>f(list)</b>" in documentation)
         assertTrue("Expected the second entry titled by its signature, got: $documentation", "<a id=\"arity-2\"></a><b>f(a, b)</b>" in documentation)
     }
@@ -354,13 +349,68 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
         assertEquals(documentation, title, definition.first { !it.startsWith("<i>module</i>") })
     }
 
+    fun testACompiledModuleGivesTheSignatureThenTheSpecThenTheHead() =
+        assertCompiledHeader(
+            "CompiledHeader",
+            "connected?",
+            "<i>module</i> <b>CompiledHeader</b>",
+            "connected?(socket)",
+            "  @spec connected?(CompiledHeader.Socket.t()) :: boolean()",
+            "  def connected?(%CompiledHeader.Socket{transport_pid: pid})"
+        )
+
+    /**
+     * Its debug info decompiles each arity a default covers as a function of its own; the `Docs` chunk records only the
+     * full one, which keeps its defaults.
+     */
+    fun testACompiledModuleKeepsTheDefaultsItsDocsChunkRecords() =
+        assertCompiledHeader(
+            "CompiledHeader",
+            "split",
+            "<i>module</i> <b>CompiledHeader</b>",
+            """<a href="#arity-1">split(string)</a>""",
+            "  def split(string)",
+            """<a href="#arity-2">split(string, pattern)</a>""",
+            "  def split(string, pattern)",
+            """<a href="#arity-3">split(string, pattern \\ " ", options \\ [])</a>""",
+            "  def split(string, pattern, options)"
+        )
+
+    /** With no debug info the decompiled heads are one function, which the `Docs` chunk titles once. */
+    fun testACompiledModuleWithoutDebugInfoIsTitledByItsDocsChunk() =
+        assertCompiledHeader(
+            "CompiledHeaderDocsOnly",
+            "split",
+            "<i>module</i> <b>CompiledHeaderDocsOnly</b>",
+            """split(string, pattern \\ " ", options \\ [])""",
+            "  def split(string)",
+            """  def split(string, pattern \\ " ", options \\ [])""",
+            "  def split(string, pattern)"
+        )
+
+    /**
+     * Quick Documentation at a call of [function] in [module], compiled by the leg's Elixir from [COMPILED], has its
+     * first definition block's lines, unescaped, as [lines].
+     */
+    private fun assertCompiledHeader(module: String, function: String, vararg lines: String) {
+        myFixture.addCompiledLibrary(COMPILED, CompiledBuild("CompiledHeader"), CompiledBuild("CompiledHeaderDocsOnly", debugInfo = false))
+        myFixture.configureByText("caller.ex", "defmodule Caller do\n  def calls(a), do: $module.<caret>$function(a)\nend\n")
+        assertDefinitionAtCaret(*lines)
+    }
+
     /** Quick Documentation at the caret in [text] has its first definition block's lines, unescaped, as [lines]. */
     private fun assertHeader(text: String, vararg lines: String) {
         myFixture.configureByText("header.ex", text.trimIndent())
+        assertDefinitionAtCaret(*lines)
+    }
 
+    /** Quick Documentation at the caret, returned, has its first definition block's lines, unescaped, as [lines]. */
+    private fun assertDefinitionAtCaret(vararg lines: String): String {
         val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertEquals(documentation, lines.toList(), definition(documentation).map(StringUtil::unescapeXmlEntities))
+
+        return documentation
     }
 
     /** The lines of [documentation]'s first definition block, as rendered. */
@@ -370,4 +420,24 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
             .substringBefore(DocumentationMarkup.DEFINITION_END)
             .lines()
             .filter(String::isNotEmpty)
+
+    private companion object {
+        /** The modules compiled for the `.beam` methods: `Compiled` is renamed for each build. */
+        const val COMPILED = """
+defmodule Compiled.Socket do
+  defstruct [:transport_pid]
+end
+
+defmodule Compiled do
+  alias Compiled.Socket
+
+  @doc "Connected."
+  @spec connected?(Socket.t()) :: boolean
+  def connected?(%Socket{transport_pid: pid}), do: pid != nil
+
+  @doc "Splits."
+  def split(string, pattern \\ " ", options \\ []), do: {string, pattern, options}
+end
+"""
+    }
 }

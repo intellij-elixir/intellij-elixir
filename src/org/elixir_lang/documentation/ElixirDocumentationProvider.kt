@@ -465,11 +465,11 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
     private fun fetchDocs(element: PsiElement, remote: Boolean, declaringModule: String?): FetchedDocs? =
     // For compiled Beam elements, prefer docs from the decompiled source mirror so hover uses
-        // the cached inline docs from decompilation.
+        // the cached inline docs from decompilation, headed by what the `.beam` itself records.
         if (element.containingFile?.originalFile is BeamFileImpl) {
             val sourceElement = (element as? PsiCompiledElement)?.mirror ?: element.navigationElement
 
-            SourceFileDocsHelper.fetchDocs(sourceElement, remote, declaringModule)
+            SourceFileDocsHelper.fetchDocs(sourceElement, remote, declaringModule)?.let { BeamDocsHelper.headed(element, it) }
                 ?: BeamDocsHelper.fetchDocs(element)
         } else {
             SourceFileDocsHelper.fetchDocs(element, remote, declaringModule)

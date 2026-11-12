@@ -134,7 +134,7 @@ class GeneratedArgumentsTest : BeamLibraryTestCase() {
 
         assertEquals(
             listOf("g(a, b \\\\ 1, c \\\\ 2)"),
-            (docs as FetchedDocs.Arities).entryAt(1)?.documentation?.heads
+            (docs as FetchedDocs.Arities).entryAt(1)?.documentation?.titles
         )
     }
 
