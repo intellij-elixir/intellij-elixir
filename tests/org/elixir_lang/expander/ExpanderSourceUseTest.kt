@@ -1,6 +1,5 @@
 package org.elixir_lang.expander
 
-import com.intellij.openapi.util.io.FileUtil
 import com.intellij.psi.PsiFile
 import com.intellij.testFramework.LightProjectDescriptor
 import com.intellij.util.system.OS
@@ -16,7 +15,6 @@ import org.elixir_lang.expander.ExpanderSourceRows.lineOf
 import org.elixir_lang.expander.ExpanderSourceRows.withBeamLibrary
 import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.scope.WalkTestSupport
 import org.elixir_lang.snapshot.LegElixirProjectDescriptor
 import java.io.File
 
@@ -88,12 +86,10 @@ class ExpanderSourceUseTest : PlatformTestCase() {
 
     /** Each name a `.beam`'s macro injects is offered after the module's name, though all are at one macro clause. */
     fun testEveryNameADebugInfoMacroInjectsIsVisible() {
-        val ebin = FileUtil.createTempDirectory("injecting_use_ebin", null, true)
-        File(INJECTING_USE, "Elixir.InjectingUse.beam").copyTo(File(ebin, "Elixir.InjectingUse.beam"))
         add("a.ex", "defmodule A do\n  use InjectingUse\nend\n")
         val file = add("c.ex", "defmodule C do\n  def g, do: A.foo()\nend\n")
 
-        WalkTestSupport.withLibrary(project, myFixture.module, testRootDisposable, "injecting_use", ebin) {
+        withBeamLibrary(project, myFixture.module, testRootDisposable, "injecting_use", File(INJECTING_USE, "Elixir.InjectingUse.beam")) {
             assertEquals(listOf("bar", "foo"), ExpanderSource.visible(call(file, "A.foo()"), inputs).map { it.lookupName }.sorted())
         }
     }

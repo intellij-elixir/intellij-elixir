@@ -213,12 +213,8 @@ class ConfigNativesTest : PlatformTestCase() {
     }
 
     /** How a module with [statements] as its body ended outside a read, in the file at [path], with what it defined. */
-    private fun body(statements: String, path: String? = null): String {
-        val expansion = run("defmodule A do\n$statements\nend\n", null, path = path)
-        val result = expansion.modules.single()
-
-        return "${result.ended::class.simpleName!!.lowercase()} ${result.table.entries.keys.map { "${it.name}/${it.arity}" }.sorted()}"
-    }
+    private fun body(statements: String, path: String? = null): String =
+        defined(run("defmodule A do\n$statements\nend\n", null, path = path).modules.single())
 
     /** Whether a module's definitions under a guard on [call], outside a read, are `both` left defined: what declining gives. */
     private fun declines(call: String): String {

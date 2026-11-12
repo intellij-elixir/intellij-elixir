@@ -17,7 +17,6 @@ import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.inspect
-import org.elixir_lang.psi.ElixirFile
 import java.io.File
 
 /**
@@ -53,7 +52,7 @@ class EctoFixtureTest : HeavyTestCase() {
         val steps = File(compiled.oracle, "steps").listFiles()!!.sortedBy { it.name }.associate {
             it.nameWithoutExtension to (etf(it) as OtpErlangList).elements().toList()
         }
-        val queries = file(corpus, compiled, "lib/queries.ex")
+        val queries = corpus.psi(compiled.project, "lib/queries.ex")
 
         // A `def` the oracle's prewalk doesn't match has no steps, and would drop out of the comparison unseen.
         assertEquals(DEF.findAll(queries.text).map { it.groupValues[1] }.sorted().toList(), steps.keys.toList())
@@ -116,7 +115,7 @@ class EctoFixtureTest : HeavyTestCase() {
         val compiled = compiled ?: return
         val corpus = corpus!!
         val info = etf(File(compiled.oracle, "info.etf")) as OtpErlangMap
-        val probe = file(corpus, compiled, "lib/probe.ex")
+        val probe = corpus.psi(compiled.project, "lib/probe.ex")
         val holder = ProjectModules(project)
         val modules = listOf(QUERIES, REPO)
 
@@ -139,7 +138,7 @@ class EctoFixtureTest : HeavyTestCase() {
         if (compiled.afterCompile) return
 
         val info = etf(File(compiled.oracle, "info.etf")) as OtpErlangMap
-        val result = expansion(ProjectModules(project), file(corpus!!, compiled, ASKER)).modules.single()
+        val result = expansion(ProjectModules(project), corpus!!.psi(compiled.project, ASKER)).modules.single()
 
         assertEquals(exportsIn(info, QUERIES), stored(result))
     }
@@ -150,7 +149,7 @@ class EctoFixtureTest : HeavyTestCase() {
         val level = legLevel()
         val (call, expanded) = (etf(File(compiled.oracle, "compile_config.etf")) as OtpErlangTuple).elements()
         // Not from lib/probe.ex, whose own modules are compiling, so not loaded, while it asks.
-        val asker = file(corpus, compiled, "lib/queries.ex")
+        val asker = corpus.psi(compiled.project, "lib/queries.ex")
         val holder = ProjectModules(project)
         val empty = Env.empty(level, legKernel)
         val env = empty.copy(requires = (empty.requires + PROBE).distinct().sorted())
@@ -179,7 +178,7 @@ class EctoFixtureTest : HeavyTestCase() {
         val compiled = compiled ?: return
         val info = etf(File(compiled.oracle, "info.etf")) as OtpErlangMap
         val holder = ProjectModules(project)
-        val asker = file(corpus!!, compiled, ASKER)
+        val asker = corpus!!.psi(compiled.project, ASKER)
 
         val expected = SCHEMAS.map { module ->
             if (compiled.afterCompile) "$module ${ModuleExports.Unreadable}" else "$module ${exportsIn(info, module)}"
@@ -193,7 +192,7 @@ class EctoFixtureTest : HeavyTestCase() {
         val compiled = compiled ?: return
         val info = etf(File(compiled.oracle, "info.etf")) as OtpErlangMap
         val structs = etf(File(compiled.oracle, "structs.etf")) as OtpErlangMap
-        val results = expansion(ProjectModules(project), file(corpus!!, compiled, "lib/schema.ex")).modules.associateBy { it.module }
+        val results = expansion(ProjectModules(project), corpus!!.psi(compiled.project, "lib/schema.ex")).modules.associateBy { it.module }
 
         val expected = SCHEMAS.map { module ->
             val keys = (structs.get(OtpErlangAtom(module)) as OtpErlangList).elements().map { (it as OtpErlangAtom).atomValue() }
@@ -249,8 +248,8 @@ class EctoFixtureTest : HeavyTestCase() {
         val corpus = corpus!!
         val info = etf(File(compiled.oracle, "info.etf")) as OtpErlangMap
         val holder = ProjectModules(project)
-        val results = expansion(holder, file(corpus, compiled, "lib/inline.ex")).modules.withNested().associateBy { it.module }
-        val asker = file(corpus, compiled, ASKER)
+        val results = expansion(holder, corpus.psi(compiled.project, "lib/inline.ex")).modules.withNested().associateBy { it.module }
+        val asker = corpus.psi(compiled.project, ASKER)
 
         val expected = INLINES.map { module ->
             val stops = module == INLINE && compiled.afterCompile
@@ -306,7 +305,7 @@ class EctoFixtureTest : HeavyTestCase() {
     fun testADerivedImplementationIsAbsent() {
         val compiled = compiled ?: return
         val holder = ProjectModules(project)
-        val asker = file(corpus!!, compiled, ASKER)
+        val asker = corpus!!.psi(compiled.project, ASKER)
         val derived = etf(File(compiled.oracle, "derived.etf")) as OtpErlangMap
 
         for (module in DERIVED) {
@@ -329,7 +328,7 @@ class EctoFixtureTest : HeavyTestCase() {
             .filterNot { it.startsWith(MISSING_ON) }
             .sorted()
         val actual = File(compiled.project, "lib").listFiles()!!.sortedBy { it.name }.asSequence()
-            .flatMap { ProjectModules.results(expansion(holder, file(corpus, compiled, "lib/${it.name}"))).toList() }
+            .flatMap { ProjectModules.results(expansion(holder, corpus.psi(compiled.project, "lib/${it.name}"))).toList() }
             .flatMap { it.warnings }
             .map(::rendered)
             .sorted()
@@ -337,14 +336,11 @@ class EctoFixtureTest : HeavyTestCase() {
         assertEquals(expected.joinToString("\n\n"), actual.joinToString("\n\n"))
     }
 
-    private fun file(corpus: PhoenixCorpus, compiled: Compiled, path: String): ElixirFile =
-        corpus.psi(File(compiled.project, path)) ?: error("no Elixir file at $path")
-
     /** What expanding each of [calls], `lib/probe.ex`'s macros, once gives. */
     private fun called(compiled: Compiled, calls: List<OtpErlangObject>): List<String> {
         val corpus = corpus!!
         val level = legLevel()
-        val asker = file(corpus, compiled, ASKER)
+        val asker = corpus.psi(compiled.project, ASKER)
         val holder = ProjectModules(project)
         val empty = Env.empty(level, legKernel)
         val env = empty.copy(requires = (empty.requires + PROBE).distinct().sorted())

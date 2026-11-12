@@ -14,7 +14,6 @@ import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.inspect
-import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.Import.Term
 import java.io.File
 
@@ -46,7 +45,7 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
         val compiled = compiled ?: return
         val info = etf(File(compiled.oracle, "info.etf")) as OtpErlangMap
         val holder = ProjectModules(project)
-        val asker = file(corpus!!, compiled, ASKER)
+        val asker = corpus!!.psi(compiled.project, ASKER)
 
         val expected = MODULES.map { module -> "$module ${exportsIn(info, module)}" }
         val actual = MODULES.map { module -> "$module ${exported(exports(holder, asker, module))}" }
@@ -60,7 +59,7 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
         val corpus = corpus!!
         val level = legLevel()
         val calls = (etf(File(compiled.oracle, "calls.etf")) as OtpErlangList).elements().map { it as OtpErlangTuple }
-        val asker = file(corpus, compiled, ASKER)
+        val asker = corpus.psi(compiled.project, ASKER)
         val holder = ProjectModules(project)
         val empty = Env.empty(level, legKernel)
         val env = empty.copy(requires = (empty.requires + PROBE).distinct().sorted())
@@ -90,7 +89,7 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
     fun testAModuleWithASigilBeforeItsBeforeCompileStopsAtTheSigil() {
         val compiled = compiled ?: return
         val holder = ProjectModules(project)
-        val result = expansion(holder, file(corpus!!, compiled, "lib/with_sigil.ex")).modules.single()
+        val result = expansion(holder, corpus!!.psi(compiled.project, "lib/with_sigil.ex")).modules.single()
         val ended = result.ended as ExpansionResult.Ended.Stopped
         val stop = (result.units.map { it.expansion } + result.opaque).filterIsInstance<Expansion.Opaque>().first { it.at === ended.at }
 
@@ -123,7 +122,7 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
             }
         }
         val actual = forms.map { form ->
-            val result = expansion(holder, file(corpus!!, compiled, "routes/$form.ex")).modules.single()
+            val result = expansion(holder, corpus!!.psi(compiled.project, "routes/$form.ex")).modules.single()
 
             "$form " + when (val ended = result.ended) {
                 ExpansionResult.Ended.Compiled -> {
@@ -146,9 +145,6 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }
-
-    private fun file(corpus: PhoenixCorpus, compiled: MixFixture, path: String): ElixirFile =
-        corpus.psi(File(compiled.project, path)) ?: error("no Elixir file at $path")
 
     private companion object {
         val FIXTURE: File = File("testData/org/elixir_lang/expander/phoenix_component").absoluteFile
