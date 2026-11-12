@@ -30,6 +30,7 @@ import com.intellij.psi.impl.PsiManagerEx
 import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.LightVirtualFile
+import com.intellij.testFramework.PsiTestUtil
 import com.intellij.util.FileContentUtilCore
 import com.intellij.util.system.OS
 import org.elixir_lang.ElixirFileType
@@ -356,7 +357,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testTheProjectsOwnBuildOutputIsNeverWhereANameFallsThrough() {
         addLegElixir()
-        built("_build/dev/lib/app/ebin/$DEP_BEAM", DEP_BEAM)
+        built("_build/dev/lib/app/ebin/$DEP_BEAM", File(LOADED_COPY, DEP_BEAM))
         val dep = add("dep.ex", "defmodule LoadedCopy.Dep do\n  :ok = :bad\nend\n")
         val a = add("a.ex", "defmodule A do\nend\n")
 
@@ -378,7 +379,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testTheProjectsConsolidatedProtocolsAreNeverWhereANameFallsThrough() {
         addLegElixir()
-        val consolidated = built("_build/dev/lib/app/consolidated/$PROTOCOL_BEAM", PROTOCOL_BEAM).parent
+        val consolidated = built("_build/dev/lib/app/consolidated/$PROTOCOL_BEAM", File(LOADED_COPY, PROTOCOL_BEAM)).parent
         BeamLibraryFixture.addLibrary(project, module, "app_consolidated", listOf(consolidated), emptyList())
         IndexingTestUtil.waitUntilIndexesAreReady(project)
         val x = add("x.ex", "defmodule B do\n  import LoadedCopy.Protocol\nend\ndefprotocol LoadedCopy.Protocol do\n  def p(t)\nend\n")
@@ -431,6 +432,151 @@ class ProjectModulesTest : PlatformTestCase() {
 
         assertTrue("${expansion.top}", expansion.top is Expansion.Error)
         assertEquals(listOf("Elixir.TopMade"), expansion.modules.map { it.module })
+    }
+
+    /**
+     * A module a file's code creates under a name no index holds is the one the file of its nearest parent name creates,
+     * as another file reads it each way, and a name that file leaves no module is missing. Elixir 1.20.4's answers, from
+     * `Kernel.ParallelCompiler.compile/2` of the two files.
+     */
+    fun testAModuleCreatedUnderItsParentsNameIsReadFromAnotherFile() {
+        addLegElixir()
+        add("created_copy.ex", CREATES_MADE)
+
+        assertEquals(
+            """
+            qualified compiled [g/0]
+            body-call compiled [g1/0]
+            alias compiled [g/0]
+            import compiled [g/0]
+            import-only compiled [g/0]
+            require compiled [g/0]
+            exported compiled [yes/0]
+            missing raised []
+            """.trimIndent(),
+            readersOfMade(
+                "qualified" to "def g, do: CreatedCopy.Made.f()",
+                "body-call" to "@x CreatedCopy.Made.f()\n  def unquote(:\"g#{@x}\")(), do: @x",
+                "alias" to "alias CreatedCopy.Made, as: R\n  def g, do: R.f()",
+                "import" to "import CreatedCopy.Made\n  def g, do: f()",
+                "import-only" to "import CreatedCopy.Made, only: [f: 0]\n  def g, do: f()",
+                "require" to "require CreatedCopy.Made\n  def g, do: CreatedCopy.Made.m()",
+                "exported" to "Code.ensure_compiled(CreatedCopy.Made)\n" +
+                    "  if function_exported?(CreatedCopy.Made, :f, 0), do: def(yes, do: 1), else: def(no, do: 1)",
+                "missing" to "import CreatedCopy.Missing\n  def g, do: 1",
+            ),
+        )
+    }
+
+    /**
+     * Code the expander doesn't follow ran in the file of a name's nearest parent, which compiled, so another file reads
+     * a name the file didn't compile as unknown: that code may have created it. Elixir compiles the `import` and raises
+     * at the struct, as `Made` defines none, and at the missing name.
+     */
+    fun testAModuleUnfollowedCodeInItsParentsFileMayHaveCreatedIsUnknownToAnotherFile() {
+        addLegElixir()
+        add("created_copy.ex", RECEIVE_CREATES_MADE)
+
+        assertEquals(
+            "import stopped []\nstruct stopped [h/0]\nmissing stopped []",
+            readersOfMade(
+                "import" to "import CreatedCopy.Made\n  def h, do: f()",
+                "struct" to "def h, do: %CreatedCopy.Made{}",
+                "missing" to "import CreatedCopy.Missing\n  def h, do: 1",
+            ),
+        )
+    }
+
+    /**
+     * Code the expander doesn't follow is taken not to create a module a `defmodule` in its file names: `CreatedCopy`'s
+     * `defmodule Made` is under `if false`, so `Made` is left no module, though Elixir runs the `receive` that creates
+     * it and compiles the `import`.
+     */
+    fun testAModuleUnfollowedCodeCreatesThatADefmoduleInItsFileNamesIsTakenNotCreated() {
+        addLegElixir()
+        add(
+            "created_copy.ex",
+            RECEIVE_CREATES_MADE.replace(
+                "\n  def g, do: :g\n",
+                "\n  if false do\n    defmodule Made do\n      def g, do: :g\n    end\n  end\n",
+            ),
+        )
+
+        assertEquals(
+            "import raised []",
+            readersOfMade("import" to "import CreatedCopy.Made\n  def h, do: f()"),
+        )
+    }
+
+    /**
+     * A name whose nearest parent is the asker's own file is read as that file's run has left it: no code it ran may
+     * have created `A.Missing`, so `B`'s `import` raises and `function_exported?` is false, as in Elixir.
+     */
+    fun testAModuleUnderAParentInTheAskersOwnFileIsReadAsItsRunLeftIt() {
+        addLegElixir()
+        val imported = add("imported.ex", "defmodule A do\nend\ndefmodule B do\n  import A.Missing\nend\n")
+        val exported = add(
+            "exported.ex",
+            "defmodule C do\nend\ndefmodule D do\n  if function_exported?(C.Missing, :f, 0), do: def(yes, do: 1), else: def(no, do: 1)\nend\n",
+        )
+
+        val asker = { file: PsiFile -> defined(expansion(holder, file).modules.last()) }
+
+        assertEquals("imported raised []\nexported compiled [no/0]", "imported ${asker(imported)}\nexported ${asker(exported)}")
+    }
+
+    /**
+     * The file of a name's nearest parent, still running above the read, may create the name later in its run, so the
+     * name is unknown: `Q`'s `import` stops where `P`, which requires `Q`, hasn't created `P.Made` yet.
+     */
+    fun testAModuleItsParentsRunningFileHasNotCreatedYetIsUnknown() {
+        addLegElixir()
+        add("p.ex", "defmodule P do\n  require Q\n  Module.create(Module.concat(__MODULE__, Made), quote(do: def(f, do: 1)), __ENV__)\nend\n")
+        add("q.ex", "defmodule Q do\n  import P.Made\nend\n")
+        val a = add("a.ex", "defmodule A do\n  import P.Made\n  def g, do: f()\nend\n")
+
+        assertEquals(
+            "top expanded\nElixir.A stopped `import P.Made` unported import errors[] loads Unreadable",
+            render(a, expansion(holder, a)),
+        )
+    }
+
+    /**
+     * A name whose nearest parent two source files define is unknown, as either may be the copy that created it: `A`'s
+     * `import` stops. Elixir compiles whichever file defines `P.Q` first and fails the other, so whether `P.Q.Made` is
+     * a module depends on which.
+     */
+    fun testAModuleUnderAParentTwoFilesDefineIsUnknown() {
+        addLegElixir()
+        add("q_creates.ex", "defmodule P.Q do\n  Module.create(Module.concat(__MODULE__, Made), quote(do: def(f, do: 1)), __ENV__)\nend\n")
+        add("q_plain.ex", "defmodule P.Q do\nend\n")
+        val a = add("a.ex", "defmodule A do\n  import P.Q.Made\n  def g, do: f()\nend\n")
+
+        assertEquals(
+            "top expanded\nElixir.A stopped `import P.Q.Made` unported import errors[] loads Unreadable",
+            render(a, expansion(holder, a)),
+        )
+    }
+
+    /**
+     * A build of a module a file creates under its parent's name, stale against that file, in the project's own build
+     * output: the project's sources are read, as the IDE doesn't index that output; where the output is on a library's
+     * class path and so indexed, the `.beam` is the copy, and its exports answer.
+     */
+    fun testAStaleBuildOfACreatedModuleIsReadOnlyWhereItIsIndexed() {
+        addLegElixir()
+        add("created_copy.ex", CREATES_MADE)
+        val ebin = built("_build/dev/lib/app/ebin/$MADE_BEAM", File(CREATED_COPY, MADE_BEAM)).parent
+        // As Mix sync leaves a project's own build output.
+        PsiTestUtil.addExcludedRoot(module, ebin.parent.parent.parent.parent)
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
+        val unindexed = exported(exports(holder, add("unindexed.ex", "defmodule Unindexed do\nend\n"), MADE))
+
+        BeamLibraryFixture.addLibrary(project, module, "app_ebin", listOf(ebin), emptyList())
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
+        val indexed = exported(exports(holder, add("indexed.ex", "defmodule Indexed do\nend\n"), MADE))
+
+        assertEquals("unindexed functions: f/0; macros: m/0\nindexed functions: stale/0; macros: ", "unindexed $unindexed\nindexed $indexed")
     }
 
     /**
@@ -1682,7 +1828,8 @@ class ProjectModulesTest : PlatformTestCase() {
      * A certain error after a macro's bang read of the application's environment, which is assumed not to raise, ends
      * the run as Elixir's raise does, in the macro, in the module or in a `@before_compile` callback's output: the
      * module and the next one in the file are absent, and so is a module nested before a macro that raises as the body
-     * expands. One nested before an error the body's run reaches loads.
+     * expands. One nested before an error the body's run reaches loads. Where no `defmodule` names `A.I`, it is unknown:
+     * the code the read left unfollowed ran, and may have created it.
      */
     fun testAnErrorAfterAMacrosAssumedApplicationReadEndsTheRun() {
         addLegElixir()
@@ -1701,9 +1848,10 @@ class ProjectModulesTest : PlatformTestCase() {
         }
         val raised = names.zip(importers) { name, (importer, _) -> "Elixir.$importer raised unloaded_module `import $name`" }
         val nestedLoads = raised.toMutableList().also { it[1] = "Elixir.BAI compiled" }
+        val unnamed = raised.toMutableList().also { it[1] = "Elixir.BAI stopped `import A.I` unported import" }
 
         assertEquals(
-            listOf(raised, raised, nestedLoads, nestedLoads),
+            listOf(unnamed, raised, nestedLoads, nestedLoads),
             listOf(
                 mac + "defmodule A do\n  require Mac\n  Mac.m()\n  :ok = :bad\nend\n",
                 mac + "defmodule A do\n${nested}  require Mac\n  Mac.r()\nend\n",
@@ -1721,7 +1869,8 @@ class ProjectModulesTest : PlatformTestCase() {
     /**
      * An error after a macro's bang read of the application's environment, which is assumed not to raise, stops where
      * it is, at the file's top as in a module body, in a definition's clause body as the body expands, and in a
-     * `@before_compile` callback's output: what Elixir defines before the raise loads, and nothing after it does.
+     * `@before_compile` callback's output: what Elixir defines before the raise loads, and nothing after it does. Where
+     * no `defmodule` names `A.J`, it is unknown: the code the read left unfollowed ran, and may have created it.
      */
     fun testAnErrorAfterAMacrosAssumedApplicationReadStopsAtTheFileTopAndInAClauseBody() {
         addLegElixir()
@@ -1777,7 +1926,9 @@ class ProjectModulesTest : PlatformTestCase() {
                 listOf("top unported `:ok = :bad`", "Elixir.B compiled") + loading(setOf("BB")),
                 inA(listOf("top unported `def f, do: Mac.r()`"), "def f, do: Mac.r()", "def"),
                 inA(listOf("top unported `:ok = :bad`"), ":ok = :bad", "="),
-                inA(listOf("top unported `defmodule A do`", "Elixir.CB compiled"), "defmodule A do", "="),
+                inA(listOf("top unported `defmodule A do`", "Elixir.CB compiled"), "defmodule A do", "=").map {
+                    if (it.startsWith("Elixir.BAJ ")) "Elixir.BAJ stopped `import A.J` unported import" else it
+                },
             ),
             answers,
         )
@@ -3093,6 +3244,17 @@ class ProjectModulesTest : PlatformTestCase() {
         return indicator.checks
     }
 
+    /**
+     * How a module of each of [readers]' bodies ends, each in a file of its own and named for its label, as
+     * `import compiled [g/0]`.
+     */
+    private fun readersOfMade(vararg readers: Pair<String, String>): String =
+        readers.joinToString("\n") { (label, body) ->
+            val name = label.split('-').joinToString("") { part -> part.replaceFirstChar(Char::uppercaseChar) }
+
+            "$label ${defines(add("reader_$label.ex", "defmodule Reader.$name do\n  $body\nend\n"))}"
+        }
+
     /** The leg's Elixir `.beam`s as a library, which a `defstruct` dispatches to. */
     private fun addLegElixir() = addLibrary("leg_elixir", LegManifest.ebin())
 
@@ -3148,10 +3310,10 @@ class ProjectModulesTest : PlatformTestCase() {
 
     private fun beamOf(located: ProjectModules.Located): VirtualFile? = (located as? ProjectModules.Located.Compiled)?.beam
 
-    /** The loaded-copy fixture's [beam] at [path] in the project's own build output, as a build writes it. */
-    private fun built(path: String, beam: String): VirtualFile {
+    /** A copy of [beam] at [path] in the project's own build output, as a build writes it. */
+    private fun built(path: String, beam: File): VirtualFile {
         val file = add(path, "").virtualFile
-        val bytes = File("testData/org/elixir_lang/expander/loaded_copy/$beam").readBytes()
+        val bytes = beam.readBytes()
 
         WriteAction.runAndWait<Throwable> { file.setBinaryContent(bytes) }
         IndexingTestUtil.waitUntilIndexesAreReady(project)
@@ -3287,6 +3449,30 @@ class ProjectModulesTest : PlatformTestCase() {
         const val DEP_BEAM = "Elixir.LoadedCopy.Dep.beam"
 
         const val PROTOCOL_BEAM = "Elixir.LoadedCopy.Protocol.beam"
+
+        /** A `.beam` of `CreatedCopy.Made` that defines only `stale/0`, where [CREATES_MADE] creates it with `f/0` and `m/0`. */
+        val CREATED_COPY = File("testData/org/elixir_lang/expander/created_copy")
+
+        const val MADE = "Elixir.CreatedCopy.Made"
+
+        const val MADE_BEAM = "$MADE.beam"
+
+        /** `CreatedCopy`, which creates `CreatedCopy.Made` under a name it computes, so no index holds it. */
+        const val CREATES_MADE = "defmodule CreatedCopy do\n" +
+            "  Module.create(Module.concat(__MODULE__, Made), quote do\n" +
+            "    def f, do: 1\n" +
+            "    defmacro m, do: :ok\n" +
+            "  end, Macro.Env.location(__ENV__))\n" +
+            "end\n"
+
+        /** [CREATES_MADE] in a `receive` the expander declines and Elixir runs, after which `CreatedCopy` compiles. */
+        const val RECEIVE_CREATES_MADE = "defmodule CreatedCopy do\n" +
+            "  receive do\n" +
+            "  after\n" +
+            "    0 -> Module.create(Module.concat(__MODULE__, Made), quote(do: def(f, do: :ok)), Macro.Env.location(__ENV__))\n" +
+            "  end\n\n" +
+            "  def g, do: :g\n" +
+            "end\n"
 
         /** How many runs `testCancelledCachesNothing` counts the checks of. */
         const val MEASURED_RUNS = 3

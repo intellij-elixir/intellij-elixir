@@ -241,9 +241,10 @@ class EctoFixtureTest : HeavyTestCase() {
 
     /**
      * An inline `embeds_one` creates its schema with `Module.create/3`: both modules compile, storing what Elixir's do,
-     * and the schema, where Ecto sets no `@after_compile`, exports what Elixir's does to another file. Where it sets one,
-     * the created module's callback is code the expander doesn't follow, run while the schema is open, so the schema's
-     * tables aren't known after it and its `defstruct` stops.
+     * and each exports what Elixir's does to another file where Ecto sets no `@after_compile`. Where it sets one, the
+     * created module's callback is code the expander doesn't follow, so what the created module defines isn't known to
+     * another file, and it runs while the schema is open, so the schema's tables aren't known after it and its
+     * `defstruct` stops.
      */
     fun testAnInlineEmbedCreatesItsModule() {
         val compiled = compiled ?: return
@@ -257,7 +258,9 @@ class EctoFixtureTest : HeavyTestCase() {
             val stops = module == INLINE && compiled.afterCompile
 
             "$module " + if (stops) "stopped defstruct/1" else "compiled ${exportsIn(info, module)}"
-        } + "$INLINE ${if (compiled.afterCompile) ModuleExports.Unreadable else exportsIn(info, INLINE)}"
+        } + INLINES.map { module ->
+            "$module " + if (compiled.afterCompile) ModuleExports.Unreadable else exportsIn(info, module)
+        }
         val actual = INLINES.map { module ->
             val result = results[module]
 
@@ -266,7 +269,7 @@ class EctoFixtureTest : HeavyTestCase() {
                 result.ended == ExpansionResult.Ended.Compiled -> "compiled ${stored(result)}"
                 else -> ending(result)
             }
-        } + "$INLINE ${exported(exports(holder, asker, INLINE))}"
+        } + INLINES.map { "$it ${exported(exports(holder, asker, it))}" }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }

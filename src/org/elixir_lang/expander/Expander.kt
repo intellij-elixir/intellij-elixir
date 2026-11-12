@@ -152,7 +152,7 @@ object Expander {
         val top = expanded.certain(run.fileValues.expansionCertain)
 
         // Nothing queued runs, but what a macro created as the file expanded stays: Elixir loaded it before the raise.
-        if (expanded is Expansion.Error) return FileExpansion(top, run.compiledInto, endsRun = true)
+        if (expanded is Expansion.Error) return run.fileExpansion(top, endsRun = true)
 
         val walked = compilePending(run)
 
@@ -171,11 +171,7 @@ object Expander {
             read.result = (value as? Evaluated.Value)?.value ?: Unknown
         }
 
-        return FileExpansion(
-            if (top is Expansion.Expanded) walked.ended ?: top else top,
-            run.compiledInto,
-            walked.endsRun,
-        )
+        return run.fileExpansion(if (top is Expansion.Expanded) walked.ended ?: top else top, walked.endsRun)
     }
 
     /**
@@ -203,11 +199,7 @@ object Expander {
 
         val walked = compilePending(run)
 
-        return FileExpansion(
-            walked.ended ?: Expansion.Expanded(state, env, NODE, ExpandedAst.NotAsked),
-            run.compiledInto,
-            walked.endsRun,
-        )
+        return run.fileExpansion(walked.ended ?: Expansion.Expanded(state, env, NODE, ExpandedAst.NotAsked), walked.endsRun)
     }
 
     /** `expand_defmodule/2`'s walk: each `defmodule` in [forms], into nested blocks. */
@@ -443,6 +435,9 @@ internal class Run(
      * ([workingDirectory]) and created modules with `Module.create/3` ([maybeCreated]); once set it stays.
      */
     private var unfollowedRan = false
+
+    /** The file's expansion, ending at [top], with the modules the run compiled and whether code it doesn't follow ran. */
+    fun fileExpansion(top: Expansion, endsRun: Boolean): FileExpansion = FileExpansion(top, compiledInto, endsRun, unfollowedRan)
 
     /** Code the expander doesn't follow ran, or may have: a decline the walk went on past, a stop, a macro or callback it lost. */
     fun unfollowedCodeRan() {

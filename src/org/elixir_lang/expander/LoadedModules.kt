@@ -110,9 +110,9 @@ internal object LoadedModules {
         }
 
     /**
-     * The exports of a module the index names in [file] that its expansion didn't compile: unreadable where the run
-     * [stoppedShort] of one Elixir may have compiled, and `null` where the file leaves the name no module, so it answers
-     * as it would without the file.
+     * The exports of a module the index names in [file], or whose nearest parent name it defines, that its expansion
+     * didn't compile: unreadable where the run [stoppedShort] of one Elixir may have compiled, and `null` where the file
+     * leaves the name no module, so it answers as it would without the file.
      */
     fun uncompiledExports(file: FileExpansion): ModuleExports? = ModuleExports.Unreadable.takeIf { stoppedShort(file) }
 
