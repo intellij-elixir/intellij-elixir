@@ -4,7 +4,6 @@ import com.intellij.facet.FacetManager
 import com.intellij.facet.FacetType
 import com.intellij.facet.impl.FacetUtil
 import com.intellij.openapi.application.WriteAction
-import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.testFramework.common.runAll
@@ -29,8 +28,6 @@ import com.intellij.util.concurrency.annotations.RequiresEdt
  */
 class ModuleSdkConfigurableTest : PlatformTestCase() {
 
-    private val added = mutableListOf<Sdk>()
-
     override fun setUp() {
         super.setUp()
         SdksService.getInstance()!!.resetForTests()
@@ -43,13 +40,6 @@ class ModuleSdkConfigurableTest : PlatformTestCase() {
                 WriteAction.run<Throwable> {
                     FacetManager.getInstance(module).getFacetByType(Facet.ID)?.let { it.sdk = null }
                 }
-            },
-            {
-                WriteAction.run<Throwable> {
-                    val table = ProjectJdkTable.getInstance()
-                    added.filter { table.allJdks.contains(it) }.forEach { table.removeJdk(it) }
-                }
-                added.clear()
             },
             { SdksService.getInstance()!!.resetForTests() },
             { SdkVersionsStore.getInstance().clearForTests() },
@@ -65,10 +55,7 @@ class ModuleSdkConfigurableTest : PlatformTestCase() {
     }
 
     private fun registerElixirSdk(name: String): Sdk {
-        val sdk = ProjectJdkImpl(name, ElixirSdkType.instance)
-        WriteAction.run<Throwable> { ProjectJdkTable.getInstance().addJdk(sdk) }
-        added.add(sdk)
-        SdkFixtures.waitForRegistrationFills()
+        val sdk = SdkFixtures.register(ProjectJdkImpl(name, ElixirSdkType.instance), testRootDisposable)
         SdksService.getInstance()!!.resetForTests()
         return sdk
     }
@@ -128,7 +115,7 @@ class ModuleSdkConfigurableTest : PlatformTestCase() {
         // Installed here rather than relied on: registering an SDK reads it only while the watch service is
         // listening, and whether it already is depends on what else ran in this JVM first.
         SdkVersionWatchService.install(testRootDisposable)
-        val sdk = SdkFixtures.registerAndWaitForFill(
+        val sdk = SdkFixtures.register(
             SdkFixtures.elixirSdk("Elixir Module Test Unread", homePath),
             testRootDisposable,
         )
@@ -137,11 +124,12 @@ class ModuleSdkConfigurableTest : PlatformTestCase() {
         val component = moduleConfigurable().createComponent()
         val combo = descendants(component).filterIsInstance<JComboBox<*>>().single()
 
-        // Registering reads the home; that read is awaited and discarded to model an SDK loaded from `jdk.table.xml`
-        // that nothing has read, so only picking it can satisfy the assertion below.
-        SdkFixtures.waitUntil("registering an SDK should read it") {
-            SdkVersionsStore.getInstance().elixirVersions(homePath) != null
-        }
+        // Registering reads the home; that read is discarded to model an SDK loaded from `jdk.table.xml` that nothing
+        // has read, so only picking it can satisfy the assertion below.
+        assertNotNull(
+            "precondition: registering an SDK reads it",
+            SdkVersionsStore.getInstance().elixirVersions(homePath),
+        )
         SdkVersionsStore.getInstance().clearForTests()
 
         combo.selectedItem = (0 until combo.itemCount)

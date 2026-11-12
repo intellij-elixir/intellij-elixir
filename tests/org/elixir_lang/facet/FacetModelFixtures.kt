@@ -86,12 +86,10 @@ internal class FacetModelFixtures {
                 sources.forEach { addRoot(it, OrderRootType.SOURCES) }
                 commitChanges()
             }
-            ProjectJdkTable.getInstance().addJdk(sdk)
         }
-
-        added.add(sdk)
+        added += sdk
+        SdkFixtures.register(sdk)
         SdksService.getInstance()!!.resetForTests()
-        if (home != null) SdkFixtures.waitForRegistrationFills()
 
         return sdk
     }

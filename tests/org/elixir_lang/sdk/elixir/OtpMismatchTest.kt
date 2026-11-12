@@ -147,7 +147,7 @@ class OtpMismatchTest : PlatformTestCase() {
         onPooledThread { ElixirSdkValidation.detectOtpMismatch(elixirSdk) }
 
     private fun registerErlangSdk(homePath: String, otpVersion: String?): Sdk {
-        val sdk = SdkFixtures.registerAndWaitForFill(
+        val sdk = SdkFixtures.register(
             SdkFixtures.erlangSdk("OTP mismatch Erlang $homePath", homePath),
             testRootDisposable,
         )
@@ -162,7 +162,7 @@ class OtpMismatchTest : PlatformTestCase() {
         suppressWarning: Boolean = false,
     ): Sdk {
         val homePath = fakeHome("elixir/1.16")
-        val sdk = SdkFixtures.registerAndWaitForFill(
+        val sdk = SdkFixtures.register(
             SdkFixtures.elixirSdk("OTP mismatch Elixir ${erlangSdk.name}", homePath),
             testRootDisposable,
         )

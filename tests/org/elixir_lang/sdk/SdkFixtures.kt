@@ -84,17 +84,17 @@ internal object SdkFixtures {
     @RequiresEdt
     fun register(sdk: Sdk, parentDisposable: Disposable): Sdk {
         WriteAction.run<Throwable> { ProjectJdkTable.getInstance().addJdk(sdk, parentDisposable) }
+        waitForRegistrationFills()
         return sdk
     }
 
     /** Adds [sdk] to the table for a test that removes it itself, as [TableSnapshot.restore] does. */
     @RequiresEdt
-    fun register(sdk: Sdk): Sdk = sdk.also(SdkConfigurationUtil::addSdk)
-
-    /** [register], then [waitForRegistrationFills]. */
-    @RequiresEdt
-    fun registerAndWaitForFill(sdk: Sdk, parentDisposable: Disposable): Sdk =
-        register(sdk, parentDisposable).also { waitForRegistrationFills() }
+    fun register(sdk: Sdk): Sdk {
+        SdkConfigurationUtil.addSdk(sdk)
+        waitForRegistrationFills()
+        return sdk
+    }
 
     /**
      * Waits for the reads that registering an SDK starts once a project's startup has installed the SDK table
