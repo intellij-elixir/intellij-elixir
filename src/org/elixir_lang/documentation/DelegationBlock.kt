@@ -4,6 +4,7 @@ import com.intellij.codeInsight.documentation.DocumentationManagerProtocol.PSI_E
 import com.intellij.lang.documentation.DocumentationMarkup
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.Module
 import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.declaringModuleName
@@ -18,10 +19,11 @@ import org.elixir_lang.structure_view.element.Delegation
  */
 internal object DelegationBlock {
     /**
-     * A function's [module] and [heads], one for each of its declarations, and the `Target.name/arity` of each function
-     * it delegates to; a delegation that writes an `@doc` of its own, as [writesDoc] says, shows that ([own]) and no target.
+     * A function's [module] and [heading], with a head for each of its declarations, and the `Target.name/arity` of each
+     * function it delegates to; a delegation that writes an `@doc` of its own, as [writesDoc] says, shows that ([own])
+     * and no target.
      */
-    class Entry(val module: String?, val heads: List<String>, val targets: List<String>, val own: FetchedDocs.FunctionOrMacroDocumentation?)
+    class Entry(val module: String?, val heading: FetchedDocs.Heading, val targets: List<String>, val own: FetchedDocs.FunctionOrMacroDocumentation?)
 
     /** One declaration of a function: a `def`, a clause or a `defdelegate`. */
     private class Part(val call: Call, val form: Form, val documentation: FetchedDocs.FunctionOrMacroDocumentation)
@@ -29,36 +31,43 @@ internal object DelegationBlock {
     /**
      * The delegation reached through [delegation] and the other functions of its name in its module, ascending by arity,
      * as many as the arities card lists, each as the card groups its declarations: from outside the module ([remote]) not
-     * one marked `@doc false` or `@doc nil`. [module] is the name of the module that holds them, which a delegation a
-     * `use` injects does not write in its `quote`.
+     * one marked `@doc false` or `@doc nil`. [index] is the index name of the module that holds them, which a delegation
+     * a `use` injects does not write in its `quote`.
      */
     @RequiresReadLock
-    fun of(delegation: Call, module: String?, remote: Boolean): List<Entry> =
-        SourceFileDocsHelper.listedGroups(delegation, remote)
-            .map { function -> entry(module, function.map { Part(it.call, it.form, it.documentation) }) }
+    fun of(delegation: Call, index: String?, remote: Boolean): List<Entry> {
+        val module = index?.let(Module::inspect)
+
+        return SourceFileDocsHelper.listedGroups(delegation, remote)
+            .map { function ->
+                entry(module, function.map { Part(it.call, it.form, it.documentation) }, SourceFileDocsHelper.titles(index, function))
+            }
             .ifEmpty {
                 val documentation = FetchedDocs.FunctionOrMacroDocumentation.fromCallDefinitionClauseCall(module, delegation, headOf(delegation))
 
-                listOf(entry(module, listOf(Part(delegation, Form.DELEGATION, documentation))))
+                listOf(entry(module, listOf(Part(delegation, Form.DELEGATION, documentation)), titles = emptyList()))
             }
+    }
 
-    /** The head a delegation written alone shows, with the name Elixir gives it. */
+    /** The head a delegation written alone shows, after its keyword and with the name Elixir gives it. */
     @RequiresReadLock
-    private fun headOf(delegation: Call): String {
+    private fun headOf(delegation: Call): String? {
         val head = Delegation.head(delegation)
         val headName = UseSymbols.headUse(head)?.second?.name
+        val written = if (head != null && headName != null) SourceFileDocsHelper.spelled(head, headName) else head?.text.orEmpty()
 
-        return if (head != null && headName != null) SourceFileDocsHelper.spelled(head, headName) else head?.text.orEmpty()
+        return SourceFileDocsHelper.keyworded(delegation, written)
     }
 
     /** What a function of the block shows: the docs of its declarations, or for a delegation that writes none the functions it delegates to. */
     @RequiresReadLock
-    private fun entry(module: String?, parts: List<Part>): Entry {
+    private fun entry(module: String?, parts: List<Part>, titles: List<String>): Entry {
         val (written, linked) = parts.partition { it.form != Form.DELEGATION || writesDoc(it.call) }
+        val documentation = parts.map(Part::documentation)
 
         return Entry(
             module,
-            FetchedDocs.FunctionOrMacroDocumentation.headsOf(parts.map(Part::documentation)),
+            FetchedDocs.Heading(titles, documentation.flatMap { it.specs }, FetchedDocs.FunctionOrMacroDocumentation.headsOf(documentation)),
             linked.flatMap { targets(it.call) }.distinct(),
             written.takeIf { it.isNotEmpty() }?.let { SourceFileDocsHelper.merged(it.map(Part::documentation)) }
         )
@@ -85,7 +94,7 @@ internal object DelegationBlock {
         for (entry in entries) {
             documentationHtml.append(DocumentationMarkup.DEFINITION_START)
             entry.module?.let { documentationHtml.append("<i>module</i> <b>").append(it).append("</b>\n") }
-            for (head in entry.heads) documentationHtml.append(StringUtil.escapeXmlEntities(head)).append("\n")
+            entry.heading.appendTo(documentationHtml, link = null)
             documentationHtml.append(DocumentationMarkup.DEFINITION_END)
             entry.own?.let { appendOwn(it, entry.module) }
 

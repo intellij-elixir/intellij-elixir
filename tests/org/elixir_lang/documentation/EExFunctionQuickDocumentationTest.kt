@@ -71,7 +71,7 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
         val documentation = quickDocumentationAtCaret()
 
         assertTrue("Expected the @doc, got: $documentation", documentation?.contains("Renders the page.") == true)
-        assertTrue("Expected the head at the list's size, got: $documentation", documentation?.contains("render/2") == true)
+        assertTrue("Expected the signature at the list's size, got: $documentation", documentation?.contains("render(assigns, extra)") == true)
     }
 
     fun testAnEExFunctionFromAFileShowsTheDocWrittenAboveIt() {
@@ -93,7 +93,7 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
         val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected the @doc, got: $documentation", "Renders the page from a file." in documentation)
-        assertTrue("Expected the head, got: $documentation", "render/1" in documentation)
+        assertTrue("Expected the signature, got: $documentation", "render(assigns)" in documentation)
     }
 
     /** `embed_text(:page, ...)` defines `page_text/0`. */
@@ -116,7 +116,7 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
         val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected the @doc, got: $documentation", "Embeds the text." in documentation)
-        assertTrue("Expected the head, got: $documentation", "page_text/0" in documentation)
+        assertTrue("Expected the signature, got: $documentation", "page_text()" in documentation)
     }
 
     /** The arity comes from a literal list; a list built elsewhere has no known arity, so the head claims none. */
@@ -165,7 +165,7 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
         val documentation = quickDocumentationAtCaret()
 
         assertTrue("Expected the @doc, got: $documentation", documentation?.contains("Embeds the page.") == true)
-        assertTrue("Expected the head, got: $documentation", documentation?.contains("page_template/1") == true)
+        assertTrue("Expected the signature, got: $documentation", documentation?.contains("page_template(assigns)") == true)
     }
 
     private fun configureEExBesideADef(caller: String) {

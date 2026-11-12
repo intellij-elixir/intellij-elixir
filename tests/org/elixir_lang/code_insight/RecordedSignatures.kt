@@ -9,7 +9,6 @@ import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.call.CanonicallyNamed
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.scope.call_definition_clause.Declarations
 import java.util.concurrent.Callable
@@ -39,5 +38,5 @@ internal fun recordedIn(file: PsiFile, module: String, nameArity: String): Strin
             }.orEmpty()
         }
 
-        RecordedSignature.of((modular as? CanonicallyNamed)?.canonicalName(), name, ArityInterval(arity, arity), clauses)?.text
+        RecordedSignature.of(SourceFileDocsHelper.indexName(modular), name, ArityInterval(arity, arity), clauses)?.text
     }).executeSynchronously()
