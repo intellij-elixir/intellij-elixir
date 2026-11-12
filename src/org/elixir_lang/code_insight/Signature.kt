@@ -12,7 +12,6 @@ import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.psi.ArityInterval
-import org.elixir_lang.psi.Exception as ElixirException
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
@@ -65,9 +64,9 @@ data class Signature(
                 ?: return null
             val parameters = when (form) {
                 Form.CLAUSE, Form.DELEGATION -> headParameters(head)
-                Form.EXCEPTION -> exception(declaration.name)
-                Form.EEX_FUNCTION_FROM -> (head as? Call)?.let(::eexFunctionFromNames)?.map { it ?: "arg" }
-                Form.GENERATOR_EMBED -> (head as? Call)?.let { if (embedsAssigns(it)) listOf("assigns") else emptyList() }
+                // No head spells these; their names are the ones Elixir records.
+                Form.EXCEPTION, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED ->
+                    RecordedSignature.parameters(declaration.name, RecordedSignature.Clause(form, head))
                 Form.CALLBACK -> null
             }
 
@@ -76,14 +75,6 @@ data class Signature(
 
         private fun headParameters(head: PsiElement): List<String> =
             (CallDefinitionHead.strip(head) as? Call)?.let(CallDefinitionHead::parameters)?.map { it.text }.orEmpty()
-
-        /** The two functions `defexception` defines take the other's name: `exception(message)`, `message(exception)`. */
-        private fun exception(name: String): List<String> =
-            when (name) {
-                ElixirException.EXCEPTION.name -> listOf(ElixirException.MESSAGE.name)
-                ElixirException.MESSAGE.name -> listOf(ElixirException.EXCEPTION.name)
-                else -> emptyList()
-            }
 
         /**
          * The head [definition] is written with, at each arity its defaults cover. A stub stores no parameters for a

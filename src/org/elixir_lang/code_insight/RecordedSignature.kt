@@ -31,7 +31,6 @@ import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.AtOperation
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
-import org.elixir_lang.psi.ElixirList
 import org.elixir_lang.psi.ElixirStructOperation
 import org.elixir_lang.psi.isDefaultArgument
 import org.elixir_lang.psi.Exception as ElixirException
@@ -103,6 +102,14 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
             return RecordedSignature(parameters.map(Parameter::text), text)
         }
 
+        /**
+         * The parameters Elixir names [name]'s one [clause] by, a form that writes no head, at whatever arity: at an
+         * open one, those its bindings name before the tail.
+         */
+        @RequiresReadLock
+        fun parameters(name: String, clause: Clause): List<String>? =
+            (built(module = null, name, clause) as? Built.Recorded)?.parameters?.map(Parameter::text)
+
         /** `Module.build_signature/2` over [clause]'s head. */
         private fun built(module: String?, name: String, clause: Clause): Built {
             val simplified = when (clause.form) {
@@ -154,26 +161,13 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
                 ?.map(simplifier::variableNamed)
                 .orEmpty()
 
+        /** `embed_template` defines a function of `assigns`, `embed_text` one of nothing. */
         private fun embed(call: Call?): List<Simplified> =
-            if (call != null && embedsAssigns(call)) listOf(Variable("assigns", false)) else emptyList()
+            if (call?.functionName() == "embed_template") listOf(Variable("assigns", false)) else emptyList()
 
         private val MESSAGE = OtpErlangAtom("message")
     }
 }
-
-/**
- * The macro's own `[:a, :b]` argument-name list, which no PSI head spells, `null` for a name that isn't an atom
- * literal.
- */
-internal fun eexFunctionFromNames(call: Call): List<String?> =
-    call.finalArguments()
-        ?.getOrNull(3)
-        ?.let { (it.stripAccessExpression() as? ElixirList)?.children }
-        ?.map { child -> (child.stripAccessExpression() as? ElixirAtom)?.let(::quotedAtomValue) }
-        .orEmpty()
-
-/** `embed_template` defines a function of `assigns`, `embed_text` one of nothing. */
-internal fun embedsAssigns(call: Call): Boolean = call.functionName() == "embed_template"
 
 /** What Elixir records for one clause's head. */
 private sealed interface Built {

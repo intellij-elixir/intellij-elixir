@@ -14,6 +14,10 @@ class FormsParameterInfoTest : PlatformTestCase() {
     fun testAnEExFunctionShowsTheArgumentNamesOfALiteralTail() =
         assertEquals(listOf("a, b"), shownFromEEx("[:a | [:b]]"))
 
+    /** A tail known only once evaluated leaves the arity open after the names before it, which are shown. */
+    fun testAnEExFunctionWithAnOpenTailShowsTheArgumentNamesBeforeIt() =
+        assertEquals(listOf("a"), shownFromEEx("[:a | @rest]"))
+
     fun testAnEExFunctionWithoutArgumentsShowsNoParameters() =
         assertEquals(listOf("<no parameters>"), shownFromEEx("[]"))
 
