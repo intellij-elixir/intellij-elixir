@@ -18,7 +18,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals("my_app", ProjectKeywords.app(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs))
     }
 
     fun testParenthesizedAppIsTheAtom() {
@@ -34,7 +34,46 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals("my_app", ProjectKeywords.app(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs))
+    }
+
+    /** A handler block may return another list, so a body without an `app:` is not known to have none. */
+    fun testAProjectWithAHandlerBlockIsNotAbsentOfApp() {
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(handlerProject("[version: \"0.1.0\"]", "[app: :b]")))
+    }
+
+    /** What the body writes is read as before, handler or not. */
+    fun testAProjectWithAHandlerBlockStillGivesItsBodysApp() {
+        val mixExs = handlerProject("[app: :a]", "[app: :b]")
+
+        assertEquals(ProjectKeywords.Reading.Written("a"), ProjectKeywords.app(mixExs))
+        assertEquals(":a", ProjectKeywords.keywords(mixExs)?.keywordValue("app")?.text)
+    }
+
+    fun testAProjectWithAHandlerBlockStillGivesMixsDefaultConfigPath() {
+        assertEquals(
+            ProjectKeywords.Reading.Written("config/config.exs"),
+            ProjectKeywords.configPath(handlerProject("[app: :a]", "[config_path: \"x.exs\"]")),
+        )
+    }
+
+    /** `{:app, :a}` is a keyword element in tuple form, and `app` reads only the keyword tail. */
+    fun testAnAppBesideATupleIsNotAbsent() {
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(keywordsProject("[{:app, :my_app}, deps: deps()]")))
+    }
+
+    fun testAnAppWrittenAfterATupleIsStillRead() {
+        assertEquals(
+            ProjectKeywords.Reading.Written("my_app"),
+            ProjectKeywords.app(keywordsProject("[{:version, \"0.1.0\"}, app: :my_app]")),
+        )
+    }
+
+    fun testAConfigPathBesideATupleIsMixsDefault() {
+        assertEquals(
+            ProjectKeywords.Reading.Written("config/config.exs"),
+            ProjectKeywords.configPath(keywordsProject("[{:app, :my_app}, deps: deps()]")),
+        )
     }
 
     fun testKeywordsAreTheBodysLastExpression() {
@@ -52,7 +91,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
         )
 
         assertEquals(":returned", ProjectKeywords.keywords(mixExs)?.keywordValue("app")?.text)
-        assertEquals("returned", ProjectKeywords.app(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("returned"), ProjectKeywords.app(mixExs))
     }
 
     fun testKeywordDoProjectHasKeywords() {
@@ -67,7 +106,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
         )
 
         assertEquals("\"0.1.0\"", ProjectKeywords.keywords(mixExs)?.keywordValue("version")?.text)
-        assertEquals("my_app", ProjectKeywords.app(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs))
     }
 
     fun testNoProjectFunctionHasNoKeywords() {
@@ -86,7 +125,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
         )
 
         assertNull(ProjectKeywords.keywords(mixExs))
-        assertNull(ProjectKeywords.app(mixExs))
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
     }
 
     fun testConfigPathIsTheWrittenString() {
@@ -102,7 +141,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(ProjectKeywords.ConfigPath.Written("../../config/config.exs"), ProjectKeywords.configPath(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("../../config/config.exs"), ProjectKeywords.configPath(mixExs))
     }
 
     fun testParenthesizedConfigPathIsTheString() {
@@ -118,7 +157,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(ProjectKeywords.ConfigPath.Written("../../config/config.exs"), ProjectKeywords.configPath(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("../../config/config.exs"), ProjectKeywords.configPath(mixExs))
     }
 
     fun testNonLiteralConfigPathIsUnknown() {
@@ -134,7 +173,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(ProjectKeywords.ConfigPath.Unknown, ProjectKeywords.configPath(mixExs))
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.configPath(mixExs))
     }
 
     fun testAbsentConfigPathIsMixsDefault() {
@@ -148,7 +187,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(ProjectKeywords.ConfigPath.Written("config/config.exs"), ProjectKeywords.configPath(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("config/config.exs"), ProjectKeywords.configPath(mixExs))
     }
 
     fun testEmptyProjectListHasTheDefaultConfigPath() {
@@ -162,7 +201,7 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(ProjectKeywords.ConfigPath.Written("config/config.exs"), ProjectKeywords.configPath(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("config/config.exs"), ProjectKeywords.configPath(mixExs))
     }
 
     fun testTupleProjectListHasAnUnknownConfigPath() {
@@ -176,8 +215,76 @@ class ProjectKeywordsTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(ProjectKeywords.ConfigPath.Unknown, ProjectKeywords.configPath(mixExs))
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.configPath(mixExs))
     }
+
+    fun testAppIsAbsentWhereTheListHasNone() {
+        val mixExs = mixExs(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              def project, do: [apps_path: "apps", deps: deps()]
+
+              defp deps, do: []
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Absent, ProjectKeywords.app(mixExs))
+    }
+
+    fun testAppIsAbsentFromAnEmptyProjectList() {
+        val mixExs = mixExs(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              def project, do: []
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Absent, ProjectKeywords.app(mixExs))
+    }
+
+    fun testAppNamedThroughAnAttributeIsUnknown() {
+        val mixExs = mixExs(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              @app :my_app
+
+              def project, do: [app: @app, version: "0.1.0"]
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
+    }
+
+    fun testAppOfAProjectListThatIsNotKeywordsIsUnknown() {
+        val mixExs = mixExs(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              def project, do: [{:app, :my_app}]
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
+    }
+
+    /** A `project/0` that returns [body], or [handled] where its `rescue` block runs. */
+    private fun handlerProject(body: String, handled: String): ElixirFile =
+        mixExs("defmodule MyApp.MixProject do\n  use Mix.Project\n\n  def project do\n    $body\n  rescue\n    _ -> $handled\n  end\nend\n")
+
+    /** A `project/0` that returns [body]. */
+    private fun keywordsProject(body: String): ElixirFile =
+        mixExs("defmodule MyApp.MixProject do\n  use Mix.Project\n\n  def project, do: $body\nend\n")
 
     private fun mixExs(text: String): ElixirFile =
         myFixture.configureByText(Project.MIX_EXS, text.trimIndent()) as ElixirFile

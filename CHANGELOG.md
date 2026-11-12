@@ -255,6 +255,10 @@
 
 ### Bug Fixes
 
+- [#4681](https://github.com/intellij-elixir/intellij-elixir/pull/4681) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, an Elixir install left over from an older version no longer hides ExUnit's settings, so the `test` blocks of a test module are expanded.** Refs [#4677](https://github.com/intellij-elixir/intellij-elixir/issues/4677).
+  - **With "Run the expander" on, an application the project doesn't have, such as `phoenix_view` in a generated Phoenix project, reads as having no settings, as it does in Elixir, so templates that look for it are expanded.** Refs [#4677](https://github.com/intellij-elixir/intellij-elixir/issues/4677).
+  - **A `mix.exs` that writes `deps` or `project` as `defp deps, do: [...]` or `def project, do: [...]` has its dependencies and `deps_path` read, as one written with `do ... end` does.** Refs [#4677](https://github.com/intellij-elixir/intellij-elixir/issues/4677).
 - [#4657](https://github.com/intellij-elixir/intellij-elixir/pull/4657) [@sh41](https://github.com/sh41)
   - **Opening a Mix project that has no `.idea` folder gives each app of an umbrella, or an app in a subfolder, its own Elixir module instead of a notification or a `.idea` in the app's folder, and asks once for the Elixir SDK of all of them after indexing, on PyCharm, RubyMine and the other IDEs that aren't IntelliJ IDEA, and on IntelliJ IDEA for a folder whose apps are all in subfolders; opening or importing a Mix project no longer takes the fetched dependencies of a project in a subfolder for apps, and finds the app of a project whose folder is named `assets`.** Fixes [#4623](https://github.com/intellij-elixir/intellij-elixir/issues/4623).
 - [#4652](https://github.com/intellij-elixir/intellij-elixir/pull/4652) [@sh41](https://github.com/sh41)

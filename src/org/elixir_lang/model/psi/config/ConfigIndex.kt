@@ -21,6 +21,7 @@ import com.intellij.util.io.IOUtil
 import com.intellij.util.io.KeyDescriptor
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.lowering.AtomName
+import org.elixir_lang.mix.DepGatherer
 import org.elixir_lang.mix.Project.MIX_EXS
 import org.elixir_lang.mix.ProjectKeywords
 import org.elixir_lang.psi.ElixirAtom
@@ -49,7 +50,7 @@ internal class ConfigIndex : FileBasedIndexExtension<ConfigIndexKey, List<Config
 
     companion object {
         /** Bumped when what is indexed, or how it is written, changes. */
-        private const val VERSION = 8
+        private const val VERSION = 9
     }
 }
 
@@ -93,7 +94,9 @@ internal object ConfigIndexing {
 
             if (inputData.fileName == MIX_EXS && root is ElixirFile) {
                 entries[ConfigIndexKey.Project] =
-                    mutableListOf(ConfigEntry.ProjectEntry(ProjectKeywords.app(root), ProjectKeywords.configPath(root)))
+                    mutableListOf(
+                        ConfigEntry.ProjectEntry(ProjectKeywords.app(root), ProjectKeywords.configPath(root), DepGatherer.declared(root)),
+                    )
             }
         }
 
@@ -278,7 +281,15 @@ sealed interface ConfigEntry {
     /** A setting or a read of [key], written at [range]. */
     data class KeyEntry(val kind: Kind, val key: WrittenKey, val range: TextRange) : ConfigEntry
 
-    data class ProjectEntry(val app: String?, val configPath: ProjectKeywords.ConfigPath) : ConfigEntry
+    /**
+     * What a content `mix.exs` file says of its own [app], its [configPath], and the names of the dependencies it declares
+     * ([deps]).
+     */
+    data class ProjectEntry(
+        val app: ProjectKeywords.Reading<String>,
+        val configPath: ProjectKeywords.Reading<String>,
+        val deps: ProjectKeywords.Reading<kotlin.collections.Set<String>>,
+    ) : ConfigEntry
 
     /** What an entry is as written; [ConfigIndexing.decided] decides each but [Read] from the module its call reaches. */
     sealed interface Kind {
@@ -344,8 +355,9 @@ private object ConfigEntriesExternalizer : DataExternalizer<List<ConfigEntry>> {
     private const val UNKNOWN = 3
     private const val ALL = 4
 
-    private const val WRITTEN = 0
-    private const val UNKNOWN_PATH = 1
+    private const val READING_WRITTEN = 0
+    private const val READING_UNKNOWN = 1
+    private const val READING_ABSENT = 2
 
     private const val SET = 0
     private const val READ = 1
@@ -371,15 +383,11 @@ private object ConfigEntriesExternalizer : DataExternalizer<List<ConfigEntry>> {
                 }
                 is ConfigEntry.ProjectEntry -> {
                     out.writeByte(PROJECT_ENTRY)
-                    out.writeBoolean(entry.app != null)
-                    entry.app?.let { IOUtil.writeUTF(out, it) }
-
-                    when (val configPath = entry.configPath) {
-                        is ProjectKeywords.ConfigPath.Written -> {
-                            out.writeByte(WRITTEN)
-                            IOUtil.writeUTF(out, configPath.path)
-                        }
-                        ProjectKeywords.ConfigPath.Unknown -> out.writeByte(UNKNOWN_PATH)
+                    save(out, entry.app) { IOUtil.writeUTF(out, it) }
+                    save(out, entry.configPath) { IOUtil.writeUTF(out, it) }
+                    save(out, entry.deps) { names ->
+                        out.writeInt(names.size)
+                        names.forEach { IOUtil.writeUTF(out, it) }
                     }
                 }
             }
@@ -397,17 +405,33 @@ private object ConfigEntriesExternalizer : DataExternalizer<List<ConfigEntry>> {
                     ConfigEntry.KeyEntry(kind, key, TextRange(start, input.readInt()))
                 }
                 PROJECT_ENTRY -> {
-                    val app = if (input.readBoolean()) IOUtil.readUTF(input) else null
-                    val configPath = when (val pathTag = input.readByte().toInt()) {
-                        WRITTEN -> ProjectKeywords.ConfigPath.Written(IOUtil.readUTF(input))
-                        UNKNOWN_PATH -> ProjectKeywords.ConfigPath.Unknown
-                        else -> error("unknown config path tag $pathTag")
-                    }
+                    val app = readReading(input) { IOUtil.readUTF(input) }
+                    val configPath = readReading(input) { IOUtil.readUTF(input) }
+                    val deps = readReading(input) { List(input.readInt()) { IOUtil.readUTF(input) }.toSet() }
 
-                    ConfigEntry.ProjectEntry(app, configPath)
+                    ConfigEntry.ProjectEntry(app, configPath, deps)
                 }
                 else -> error("unknown config entry tag $tag")
             }
+        }
+
+    private fun <T> save(out: DataOutput, reading: ProjectKeywords.Reading<T>, write: (T) -> Unit) {
+        when (reading) {
+            is ProjectKeywords.Reading.Written -> {
+                out.writeByte(READING_WRITTEN)
+                write(reading.value)
+            }
+            ProjectKeywords.Reading.Absent -> out.writeByte(READING_ABSENT)
+            ProjectKeywords.Reading.Unknown -> out.writeByte(READING_UNKNOWN)
+        }
+    }
+
+    private fun <T> readReading(input: DataInput, read: () -> T): ProjectKeywords.Reading<T> =
+        when (val tag = input.readByte().toInt()) {
+            READING_WRITTEN -> ProjectKeywords.Reading.Written(read())
+            READING_ABSENT -> ProjectKeywords.Reading.Absent
+            READING_UNKNOWN -> ProjectKeywords.Reading.Unknown
+            else -> error("unknown reading tag $tag")
         }
 
     private fun save(out: DataOutput, kind: ConfigEntry.Kind) {

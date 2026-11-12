@@ -480,6 +480,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testADeclinedCallGivenTheModuleLeavesItsAttributesUnknownAndItUnreadable() {
         addLegElixir()
+        fetched("nope")
         add(
             "h.ex",
             "defmodule H do\n  def set(m) do\n    receive(do: (x -> x), after: (0 -> :ok))\n" +
@@ -645,6 +646,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testACallOfAReceiverThatIsntKnownIsGivenIt() {
         addLegElixir()
+        fetched("nope")
         val a = add("a.ex", "")
         val b = add("b.ex", "defmodule B do\n  import A\n  def h, do: g()\nend\n")
         val first = "defmodule A do\n  def set, do: Module.put_attribute(A, :x, :ok)\n  def set(_), do: Module.put_attribute(A, :x, :ok)\nend\n"
@@ -1210,6 +1212,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testANestedModulesAssumptionsAreItsOwn() {
         addLegElixir()
+        fetched("nope")
         val a = add(
             "a.ex",
             "defmodule Boom do\n  defmacro boom, do: raise(\"boom\")\nend\n" +
@@ -1312,6 +1315,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testAnUnorderedAttributeWriteLeavesUnknownOnlyWhatReadsTheAttribute() {
         addLegElixir()
+        fetched("app")
         val a = add("a.ex", "")
         val unordered = { write: String -> "  if Application.get_env(:app, :k) do\n    $write\n  end\n" }
 
@@ -1661,6 +1665,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testAnErrorAfterAMacrosAssumedApplicationReadStopsTheModule() {
         addLegElixir()
+        fetched("nope")
         val a = add("a.ex", "")
         val read = "Application.fetch_env!(:nope, :k)"
 
@@ -1681,6 +1686,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testAnErrorAfterAMacrosAssumedApplicationReadEndsTheRun() {
         addLegElixir()
+        fetched("nope")
         val a = add("a.ex", "")
         val read = "Application.fetch_env!(:nope, :k)"
         val mac = "defmodule Mac do\n  defmacro m, do: ($read; :ok)\n  defmacro r, do: ($read; raise \"after the read\")\nend\n"
@@ -1719,6 +1725,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testAnErrorAfterAMacrosAssumedApplicationReadStopsAtTheFileTopAndInAClauseBody() {
         addLegElixir()
+        fetched("nope")
         add(
             "mac.ex",
             "defmodule Mac do\n  defmacro m, do: (Application.fetch_env!(:nope, :k); :ok)\n" +
@@ -2098,6 +2105,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testUnknownOptionsLeaveTheBodyUnknownWhereCalled() {
         addLegElixir()
+        fetched("m2")
         add("a.ex", "defmodule A do\n  o = Application.get_env(:m2, :o, [do: 1])\n  def f, unquote(o)\nend\n")
         val b = add("b.ex", "defmodule B do\n  @x A.f()\n  def x, do: @x\nend\n")
 
@@ -2115,6 +2123,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testCompiledEexOfAnUnknownKindStopsAtItsCase() {
         addCompiledEex()
+        fetched("m2")
         val call = "EEx.function_from_string(kind, :k, \"x\")"
         val a = add("a.ex", "defmodule A do\n  require EEx\n  kind = Application.get_env(:m2, :kind, :defp)\n  $call\nend\n")
 
@@ -2984,6 +2993,11 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     private fun add(path: String, text: String): PsiFile = myFixture.addFileToProject(path, text)
+
+    /** A fetched dependency [app] with no `.app` yet, so the project may have it and its env stays unknown. */
+    private fun fetched(app: String) {
+        add("deps/$app/README", "")
+    }
 
     /** A module [name] with a macro whose `quote` keeps its location. */
     private fun kept(name: String) = "defmodule $name do\n  defmacro m do\n    quote location: :keep, do: f()\n  end\nend\n"

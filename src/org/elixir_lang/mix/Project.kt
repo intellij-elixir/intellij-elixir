@@ -342,6 +342,10 @@ object Project {
 
     private fun isMixProject(directory: VirtualFile?): Boolean = directory?.let(::findMixExs) != null
 
+    /** The folder `mix deps.get` fetched the dependency [app] into, under the content root [contentRoot]; `null` where none. */
+    internal fun depFolder(contentRoot: VirtualFile, app: String): VirtualFile? =
+        contentRoot.findChild("deps")?.findChild(app)?.takeIf { it.isValid && it.isDirectory }
+
     /** Whether [directory] is a Mix project's `deps`, which holds its fetched dependencies. */
     internal fun isDepsOfAMixProject(directory: VirtualFile): Boolean =
         directory.name == "deps" && isMixProject(directory.parent)

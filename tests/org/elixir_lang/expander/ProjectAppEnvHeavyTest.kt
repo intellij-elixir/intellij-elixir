@@ -3,6 +3,7 @@ package org.elixir_lang.expander
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.roots.ModuleRootModificationUtil
+import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
@@ -10,8 +11,10 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiFile
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
+import com.intellij.testFramework.VfsTestUtil
 import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.interpreter.ARM_BUDGET
+import org.elixir_lang.mix.library.Kind as MixLibraryKind
 import org.elixir_lang.psi.ElixirFile
 import java.io.File
 
@@ -70,6 +73,188 @@ class ProjectAppEnvHeavyTest : ConfigHeavyTestCase() {
         rewrite(test.findChild("dep.app")!!, app("dep", "{key, other}"))
 
         assertEquals("the copies differ", "Elixir.Declared compiled different/0 equal/0", ended(declared))
+    }
+
+    /** A stale install's `ex_unit.app` beside the SDK's, differing in env: the SDK's copy is the one the asker loads. */
+    fun testTheSdksAppFileAnswersBesideAStaleInstalls() {
+        val root = project(
+            "mix.exs" to MIX_EXS,
+            "lib/timeout.ex" to module("Timeout", "Application.get_env(:ex_unit, :assert_receive_timeout)", "100"),
+        )
+        staleExUnit()
+
+        assertEquals("Elixir.Timeout compiled equal/0", ended(psi(root, "lib/timeout.ex")))
+    }
+
+    /** `ExUnit.Case.test/3` reads `:ex_unit`'s env while it expands, so a stale install's `ex_unit.app` reaches it. */
+    fun testATestModuleCompilesBesideAStaleInstallsAppFile() {
+        val root = project(
+            "mix.exs" to MIX_EXS,
+            "lib/app.ex" to "defmodule App do\nend\n",
+            "test/a_test.exs" to "defmodule ATest do\n  use ExUnit.Case\n\n  test \"a\" do\n    assert 1 == 1\n  end\nend\n",
+        )
+        PsiTestUtil.addSourceRoot(module, root.findChild("test")!!, true)
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
+        val test = psi(root, "test/a_test.exs")
+        val alone = ended(test)
+        assertTrue(alone, alone.startsWith("Elixir.ATest compiled"))
+
+        staleExUnit()
+
+        assertEquals(alone, ended(test))
+    }
+
+    /**
+     * A copy under the project's content, though excluded as Mix sync excludes a build, loads before the SDK's: where
+     * the two differ, the key isn't known.
+     */
+    fun testAnExcludedBuildsAppFileBesideTheSdksLeavesADifferingKeyUnknown() {
+        val root = project(
+            "mix.exs" to MIX_EXS,
+            "_build/dev/lib/ex_unit/ebin/ex_unit.app" to app("ex_unit", "{assert_receive_timeout, 200}"),
+            "lib/timeout.ex" to module("Timeout", "Application.get_env(:ex_unit, :assert_receive_timeout)", "100"),
+        )
+        PsiTestUtil.addExcludedRoot(module, root.findChild("_build")!!)
+        library("ex_unit", root.findFileByRelativePath("_build/dev/lib/ex_unit/ebin")!!)
+
+        assertEquals("Elixir.Timeout compiled different/0 equal/0", ended(psi(root, "lib/timeout.ex")))
+    }
+
+    /** A module library holding another install's `ex_unit` `ebin`, whose `.app` sets `:assert_receive_timeout` to 200. */
+    private fun staleExUnit() {
+        library("mise Elixir 1.19.6-otp-28", ebin(app("ex_unit", "{assert_receive_timeout, 200}"), "ex_unit"))
+    }
+
+    /**
+     * An app the project can't have, with no `.app` anywhere, no `deps/` folder, no library and no `mix.exs` naming it,
+     * is one Elixir never loaded: its env has no keys, so a read gives the default.
+     */
+    fun testAnAppWithNoAppFileFolderOrLibraryIsUnset() {
+        val root = project("lib/engines.ex" to templateEngines())
+
+        assertEquals("Elixir.Engines compiled equal/0", ended(psi(root, "lib/engines.ex")))
+    }
+
+    fun testAnUmbrellaRootLeavesAnAbsentAppUnset() {
+        val root = project(
+            "mix.exs" to projectMixExs("[apps_path: \"apps\", deps: deps()]", "defp deps, do: []"),
+            "lib/engines.ex" to templateEngines(),
+        )
+
+        assertEquals("Elixir.Engines compiled equal/0", ended(psi(root, "lib/engines.ex")))
+    }
+
+    /** A project created by `mix phx.new` declares its dependencies in `deps/0`, with options on some of them. */
+    fun testAGeneratedPhoenixProjectLeavesAnUndeclaredAppUnset() {
+        val root = project(
+            "mix.exs" to projectMixExs(
+                "[app: :my_app, version: \"0.1.0\", elixirc_paths: elixirc_paths(Mix.env()), " +
+                    "start_permanent: Mix.env() == :prod, aliases: aliases(), deps: deps()]",
+                """
+                |defp elixirc_paths(:test), do: ["lib", "test/support"]
+                |defp elixirc_paths(_), do: ["lib"]
+                |
+                |defp aliases, do: []
+                |
+                |defp deps do
+                |  [
+                |    {:phoenix, "~> 1.7.14"},
+                |    {:phoenix_live_view, "~> 1.0", override: true},
+                |    {:phoenix_live_reload, "~> 1.2", only: :dev},
+                |    {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
+                |    {:heroicons, github: "tailwindlabs/heroicons", tag: "v2.1.1", sparse: "optimized", app: false, compile: false, depth: 1},
+                |    {:bandit, "~> 1.5"}
+                |  ]
+                |end
+                """.trimMargin(),
+            ),
+            "lib/engines.ex" to templateEngines(),
+        )
+
+        assertEquals("Elixir.Engines compiled equal/0", ended(psi(root, "lib/engines.ex")))
+    }
+
+    /** `mix deps.get` fetches a dependency into `deps/<app>` before anything compiles it. */
+    fun testAFolderFetchedAfterAnUnsetAnswerMovesTheHeldExpansion() {
+        val root = project("lib/engines.ex" to templateEngines())
+        val engines = psi(root, "lib/engines.ex")
+
+        assertEquals("Elixir.Engines compiled equal/0", ended(engines))
+
+        VfsTestUtil.createFile(root, "deps/phoenix_view/README", "")
+
+        assertEquals("Elixir.Engines compiled different/0 equal/0", ended(engines))
+    }
+
+    fun testAFetchedButUncompiledDependencyStaysUnknown() {
+        val root = project("deps/phoenix_view/README" to "", "lib/engines.ex" to templateEngines())
+
+        assertEquals("Elixir.Engines compiled different/0 equal/0", ended(psi(root, "lib/engines.ex")))
+    }
+
+    /** Mix sync makes a library for each dependency `mix.lock` names, before `deps.get` gives it any root. */
+    fun testAnUnfetchedDeclaredDependencyStaysUnknown() {
+        val root = project("lib/engines.ex" to templateEngines())
+        mixLibrary("phoenix_view [app]")
+
+        assertEquals("Elixir.Engines compiled different/0 equal/0", ended(psi(root, "lib/engines.ex")))
+    }
+
+    fun testAnUmbrellaChildsAppStaysUnknown() {
+        val root = project(
+            "apps/child/mix.exs" to projectMixExs("[app: :child, version: \"0.1.0\"]"),
+            "lib/engines.ex" to templateEngines("child"),
+        )
+
+        assertEquals("Elixir.Engines compiled different/0 equal/0", ended(psi(root, "lib/engines.ex")))
+    }
+
+    fun testAnOwnAppNamedThroughAnAttributeStaysUnknown() {
+        val root = project(
+            "apps/child/mix.exs" to projectMixExs("[app: @app, version: \"0.1.0\"]", "@app :child"),
+            "lib/engines.ex" to templateEngines("child"),
+        )
+
+        assertEquals("Elixir.Engines compiled different/0 equal/0", ended(psi(root, "lib/engines.ex")))
+    }
+
+    /** A path dependency's `mix.exs` can rename its app, which the index never reads, so a declared name stays unknown. */
+    fun testARenamedPathDependencyStaysUnknown() {
+        val root = project(
+            "mix.exs" to projectMixExs("[app: :app, deps: deps()]", "defp deps, do: [{:foo, path: \"../bar\"}]"),
+            "lib/engines.ex" to templateEngines("foo"),
+        )
+
+        assertEquals("Elixir.Engines compiled different/0 equal/0", ended(psi(root, "lib/engines.ex")))
+    }
+
+    fun testDepsTheIndexCantReadKeepEveryAppUnknown() {
+        val root = project(
+            "mix.exs" to projectMixExs("[app: :app, deps: deps() ++ extra()]", "defp deps, do: []\n\ndefp extra, do: []"),
+            "lib/engines.ex" to templateEngines(),
+        )
+
+        assertEquals("Elixir.Engines compiled different/0 equal/0", ended(psi(root, "lib/engines.ex")))
+    }
+
+    /** `Engines`, which defines `equal/0` where [app] has no `:template_engines` setting, else `different/0`. */
+    private fun templateEngines(app: String = "phoenix_view") =
+        module("Engines", "Application.get_env(:$app, :template_engines)", "nil")
+
+    /** A `mix.exs` whose `project/0` returns [project], beside [definitions]. */
+    private fun projectMixExs(project: String, definitions: String = "") =
+        "defmodule App.MixProject do\n  use Mix.Project\n\n  def project, do: $project\n\n" +
+            definitions.prependIndent("  ") + "\nend\n"
+
+    /** A library in the project's table of Mix's kind, named as Mix sync names one, with no roots, on the module. */
+    private fun mixLibrary(name: String) {
+        WriteAction.runAndWait<Throwable> {
+            val model = LibraryTablesRegistrar.getInstance().getLibraryTable(project).modifiableModel
+            val library = model.createLibrary(name, MixLibraryKind)
+            model.commit()
+            ModuleRootModificationUtil.addDependency(module, library)
+        }
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
     }
 
     /**
