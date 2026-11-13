@@ -4,6 +4,9 @@
 
 ### Breaking changes
 
+- [#4689](https://github.com/intellij-elixir/intellij-elixir/pull/4689) [@sh41](https://github.com/sh41)
+  - **For plugins implementing the `org.elixir_lang.packageManager` extension point: `PackageManager.depsStatus` takes an `ElixirSdkSnapshot?` instead of an `Sdk?`.** Change an override of `depsStatus(project, packageVirtualFile, sdk: Sdk?)` to `depsStatus(project, packageVirtualFile, snapshot: ElixirSdkSnapshot?)`; until then the dependency check reports it as unsupported.
+
 - [#4193](https://github.com/intellij-elixir/intellij-elixir/pull/4193) [@sh41](https://github.com/sh41)
   - **The minimum supported IDE is now 2026.1.5 (build 261.27258.48).** Update a 2026.1 IDE to 2026.1.5 or
     newer to keep receiving plugin updates.
@@ -258,6 +261,8 @@
 
 ### Bug Fixes
 
+- [#4689](https://github.com/intellij-elixir/intellij-elixir/pull/4689) [@sh41](https://github.com/sh41)
+  - **An Elixir SDK with no Erlang SDK is reported once, where its Erlang SDK can be set up, instead of also failing the dependency check with an internal error when a project opens, or once for each of a Mix import's tasks.** Fixes [#4013](https://github.com/intellij-elixir/intellij-elixir/issues/4013).
 - [#4681](https://github.com/intellij-elixir/intellij-elixir/pull/4681) [@sh41](https://github.com/sh41)
   - **With "Run the expander" on, an Elixir install left over from an older version no longer hides ExUnit's settings, so the `test` blocks of a test module are expanded.** Refs [#4677](https://github.com/intellij-elixir/intellij-elixir/issues/4677).
   - **With "Run the expander" on, an application the project doesn't have, such as `phoenix_view` in a generated Phoenix project, reads as having no settings, as it does in Elixir, so templates that look for it are expanded.** Refs [#4677](https://github.com/intellij-elixir/intellij-elixir/issues/4677).

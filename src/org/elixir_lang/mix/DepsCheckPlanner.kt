@@ -1,5 +1,7 @@
 package org.elixir_lang.mix
 
+import org.elixir_lang.sdk.erlang_dependent.ElixirSdkSnapshot
+
 /**
  * Per-root status cached from the last [DepsCheckerService.checkDepsStatus] run.
  *
@@ -19,10 +21,9 @@ internal sealed interface CachedRootStatus {
 /**
  * Result of [DepsCheckPlanner.computeSdkDelta].
  *
- * @property changedRootUrls Root URLs whose effective Elixir SDK name changed relative to
- *   the previous snapshot (includes roots newly assigned any SDK, and roots whose SDK was
- *   cleared or renamed).
- * @property removedRootExists `true` if the previous snapshot referenced at least one root
+ * @property changedRootUrls Root URLs whose [ElixirSdkSnapshot] changed relative to the previous
+ *   map (includes roots newly assigned any SDK, and roots whose SDK was cleared or changed).
+ * @property removedRootExists `true` if the previous map referenced at least one root
  *   URL that is no longer present in the current top-level root list (i.e. a root was removed
  *   from the project).
  */
@@ -84,32 +85,23 @@ internal object DepsCheckPlanner {
     }
 
     /**
-     * Computes the delta between [previousSdkByRootUrl] and [currentSdkByRootUrl].
+     * Computes the delta between [previousSnapshotByRootUrl] and [currentSnapshotByRootUrl].
      *
-     * A root URL is included in [SdkDelta.changedRootUrls] when its effective Elixir SDK name
-     * differs between the two snapshots (null → non-null, non-null → null, or one name →
-     * another).  Only URLs present in [allTopLevelRootUrls] are considered.
-     *
-     * [SdkDelta.removedRootExists] is `true` if any URL in [previousSdkByRootUrl] is absent
-     * from [currentSdkByRootUrl], indicating that a root was removed from the project between
-     * the two snapshots.
-     *
-     * @param allTopLevelRootUrls Ordered list of all current top-level Mix root URLs.
-     * @param currentSdkByRootUrl Map from root URL to the *current* Elixir SDK name (or null).
-     * @param previousSdkByRootUrl Map from root URL to the *previous* Elixir SDK name snapshot.
+     * Only URLs in [allTopLevelRootUrls] can be changed; any URL of [previousSnapshotByRootUrl] absent from
+     * [currentSnapshotByRootUrl] counts as a removed root.
      */
     fun computeSdkDelta(
         allTopLevelRootUrls: List<String>,
-        currentSdkByRootUrl: Map<String, String?>,
-        previousSdkByRootUrl: Map<String, String?>,
+        currentSnapshotByRootUrl: Map<String, ElixirSdkSnapshot?>,
+        previousSnapshotByRootUrl: Map<String, ElixirSdkSnapshot?>,
     ): SdkDelta {
         val changedUrls = LinkedHashSet<String>()
         for (url in allTopLevelRootUrls) {
-            if (previousSdkByRootUrl[url] != currentSdkByRootUrl[url]) {
+            if (previousSnapshotByRootUrl[url] != currentSnapshotByRootUrl[url]) {
                 changedUrls.add(url)
             }
         }
-        val removedExists = previousSdkByRootUrl.keys.any { it !in currentSdkByRootUrl }
+        val removedExists = previousSnapshotByRootUrl.keys.any { it !in currentSnapshotByRootUrl }
         return SdkDelta(changedUrls, removedExists)
     }
 }

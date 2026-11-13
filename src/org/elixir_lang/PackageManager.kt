@@ -2,10 +2,10 @@ package org.elixir_lang
 
 import com.intellij.openapi.extensions.ExtensionPointName
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.vfs.VirtualFile
 import org.elixir_lang.package_manager.DepGatherer
 import org.elixir_lang.package_manager.DepsStatusResult
+import org.elixir_lang.sdk.erlang_dependent.ElixirSdkSnapshot
 
 interface PackageManager {
     val fileName: String
@@ -20,7 +20,7 @@ interface PackageManager {
      * such distinction needs no override.
      */
     fun depGatherer(@Suppress("UNUSED_PARAMETER") isDependency: Boolean): DepGatherer = depGatherer()
-    fun depsStatus(project: Project, packageVirtualFile: VirtualFile, sdk: Sdk?): DepsStatusResult =
+    fun depsStatus(project: Project, packageVirtualFile: VirtualFile, snapshot: ElixirSdkSnapshot?): DepsStatusResult =
         DepsStatusResult.Unsupported
 }
 

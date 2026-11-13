@@ -2,7 +2,6 @@ package org.elixir_lang.mix
 
 import com.intellij.openapi.components.service
 import com.intellij.openapi.extensions.ExtensionPointName
-import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.testFramework.ExtensionTestUtil
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.common.runAll
@@ -11,6 +10,7 @@ import org.elixir_lang.mix.sync.MixSyncTestHelpers
 import org.elixir_lang.notification.setup_sdk.Notifier
 import org.elixir_lang.package_manager.*
 import org.elixir_lang.package_manager.DepGatherer
+import org.elixir_lang.sdk.erlang_dependent.ElixirSdkSnapshot
 import org.elixir_lang.settings.ElixirExperimentalSettings
 import org.elixir_lang.PackageManager as RootPackageManager
 
@@ -49,7 +49,7 @@ abstract class DepsCheckerServiceTestBase : PlatformTestCase() {
         override fun depsStatus(
             project: com.intellij.openapi.project.Project,
             packageVirtualFile: com.intellij.openapi.vfs.VirtualFile,
-            sdk: Sdk?,
+            snapshot: ElixirSdkSnapshot?,
         ): DepsStatusResult {
             val rootUrl = packageVirtualFile.parent?.url ?: return DepsStatusResult.Unsupported
             depsStatusCallCountByRootUrl[rootUrl] = (depsStatusCallCountByRootUrl[rootUrl] ?: 0) + 1

@@ -3,18 +3,17 @@ package org.elixir_lang
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.cli.CliArguments
 import org.elixir_lang.jps.shared.cli.CliArgs
 import org.elixir_lang.jps.shared.cli.CliTool
 import org.elixir_lang.jps.shared.sdk.SdkPaths
 import org.elixir_lang.jps.shared.tool_manager.ToolManagerEnvironmentResolver
 import org.elixir_lang.run.baseCommandLine
+import org.elixir_lang.sdk.erlang_dependent.ElixirSdkSnapshot
 import org.elixir_lang.tool_manager.toolManagerEnvironment
 
 object Mix {
     @JvmStatic
-    @RequiresReadLock
     fun commandLine(
         environment: Map<String, String>,
         workingDirectory: String?,
@@ -25,10 +24,34 @@ object Mix {
         project: Project? = null,
         ansiEnabled: Boolean = true,
         toolManagerEnvironment: ToolManagerEnvironmentResolver? = toolManagerEnvironment(project),
+    ): GeneralCommandLine =
+        commandLine(
+            environment,
+            workingDirectory,
+            ElixirSdkSnapshot.of(elixirSdk),
+            erlParameters,
+            elixirParameters,
+            pty,
+            project,
+            ansiEnabled,
+            toolManagerEnvironment,
+        )
+
+    @JvmStatic
+    fun commandLine(
+        environment: Map<String, String>,
+        workingDirectory: String?,
+        snapshot: ElixirSdkSnapshot,
+        erlParameters: List<String> = emptyList(),
+        elixirParameters: List<String> = emptyList(),
+        pty: Boolean = false,
+        project: Project? = null,
+        ansiEnabled: Boolean = true,
+        toolManagerEnvironment: ToolManagerEnvironmentResolver? = toolManagerEnvironment(project),
     ): GeneralCommandLine {
         val args: CliArgs =
             CliArguments.argsOrThrow(
-                elixirSdk,
+                snapshot,
                 CliTool.MIX,
                 extraElixirArguments = elixirParameters,
                 extraErlangArguments = erlParameters,
@@ -40,7 +63,7 @@ object Mix {
             environment,
             workingDirectory,
             project,
-            SdkPaths.mixHomeEnvironment(elixirSdk.homePath),
+            SdkPaths.mixHomeEnvironment(snapshot.elixirHome),
             toolManagerEnvironment,
         )
         commandLine.exePath = args.exePath

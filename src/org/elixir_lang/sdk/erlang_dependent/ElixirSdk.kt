@@ -1,7 +1,6 @@
 @file:JvmName("ElixirSdkExtensions")
 package org.elixir_lang.sdk.erlang_dependent
 
-import com.intellij.execution.CantRunException
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkModel
@@ -21,19 +20,6 @@ fun Sdk.resolveErlangSdkOrNullAndNotify(
         is ErlangSdkResult.Missing -> {
             Notifier.elixirSdkMissingErlangDependency(project, resolution)
             null
-        }
-    }
-}
-
-fun Sdk.requireErlangSdkOrNotifyAndThrow(
-    sdkModel: SdkModel? = null,
-    project: Project? = null,
-): Sdk {
-    return when (val resolution = ErlangSdkResolver.getInstance().resolveErlangSdkResult(this, sdkModel)) {
-        is ErlangSdkResult.Success -> resolution.sdk
-        is ErlangSdkResult.Missing -> {
-            Notifier.elixirSdkMissingErlangDependency(project, resolution)
-            throw CantRunException.CustomProcessedCantRunException()
         }
     }
 }

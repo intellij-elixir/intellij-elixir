@@ -1,19 +1,12 @@
 package org.elixir_lang.cli
 
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.projectRoots.SdkModel
-import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl
 import com.intellij.openapi.util.io.FileUtil
-import com.intellij.testFramework.registerOrReplaceServiceInstance
 import com.intellij.util.execution.ParametersListUtil
 import com.intellij.util.system.OS
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.jps.shared.cli.CliTool
 import org.elixir_lang.junit.logs.UnexpectedLogsRule
-import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResolver
-import org.elixir_lang.sdk.erlang_dependent.ErlangSdkResult
-import org.elixir_lang.sdk.erlang_dependent.MissingErlangSdkReason
+import org.elixir_lang.sdk.erlang_dependent.ElixirSdkSnapshot
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,7 +14,6 @@ import org.junit.runners.Parameterized
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.absolutePathString
-import org.elixir_lang.sdk.erlang.Type as ErlangSdkType
 
 /**
  * Generate new data for this with the [testData/org/elixir_lang/cli/gen_elixir_cli_base_args.sh](../../../testData/org/elixir_lang/cli/gen_elixir_cli_base_args.sh) script.
@@ -76,26 +68,15 @@ class CliArgumentsDataTest(private val case: Case) : PlatformTestCase() {
         }
     }
 
-    private val erlangSdkByElixirSdk: MutableMap<Sdk, Sdk> = mutableMapOf()
     private val createdPaths: MutableList<Path> = mutableListOf()
     private lateinit var erlangHome: Path
-    private lateinit var erlangSdk: Sdk
     private lateinit var erlangExec: String
     private val targetOS = OS.Linux
-
-    private val erlangVersion = "28.0.2"
 
     override fun setUp() {
         super.setUp()
 
-        ApplicationManager.getApplication().registerOrReplaceServiceInstance(
-            ErlangSdkResolver::class.java,
-            ErlangSdkResolverMockImpl(erlangSdkByElixirSdk),
-            testRootDisposable,
-        )
-
         erlangHome = createErlangHome()
-        erlangSdk = mockSdk(erlangVersion, erlangHome)
         erlangExec = expectedErlExecPath(erlangHome, targetOS)
     }
 
@@ -103,7 +84,6 @@ class CliArgumentsDataTest(private val case: Case) : PlatformTestCase() {
         try {
             cleanup(*createdPaths.toTypedArray())
             createdPaths.clear()
-            erlangSdkByElixirSdk.clear()
         } finally {
             super.tearDown()
         }
@@ -112,27 +92,17 @@ class CliArgumentsDataTest(private val case: Case) : PlatformTestCase() {
     @Test
     fun testArgsMatchData() {
         val elixirHome = createElixirHomeFromArgs(case.argsLine)
-        val args = CliArguments.args(
-            elixirSdk = mockSdk(case.version, elixirHome, erlangSdk),
+        val args = CliArguments.argsOrThrow(
+            snapshot = snapshot(case.version, elixirHome),
             tool = case.tool,
             extraElixirArguments = case.toolArgs,
             os = targetOS
         )
-        assertNotNull(args)
-        assertEquals(erlangExec, args!!.exePath)
+        assertEquals(erlangExec, args.exePath)
 
         val expectedTokens = expectedParameters(case.argsLine, elixirHome)
         val actualTokens = normalize(args.arguments)
         assertEquals("Line ${case.lineNumber}: ${case.tool} ${case.toolArgs} ${case.version}", expectedTokens, actualTokens)
-    }
-
-    private fun mockSdk(version: String?, homePath: Path, erlangSdk: Sdk? = null): Sdk {
-        val name = version ?: homePath.fileName.toString()
-        val sdk = ProjectJdkImpl(name, ErlangSdkType.instance, homePath.toString(), version ?: "")
-        if (erlangSdk != null) {
-            erlangSdkByElixirSdk[sdk] = erlangSdk
-        }
-        return sdk
     }
 
     private fun expectedErlExecPath(erlangHome: Path, os: OS): String {
@@ -217,25 +187,12 @@ class CliArgumentsDataTest(private val case: Case) : PlatformTestCase() {
     private fun normalize(values: List<String>): List<String> = values.map { normalize(it) }
     private fun normalize(value: String): String = FileUtil.toSystemIndependentName(value)
 
+    private fun snapshot(version: String, elixirHome: Path) =
+        ElixirSdkSnapshot(version, elixirHome.toString(), version, erlangHome.toString())
+
     private fun trackPath(path: Path): Path {
         createdPaths.add(path)
         return path
-    }
-
-    private class ErlangSdkResolverMockImpl(
-        private val erlangSdkByElixirSdk: Map<Sdk, Sdk>
-    ) : ErlangSdkResolver {
-        override fun resolveErlangSdkResult(
-            elixirSdk: Sdk,
-            sdkModel: SdkModel?
-        ): ErlangSdkResult {
-            val erlangSdk = erlangSdkByElixirSdk[elixirSdk]
-                ?: return ErlangSdkResult.Missing(
-                    elixirSdk,
-                    MissingErlangSdkReason.NOT_FOUND,
-                )
-            return ErlangSdkResult.Success(erlangSdk)
-        }
     }
 
     data class Case(

@@ -38,8 +38,6 @@ import org.elixir_lang.tool_manager.ToolManagerOptIns
 import org.elixir_lang.tool_manager.toolManagerEnvironment
 import java.io.IOException
 import java.nio.file.Paths
-import com.intellij.openapi.application.ReadAction
-import java.util.concurrent.Callable
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
@@ -192,11 +190,8 @@ class Step(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent),
         val workingDirectory = Paths.get(".").toAbsolutePath().normalize().toString()
         val environment = toolManagerEnvironment(project, optInsProperty.get(), Paths.get(path))
 
-        // Mix.commandLine() -> argsOrThrow() -> requireErlangSdkOrNotifyAndThrow()
-        // -> findErlangSdkByHomePath() asserts a read lock; acquire one here.
-        val commandLine = ReadAction.nonBlocking(Callable {
+        val commandLine =
             Mix.commandLine(emptyMap(), workingDirectory, sdk, project = project, toolManagerEnvironment = environment)
-        }).executeSynchronously()
         commandLine.addParameters(
             MixNewOptions.parameters(context.projectDirectory.toString(), mixNewApp, mixNewModule, mixNewSup, mixNewUmbrella)
         )
