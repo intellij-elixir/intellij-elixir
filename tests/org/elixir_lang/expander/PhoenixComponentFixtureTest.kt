@@ -8,10 +8,8 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.io.FileUtil
-import org.elixir_lang.beam.binaryToTerm
 import org.elixir_lang.coverage.ExpanderProgress
 import org.elixir_lang.coverage.macroName
-import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
 import org.elixir_lang.lowering.ElixirAst
@@ -149,11 +147,8 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }
 
-    private fun file(corpus: PhoenixCorpus, compiled: Compiled, path: String): ElixirFile =
+    private fun file(corpus: PhoenixCorpus, compiled: MixFixture, path: String): ElixirFile =
         corpus.psi(File(compiled.project, path)) ?: error("no Elixir file at $path")
-
-    /** The fixture compiled in [project], with its dependencies, and what Elixir's oracle script wrote in [oracle]. */
-    private class Compiled(val project: File, val oracle: File)
 
     private companion object {
         val FIXTURE: File = File("testData/org/elixir_lang/expander/phoenix_component").absoluteFile
@@ -167,45 +162,21 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
          * Compiled once for the class, since compiling LiveView takes most of a minute, and a failure kept, not compiled
          * again for each test; `null` where the leg has no lock.
          */
-        val compiling: Result<Compiled?> by lazy { runCatching(::compile) }
-        val compiled: Compiled? get() = compiling.getOrThrow()
+        val compiling: Result<MixFixture?> by lazy { runCatching(::compile) }
+        val compiled: MixFixture? get() = compiling.getOrThrow()
 
-        fun compile(): Compiled? {
-            if (!File(FIXTURE, "locks/${LegManifest.environment("ELIXIR_VERSION")}.lock").isFile) return null
+        /** The fixture compiled, with its dependencies, and what Elixir's oracle script wrote. */
+        fun compile(): MixFixture? {
+            if (!hasLegLock(FIXTURE)) return null
 
-            val deps = File(property("elixir.phoenixComponentFixture.deps"))
+            val fixture = MixFixture("phoenix-component-fixture", "phoenixComponentFixture", "phoenix_live_view", "phoenix_component_fixture")
 
-            if (!File(deps, "phoenix_live_view").isDirectory) {
-                throw AssertionError("This test needs the fixture's dependencies in $deps, which `getPhoenixComponentFixtureDeps` fetches.")
-            }
+            FileUtil.copyDir(FIXTURE, fixture.project)
+            fixture.compile()
+            fixture.runOracle("PHOENIX_COMPONENT_ORACLE")
 
-            // Not under the test framework's temporary directory, which it empties after each test.
-            val root = FileUtil.createTempDirectory(File("build/tmp").absoluteFile.apply { mkdirs() }, "phoenix-component-fixture", null, true)
-            val project = File(root, "phoenix_component_fixture")
-            val oracle = File(root, "oracle").apply { mkdirs() }
-
-            FileUtil.copyDir(FIXTURE, project)
-            FileUtil.copyDir(deps, File(project, "deps"))
-            File(project, "test").mkdirs()
-
-            // Mix reads any MIX_ variable the test JVM inherits; these are the fixture's own.
-            val environment = System.getenv().filterKeys { !it.startsWith("MIX_") } + mapOf(
-                "MIX_HOME" to property("elixir.phoenixComponentFixture.mixHome"),
-                "MIX_ARCHIVES" to property("elixir.phoenixComponentFixture.mixArchives"),
-                "MIX_ENV" to "dev",
-            )
-
-            MixProcess.run(project, environment, listOf("deps.compile"), timeoutMinutes = 15)
-            MixProcess.run(project, environment, listOf("compile"))
-            MixProcess.run(project, environment + ("PHOENIX_COMPONENT_ORACLE" to oracle.path), listOf("run", "--no-start", "--no-compile", "oracle/oracle.exs"))
-
-            return Compiled(project, oracle)
+            return fixture
         }
-
-        fun property(name: String): String =
-            System.getProperty(name) ?: throw AssertionError("This test needs the system property $name, which Gradle's `test` sets.")
-
-        fun etf(file: File): OtpErlangObject = binaryToTerm(file.readBytes(), 0).first
 
         /** The route structs of the list [term], each field but `warn_location` in name order. */
         fun routes(term: OtpErlangObject): String =

@@ -11,10 +11,8 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.util.system.OS
-import org.elixir_lang.beam.binaryToTerm
 import org.elixir_lang.coverage.ExpanderProgress
 import org.elixir_lang.coverage.macroName
-import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
 import org.elixir_lang.lowering.ElixirAst
@@ -399,45 +397,16 @@ class EctoFixtureTest : HeavyTestCase() {
         val compiled: Compiled? get() = compiling.getOrThrow()
 
         fun compile(): Compiled? {
-            if (!File(FIXTURE, "locks/${LegManifest.environment("ELIXIR_VERSION")}.lock").isFile) return null
+            if (!hasLegLock(FIXTURE)) return null
 
-            val deps = File(property("elixir.ectoFixture.deps"))
+            val fixture = MixFixture("ecto-fixture", "ectoFixture", "ecto", "ecto_fixture")
 
-            if (!File(deps, "ecto").isDirectory) {
-                throw AssertionError("This test needs the Ecto fixture's dependencies in $deps, which `getEctoFixtureDeps` fetches.")
-            }
+            FileUtil.copyDir(FIXTURE, fixture.project)
+            val stderr = fixture.compile().stderr
+            for (script in listOf("oracle.exs", "compile_config.exs")) fixture.runOracle("ECTO_FIXTURE_ORACLE", script)
 
-            // Not under the test framework's temporary directory, which it empties after each test.
-            val root = FileUtil.createTempDirectory(File("build/tmp").absoluteFile.apply { mkdirs() }, "ecto-fixture", null, true)
-            val project = File(root, "ecto_fixture")
-            val oracle = File(root, "oracle").apply { mkdirs() }
-
-            FileUtil.copyDir(FIXTURE, project)
-            FileUtil.copyDir(deps, File(project, "deps"))
-            File(project, "test").mkdirs()
-
-            // Mix reads any MIX_ variable the test JVM inherits; these are the fixture's own.
-            val environment = System.getenv().filterKeys { !it.startsWith("MIX_") } + mapOf(
-                "MIX_HOME" to property("elixir.ectoFixture.mixHome"),
-                "MIX_ARCHIVES" to property("elixir.ectoFixture.mixArchives"),
-                "MIX_ENV" to "dev",
-            )
-
-            // Apart, so the stderr kept is the project's own.
-            MixProcess.run(project, environment, listOf("deps.compile"), timeoutMinutes = 15)
-            val stderr = MixProcess.run(project, environment, listOf("compile")).stderr
-
-            for (script in listOf("oracle.exs", "compile_config.exs")) {
-                MixProcess.run(project, environment + ("ECTO_FIXTURE_ORACLE" to oracle.path), listOf("run", "--no-start", "--no-compile", "oracle/$script"))
-            }
-
-            return Compiled(project, stderr, oracle, etf(File(oracle, "after_compile.etf")) == OtpErlangAtom(true))
+            return Compiled(fixture.project, stderr, fixture.oracle, etf(File(fixture.oracle, "after_compile.etf")) == OtpErlangAtom(true))
         }
-
-        fun property(name: String): String =
-            System.getProperty(name) ?: throw AssertionError("This test needs the system property $name, which Gradle's `test` sets.")
-
-        fun etf(file: File): OtpErlangObject = binaryToTerm(file.readBytes(), 0).first
 
         fun described(expanded: MacroExpanded, compiled: Compiled): String =
             when (expanded) {
