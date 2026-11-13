@@ -11,15 +11,12 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.util.system.OS
-import org.elixir_lang.beam.binaryToTerm
 import org.elixir_lang.coverage.ExpanderProgress
 import org.elixir_lang.coverage.macroName
-import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.inspect
-import org.elixir_lang.psi.ElixirFile
 import java.io.File
 
 /**
@@ -55,7 +52,7 @@ class EctoFixtureTest : HeavyTestCase() {
         val steps = File(compiled.oracle, "steps").listFiles()!!.sortedBy { it.name }.associate {
             it.nameWithoutExtension to (etf(it) as OtpErlangList).elements().toList()
         }
-        val queries = file(corpus, compiled, "lib/queries.ex")
+        val queries = corpus.psi(compiled.project, "lib/queries.ex")
 
         // A `def` the oracle's prewalk doesn't match has no steps, and would drop out of the comparison unseen.
         assertEquals(DEF.findAll(queries.text).map { it.groupValues[1] }.sorted().toList(), steps.keys.toList())
@@ -118,7 +115,7 @@ class EctoFixtureTest : HeavyTestCase() {
         val compiled = compiled ?: return
         val corpus = corpus!!
         val info = etf(File(compiled.oracle, "info.etf")) as OtpErlangMap
-        val probe = file(corpus, compiled, "lib/probe.ex")
+        val probe = corpus.psi(compiled.project, "lib/probe.ex")
         val holder = ProjectModules(project)
         val modules = listOf(QUERIES, REPO)
 
@@ -141,7 +138,7 @@ class EctoFixtureTest : HeavyTestCase() {
         if (compiled.afterCompile) return
 
         val info = etf(File(compiled.oracle, "info.etf")) as OtpErlangMap
-        val result = expansion(ProjectModules(project), file(corpus!!, compiled, ASKER)).modules.single()
+        val result = expansion(ProjectModules(project), corpus!!.psi(compiled.project, ASKER)).modules.single()
 
         assertEquals(exportsIn(info, QUERIES), stored(result))
     }
@@ -152,7 +149,7 @@ class EctoFixtureTest : HeavyTestCase() {
         val level = legLevel()
         val (call, expanded) = (etf(File(compiled.oracle, "compile_config.etf")) as OtpErlangTuple).elements()
         // Not from lib/probe.ex, whose own modules are compiling, so not loaded, while it asks.
-        val asker = file(corpus, compiled, "lib/queries.ex")
+        val asker = corpus.psi(compiled.project, "lib/queries.ex")
         val holder = ProjectModules(project)
         val empty = Env.empty(level, legKernel)
         val env = empty.copy(requires = (empty.requires + PROBE).distinct().sorted())
@@ -181,7 +178,7 @@ class EctoFixtureTest : HeavyTestCase() {
         val compiled = compiled ?: return
         val info = etf(File(compiled.oracle, "info.etf")) as OtpErlangMap
         val holder = ProjectModules(project)
-        val asker = file(corpus!!, compiled, ASKER)
+        val asker = corpus!!.psi(compiled.project, ASKER)
 
         val expected = SCHEMAS.map { module ->
             if (compiled.afterCompile) "$module ${ModuleExports.Unreadable}" else "$module ${exportsIn(info, module)}"
@@ -195,7 +192,7 @@ class EctoFixtureTest : HeavyTestCase() {
         val compiled = compiled ?: return
         val info = etf(File(compiled.oracle, "info.etf")) as OtpErlangMap
         val structs = etf(File(compiled.oracle, "structs.etf")) as OtpErlangMap
-        val results = expansion(ProjectModules(project), file(corpus!!, compiled, "lib/schema.ex")).modules.associateBy { it.module }
+        val results = expansion(ProjectModules(project), corpus!!.psi(compiled.project, "lib/schema.ex")).modules.associateBy { it.module }
 
         val expected = SCHEMAS.map { module ->
             val keys = (structs.get(OtpErlangAtom(module)) as OtpErlangList).elements().map { (it as OtpErlangAtom).atomValue() }
@@ -241,23 +238,26 @@ class EctoFixtureTest : HeavyTestCase() {
 
     /**
      * An inline `embeds_one` creates its schema with `Module.create/3`: both modules compile, storing what Elixir's do,
-     * and the schema, where Ecto sets no `@after_compile`, exports what Elixir's does to another file. Where it sets one,
-     * the created module's callback is code the expander doesn't follow, run while the schema is open, so the schema's
-     * tables aren't known after it and its `defstruct` stops.
+     * and each exports what Elixir's does to another file where Ecto sets no `@after_compile`. Where it sets one, the
+     * created module's callback is code the expander doesn't follow, so what the created module defines isn't known to
+     * another file, and it runs while the schema is open, so the schema's tables aren't known after it and its
+     * `defstruct` stops.
      */
     fun testAnInlineEmbedCreatesItsModule() {
         val compiled = compiled ?: return
         val corpus = corpus!!
         val info = etf(File(compiled.oracle, "info.etf")) as OtpErlangMap
         val holder = ProjectModules(project)
-        val results = expansion(holder, file(corpus, compiled, "lib/inline.ex")).modules.withNested().associateBy { it.module }
-        val asker = file(corpus, compiled, ASKER)
+        val results = expansion(holder, corpus.psi(compiled.project, "lib/inline.ex")).modules.withNested().associateBy { it.module }
+        val asker = corpus.psi(compiled.project, ASKER)
 
         val expected = INLINES.map { module ->
             val stops = module == INLINE && compiled.afterCompile
 
             "$module " + if (stops) "stopped defstruct/1" else "compiled ${exportsIn(info, module)}"
-        } + "$INLINE ${if (compiled.afterCompile) ModuleExports.Unreadable else exportsIn(info, INLINE)}"
+        } + INLINES.map { module ->
+            "$module " + if (compiled.afterCompile) ModuleExports.Unreadable else exportsIn(info, module)
+        }
         val actual = INLINES.map { module ->
             val result = results[module]
 
@@ -266,7 +266,37 @@ class EctoFixtureTest : HeavyTestCase() {
                 result.ended == ExpansionResult.Ended.Compiled -> "compiled ${stored(result)}"
                 else -> ending(result)
             }
-        } + "$INLINE ${exported(exports(holder, asker, INLINE))}"
+        } + INLINES.map { "$it ${exported(exports(holder, asker, it))}" }
+
+        assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
+    }
+
+    /**
+     * What an inline embed's module defines is declared, for another file's calls, where its code is written: a `def`
+     * the `embeds_one` block holds on its own line, as Elixir's compiled module declares it, and what Ecto's macros
+     * inject into the module in Ecto's code, as for any macro's output. Elixir's compiled module declares those at the
+     * `embeds_one` instead, since a quote without `location: :keep` takes its caller's line.
+     */
+    fun testAnInlineEmbedsDefinitionsAreDeclaredWhereTheirCodeIsWritten() {
+        val compiled = compiled ?: return
+        val corpus = corpus!!
+        val declared = (etf(File(compiled.oracle, "declared.etf")) as OtpErlangMap).get(OtpErlangAtom("$INLINE.Meta"))
+        val asker = corpus.psi(compiled.project, "lib/inline_asker.ex")
+        val written = declaredAt(declared, "shout")
+        val calls = listOf("Meta.shout(meta)", "Meta.__schema__(:fields)", "Meta.__changeset__()", "Meta.__struct__()")
+
+        val expected = listOf("shout $written") +
+            listOf("__schema__", "__changeset__", "__struct__").map { "$it $ECTO_SCHEMA" }
+        val actual = calls.map { call ->
+            val lines = ExpanderSourceRows.read {
+                val found = ExpanderSource.candidates(ExpanderSourceRows.use(asker, call, call), false)
+
+                // A line of Ecto's decompiled code is its version's.
+                ExpanderSourceRows.declaredAt(found, compiled.project) { it != ECTO_SCHEMA }
+            }
+
+            "${call.substringAfter('.').substringBefore('(')} $lines"
+        }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }
@@ -275,7 +305,7 @@ class EctoFixtureTest : HeavyTestCase() {
     fun testADerivedImplementationIsAbsent() {
         val compiled = compiled ?: return
         val holder = ProjectModules(project)
-        val asker = file(corpus!!, compiled, ASKER)
+        val asker = corpus!!.psi(compiled.project, ASKER)
         val derived = etf(File(compiled.oracle, "derived.etf")) as OtpErlangMap
 
         for (module in DERIVED) {
@@ -298,7 +328,7 @@ class EctoFixtureTest : HeavyTestCase() {
             .filterNot { it.startsWith(MISSING_ON) }
             .sorted()
         val actual = File(compiled.project, "lib").listFiles()!!.sortedBy { it.name }.asSequence()
-            .flatMap { ProjectModules.results(expansion(holder, file(corpus, compiled, "lib/${it.name}"))).toList() }
+            .flatMap { ProjectModules.results(expansion(holder, corpus.psi(compiled.project, "lib/${it.name}"))).toList() }
             .flatMap { it.warnings }
             .map(::rendered)
             .sorted()
@@ -306,14 +336,11 @@ class EctoFixtureTest : HeavyTestCase() {
         assertEquals(expected.joinToString("\n\n"), actual.joinToString("\n\n"))
     }
 
-    private fun file(corpus: PhoenixCorpus, compiled: Compiled, path: String): ElixirFile =
-        corpus.psi(File(compiled.project, path)) ?: error("no Elixir file at $path")
-
     /** What expanding each of [calls], `lib/probe.ex`'s macros, once gives. */
     private fun called(compiled: Compiled, calls: List<OtpErlangObject>): List<String> {
         val corpus = corpus!!
         val level = legLevel()
-        val asker = file(corpus, compiled, ASKER)
+        val asker = corpus.psi(compiled.project, ASKER)
         val holder = ProjectModules(project)
         val empty = Env.empty(level, legKernel)
         val env = empty.copy(requires = (empty.requires + PROBE).distinct().sorted())
@@ -345,6 +372,7 @@ class EctoFixtureTest : HeavyTestCase() {
         const val PROBE = "Elixir.EctoFixture.Probe"
         const val INLINE = "Elixir.EctoFixture.Inline"
         val INLINES = listOf(INLINE, "$INLINE.Meta")
+        const val ECTO_SCHEMA = "_build/dev/lib/ecto/ebin/Elixir.Ecto.Schema.beam"
         const val CALLED = "EctoFixture.Probe.called/3"
         const val HASH = ":hash"
 
@@ -365,45 +393,16 @@ class EctoFixtureTest : HeavyTestCase() {
         val compiled: Compiled? get() = compiling.getOrThrow()
 
         fun compile(): Compiled? {
-            if (!File(FIXTURE, "locks/${LegManifest.environment("ELIXIR_VERSION")}.lock").isFile) return null
+            if (!hasLegLock(FIXTURE)) return null
 
-            val deps = File(property("elixir.ectoFixture.deps"))
+            val fixture = MixFixture("ecto-fixture", "ectoFixture", "ecto", "ecto_fixture")
 
-            if (!File(deps, "ecto").isDirectory) {
-                throw AssertionError("This test needs the Ecto fixture's dependencies in $deps, which `getEctoFixtureDeps` fetches.")
-            }
+            FileUtil.copyDir(FIXTURE, fixture.project)
+            val stderr = fixture.compile().stderr
+            for (script in listOf("oracle.exs", "compile_config.exs")) fixture.runOracle("ECTO_FIXTURE_ORACLE", script)
 
-            // Not under the test framework's temporary directory, which it empties after each test.
-            val root = FileUtil.createTempDirectory(File("build/tmp").absoluteFile.apply { mkdirs() }, "ecto-fixture", null, true)
-            val project = File(root, "ecto_fixture")
-            val oracle = File(root, "oracle").apply { mkdirs() }
-
-            FileUtil.copyDir(FIXTURE, project)
-            FileUtil.copyDir(deps, File(project, "deps"))
-            File(project, "test").mkdirs()
-
-            // Mix reads any MIX_ variable the test JVM inherits; these are the fixture's own.
-            val environment = System.getenv().filterKeys { !it.startsWith("MIX_") } + mapOf(
-                "MIX_HOME" to property("elixir.ectoFixture.mixHome"),
-                "MIX_ARCHIVES" to property("elixir.ectoFixture.mixArchives"),
-                "MIX_ENV" to "dev",
-            )
-
-            // Apart, so the stderr kept is the project's own.
-            MixProcess.run(project, environment, listOf("deps.compile"), timeoutMinutes = 15)
-            val stderr = MixProcess.run(project, environment, listOf("compile")).stderr
-
-            for (script in listOf("oracle.exs", "compile_config.exs")) {
-                MixProcess.run(project, environment + ("ECTO_FIXTURE_ORACLE" to oracle.path), listOf("run", "--no-start", "--no-compile", "oracle/$script"))
-            }
-
-            return Compiled(project, stderr, oracle, etf(File(oracle, "after_compile.etf")) == OtpErlangAtom(true))
+            return Compiled(fixture.project, stderr, fixture.oracle, etf(File(fixture.oracle, "after_compile.etf")) == OtpErlangAtom(true))
         }
-
-        fun property(name: String): String =
-            System.getProperty(name) ?: throw AssertionError("This test needs the system property $name, which Gradle's `test` sets.")
-
-        fun etf(file: File): OtpErlangObject = binaryToTerm(file.readBytes(), 0).first
 
         fun described(expanded: MacroExpanded, compiled: Compiled): String =
             when (expanded) {

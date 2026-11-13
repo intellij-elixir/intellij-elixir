@@ -135,7 +135,7 @@ internal class ProjectModules(private val project: Project) {
                             val running = runningAnswer(inProgress, copy.virtualFile, atom)
                             transient = Transient(mapOf(copy.virtualFile to mapOf(atom to running)), false)
 
-                            if (running == null) read(choice.fallingThrough()) else null
+                            if (running == null) choice.whileRunning()?.let(::read) else null
                         }
                         is Copy.Source if reading -> null
                         is Copy.Source -> {
@@ -143,7 +143,7 @@ internal class ProjectModules(private val project: Project) {
                             transient = below
                             stamps.addAll(loaded.stamps)
 
-                            modules[atom] ?: if (loaded.answer(atom) == null) read(choice.fallingThrough()) else null
+                            modules[atom] ?: if (loaded.answer(atom, choice.parents) == null) read(choice.fallingThrough()) else null
                         }
                     }
             }
@@ -195,7 +195,7 @@ internal class ProjectModules(private val project: Project) {
                         val file = if (copy.virtualFile == fileOf(asker)) asker as? ElixirFile ?: copy.file else copy.file
                         val held = held(file, inputs)
 
-                        if (held.loaded.answer(atom) == null) {
+                        if (held.loaded.answer(atom, choice.parents) == null) {
                             located(asker, atom, inputs, choice.fallingThrough())
                         } else {
                             Located.Source(file, held.results[atom])
@@ -275,7 +275,7 @@ internal class ProjectModules(private val project: Project) {
                             val running = runningAnswer(inProgress, copy.virtualFile, atom)
                             transient = Transient(mapOf(copy.virtualFile to mapOf(atom to running)), false)
 
-                            running ?: answer(choice.fallingThrough())
+                            running ?: choice.whileRunning()?.let(::answer) ?: UNREADABLE
                         }
                         // Expanding the file here wouldn't be under the read, whose env and directory it may read.
                         is Copy.Source if reading -> UNREADABLE
@@ -284,7 +284,7 @@ internal class ProjectModules(private val project: Project) {
                             transient = below
                             stamps.addAll(loaded.stamps)
 
-                            loaded.answer(atom) ?: answer(choice.fallingThrough())
+                            loaded.answer(atom, choice.parents) ?: answer(choice.fallingThrough())
                         }
                     }
             }
@@ -305,19 +305,49 @@ internal class ProjectModules(private val project: Project) {
     }
 
     /**
-     * Which of [atom]'s copies Elixir loads for [asker]: unknown in dumb mode, else none, several or the one. [into]
-     * takes the stamps of its entry ([heldCopies]).
+     * Which of [atom]'s copies Elixir loads for [asker]: unknown in dumb mode, else none, several or the one. A name no
+     * copy holds is looked for in the file of its nearest parent name ([parentsFile]). [into] takes the stamps of each
+     * entry read ([heldCopies]).
      */
     private fun choose(asker: PsiFile, atom: String, into: Stamps? = null): Choice {
         if (DumbService.isDumb(project)) return Choice.Unknown
         val held = heldCopies(asker, atom)
         into?.addAll(held.stamps)
-        val (chosen, fallback) = copies(held)
+        val chosen = chosenCopies(held)
+        // The `.beam`s of the libraries and the SDK outside the project's content not among them.
+        val fallback = held.fallback.map(::compiledCopy)
 
         return when (val copy = chosen.singleOrNull()) {
-            null -> if (chosen.isEmpty()) Choice.None else Choice.Several(chosen)
+            null -> if (chosen.isEmpty()) parentsFile(asker, atom, fallback, into) ?: Choice.None else Choice.Several(chosen)
             else -> Choice.One(copy, fallback)
         }
+    }
+
+    /**
+     * The source file of [atom]'s nearest parent name that one source file defines, as the copy that may create [atom]
+     * under a name it computes, as a router creates its `Helpers`: `Elixir.A.B.C`'s `Elixir.A.B`, then `Elixir.A`.
+     * Where that is [asker]'s own file, whose run decides what its code may have created ([Run.maybeCreated]), the name
+     * falls through as any name a file leaves no module does. Several where the nearest parent has several copies, as
+     * any may be the one that ran; `null` where no file defines a parent. [into] takes the stamps of each parent's
+     * entry.
+     */
+    private fun parentsFile(asker: PsiFile, atom: String, fallback: List<Copy.Compiled>, into: Stamps?): Choice? {
+        var parent = atom.substringBeforeLast('.', "")
+
+        while (parent.contains('.')) {
+            val held = heldCopies(asker, parent)
+            into?.addAll(held.stamps)
+            val chosen = chosenCopies(held)
+            if (chosen.size > 1) return Choice.Several(chosen)
+            (chosen.singleOrNull() as? Copy.Source)?.let { file ->
+                val parents = Choice.One(file, fallback, parents = true)
+
+                return if (file.virtualFile == fileOf(asker)) parents.fallingThrough() else parents
+            }
+            parent = parent.substringBeforeLast('.', "")
+        }
+
+        return null
     }
 
     private sealed interface Choice {
@@ -328,33 +358,34 @@ internal class ProjectModules(private val project: Project) {
         /**
          * @property fallback the `.beam`s of the libraries and the SDK outside the project's content, which Elixir loads
          *   from the code path where [copy], a source file, defines no module under the name after all
+         * @property parents whether [copy] is the file of the name's nearest parent ([parentsFile]), where no index
+         *   names the module
          */
-        class One(val copy: Copy, val fallback: List<Copy.Compiled>) : Choice {
+        class One(val copy: Copy, val fallback: List<Copy.Compiled>, val parents: Boolean = false) : Choice {
             /** Where Elixir loads the name from once [copy], a source file, leaves it no module: the code path's `.beam`s, as [choose] reads copies. */
             fun fallingThrough(): Choice =
                 when (val beam = fallback.singleOrNull()) {
                     null -> if (fallback.isEmpty()) None else Several(fallback)
                     else -> One(beam, emptyList())
                 }
+
+            /**
+             * Where Elixir loads the name from while [copy], a source file, still runs and hasn't loaded it:
+             * [fallingThrough] where an index names the module there, else unknown, `null`.
+             */
+            fun whileRunning(): Choice? = if (parents) null else fallingThrough()
         }
     }
 
-    /**
-     * The copies of [held]'s name Elixir may load for its asker: the preferred ones, then the `.beam`s of the libraries
-     * and the SDK outside the project's content not among them. A reparse replaces a file's PSI, so each source copy's
-     * PSI is found again.
-     */
-    private fun copies(held: HeldCopies): Pair<List<Copy>, List<Copy.Compiled>> {
-        val chosen = held.chosen.mapNotNull { copy ->
+    /** The copies of [held]'s name Elixir prefers for its asker. A reparse replaces a file's PSI, so each source copy's PSI is found again. */
+    private fun chosenCopies(held: HeldCopies): List<Copy> =
+        held.chosen.mapNotNull { copy ->
             if (copy.compiled) {
                 compiledCopy(copy)
             } else {
                 read(copy.virtualFile)?.let { Copy.Source(it, copy.virtualFile) }
             }
         }
-
-        return chosen to held.fallback.map(::compiledCopy)
-    }
 
     private fun compiledCopy(copy: HeldCopy): Copy.Compiled = Copy.Compiled(copy.virtualFile, copy.source)
 
@@ -623,7 +654,9 @@ internal class ProjectModules(private val project: Project) {
         val uncompiled = LoadedModules.uncompiledExports(expansion)?.let { Answer(it, ModuleStruct.Unreadable) }
         val transient = Transient.merged(transients + used.map(Looked::transient)).leaving(compiling)
 
-        return Held(Loaded(inputs, modules, uncompiled, stamps), expansion, results, lowering, transient, envs, receivers)
+        val loaded = Loaded(inputs, modules, uncompiled, expansion.unfollowedRan, stamps)
+
+        return Held(loaded, expansion, results, lowering, transient, envs, receivers)
     }
 
     /** The app env a default build of the project sees, for an expansion that keeps no stamps, of the `.app` files [asker] loads. */
@@ -1033,23 +1066,29 @@ internal class ProjectModules(private val project: Project) {
     /**
      * A source file's modules as its expansion compiled them.
      *
-     * @property uncompiled the answer for a module the index names in the file that its expansion didn't compile:
-     *   unreadable where the run stopped short of one Elixir may have compiled, and `null` where the file leaves the
-     *   name no module, so it answers as it would without the file
+     * @property uncompiled the answer for a module the index names in the file, or whose nearest parent name the file
+     *   defines, that its expansion didn't compile: unreadable where the run stopped short of one Elixir may have
+     *   compiled, and `null` where the file leaves the name no module, so it answers as it would without the file
+     * @property unfollowedRan whether code the expander doesn't follow ran in the file's run, which may have created a
+     *   module under a name no `defmodule` in the file names ([FileExpansion.unfollowedRan])
      */
     private class Loaded(
         val inputs: Inputs,
         val modules: Map<String, Answer>,
         val uncompiled: Answer?,
+        val unfollowedRan: Boolean,
         val stamps: Stamps,
     ) {
         fun isCurrent(inputs: Inputs): Boolean = inputs == this.inputs && stamps.isCurrent()
 
         /**
-         * The file's answer for [atom]: the module it compiled under the name, [uncompiled] where it didn't, and `null`
-         * where it leaves the name no module.
+         * The file's answer for [atom]: the module it compiled under the name, [uncompiled] where it didn't, unknown for
+         * a name found through its [parents][Choice.One.parents] where code the expander doesn't follow ran, and `null`
+         * where it leaves the name no module. Code the expander doesn't follow is taken not to create a module a
+         * `defmodule` names.
          */
-        fun answer(atom: String): Answer? = modules[atom] ?: uncompiled
+        fun answer(atom: String, parents: Boolean): Answer? =
+            modules[atom] ?: uncompiled ?: UNREADABLE.takeIf { parents && unfollowedRan }
 
         /** Whether this value can stand in a run below [inProgress]: it read none of those files as loaded. */
         fun holdsWhile(inProgress: Map<VirtualFile, Map<String, Answer>>): Boolean = inProgress.keys.none(stamps::reads)

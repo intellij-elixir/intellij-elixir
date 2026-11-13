@@ -16,6 +16,7 @@ import com.intellij.util.system.OS
 import org.elixir_lang.FIXED_STACK
 import org.elixir_lang.SMALL_STACK
 import org.elixir_lang.expander.ExpansionResult.Ended
+import org.elixir_lang.expander.interpreter.UnknownBinary
 import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
@@ -535,7 +536,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             file(code(""), tables = true, run = run),
         )
         assertEquals(
-            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B stopped `A.n()` []",
+            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B stopped `unquote(:erlang.binary_to_atom(A.n(), :utf8))` []",
             file(code(":file.set_cwd(\"/other\")"), tables = true, run = run),
         )
     }
@@ -593,7 +594,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         }
 
         assertEquals(
-            "top expanded\nmodule Elixir.A compiled\nmodule Elixir.B stopped `A.n()`",
+            "top expanded\nmodule Elixir.A compiled\nmodule Elixir.B stopped `unquote(:erlang.binary_to_atom(A.n(), :utf8))`",
             file(code("defmacro n, do: __ENV__.file"), run = run),
         )
         assertEquals(
@@ -728,10 +729,95 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         """.trimIndent()
 
         assertEquals(
-            "top expanded\nmodule Elixir.A compiled\nmodule Elixir.B stopped `A.m()`",
+            "top expanded\nmodule Elixir.A compiled\nmodule Elixir.B stopped `unquote(:erlang.binary_to_atom(A.m(), :utf8))`",
             file(moved, run = run),
         )
         assertEquals("top expanded\nmodule Elixir.A compiled\nmodule Elixir.B compiled", file(own, run = run))
+    }
+
+    /**
+     * A binary whose bytes are unknown, as `inspect/1`'s, is code as any binary is, in a value a definition unquotes, a
+     * macro's result and `Macro.expand/2`'s argument: where only its being a binary is read it ends `B` as `":x"` does,
+     * raises included, and where its bytes are read `B` stops.
+     */
+    fun testAnUnknownBinaryIsCodeAsAnyBinaryIs() {
+        val compiled = { table: String -> "top expanded\nmodule Elixir.B compiled [$table]" }
+        val raised = { raise: String -> "top error $raise\nmodule Elixir.B raised $raise []" }
+        val rows = listOf(
+            Triple("value-def", "" to "b = \$b\n  def f, do: unquote(b)", compiled("f/0 def")),
+            Triple("value-concat", "" to "b = \$b\n  def f(unquote(b) <> rest), do: rest", compiled("f/1 def")),
+            Triple("value-bitstring", "" to "b = \$b\n  def f(<<unquote(b)::binary, rest::binary>>), do: rest", compiled("f/1 def")),
+            Triple("value-escaped", "" to "b = \$b\n  def f, do: unquote(Macro.escape({b}))", compiled("f/0 def")),
+            Triple("macro-value", "defmacro b, do: \$b" to "def f, do: A.b()", compiled("f/0 def")),
+            Triple("macro-concat", "defmacro b, do: \$b" to "def f(A.b() <> rest), do: rest", compiled("f/1 def")),
+            Triple("macro-bitstring", "defmacro b, do: \$b" to "def f(<<A.b()::binary, rest::binary>>), do: rest", compiled("f/1 def")),
+            Triple("macro-argument", "defmacro a, do: quote(do: Kernel.byte_size(unquote(\$b)))" to "def f, do: A.a()", compiled("f/0 def")),
+            Triple("macro-given", "defmacro i(x), do: x\n  defmacro o, do: quote(do: A.i(unquote(\$b)))" to "def f, do: A.o()", compiled("f/0 def")),
+            Triple("macro-expanded", "defmacro e, do: Macro.expand(\$b, __CALLER__)" to "def f, do: A.e()", compiled("f/0 def")),
+            Triple("macro-pipe", "defmacro p, do: quote(do: 1 |> unquote(\$b))" to "def f, do: A.p()", raised("pipe_bad_target `A.p()`")),
+            Triple("macro-in-guard", "defmacro b, do: \$b" to "def f(x) when x in A.b(), do: x", raised("in_invalid_guard_argument `x in A.b()`")),
+            Triple("macro-remote-left", "defmacro r, do: quote(do: unquote(\$b).f())" to "def f, do: A.r()", raised("invalid_call `A.r()`")),
+            Triple("macro-range-first", "defmacro r, do: quote(do: unquote(\$b)..1)" to "def f, do: A.r()", raised("range_not_integers `A.r()`")),
+            Triple("macro-raise", "defmacro b, do: \$b" to "raise A.b()", raised("Elixir.RuntimeError `raise A.b()`")),
+            Triple("macro-bare-protocol-def", "defmacro d, do: {:def, [], [\$b]}" to "A.d()", raised("protocol_def_bad `A.d()`")),
+            Triple(
+                "macro-rescue",
+                "defmacro b, do: \$b" to "def f do\n    try do\n      :ok\n    rescue\n      A.b() -> :ok\n    end\n  end",
+                raised("invalid_rescue_clause `A.b() -> :ok`"),
+            ),
+        )
+        // Where its bytes are read, a match of it or a quote escaping it as code, `B` stops: a known binary's are its own.
+        val read = listOf(
+            Triple(
+                "macro-matched",
+                "defmacro m, do: quote(do: var!(n) = (case \":x\" do\n    unquote(\$b) -> :y\n    _ -> :z\n  end))" to
+                    "A.m()\n  def unquote(n)(), do: 1",
+                compiled("y/0 def") to "top expanded\nmodule Elixir.B stopped `unquote(n)` []",
+            ),
+            Triple(
+                "macro-segment",
+                "defmacro m, do: quote(do: <<unquote(\$b), var!(rest)::binary>> = \":xy\")" to "A.m()\n  def unquote(String.to_atom(rest))(), do: 1",
+                compiled("y/0 def") to "top expanded\nmodule Elixir.B stopped `unquote(String.to_atom(rest))` []",
+            ),
+            // `defdelegate`'s `List.wrap/1` compares it with `nil`, which declines on a binary it can't read (#4508).
+            Triple(
+                "macro-delegate",
+                "defmacro d, do: quote(do: defdelegate(unquote(\$b), to: X))" to "A.d()",
+                raised("delegate_call `A.d()`") to "top expanded\nmodule Elixir.B stopped `A.d()` []",
+            ),
+            // Before the head and body are escaped together, `Kernel.define/4` escapes the head as a quote does, so `B` stops.
+            Triple(
+                "macro-protocol-def",
+                "defmacro d, do: quote(do: def(unquote(\$b)))" to "A.d()",
+                raised("invalid_def `A.d()`").let { raise ->
+                    raise to if (DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER.isSufficient(legLevel())) {
+                        raise
+                    } else {
+                        "top expanded\nmodule Elixir.B stopped `A.d()` [__protocol__/1 def, impl_for!/1 def, impl_for/1 def, struct_impl_for/1 defp]"
+                    }
+                },
+            ),
+            Triple(
+                "macro-quoted",
+                "defmacro q, do: {:quote, [], [[do: {\$b, \$b}]]}" to "def f, do: A.q()",
+                compiled("f/0 def") to "top expanded\nmodule Elixir.B stopped `A.q()` [f/0 def]",
+            ),
+        )
+        val code = { id: String, macros: String, body: String, binary: String ->
+            "defmodule A do\n  ${macros.replace("\$b", binary)}\nend\n${if (id.endsWith("-protocol-def")) "defprotocol" else "defmodule"} B do\n  require A\n  ${body.replace("\$b", binary)}\nend"
+        }
+        val ended = { file: String -> file.lines().filterNot { it.startsWith("module Elixir.A ") }.joinToString("\n") }
+        val expected = mutableListOf<String>()
+        val actual = mutableListOf<String>()
+
+        for ((id, statements, answers) in rows.map { (id, code, answer) -> Triple(id, code, answer to answer) } + read) {
+            for ((binary, answer) in listOf("\":x\"" to answers.first, "Kernel.inspect(:x)" to answers.second)) {
+                expected += "$id $binary: $answer"
+                actual += "$id $binary: ${ended(file(code(id, statements.first, statements.second, binary), tables = true))}"
+            }
+        }
+
+        assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }
 
     /** `Macro.expand/2` of `__DIR__` is a binary whose bytes are unknown where the file's path or OS is, as `__CALLER__.file` is. */
@@ -2684,6 +2770,8 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
                 term.lastTail?.let { OtpErlangList(elements, withoutMeta(it)) } ?: OtpErlangList(elements)
             }
+            // Only the expander gives one: Elixir's bytes are always known.
+            UnknownBinary -> UNKNOWN_BINARY
             // As `elixir_quote:fun_to_quoted/1` gives it, which expanding a macro's result does.
             is OtpErlangExternalFun -> {
                 val receiver = OtpErlangList(arrayOf(OtpErlangAtom(term.module), OtpErlangAtom(term.function)))
@@ -2796,6 +2884,9 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         val EVERY_LEG: (ElixirLanguageLevel) -> Boolean = { true }
         val UNPINNED: (Source, ElixirLanguageLevel) -> String? = { _, _ -> null }
         val DECLINED: (Source, ElixirLanguageLevel) -> String? = { _, _ -> OPAQUE }
+
+        /** How an output renders a binary whose bytes the expander doesn't know. */
+        val UNKNOWN_BINARY = OtpErlangAtom("#UnknownBinary")
 
         /** [DECLINED] where `IO.warn/2` takes an env or options naming a file, which say where the warning is; before, either raises. */
         val DECLINED_ONCE_IO_WARN_IS_LOCATED: (Source, ElixirLanguageLevel) -> String? = { _, level ->
@@ -6110,6 +6201,156 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro("native:binary-matches-list-subject", "defmacro m, do: Macro.escape(:binary.matches(~c\"abc\", \"b\"))", pins = DECLINED),
             macro("native:binary-match-atom-pattern", "defmacro m, do: Macro.escape(:binary.match(\"abc\", :b))", pins = DECLINED),
             macro(
+                "native:binary-split-trim-all",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :binary.split("/a//b/", "/", [:trim_all]),
+                    :binary.split("/a//b/", "/", [:global, :trim_all]),
+                    :binary.split("/a//b/", "/", [:trim_all, :global]),
+                    :binary.split("//", "/", [:global, :trim_all]),
+                    :binary.split("", "/", [:trim_all]),
+                    :binary.split("", "/", [:global, :trim_all]),
+                    :binary.split("a,b;", [",", ";"], [:trim_all, :global, :trim_all]),
+                    String.split(" a  b ", " ", trim: true)
+                  ])
+                end
+                """,
+            ),
+            macro("native:binary-split-trim-and-trim-all", "defmacro m, do: Macro.escape(:binary.split(\"a/\", \"/\", [:trim, :trim_all]))", pins = DECLINED),
+            macro("native:binary-split-scope", "defmacro m, do: Macro.escape(:binary.split(\"a/b\", \"/\", [{:scope, {0, 2}}]))", pins = DECLINED),
+            macro(
+                "native:binary-split-no-options",
+                "defmacro m, do: Macro.escape([:binary.split(\"a/b/c\", \"/\"), :binary.split(\"ab/\", :binary.compile_pattern([\"/\", \"b\"])), :binary.split(\"\", \"/\")])",
+            ),
+            // A compiled pattern is tagged as Erlang tags it, `bm` for one binary and `ac` for several, and read by each
+            // function a pattern is given to.
+            macro(
+                "native:binary-compile-pattern",
+                """
+                defmacro m do
+                  one = :binary.compile_pattern("/")
+                  several = :binary.compile_pattern(["/", "\\"])
+                  single = :binary.compile_pattern(["/"])
+
+                  Macro.escape([
+                    elem(one, 0),
+                    elem(several, 0),
+                    elem(single, 0),
+                    is_tuple(one),
+                    :binary.split("a/b\\c", several, [:global]),
+                    :binary.split("a/b", one, []),
+                    :binary.split("/a/", single, [:global, :trim_all]),
+                    :binary.matches("a/b/c", single),
+                    :binary.match("a\\b", several)
+                  ])
+                end
+                """,
+            ),
+            macro("native:binary-compile-pattern-empty", "defmacro m, do: :binary.compile_pattern(\"\")"),
+            macro("native:binary-compile-pattern-no-patterns", "defmacro m, do: :binary.compile_pattern([])"),
+            macro("native:binary-compile-pattern-an-empty-one", "defmacro m, do: :binary.compile_pattern([\"a\", \"\"])"),
+            macro("native:binary-compile-pattern-atom", "defmacro m, do: :binary.compile_pattern(:a)"),
+            macro("native:binary-compile-pattern-improper", "defmacro m, do: :binary.compile_pattern([\"a\" | \"b\"])"),
+            macro("native:binary-compile-pattern-bitstring", "defmacro m, do: :binary.compile_pattern(<<1::4>>)"),
+            macro("native:binary-compile-pattern-integer", "defmacro m, do: :binary.compile_pattern([1])"),
+            // Only `compile_pattern/1`'s own tuple is a compiled pattern: one built by hand, or tagged for the other kind,
+            // isn't.
+            macro("native:binary-split-hand-built-bm", "defmacro m, do: Macro.escape(:binary.split(\"a/b\", {:bm, \"/\"}))"),
+            macro("native:binary-split-hand-built-ac", "defmacro m, do: Macro.escape(:binary.split(\"a/b\", {:ac, [\"/\", \"b\"]}))"),
+            macro(
+                "native:binary-split-retagged-pattern",
+                "defmacro m, do: Macro.escape(:binary.split(\"a/b\", {:ac, elem(:binary.compile_pattern(\"/\"), 1)}))",
+            ),
+            // `sets` at version 2, the one `MapSet` asks for: a map whose keys are compared exactly, so `1.0` isn't `1`.
+            macro(
+                "native:sets",
+                """
+                defmacro m do
+                  s = :sets.from_list([3, 1, 2, 1], version: 2)
+                  t = :sets.add_element(1.0, :sets.add_element(4, s))
+
+                  Macro.escape([
+                    :sets.new(version: 2),
+                    s,
+                    t,
+                    :sets.del_element(1, t),
+                    :sets.del_element(9, t),
+                    :sets.is_element(1, t),
+                    :sets.is_element(1.0, s),
+                    :sets.size(t),
+                    :sets.to_list(t),
+                    :sets.union(s, :sets.from_list([5, 1.0], version: 2))
+                  ])
+                end
+                """,
+            ),
+            macro(
+                "native:map-set",
+                """
+                defmacro m do
+                  set = MapSet.new([2, 1]) |> MapSet.put(3) |> MapSet.delete(2)
+
+                  [MapSet.member?(set, 3), MapSet.size(set), MapSet.to_list(set), MapSet.to_list(MapSet.union(set, MapSet.new([4])))]
+                end
+                """,
+            ),
+            // A key is removed where it is exactly equal, so `1.0` leaves `1`.
+            macro(
+                "native:maps-remove",
+                "defmacro m, do: Macro.escape([:maps.remove(:a, %{a: 1, b: 2}), :maps.remove(:c, %{a: 1}), :maps.remove(1.0, %{1 => :x}), Map.delete(%{}, :a)])",
+            ),
+            macro("native:maps-remove-not-a-map", "defmacro m, do: :maps.remove(:a, :b)"),
+            // Each key once, exactly equal, so `1.0` and `1` are two.
+            macro("native:maps-from-keys", "defmacro m, do: Macro.escape([:maps.from_keys([:b, :a, :b], 0), :maps.from_keys([], 0), :maps.from_keys([1, 1.0], :x)])"),
+            macro("native:maps-from-keys-improper", "defmacro m, do: :maps.from_keys([:a | :b], 0)"),
+            // Erlang's order of a map's keys past 32 is its hash's.
+            macro(
+                "native:sets-to-list-past-32",
+                "defmacro m, do: :sets.to_list(:sets.from_list(Enum.to_list(1..33), version: 2))",
+                pins = DECLINED,
+            ),
+            macro("native:sets-size-not-a-set", "defmacro m, do: :sets.size(:a)"),
+            macro("native:sets-from-list-improper", "defmacro m, do: :sets.from_list([:a | :b], version: 2)"),
+            macro("native:sets-add-element-not-a-set", "defmacro m, do: :sets.add_element(1, :a)"),
+            macro("native:sets-del-element-not-a-set", "defmacro m, do: :sets.del_element(1, :a)"),
+            macro("native:sets-is-element-not-a-set", "defmacro m, do: :sets.is_element(1, :a)"),
+            macro("native:sets-to-list-not-a-set", "defmacro m, do: :sets.to_list(:a)"),
+            macro("native:unzip", "defmacro m, do: Macro.escape([:lists.unzip([{1, :a}, {2, :b}]), :lists.unzip([])])"),
+            macro("native:unzip-non-pair", "defmacro m, do: :lists.unzip([{1, :a}, {1, 2, 3}])"),
+            // `unzip/3` stops at the first element that isn't a pair, never reading the binary past it.
+            macro("native:unzip-non-pair-before-unknown", "defmacro m, do: :lists.unzip([:bad, Kernel.inspect(:x)])"),
+            macro("native:unzip-improper", "defmacro m, do: :lists.unzip([{1, :a} | :b])"),
+            macro("native:unzip-non-list", "defmacro m, do: :lists.unzip(:a)"),
+            macro("native:duplicate", "defmacro m, do: Macro.escape([:lists.duplicate(3, :a), :lists.duplicate(0, :a), List.duplicate(\"x\", 2)])"),
+            macro("native:duplicate-negative", "defmacro m, do: :lists.duplicate(-1, :a)"),
+            macro("native:duplicate-negative-past-a-long", "defmacro m, do: :lists.duplicate(-18_446_744_073_709_551_617, :a)"),
+            macro("native:duplicate-float", "defmacro m, do: :lists.duplicate(1.0, :a)"),
+            macro("native:duplicate-past-the-node-limit", "defmacro m, do: length(:lists.duplicate(2_000_000, :a))", pins = DECLINED),
+            macro(
+                "native:make-fun",
+                """
+                defmacro m do
+                  f = :erlang.make_fun(Kernel, :+, 2)
+
+                  [
+                    is_function(f, 2),
+                    f.(1, 2),
+                    :erlang.make_fun(Enum, :count, 1) == (&Enum.count/1),
+                    Function.capture(Enum, :count, 1).([1]),
+                    is_function(:erlang.make_fun(M, :f, 255), 255),
+                    is_function(:erlang.make_fun(M, :f, 0), 0)
+                  ]
+                end
+                """,
+            ),
+            macro("native:make-fun-module-not-atom", "defmacro m, do: :erlang.make_fun(\"Kernel\", :+, 2)"),
+            macro("native:make-fun-name-not-atom", "defmacro m, do: :erlang.make_fun(Kernel, \"+\", 2)"),
+            macro("native:make-fun-negative-arity", "defmacro m, do: :erlang.make_fun(Kernel, :+, -1)"),
+            macro("native:make-fun-arity-past-255", "defmacro m, do: :erlang.make_fun(Kernel, :+, 256)"),
+            macro("native:make-fun-arity-past-a-long", "defmacro m, do: :erlang.make_fun(Kernel, :+, 18_446_744_073_709_551_616)"),
+            macro("native:make-fun-float-arity", "defmacro m, do: :erlang.make_fun(Kernel, :+, 2.0)"),
+            macro(
                 "native:filename-dirname",
                 """
                 defmacro m do
@@ -6271,11 +6512,11 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro("pure:concat-leading-dot", """defmacro m, do: Module.concat(["Foo", ".Bar"])"""),
             macro("pure:concat-invalid-utf8", """defmacro m, do: Module.concat(["\\xFF"])"""),
             macro("pure:to-string", "defmacro m, do: [String.Chars.to_string(:a), String.Chars.to_string(1)]"),
-            // `inspect`'s output is `Inspect`'s implementations', which aren't read.
+            // `inspect`'s output is `Inspect`'s implementations', which aren't read, so each is a binary of unknown bytes.
             macro(
                 "pure:inspect",
                 """defmacro m, do: [Kernel.inspect(:a), Kernel.inspect([1, "b"]), Kernel.inspect(:c, [])]""",
-                pins = DECLINED,
+                pins = { _, _ -> List(3) { inspect(UNKNOWN_BINARY) }.joinToString(", ", "[", "]") },
             ),
             // `inspect/2`'s options must be a list, and a list of them declines, as `Inspect.Opts` isn't read.
             macro("pure:inspect-options-not-a-list", "defmacro m, do: :erlang.element(2, {Kernel.inspect(:a, 1), :ok})"),

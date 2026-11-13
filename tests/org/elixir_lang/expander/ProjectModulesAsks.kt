@@ -46,12 +46,11 @@ internal fun freshExpansion(project: Project, file: PsiFile, inputs: ProjectModu
     expansion(ProjectModules(project), file, inputs)
 
 /** How the one module [file] defines ended, and the functions its table holds, as `compiled [f/0]`. */
-internal fun defines(holder: ProjectModules, file: PsiFile): String {
-    val result = expansion(holder, file).modules.single()
-    val ended = result.ended::class.simpleName!!.lowercase()
+internal fun defines(holder: ProjectModules, file: PsiFile): String = defined(expansion(holder, file).modules.single())
 
-    return "$ended ${result.table.entries.keys.map { "${it.name}/${it.arity}" }.sorted()}"
-}
+/** How the module [result] is of ended, and the functions its table holds, as `compiled [f/0]`. */
+internal fun defined(result: ExpansionResult): String =
+    "${result.ended::class.simpleName!!.lowercase()} ${result.table.entries.keys.map { "${it.name}/${it.arity}" }.sorted()}"
 
 /** Each module [expansion] of [file] compiled, one per line: how it ended, the errors it reported, and its exports. */
 internal fun render(file: PsiFile, expansion: FileExpansion): String {

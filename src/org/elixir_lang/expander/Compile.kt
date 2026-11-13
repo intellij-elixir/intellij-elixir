@@ -12,6 +12,8 @@ import org.elixir_lang.expander.interpreter.Evaluated
 import org.elixir_lang.expander.interpreter.Given
 import org.elixir_lang.expander.interpreter.Interpreter
 import org.elixir_lang.expander.interpreter.PartsOutcome
+import org.elixir_lang.expander.interpreter.Passing
+import org.elixir_lang.expander.interpreter.Thrown
 import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.expander.interpreter.ValueUse
 import org.elixir_lang.expander.interpreter.anyHeld
@@ -109,6 +111,39 @@ internal class Compiling(
      * reported, so the walk goes on and the tables stay what it has ([Run.compilingKnown]).
      */
     var endedInOrder: Ended? = null
+
+    /** [ended] and [endedInOrder] as they were, [before] and [beforeInOrder], before a raise ended the module's run. */
+    inner class Mark(private val before: Ended?, private val beforeInOrder: Ended?) {
+        /** [ended] and [endedInOrder] put back to what they were before the raise. */
+        fun rewind() {
+            ended = before
+            endedInOrder = beforeInOrder
+        }
+
+        /**
+         * [after], code Elixir runs while the raise passes, run as code before that raise: its units run, and its own
+         * raise passes in place of the one passing, where a `rescue` around may take it. Past a stop in it, the module
+         * may have raised either.
+         */
+        fun passing(after: () -> Unit) {
+            val raised = ended
+            val raisedInOrder = endedInOrder
+            var replaced = false
+
+            rewind()
+            try {
+                after()
+            } catch (raise: Thrown) {
+                replaced = true
+                throw raise
+            } finally {
+                if (!replaced && endedInOrder?.endsRun != true) {
+                    ended = ended.takeIf { it !== before }.asMayRaise() ?: raised
+                    endedInOrder = endedInOrder.takeIf { it !== beforeInOrder }.asMayRaise() ?: raisedInOrder
+                }
+            }
+        }
+    }
 
     val definitions = LinkedHashMap<NameArity, AttributeLog.DefinitionAttributes>()
 
@@ -634,10 +669,17 @@ internal class Statements {
     private val inert: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
 
     /**
-     * The statements of the bodies the walk follows as a statement runs: a `for`'s, a `case` clause's, and those of an
-     * `fn` a call is given. Each runs where the body runs it, as many times as it does, so none is on the statement path.
+     * The statements of the bodies the walk follows as a statement runs: a `for`'s, a `case` clause's, a `try`'s with
+     * only an `after`, and those of an `fn` a call is given or a match binds. Each runs where the body runs it, as many
+     * times as it does, so none is on the statement path.
      */
     private val followed: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
+
+    /** Each match that binds an `fn` to that `fn`, whose body runs only where a later statement calls it ([boundFn]). */
+    private val boundFns = IdentityHashMap<ElixirAst, ElixirAst>()
+
+    /** The `fn`s of [boundFns] ([bindsFn]). */
+    private val bound: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
 
     /**
      * Each followed statement in the body of an `fn` to that `fn`, which runs it only where the `fn` is called, and each
@@ -657,7 +699,10 @@ internal class Statements {
     /** Whether [node] is a statement the walk runs where its body does: on the statement path or in a body it follows. */
     fun runs(node: ElixirAst): Boolean = contains(node) || follows(node)
 
-    /** The `fn` whose body holds the followed statement [node], or `null` where a `for` or a `case` runs it. */
+    /**
+     * The `fn` whose body holds the followed statement [node], or `null` where a `for`, a `case` or a `try` with only an
+     * `after` runs it.
+     */
     fun holderOf(node: ElixirAst): ElixirAst? = holders[node]
 
     /** Whether one of [fns] holds the followed statement [node], in its body or an `fn`'s body in it. */
@@ -673,6 +718,12 @@ internal class Statements {
 
         return false
     }
+
+    /** Whether an `fn` a match binds holds the followed statement [node], in its body or an `fn`'s body in it. */
+    fun bindsFn(node: ElixirAst): Boolean = bound.isNotEmpty() && heldBy(node, bound)
+
+    /** The `fn` the match [node] binds, or `null` where it binds none. */
+    fun boundFn(node: ElixirAst): ElixirAst? = boundFns[node]
 
     /** [node], a statement, raises nowhere, so no unit need run it. */
     fun inert(node: ElixirAst) {
@@ -766,7 +817,8 @@ internal class Statements {
      * an `@` writes, a `case`'s subject, and the map and values of a map update, which may raise itself: each runs where
      * the statement does, as do the arguments of a function call ([called]). The bodies the statement runs where it
      * does, as many times as it does, are [followed] ([followedBodies]), each in the `fn` that [holder] names where one
-     * holds it. [use] is the use of [node]'s value.
+     * holds it, and so are those of an `fn` a match binds, in that `fn` ([bound], [followFn]). [use] is the use of
+     * [node]'s value.
      */
     fun add(
         node: ElixirAst,
@@ -813,9 +865,15 @@ internal class Statements {
                 if (use != ValueUse.READ) uses[node] = use
 
                 takenValues(node).forEach { add(it, isWhole = false, within = node, followed = followed, holder = holder, use = use.ofPartsOf(node)) }
-                followedBodies(node).forEach { (body, fn) ->
-                    if (fn != null && holder != null) holders[fn] = holder
-                    add(body, followed = true, holder = fn ?: holder)
+                followedBodies(node).forEach { add(it, followed = true, holder = holder) }
+                if (isCall(node, "=", 2)) {
+                    val fn = (node as ElixirAst.Call).arguments!![1]
+
+                    if (isNamedCall(fn, "fn")) {
+                        boundFns[node] = fn
+                        bound += fn
+                        followFn(fn as ElixirAst.Call, holder)
+                    }
                 }
             }
         }
@@ -852,25 +910,31 @@ internal class Statements {
 
     /**
      * The bodies of [node] the walk follows as [node] runs, which [add] enters: a `for`'s `do`, or each clause's body
-     * where the `do` has clauses; and each clause's body of a `case`, which `if` and `unless` expand to. An `fn`'s are
-     * followed where a function call is given it ([called]). A `def`'s body runs where it is called, so it isn't
-     * entered, nor is a `cond`'s, `with`'s, `receive`'s or `try`'s.
+     * where the `do` has clauses; each clause's body of a `case`, which `if` and `unless` expand to; and the `do` and the
+     * `after` of a `try` that has only those, which a raise in the `do` goes on out of. An `fn`'s are followed where a
+     * match binds it ([add]) or a function call is given it ([called]). A `def`'s body runs where it is called, so it
+     * isn't entered, nor is a `cond`'s, `with`'s, `receive`'s, or a `try`'s that rescues or catches.
      */
-    private fun followedBodies(node: ElixirAst): List<Pair<ElixirAst, ElixirAst?>> {
+    private fun followedBodies(node: ElixirAst): List<ElixirAst> {
         if (node !is ElixirAst.Call) return emptyList()
 
         val arguments = node.arguments.orEmpty()
 
         return when {
-            isFor(node) -> doBodies(forOptions(arguments).second).map { it to null }
-            isCall(node, "case", 2) -> doBodies((arguments[1] as? ElixirAst.ListNode)?.elements.orEmpty()).map { it to null }
+            isFor(node) -> doBodies(forOptions(arguments).second)
+            isCall(node, "case", 2) -> doBodies((arguments[1] as? ElixirAst.ListNode)?.elements.orEmpty())
+            isCall(node, "try", 1) -> {
+                val options = (arguments[0] as? ElixirAst.ListNode)?.elements.orEmpty()
+
+                if (options.all { keyOf(it) == "do" || keyOf(it) == "after" }) options.map(::valueOf) else emptyList()
+            }
             else -> emptyList()
         }
     }
 
     /** The bodies the `do:` of [options] runs: each clause's where it is a list of clauses, else the one body. */
     private fun doBodies(options: List<ElixirAst>): List<ElixirAst> {
-        val body = options.firstOrNull { keyOf(it) == "do" }?.let { (it as ElixirAst.Tuple).elements[1] } ?: return emptyList()
+        val body = options.firstOrNull { keyOf(it) == "do" }?.let(::valueOf) ?: return emptyList()
         val arrows = (body as? ElixirAst.ListNode)?.elements?.takeIf { it.isNotEmpty() }
 
         return arrows?.let { clauseBodies(it) }?.ifEmpty { null } ?: listOf(body)
@@ -1194,7 +1258,7 @@ internal fun compilePending(run: Run): Walked {
         if (raw is Expansion.Error && statement) {
             endedAt = stopped ?: ended
 
-            return stepping.stepped(ends = true, endedDecline = null)
+            return stepping.ended(raw)
         }
         if (ended is Expansion.Unported || ended is Expansion.Opaque) stopped = stopped ?: ended
 
@@ -1208,19 +1272,33 @@ internal fun compilePending(run: Run): Walked {
     return Walked(stopped, false)
 }
 
-/** A unit of the body whose values are [values] raised: the run of that body ends there. */
-private class RunEnded(val values: BodyValues) : RuntimeException(null, null, false, false)
+/**
+ * A unit of the body whose values are [values] raised: the run of that body ends there, once the code Elixir runs as
+ * the raise passes has run, as code before the raise where a module's ending was [mark] before it.
+ */
+private class RunEnded(val values: BodyValues, private val mark: Compiling.Mark?, raised: Thrown?) : Passing(raised) {
+    override fun aside(after: () -> Unit) {
+        if (mark == null) after() else mark.passing(after)
+    }
+
+    override fun caught() {
+        mark?.rewind()
+    }
+}
 
 /**
  * What running a unit gives: whether the body's run [ends] there, the [value] its code gives the code around it,
- * whether that code [declined], and the decline that code after it in the unit raised after ([Declined.ended]), which
- * ends whatever holds the unit.
+ * whether that code [declined], the decline that code after it in the unit raised after ([Declined.ended]), which
+ * ends whatever holds the unit, how the module ended before the raise that ended the run, where a module is
+ * compiling ([mark]), and that raise as the evaluator ran it, where it did ([raised]).
  */
 private class Stepped(
     val ends: Boolean,
     val value: OtpErlangObject,
     val endedDecline: Declined? = null,
     val declined: Boolean = false,
+    val mark: Compiling.Mark? = null,
+    val raised: Thrown? = null,
 )
 
 /**
@@ -1235,10 +1313,14 @@ private class Stepping {
     var endedDecline: Declined? = null
     var declined = false
 
+    /** The raise that [ends] the run, as the evaluator ran it, where it did. */
+    var raised: Thrown? = null
+
     /** [reached], what running the statement at [node] gave, recorded: its error, where it raised. */
     fun reached(reached: Reached, node: ElixirAst): Expansion? {
         known = known && reached.certain
         ends = reached.ended
+        raised = reached.raised
         value = reached.produced()
         endedDecline = reached.endedDecline
         declined = reached.declined
@@ -1253,17 +1335,21 @@ private class Stepping {
     fun compiled(result: ExpansionResult) {
         known = result.certain || result.ended.endsRun
         declined = !result.certain
+        raised = (result.ended as? Ended.Raised)?.error?.thrown
     }
 
-    fun stepped(ends: Boolean = this.ends, endedDecline: Declined? = this.endedDecline) =
-        Stepped(ends, value, endedDecline, declined)
+    fun stepped(ends: Boolean = this.ends) = Stepped(ends, value, endedDecline, declined, raised = raised)
+
+    /** The run ends at the unit, whose own result is [raw]: by its raise where it raised, else by the one [raised]. */
+    fun ended(raw: Expansion?) =
+        Stepped(true, value, null, declined, raised = (raw as? Expansion.Error)?.thrown ?: raised)
 }
 
 /**
- * What running a statement gave, or `null` where a unit it reached ended the body's run, and whether every unit it
- * reached ran with Elixir's outcome.
+ * What running a statement gave, or `null` where a unit it reached ended the body's run, whether every unit it
+ * reached ran with Elixir's outcome, and the raise that ended the run, as the evaluator ran it, where it did.
  */
-private class Reached(private val evaluated: Evaluated?, val certain: Boolean) {
+private class Reached(private val evaluated: Evaluated?, val certain: Boolean, val raised: Thrown? = null) {
     /** Whether a unit the statement reached ended the body's run. */
     val ended: Boolean get() = evaluated == null
 
@@ -1323,7 +1409,7 @@ private fun reaching(
                 // In code that may not run, the unit ends the code holding it ([Run.unjoined]), not the body's run.
                 if (stepped.ends) {
                     run.unjoined("a raise", ends = true)
-                    throw RunEnded(values)
+                    throw RunEnded(values, stepped.mark, stepped.raised)
                 }
                 // The evaluator ends the loop or block holding the unit, as it does where it ran the raise itself.
                 stepped.endedDecline?.let { throw it }
@@ -1345,6 +1431,7 @@ private fun reaching(
     }
 
     var certain = true
+    var raised: Thrown? = null
     val evaluated = try {
         values.running(pending.site, run.continuedDeclines, run.assumptions) { running ->
             try {
@@ -1356,13 +1443,17 @@ private fun reaching(
     } catch (ended: RunEnded) {
         // A unit of the module around this one, reached inside it, ends that module's run, not this one's.
         if (ended.values !== values) throw ended
+        raised = ended.raised
         null
     } finally {
         run.entered = outerEntered
         run.reaching--
         // A closure the statement gave may be called by a statement around it still running, which reaches a unit's
-        // node there, so the units' callbacks stay until the outermost run ends.
-        if (run.reaching == 0) run.reached.clear()
+        // node there, so the units' callbacks stay until the outermost run ends, and a deferred unit's until its body's.
+        if (run.reaching == 0) {
+            run.reached.clear()
+            run.deferred.forEach { (site, deferred) -> run.reached[site] = deferred.callback }
+        }
     }
 
     outerEntered += entered
@@ -1376,14 +1467,45 @@ private fun reaching(
         emptyList()
     }
     val kept = keptFns(keptIn)
+
+    // The units of an `fn` a match binds run where a later statement calls it, which the match that binds it defers
+    // while it keeps the `fn`; no other statement steps them.
+    if (evaluated is Evaluated.Value && pending is Pending.Match) values.statements.boundFn(pending.node)?.let { fn ->
+        val bound = setOf(fn)
+
+        // A unit nested in one of these runs where that one's run reaches it.
+        for (unit in inner) {
+            if (!values.statements.heldBy(unit.site, bound)) continue
+
+            run.reached.remove(unit.site)
+            if (fn in kept && !unit.runsOnlyWhereReached) {
+                val callback = callbacks.getValue(unit)
+
+                run.deferred[unit.site] = Deferred(values, unit, callback)
+                run.reached[unit.site] = callback
+            }
+        }
+    }
+
     val unrun = when (evaluated) {
-        // A unit on the statement path that the evaluator reached ran once.
-        is Evaluated.Declined -> inner.filter { it !in reached || values.statements.follows(it.site) }
+        // A unit on the statement path that the evaluator reached ran once. So may a deferred one, called by the
+        // statement's code.
+        is Evaluated.Declined -> inner.filter { it !in reached || values.statements.follows(it.site) } +
+            run.deferred.values.filter { it.values === values && values.keepsOnce(it.unit) }.map { it.unit }
         is Evaluated.Value -> {
             // An `fn` the statement never called holds units Elixir may run later.
-            val unentered = inner.filter { unit -> values.statements.holderOf(unit.site)?.let { unit !in reached && it !in entered } == true }
+            val unentered = inner.filter { unit ->
+                values.statements.holderOf(unit.site)?.let { unit !in reached && it !in entered } == true &&
+                    !values.statements.bindsFn(unit.site)
+            }
             // So does a kept `fn`, however deep in the statement the unit is.
-            val held = if (kept.isEmpty()) emptyList() else inner.nested().filter { unit -> values.statements.heldBy(unit.site, kept) && values.keepsOnce(unit) }
+            val held = if (kept.isEmpty()) {
+                emptyList()
+            } else {
+                inner.nested().filter { unit ->
+                    values.statements.heldBy(unit.site, kept) && !values.statements.bindsFn(unit.site) && values.keepsOnce(unit)
+                }
+            }
 
             (unentered + held).distinct()
         }
@@ -1392,14 +1514,23 @@ private fun reaching(
 
     val ended = values.unordered {
         unrun.any { unit ->
-            // A statement of a body the walk follows that holds no unit runs only where the evaluator reaches it.
-            !(unit.inner.isEmpty() && !unit.isStatement && (unit is Pending.Match || unit is Pending.Statement)) &&
-                step(unit, values.bindings, stopsAt ?: pending.site).ends
+            !unit.runsOnlyWhereReached && step(unit, values.bindings, stopsAt ?: pending.site).ends
         }
     }
 
-    return if (ended) Reached(null, false) else Reached(evaluated, certain)
+    return if (ended) Reached(null, false) else Reached(evaluated, certain, raised)
 }
+
+/** Whether the unit is a statement of a body the walk follows that holds no unit: it runs only where the evaluator reaches it. */
+private val Pending.runsOnlyWhereReached: Boolean
+    get() = inner.isEmpty() && !isStatement && (this is Pending.Match || this is Pending.Statement)
+
+/** A unit of an `fn` a match bound and kept, of the body [values] are of, run by [callback] where a later statement reaches it. */
+internal class Deferred(
+    val values: BodyValues,
+    val unit: Pending,
+    val callback: (HashMap<Binding, OtpErlangObject>) -> UnitRun,
+)
 
 /** The `fn`s whose closures [values] hold, by their nodes. */
 private fun keptFns(values: List<OtpErlangObject>): MutableSet<ElixirAst> {
@@ -1437,6 +1568,9 @@ private fun List<Pending>.nested(): List<Pending> {
 private fun Expansion?.stoppingAt(stopsAt: ElixirAst?): Expansion? =
     if (stopsAt != null && this is Expansion.Unported) Expansion.Unported(stopsAt) else this
 
+/** This ending, where it is a stop, as one past which the module may have raised; `null` for any other. */
+private fun Ended?.asMayRaise(): Ended.Stopped? = (this as? Ended.Stopped)?.copy(mayRaise = true)
+
 /** The value the unit's code gives the code around it: a value it declined to produce isn't known. */
 private fun Evaluated.produced(): OtpErlangObject =
     when (this) {
@@ -1448,7 +1582,7 @@ private fun Evaluated.produced(): OtpErlangObject =
 /** How the unit at [node] that gave this ends the body, if it does: the error it raised, or a stop a call it declined made. */
 internal fun Evaluated.error(node: ElixirAst): Expansion? =
     when (this) {
-        is Evaluated.Raised -> Expansion.Error(exception, node)
+        is Evaluated.Raised -> Expansion.Error(exception, node).also { it.thrown = thrown }
         is Evaluated.Declined -> Expansion.Unported(node).takeIf { declined?.stops == true }
         is Evaluated.Value -> null
     }
@@ -1588,15 +1722,27 @@ private fun compile(
     fun step(pending: Pending, queue: ArrayDeque<Pending>, bindings: HashMap<Binding, OtpErlangObject>, stopsAt: ElixirAst?): Stepped {
         ProgressManager.checkCanceled()
 
-        /** [unit], reached as a statement runs, and what it queues, from the [bindings] the evaluator has there. */
+        /**
+         * [unit], reached as a statement runs, and what it queues, from the [bindings] the evaluator has there. Where it
+         * ends the module's run, the code Elixir runs as its raise passes runs as code before it ([Compiling.Mark.passing]).
+         */
         fun reach(unit: Pending, bindings: HashMap<Binding, OtpErlangObject>, stopsAt: ElixirAst?): Stepped {
+            val before = compiling.ended
+            val beforeInOrder = compiling.endedInOrder
             val queued = ArrayDeque<Pending>()
             val stepped = step(unit, queued, bindings, stopsAt)
-            var ends = stepped.ends
+            var last = stepped
 
-            while (!ends && queued.isNotEmpty()) ends = step(queued.removeFirst(), queued, bindings, stopsAt).ends
+            while (!last.ends && queued.isNotEmpty()) last = step(queued.removeFirst(), queued, bindings, stopsAt)
 
-            return Stepped(ends, stepped.value, stepped.endedDecline, stepped.declined)
+            return Stepped(
+                last.ends,
+                stepped.value,
+                stepped.endedDecline,
+                stepped.declined,
+                mark = if (last.ends) compiling.Mark(before, beforeInOrder) else null,
+                raised = last.raised,
+            )
         }
 
         // Whether Elixir ran the unit where the expander did, and whether what it did there is known: code the unit
@@ -1723,12 +1869,12 @@ private fun compile(
         // A raise at a statement from certain inputs ends the module body's run, even after an earlier unit stopped:
         // Elixir raised there or before it, so a module that stopped may raise.
         if (statement && raised || stepping.ends) {
-            compiling.ended = (compiling.ended as? Ended.Stopped)?.copy(mayRaise = true) ?: compiling.ended
+            compiling.ended = compiling.ended.asMayRaise() ?: compiling.ended
 
             if (stopsAt == null) {
-                compiling.endedInOrder = (compiling.endedInOrder as? Ended.Stopped)?.copy(mayRaise = true) ?: compiling.endedInOrder
+                compiling.endedInOrder = compiling.endedInOrder.asMayRaise() ?: compiling.endedInOrder
 
-                return stepping.stepped(ends = true, endedDecline = null)
+                return stepping.ended(raw)
             }
         }
 
@@ -1748,6 +1894,12 @@ private fun compile(
     fun leave() {
         run.pending = enclosingPending
         run.compiledInto = enclosingCompiled
+
+        // An `fn` the body kept and that is called after it runs no unit of the body.
+        for (site in run.deferred.entries.filter { it.value.values === values }.map { it.key }) {
+            run.deferred.remove(site)
+            run.reached.remove(site)
+        }
 
         if (enclosing == null) run.compiling.remove(name) else run.compiling[name] = enclosing
     }

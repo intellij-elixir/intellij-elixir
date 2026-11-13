@@ -37,6 +37,7 @@ import org.elixir_lang.expander.ExpanderSourceRows.read
 import org.elixir_lang.expander.ExpanderSourceRows.render
 import org.elixir_lang.expander.ExpanderSourceRows.renderVisible
 import org.elixir_lang.expander.ExpanderSourceRows.use
+import org.elixir_lang.expander.ExpanderSourceRows.withBeamLibrary
 import org.elixir_lang.expander.ExpanderSourceRows.withExpanderSwitch
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
@@ -1381,12 +1382,10 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
 
     /** A capture is offered a name a `.beam`'s macro injects at its own arity, not at the macro clause's. */
     fun testACaptureIsOfferedWhatACompiledUseInjects() {
-        val ebin = FileUtil.createTempDirectory("injecting_use_ebin", null, true)
-        File("testData/org/elixir_lang/expander/injecting_use", "Elixir.InjectingUse.beam")
-            .copyTo(File(ebin, "Elixir.InjectingUse.beam"))
+        val beam = File("testData/org/elixir_lang/expander/injecting_use", "Elixir.InjectingUse.beam")
         val file = file("defmodule A do\n  use InjectingUse\n  def g, do: &fo/0\nend")
 
-        val offered = WalkTestSupport.withLibrary(project, module, testRootDisposable, "injecting_use", ebin) {
+        val offered = withBeamLibrary(project, module, testRootDisposable, "injecting_use", beam) {
             withExpanderSwitch {
                 read {
                     val name = generateSequence(file.findElementAt(file.text.indexOf("fo/0"))) { it.parent }
@@ -2430,20 +2429,12 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
 
     /** A `.beam` rewritten in place gives the index's definitions it now has, not those it had. */
     fun testPastAStopTheIndexGivesWhatABeamRewrittenInPlaceNowDefines() {
-        val ebin = FileUtil.createTempDirectory("rewritten_ebin", null, true)
         val beam = File("testData/org/elixir_lang/expander/loaded_copy/Elixir.LoadedCopy.Dep.beam")
-        beam.copyTo(File(ebin, beam.name))
         val file = file("defmodule Asker do\n  1.f()\n  def go, do: {f(), g()}\nend")
         val f = use(file, "{f(), g()}", "f()")
         val g = use(file, "{f(), g()}", "g()")
 
-        val (before, after) = WalkTestSupport.withLibrary(
-            project,
-            module,
-            testRootDisposable,
-            "rewritten",
-            ebin,
-        ) { root ->
+        val (before, after) = withBeamLibrary(project, module, testRootDisposable, "rewritten", beam) { root ->
             val dep = { use: Use.OfCall ->
                 read { ExpanderSource.candidates(use, false).map(::name).filter { it.startsWith("LoadedCopy.Dep.") } }
             }

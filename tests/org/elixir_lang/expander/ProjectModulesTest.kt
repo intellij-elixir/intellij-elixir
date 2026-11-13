@@ -30,6 +30,7 @@ import com.intellij.psi.impl.PsiManagerEx
 import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.LightVirtualFile
+import com.intellij.testFramework.PsiTestUtil
 import com.intellij.util.FileContentUtilCore
 import com.intellij.util.system.OS
 import org.elixir_lang.ElixirFileType
@@ -356,7 +357,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testTheProjectsOwnBuildOutputIsNeverWhereANameFallsThrough() {
         addLegElixir()
-        built("_build/dev/lib/app/ebin/$DEP_BEAM", DEP_BEAM)
+        built("_build/dev/lib/app/ebin/$DEP_BEAM", File(LOADED_COPY, DEP_BEAM))
         val dep = add("dep.ex", "defmodule LoadedCopy.Dep do\n  :ok = :bad\nend\n")
         val a = add("a.ex", "defmodule A do\nend\n")
 
@@ -378,7 +379,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testTheProjectsConsolidatedProtocolsAreNeverWhereANameFallsThrough() {
         addLegElixir()
-        val consolidated = built("_build/dev/lib/app/consolidated/$PROTOCOL_BEAM", PROTOCOL_BEAM).parent
+        val consolidated = built("_build/dev/lib/app/consolidated/$PROTOCOL_BEAM", File(LOADED_COPY, PROTOCOL_BEAM)).parent
         BeamLibraryFixture.addLibrary(project, module, "app_consolidated", listOf(consolidated), emptyList())
         IndexingTestUtil.waitUntilIndexesAreReady(project)
         val x = add("x.ex", "defmodule B do\n  import LoadedCopy.Protocol\nend\ndefprotocol LoadedCopy.Protocol do\n  def p(t)\nend\n")
@@ -431,6 +432,151 @@ class ProjectModulesTest : PlatformTestCase() {
 
         assertTrue("${expansion.top}", expansion.top is Expansion.Error)
         assertEquals(listOf("Elixir.TopMade"), expansion.modules.map { it.module })
+    }
+
+    /**
+     * A module a file's code creates under a name no index holds is the one the file of its nearest parent name creates,
+     * as another file reads it each way, and a name that file leaves no module is missing. Elixir 1.20.4's answers, from
+     * `Kernel.ParallelCompiler.compile/2` of the two files.
+     */
+    fun testAModuleCreatedUnderItsParentsNameIsReadFromAnotherFile() {
+        addLegElixir()
+        add("created_copy.ex", CREATES_MADE)
+
+        assertEquals(
+            """
+            qualified compiled [g/0]
+            body-call compiled [g1/0]
+            alias compiled [g/0]
+            import compiled [g/0]
+            import-only compiled [g/0]
+            require compiled [g/0]
+            exported compiled [yes/0]
+            missing raised []
+            """.trimIndent(),
+            readersOfMade(
+                "qualified" to "def g, do: CreatedCopy.Made.f()",
+                "body-call" to "@x CreatedCopy.Made.f()\n  def unquote(:\"g#{@x}\")(), do: @x",
+                "alias" to "alias CreatedCopy.Made, as: R\n  def g, do: R.f()",
+                "import" to "import CreatedCopy.Made\n  def g, do: f()",
+                "import-only" to "import CreatedCopy.Made, only: [f: 0]\n  def g, do: f()",
+                "require" to "require CreatedCopy.Made\n  def g, do: CreatedCopy.Made.m()",
+                "exported" to "Code.ensure_compiled(CreatedCopy.Made)\n" +
+                    "  if function_exported?(CreatedCopy.Made, :f, 0), do: def(yes, do: 1), else: def(no, do: 1)",
+                "missing" to "import CreatedCopy.Missing\n  def g, do: 1",
+            ),
+        )
+    }
+
+    /**
+     * Code the expander doesn't follow ran in the file of a name's nearest parent, which compiled, so another file reads
+     * a name the file didn't compile as unknown: that code may have created it. Elixir compiles the `import` and raises
+     * at the struct, as `Made` defines none, and at the missing name.
+     */
+    fun testAModuleUnfollowedCodeInItsParentsFileMayHaveCreatedIsUnknownToAnotherFile() {
+        addLegElixir()
+        add("created_copy.ex", RECEIVE_CREATES_MADE)
+
+        assertEquals(
+            "import stopped []\nstruct stopped [h/0]\nmissing stopped []",
+            readersOfMade(
+                "import" to "import CreatedCopy.Made\n  def h, do: f()",
+                "struct" to "def h, do: %CreatedCopy.Made{}",
+                "missing" to "import CreatedCopy.Missing\n  def h, do: 1",
+            ),
+        )
+    }
+
+    /**
+     * Code the expander doesn't follow is taken not to create a module a `defmodule` in its file names: `CreatedCopy`'s
+     * `defmodule Made` is under `if false`, so `Made` is left no module, though Elixir runs the `receive` that creates
+     * it and compiles the `import`.
+     */
+    fun testAModuleUnfollowedCodeCreatesThatADefmoduleInItsFileNamesIsTakenNotCreated() {
+        addLegElixir()
+        add(
+            "created_copy.ex",
+            RECEIVE_CREATES_MADE.replace(
+                "\n  def g, do: :g\n",
+                "\n  if false do\n    defmodule Made do\n      def g, do: :g\n    end\n  end\n",
+            ),
+        )
+
+        assertEquals(
+            "import raised []",
+            readersOfMade("import" to "import CreatedCopy.Made\n  def h, do: f()"),
+        )
+    }
+
+    /**
+     * A name whose nearest parent is the asker's own file is read as that file's run has left it: no code it ran may
+     * have created `A.Missing`, so `B`'s `import` raises and `function_exported?` is false, as in Elixir.
+     */
+    fun testAModuleUnderAParentInTheAskersOwnFileIsReadAsItsRunLeftIt() {
+        addLegElixir()
+        val imported = add("imported.ex", "defmodule A do\nend\ndefmodule B do\n  import A.Missing\nend\n")
+        val exported = add(
+            "exported.ex",
+            "defmodule C do\nend\ndefmodule D do\n  if function_exported?(C.Missing, :f, 0), do: def(yes, do: 1), else: def(no, do: 1)\nend\n",
+        )
+
+        val asker = { file: PsiFile -> defined(expansion(holder, file).modules.last()) }
+
+        assertEquals("imported raised []\nexported compiled [no/0]", "imported ${asker(imported)}\nexported ${asker(exported)}")
+    }
+
+    /**
+     * The file of a name's nearest parent, still running above the read, may create the name later in its run, so the
+     * name is unknown: `Q`'s `import` stops where `P`, which requires `Q`, hasn't created `P.Made` yet.
+     */
+    fun testAModuleItsParentsRunningFileHasNotCreatedYetIsUnknown() {
+        addLegElixir()
+        add("p.ex", "defmodule P do\n  require Q\n  Module.create(Module.concat(__MODULE__, Made), quote(do: def(f, do: 1)), __ENV__)\nend\n")
+        add("q.ex", "defmodule Q do\n  import P.Made\nend\n")
+        val a = add("a.ex", "defmodule A do\n  import P.Made\n  def g, do: f()\nend\n")
+
+        assertEquals(
+            "top expanded\nElixir.A stopped `import P.Made` unported import errors[] loads Unreadable",
+            render(a, expansion(holder, a)),
+        )
+    }
+
+    /**
+     * A name whose nearest parent two source files define is unknown, as either may be the copy that created it: `A`'s
+     * `import` stops. Elixir compiles whichever file defines `P.Q` first and fails the other, so whether `P.Q.Made` is
+     * a module depends on which.
+     */
+    fun testAModuleUnderAParentTwoFilesDefineIsUnknown() {
+        addLegElixir()
+        add("q_creates.ex", "defmodule P.Q do\n  Module.create(Module.concat(__MODULE__, Made), quote(do: def(f, do: 1)), __ENV__)\nend\n")
+        add("q_plain.ex", "defmodule P.Q do\nend\n")
+        val a = add("a.ex", "defmodule A do\n  import P.Q.Made\n  def g, do: f()\nend\n")
+
+        assertEquals(
+            "top expanded\nElixir.A stopped `import P.Q.Made` unported import errors[] loads Unreadable",
+            render(a, expansion(holder, a)),
+        )
+    }
+
+    /**
+     * A build of a module a file creates under its parent's name, stale against that file, in the project's own build
+     * output: the project's sources are read, as the IDE doesn't index that output; where the output is on a library's
+     * class path and so indexed, the `.beam` is the copy, and its exports answer.
+     */
+    fun testAStaleBuildOfACreatedModuleIsReadOnlyWhereItIsIndexed() {
+        addLegElixir()
+        add("created_copy.ex", CREATES_MADE)
+        val ebin = built("_build/dev/lib/app/ebin/$MADE_BEAM", File(CREATED_COPY, MADE_BEAM)).parent
+        // As Mix sync leaves a project's own build output.
+        PsiTestUtil.addExcludedRoot(module, ebin.parent.parent.parent.parent)
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
+        val unindexed = exported(exports(holder, add("unindexed.ex", "defmodule Unindexed do\nend\n"), MADE))
+
+        BeamLibraryFixture.addLibrary(project, module, "app_ebin", listOf(ebin), emptyList())
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
+        val indexed = exported(exports(holder, add("indexed.ex", "defmodule Indexed do\nend\n"), MADE))
+
+        assertEquals("unindexed functions: f/0; macros: m/0\nindexed functions: stale/0; macros: ", "unindexed $unindexed\nindexed $indexed")
     }
 
     /**
@@ -1682,7 +1828,8 @@ class ProjectModulesTest : PlatformTestCase() {
      * A certain error after a macro's bang read of the application's environment, which is assumed not to raise, ends
      * the run as Elixir's raise does, in the macro, in the module or in a `@before_compile` callback's output: the
      * module and the next one in the file are absent, and so is a module nested before a macro that raises as the body
-     * expands. One nested before an error the body's run reaches loads.
+     * expands. One nested before an error the body's run reaches loads. Where no `defmodule` names `A.I`, it is unknown:
+     * the code the read left unfollowed ran, and may have created it.
      */
     fun testAnErrorAfterAMacrosAssumedApplicationReadEndsTheRun() {
         addLegElixir()
@@ -1701,9 +1848,10 @@ class ProjectModulesTest : PlatformTestCase() {
         }
         val raised = names.zip(importers) { name, (importer, _) -> "Elixir.$importer raised unloaded_module `import $name`" }
         val nestedLoads = raised.toMutableList().also { it[1] = "Elixir.BAI compiled" }
+        val unnamed = raised.toMutableList().also { it[1] = "Elixir.BAI stopped `import A.I` unported import" }
 
         assertEquals(
-            listOf(raised, raised, nestedLoads, nestedLoads),
+            listOf(unnamed, raised, nestedLoads, nestedLoads),
             listOf(
                 mac + "defmodule A do\n  require Mac\n  Mac.m()\n  :ok = :bad\nend\n",
                 mac + "defmodule A do\n${nested}  require Mac\n  Mac.r()\nend\n",
@@ -1721,7 +1869,8 @@ class ProjectModulesTest : PlatformTestCase() {
     /**
      * An error after a macro's bang read of the application's environment, which is assumed not to raise, stops where
      * it is, at the file's top as in a module body, in a definition's clause body as the body expands, and in a
-     * `@before_compile` callback's output: what Elixir defines before the raise loads, and nothing after it does.
+     * `@before_compile` callback's output: what Elixir defines before the raise loads, and nothing after it does. Where
+     * no `defmodule` names `A.J`, it is unknown: the code the read left unfollowed ran, and may have created it.
      */
     fun testAnErrorAfterAMacrosAssumedApplicationReadStopsAtTheFileTopAndInAClauseBody() {
         addLegElixir()
@@ -1777,7 +1926,9 @@ class ProjectModulesTest : PlatformTestCase() {
                 listOf("top unported `:ok = :bad`", "Elixir.B compiled") + loading(setOf("BB")),
                 inA(listOf("top unported `def f, do: Mac.r()`"), "def f, do: Mac.r()", "def"),
                 inA(listOf("top unported `:ok = :bad`"), ":ok = :bad", "="),
-                inA(listOf("top unported `defmodule A do`", "Elixir.CB compiled"), "defmodule A do", "="),
+                inA(listOf("top unported `defmodule A do`", "Elixir.CB compiled"), "defmodule A do", "=").map {
+                    if (it.startsWith("Elixir.BAJ ")) "Elixir.BAJ stopped `import A.J` unported import" else it
+                },
             ),
             answers,
         )
@@ -1835,6 +1986,8 @@ class ProjectModulesTest : PlatformTestCase() {
         WriteAction.runAndWait<Throwable> {
             elsewhereRoot.createChildData(this, "e.ex").setBinaryContent("defmodule E do\nend\n".toByteArray())
         }
+        // The writes queue a dumb-mode task, in which a fresh holder knows no module.
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
         assertFresh("(c) E defined in a new file outside content", outside, expansion(holder, outside))
 
         val editedBefore = render(edited, expansion(holder, edited))
@@ -2243,8 +2396,7 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
-     * A light virtual file is not on disk, so it has no path: the function it would name stops at its head, and a value
-     * wholly unknown leaves a body unknown where a list holding it stops.
+     * A light virtual file is not on disk, so it has no path: the function it would name stops at its head.
      */
     fun testALightVirtualFileHasNoPath() {
         addLegElixir()
@@ -2254,7 +2406,7 @@ class ProjectModulesTest : PlatformTestCase() {
 
         assertEquals("stopped []", defines(psi(named)))
         assertEquals("compiled [f/0]", defines(psi(body)))
-        assertEquals("stopped [f/0]", defines(psi(list)))
+        assertEquals("compiled [f/0]", defines(psi(list)))
     }
 
     /** An Elixir code block injected into another file has no path of its own. */
@@ -2672,16 +2824,17 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
-     * A `def` in a module-body `for`, in an `fn` a call runs, or in a `case`'s selected branch is on the statement path:
-     * the module loads with what ran defined, a certain raise there leaves it absent, and a decline in the name or in
-     * the subject leaves it unreadable. A `cond` selects nothing, so a `def` in one leaves the module unreadable. A row
-     * labelled `expander` pins the expander's answer where Elixir loads the module with what it defines.
+     * A `def` in a module-body `for`, in an `fn` a call runs or one bound and called, in a `try` with only an `after`, or
+     * in a `case`'s selected branch is on the statement path: the module loads with what ran defined, a certain raise
+     * there leaves it absent, and a decline in the name or in the subject leaves it unreadable. A `cond` selects
+     * nothing, so a `def` in one leaves the module unreadable. A row labelled `expander` pins the expander's answer
+     * where Elixir loads the module with what it defines.
      */
     fun testASelectedBranchIsOnTheStatementPath() {
         addLegElixir()
         val a = add("a.ex", "")
         val b = add("b.ex", "defmodule B do\n  def f, do: A.f()\nend\n")
-        add("m.ex", "defmodule M do\n  defmacro m(e), do: quote(do: _ = unquote(e))\nend\n")
+        add("m.ex", "defmodule M do\n  defmacro m(e), do: quote(do: _ = unquote(e))\n  defmacro t(e), do: quote(do: try(do: unquote(e), after: :ok))\nend\n")
         val declined = "_ = (receive do after 0 -> 1 end)"
         val pair = "def f, do: 1\n      defp f, do: 2"
         // Each row is a module alone in a file; the label names its family and the answer, `expander` where Elixir's differs.
@@ -2711,10 +2864,26 @@ class ProjectModulesTest : PlatformTestCase() {
             Triple("for-unnamed-expander-unreadable", "for n <- [:f] do\n    def unquote((receive do after 0 -> n end))(), do: 1\n  end", "Unreadable Stopped"),
             Triple("each-unnamed-expander-unreadable", "Enum.each([:f], fn n ->\n    def unquote((receive do after 0 -> n end))(), do: 1\n  end)", "Unreadable Stopped"),
             Triple("if-defdelegate-loaded", "x = true\n  if x do\n    defdelegate f(l), to: :erlang, as: :length\n  end", "Present [f/1] Compiled"),
-            // Controls the walk doesn't follow: Elixir loads `f/0` from the `cond` and the `case` (#4508), none from the `fn`.
+            // Controls the walk doesn't follow: Elixir loads `f/0` from the `cond` and the `case` (#4508).
             Triple("cond-expander-unreadable", "cond do\n    true -> def f, do: 1\n  end", "Unreadable Compiled"),
             Triple("case-declined-expander-unreadable", "case (receive do after 0 -> :a end) do\n    :a -> def f, do: 1\n    _ -> :ok\n  end", "Unreadable Compiled"),
-            Triple("fn-unrun-expander-unreadable", "_ = fn -> def f, do: 1 end", "Unreadable Compiled"),
+            // An `fn` a match binds runs its body where a later statement calls it, however it is reached, and never else.
+            Triple("fn-unrun-loaded", "_ = fn -> def f, do: 1 end", "Present [] Compiled"),
+            Triple("fn-match-uncalled-loaded", "f = fn -> def f, do: 1 end", "Present [] Compiled"),
+            Triple("fn-match-called-loaded", "f = fn n -> def unquote(n)(), do: 1 end\n  f.(:a)\n  f.(:b)", "Present [a/0, b/0] Compiled"),
+            Triple("fn-match-given-loaded", "f = fn n -> def unquote(n)(), do: 1 end\n  Enum.each([:a, :b], f)", "Present [a/0, b/0] Compiled"),
+            Triple("fn-match-in-for-loaded", "f = fn n -> def unquote(n)(), do: 1 end\n  for n <- [:a, :b], do: f.(n)", "Present [a/0, b/0] Compiled"),
+            Triple("fn-match-rebound-loaded", "f = fn n -> def unquote(n)(), do: 1 end\n  g = f\n  g.(:a)", "Present [a/0] Compiled"),
+            Triple("fn-match-attribute-loaded", "f = fn -> def g, do: 1 end\n  @k f\n  @k.()", "Present [g/0] Compiled"),
+            Triple("for-fn-match-loaded", "for n <- [:a, :b] do\n    f = fn -> def unquote(n)(), do: 1 end\n    f.()\n  end", "Present [a/0, b/0] Compiled"),
+            Triple("fn-match-raised", "f = fn ->\n    $pair\n  end\n  f.()", "Absent Raised"),
+            // A statement the evaluator declines may have called it.
+            Triple("fn-match-declined-case-expander-unreadable", "f = fn -> def g, do: 1 end\n  case (receive do after 0 -> :a end) do\n    :a -> f.()\n    _ -> :ok\n  end", "Unreadable Compiled"),
+            // A `try` with only an `after` runs both bodies where it runs; one that rescues isn't followed (#4508).
+            Triple("try-after-loaded", "try do\n    def f, do: 1\n  after\n    def g, do: 1\n  end", "Present [f/0, g/0] Compiled"),
+            Triple("try-after-macro-loaded", "require M\n  M.t(def f, do: 1)", "Present [f/0] Compiled"),
+            Triple("try-after-raised", "try do\n    $pair\n  after\n    :ok\n  end", "Absent Raised"),
+            Triple("try-rescue-expander-unreadable", "try do\n    def f, do: 1\n  rescue\n    _ -> :ok\n  end", "Unreadable Compiled"),
             // A statement the evaluator declines may have run the units nested in its statements any number of times.
             Triple("case-declined-if-expander-unreadable", "case (receive do after 0 -> :a end) do\n    :a -> if true do def f, do: 1 end\n    _ -> :ok\n  end", "Unreadable Compiled"),
             Triple("case-declined-for-expander-unreadable", "case (receive do after 0 -> :a end) do\n    :a -> for n <- [:f], do: def unquote(n)(), do: 1\n    _ -> :ok\n  end", "Unreadable Compiled"),
@@ -2805,6 +2974,170 @@ class ProjectModulesTest : PlatformTestCase() {
 
         edit(project, a, "defmodule A do\n  x = true\n  if x do\n    defstruct [:a]\n  end\nend\n")
         assertEquals("if-defstruct-loaded", "Present [__struct__/0, __struct__/1]", describe(exports(ProjectModules(project), b, "Elixir.A")))
+    }
+
+    /**
+     * A raise in a unit the evaluator reached goes on out of the code around it as Elixir's does. A `try`'s `after` runs
+     * before it goes on, in an `fn` too: a module nested in the `after` loads, and one past the `try`, or past a raise in
+     * the `after`, is never defined, in a module or at the file's top level. A `rescue` takes it, and the body runs on. A
+     * row labelled `expander` pins the expander's answer where it declines and Elixir gives one.
+     */
+    fun testAUnitsRaisePassesTheCodeAroundIt() {
+        addLegElixir()
+        val a = add("a.ex", "")
+        val b = add("b.ex", "")
+        val made = "defmodule Made do\n      def f, do: 1\n    end"
+        val later = "\n  defmodule Later do\n    def g, do: 1\n  end"
+        val inA = { body: String -> "defmodule A do\n  $body\nend\n" }
+        val raised = "A Absent, A.Made Present [f/0], A.Later Absent, A.Past Absent"
+        val rows = listOf(
+            Triple("match", inA("try do\n    :ok = :bad\n  after\n    $made\n  end$later"), raised),
+            Triple("attribute", inA("try do\n    @a hd([])\n  after\n    $made\n  end"), raised),
+            Triple(
+                "after-raises",
+                inA("try do\n    :ok = :bad\n  after\n    $made\n    hd([])\n    defmodule Past do\n      def f, do: 1\n    end\n  end"),
+                raised,
+            ),
+            Triple("fn-after", inA("f = fn ->\n    try do\n      :ok = :bad\n    after\n      $made\n    end\n  end\n  f.()"), raised),
+            Triple(
+                "rescued-fn",
+                inA("f = fn -> :ok = :bad end\n  try do\n    f.()\n  rescue\n    _ -> :ok\n  end$later"),
+                "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent",
+            ),
+            Triple(
+                "rescued-bound-unit",
+                inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  rescue\n    _ -> :ok\n  end$later"),
+                "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent",
+            ),
+            Triple(
+                "rescued-bound-unit-in-each",
+                inA("f = fn -> @a hd([]) end\n  try do\n    Enum.each([1], fn _ -> f.() end)\n  rescue\n    _ -> :ok\n  end$later"),
+                "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent",
+            ),
+            Triple(
+                "rescue-defines-bound-expander",
+                inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  rescue\n    _ -> def h, do: 1\n  end"),
+                "A Unreadable, A.Made Unreadable, A.Later Unreadable, A.Past Unreadable",
+            ),
+            // Elixir defines a module the unit made before it raised.
+            Triple(
+                "rescued-bound-unit-made",
+                inA("f = fn ->\n    $made\n    @a hd([])\n  end\n  try do\n    f.()\n  rescue\n    _ -> :ok\n  end"),
+                "A Present [], A.Made Present [f/0], A.Later Absent, A.Past Absent",
+            ),
+            // A `try` around the module doesn't take a raise in its body, which ends the module.
+            Triple(
+                "rescued-around-module-expander",
+                "try do\n  defmodule A do\n    f = fn -> @a hd([]) end\n    f.()\n  end\nrescue\n  _ -> :ok\nend\ndefmodule A.Later do\n  def g, do: 1\nend\n",
+                "A Absent, A.Made Unreadable, A.Later Present [g/0], A.Past Unreadable",
+            ),
+            // A raise in an `after` the unit's raise passes takes its place, and a `rescue` around them takes it.
+            Triple(
+                "rescued-after-raises",
+                inA("f = fn -> @a hd([]) end\n  try do\n    try do\n      f.()\n    after\n      hd([])\n    end\n  rescue\n    _ -> :ok\n  end$later"),
+                "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent",
+            ),
+            Triple(
+                "unrescued-after-raises",
+                inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  after\n    hd([])\n  end$later"),
+                "A Absent, A.Made Absent, A.Later Absent, A.Past Absent",
+            ),
+            Triple(
+                "rescued-after-declines-expander",
+                inA(
+                    "f = fn -> @a hd([]) end\n  try do\n    try do\n      f.()\n    after\n      receive do\n        _ -> :ok\n      after\n        0 -> 1\n      end\n    end\n  rescue\n    _ -> :ok\n  end$later",
+                ),
+                "A Present [], A.Made Unreadable, A.Later Present [g/0], A.Past Unreadable",
+            ),
+            // What an `after` that stops defines isn't known, with the raise taken past it.
+            Triple(
+                "rescued-after-stops-expander",
+                inA(
+                    "f = fn -> @a hd([]) end\n  try do\n    try do\n      f.()\n    after\n      def unquote((receive do after 0 -> :h end))(), do: 1\n    end\n  rescue\n    _ -> :ok\n  end$later",
+                ),
+                "A Unreadable, A.Made Unreadable, A.Later Present [g/0], A.Past Unreadable",
+            ),
+            // A throw in an `after` that declined takes the raise's place: a `rescue` doesn't take it, and a `catch` does.
+            Triple(
+                "after-declines-throws-rescued-expander",
+                inA(
+                    "f = fn -> @a hd([]) end\n  try do\n    try do\n      f.()\n    after\n      receive do\n        _ -> :ok\n      after\n        0 -> :ok\n      end\n      throw(:stop)\n    end\n  rescue\n    _ -> :ok\n  end$later",
+                ),
+                "A Absent, A.Made Unreadable, A.Later Absent, A.Past Unreadable",
+            ),
+            Triple(
+                "after-declines-throws-caught-expander",
+                inA(
+                    "f = fn -> @a hd([]) end\n  try do\n    try do\n      f.()\n    after\n      receive do\n        _ -> :ok\n      after\n        0 -> :ok\n      end\n      throw(:stop)\n    end\n  catch\n    :stop -> :ok\n  end$later",
+                ),
+                "A Present [], A.Made Unreadable, A.Later Present [g/0], A.Past Unreadable",
+            ),
+            // Only a clause that takes the raise's kind and value takes it.
+            Triple("catch-throw-only", inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  catch\n    :x -> :ok\n  end$later"), "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            Triple("catch-exit-only", inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  catch\n    :exit, _ -> :ok\n  end$later"), "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            Triple("rescue-other", inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  rescue\n    KeyError -> :ok\n  end$later"), "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            Triple("catch-error", inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  catch\n    :error, _ -> :ok\n  end$later"), "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            Triple("rescue-named", inA("f = fn -> @a raise(\"x\") end\n  try do\n    f.()\n  rescue\n    RuntimeError -> :ok\n  end$later"), "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            // Through more than one `fn`, or one a call takes.
+            Triple("two-fns-catch-throw-only", inA("f = fn -> @a hd([]) end\n  g = fn -> f.() end\n  try do\n    g.()\n  catch\n    :x -> :ok\n  end$later"), "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            Triple("two-fns-rescued", inA("f = fn -> @a hd([]) end\n  g = fn -> f.() end\n  try do\n    g.()\n  rescue\n    _ -> :ok\n  end$later"), "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            Triple("in-each-catch-throw-only", inA("f = fn -> @a hd([]) end\n  try do\n    Enum.each([1], fn _ -> f.() end)\n  catch\n    :x -> :ok\n  end$later"), "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            // Past an `after` in the `fn`.
+            Triple("fn-after-catch-throw-only", inA("f = fn -> try do @a hd([]) after :ok end end\n  try do\n    f.()\n  catch\n    :x -> :ok\n  end$later"), "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            Triple("fn-after-rescued", inA("f = fn -> try do :ok = :bad after :ok end end\n  try do\n    f.()\n  rescue\n    _ -> :ok\n  end$later"), "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            // An `fn` never called raises nowhere.
+            Triple("uncalled", inA("f = fn -> try do :ok = :bad after :ok end end$later"), "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            // At the file's top level too.
+            Triple("top-catch-throw-only", "f = fn -> :ok = :bad end\ntry do f.() catch :stop -> :ok end\ndefmodule A.Later do\n  def g, do: 1\nend\n", "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            Triple("top-rescued", "f = fn -> :ok = :bad end\ntry do f.() rescue _ -> :ok end\ndefmodule A.Later do\n  def g, do: 1\nend\n", "A Absent, A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            Triple("top-after-catch-throw-only", "f = fn -> try do :ok = :bad after :ok end end\ntry do f.() catch :stop -> :ok end\ndefmodule A.Later do\n  def g, do: 1\nend\n", "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            Triple("top-after-rescued", "f = fn -> try do :ok = :bad after :ok end end\ntry do f.() rescue _ -> :ok end\ndefmodule A.Later do\n  def g, do: 1\nend\n", "A Absent, A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            Triple("top-uncalled", "f = fn -> try do :ok = :bad after :ok end end\ndefmodule A.Later do\n  def g, do: 1\nend\n", "A Absent, A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            // A raise in a module nested in the unit comes out of it to the `try`.
+            Triple("nested-module-catch-throw-only", inA("f = fn -> defmodule M do\n      hd([])\n    end end\n  try do\n    f.()\n  catch\n    :x -> :ok\n  end$later"), "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            Triple("nested-module-rescued", inA("f = fn -> defmodule M do\n      hd([])\n    end end\n  try do\n    f.()\n  rescue\n    _ -> :ok\n  end$later"), "A Present [], A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            Triple("top-nested-module-catch-throw-only", "f = fn -> defmodule A.Made do\n  hd([])\nend end\ntry do f.() catch :x -> :ok end\ndefmodule A.Later do\n  def g, do: 1\nend\n", "A Absent, A.Made Absent, A.Later Absent, A.Past Absent"),
+            Triple("top-nested-module-rescued", "f = fn -> defmodule A.Made do\n  hd([])\nend end\ntry do f.() rescue _ -> :ok end\ndefmodule A.Later do\n  def g, do: 1\nend\n", "A Absent, A.Made Absent, A.Later Present [g/0], A.Past Absent"),
+            Triple(
+                "unrescued-after-declines-expander",
+                inA("f = fn -> @a hd([]) end\n  try do\n    f.()\n  after\n    receive do\n      _ -> :ok\n    after\n      0 -> 1\n    end\n  end$later"),
+                "A Absent, A.Made Unreadable, A.Later Absent, A.Past Unreadable",
+            ),
+            Triple(
+                "unrescued-bound-unit",
+                inA("f = fn -> @a hd([]) end\n  f.()$later"),
+                "A Absent, A.Made Absent, A.Later Absent, A.Past Absent",
+            ),
+            // A `try`'s clauses don't take a raise in its `else` or in a clause.
+            Triple(
+                "unrescued-in-else",
+                inA("f = fn -> @a hd([]) end\n  try do\n    :ok\n  rescue\n    _ -> :ok\n  else\n    _ -> f.()\n  end$later"),
+                "A Absent, A.Made Absent, A.Later Absent, A.Past Absent",
+            ),
+            Triple(
+                "unrescued-in-rescue",
+                inA("f = fn -> @a hd([]) end\n  try do\n    :ok = :bad\n  rescue\n    _ -> f.()\n  end$later"),
+                "A Absent, A.Made Absent, A.Later Absent, A.Past Absent",
+            ),
+            Triple("ok", inA("try do\n    :ok\n  after\n    $made\n  end"), "A Present [], A.Made Present [f/0], A.Later Absent, A.Past Absent"),
+            Triple(
+                "top",
+                "try do\n  :ok = :bad\nafter\n  defmodule A.Made do\n    def f, do: 1\n  end\nend\ndefmodule A.Later do\n  def g, do: 1\nend\n",
+                raised,
+            ),
+        )
+        val expected = rows.map { (label, _, answer) -> "$label: $answer" }
+
+        val actual = rows.map { (label, source, _) ->
+            edit(project, a, source)
+            val holder = ProjectModules(project)
+
+            "$label: " + listOf("A", "A.Made", "A.Later", "A.Past").joinToString(", ") { name ->
+                "$name ${describe(exports(holder, b, "Elixir.$name"))}"
+            }
+        }
+
+        assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }
 
     /**
@@ -2913,6 +3246,17 @@ class ProjectModulesTest : PlatformTestCase() {
         return indicator.checks
     }
 
+    /**
+     * How a module of each of [readers]' bodies ends, each in a file of its own and named for its label, as
+     * `import compiled [g/0]`.
+     */
+    private fun readersOfMade(vararg readers: Pair<String, String>): String =
+        readers.joinToString("\n") { (label, body) ->
+            val name = label.split('-').joinToString("") { part -> part.replaceFirstChar(Char::uppercaseChar) }
+
+            "$label ${defines(add("reader_$label.ex", "defmodule Reader.$name do\n  $body\nend\n"))}"
+        }
+
     /** The leg's Elixir `.beam`s as a library, which a `defstruct` dispatches to. */
     private fun addLegElixir() = addLibrary("leg_elixir", LegManifest.ebin())
 
@@ -2968,10 +3312,10 @@ class ProjectModulesTest : PlatformTestCase() {
 
     private fun beamOf(located: ProjectModules.Located): VirtualFile? = (located as? ProjectModules.Located.Compiled)?.beam
 
-    /** The loaded-copy fixture's [beam] at [path] in the project's own build output, as a build writes it. */
-    private fun built(path: String, beam: String): VirtualFile {
+    /** A copy of [beam] at [path] in the project's own build output, as a build writes it. */
+    private fun built(path: String, beam: File): VirtualFile {
         val file = add(path, "").virtualFile
-        val bytes = File("testData/org/elixir_lang/expander/loaded_copy/$beam").readBytes()
+        val bytes = beam.readBytes()
 
         WriteAction.runAndWait<Throwable> { file.setBinaryContent(bytes) }
         IndexingTestUtil.waitUntilIndexesAreReady(project)
@@ -3107,6 +3451,30 @@ class ProjectModulesTest : PlatformTestCase() {
         const val DEP_BEAM = "Elixir.LoadedCopy.Dep.beam"
 
         const val PROTOCOL_BEAM = "Elixir.LoadedCopy.Protocol.beam"
+
+        /** A `.beam` of `CreatedCopy.Made` that defines only `stale/0`, where [CREATES_MADE] creates it with `f/0` and `m/0`. */
+        val CREATED_COPY = File("testData/org/elixir_lang/expander/created_copy")
+
+        const val MADE = "Elixir.CreatedCopy.Made"
+
+        const val MADE_BEAM = "$MADE.beam"
+
+        /** `CreatedCopy`, which creates `CreatedCopy.Made` under a name it computes, so no index holds it. */
+        const val CREATES_MADE = "defmodule CreatedCopy do\n" +
+            "  Module.create(Module.concat(__MODULE__, Made), quote do\n" +
+            "    def f, do: 1\n" +
+            "    defmacro m, do: :ok\n" +
+            "  end, Macro.Env.location(__ENV__))\n" +
+            "end\n"
+
+        /** [CREATES_MADE] in a `receive` the expander declines and Elixir runs, after which `CreatedCopy` compiles. */
+        const val RECEIVE_CREATES_MADE = "defmodule CreatedCopy do\n" +
+            "  receive do\n" +
+            "  after\n" +
+            "    0 -> Module.create(Module.concat(__MODULE__, Made), quote(do: def(f, do: :ok)), Macro.Env.location(__ENV__))\n" +
+            "  end\n\n" +
+            "  def g, do: :g\n" +
+            "end\n"
 
         /** How many runs `testCancelledCachesNothing` counts the checks of. */
         const val MEASURED_RUNS = 3

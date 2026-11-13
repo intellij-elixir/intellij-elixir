@@ -2,7 +2,6 @@ package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangList
-import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.ModuleExports.Behaviour
@@ -113,11 +112,7 @@ class ModuleCallbacksTest : ProbeTestCase() {
         }
         val unloaded = answers.filter { it.second is OtpErlangAtom }.map { it.first }.toSet()
         val probed = answers.filter { it.second is OtpErlangList }.associate { (module, callbacks) ->
-            module to (callbacks as OtpErlangList).elements().map {
-                val (name, arity) = (it as OtpErlangTuple).elements()
-
-                NameArity((name as OtpErlangAtom).atomValue(), (arity as OtpErlangLong).intValue())
-            }.sorted()
+            module to nameArities(callbacks).sorted()
         }
 
         return probed to unloaded

@@ -1,9 +1,6 @@
 package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangAtom
-import com.ericsson.otp.erlang.OtpErlangList
-import com.ericsson.otp.erlang.OtpErlangLong
-import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.application.ReadAction
 import org.elixir_lang.NameArity
@@ -544,7 +541,7 @@ class LoadedModulesTest : ProbeTestCase() {
             if (it is OtpErlangAtom) {
                 ModuleExports.Behaviour.None
             } else {
-                ModuleExports.Behaviour.Callbacks(nameArities(it))
+                ModuleExports.Behaviour.Callbacks(nameArities(it).sorted())
             }
         }
     }
@@ -581,20 +578,13 @@ class LoadedModulesTest : ProbeTestCase() {
             when (answer) {
                 null -> null
                 is OtpErlangTuple ->
-                    module to Loaded(nameArities(answer.elementAt(0)), nameArities(answer.elementAt(1)), hasInfo = true)
-                else -> module to Loaded(nameArities(answer), emptyList(), hasInfo = false)
+                    module to Loaded(nameArities(answer.elementAt(0)).sorted(), nameArities(answer.elementAt(1)).sorted(), hasInfo = true)
+                else -> module to Loaded(nameArities(answer).sorted(), emptyList(), hasInfo = false)
             }
         }.toMap()
 
         return probed to answers.filterValues { it == null }.keys
     }
-
-    private fun nameArities(list: OtpErlangObject): List<NameArity> =
-        (list as OtpErlangList).elements().map {
-            val (name, arity) = (it as OtpErlangTuple).elements()
-
-            NameArity((name as OtpErlangAtom).atomValue(), (arity as OtpErlangLong).intValue())
-        }.sorted()
 
     /** The modules whose [read] exports differ from the [probed] ones. */
     private fun mismatches(read: Map<String, Loaded>, probed: Map<String, Loaded>): List<String> =

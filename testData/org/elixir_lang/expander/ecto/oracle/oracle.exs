@@ -1,5 +1,6 @@
 # Elixir's answers for EctoFixtureTest, written as ETF to the directory ECTO_FIXTURE_ORACLE names, once the fixture has
-# compiled: the functions and macros of the Queries, Repo and schema modules, each schema's struct keys, each call of a
+# compiled: the functions and macros of the Queries, Repo and schema modules, where the inline embed's module declares
+# each clause, each schema's struct keys, each call of a
 # schema's functions through lib/probe.ex and what it expands to, and each `Macro.expand_once/2` step of every function
 # body in lib/queries.ex, in the env Elixir expands it in.
 out = System.fetch_env!("ECTO_FIXTURE_ORACLE")
@@ -12,6 +13,18 @@ info =
   end
 
 File.write!(Path.join(out, "info.etf"), :erlang.term_to_binary(info))
+
+# Where the compiled module declares each clause of each definition: its file, relative to the project, and its line.
+declared = fn module ->
+  {:ok, {_, [debug_info: {:debug_info_v1, backend, data}]}} = :beam_lib.chunks(:code.which(module), [:debug_info])
+  {:ok, %{file: file, definitions: definitions}} = backend.debug_info(:elixir_v1, module, data, [])
+
+  for {{name, arity}, _kind, _meta, clauses} <- definitions, {meta, _, _, _} <- clauses do
+    {name, arity, Path.relative_to(file, File.cwd!()), meta[:line]}
+  end
+end
+
+File.write!(Path.join(out, "declared.etf"), :erlang.term_to_binary(%{EctoFixture.Inline.Meta => declared.(EctoFixture.Inline.Meta)}))
 
 File.write!(
   Path.join(out, "structs.etf"),

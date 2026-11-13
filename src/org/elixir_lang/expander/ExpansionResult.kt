@@ -124,5 +124,12 @@ internal data class ExpansionResult(
  * @property modules each module the file defines at its top, in the order Elixir compiles them
  * @property endsRun whether the file's run ended at an error from certain inputs: Elixir raised there or before it, so
  *   it compiled no module after it
+ * @property unfollowedRan whether code the expander doesn't follow ran in the file's run, which may have created
+ *   modules with `Module.create/3` ([Run.unfollowedCodeRan])
  */
-internal data class FileExpansion(val top: Expansion, val modules: List<ExpansionResult>, val endsRun: Boolean)
+internal data class FileExpansion(
+    val top: Expansion,
+    val modules: List<ExpansionResult>,
+    val endsRun: Boolean,
+    val unfollowedRan: Boolean,
+)
