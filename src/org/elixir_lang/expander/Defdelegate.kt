@@ -1,7 +1,9 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangObject
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
+import org.elixir_lang.expander.interpreter.Binding
 import org.elixir_lang.expander.interpreter.Evaluated
 import org.elixir_lang.expander.interpreter.codeOf
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFDELEGATE_ALL_EACH
@@ -53,7 +55,8 @@ private fun defdelegate(
     val from = run.pending.size
     val expansion = expandQuoted(node, KERNEL, DelegateOutput(Synthetic(node.meta), run.level, escaped, opts).output(), state, env, run, ports = true)
 
-    if (expansion is Expansion.Expanded && compiling.isStatement(node)) {
+    // Wherever the walk runs the call: as a statement of the body, or in a body it follows, as a module-level `case`'s.
+    if (expansion is Expansion.Expanded && compiling.statements.runs(compiling.site(node))) {
         // The `bind_quoted` matches run first, then the iteration, which checks the options as `Kernel.Utils` does: the
         // output's own `target =` match isn't run.
         val (matches, iteration) = run.pending.subList(from, run.pending.size).unnested().partition { it is Pending.Match }
@@ -62,10 +65,10 @@ private fun defdelegate(
         val delegates = Delegates(node, env, run.level)
         var entries = iteration
 
-        val delegation = Pending.Effect(node, ordered = true, queued = { entries }) { body, _, _ ->
-            entries = bound?.let { optionsOf(it, body, run) }?.let { delegates.each(funs, it, iteration) } ?: iteration
+        val delegation = Pending.Effect(node, ordered = true, queued = { entries }) { body, _, bindings ->
+            entries = bound?.let { optionsOf(it, body, run, bindings) }?.let { delegates.each(funs, it, iteration) } ?: iteration
 
-            // A definition the loop makes for a head it can name is a statement of the body, as its `def` is once it runs.
+            // A definition the loop makes for a head it can name stands where the call does, as its `def` does once it runs.
             entries.filterIsInstance<Pending.Definition>().firstOrNull { it !in iteration }?.let { body.rewrote(node, it.node) }
             null
         }
@@ -84,12 +87,12 @@ private fun binds(pending: Pending, name: String): Boolean {
 }
 
 /**
- * What the variable [match] binds holds where the walk is in [body], as code, or `null` where it isn't known or is too
- * large to copy.
+ * What the variable [match] binds holds where the walk is in [body], with [bindings], as code, or `null` where it isn't
+ * known or is too large to copy.
  */
-private fun optionsOf(match: Pending.Match, body: Compiling, run: Run): ElixirAst? {
+private fun optionsOf(match: Pending.Match, body: Compiling, run: Run, bindings: HashMap<Binding, OtpErlangObject>): ElixirAst? {
     val variable = (match.node as ElixirAst.Call).arguments!![0]
-    val value = body.values.evaluate(variable, match.state, match.env, run) as? Evaluated.Value ?: return null
+    val value = body.values.evaluate(variable, match.state, match.env, run, bindings) as? Evaluated.Value ?: return null
 
     return unlessTooDeep({ null }) {
         codeOf(value.value, match.node.meta.origin)

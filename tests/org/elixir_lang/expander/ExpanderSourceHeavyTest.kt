@@ -2340,6 +2340,90 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals("", candidates(file, "quoted(1)", "quoted(1)"))
     }
 
+    /**
+     * A `defdelegate` a module-level `case`, `for`, `unless`, `if` or `else` writes delegates as one in the module's
+     * body does, so a use of it reaches its target, as the walk does.
+     */
+    fun testADelegationUnderAModuleLevelBranchReachesItsTarget() {
+        val answers = BRANCHES.flatMap { (branch, opening) ->
+            val file = file(
+                buildList {
+                    addAll(listOf("defmodule Target$branch do", "  def snoc(q, x), do: {q, x}", "end", "", "defmodule Delegating$branch do"))
+                    opening.mapTo(this) { "  $it" }
+                    addAll(listOf("    defdelegate snoc(q, x), to: Target$branch", "  end", "", "  def local(a, b), do: snoc(a, b)", "end", ""))
+                    addAll(listOf("defmodule Caller$branch do", "  def remote(a, b), do: Delegating$branch.snoc(a, b)", "end"))
+                }.joinToString("\n")
+            )
+
+            listOf("do: snoc(a, b)" to "snoc(a, b)", "Delegating$branch.snoc(a, b)" to "Delegating$branch.snoc(a, b)").map { (context, call) ->
+                val use = use(file, context, call)
+                val render = { source: CandidateSource -> renderPreferred(read { preferred(use, source.candidates(use, false), false) }) }
+
+                Triple("$branch $call", render(LegacyWalkSource), render(ExpanderSource))
+            }
+        }
+
+        answers.forEach { (at, walk, _) -> assertTrue("$at: the walk reaches the target:\n$walk", "  Target" in walk) }
+        assertEquals(answers.joinToString("\n") { (at, walk, _) -> "$at\n$walk" }, answers.joinToString("\n") { (at, _, expander) -> "$at\n$expander" })
+    }
+
+    /**
+     * A module-level `for` defines a delegation clause for each iteration, so each clause delegates to that iteration's
+     * target.
+     */
+    fun testEachIterationOfAModuleLevelForDelegatesToItsOwnTarget() {
+        val file = file(
+            """
+            defmodule First do
+              def snoc(q, x), do: {q, x}
+            end
+
+            defmodule Second do
+              def snoc(q, x), do: {x, q}
+            end
+
+            defmodule Delegating do
+              for target <- [First, Second] do
+                defdelegate snoc(q, x), to: target
+              end
+            end
+
+            defmodule Caller do
+              def go(a, b), do: Delegating.snoc(a, b)
+            end
+            """
+        )
+        val use = use(file, "Delegating.snoc(a, b)", "Delegating.snoc(a, b)")
+
+        assertEquals(
+            listOf("First.snoc/2", "Second.snoc/2"),
+            read { preferred(use, ExpanderSource.candidates(use, false), false) }.flatMap { it.delegatedTo }.map(::name).distinct(),
+        )
+    }
+
+    /** A `def` and a `defstruct` under a module-level branch define in the module, as Elixir does. */
+    fun testADefinitionAndAStructUnderAModuleLevelBranchAreDefined() {
+        val answers = BRANCHES.map { (branch, opening) ->
+            val file = file(
+                buildList {
+                    add("defmodule Defining$branch do")
+                    opening.mapTo(this) { "  $it" }
+                    addAll(listOf("    defstruct [:a]", "    def f(x), do: x", "  end", "end", ""))
+                    addAll(listOf("defmodule Caller$branch do", "  def go, do: {Defining$branch.f(1), Defining$branch.__struct__()}", "end"))
+                }.joinToString("\n")
+            )
+
+            listOf("Defining$branch.f(1)", "Defining$branch.__struct__()").joinToString("\n") { call ->
+                candidates(file, call, call).substringBefore(" via")
+            }
+        }
+
+        assertEquals(
+            BRANCHES.keys.map { branch -> "Defining$branch.f/1 OWN VALID\nDefining$branch.__struct__/0 OWN VALID" },
+            answers,
+        )
+    }
+
     /** A `defimpl` for several modules defines its functions in each, so the index gives one for each. */
     fun testPastAStopTheIndexGivesADefimplsDefinitionInEachModuleItIsFor() {
         val file = file(
@@ -2958,6 +3042,15 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
     }
 
     companion object {
+        /** The module-level branches by name, each as the lines that open it, closed by an `end`. */
+        private val BRANCHES = mapOf(
+            "Case" to listOf("case Code.ensure_loaded?(Kernel) do", "  _ ->"),
+            "For" to listOf("for _ <- [1] do"),
+            "Unless" to listOf("unless false do"),
+            "If" to listOf("if true do"),
+            "Else" to listOf("if false do", "  :ok", "else"),
+        )
+
         private const val WRITER = """
             defmodule Target do
               def t(a), do: a
