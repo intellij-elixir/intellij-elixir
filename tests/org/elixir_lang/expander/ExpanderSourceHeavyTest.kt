@@ -1928,7 +1928,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
     fun testAnAbsenceInABeamWithNoExportsIsUncertain() {
         val ebin = FileUtil.createTempDirectory("no_exports_ebin", null, true)
         val beam = File("testData/org/elixir_lang/expander/injecting_use", "Elixir.InjectingUse.beam").readBytes()
-        File(ebin, "Elixir.InjectingUse.beam").writeBytes(withoutChunk(beam, "ExpT"))
+        File(ebin, "Elixir.InjectingUse.beam").writeBytes(withoutExports(beam))
         val file = file("defmodule Asker do\n  def f, do: InjectingUse.missing(1)\nend")
 
         val absence = WalkTestSupport.withLibrary(project, module, testRootDisposable, "no_exports", ebin) {
@@ -2869,8 +2869,8 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
     /** Why [ExpanderSource]'s answer to [use] may be missing what it reaches, or `certain`. */
     private fun absence(use: Use): String = read { ExpanderSource.answer(use, false) }.absence?.name ?: "certain"
 
-    /** [beam], an IFF `FOR1`/`BEAM` file, with its chunk [id] dropped. */
-    private fun withoutChunk(beam: ByteArray, id: String): ByteArray {
+    /** [beam], an IFF `FOR1`/`BEAM` file, with its exports chunk, `ExpT`, dropped. */
+    private fun withoutExports(beam: ByteArray): ByteArray {
         val input = java.nio.ByteBuffer.wrap(beam)
         val out = java.io.ByteArrayOutputStream()
         out.write(beam, 8, 4) // "BEAM"
@@ -2878,7 +2878,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         while (at < beam.size) {
             val size = input.getInt(at + 4)
             val padded = (size + 3) and 3.inv()
-            if (String(beam, at, 4, Charsets.US_ASCII) != id) out.write(beam, at, 8 + padded)
+            if (String(beam, at, 4, Charsets.US_ASCII) != "ExpT") out.write(beam, at, 8 + padded)
             at += 8 + padded
         }
         val body = out.toByteArray()
@@ -2958,7 +2958,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
     }
 
     companion object {
-        private val WRITER = """
+        private const val WRITER = """
             defmodule Target do
               def t(a), do: a
               def first(a), do: a
@@ -2991,7 +2991,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             "Mix.Generator.embed_text(:banner, \"Banner\")",
         )
 
-        private val STOPPED = """
+        private const val STOPPED = """
             defmodule M do
               defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
             end
