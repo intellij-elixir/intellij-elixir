@@ -8,6 +8,20 @@ package org.elixir_lang.documentation
  * on a documented call shows its `@doc`") independent of how call-site resolution is implemented.
  */
 class FunctionCallQuickDocumentationTest : QuickDocumentationTestCase() {
+    /** A call that resolves to nothing documents nothing. */
+    fun testQuickDocOnACallOfNoDefinitionShowsNothing() {
+        myFixture.configureByText("function_call_quick_doc.ex", "defmodule Caller do\n  def call, do: Nowhere.miss<caret>ing(1)\nend\n")
+
+        assertNull(quickDocumentationAtCaret())
+    }
+
+    fun testQuickDocOnACallOfNoDefinitionShowsNothingWithTheExpanderOn() = withTheExpanderOn(::testQuickDocOnACallOfNoDefinitionShowsNothing)
+
+    private fun withTheExpanderOn(test: () -> Unit) {
+        expanderOn()
+        test()
+    }
+
     fun testQuickDocOnLocalFunctionCallShowsAtDoc() {
         myFixture.configureByFiles("local_function.ex")
 

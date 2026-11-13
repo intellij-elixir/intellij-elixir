@@ -1,7 +1,10 @@
 package org.elixir_lang.documentation
 
 import com.intellij.lang.documentation.ide.IdeDocumentationTargetProvider
+import com.intellij.openapi.util.Disposer
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.enableExpander
+import org.elixir_lang.expander.LegSdk
 
 /**
  * Base class for Quick Documentation (Ctrl+Q) tests that drive the IDE's real documentation
@@ -20,6 +23,13 @@ import org.elixir_lang.PlatformTestCase
 abstract class QuickDocumentationTestCase : PlatformTestCase() {
     /** @see quickDocumentationAtCaret */
     protected fun quickDocumentationAtCaret(): String? = myFixture.quickDocumentationAtCaret(project)
+
+    /** Run the expander on, with the leg's SDK as the module's, so the expansion answers rather than the name index. */
+    protected fun expanderOn() {
+        LegSdk.setUp(module, testRootDisposable)
+        Disposer.register(testRootDisposable) { LegSdk.tearDown(module) }
+        enableExpander(testRootDisposable)
+    }
 
     /** An EEx function and a `def` of the same name, documented as "Renders with one." and "Renders with two.", are both listed, each linked from the header. */
     protected fun assertBothArities(documentation: String) {

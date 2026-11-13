@@ -9,8 +9,8 @@ import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.*
-import com.intellij.psi.impl.source.tree.LeafPsiElement
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Hidden
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByLanguage
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.None
@@ -21,20 +21,14 @@ import org.elixir_lang.declaration.Reach
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.model.psi.function.UseSymbols
-import org.elixir_lang.psi.*
+import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
+import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.ModuleAttribute.isDocumentationName
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.childExpressions
-import org.elixir_lang.psi.impl.declaringModuleCall
 import org.elixir_lang.psi.impl.identifierName
-import org.elixir_lang.psi.impl.isInterpolatedWithin
-import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
-import org.elixir_lang.psi.stub.type.call.Stub.isModular
-import org.elixir_lang.reference.resolver.Callable
-import org.elixir_lang.reference.CaptureNameArity
-import org.elixir_lang.reference.Resolver
 import org.intellij.markdown.html.HtmlGenerator
 import org.intellij.markdown.parser.MarkdownParser
 import java.util.function.Consumer
@@ -46,9 +40,10 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
     /** Rendered documentation, and the anchor it opens at: the entry of the arity the original element uses, or the arity a followed link gave. */
     class Rendered(val html: String, val anchor: String?)
 
+    @RequiresReadLock
     fun render(element: PsiElement, originalElement: PsiElement?, linkedArity: Int? = null): Rendered? {
         val head = headAt(originalElement)
-        val choice = choiceAt(originalElement)?.takeIf { it.element == element }
+        val choice = DocumentedAt.choiceAt(originalElement)?.takeIf { it.element == element }
 
         // Where no use is known, as for a link followed, the function is seen from outside its module. Its signature is
         // made in the module the use found it declared in, as Parameter Info's is.
@@ -94,6 +89,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
     private fun moduleOf(delegation: Call): String? =
         enclosingModularMacroCall(delegation)?.let(SourceFileDocsHelper::indexName)
 
+    @RequiresReadLock
     override fun generateDoc(element: PsiElement, originalElement: PsiElement?): String? =
         render(element, originalElement)?.html
 
@@ -107,26 +103,12 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
      * one is there.
      */
     private fun calledArity(head: Head?, original: PsiElement?): Int? =
-        head?.declaration?.let(UseSymbols::headArity) ?: when (val use = useAt(original)?.use) {
+        head?.declaration?.let(UseSymbols::headArity) ?: when (val use = DocumentedAt.useAt(original)?.use) {
             is Use.OfCall -> use.arity
             is Use.Specified -> use.arity
             is Use.Remote -> use.arity
             else -> null
         }
-
-    // As the climb does: a caret in an interpolation belongs to the code there, not to the atom around it.
-    private fun atomAt(element: PsiElement?): ElixirAtom? =
-        PsiTreeUtil.getParentOfType(element, ElixirAtom::class.java, false)?.takeUnless { element?.isInterpolatedWithin(it) == true }
-
-    /** The use written at the caret, and whether a valid variable binds its name: the one read of it. */
-    private class UseAt(val use: Use, val bound: Boolean)
-
-    private fun useAt(original: PsiElement?): UseAt? =
-        atomAt(original)?.let(Use::mfa)?.let { UseAt(it, bound = false) }
-            ?: callAt(original)?.let { call -> useOf(call)?.let { UseAt(it, bound = isBound(call, it)) } }
-
-    private fun choiceAt(original: PsiElement?): Documented.Choice? =
-        useAt(original)?.let { Documented.of(it.use, it.bound) }
 
     /** A declaring call whose name is written where the caret is, and what the call declares, when that is one function. */
     private class Head(val call: Call, val form: Form, val declaration: Declaration?)
@@ -139,12 +121,6 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         original?.let(DeclaringForm::named)?.let { (call, form) ->
             Head(call, form, SourceFileDocsHelper.declaredFunction(call, form)?.declaration)
         }
-
-    private tailrec fun callAt(element: PsiElement?): Call? = when (element) {
-        is LeafPsiElement, is ElixirIdentifier, is ElixirRelativeIdentifier -> callAt(element.parent)
-        is Call -> element
-        else -> null
-    }
 
     override fun generateHoverDoc(element: PsiElement, originalElement: PsiElement?): String? =
         generateDoc(element, originalElement)
@@ -208,91 +184,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         contextElement: PsiElement?,
         targetOffset: Int
     ): PsiElement? {
-        return contextElement?.let(::getCustomDocumentationElement)
+        return contextElement?.let(DocumentedAt::of)
     }
-
-    /**
-     * What [call] documents. Inside `&Mod.name/arity` the name carries no reference of its own - it lives on the
-     * enclosing capture operator, which is the only element that also spans the `/arity` - so a captured name is
-     * looked up through that instead.
-     */
-    private fun documentedChoice(call: Call): Documented.Choice? =
-        useOf(call)?.let { use -> Documented.of(use, isBound(call, use)) }
-
-    /** Whether a valid variable binds [call]'s name, which a use of it then names; a captured name is no such use. */
-    private fun isBound(call: Call, use: Use): Boolean = use is Use.OfCall && captureOf(call) == null && Callable.bound(call, false)
-
-    private fun captureOf(call: Call): CaptureNameArity? =
-        PsiTreeUtil.getParentOfType(call, NonNumeric::class.java)
-            ?.reference
-            ?.let { it as? CaptureNameArity }
-            ?.takeIf { it.nameElement == call }
-
-    /** The use [call] is, read from its reference's kind; `null` where it has no reference to document through. */
-    private fun useOf(call: Call): Use? {
-        val capture = captureOf(call)
-
-        return if (capture != null) {
-            Use.capture(call, capture.arity)
-        } else {
-            when (val reference = call.reference) {
-                is org.elixir_lang.reference.Callable,
-                is org.elixir_lang.psi.__module__.Reference -> Use.of(call)
-
-                is org.elixir_lang.reference.CallDefinitionClause ->
-                    Use.specification(call, reference.moduleAttribute)
-
-                else -> null
-            }
-        }
-    }
-
-    private tailrec fun getCustomDocumentationElement(contextElement: PsiElement): PsiElement? = when (contextElement) {
-        is LeafPsiElement, is ElixirIdentifier, is ElixirRelativeIdentifier ->
-            getCustomDocumentationElement(contextElement.parent)
-
-        is ElixirAtom -> when (val use = Use.mfa(contextElement)) {
-            null ->
-                contextElement.reference
-                    ?.let { it as? PsiPolyVariantReference }
-                    ?.multiResolve(false)
-                    ?.filter(ResolveResult::isValidResult)
-                    ?.mapNotNull(ResolveResult::getElement)
-                    ?.filterIsInstance<PsiNamedElement>()
-                    ?.let { Resolver.preferSource(it) }
-                    ?.firstOrNull()
-
-            else -> Documented.of(use).element
-        }
-
-        is Call -> documentedChoice(contextElement)?.element
-
-        is QualifiableAlias if declaringModuleCall(contextElement) != null ->
-            declaringModuleCall(contextElement)
-
-        is QualifiableAlias if contextElement.reference != null ->
-            contextElement.reference!!
-                .let { it as PsiPolyVariantReference }
-                .multiResolve(false)
-                .filter(ResolveResult::isValidResult)
-                .mapNotNull(ResolveResult::getElement)
-                .filterIsInstance<Call>()
-                .singleOrNull { isModular(it) }
-
-        is QualifiableAlias -> getCustomDocumentationElement(contextElement.parent)
-
-        else -> {
-            val quotedAtom = enclosingQuotedAtom(contextElement)
-
-            if (quotedAtom != null) getCustomDocumentationElement(quotedAtom) else null
-        }
-    }
-
-    /** The atom whose quoted name holds [element], unless [element] is inside an interpolation in that name. */
-    private fun enclosingQuotedAtom(element: PsiElement): ElixirAtom? =
-        PsiTreeUtil.getParentOfType(element, ElixirLine::class.java, false)
-            ?.takeUnless { element.isInterpolatedWithin(it) }
-            ?.parent as? ElixirAtom
 
     private fun formatDocs(
         element: PsiElement,
@@ -436,7 +329,6 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
             documentationHtml.append(DocumentationMarkup.SECTIONS_END)
         }
-    
     }
 
     private fun html(element: PsiElement, otpErlangObject: OtpErlangObject, writtenIn: String?): String =

@@ -18,6 +18,7 @@ import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.createSmartPointer
 import com.intellij.usageView.UsageViewShortNameLocation
 import com.intellij.usageView.UsageViewTypeLocation
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.ElixirLanguage
 
 /**
@@ -79,6 +80,7 @@ internal class ElixirDocumentationTarget private constructor(
             null
         }
 
+    @RequiresReadLock
     override fun computeDocumentation(): DocumentationResult? =
         ElixirDocumentationProvider()
             .render(targetElement, sourceElement, linkedArity)
