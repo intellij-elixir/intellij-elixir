@@ -1869,10 +1869,10 @@ private fun compile(
         // A raise at a statement from certain inputs ends the module body's run, even after an earlier unit stopped:
         // Elixir raised there or before it, so a module that stopped may raise.
         if (statement && raised || stepping.ends) {
-            compiling.ended = (compiling.ended as? Ended.Stopped)?.copy(mayRaise = true) ?: compiling.ended
+            compiling.ended = compiling.ended.asMayRaise() ?: compiling.ended
 
             if (stopsAt == null) {
-                compiling.endedInOrder = (compiling.endedInOrder as? Ended.Stopped)?.copy(mayRaise = true) ?: compiling.endedInOrder
+                compiling.endedInOrder = compiling.endedInOrder.asMayRaise() ?: compiling.endedInOrder
 
                 return stepping.ended(raw)
             }
