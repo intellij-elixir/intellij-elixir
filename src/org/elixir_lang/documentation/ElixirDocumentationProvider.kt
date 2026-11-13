@@ -56,7 +56,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             val reaching = reachedThrough(head, choice)?.takeIf { it.delegation != element }
             val delegations = reaching?.let { DelegationBlock.of(it.delegation, it.index, remote = !it.inside) }.orEmpty()
             // Through a delegation the target is called at the arity the delegation passes on, not the one written at the use.
-            val opened = linkedArity ?: reaching?.let { DelegationBlock.passed(it.delegation) } ?: calledArity(originalElement)
+            val opened = linkedArity ?: reaching?.let { DelegationBlock.passed(it.delegation) } ?: calledArity(head, originalElement)
 
             Rendered(formatDocs(element, fetched, delegations), anchor(fetched, opened))
         }
@@ -102,9 +102,12 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             ?.takeIf { it.linked }
             ?.let { arities -> arity?.let(arities::entryAt)?.id }
 
-    /** The arity used where [original] is written: at a call, a capture, an MFA atom or a declaration's head. */
-    private fun calledArity(original: PsiElement?): Int? =
-        headAt(original)?.declaration?.let(UseSymbols::headArity) ?: when (val use = useAt(original)?.use) {
+    /**
+     * The arity used where [original] is written: at a call, a capture, an MFA atom or a declaration's head, [head] where
+     * one is there.
+     */
+    private fun calledArity(head: Head?, original: PsiElement?): Int? =
+        head?.declaration?.let(UseSymbols::headArity) ?: when (val use = useAt(original)?.use) {
             is Use.OfCall -> use.arity
             is Use.Specified -> use.arity
             is Use.Remote -> use.arity
