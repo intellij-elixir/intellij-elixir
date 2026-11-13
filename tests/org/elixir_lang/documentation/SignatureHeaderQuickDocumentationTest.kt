@@ -218,6 +218,102 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
         )
     }
 
+    fun testAnExceptionWithAMessageIsHeadedByTheSignatureOfExceptionAlone() =
+        assertException("[:message]", "Oops.excep<caret>tion(m)", "exception(msg)")
+
+    fun testAnExceptionWithAMessageIsHeadedByTheSignatureOfMessageAlone() =
+        assertException("[:message]", "Oops.mess<caret>age(m)", "message(exception)")
+
+    fun testAnExceptionWithoutAMessageIsHeadedByTheSignatureOfExceptionAlone() =
+        assertException("[:reason]", "Oops.excep<caret>tion(m)", "exception(args)")
+
+    fun testAnOverriddenMessageIsHeadedByTheUsersDefAlone() = assertOverriddenMessage()
+
+    fun testAnOverriddenMessageIsHeadedByTheUsersDefAloneWithTheExpanderOn() {
+        expanderOn()
+        assertOverriddenMessage()
+    }
+
+    /** `defexception [:message]` makes `message/1` overridable, so the user's `def message/1` replaces it and heads it alone. */
+    private fun assertOverriddenMessage() =
+        assertHeader(
+            """
+            defmodule Oops do
+              defexception [:message]
+
+              @impl true
+              def message(user), do: user.message
+            end
+
+            defmodule Caller do
+              def calls(m), do: Oops.mess<caret>age(m)
+            end
+            """,
+            "<i>module</i> <b>Oops</b>",
+            "message(user)",
+            "  def message(user)"
+        )
+
+    fun testAMessageOfAnotherArityInsideTheExceptionIsListedAlone() = assertMessageOfAnotherArity()
+
+    fun testAMessageOfAnotherArityInsideTheExceptionIsListedAloneWithTheExpanderOn() {
+        expanderOn()
+        assertMessageOfAnotherArity()
+    }
+
+    /** Inside `Oops`, a use of the user's `message/2` lists it alone: not the `message/1` that `defexception` defines beside it. */
+    private fun assertMessageOfAnotherArity() =
+        assertHeader(
+            """
+            defmodule Oops do
+              defexception [:message]
+
+              def message(e, extra), do: {e, extra}
+
+              def calls(e), do: mess<caret>age(e, :extra)
+            end
+            """,
+            "<i>module</i> <b>Oops</b>",
+            "message(e, extra)",
+            "  def message(e, extra)"
+        )
+
+    /** Elixir defines `message/1` only for an exception with a `:message` field. */
+    fun testAnExceptionWithoutAMessageDocumentsNoMessage() {
+        myFixture.configureByText(
+            "exception.ex",
+            """
+            defmodule Oops do
+              defexception [:reason]
+            end
+
+            defmodule Caller do
+              def calls(e), do: Oops.mess<caret>age(e)
+            end
+            """.trimIndent()
+        )
+
+        val documentation = quickDocumentationAtCaret()
+
+        assertTrue("Expected no documentation, got: $documentation", documentation.isNullOrEmpty())
+    }
+
+    /** Quick Documentation at [use] of a function `defexception [fields]` defines in `Oops` is headed by [signature] alone. */
+    private fun assertException(fields: String, use: String, signature: String) =
+        assertHeader(
+            """
+            defmodule Oops do
+              defexception $fields
+            end
+
+            defmodule Caller do
+              def calls(m), do: $use
+            end
+            """,
+            "<i>module</i> <b>Oops</b>",
+            signature
+        )
+
     fun testACallbackKeepsItsAttributeAsItsHead() {
         myFixture.configureByText(
             "callbacks.ex",

@@ -115,10 +115,10 @@ sealed class FetchedDocs(open val module: String?) {
         companion object {
             /**
              * Whether a function is listed: every one from [inside] its module, else those [exported] and not [hidden], and
-             * always the one [used].
+             * always the one [used]. One [generated], as `defexception`'s functions are, is listed only where it is used.
              */
-            fun listed(inside: Boolean, exported: Boolean, hidden: Boolean, used: Boolean): Boolean =
-                inside || (exported && !hidden) || used
+            fun listed(inside: Boolean, exported: Boolean, hidden: Boolean, used: Boolean, generated: Boolean = false): Boolean =
+                used || (!generated && (inside || (exported && !hidden)))
         }
     }
 

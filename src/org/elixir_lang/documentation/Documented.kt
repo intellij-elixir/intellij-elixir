@@ -2,6 +2,7 @@ package org.elixir_lang.documentation
 
 import com.intellij.psi.PsiElement
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.code_insight.RecordedSignature
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.DelegationPrecedence
 import org.elixir_lang.declaration.Feature
@@ -14,6 +15,7 @@ import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.atItsHead
 import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.structure_view.element.Delegation
 
 /** The one site that chooses what a use documents, from the candidates the documentation source gives it. */
@@ -93,17 +95,25 @@ internal object Documented {
             { it is Call && Delegation.`is`(it) },
             { it is Call && writesDoc(it) }
         ) {
-            found.firstOrNull { defines(it.candidate.declaration.declared) }?.element
+            found.firstOrNull(::defines)?.element
                 ?: found.firstOrNull { it.candidate.declaration.declared is Declared.Compiled }?.element
                 ?: found.firstOrNull { it.isDelegation() }?.element
         }
 
     private fun Found.isDelegation(): Boolean = (candidate.declaration.declared as? Declared.Source)?.form == Form.DELEGATION
 
-    private fun defines(declared: Declared): Boolean =
-        declared is Declared.Source &&
-            when (declared.form) {
-                Form.CLAUSE, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> true
-                Form.CALLBACK, Form.DELEGATION, Form.EXCEPTION -> false
-            }
+    /** Whether [found] is a source declaration that defines its function: `defexception`'s where Elixir records one. */
+    @RequiresReadLock
+    private fun defines(found: Found): Boolean {
+        val declaration = found.candidate.declaration
+        val declared = declaration.declared as? Declared.Source ?: return false
+
+        return when (declared.form) {
+            Form.CLAUSE, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> true
+            Form.EXCEPTION ->
+                (found.element as? Call)?.let { DeclaringForm.head(it, declared.form, declaration.name, declaration.arity) }
+                    ?.let { RecordedSignature.parameters(declaration.name, RecordedSignature.Clause(declared.form, it)) } != null
+            Form.CALLBACK, Form.DELEGATION -> false
+        }
+    }
 }

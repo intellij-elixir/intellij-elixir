@@ -47,7 +47,9 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
         // Where no use is known, as for a link followed, the function is seen from outside its module. Its signature is
         // made in the module the use found it declared in, as Parameter Info's is.
-        return fetchDocs(element, remote = !isInside(element, head, choice), choice?.found?.declaringModuleName())?.let { fetched ->
+        val found = choice?.found
+
+        return fetchDocs(element, remote = !isInside(element, head, choice), found?.declaringModuleName(), found?.candidate?.declaration)?.let { fetched ->
             val reaching = reachedThrough(head, choice)?.takeIf { it.delegation != element }
             val delegations = reaching?.let { DelegationBlock.of(it.delegation, it.index, remote = !it.inside) }.orEmpty()
             // Through a delegation the target is called at the arity the delegation passes on, not the one written at the use.
@@ -354,15 +356,15 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             .generateHtml()
     }
 
-    private fun fetchDocs(element: PsiElement, remote: Boolean, declaringModule: String?): FetchedDocs? =
+    private fun fetchDocs(element: PsiElement, remote: Boolean, declaringModule: String?, used: Declaration?): FetchedDocs? =
     // For compiled Beam elements, prefer docs from the decompiled source mirror so hover uses
         // the cached inline docs from decompilation, headed by what the `.beam` itself records.
         if (element.containingFile?.originalFile is BeamFileImpl) {
             val sourceElement = (element as? PsiCompiledElement)?.mirror ?: element.navigationElement
 
-            SourceFileDocsHelper.fetchDocs(sourceElement, remote, declaringModule)?.let { BeamDocsHelper.headed(element, it) }
+            SourceFileDocsHelper.fetchDocs(sourceElement, remote, declaringModule, used)?.let { BeamDocsHelper.headed(element, it) }
                 ?: BeamDocsHelper.fetchDocs(element)
         } else {
-            SourceFileDocsHelper.fetchDocs(element, remote, declaringModule)
+            SourceFileDocsHelper.fetchDocs(element, remote, declaringModule, used)
         }
 }
