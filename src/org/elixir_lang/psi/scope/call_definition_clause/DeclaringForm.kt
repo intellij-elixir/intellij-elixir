@@ -10,7 +10,6 @@ import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Form
-import org.elixir_lang.declaration.Head
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirList
@@ -154,23 +153,20 @@ object DeclaringForm {
         namedHeads(call, form).flatMap(CallDefinitionHead::nameElements)
 
     /**
-     * The [Head] [element] writes [declaration] under, in [module]: a clause's or a delegation's head, the one of a list
-     * of `defdelegate` heads with its name and arity, the call of a form that writes no head, or a compiled definition.
+     * The head [element] writes [declaration] under: a clause's or a delegation's head, the one of a list of
+     * `defdelegate` heads with its name and arity, the call of a form that writes no head, or a compiled definition.
      */
     @RequiresReadLock
-    fun writtenHead(element: PsiElement, declaration: Declaration, module: String?): Head {
-        val written = when (val declared = declaration.declared) {
+    fun written(element: PsiElement, declaration: Declaration): PsiElement? =
+        when (val declared = declaration.declared) {
             is Declared.Compiled -> element
             is Declared.Source -> (element as? Call)?.let { head(it, declared.form, declaration.name, declaration.arity) }
         }
 
-        return Head(written, module, declaration.name, declaration.arity)
-    }
-
-    /** The [writtenHead] a caret on [element]'s name names [declaration] at: none at a head [names] leaves out. */
+    /** The head [written] a caret on [element]'s name names [declaration] at: none at a head [names] leaves out. */
     @RequiresReadLock
     fun namedHead(element: PsiElement, declaration: Declaration): PsiElement? =
-        writtenHead(element, declaration, module = null).written?.takeUnless { head ->
+        written(element, declaration)?.takeUnless { head ->
             (element as? Call)?.let { call ->
                 (declaration.declared as? Declared.Source)?.form?.let { form -> head in heads(call, form) && head !in namedHeads(call, form) }
             } == true

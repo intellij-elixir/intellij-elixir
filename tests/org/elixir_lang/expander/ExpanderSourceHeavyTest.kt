@@ -19,6 +19,7 @@ import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.Signature
+import org.elixir_lang.code_insight.signatures
 import org.elixir_lang.declaration.Answer
 import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.Feature
@@ -2366,6 +2367,42 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             """.trimIndent(),
             candidates(file, "p_measure(1)", "p_measure(1)"),
         )
+    }
+
+    /**
+     * A `defimpl` for several modules writes its clauses in each, so Parameter Info names each module's function by
+     * the signature Elixir records from its clauses, from within the `defimpl` and from outside it, as the walk does.
+     */
+    fun testParameterInfoNamesTheParametersOfADefimplForSeveralModules() {
+        val file = file(
+            """
+            defprotocol Placed do
+              def f(x)
+            end
+
+            defimpl Placed, for: [Atom, Integer] do
+              def f([]), do: []
+              def f(list), do: list
+              def run(x), do: f(x)
+            end
+
+            defmodule Caller do
+              def go, do: Placed.Integer.f(1)
+            end
+            """
+        )
+
+        val calls = listOf("do: f(x)" to "f(x)", "Placed.Integer.f(1)" to "Placed.Integer.f(1)")
+        val parameters = { use: Use ->
+            read { signatures(Resolved.step(use, true, feature = Feature.PARAMETER_INFO)).map(Signature::parameters) }
+        }
+        val answers = calls.associate { (context, call) ->
+            val use = use(file, context, call)
+
+            call to (parameters(use) to withExpanderSwitch { parameters(use) })
+        }
+
+        assertEquals(calls.associate { (_, call) -> call to (listOf(listOf("list")) to listOf(listOf("list"))) }, answers)
     }
 
     /** A library's source and its `.beam` define one function, so the index gives it once. */

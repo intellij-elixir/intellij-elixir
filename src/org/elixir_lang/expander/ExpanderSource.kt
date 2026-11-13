@@ -461,6 +461,8 @@ internal object ExpanderSource : CandidateSource {
      * @property module the module's index name (`Module.indexName`), as [Head.module] has it
      * @property injectedBy the call whose evaluated output injected it into [module], as written in [module]'s file
      * @property uncertain why it may not be a definition Elixir has, `null` where it is
+     * @property injected whether a macro's output injected it, rather than its module's own body writing it, though
+     *   [injectedBy] may not be found
      */
     private class Defined(
         val declaration: Declaration,
@@ -470,12 +472,16 @@ internal object ExpanderSource : CandidateSource {
         val injectedBy: Call?,
         val delegation: DefinitionTable.Delegation? = null,
         val uncertain: Uncertain? = null,
+        val injected: Boolean = false,
     ) {
+        /** The call that places it in [module], as [Head.placedBy] is: itself where its module's own body writes it. */
+        val placedBy: Call? get() = if (injected) injectedBy else element as? Call
+
         /** Its head, which tells apart the heads of a list of `defdelegate` heads, and the modules one macro's output declares it in. */
-        val head: Head get() = Head(written, module, declaration.name, declaration.arity)
+        val head: Head get() = Head(written, module, placedBy, declaration.name, declaration.arity)
 
         fun marked(uncertain: Uncertain): Defined =
-            Defined(declaration, element, written, module, injectedBy, delegation, this.uncertain ?: uncertain)
+            Defined(declaration, element, written, module, injectedBy, delegation, this.uncertain ?: uncertain, injected)
 
         /** Whether [declaration] takes [arity] arguments, which is not known past a head with no largest arity. */
         fun admits(arity: Int?): Boolean = arity == null || declaration.arity.admits(arity)
@@ -522,7 +528,7 @@ internal object ExpanderSource : CandidateSource {
      * it, as [Reach.USE], or else as [Reach.OWN].
      */
     private fun heldOnly(defined: Defined, name: String?, arity: Int?, remote: Boolean): Reached {
-        val reach = if (defined.injectedBy == null) Reach.OWN else Reach.USE
+        val reach = if (defined.injected) Reach.USE else Reach.OWN
 
         return reached(defined, reach, listOfNotNull(defined.injectedBy), name, arity, remote)
     }
@@ -597,6 +603,7 @@ internal object ExpanderSource : CandidateSource {
                 defined.injectedBy,
                 defined.delegation,
                 defined.uncertain,
+                defined.injected,
             )
         }
 
@@ -892,6 +899,7 @@ internal object ExpanderSource : CandidateSource {
                     Module.indexName(result.module),
                     injectedBy,
                     head.delegation,
+                    injected = head.injected != null,
                 )
             }
         }

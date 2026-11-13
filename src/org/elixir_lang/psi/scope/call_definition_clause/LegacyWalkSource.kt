@@ -23,6 +23,7 @@ import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.CompletionPosition
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Found
+import org.elixir_lang.declaration.Head
 import org.elixir_lang.declaration.Reach
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
@@ -359,15 +360,18 @@ object LegacyWalkSource : CandidateSource {
                 val paths = reached.visitedElementSet.filterIsInstance<Call>().filter(::isPath)
 
                 val via = paths + reached.via
+                val placedBy = placedBy(reached, reach, result.element, via)
 
                 Found(
                     Candidate(reached.declaration, reach, applicability),
                     result.element,
                     via,
-                    DeclaringForm.writtenHead(
-                        result.element,
-                        reached.declaration,
-                        declaringModule(reached, reach, result.element, via),
+                    Head(
+                        DeclaringForm.written(result.element, reached.declaration),
+                        declaringModule(reached, placedBy),
+                        placedBy,
+                        reached.declaration.name,
+                        reached.declaration.arity,
                     ),
                     delegatedThrough = null,
                 )
@@ -375,14 +379,24 @@ object LegacyWalkSource : CandidateSource {
         }
 
     /**
-     * The name of the module that declares [reached]: a compiled one's own, and for a source one the module enclosing
-     * its [element], or, for what a `use` injects, the module that holds the `use`, the first call [via] crossed.
+     * The call that places [reached] in the module that declares it: for a source one its own [element], or, for what
+     * a `use` injects, the first call [via] crossed, the `use`; none for a compiled one.
      */
-    private fun declaringModule(reached: ReachedDeclaration, reach: Reach, element: PsiElement, via: List<Call>): String? =
+    private fun placedBy(reached: ReachedDeclaration, reach: Reach, element: PsiElement, via: List<Call>): Call? =
+        when (reached.declaration.declared) {
+            is Declared.Compiled -> null
+            is Declared.Source -> via.firstOrNull().takeIf { reach == Reach.USE } ?: element as? Call
+        }
+
+    /**
+     * The name of the module that declares [reached]: a compiled one's own, and for a source one the module enclosing
+     * the call [placedBy] that places it.
+     */
+    private fun declaringModule(reached: ReachedDeclaration, placedBy: Call?): String? =
         when (val declared = reached.declaration.declared) {
             is Declared.Compiled -> declared.origin.module
             is Declared.Source ->
-                (via.firstOrNull().takeIf { reach == Reach.USE } ?: element as? Call)
+                placedBy
                     ?.let { CallDefinitionClause.enclosingModularMacroCall(it) }
                     ?.let { SyntacticCall.of(it).canonicalName() }
         }

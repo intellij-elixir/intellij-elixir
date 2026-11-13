@@ -2,7 +2,7 @@ package org.elixir_lang.documentation
 
 import com.intellij.psi.PsiElement
 import com.intellij.util.concurrency.annotations.RequiresReadLock
-import org.elixir_lang.code_insight.RecordedSignature
+import org.elixir_lang.code_insight.Signature
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.DelegationPrecedence
 import org.elixir_lang.declaration.Feature
@@ -15,7 +15,6 @@ import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.atItsHead
 import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.structure_view.element.Delegation
 
 /** The one site that chooses what a use documents, from the candidates the documentation source gives it. */
@@ -110,9 +109,7 @@ internal object Documented {
 
         return when (declared.form) {
             Form.CLAUSE, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> true
-            Form.EXCEPTION ->
-                (found.element as? Call)?.let { DeclaringForm.head(it, declared.form, declaration.name, declaration.arity) }
-                    ?.let { RecordedSignature.parameters(declaration.name, RecordedSignature.Clause(declared.form, it)) } != null
+            Form.EXCEPTION -> (found.element as? Call)?.let { Signature.declaredBy(it, declaration) } != null
             Form.CALLBACK, Form.DELEGATION -> false
         }
     }

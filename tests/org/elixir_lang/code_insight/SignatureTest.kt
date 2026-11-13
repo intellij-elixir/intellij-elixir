@@ -174,6 +174,27 @@ class SignatureTest : PlatformTestCase() {
         )
     }
 
+    /** A `defimpl` for several modules writes its clauses in each, so each is hinted by the signature Elixir records. */
+    fun testAClauseOfADefimplForSeveralModulesNamesTheParameters() {
+        assertEquals(
+            listOf("list"),
+            sourceHint(
+                """
+                defprotocol P do
+                  def f(x)
+                end
+
+                defimpl P, for: [A, B] do
+                  def f([]), do: []
+                  def f(list), do: list
+
+                  def run(x), do: f(<caret>x)
+                end
+                """
+            )
+        )
+    }
+
     /** A module [name] whose `__using__/1` injects [quoted], after a `@moduledoc` of [padding] characters. */
     private fun using(name: String, quoted: String, padding: Int = 0): String =
         """
