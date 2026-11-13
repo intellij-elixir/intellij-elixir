@@ -22,6 +22,43 @@ class ParameterHighlightTest : PlatformTestCase() {
     fun testAnArgumentOfACallWithAllTheParametersIsTheParameterAtItsPosition() =
         assertEquals("b \\\\ 1", highlighted(headWithMiddleDefaults.replace("CALL", "h(x, y<caret>, z, w)"), index = 1))
 
+    /**
+     * A default declared after a clause without one is still a default (Elixir warns), though the signature Elixir
+     * records, `m(a, b, c)`, drops it: `m(x, y)` still binds `a` and `c`.
+     */
+    fun testAnArgumentIsBoundByADefaultTheRecordedSignatureDrops() =
+        assertEquals(
+            "c",
+            highlighted(
+                """
+                defmodule Definer do
+                  def m(a, b, c), do: {a, b, c}
+                  def m(a, b \\ 0, c), do: {a, b, c}
+
+                  def calls(x, y), do: m(x, y<caret>)
+                end
+                """.trimIndent(),
+                index = 1
+            )
+        )
+
+    /** A bare head declares no default, but a clause below it may (Elixir warns): `m(x, y)` still binds `a` and `c`. */
+    fun testAnArgumentIsBoundByADefaultAClauseBelowABareHeadDeclares() =
+        assertEquals(
+            "c",
+            highlighted(
+                """
+                defmodule Definer do
+                  def m(a, b, c)
+                  def m(a, b \\ 0, c), do: {a, b, c}
+
+                  def calls(x, y), do: m(x, y<caret>)
+                end
+                """.trimIndent(),
+                index = 1
+            )
+        )
+
     private fun highlighted(text: String, index: Int): String {
         myFixture.configureByText("highlight.ex", text)
 

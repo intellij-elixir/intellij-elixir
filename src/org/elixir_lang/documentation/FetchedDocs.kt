@@ -3,11 +3,13 @@ package org.elixir_lang.documentation
 import com.ericsson.otp.erlang.OtpErlangBinary
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.PsiElement
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Doc
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByLanguage
 import org.elixir_lang.beam.term.inspect
+import org.elixir_lang.code_insight.definition
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
@@ -28,8 +30,11 @@ sealed class FetchedDocs(open val module: String?) {
         val doc: Doc?,
         val impls: List<String>,
         val specs: List<String>,
-        val heads: List<String>
+        val heads: List<String>,
+        val titles: List<String> = emptyList()
     ) : FetchedDocs(module) {
+        val heading: Heading get() = Heading(titles, specs, heads)
+
         fun merge(other: FunctionOrMacroDocumentation): FunctionOrMacroDocumentation {
             assert(module == other.module)
 
@@ -60,7 +65,7 @@ sealed class FetchedDocs(open val module: String?) {
             fun fromCallDefinitionClauseCall(
                 module: String?,
                 call: Call,
-                head: String
+                head: String?
             ): FunctionOrMacroDocumentation {
                 val callDefinitionAttributeListByName = callDefinitionAttributeListByName(call)
                 val deprecated = callDefinitionAttributeListByName[DEPRECATED]?.joinModuleAttributeQuoteText()
@@ -69,9 +74,8 @@ sealed class FetchedDocs(open val module: String?) {
                     ?.let { MarkdownByLanguage.english(it) }
                 val impls = callDefinitionAttributeListByName[IMPL].moduleAttributeValueTextList()
                 val specs = callDefinitionAttributeListByName[SPEC].moduleAttributeValueTextList()
-                val heads = listOf(head)
 
-                return FunctionOrMacroDocumentation(module, deprecated, doc, impls, specs, heads)
+                return FunctionOrMacroDocumentation(module, deprecated, doc, impls, specs, listOfNotNull(head))
             }
 
             private fun mergeDeprecated(first: OtpErlangObject?, second: OtpErlangObject?): OtpErlangObject? =
@@ -99,8 +103,11 @@ sealed class FetchedDocs(open val module: String?) {
     data class Arities(override val module: String?, val entries: List<Entry>) : FetchedDocs(module) {
         data class Entry(val arities: ArityInterval, val documentation: FunctionOrMacroDocumentation) {
             /** Names this entry in a link to it. */
-            val id: String get() = "arity-${arities.maximum ?: arities.minimum}"
+            val id: String get() = "arity-${arities.definition().first}"
         }
+
+        /** Whether there are several entries, so each is linked to its own anchor. */
+        val linked: Boolean get() = entries.size > 1
 
         /** The entry for the function used at [arity], if there is one. */
         fun entryAt(arity: Int): Entry? = entries.firstOrNull { arity in it.arities }
@@ -112,6 +119,36 @@ sealed class FetchedDocs(open val module: String?) {
              */
             fun listed(inside: Boolean, exported: Boolean, hidden: Boolean, used: Boolean): Boolean =
                 inside || (exported && !hidden) || used
+        }
+    }
+
+    /**
+     * What heads the documentation of a function: Elixir's signature for each arity it covers ([titles]), then each
+     * `@spec`, then the head of each declaration as written. Where no signature is known, the heads stand in for it.
+     */
+    class Heading(val titles: List<String>, val specs: List<String>, val heads: List<String>) {
+        /** What names the function: its signatures, else its heads. */
+        private val names: List<String> get() = titles.ifEmpty { heads }
+
+        /** Appends the heading to a definition block, each name linked to the anchor [link] when one is given. */
+        fun appendTo(html: StringBuilder, link: String?) {
+            for (name in names.map(StringUtil::escapeXmlEntities)) {
+                if (link != null) html.append("<a href=\"#").append(link).append("\">").append(name).append("</a>") else html.append(name)
+                html.append("\n")
+            }
+
+            for (spec in specs) html.append("  @spec ").append(StringUtil.escapeXmlEntities(spec)).append("\n")
+
+            if (titles.isNotEmpty()) {
+                for (head in heads) html.append("  ").append(StringUtil.escapeXmlEntities(head)).append("\n")
+            }
+        }
+
+        /** Appends the anchor [id] to a content block, with the names it is linked from. */
+        fun appendAnchorTo(html: StringBuilder, id: String) {
+            html.append("<a id=\"").append(id).append("\"></a><b>")
+                .append(names.joinToString("<br>", transform = StringUtil::escapeXmlEntities))
+                .append("</b>")
         }
     }
 

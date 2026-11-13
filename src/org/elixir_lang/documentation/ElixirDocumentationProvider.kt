@@ -8,7 +8,6 @@ import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
-import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.*
 import com.intellij.psi.impl.source.tree.LeafPsiElement
 import com.intellij.psi.util.PsiTreeUtil
@@ -47,35 +46,40 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
     /** Rendered documentation, and the anchor it opens at: the entry of the arity the original element uses, or the arity a followed link gave. */
     class Rendered(val html: String, val anchor: String?)
 
-    fun render(element: PsiElement, originalElement: PsiElement?, linkedArity: Int? = null): Rendered? =
-        // Where no use is known, as for a link followed, the function is seen from outside its module.
-        fetchDocs(element, remote = !isInside(element, originalElement))?.let { fetched ->
-            val reaching = delegationReaching(element, originalElement)
-            val delegations = reaching?.let { DelegationBlock.of(it.delegation, it.module, remote = !it.inside) }.orEmpty()
+    fun render(element: PsiElement, originalElement: PsiElement?, linkedArity: Int? = null): Rendered? {
+        val head = headAt(originalElement)
+        val choice = choiceAt(originalElement)?.takeIf { it.element == element }
+
+        // Where no use is known, as for a link followed, the function is seen from outside its module. Its signature is
+        // made in the module the use found it declared in, as Parameter Info's is.
+        return fetchDocs(element, remote = !isInside(element, head, choice), choice?.found?.declaringModuleName())?.let { fetched ->
+            val reaching = reachedThrough(head, choice)?.takeIf { it.delegation != element }
+            val delegations = reaching?.let { DelegationBlock.of(it.delegation, it.index, remote = !it.inside) }.orEmpty()
             // Through a delegation the target is called at the arity the delegation passes on, not the one written at the use.
-            val opened = linkedArity ?: reaching?.let { DelegationBlock.passed(it.delegation) } ?: calledArity(originalElement)
+            val opened = linkedArity ?: reaching?.let { DelegationBlock.passed(it.delegation) } ?: calledArity(head, originalElement)
 
             Rendered(formatDocs(element, fetched, delegations), anchor(fetched, opened))
         }
+    }
 
-    /** Whether [original] is inside the module that holds [element]: the name of the call that declares [element] is, whatever it spells. */
-    private fun isInside(element: PsiElement, original: PsiElement?): Boolean =
-        headAt(original)?.call == element || choiceAt(original)?.takeIf { it.element == element }?.inside == true
+    /**
+     * Whether the caret is inside the module that holds [element]: [head], the declaring call at the caret, is the call
+     * that declares [element], whatever it spells, or the use [choice] of [element] is.
+     */
+    private fun isInside(element: PsiElement, head: Head?, choice: Documented.Choice?): Boolean =
+        head?.call == element || choice?.inside == true
 
-    /** A delegation, the name of the module that holds it when it is known, and whether the use is inside that module. */
-    private class Reaching(val delegation: Call, val module: String?, val inside: Boolean)
+    /** A delegation, the index name of the module that holds it when it is known, and whether the use is inside that module. */
+    private class Reaching(val delegation: Call, val index: String?, val inside: Boolean)
 
-    /** The delegation [original] reached [element] through, which has no `@doc` of its own to show instead. */
-    private fun delegationReaching(element: PsiElement, original: PsiElement?): Reaching? =
-        reachedThrough(element, original)?.takeIf { it.delegation != element }
-
-    private fun reachedThrough(element: PsiElement, original: PsiElement?): Reaching? {
-        val head = headAt(original)
-
-        return if (head != null) {
+    /**
+     * The delegation the caret reached the documented element through, which has no `@doc` of its own to show instead:
+     * the one [head], the declaring call at the caret, is, else the one the use [choice] went through.
+     */
+    private fun reachedThrough(head: Head?, choice: Documented.Choice?): Reaching? =
+        if (head != null) {
             head.call.takeIf { head.form == Form.DELEGATION }?.let { delegation -> Reaching(delegation, moduleOf(delegation), inside = true) }
         } else {
-            val choice = choiceAt(original)?.takeIf { it.element == element }
             val found = choice?.delegation
 
             (found?.element as? Call)?.let { delegation ->
@@ -85,23 +89,25 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 Reaching(delegation, injectedInto ?: moduleOf(delegation), inside = choice.insideDelegation)
             }
         }
-    }
 
-    /** The name of the module [delegation] is written in, `null` where it is in a `quote`. */
+    /** The index name of the module [delegation] is written in, `null` where it is in a `quote`. */
     private fun moduleOf(delegation: Call): String? =
-        enclosingModularMacroCall(delegation)?.let(SourceFileDocsHelper::moduleName)
+        enclosingModularMacroCall(delegation)?.let(SourceFileDocsHelper::indexName)
 
     override fun generateDoc(element: PsiElement, originalElement: PsiElement?): String? =
         render(element, originalElement)?.html
 
     private fun anchor(fetched: FetchedDocs, arity: Int?): String? =
         (fetched as? FetchedDocs.Arities)
-            ?.takeIf { it.entries.size > 1 }
+            ?.takeIf { it.linked }
             ?.let { arities -> arity?.let(arities::entryAt)?.id }
 
-    /** The arity used where [original] is written: at a call, a capture, an MFA atom or a declaration's head. */
-    private fun calledArity(original: PsiElement?): Int? =
-        headAt(original)?.declaration?.let(UseSymbols::headArity) ?: when (val use = useAt(original)?.use) {
+    /**
+     * The arity used where [original] is written: at a call, a capture, an MFA atom or a declaration's head, [head] where
+     * one is there.
+     */
+    private fun calledArity(head: Head?, original: PsiElement?): Int? =
+        head?.declaration?.let(UseSymbols::headArity) ?: when (val use = useAt(original)?.use) {
             is Use.OfCall -> use.arity
             is Use.Specified -> use.arity
             is Use.Remote -> use.arity
@@ -304,28 +310,11 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 documentationHtml.append(fetchedDocs.head).append("\n")
             }
 
-            is FetchedDocs.FunctionOrMacroDocumentation -> {
-                for (head in fetchedDocs.heads) {
-                    documentationHtml.append(head).append("\n")
-                }
-            }
+            is FetchedDocs.FunctionOrMacroDocumentation -> fetchedDocs.heading.appendTo(documentationHtml, link = null)
 
             is FetchedDocs.Arities -> {
-                val linked = fetchedDocs.entries.size > 1
-
                 for (entry in fetchedDocs.entries) {
-                    for (head in entry.documentation.heads) {
-                        if (linked) {
-                            documentationHtml
-                                .append("<a href=\"#").append(entry.id).append("\">")
-                                .append(StringUtil.escapeXmlEntities(head))
-                                .append("</a>")
-                        } else {
-                            documentationHtml.append(head)
-                        }
-
-                        documentationHtml.append("\n")
-                    }
+                    entry.documentation.heading.appendTo(documentationHtml, entry.id.takeIf { fetchedDocs.linked })
                 }
             }
 
@@ -360,16 +349,11 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             is FetchedDocs.FunctionOrMacroDocumentation -> appendFunctionContent(documentationHtml, element, fetchedDocs)
 
             is FetchedDocs.Arities -> {
-                val linked = fetchedDocs.entries.size > 1
-
                 for (entry in fetchedDocs.entries) {
-                    if (linked) {
-                        documentationHtml
-                            .append(DocumentationMarkup.CONTENT_START)
-                            .append("<a id=\"").append(entry.id).append("\"></a><b>")
-                            .append(entry.documentation.heads.joinToString("<br>") { StringUtil.escapeXmlEntities(it) })
-                            .append("</b>")
-                            .append(DocumentationMarkup.CONTENT_END)
+                    if (fetchedDocs.linked) {
+                        documentationHtml.append(DocumentationMarkup.CONTENT_START)
+                        entry.documentation.heading.appendAnchorTo(documentationHtml, entry.id)
+                        documentationHtml.append(DocumentationMarkup.CONTENT_END)
                     }
 
                     appendFunctionContent(documentationHtml, element, entry.documentation)
@@ -418,10 +402,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         val deprecated = function.deprecated
         val impls = function.impls
         val implsIsNotEmpty = impls.isNotEmpty()
-        val specs = function.specs
-        val specsIsNotEmpty = specs.isNotEmpty()
 
-        if (deprecated != null || implsIsNotEmpty || specsIsNotEmpty) {
+        if (deprecated != null || implsIsNotEmpty) {
             documentationHtml.append(DocumentationMarkup.SECTIONS_START)
 
             if (deprecated != null) {
@@ -452,19 +434,6 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                     .append(DocumentationMarkup.SECTION_END)
             }
 
-            if (specsIsNotEmpty) {
-                documentationHtml
-                    .append(DocumentationMarkup.SECTION_HEADER_START)
-                    .append("Specifications")
-                    .append(DocumentationMarkup.SECTION_SEPARATOR)
-
-                for (spec in specs) {
-                    documentationHtml.append(spec).append("<br />\n")
-                }
-
-                documentationHtml.append(DocumentationMarkup.SECTION_END)
-            }
-
             documentationHtml.append(DocumentationMarkup.SECTIONS_END)
         }
     
@@ -493,15 +462,15 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             .generateHtml()
     }
 
-    private fun fetchDocs(element: PsiElement, remote: Boolean): FetchedDocs? =
+    private fun fetchDocs(element: PsiElement, remote: Boolean, declaringModule: String?): FetchedDocs? =
     // For compiled Beam elements, prefer docs from the decompiled source mirror so hover uses
-        // the cached inline docs from decompilation.
+        // the cached inline docs from decompilation, headed by what the `.beam` itself records.
         if (element.containingFile?.originalFile is BeamFileImpl) {
             val sourceElement = (element as? PsiCompiledElement)?.mirror ?: element.navigationElement
 
-            SourceFileDocsHelper.fetchDocs(sourceElement, remote)
+            SourceFileDocsHelper.fetchDocs(sourceElement, remote, declaringModule)?.let { BeamDocsHelper.headed(element, it) }
                 ?: BeamDocsHelper.fetchDocs(element)
         } else {
-            SourceFileDocsHelper.fetchDocs(element, remote)
+            SourceFileDocsHelper.fetchDocs(element, remote, declaringModule)
         }
 }

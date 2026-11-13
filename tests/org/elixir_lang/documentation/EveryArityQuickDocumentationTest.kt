@@ -448,7 +448,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
         )
     }
 
-    /** A bodiless head and a clause written alike are one head: the header links it once and the entry's title shows it once. */
+    /** A bodiless head and a clause written alike are one head: the header shows it once under the entry's linked signature. */
     fun testAHeadWrittenTwiceIsListedOnceAmongSeveralArities() {
         myFixture.configureByText(
             "reducing.ex",
@@ -468,11 +468,9 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
         )
 
         val documentation = quickDocumentationAtCaret().orEmpty()
-        val head = "reduce(enumerable, fun)"
-
-        assertEquals("Expected the head linked once in the header, got: $documentation", 1, """<a href="#arity-2">$head</a>""".toRegex(RegexOption.LITERAL).findAll(documentation).count())
-        assertEquals("Expected the head in the header and in the title of its entry, once each, got: $documentation", 2, head.toRegex(RegexOption.LITERAL).findAll(documentation).count())
-        assertEquals("Expected the other head of the entry kept, got: $documentation", 2, "reduce([h | t], fun)".toRegex(RegexOption.LITERAL).findAll(documentation).count())
+        assertEquals("Expected the signature linked once in the header, got: $documentation", 1, """<a href="#arity-2">reduce(enumerable, fun)</a>""".toRegex(RegexOption.LITERAL).findAll(documentation).count())
+        assertEquals("Expected the repeated head once, got: $documentation", 1, "def reduce(enumerable, fun)".toRegex(RegexOption.LITERAL).findAll(documentation).count())
+        assertEquals("Expected the other head of the entry kept, got: $documentation", 1, "def reduce([h | t], fun)".toRegex(RegexOption.LITERAL).findAll(documentation).count())
     }
 
     /** A function of one arity shows a head written twice once. */
@@ -493,8 +491,8 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
 
         val documentation = quickDocumentationAtCaret().orEmpty()
 
-        assertEquals("Expected the repeated head once, got: $documentation", 1, "reduce(enumerable, fun)".toRegex(RegexOption.LITERAL).findAll(documentation).count())
-        assertEquals("Expected the other head kept, got: $documentation", 1, "reduce([h | t], fun)".toRegex(RegexOption.LITERAL).findAll(documentation).count())
+        assertEquals("Expected the repeated head once, got: $documentation", 1, "def reduce(enumerable, fun)".toRegex(RegexOption.LITERAL).findAll(documentation).count())
+        assertEquals("Expected the other head kept, got: $documentation", 1, "def reduce([h | t], fun)".toRegex(RegexOption.LITERAL).findAll(documentation).count())
     }
 
     private fun assertOnlyTheVisibleArities(documentation: String) {

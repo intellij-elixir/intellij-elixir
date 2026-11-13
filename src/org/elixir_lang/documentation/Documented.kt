@@ -19,15 +19,15 @@ import org.elixir_lang.structure_view.element.Delegation
 /** The one site that chooses what a use documents, from the candidates the documentation source gives it. */
 internal object Documented {
     /**
-     * What a use documents, the delegation it reached that element through when it did, and whether each is [inside]: held
-     * by the module the use is in, which can then call every function it defines.
+     * What a use documents and its [found], the delegation it reached that element through when it did, and whether each
+     * is [inside]: held by the module the use is in, which can then call every function it defines.
      */
-    class Choice(val element: PsiElement?, val delegation: Found?, val inside: Boolean, val insideDelegation: Boolean)
+    class Choice(val element: PsiElement?, val found: Found?, val delegation: Found?, val inside: Boolean, val insideDelegation: Boolean)
 
     /** What [use] documents; [bound] is whether a valid variable binds its name. A use of an unknown name documents nothing. */
     @RequiresReadLock
     fun of(use: Use, bound: Boolean = false): Choice {
-        if (use is Use.AnyName) return Choice(element = null, delegation = null, inside = false, insideDelegation = false)
+        if (use is Use.AnyName) return Choice(element = null, found = null, delegation = null, inside = false, insideDelegation = false)
 
         val step = Resolved.step(use, incompleteCode = false, bound, Feature.DOCUMENTATION)
             // The name at a `@spec` is the name a delegation's head writes, so a delegation comes with its targets.
@@ -39,12 +39,14 @@ internal object Documented {
         val chosen = if (documented != null) step else nearMiss(use, projection)
         val shown = if (documented != null) projection else Resolved.projection(chosen, Feature.DOCUMENTATION)
         val element = documented ?: documented(shown)
+        val found = element?.let { shown.firstOrNull { it.element == element } }
         val delegation = chosen.firstOrNull { reaches(it, element) }?.found
 
         return Choice(
             element,
+            found,
             delegation,
-            inside = element != null && held(use, shown.firstOrNull { it.element == element }),
+            inside = element != null && held(use, found),
             insideDelegation = delegation != null && held(use, delegation)
         )
     }

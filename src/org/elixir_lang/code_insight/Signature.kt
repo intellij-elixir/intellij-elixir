@@ -12,21 +12,21 @@ import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.psi.ArityInterval
-import org.elixir_lang.psi.ElixirAtom
-import org.elixir_lang.psi.ElixirList
-import org.elixir_lang.psi.Exception as ElixirException
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.quotedAtomValue
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 
 /**
- * The parameters one definition of a function or macro takes, as text. The guard is not a parameter.
+ * The parameters one definition of a function or macro takes, as text. The guard is not a parameter. [binding] are the
+ * parameters of the head that declares the defaults, which say which parameter each argument of a call binds: the
+ * names Elixir records can leave out a default a later clause declares.
  */
-data class Signature(val nameArityInterval: NameArityInterval, val parameters: List<String>) {
+data class Signature(
+    val nameArityInterval: NameArityInterval,
+    val parameters: List<String>,
+    val binding: List<String> = parameters
+) {
     /** What names a definition: its name and the arities it covers, by the largest, or by the least where open. */
     internal val definition: Pair<String, Pair<Int, Boolean>>
         get() = nameArityInterval.name to nameArityInterval.arityInterval.definition()
@@ -64,9 +64,9 @@ data class Signature(val nameArityInterval: NameArityInterval, val parameters: L
                 ?: return null
             val parameters = when (form) {
                 Form.CLAUSE, Form.DELEGATION -> headParameters(head)
-                Form.EXCEPTION -> exception(declaration.name)
-                Form.EEX_FUNCTION_FROM -> (head as? Call)?.let(::eexFunctionFrom)
-                Form.GENERATOR_EMBED -> (head as? Call)?.let(::embed)
+                // No head spells these; their names are the ones Elixir records.
+                Form.EXCEPTION, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED ->
+                    RecordedSignature.parameters(declaration.name, RecordedSignature.Clause(form, head))
                 Form.CALLBACK -> null
             }
 
@@ -75,29 +75,6 @@ data class Signature(val nameArityInterval: NameArityInterval, val parameters: L
 
         private fun headParameters(head: PsiElement): List<String> =
             (CallDefinitionHead.strip(head) as? Call)?.let(CallDefinitionHead::parameters)?.map { it.text }.orEmpty()
-
-        /** The two functions `defexception` defines take the other's name: `exception(message)`, `message(exception)`. */
-        private fun exception(name: String): List<String> =
-            when (name) {
-                ElixirException.EXCEPTION.name -> listOf(ElixirException.MESSAGE.name)
-                ElixirException.MESSAGE.name -> listOf(ElixirException.EXCEPTION.name)
-                else -> emptyList()
-            }
-
-        /**
-         * The macro's own `[:a, :b]` argument-name list, which no PSI head spells; a name that isn't an atom literal
-         * leaves a slot called `arg`.
-         */
-        private fun eexFunctionFrom(call: Call): List<String> =
-            call.finalArguments()
-                ?.getOrNull(3)
-                ?.let { (it.stripAccessExpression() as? ElixirList)?.children }
-                ?.map { child -> child.stripAccessExpression().let { it as? ElixirAtom }?.let(::quotedAtomValue) ?: "arg" }
-                .orEmpty()
-
-        /** `embed_template` defines a function of `assigns`, `embed_text` one of nothing. */
-        private fun embed(call: Call): List<String> =
-            if (call.functionName() == "embed_template") listOf("assigns") else emptyList()
 
         /**
          * The head [definition] is written with, at each arity its defaults cover. A stub stores no parameters for a

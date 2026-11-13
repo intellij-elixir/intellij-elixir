@@ -11,9 +11,10 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.AFTER_VERIFY_ACCUMUL
 import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTES_EXPANDED_LAZILY
 import org.elixir_lang.language_level.ElixirLanguageFeature.BEHAVIOUR_VALUE_CHECKED
 import org.elixir_lang.language_level.ElixirLanguageFeature.DIALYZER_ATTRIBUTE_CHECKED
-import org.elixir_lang.language_level.ElixirLanguageFeature.NIFS_ACCUMULATES
 import org.elixir_lang.language_level.ElixirLanguageFeature.NIFS_ATTRIBUTE_CHECKED
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.model.psi.module_attribute.TYPESPECS
+import org.elixir_lang.model.psi.module_attribute.accumulating
 import org.elixir_lang.psi.Import.Term
 import java.math.BigInteger
 
@@ -143,13 +144,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
     init {
         entries["moduledoc"] = Entry.Set(AttributeValue.Known(NIL))
 
-        val accumulating = ALWAYS_ACCUMULATING +
-            listOfNotNull(
-                "after_verify".takeIf { AFTER_VERIFY_ACCUMULATES.isSufficient(level) },
-                "nifs".takeIf { NIFS_ACCUMULATES.isSufficient(level) },
-            )
-
-        for (name in accumulating) entries[name] = Entry.Accumulate(emptyList())
+        for (name in accumulating(level)) entries[name] = Entry.Accumulate(emptyList())
 
         entries["on_definition"] = Entry.Accumulate(listOf(AttributeValue.Known(COMPILE_DEFINITION_ATTRIBUTES)))
     }
@@ -636,12 +631,6 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
         /** Written by a `put_attribute/7` clause of their own, which never accumulates. */
         val SET_DIRECTLY = DOCS + setOf("impl", "deprecated", "on_load")
 
-        val ALWAYS_ACCUMULATING =
-            listOf(
-                "after_compile", "before_compile", "behaviour", "compile", "derive", "dialyzer", "external_resource",
-                "on_definition", "optional_callbacks",
-            ) + TYPESPECS
-
         val CALLBACKS = mapOf(
             "before_compile" to Callback("__before_compile__", skipsNonPairs = false),
             "after_compile" to Callback("__after_compile__", skipsNonPairs = false),
@@ -721,8 +710,5 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
 internal const val INVALID_ATTRIBUTE_VALUE = "invalid_attribute_value"
 
 internal val DOCS = setOf("doc", "moduledoc", "typedoc")
-
-/** `typespec?/1`. */
-internal val TYPESPECS = setOf("type", "typep", "opaque", "spec", "callback", "macrocallback")
 
 private val CALLBACK_SPECS = setOf("callback", "macrocallback")

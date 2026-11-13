@@ -10,16 +10,76 @@ import org.elixir_lang.declaration.Presentation
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.psi.call.MaybeExported
+import org.elixir_lang.beam.chunk.beam_documentation.Docs
 import org.elixir_lang.beam.chunk.beam_documentation.docs.Documented
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Hidden
+import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.V1
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.Attribute
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.attribute.Spec
 import org.elixir_lang.beam.decompiler.Options
 import org.elixir_lang.utils.ElixirModulesUtil.erlangModuleNameToElixir
 
 object BeamDocsHelper {
+    /** The documentation of [element], a definition or module in a `.beam`, as its `Docs` chunk holds it. */
     fun fetchDocs(element: PsiElement): FetchedDocs? =
         BeamReader.read(element.containingFile.originalFile.virtualFile) { reader -> fetchDocs(element, reader) }
+
+    /**
+     * [decompiled], what [element]'s decompiled source documents, with each function titled by the signatures the
+     * `Docs` chunk records for the full arities it covers, where it records any, and, where the decompiled source writes
+     * no `@spec`, as it does not from Elixir's debug info, given those the chunk's metadata records, else those the debug
+     * info holds for its arities.
+     */
+    fun headed(element: PsiElement, decompiled: FetchedDocs): FetchedDocs {
+        val exported = element as? MaybeExported
+        val name = exported?.exportedName()
+
+        if (decompiled !is FetchedDocs.Arities || exported == null || name == null) return decompiled
+
+        return BeamReader.read(element.containingFile.originalFile.virtualFile) { reader ->
+            val docs = reader.documentation?.docs
+            // The debug info is the largest chunk: it is decoded only for an entry the decompiled source gives no spec.
+            val specifications by lazy {
+                (reader.debugInfo as? V1)?.typeSpecifications?.specifications
+                    ?.let { specifications -> (0 until specifications.size()).map(specifications::get) }
+                    ?.filter { it.function == name }
+                    .orEmpty()
+            }
+
+            decompiled.copy(entries = decompiled.entries.map { entry ->
+                val documentation = entry.documentation
+                val documented = docs?.let { documented(it, exported, name, entry.arities) }.orEmpty()
+                val titles = documented.flatMap(::signatures)
+
+                entry.copy(
+                    documentation = documentation.copy(
+                        titles = titles.ifEmpty { documentation.titles },
+                        specs = documentation.specs
+                            .ifEmpty { documented.flatMap { specsFromMetadata(it.metadatumByName) } }
+                            .ifEmpty {
+                                specifications
+                                    .filter { it.arity.toInt() in entry.arities }
+                                    .flatMap { specValues(it.toString()) }
+                            }
+                    )
+                )
+            })
+        } ?: decompiled
+    }
+
+    /**
+     * The signatures [docs] records for the definitions named [name] at [arities], ascending by arity, as Quick
+     * Documentation and Parameter Info both show them: [element]'s kind tried first, whichever language compiled it.
+     */
+    internal fun signatures(docs: Docs, element: MaybeExported, name: String, arities: ArityInterval): List<String> =
+        documented(docs, element, name, arities).flatMap(::signatures)
+
+    /** What [docs] records for the definitions named [name] at [arities], [element]'s kind tried first. */
+    private fun documented(docs: Docs, element: MaybeExported, name: String, arities: ArityInterval): List<Documented> =
+        docs.documentedNamed(kindForElement(element), name).filter { it.arity in arities }
+
+    /** [documented]'s signatures, without the `\r` a chunk can carry, which a document cannot hold. */
+    private fun signatures(documented: Documented): List<String> = documented.signatures.map { it.replace("\r", "") }
 
     private fun fetchDocs(element: PsiElement, reader: BeamReader): FetchedDocs? =
             reader.atoms?.moduleName()?.let { erlangModuleNameToElixir(it) }?.let { module ->
@@ -55,15 +115,12 @@ object BeamDocsHelper {
         )
 
     private fun entry(module: String, documented: Documented): FetchedDocs.Arities.Entry? {
-        val signatures = documented.signatures
+        val signatures = signatures(documented)
         val deprecated = documented.deprecated()
         val doc = documented.doc
-        // Use specs as heads when available -- they contain the full typed signature (e.g. "@spec any(pred, list) ::
-        // boolean() when ...") which is more informative than the EEP-48 signatures field (which is often just
-        // "any/2" for Erlang modules).
-        val heads = specsFromMetadata(documented.metadatumByName).ifEmpty { signatures }
+        val specs = specsFromMetadata(documented.metadatumByName)
 
-        return if (deprecated != null || doc != null || heads.isNotEmpty()) {
+        return if (deprecated != null || doc != null || signatures.isNotEmpty() || specs.isNotEmpty()) {
             // Elixir exports each arity a default covers but documents only the full one.
             FetchedDocs.Arities.Entry(
                 ArityInterval(documented.arity - documented.defaults(), documented.arity),
@@ -72,8 +129,10 @@ object BeamDocsHelper {
                     deprecated,
                     doc,
                     impls = emptyList(),
-                    specs = emptyList(),
-                    heads = heads
+                    specs = specs,
+                    // The chunk holds no head as written; the decompiled source does, and it is read first.
+                    heads = emptyList(),
+                    titles = signatures
                 )
             )
         } else {
@@ -82,7 +141,7 @@ object BeamDocsHelper {
     }
 
     /**
-     * Extracts `@spec` strings from the EEP-48 metadata `signature` key.
+     * Extracts `@spec` values from the EEP-48 metadata `signature` key.
      *
      * The `signature` metadata contains a list of Erlang abstract form attribute tuples like
      * `{attribute, Line, spec, {{Name, Arity}, [Definition, ...]}}`. These are parsed using
@@ -90,14 +149,16 @@ object BeamDocsHelper {
      */
     private fun specsFromMetadata(metadata: Map<String, OtpErlangObject>): List<String> {
         val signatureTerms = metadata["signature"] as? OtpErlangList ?: return emptyList()
-        return signatureTerms.elements().mapNotNull { term ->
-            (term as? OtpErlangTuple)?.let { tuple ->
-                Attribute.from(tuple)?.let { attribute ->
-                    Spec.from(attribute)?.toMacroString(Options())
-                }
-            }
+        return signatureTerms.elements().flatMap { term ->
+            (term as? OtpErlangTuple)
+                ?.let { tuple -> Attribute.from(tuple)?.let { attribute -> Spec.from(attribute)?.toMacroString(Options()) } }
+                ?.let(::specValues)
+                .orEmpty()
         }
     }
+
+    /** The value of each `@spec` line of [specs], as the heading writes it after its own `@spec`. */
+    private fun specValues(specs: String): List<String> = specs.lines().map { it.removePrefix("@spec ") }
 
     /**
      * Returns the list of BEAM documentation "kind" strings to try when looking up docs for [element].

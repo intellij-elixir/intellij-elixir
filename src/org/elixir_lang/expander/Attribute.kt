@@ -7,6 +7,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTE_REFUSED_IN
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_BODY_DOC_READ_BINDS_VALUE
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
+import org.elixir_lang.model.psi.module_attribute.TYPESPECS
 import org.elixir_lang.psi.Import.Term
 
 /**

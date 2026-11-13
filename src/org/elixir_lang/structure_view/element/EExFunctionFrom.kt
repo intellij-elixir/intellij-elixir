@@ -9,16 +9,18 @@ import com.intellij.util.OpenSourceUtil
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.call.Visibility
+import org.elixir_lang.code_insight.definition
 import org.elixir_lang.navigation.item_presentation.NameArity
 import org.elixir_lang.navigation.item_presentation.Parent
 import org.elixir_lang.psi.ElixirAtom
-import org.elixir_lang.psi.ElixirList
+import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.DEF
 import org.elixir_lang.psi.call.name.Function.DEFP
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.quotedAtomValue
 import org.elixir_lang.psi.impl.stripAccessExpression
+import org.elixir_lang.psi.scope.call_definition_clause.Declarations
 import org.elixir_lang.structure_view.element.CallDefinitionClause.Companion.enclosingModular
 import org.elixir_lang.structure_view.element.modular.Modular
 
@@ -62,20 +64,9 @@ class EExFunctionFrom(val modular: Modular, val call: Call) : StructureViewTreeE
             ?: "unknown_name"
     }
 
+    /** The arity that names the declared function, as it names any definition, and none where unknown. */
     private val arity: Int by lazy {
-        call.finalArguments()?.let { arguments ->
-            if (arguments.size >= 4) {
-                // function_from_file(kind, name, file, args)
-                // function_from_file(kind, name, file, args, options)
-                // function_from_string(kind, name, template, args)
-                // function_from_string(kind, name, template, args, options)
-                arguments[3].stripAccessExpression().let { it as? ElixirList }?.children?.size
-            } else {
-                // function_from_file(kind, name, file) where args defaults to `[]`
-                // function_from_string(kind, name, template) where args defaults to `[]`
-                0
-            }
-        } ?: 0
+        call.finalArguments()?.let(Declarations::eexArity)?.arityInterval()?.definition()?.first ?: 0
     }
 
     override fun visibility(): Visibility? =

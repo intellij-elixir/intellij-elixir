@@ -101,24 +101,33 @@ object Declarations {
      * list, none when there is no binding list, unknown for bindings that are not a list.
      */
     fun eexArity(arguments: Array<PsiElement>): ArityKnowledge =
+        eexBindings(arguments)
+            ?.let { (bindings, open) -> if (open) ArityKnowledge.Open(bindings.size) else ArityKnowledge.Exact(bindings.size) }
+            ?: ArityKnowledge.Unknown
+
+    /**
+     * The bindings of an `EEx.function_from_*` call with [arguments], and whether a tail leaves more to come after them:
+     * none when there is no binding list, `null` for bindings that are not a list.
+     */
+    fun eexBindings(arguments: Array<PsiElement>): Pair<List<PsiElement>, Boolean>? =
         if (arguments.size >= 4) {
-            (arguments[3].stripAccessExpression() as? ElixirList)?.let { bindingsArity(it, 0) } ?: ArityKnowledge.Unknown
+            (arguments[3].stripAccessExpression() as? ElixirList)?.let(::bindings)
         } else {
-            ArityKnowledge.Exact(0)
+            emptyList<PsiElement>() to false
         }
 
     /**
-     * [before] plus one per binding of [list], counted through a literal `|` tail, as `[:a | [:b]]` is `[:a, :b]`; any
-     * other tail leaves the arity open from the bindings before it.
+     * The bindings of [list], an `EEx.function_from_*` call's binding list, read through a literal `|` tail, as
+     * `[:a | [:b]]` is `[:a, :b]`, and whether any other tail leaves more to come after them, following [before].
      */
-    private tailrec fun bindingsArity(list: ElixirList, before: Int): ArityKnowledge {
-        val bindings = list.children
-        val count = before + bindings.size
-        val tail = bindings.lastOrNull() as? Pipe ?: return ArityKnowledge.Exact(count)
+    private tailrec fun bindings(list: ElixirList, before: List<PsiElement> = emptyList()): Pair<List<PsiElement>, Boolean> {
+        val children = list.children
+        val tail = children.lastOrNull() as? Pipe ?: return (before + children) to false
+        val bindings = before + children.dropLast(1) + (tail.leftOperand() ?: tail)
 
         return when (val rest = tail.rightOperand()?.stripAccessExpression()) {
-            is ElixirList -> bindingsArity(rest, count)
-            else -> ArityKnowledge.Open(count)
+            is ElixirList -> bindings(rest, bindings)
+            else -> bindings to true
         }
     }
 

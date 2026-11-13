@@ -8,14 +8,44 @@ import com.intellij.testFramework.utils.parameterInfo.MockParameterInfoUIContext
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.beam.psi.BeamFileImpl
+import org.elixir_lang.documentation.CompiledBuild
+import org.elixir_lang.documentation.addCompiledLibrary
 import java.io.File
 
 /**
- * Parameter hints for calls whose definition is in a `.beam` rather than in source. The expected names are
- * the ones the decompiler shows for the first clause.
+ * Parameter hints for calls whose definition is in a `.beam` rather than in source. A module's names are the ones its
+ * `Docs` chunk records; without them, the ones the decompiler shows for the first clause.
  */
 class BeamParameterInfoTest : BeamLibraryTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/code_insight/parameter_info/beam"
+
+    fun testACompiledFunctionIsHintedByTheSignatureItsDocsChunkRecords() =
+        assertEquals(listOf("socket"), shownFromCompiled("connected?(<caret>socket)"))
+
+    /** Its debug info's first clause is `map_every([], nth, _fun)`; the `Docs` chunk merges every clause. */
+    fun testACompiledFunctionWithoutABareHeadIsHintedByEveryClause() =
+        assertEquals(listOf("list, nth, fun"), shownFromCompiled("map_every(<caret>list, 2, &(&1))"))
+
+    fun testACompiledDefaultFromAnAttributeIsHintedByItsValue() =
+        assertEquals(listOf("""a, b \\ 5"""), shownFromCompiled("f(<caret>socket)"))
+
+    /** `g2/3`'s defaults cover arity 2, which `g2/2` also defines: each is hinted by the signature of its own arity. */
+    fun testACompiledFunctionWhoseDefaultsCoverAnotherIsHintedByItsOwnSignature() =
+        assertEquals(
+            listOf("a, b", """a, b \\ 1, c \\ 2"""),
+            shownFromCompiled("g2(<caret>socket, 1, 2)").sortedBy { it.length }
+        )
+
+    /** The chunk records an operator infix, `left <~> right`, which names no parameters as a call does. */
+    fun testACompiledOperatorIsHintedByItsOperands() =
+        assertEquals(listOf("left, right"), shownFromCompiled("<~>(<caret>socket, 1)"))
+
+    /** The chunk's signature names the parameters whichever language the chunk says compiled the module. */
+    fun testACompiledFunctionWhoseDocsChunkNamesErlangIsHintedByTheSignatureItRecords() =
+        assertEquals(
+            listOf("socket"),
+            shownFromCompiled("connected?(<caret>socket)", CompiledBuild("ParameterHint", debugInfo = false, docsLanguage = "erlang"))
+        )
 
     fun testErlangFunction() {
         assertEquals(listOf("l"), signaturesAtCaret("erlang_function.ex"))
@@ -31,7 +61,7 @@ class BeamParameterInfoTest : BeamLibraryTestCase() {
     }
 
     fun testElixirFunction() {
-        assertEquals(listOf("module"), signaturesAtCaret("elixir_function.ex"))
+        assertEquals(listOf("module_or_path"), signaturesAtCaret("elixir_function.ex"))
     }
 
     /** Each arity a default argument generates is an export of the `.beam`, and the hint is the one head. */
@@ -73,19 +103,18 @@ class BeamParameterInfoTest : BeamLibraryTestCase() {
      */
     fun testSourcePreferredOverBeam() {
         assertEquals(
-            listOf("module_or_path"),
+            listOf("source_module"),
             signaturesAtCaret("elixir_function.ex", "source_over_beam_declaration.ex")
         )
     }
 
     fun testSourcePreferredOverBeamWhenImported() {
         assertEquals(
-            listOf("module_or_path"),
+            listOf("source_module"),
             signaturesAtCaret("source_over_beam_import.ex", "source_over_beam_declaration.ex")
         )
     }
 
-    /** The hint is built on the EDT, where decompiling a large module takes hundreds of milliseconds. */
     fun testHintDoesNotDecompileTheModule() {
         val math = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(File(ebinDirectory, "math.beam"))!!
         val beamFile = ReadAction.computeBlocking<BeamFileImpl, Throwable> {
@@ -138,6 +167,14 @@ class BeamParameterInfoTest : BeamLibraryTestCase() {
         return myFixture.parameterInfoSignaturesAtCaret()
     }
 
+    /** [call], a call of `ParameterHint`, compiled by the leg's Elixir from [COMPILED] as [build]. */
+    private fun shownFromCompiled(call: String, build: CompiledBuild = CompiledBuild("ParameterHint")): List<String> {
+        myFixture.addCompiledLibrary(COMPILED, build)
+        myFixture.configureByText("compiled.ex", "defmodule Caller do\n  def run(socket), do: ParameterHint.$call\nend\n")
+
+        return myFixture.parameterInfoSignaturesAtCaret()
+    }
+
     private fun shownFromGeneratedImport(module: String): List<String> {
         addGeneratedArgumentsLibrary()
         myFixture.configureByText(
@@ -174,5 +211,33 @@ class BeamParameterInfoTest : BeamLibraryTestCase() {
             handler.updateUI(item as Signature, uiContext)
             uiContext.text
         }
+    }
+
+    private companion object {
+        /** The modules compiled for the `ParameterHint` methods: `Compiled` is renamed for the build. */
+        const val COMPILED = """
+defmodule Compiled.Socket do
+  defstruct [:transport_pid]
+end
+
+defmodule Compiled do
+  alias Compiled.Socket
+
+  @x 5
+
+  def connected?(%Socket{transport_pid: pid}), do: pid != nil
+
+  def map_every([], nth, _fun) when is_integer(nth) and nth > 1, do: []
+  def map_every(list, nth, fun), do: {list, nth, fun}
+
+  def f(a, b \\ @x), do: {a, b}
+
+  def g2(a, b), do: {a, b}
+  def g2(a, b \\ 1, c \\ 2), do: {a, b, c}
+
+  @doc "Pairs."
+  def left <~> right, do: {left, right}
+end
+"""
     }
 }

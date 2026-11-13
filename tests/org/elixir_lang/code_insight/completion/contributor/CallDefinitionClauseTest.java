@@ -120,7 +120,7 @@ public class CallDefinitionClauseTest extends PlatformTestCase {
         assertNotNull(lookupElements);
         lookupElements[0].renderElement(lookupElementPresentation);
         assertEquals("exception", lookupElementPresentation.getItemText());
-        assertEquals("(message)", lookupElementPresentation.getTailText());
+        assertEquals("(msg)", lookupElementPresentation.getTailText());
 
         lookupElementPresentation = new LookupElementPresentation();
         lookupElements[1].renderElement(lookupElementPresentation);

@@ -356,8 +356,8 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
 
         val shown = quickDocumentationAtCaret().orEmpty()
 
-        assertEquals("Expected the repeated head once, got: $shown", 1, "reduce(enumerable, fun)".toRegex(RegexOption.LITERAL).findAll(shown).count())
-        assertEquals("Expected the other head kept, got: $shown", 1, "reduce([h | t], fun)".toRegex(RegexOption.LITERAL).findAll(shown).count())
+        assertEquals("Expected the repeated head once, got: $shown", 1, "def reduce(enumerable, fun)".toRegex(RegexOption.LITERAL).findAll(shown).count())
+        assertEquals("Expected the other head kept, got: $shown", 1, "def reduce([h | t], fun)".toRegex(RegexOption.LITERAL).findAll(shown).count())
     }
 
     /** The clauses of a function defined beside the delegation reached are one function, as the arities card shows them, with a head for each. */
@@ -376,7 +376,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
 
         assertEquals("Expected one block for each function of the name, got: $shown", 2, "<b>Clauses</b>".toRegex().findAll(shown).count())
         assertEquals("Expected the docs of the clauses once, got: $shown", 1, "Clauses docs.".toRegex().findAll(shown).count())
-        assertEquals("Expected a head for each clause, got: $shown", 2, "snoc\\(q, x\\)".toRegex().findAll(shown).count())
+        assertEquals("Expected a head for each clause, got: $shown", 2, "def snoc\\(q, x\\)".toRegex().findAll(shown).count())
     }
 
     /** A function a sibling's docs name without a module is the sibling's own module's, not the target's. */

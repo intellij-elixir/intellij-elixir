@@ -11,6 +11,7 @@ import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.Unquote
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.qualification.Qualified as QualifiedPsi
 import org.elixir_lang.psi.impl.functionNameAtomValue
@@ -124,6 +125,39 @@ data class Answer(val found: List<Found>, val absence: Uncertain?)
 
 /** The name of the module that declares [this], so two copies of one module are one. */
 fun Found.declaringModuleName(): String? = head.module
+
+/**
+ * Where a clause is defined in its module, as Elixir defines the module's clauses in order: [offset] in the module's
+ * file, of the clause's head or of the call that injects it, then [within], the head's offset in its own file, which
+ * orders the clauses one call injects.
+ */
+data class ClauseOrder(val offset: Int, val within: Int) : Comparable<ClauseOrder> {
+    override fun compareTo(other: ClauseOrder): Int = compareValuesBy(this, other, ClauseOrder::offset, ClauseOrder::within)
+
+    companion object {
+        /** A clause whose [head] is written in its own module. */
+        fun at(head: PsiElement): ClauseOrder = ClauseOrder(head.textOffset, head.textOffset)
+    }
+}
+
+/**
+ * Where [this]'s clause is defined in the module that declares it: at its head where the head is written in that
+ * module, else at the first call [via] crossed in that module. `null` where its head is not written, or no call it
+ * crossed is in that module.
+ */
+@RequiresReadLock
+fun Found.clauseOrder(): ClauseOrder? {
+    val written = head.written ?: return null
+    val inModule = { call: Call ->
+        CallDefinitionClause.enclosingModularMacroCall(call)?.let { SyntacticCall.of(it).canonicalName() } == head.module
+    }
+
+    return if ((element as? Call)?.let(inModule) == true) {
+        ClauseOrder.at(written)
+    } else {
+        via.firstOrNull(inModule)?.let { ClauseOrder(it.textOffset, written.textOffset) }
+    }
+}
 
 /**
  * What completion offers as [lookupName] at a position. [name] and [declaration] are `null` exactly when the name has

@@ -285,6 +285,40 @@ class CallDefinitionClauseTest : PlatformTestCase() {
         )
     }
 
+    /** Elixir records an underscored name without its underscore, as it does a variable's. */
+    fun testLocalEExFunctionFromInsertsAnUnderscoredArgumentNameAsElixirRecordsIt() {
+        myFixture.configureByText(
+            "test.ex",
+            """
+                defmodule EEx do
+                  defmacro function_from_string(kind, name, source, args \\ [], options \\ []) do
+                    quote do
+                      unquote(kind)
+                      unquote(name)
+                    end
+                  end
+                end
+
+                defmodule Test do
+                  require EEx
+
+                  EEx.function_from_string(:def, :underscored_sample, "<%= b %>", [:_a, :b])
+
+                  def run do
+                    underscored_sa<caret>
+                  end
+                end
+            """.trimIndent()
+        )
+
+        myFixture.completeSoleCandidateAtCaret()
+
+        assertTrue(
+            "Expected `underscored_sample(a, b)`; got:\n${myFixture.file.text}",
+            myFixture.file.text.contains("underscored_sample(a, b)")
+        )
+    }
+
     fun testLocalEExFunctionFromKeepsASlotForAnArgumentWhoseNameIsUnknown() {
         myFixture.configureByText(
             "test.ex",
@@ -318,7 +352,8 @@ class CallDefinitionClauseTest : PlatformTestCase() {
         )
     }
 
-    fun testLocalEExFunctionFromWithATailKeepsASlotForItsBinding() {
+    /** `[:a | []]` is the list `[:a]`, so the binding is named `a`. */
+    fun testLocalEExFunctionFromWithALiteralTailNamesItsBinding() {
         myFixture.configureByText(
             "test.ex",
             """
@@ -346,13 +381,49 @@ class CallDefinitionClauseTest : PlatformTestCase() {
         myFixture.completeSoleCandidateAtCaret()
 
         assertTrue(
-            "Expected `tail_sample(arg)`; got:\n${myFixture.file.text}",
-            myFixture.file.text.contains("tail_sample(arg)")
+            "Expected `tail_sample(a)`; got:\n${myFixture.file.text}",
+            myFixture.file.text.contains("tail_sample(a)")
         )
     }
 
-    /* defexception's exception/1 and message/1 hooks, local (Variants.executeOnException). Fixed,
-       hardcoded parameter names - the same ones the completion renderer's tail text already shows. */
+    /** A tail known only once evaluated leaves the arity open, and the bindings before it are named. */
+    fun testLocalEExFunctionFromWithAnOpenTailNamesTheBindingsBeforeIt() {
+        myFixture.configureByText(
+            "test.ex",
+            """
+                defmodule EEx do
+                  defmacro function_from_string(kind, name, source, args \\ [], options \\ []) do
+                    quote do
+                      unquote(kind)
+                      unquote(name)
+                    end
+                  end
+                end
+
+                defmodule Test do
+                  require EEx
+
+                  @rest [:b]
+
+                  EEx.function_from_string(:def, :open_sample, "<%= a %>", [:a | @rest])
+
+                  def run do
+                    open_sa<caret>
+                  end
+                end
+            """.trimIndent()
+        )
+
+        myFixture.completeSoleCandidateAtCaret()
+
+        assertTrue(
+            "Expected `open_sample(a)`; got:\n${myFixture.file.text}",
+            myFixture.file.text.contains("open_sample(a)")
+        )
+    }
+
+    /* defexception's exception/1 and message/1 hooks, local (Variants.executeOnException), with the parameter names
+       Elixir's own heads give them, as the completion renderer's tail text shows. */
 
     fun testLocalExceptionHookInsertsFixedParameterName() {
         myFixture.configureByText(
@@ -371,8 +442,8 @@ class CallDefinitionClauseTest : PlatformTestCase() {
         myFixture.completeSoleCandidateAtCaret()
 
         assertTrue(
-            "Expected `exception(message)`; got:\n${myFixture.file.text}",
-            myFixture.file.text.contains("exception(message)")
+            "Expected `exception(msg)`; got:\n${myFixture.file.text}",
+            myFixture.file.text.contains("exception(msg)")
         )
     }
 
@@ -395,6 +466,31 @@ class CallDefinitionClauseTest : PlatformTestCase() {
         assertTrue(
             "Expected `message(exception)`; got:\n${myFixture.file.text}",
             myFixture.file.text.contains("message(exception)")
+        )
+    }
+
+    /** `defexception @fields` takes the fields the attribute holds, so `exception/1` takes the message. */
+    fun testLocalExceptionHookWithFieldsFromAnAttributeInsertsItsParameterName() {
+        myFixture.configureByText(
+            "test.ex",
+            """
+                defmodule MyException do
+                  @fields [:message]
+
+                  defexception @fields
+
+                  def extra do
+                    exc<caret>
+                  end
+                end
+            """.trimIndent()
+        )
+
+        myFixture.completeSoleCandidateAtCaret()
+
+        assertTrue(
+            "Expected `exception(msg)`; got:\n${myFixture.file.text}",
+            myFixture.file.text.contains("exception(msg)")
         )
     }
 

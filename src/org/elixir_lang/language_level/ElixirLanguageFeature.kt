@@ -2728,6 +2728,20 @@ enum class ElixirLanguageFeature(
     INVALID_TUPLE_CLAUSE(removedInElixir = "1.13.0-rc.0"),
 
     /**
+     * A function's `Docs` signature names a `var!(name)` argument `name`. Before it, the argument is `arg`.
+     *
+     * `elixir-lang/elixir@bd49ad6ef` ("Generate less code in defstruct"), first released in v1.14.0-rc.0.
+     */
+    DOCS_SIGNATURE_NAMES_VAR_BANG(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * The `Docs` signature of a function named `fn` is `fn(clauses)`. Before it, it is `fn`.
+     *
+     * `elixir-lang/elixir@5368761ed` ("Include clauses in fn definition", #10998), first released in v1.13.0-rc.0.
+     */
+    DOCS_SIGNATURE_OF_FN_NAMES_CLAUSES(sinceElixir = "1.13.0-rc.0"),
+
+    /**
      * An `fn` whose clauses match no argument raises `FunctionClauseError`. Before it, OTP 24's compiler raises
      * `CaseClauseError` instead for a fun it inlines where it is applied, which only the compiled code shows.
      *
