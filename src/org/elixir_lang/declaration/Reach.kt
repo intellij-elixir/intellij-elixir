@@ -31,7 +31,7 @@ enum class Reach {
     /** What the module itself holds, public or not. */
     val held: Boolean get() = this == OWN || this == USE
 
-    /** What a remote use of the module reaches: what it holds, and each [DELEGATION_TARGET]. */
+    /** What the module holds, and each [DELEGATION_TARGET]. */
     val remote: Boolean get() = held || this == DELEGATION_TARGET
 
     /** What a `defdelegate` delegates to, which a use of the delegation does not name. */
@@ -41,9 +41,12 @@ enum class Reach {
     fun exports(capabilities: Capabilities, runtime: Boolean = false): Boolean =
         held && callableFromAnotherModule(capabilities, runtime)
 
-    /** Whether a remote use of the module reaches a declaration with [capabilities]. */
+    /**
+     * Whether a remote use of the module reaches a declaration with [capabilities]: one [remote] reaches, or one the
+     * name index found in the module the use names.
+     */
     fun remotelyReaches(capabilities: Capabilities, runtime: Boolean = false): Boolean =
-        remote && callableFromAnotherModule(capabilities, runtime)
+        (remote || this == INDEXED) && callableFromAnotherModule(capabilities, runtime)
 
     // An undecided visibility counts as public, so that the near misses of a call it may serve are still reported.
     private fun callableFromAnotherModule(capabilities: Capabilities, runtime: Boolean): Boolean =

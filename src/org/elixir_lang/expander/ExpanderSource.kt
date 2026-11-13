@@ -4,6 +4,7 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.TextRange
+import com.intellij.psi.PsiCompiledElement
 import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -92,9 +93,77 @@ internal object ExpanderSource : CandidateSource {
         return when (use) {
             is Use.OfCall ->
                 inputs(use.entrance)?.let { answerWith(use, it) } ?: Answer(indexFound(use), Uncertain.NO_EXPANSION)
-            is Use.Specified, is Use.Remote, is Use.Tag, is Use.Link -> Answer(emptyList(), Uncertain.NO_EXPANSION)
+            is Use.Specified -> answerAt(use, use.head) { at -> specified(at, use) }
+            is Use.Remote -> answerAt(use, use.atom) { at -> qualified(at, use.module, use.name, use.arity) }
+            is Use.Link -> answerAt(use, readAt(use), readsEnv = false) { at -> linked(at, use) }
+            is Use.Tag -> Answer(emptyList(), Uncertain.NO_EXPANSION)
         }
     }
+
+    /**
+     * Where [link] is read: where the module it names is written in source, else where it is written. A link in a
+     * `.beam`'s docs is read in the `.beam`'s decompiled source.
+     */
+    private fun readAt(link: Use.Link): PsiElement =
+        link.entrance.takeIf { it.containingFile is ElixirFile }
+            ?: (link.context as? PsiCompiledElement)?.mirror
+            ?: link.context
+
+    /**
+     * [use]'s answer: what [reach] reaches where [element] is, its file expanded with its SDK's inputs; marked by the env
+     * there only where the use [readsEnv].
+     */
+    private fun answerAt(use: Use, element: PsiElement, readsEnv: Boolean = true, reach: (At) -> List<Reached>): Answer =
+        inputs(element)?.let { answerAt(use, element, it, readsEnv, reach) } ?: Answer(emptyList(), Uncertain.NO_EXPANSION)
+
+    /** [use]'s answer: what [reach] reaches where [element] is, its file expanded with [inputs]. */
+    private fun answerAt(
+        use: Use,
+        element: PsiElement,
+        inputs: ProjectModules.Inputs,
+        readsEnv: Boolean = true,
+        reach: (At) -> List<Reached>,
+    ): Answer {
+        val at = at(element, inputs, readsEnv) ?: return Answer(emptyList(), Uncertain.NO_EXPANSION)
+        val found = reach(at).mapNotNull { found(it, use, at.uncertain) }
+
+        return Answer(found, at.gaps.firstOrNull())
+    }
+
+    /**
+     * What the module a `@spec` is in holds of the name it specifies, not what its delegations reach, with the index's
+     * ([withIndexed]).
+     */
+    private fun specified(at: At, use: Use.Specified): List<Reached> {
+        val found = ownDefined(at, use.name).map { heldOnly(it, use.name, use.arity, remote = false) }
+        val module = at.env.module ?: return found
+
+        return withIndexed(at, module, found, use.name, use.arity, remote = false)
+    }
+
+    /**
+     * What a link reaches from the module it is read from, its entrance: as a remote call of the module it names; in
+     * the module it is written in, as a local call there, with what that imports; each with the index's definitions as
+     * a qualified call gets them ([withIndexed]).
+     */
+    private fun linked(at: At, use: Use.Link): List<Reached> {
+        val context = use.context as? Call
+        val own = use.entrance == context || use.entrance == context?.let(CallDefinitionClause::enclosingModularMacroCall)
+
+        return modules(use.entrance).flatMap { module ->
+            val found = inModule(at, module, use.name, use.arity, imports = own, emptySet(), remote = !own)
+
+            withIndexed(at, module, found, use.name, use.arity, remote = !own, { at.holder.locate(at.file, module, at.inputs) }, aliased = null)
+        }
+    }
+
+    /** The modules [entrance] is, as atoms: a source module's names, or a `.beam`'s. */
+    private fun modules(entrance: PsiElement): List<String> =
+        when (entrance) {
+            is Call -> indexNames(entrance)
+            is BeamModule -> listOfNotNull(indexName(entrance))
+            else -> emptyList()
+        }.mapNotNull(Module::atom)
 
     /**
      * With no SDK inputs no env is reached, so [use]'s finds are what the name index defines its name as: after a
@@ -128,19 +197,16 @@ internal object ExpanderSource : CandidateSource {
         return answerWith(use, inputs)
     }
 
-    private fun answerWith(use: Use.OfCall, inputs: ProjectModules.Inputs): Answer {
-        val at = at(use.entrance, inputs) ?: return Answer(emptyList(), Uncertain.NO_EXPANSION)
-        val found = answer(at, use)
+    private fun answerWith(use: Use.OfCall, inputs: ProjectModules.Inputs): Answer =
+        answerAt(use, use.entrance, inputs) { at -> called(at, use) }
 
-        return Answer(found, at.gaps.firstOrNull())
-    }
-
-    private fun answer(at: At, use: Use.OfCall): List<Found> {
+    /** What a call [use] reaches at [at]: the module its qualifier names, else its own module, imports and special forms. */
+    private fun called(at: At, use: Use.OfCall): List<Reached> {
         val call = use.entrance
         val name = (use as? Use.Named)?.name
-        val reached = if (call is Qualified) {
-            val module = receiver(at, call.qualifier()) ?: return at.gap(Uncertain.MODULE)
-            qualified(at, call.qualifier(), module, name, use.arity)
+
+        return if (call is Qualified) {
+            qualified(at, call.qualifier(), name, use.arity)
         } else {
             buildList {
                 val defined = ownDefined(at, name)
@@ -162,29 +228,46 @@ internal object ExpanderSource : CandidateSource {
                 }
             }
         }
-
-        return reached.mapNotNull { found(it, use, at.uncertain) }
     }
 
     /**
-     * [module], which [qualifier] names, and its definitions of [name], as a remote call reaches them. Where none of
-     * them takes [arity] arguments, also the index's: in [module] when what it defines isn't known to its end, or past
-     * where the env is known when no module is [module]; and past where the env is known, in each module [qualifier]
-     * may name as written ([aliasNames]), as an `alias` written after that point is missing from the env.
+     * The module [qualifier] names, else a [Uncertain.MODULE] gap, and its definitions of [name], as a remote call
+     * reaches them, with the index's ([withIndexed]): past where the env is known, also in each module [qualifier] may
+     * name as written ([aliasNames]), as an `alias` written after that point is missing from the env.
      */
-    private fun qualified(at: At, qualifier: PsiElement, module: String, name: String?, arity: Int): List<Reached> {
+    private fun qualified(at: At, qualifier: PsiElement, name: String?, arity: Int?): List<Reached> {
+        val module = receiver(at, qualifier) ?: return at.gap(Uncertain.MODULE)
         val found = inModule(at, module, name, arity, imports = false, emptySet())
-        if (name == null || found.any { it.defined.declaration.name == name && it.defined.admits(arity) }) return found
-        // This lookup is the use's first, so a MODULE gap is one it met.
-        val unknown = Uncertain.MODULE in at.gaps ||
-            (at.uncertain != null && at.holder.locate(at.file, module, at.inputs) == ProjectModules.Located.None)
-        val key = Module.indexName(module).takeIf { unknown }
         val aliased = if (at.uncertain == null) null else aliasNames(qualifier)
+
+        return withIndexed(at, module, found, name, arity, remote = true, aliased = aliased)
+    }
+
+    /**
+     * [found], [module]'s definitions of [name], and where none of them takes [arity] arguments, the index's: in
+     * [module] when what it defines isn't known to its end, or past where the env is known when no module is that one
+     * ([located]); and in each module [aliased] takes.
+     */
+    private fun withIndexed(
+        at: At,
+        module: String,
+        found: List<Reached>,
+        name: String?,
+        arity: Int?,
+        remote: Boolean,
+        located: () -> ProjectModules.Located = { at.locate(module) },
+        aliased: ((String) -> Boolean)? = null,
+    ): List<Reached> {
+        if (name == null || found.any { it.defined.declaration.name == name && it.defined.admits(arity) }) return found
+        // At a call this lookup is the use's first, so a MODULE gap is one it met; a link through several modules may
+        // have met it at an earlier one, which only adds finds marked uncertain.
+        val unknown = Uncertain.MODULE in at.gaps || (at.uncertain != null && located() == ProjectModules.Located.None)
+        val key = Module.indexName(module).takeIf { unknown }
         if (key == null && aliased == null) return found
 
         val indexed = indexed(at.file, name, arity, isOwn(at)) { it == key || aliased?.invoke(it) == true }
 
-        return found + beside(found, indexed, name, arity, remote = true)
+        return found + beside(found, indexed, name, arity, remote)
     }
 
     /**
@@ -323,7 +406,8 @@ internal object ExpanderSource : CandidateSource {
 
     /**
      * Where a use is, as its file's expansion saw it, what each receiver it reached expanded to, the [lowering] it
-     * read the file through, and why [env] may not be the env Elixir expands the use in, [uncertain], `null` where it is.
+     * read the file through, and why [env] may not be the env Elixir expands the use in, [uncertain], `null` where it is
+     * or the use doesn't read it ([readsEnv]). The file is expanded ([expansion]) only once one of these is read.
      *
      * @property gaps why a lookup from here could not say a name is missing, [uncertain] first, then in the order met
      */
@@ -331,12 +415,16 @@ internal object ExpanderSource : CandidateSource {
         val file: ElixirFile,
         val range: TextRange,
         val inputs: ProjectModules.Inputs,
-        val env: Env,
         val holder: ProjectModules,
-        val receivers: ReceiverIndex,
-        val lowering: Lowering,
-        val uncertain: Uncertain?,
+        expansion: Lazy<ProjectModules.Indexed>,
+        readsEnv: Boolean,
     ) {
+        private val indexed by expansion
+        private val placed by lazy(LazyThreadSafetyMode.NONE) { indexed.envs.placed(range) }
+        val env: Env get() = placed.env
+        val receivers: ReceiverIndex get() = indexed.receivers
+        val lowering: Lowering get() = indexed.lowering
+        val uncertain: Uncertain? = if (readsEnv) placed.uncertain else null
         val gaps: MutableSet<Uncertain> = LinkedHashSet<Uncertain>().apply { uncertain?.let(::add) }
 
         /** Records [uncertain] as a gap, and finds nothing. */
@@ -345,6 +433,10 @@ internal object ExpanderSource : CandidateSource {
 
             return emptyList()
         }
+
+        /** Where [module] is, as [file]'s expansion sees it. */
+        @RequiresReadLock
+        fun locate(module: String): ProjectModules.Located = holder.locate(file, module, inputs)
     }
 
     /** `null` where the file's SDK gives no inputs. */
@@ -354,17 +446,12 @@ internal object ExpanderSource : CandidateSource {
         return (SdkInputs.getInstance(file.project).inputsFor(file) as? SdkInputs.Answer.Ready)?.inputs
     }
 
-    /** `null` in dumb mode. */
-    private fun at(element: PsiElement, inputs: ProjectModules.Inputs): At? {
+    private fun at(element: PsiElement, inputs: ProjectModules.Inputs, readsEnv: Boolean = true): At? {
         val file = element.containingFile as? ElixirFile ?: return null
         if (DumbService.isDumb(file.project)) return null
         val holder = ProjectModules.getInstance(file.project)
 
-        val indexed = holder.indexed(file, inputs)
-
-        val placed = indexed.envs.placed(element.textRange)
-
-        return At(file, element.textRange, inputs, placed.env, holder, indexed.receivers, indexed.lowering, placed.uncertain)
+        return At(file, element.textRange, inputs, holder, lazy(LazyThreadSafetyMode.NONE) { holder.indexed(file, inputs) }, readsEnv)
     }
 
     /**
@@ -426,14 +513,18 @@ internal object ExpanderSource : CandidateSource {
         val remote: Boolean,
     )
 
+    /** [heldOnly], and what it reaches when it delegates. */
+    private fun held(at: At, defined: Defined, name: String?, arity: Int?, remote: Boolean, crossed: Set<Head>): List<Reached> =
+        andDelegated(at, heldOnly(defined, name, arity, remote), defined.admits(arity), crossed)
+
     /**
      * [defined], which its module holds, looked up there as [name] at [arity]: through the call whose output injected
      * it, as [Reach.USE], or else as [Reach.OWN].
      */
-    private fun held(at: At, defined: Defined, name: String?, arity: Int?, remote: Boolean, crossed: Set<Head>): List<Reached> {
+    private fun heldOnly(defined: Defined, name: String?, arity: Int?, remote: Boolean): Reached {
         val reach = if (defined.injectedBy == null) Reach.OWN else Reach.USE
 
-        return reachedFrom(at, defined, reach, listOfNotNull(defined.injectedBy), name, arity, remote, crossed)
+        return reached(defined, reach, listOfNotNull(defined.injectedBy), name, arity, remote)
     }
 
     /** The definitions of [name], or of every name when it is `null`, in the module body [at] is in. */
@@ -520,11 +611,12 @@ internal object ExpanderSource : CandidateSource {
         arity: Int?,
         imports: Boolean,
         crossed: Set<Head>,
+        remote: Boolean = true,
     ): List<Reached> {
         ProgressManager.checkCanceled()
 
         val located = at.holder.locate(at.file, module, at.inputs)
-        val own = definedIn(at, located, module, name).flatMap { held(at, it, name, arity, remote = true, crossed) }
+        val own = definedIn(at, located, module, name).flatMap { held(at, it, name, arity, remote, crossed) }
         val source = located as? ProjectModules.Located.Source ?: return own
         val result = source.result?.takeIf { imports } ?: return own
         val body = bodyEnv(result) ?: return own.also { at.gap(Uncertain.MODULE) }
@@ -542,12 +634,13 @@ internal object ExpanderSource : CandidateSource {
         arity: Int?,
         remote: Boolean,
         crossed: Set<Head>,
-    ): List<Reached> {
+    ): List<Reached> = andDelegated(at, reached(defined, reach, paths, name, arity, remote), defined.admits(arity), crossed)
+
+    /** [reached], and what it reaches when it delegates ([throughDelegation]). */
+    private fun andDelegated(at: At, reached: Reached, admits: Boolean, crossed: Set<Head>): List<Reached> {
         ProgressManager.checkCanceled()
 
-        val reached = reached(defined, reach, paths, name, arity, remote)
-
-        return listOf(reached) + throughDelegation(at, reached, reached.named, defined.admits(arity), crossed)
+        return listOf(reached) + throughDelegation(at, reached, reached.named, admits, crossed)
     }
 
     /**
@@ -885,7 +978,7 @@ internal object ExpanderSource : CandidateSource {
     private fun receiver(at: At, qualifier: PsiElement): String? =
         EnvAtom.receiver(qualifier, at.receivers, at.env, at.lowering, at.inputs, at.holder)
 
-    private fun found(reached: Reached, use: Use.OfCall, envUncertain: Uncertain?): Found? =
+    private fun found(reached: Reached, use: Use, envUncertain: Uncertain?): Found? =
         applicability(reached, use)?.let { applicability ->
             Found(
                 Candidate(reached.defined.declaration, reached.reach, applicability),
@@ -901,18 +994,34 @@ internal object ExpanderSource : CandidateSource {
      * As the walk decides it, where behind a delegation the name it calls is the name looked up, but a private
      * definition a remote call reaches is [Applicability.PRIVATE].
      */
-    private fun applicability(reached: Reached, use: Use.OfCall): Applicability? {
+    private fun applicability(reached: Reached, use: Use): Applicability? {
         val declaration = reached.defined.declaration
         val applicability = when (use) {
-            is Use.Named -> Applicability.of(declaration, reached.searched ?: use.name, reached.named, use.arity, reached.heads)
+            is Use.Named -> named(reached, use.name, use.arity)
             is Use.AnyName ->
                 Applicability.ofAnyName(declaration, reached.searched, reached.imported, use.arity, reached.heads)
+            is Use.Specified -> named(reached, use.name, use.arity)
+            is Use.Remote -> named(reached, use.name, use.arity)
+            is Use.Tag -> named(reached, use.name, use.arity)
+            is Use.Link -> named(reached, use.name, use.arity)
         }
 
         return if (applicability == Applicability.VALID && reached.remote && declaration.visibility == Visibility.PRIVATE) {
             Applicability.PRIVATE
         } else {
             applicability
+        }
+    }
+
+    /** How [reached] applies at a use of [name]; a `null` [arity] is any arity, which leaves every definition undecided. */
+    private fun named(reached: Reached, name: String, arity: Int?): Applicability? {
+        val declaration = reached.defined.declaration
+        val reachedAs = reached.searched ?: name
+
+        return if (arity == null) {
+            Applicability.ofAnyArity(declaration, reached.named && declaration.name == reachedAs, reached.heads)
+        } else {
+            Applicability.of(declaration, reachedAs, reached.named, arity, reached.heads)
         }
     }
 

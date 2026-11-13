@@ -43,6 +43,7 @@ import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
+import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.WalkTestSupport
@@ -1950,7 +1951,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals("STOP", absence(file, "missing(3)", "missing(3)"))
     }
 
-    /** With no expansion to read, nothing is known: with no SDK, while the IDE indexes, and at a use the expander doesn't answer. */
+    /** With no expansion to read, nothing is known: while the IDE indexes, and with no SDK, at a call and at a `@spec` head. */
     fun testAnAbsenceWithNoExpansionIsUncertain() {
         val file = file(
             """
@@ -1960,19 +1961,17 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             end
             """
         )
-        val specified = read {
-            val attribute = PsiTreeUtil.findChildrenOfType(file, AtUnqualifiedNoParenthesesCall::class.java).single()
-            val head = PsiTreeUtil.findChildrenOfType(attribute, Call::class.java).first { it.text == "f(integer)" }
-
-            Use.specification(head, attribute)!!
-        }
+        val specified = specification(file)
         val dumb = DumbModeTestUtils.computeInDumbModeSynchronously(project) { absence(file, "missing(x)", "missing(x)") }
-        val specifiedAbsence = read { ExpanderSource.answer(specified, false) }.absence?.name ?: "certain"
         ModuleRootModificationUtil.setModuleSdk(module, null)
 
         assertEquals(
             listOf("NO_EXPANSION", "NO_EXPANSION", "NO_EXPANSION"),
-            listOf(dumb, specifiedAbsence, absence(file, "missing(x)", "missing(x)")),
+            listOf(
+                dumb,
+                absence(file, "missing(x)", "missing(x)"),
+                absence(specified),
+            ),
         )
     }
 
@@ -2515,6 +2514,48 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
     }
 
     /**
+     * A link into a module whose definitions aren't known to its end, finding nothing there, gets the index's
+     * definitions of the name in that module, as a call does: from another module, as a qualified call; from the
+     * module itself, as a local one.
+     */
+    fun testALinkIntoAModuleNotKnownToItsEndGetsItsIndexedDefinitions() {
+        val file = file(
+            """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Target do
+              @moduledoc "See `later/1`."
+              require M
+              M.m()
+              def later(a), do: a
+            end
+
+            defmodule Linker do
+              @moduledoc "See `Target.later/1`."
+            end
+            """
+        )
+        val (target, linker) = read {
+            listOf("defmodule Target", "defmodule Linker").map { start ->
+                PsiTreeUtil.findChildrenOfType(file, Call::class.java).first { it.text.startsWith(start) }
+            }
+        }
+
+        assertEquals(
+            ExpanderSourceRows.rows(
+                "remote" to "Target.later/1 INDEXED VALID via [] line 9 INDEX",
+                "own" to "Target.later/1 INDEXED VALID via [] line 9 INDEX",
+            ),
+            ExpanderSourceRows.rows(
+                "remote" to ExpanderSourceRows.candidates(read { Use.link(linker, target, "later", 1) }),
+                "own" to ExpanderSourceRows.candidates(read { Use.link(target, target, "later", 1) }),
+            ),
+        )
+    }
+
+    /**
      * Elixir loads no module whose body raises, so a qualified call into it reaches nothing; past a stop, the qualifier
      * may name another module than the env at the stop says, so it gets the index's definitions in the module named.
      */
@@ -2666,12 +2707,130 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
     }
 
-    /** Why [ExpanderSource]'s answer to the use [call] in [context] may be missing what it reaches, or `certain`. */
-    private fun absence(file: PsiFile, context: String, call: String): String {
-        val use = use(file, context, call)
+    /** A `@spec` head names what its own module defines of its name. */
+    fun testASpecHeadNamesItsModulesDefinitions() {
+        val file = file(
+            """
+            defmodule Specced do
+              @spec f(integer) :: integer
+              def f(x), do: x
+              def f(x, y), do: x + y
+            end
+            """
+        )
+        val use = specification(file)
 
-        return read { ExpanderSource.answer(use, false) }.absence?.name ?: "certain"
+        assertAnswersAsTheWalk(
+            use,
+            """
+            Specced.f/1 OWN VALID via [] line 3
+            Specced.f/2 OWN WRONG_ARITY via [] line 4
+            """,
+        )
     }
+
+    /** A `@spec` head in a module whose definitions aren't known to its end gets the index's definitions of its name there. */
+    fun testASpecHeadInAModuleNotKnownToItsEndGetsItsIndexedDefinitions() {
+        val file = file(
+            """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Specced do
+              require M
+              M.m()
+              @spec f(integer) :: integer
+              def f(x), do: x
+            end
+            """
+        )
+
+        assertEquals("Specced.f/1 INDEXED VALID via [] line 9 INDEX", ExpanderSourceRows.candidates(specification(file)))
+    }
+
+    /** An MFA names what its module defines of its name: at a literal arity as a call of it; at any other, undecided. */
+    fun testAnMfaNamesItsModulesDefinitions() {
+        val file = file(
+            """
+            defmodule Target do
+              def t(a), do: a
+            end
+
+            defmodule Caller do
+              def literal, do: {Target, :t, 1}
+              def any(n), do: {Target, :t, n}
+              def applied, do: apply(Target, :u, [1])
+            end
+            """
+        )
+
+        assertEquals(
+            listOf("Target.t/1 OWN VALID via [] line 2", "Target.t/1 OWN OPAQUE via [] line 2", ""),
+            listOf("{Target, :t, 1}", "{Target, :t, n}", "apply(Target, :u, [1])").map { context ->
+                val use = mfa(file, context)
+                val expander = render(read { ExpanderSource.candidates(use, false) })
+
+                assertEquals(context, render(read { LegacyWalkSource.candidates(use, false) }), expander)
+
+                expander
+            },
+        )
+    }
+
+    /** A link names what is reached from its entrance: the module it names, or its own module. */
+    fun testALinkNamesWhatItsEntranceReaches() {
+        val file = file(
+            """
+            defmodule Target do
+              def t(a), do: a
+            end
+
+            defmodule Linker do
+              @moduledoc "See `Target.t/1` and `own/1`."
+              def own(a), do: a
+            end
+            """
+        )
+        val (target, linker) = read {
+            listOf("defmodule Target", "defmodule Linker").map { start ->
+                PsiTreeUtil.findChildrenOfType(file, Call::class.java).first { it.text.startsWith(start) }
+            }
+        }
+
+        assertAnswersAsTheWalk(read { Use.link(linker, target, "t", 1) }, "Target.t/1 OWN VALID via [] line 2")
+        assertAnswersAsTheWalk(read { Use.link(linker, linker, "own", 1) }, "Linker.own/1 OWN VALID via [] line 7")
+    }
+
+    /** The use of the head `f(integer)` written in [file]'s only `@spec`. */
+    private fun specification(file: PsiFile): Use.Specified =
+        read {
+            val attribute = PsiTreeUtil.findChildrenOfType(file, AtUnqualifiedNoParenthesesCall::class.java).single()
+
+            Use.specification(PsiTreeUtil.findChildrenOfType(attribute, Call::class.java).first { it.text == "f(integer)" }, attribute)!!
+        }
+
+    /** The use of the first atom written in [context]. */
+    private fun mfa(file: PsiFile, context: String): Use.Remote =
+        read {
+            val offset = file.text.indexOf(context) + context.indexOf(':')
+
+            Use.mfa(PsiTreeUtil.getParentOfType(file.findElementAt(offset), ElixirAtom::class.java, false)!!)!!
+        }
+
+    /** [ExpanderSource] and the walk both give [use] the candidates [expected], rendered one per line. */
+    private fun assertAnswersAsTheWalk(use: Use, expected: String) {
+        val expander = render(read { ExpanderSource.candidates(use, false) })
+
+        assertEquals(expected.trimIndent(), expander)
+        assertEquals(render(read { LegacyWalkSource.candidates(use, false) }), expander)
+    }
+
+    /** Why [ExpanderSource]'s answer to the use [call] in [context] may be missing what it reaches, or `certain`. */
+    private fun absence(file: PsiFile, context: String, call: String): String = absence(use(file, context, call))
+
+    /** Why [ExpanderSource]'s answer to [use] may be missing what it reaches, or `certain`. */
+    private fun absence(use: Use): String = read { ExpanderSource.answer(use, false) }.absence?.name ?: "certain"
 
     /** [beam], an IFF `FOR1`/`BEAM` file, with its chunk [id] dropped. */
     private fun withoutChunk(beam: ByteArray, id: String): ByteArray {
