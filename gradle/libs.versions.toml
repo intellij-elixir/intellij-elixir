@@ -20,7 +20,7 @@
 kotlin = "2.4.0"
 
 # Unpinned/non-stdlib bundled packages
-intellij-platform = "2.20.0"
+intellij-platform = "2.20.1"
 gradle-download = "5.7.0"
 test-logger = "4.0.0"
 versions = "0.67.0"
