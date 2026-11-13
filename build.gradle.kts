@@ -956,74 +956,109 @@ val getQuoterDeps: TaskProvider<GetQuoterDepsTask> = tasks.register<GetQuoterDep
         .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
-// The expander tests' Ecto fixture: a Mix project with a lock for each Elixir it is tested on, its `mix.exs` choosing
-// the one for the running Elixir. Its dependencies are fetched into the cache, never beside the committed project, with
-// a MIX_HOME and MIX_ARCHIVES of their own, since getQuoterDeps declares the quoter's as its outputs.
-val ectoFixturePath: Directory = layout.projectDirectory.dir("testData/org/elixir_lang/expander/ecto")
-val ectoFixtureLocks: Directory = ectoFixturePath.dir("locks")
-val ectoFixtureCachePath: Directory = cachePath.dir("$quoterPairToken-ecto-fixture")
-val ectoFixtureDeps: Directory = ectoFixtureCachePath.dir("deps")
-val ectoFixtureMixHome: Directory = ectoFixtureCachePath.dir("mix_home")
-val ectoFixtureMixArchives: Directory = ectoFixtureCachePath.dir("mix_archives")
+/**
+ * A fixture's dependencies, `MIX_HOME` and `MIX_ARCHIVES` under [dir], which the test JVM is given as the system
+ * properties `elixir.<property>.deps`, `.mixHome` and `.mixArchives`.
+ */
+class FixtureCache(property: String, dir: Directory) {
+    val deps: Directory = dir.dir("deps")
+    val mixHome: Directory = dir.dir("mix_home")
+    val mixArchives: Directory = dir.dir("mix_archives")
 
-val getEctoFixtureDeps: TaskProvider<GetQuoterDepsTask> = tasks.register<GetQuoterDepsTask>("getEctoFixtureDeps") {
-    description = "Fetches the Ecto fixture's dependencies, for an Elixir it has a lock for"
-    dependsOn(resolveElixirErlangSdks)
+    val systemProperties: List<Pair<String, File>> =
+        listOf("deps" to deps, "mixHome" to mixHome, "mixArchives" to mixArchives).map { (name, dir) -> "elixir.$property.$name" to dir.asFile }
 
-    projectDir.set(ectoFixturePath)
-    depsDir.set(ectoFixtureDeps)
-    sdkProperties.set(sdkPropertiesFile)
-    mixHome.set(ectoFixtureMixHome)
-    mixArchives.set(ectoFixtureMixArchives)
-    mixEnv.set("dev")
+    val directories: List<File> get() = systemProperties.map { (_, dir) -> dir }
+}
 
-    inputs.file(ectoFixturePath.file("mix.exs"))
-        .withPropertyName("mixExs")
-        .withPathSensitivity(PathSensitivity.RELATIVE)
-    // Every lock, since which one `mix.exs` reads is known only once the SDK is resolved.
-    inputs.dir(ectoFixtureLocks)
-        .withPropertyName("mixLocks")
-        .withPathSensitivity(PathSensitivity.RELATIVE)
+/**
+ * An expander test fixture's [cache], the task that fetches its dependencies into it ([fetch]), and the digest of the
+ * lock it fetches for the requested Elixir ([lockDigest]).
+ */
+class ExpanderFixture(val cache: FixtureCache, val fetch: TaskProvider<GetQuoterDepsTask>, val lockDigest: Provider<String>)
 
-    // The resolved Elixir's, as `mix.exs` and the test read it: `-PelixirVersion=1.20` resolves to a 1.20.4.
-    val resolvedSdks = sdkPropertiesFile.get().asFile
-    val locks = ectoFixtureLocks.asFile
-    onlyIf("the Ecto fixture has a lock for this Elixir") {
-        File(locks, "${readPropertiesFile(resolvedSdks)["elixir.version"]}.lock").isFile
+/** The SHA-256 of [lock], `none` where it doesn't exist. */
+fun digestOf(lock: RegularFile): Provider<String> =
+    providers.fileContents(lock).asBytes
+        .map { bytes -> MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) } }
+        .orElse("none")
+
+/**
+ * The expander test fixture, the Mix project at [path], that [property] names: its system properties, its cache
+ * directory (`ectoFixture`'s is `<pair>-ecto-fixture`) and its fetch task (`getEctoFixtureDeps`). Its dependencies are
+ * fetched into the cache, never beside the committed project, with a MIX_HOME and MIX_ARCHIVES of their own, since
+ * getQuoterDeps declares the quoter's as its outputs. [declare] declares the fetch's inputs and the Elixir it runs
+ * for, and [lockDigest] is the digest of the lock it fetches for the requested Elixir.
+ */
+fun expanderFixture(
+    property: String,
+    path: Directory,
+    description: String,
+    lockDigest: Provider<String>,
+    declare: GetQuoterDepsTask.() -> Unit,
+): ExpanderFixture {
+    val cache = FixtureCache(property, cachePath.dir("$quoterPairToken-${property.replace(Regex("([a-z])([A-Z])"), "$1-$2").lowercase()}"))
+    val fetch = tasks.register<GetQuoterDepsTask>("get${property.replaceFirstChar(Char::uppercaseChar)}Deps") {
+        this.description = description
+        dependsOn(resolveElixirErlangSdks)
+
+        projectDir.set(path)
+        depsDir.set(cache.deps)
+        sdkProperties.set(sdkPropertiesFile)
+        mixHome.set(cache.mixHome)
+        mixArchives.set(cache.mixArchives)
+        mixEnv.set("dev")
+
+        declare()
+    }
+
+    return ExpanderFixture(cache, fetch, lockDigest)
+}
+
+/**
+ * The expander test fixture at [path] with a lock for each Elixir it is tested on, in `locks/`, its `mix.exs` choosing
+ * the one for the running Elixir, fetched for an Elixir it has a lock for. [name] names it in the task's text.
+ */
+fun lockedExpanderFixture(property: String, path: Directory, name: String): ExpanderFixture {
+    val locks = path.dir("locks")
+
+    return expanderFixture(
+        property,
+        path,
+        "Fetches the $name fixture's dependencies, for an Elixir it has a lock for",
+        digestOf(locks.file("$elixirVersion.lock")),
+    ) {
+        inputs.file(path.file("mix.exs"))
+            .withPropertyName("mixExs")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+        // Every lock, since which one `mix.exs` reads is known only once the SDK is resolved.
+        inputs.dir(locks)
+            .withPropertyName("mixLocks")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+
+        // The resolved Elixir's, as `mix.exs` and the test read it: `-PelixirVersion=1.20` resolves to a 1.20.4.
+        val resolvedSdks = sdkPropertiesFile.get().asFile
+        val lockDir = locks.asFile
+        onlyIf("the $name fixture has a lock for this Elixir") {
+            File(lockDir, "${readPropertiesFile(resolvedSdks)["elixir.version"]}.lock").isFile
+        }
     }
 }
 
-// The expander tests' Phoenix.Component fixture, laid out and fetched as the Ecto fixture is.
-val phoenixComponentFixturePath: Directory = layout.projectDirectory.dir("testData/org/elixir_lang/expander/phoenix_component")
-val phoenixComponentFixtureLocks: Directory = phoenixComponentFixturePath.dir("locks")
-val phoenixComponentFixtureCachePath: Directory = cachePath.dir("$quoterPairToken-phoenix-component-fixture")
-val phoenixComponentFixtureDeps: Directory = phoenixComponentFixtureCachePath.dir("deps")
-val phoenixComponentFixtureMixHome: Directory = phoenixComponentFixtureCachePath.dir("mix_home")
-val phoenixComponentFixtureMixArchives: Directory = phoenixComponentFixtureCachePath.dir("mix_archives")
+val ectoFixture = lockedExpanderFixture("ectoFixture", layout.projectDirectory.dir("testData/org/elixir_lang/expander/ecto"), "Ecto")
 
-val getPhoenixComponentFixtureDeps: TaskProvider<GetQuoterDepsTask> = tasks.register<GetQuoterDepsTask>("getPhoenixComponentFixtureDeps") {
-    description = "Fetches the Phoenix.Component fixture's dependencies, for an Elixir it has a lock for"
-    dependsOn(resolveElixirErlangSdks)
+val phoenixComponentFixture = lockedExpanderFixture(
+    "phoenixComponentFixture",
+    layout.projectDirectory.dir("testData/org/elixir_lang/expander/phoenix_component"),
+    "Phoenix.Component",
+)
 
-    projectDir.set(phoenixComponentFixturePath)
-    depsDir.set(phoenixComponentFixtureDeps)
-    sdkProperties.set(sdkPropertiesFile)
-    mixHome.set(phoenixComponentFixtureMixHome)
-    mixArchives.set(phoenixComponentFixtureMixArchives)
-    mixEnv.set("dev")
+val expanderFixtures = listOf(ectoFixture, phoenixComponentFixture)
 
-    inputs.file(phoenixComponentFixturePath.file("mix.exs"))
-        .withPropertyName("mixExs")
-        .withPathSensitivity(PathSensitivity.RELATIVE)
-    inputs.dir(phoenixComponentFixtureLocks)
-        .withPropertyName("mixLocks")
-        .withPathSensitivity(PathSensitivity.RELATIVE)
-
-    val resolvedSdks = sdkPropertiesFile.get().asFile
-    val locks = phoenixComponentFixtureLocks.asFile
-    onlyIf("the Phoenix.Component fixture has a lock for this Elixir") {
-        File(locks, "${readPropertiesFile(resolvedSdks)["elixir.version"]}.lock").isFile
-    }
+// CI runs this before it saves the Elixir cache, so the cache holds every fixture's dependencies.
+val getExpanderFixtureDeps: TaskProvider<Task> = tasks.register("getExpanderFixtureDeps") {
+    description = "Fetches the dependencies of each expander test fixture"
+    dependsOn(expanderFixtures.map { it.fetch })
 }
 
 val releaseQuoter: TaskProvider<ReleaseQuoterTask> = tasks.register<ReleaseQuoterTask>("releaseQuoter") {
@@ -1081,18 +1116,14 @@ tasks.register<CachePathsTask>("quoterCachePaths") {
     outputName.set("paths")
     val projectPath = layout.projectDirectory.asFile.toPath()
     patterns.set(
-        listOf(
-            quoterUnzippedPath.asFile,
-            quoterZip.asFile,
-            // Without these getQuoterDeps reinstalls hex and rebar from builds.hex.pm on every leg.
-            mixHomeForPair,
-            mixArchivesForPair,
-            ectoFixtureDeps.asFile,
-            ectoFixtureMixHome.asFile,
-            ectoFixtureMixArchives.asFile,
-            phoenixComponentFixtureDeps.asFile,
-            phoenixComponentFixtureMixHome.asFile,
-            phoenixComponentFixtureMixArchives.asFile,
+        (
+            listOf(
+                quoterUnzippedPath.asFile,
+                quoterZip.asFile,
+                // Without these getQuoterDeps reinstalls hex and rebar from builds.hex.pm on every leg.
+                mixHomeForPair,
+                mixArchivesForPair,
+            ) + expanderFixtures.flatMap { it.cache.directories }
         ).map { projectPath.relativize(it.toPath()).joinToString("/") } +
             // Sockets, not build output - actions/cache cannot archive them.
             "!cache/**/tmp/pipe/**"
@@ -1100,12 +1131,7 @@ tasks.register<CachePathsTask>("quoterCachePaths") {
     // The cache is saved only when its key misses, so a lock bump must change the key for the new dependencies to
     // be saved. CI asks for this before any SDK is resolved, so the lock is named by the requested Elixir, which
     // CI gives in full.
-    val lockDigest = { locks: Directory ->
-        providers.fileContents(locks.file("$elixirVersion.lock")).asBytes
-            .map { bytes -> MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) } }
-            .orElse("none")
-    }
-    key.set(lockDigest(ectoFixtureLocks).zip(lockDigest(phoenixComponentFixtureLocks)) { ecto, phoenix -> "$ecto-$phoenix" })
+    key.set(expanderFixtures.map { it.lockDigest }.reduce { digests, digest -> digests.zip(digest) { a, b -> "$a-$b" } })
 }
 
 // --- Elixir parsing corpus ---
@@ -1205,7 +1231,7 @@ tasks.named<Test>("test") {
     // decompiler tests read the Elixir stdlib ebin, and the parser tests read stdlib sources.
     // Resolved paths are only known at execution, so set env in a doFirst reading the resolver
     // output.
-    dependsOn("prepareTestSandbox", resolveElixirErlangSdks, startQuoter, getEctoFixtureDeps, getPhoenixComponentFixtureDeps)
+    dependsOn("prepareTestSandbox", resolveElixirErlangSdks, startQuoter, getExpanderFixtureDeps)
     usesService(quoterService)
     // Backstop for local runs, which have no step limit of CI's: a full run took 5m54s locally on 9 forks,
     // and a stuck test fork otherwise runs until someone notices.
@@ -1261,14 +1287,7 @@ tasks.named<Test>("test") {
     val quoterAvailability = quoterAvailabilityFile.asFile
     val quoterStarted = quoterStartedFile.asFile
     val corpusRoot = elixirParsingCorpusRoot.asFile.takeIf { elixirParsingCorpus.isNotEmpty() }
-    val fixtureMix = mapOf(
-        "elixir.ectoFixture.deps" to ectoFixtureDeps.asFile,
-        "elixir.ectoFixture.mixHome" to ectoFixtureMixHome.asFile,
-        "elixir.ectoFixture.mixArchives" to ectoFixtureMixArchives.asFile,
-        "elixir.phoenixComponentFixture.deps" to phoenixComponentFixtureDeps.asFile,
-        "elixir.phoenixComponentFixture.mixHome" to phoenixComponentFixtureMixHome.asFile,
-        "elixir.phoenixComponentFixture.mixArchives" to phoenixComponentFixtureMixArchives.asFile,
-    )
+    val fixtureMix = expanderFixtures.flatMap { it.cache.systemProperties }
     doFirst {
         // `startQuoter` writes the start marker every run and copies the build marker's reason when it
         // skips, so where it exists it is the later and more complete answer. Falling back to the build

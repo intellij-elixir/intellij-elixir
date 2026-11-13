@@ -278,9 +278,8 @@ jobs:
       # Timed phases; Gradle up-to-date checking makes each reuse the prior step's output (no rework):
       #   Compile         - fail-fast compile gate; no packaging, Elixir, or quoter.
       #   Prepare sandbox - stage the plugin into the test sandbox (not the buildPlugin distribution).
-      #   Build quoter    - releaseQuoter builds the executable; does not start the daemon. getEctoFixtureDeps and
-      #                     getPhoenixComponentFixtureDeps fetch the test fixtures' dependencies, so the Save below
-      #                     holds them too.
+      #   Build quoter    - releaseQuoter builds the executable; does not start the daemon. getExpanderFixtureDeps
+      #                     fetches each expander test fixture's dependencies, so the Save below holds them too.
       #   Download corpus - elixirParsingCorpus fetches and extracts the parser tests' corpus.
       #   Run tests       - check (test + :jps-builder:test), or :test alone for the heavy part, since
       #                     -PtestPart narrows only the root test task; owns the quoter daemon start/stop.
@@ -297,7 +296,7 @@ jobs:
       - name: Build quoter
         id: build-quoter
         continue-on-error: ${{ matrix.continue-on-error || false }}
-        run: ./gradlew $GRADLE_FLAGS releaseQuoter getEctoFixtureDeps getPhoenixComponentFixtureDeps
+        run: ./gradlew $GRADLE_FLAGS releaseQuoter getExpanderFixtureDeps
 
       # Saved here because the cached paths do not exist until the Build quoter step has run. `path` must stay
       # the shared output, never a list written out here - see Resolve quoter cache paths for what
