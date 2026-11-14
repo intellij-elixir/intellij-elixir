@@ -35,6 +35,7 @@ import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.declaration.preferred
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.expander.ExpanderSourceRows.arity
+import org.elixir_lang.expander.ExpanderSourceRows.modulars
 import org.elixir_lang.expander.ExpanderSourceRows.read
 import org.elixir_lang.expander.ExpanderSourceRows.render
 import org.elixir_lang.expander.ExpanderSourceRows.renderVisible
@@ -2741,11 +2742,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             end
             """
         )
-        val (target, linker) = read {
-            listOf("defmodule Target", "defmodule Linker").map { start ->
-                PsiTreeUtil.findChildrenOfType(file, Call::class.java).first { it.text.startsWith(start) }
-            }
-        }
+        val (target, linker) = modulars(file, "defmodule Target", "defmodule Linker")
 
         assertEquals(
             ExpanderSourceRows.rows(
@@ -2973,9 +2970,9 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             listOf("Target.t/1 OWN VALID via [] line 2", "Target.t/1 OWN OPAQUE via [] line 2", ""),
             listOf("{Target, :t, 1}", "{Target, :t, n}", "apply(Target, :u, [1])").map { context ->
                 val use = mfa(file, context)
-                val expander = render(read { ExpanderSource.candidates(use, false) })
+                val expander = ExpanderSourceRows.candidates(use)
 
-                assertEquals(context, render(read { LegacyWalkSource.candidates(use, false) }), expander)
+                assertEquals(context, ExpanderSourceRows.candidates(use, LegacyWalkSource), expander)
 
                 expander
             },
@@ -2996,11 +2993,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             end
             """
         )
-        val (target, linker) = read {
-            listOf("defmodule Target", "defmodule Linker").map { start ->
-                PsiTreeUtil.findChildrenOfType(file, Call::class.java).first { it.text.startsWith(start) }
-            }
-        }
+        val (target, linker) = modulars(file, "defmodule Target", "defmodule Linker")
 
         assertAnswersAsTheWalk(read { Use.link(linker, target, "t", 1) }, "Target.t/1 OWN VALID via [] line 2")
         assertAnswersAsTheWalk(read { Use.link(linker, linker, "own", 1) }, "Linker.own/1 OWN VALID via [] line 7")
@@ -3024,10 +3017,10 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
 
     /** [ExpanderSource] and the walk both give [use] the candidates [expected], rendered one per line. */
     private fun assertAnswersAsTheWalk(use: Use, expected: String) {
-        val expander = render(read { ExpanderSource.candidates(use, false) })
+        val expander = ExpanderSourceRows.candidates(use)
 
         assertEquals(expected.trimIndent(), expander)
-        assertEquals(render(read { LegacyWalkSource.candidates(use, false) }), expander)
+        assertEquals(ExpanderSourceRows.candidates(use, LegacyWalkSource), expander)
     }
 
     /** Why [ExpanderSource]'s answer to the use [call] in [context] may be missing what it reaches, or `certain`. */
@@ -3092,11 +3085,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         last: Boolean = false,
         source: CandidateSource = ExpanderSource,
         incompleteCode: Boolean = false,
-    ): String {
-        val use = use(file, context, call, last)
-
-        return render(read { source.candidates(use, incompleteCode) })
-    }
+    ): String = ExpanderSourceRows.candidates(use(file, context, call, last), source, incompleteCode)
 
     /** Where [ExpanderSource] declares each find at the use [call] in [context]: `<module>.<name>/<arity> <form> <element's first line>`. */
     private fun declaredAt(file: PsiFile, context: String, call: String): List<String> {

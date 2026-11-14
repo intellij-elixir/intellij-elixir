@@ -11,7 +11,9 @@ import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.declaration.ArityKnowledge
+import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.EXPANDER
 import org.elixir_lang.declaration.Found
@@ -89,8 +91,9 @@ internal object ExpanderSourceRows {
     /** The expander's candidates for the call [call], which occurs once in [file], rendered one per line. */
     fun candidates(file: PsiFile, call: String): String = candidates(use(file, call, call))
 
-    /** The expander's candidates for [use], rendered one per line. */
-    fun candidates(use: Use): String = render(read { ExpanderSource.candidates(use, false) })
+    /** [source]'s candidates for [use], the expander's by default, in complete code unless [incompleteCode], rendered one per line. */
+    fun candidates(use: Use, source: CandidateSource = ExpanderSource, incompleteCode: Boolean = false): String =
+        render(read { source.candidates(use, incompleteCode) })
 
     /** The use that is the call [call], found in the only occurrence of [context], or its last with [last]. */
     fun use(file: PsiFile, context: String, call: String, last: Boolean = false): Use.OfCall =
@@ -108,6 +111,10 @@ internal object ExpanderSourceRows {
             .filterIsInstance<Call>()
             .first { it.textRange.startOffset == offset && it.text == call }
     }
+
+    /** The modular calls in [file] that begin with each of [starts]. */
+    fun modulars(file: PsiFile, vararg starts: String): List<Call> =
+        read { starts.map { start -> PsiTreeUtil.findChildrenOfType(file, Call::class.java).first { it.text.startsWith(start) } } }
 
     /** `label: rendered` pairs, one block each, so one comparison shows every row that differs. */
     fun rows(vararg rows: Pair<String, String>): String = rows.joinToString("\n\n") { (label, rendered) -> "$label:\n$rendered" }
