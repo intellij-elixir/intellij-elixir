@@ -283,7 +283,8 @@ internal class Thrown(val kind: String, val reason: OtpErlangObject, val stacktr
     RuntimeException(null, null, false, false)
 
 /**
- * A value the evaluator doesn't know: an [Unknown], of any type, a [Holding], a [ModuleUnknown] or an [UnknownBoolean].
+ * A value the evaluator doesn't know: an [Unknown], of any type, a [Holding], a [ModuleUnknown], an [UnknownBoolean]
+ * or a [GuardUnknown].
  */
 internal sealed class UnknownValue(
     /** Whether the value came from no module being compiled, so holds none ([holdsNoModule]). */
@@ -335,6 +336,18 @@ internal object UnknownBoolean : UnknownValue(fromNoModule = true) {
     private fun readResolve(): Any = UnknownBoolean
 
     override fun toString() = "#UnknownBoolean"
+}
+
+/**
+ * What a guard's code, a call or a binary's build, gives where it may have raised, which fails the guard: a value not
+ * known that may be that failure, so never read as a value, and no module being compiled.
+ */
+internal object GuardUnknown : UnknownValue(fromNoModule = true) {
+    // Java serialization calls it.
+    @Suppress("unused")
+    private fun readResolve(): Any = GuardUnknown
+
+    override fun toString() = "#GuardUnknown"
 }
 
 /**
@@ -436,9 +449,12 @@ private fun builtFrom(
 /**
  * A value the evaluator doesn't know, built from [parts]: it came from a module being compiled where one of them did. A
  * number or a binary holds no module, so a value built from one and an unknown is that unknown, and a call given it
- * again is the same call ([RunningCall]); a value built from one [Holding] alone is that [Holding].
+ * again is the same call ([RunningCall]); a value built from one [Holding] alone is that [Holding]. One built from a
+ * [GuardUnknown] is a [GuardUnknown], as it may be the guard's failure.
  */
 internal fun unknownOf(parts: List<OtpErlangObject>): UnknownValue {
+    if (parts.any { it === GuardUnknown }) return GuardUnknown
+
     val adding = ArrayList<OtpErlangObject>()
 
     for (part in parts) {

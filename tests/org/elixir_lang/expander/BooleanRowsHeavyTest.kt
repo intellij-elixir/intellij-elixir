@@ -77,6 +77,7 @@ class BooleanRowsHeavyTest : ConfigHeavyTestCase() {
             Row("gx1.value", "k=Configured k1=1", elixir = "k=:b k1=1"),
             Row("gx2.value", "k=Configured k1=1"),
             Row("gx3.value", "k=Configured k1=1"),
+            Row("gx4.value", "k=:a k1=1"),
             // Elixir's guard always fails over `v`, a binary or `nil`, where a call in it raises; the plugin's call may not
             // raise, so the guard may pass.
             Row("gx5.value", "k=Configured k1=1", elixir = "k=:b k1=1"),
@@ -96,6 +97,16 @@ class BooleanRowsHeavyTest : ConfigHeavyTestCase() {
             // Elixir's guard always fails over `v`, a binary or `nil`, where a call in it raises; the plugin's call may not
             // raise, so the guard may pass.
             Row("gx12.value", "k=Configured k1=1", elixir = "k=:b k1=1"),
+            // Elixir's guard always fails over `v`, a binary or `nil`, where a call in it raises; the plugin's call may not
+            // raise, so the guard may pass.
+            Row("gx13.value", "k=Configured k1=1", elixir = "k=:b k1=1"),
+            // Elixir's guard always fails over `v`, a binary or `nil`, where a call in it raises; the plugin's call may not
+            // raise, so the guard may pass.
+            Row("gx14.value", "k=Configured k1=1", elixir = "k=:b k1=1"),
+            Row("gx15.value", "k=Configured k1=1"),
+            // Elixir's guard always fails over `v`, a binary or `nil`, where a call in it raises; the plugin's call may not
+            // raise, so the guard may pass.
+            Row("gx16.value", "k=Configured k1=1", elixir = "k=:b k1=1"),
             Row("gx17.value", "k=Configured k1=1"),
             Row("h1.raise", "k=0 k1=1"),
             Row("h1.value", "k=Configured k1=1"),

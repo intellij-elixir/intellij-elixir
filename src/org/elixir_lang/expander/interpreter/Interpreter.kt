@@ -1460,9 +1460,9 @@ internal class Evaluation(
     /**
      * The native [module]`.`[function] over each of the values [args] may be ([possibleValues]), where one is a boolean
      * not known and none may be any value: what their values join to ([joinOf]); where some raise, Elixir may raise
-     * ([raiseMayBeCaught]), and where all do, it raises the one raise they are ([joinedRaise]). In a [guard], where
-     * some raise the guard may fail, so the value is one not known. `null` where the native may write or not return
-     * ([mayWriteOrNotReturn]), writes a module, or declines on one of them, or where all raise but not as one raise.
+     * ([unlessRaisedIn]), and where all do, it raises the one raise they are ([joinedRaise]). `null` where the native may
+     * write or not return ([mayWriteOrNotReturn]), writes a module, or declines on one of them, or where all raise but
+     * not as one raise.
      */
     private fun overPossible(
         module: String,
@@ -1491,7 +1491,7 @@ internal class Evaluation(
         if (values.isEmpty()) throw joinedRaise(raised) ?: return null
         if (raised.isEmpty()) return joinOf(values)
 
-        return if (guard) unknownOf(values) else unlessRaised(joinOf(values))
+        return unlessRaisedIn(guard) { joinOf(values) }
     }
 
     /**
@@ -2297,7 +2297,7 @@ internal class Evaluation(
      * `receiver:function(args)`: a native, else a public function of a module whose clauses can be read. A decline in
      * it [marks] what [args] give it ([calling]). A native's unknown result is [nativeResult]'s. In [tail] position,
      * the call is made, not run ([called]).
-     * In a [guard], a native given a value not known isn't taken to maybe raise ([givenUnknown]).
+     * In a [guard], a native that may raise on a value not known gives [GuardUnknown] ([givenUnknown]).
      */
     fun remote(
         receiver: OtpErlangObject,
@@ -2324,8 +2324,10 @@ internal class Evaluation(
     /**
      * [module]`.`[function]`(`[args]`)` where it is a native, else `null`, called by its module or from outside it
      * alike. Its unknown result is a boolean not known where the call returns a boolean (Elixir's `returns_boolean`,
-     * [returnsBooleanCall]) outside a [guard], and else came from a module being compiled where an argument it may
-     * return ([Natives.returnable]) gives one.
+     * [returnsBooleanCall]), and else came from a module being compiled where an argument it may return
+     * ([Natives.returnable]) gives one. In a [guard], given a value a guard's call that may have raised gave
+     * ([GuardUnknown]), at any depth, it may fail as that one did, as every call a guard can make is a native or one of
+     * Kernel's guard functions over one.
      */
     private fun nativeResult(
         module: String,
@@ -2334,14 +2336,17 @@ internal class Evaluation(
         marks: Boolean,
         tail: Boolean,
         guard: Boolean = false,
-    ): OtpErlangObject? =
-        native(module, function, args, marks, tail, guard)?.let { result ->
+    ): OtpErlangObject? {
+        if (guard && anyHeld(args) { it === GuardUnknown }) return GuardUnknown
+
+        return native(module, function, args, marks, tail, guard)?.let { result ->
             when {
                 result !== Unknown -> result
-                !guard && returnsBooleanCall(module, function, args.size, run.level) -> UnknownBoolean
+                returnsBooleanCall(module, function, args.size, run.level) -> UnknownBoolean
                 else -> unknownOf(natives.returnable(module, function, args))
             }
         }
+    }
 
     /**
      * [receiver], a remote call's given [args]: one that isn't known may be any module's code, and where the call [marks]
@@ -2399,15 +2404,22 @@ internal class Evaluation(
      * as it declines, where the native may write or not return ([mayWriteOrNotReturn]), or is given a function inside
      * another argument, which it may run. The native is taken to have declined on the value not known: where it declined
      * on another known shape Elixir always raises on, what follows reads as if the raise may not happen. In a [guard],
-     * a raise fails the guard, which the clause's test takes as one not known, so nothing may have raised.
+     * a raise fails the guard, so it gives [GuardUnknown] ([unlessRaisedIn]).
      */
     private fun givenUnknown(module: String, function: String, args: List<OtpErlangObject>, guard: Boolean): OtpErlangObject? {
         if (mayWriteOrNotReturn(module, function, args)) return null
         if (!anyHeld(args, visit = ::isUnknown)) return null
         if (holdsAFunction(args.filterNot(::isFunction))) return null
 
-        return if (guard) Unknown else unlessRaised(Unknown)
+        return unlessRaisedIn(guard) { Unknown }
     }
+
+    /**
+     * What code that may have raised, a call or a binary's build, gives, where it may not have given [value]: outside a
+     * [guard], [value], as Elixir may raise ([raiseMayBeCaught]); in one, where the raise fails the guard, [GuardUnknown].
+     */
+    internal inline fun unlessRaisedIn(guard: Boolean, value: () -> OtpErlangObject): OtpErlangObject =
+        if (guard) GuardUnknown else unlessRaised(value())
 
     /**
      * Whether the native [module]`.`[function], given [args], may write what the run holds ([Natives.writesTheRun]),
