@@ -598,6 +598,13 @@ data class ParameterInfoPopup(val signatures: List<String>, val currentParameter
  */
 fun CodeInsightTestFixture.parameterInfoSignaturesAtCaret(): List<String> = parameterInfoSignatures(editor, file)
 
+/** [parameterInfoSignaturesAtCaret] in [text], opened as [fileName]. */
+fun CodeInsightTestFixture.parameterInfoSignaturesIn(fileName: String, text: String): List<String> {
+    configureByText(fileName, text)
+
+    return parameterInfoSignaturesAtCaret()
+}
+
 /** [parameterInfoSignaturesAtCaret] for an [editor] on [file] that no fixture opened. */
 fun parameterInfoSignatures(editor: Editor, file: PsiFile): List<String> {
     val handler = ParameterInfo()

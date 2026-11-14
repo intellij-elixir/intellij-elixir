@@ -5,6 +5,7 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootModificationUtil
+import com.intellij.openapi.util.Disposer
 import com.intellij.testFramework.IndexingTestUtil
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.sdk.SdkFixtures
@@ -40,6 +41,10 @@ internal object LegSdk {
 
         return elixir
     }
+
+    /** [setUp], with [tearDown] when [disposable] is disposed. */
+    fun heldUntil(module: Module, disposable: Disposable): Sdk =
+        setUp(module, disposable).also { Disposer.register(disposable) { tearDown(module) } }
 
     fun tearDown(module: Module) {
         ModuleRootModificationUtil.setModuleSdk(module, null)

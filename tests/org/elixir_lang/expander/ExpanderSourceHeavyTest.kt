@@ -570,6 +570,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
                 "Stopped.target/1 OWN VALID via [] line 7",
                 listOf(
                     "Stopped.target/1 OWN VALID via [] line 7 OPAQUE",
+                    "Mix.target/0 INDEXED WRONG_ARITY via [] INDEX",
                     "Mix.target/1 INDEXED VALID via [] INDEX",
                     "Raised.target/1 INDEXED VALID via [] line 14 INDEX",
                     "Tainted.target/1 INDEXED VALID via [] line 2 INDEX",
@@ -577,6 +578,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
                 "Raised.target/1 OWN VALID via [] line 14",
                 listOf(
                     "Raised.target/1 OWN VALID via [] line 14 STOP",
+                    "Mix.target/0 INDEXED WRONG_ARITY via [] INDEX",
                     "Mix.target/1 INDEXED VALID via [] INDEX",
                     "Stopped.target/1 INDEXED VALID via [] line 7 INDEX",
                     "Tainted.target/1 INDEXED VALID via [] line 2 INDEX",
@@ -1193,7 +1195,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(
             listOf(
                 "Outer.target/1 OWN VALID via [] line 6",
-                "Outer.target/1 OWN VALID via [] line 6 STOP\nMix.target/1 INDEXED VALID via [] INDEX",
+                "Outer.target/1 OWN VALID via [] line 6 STOP\nMix.target/0 INDEXED WRONG_ARITY via [] INDEX\nMix.target/1 INDEXED VALID via [] INDEX",
             ),
             listOf(candidates(file, "target(1)", "target(1)"), candidates(file, "target(2)", "target(2)")),
         )
@@ -1233,7 +1235,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(
             listOf(
                 "Outer.target/1 OWN VALID via [] line 7",
-                "Outer.target/1 OWN VALID via [] line 7 STOP\nMix.target/1 INDEXED VALID via [] INDEX",
+                "Outer.target/1 OWN VALID via [] line 7 STOP\nMix.target/0 INDEXED WRONG_ARITY via [] INDEX\nMix.target/1 INDEXED VALID via [] INDEX",
             ),
             listOf(candidates(file, "target(1)", "target(1)"), candidates(file, "target(2)", "target(2)")),
         )
@@ -1264,7 +1266,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(
             listOf(
                 "Opaquer.target/1 OWN VALID via [] line 7",
-                "Opaquer.target/1 OWN VALID via [] line 7 OPAQUE\nMix.target/1 INDEXED VALID via [] INDEX",
+                "Opaquer.target/1 OWN VALID via [] line 7 OPAQUE\nMix.target/0 INDEXED WRONG_ARITY via [] INDEX\nMix.target/1 INDEXED VALID via [] INDEX",
             ),
             listOf(candidates(file, "target(1)", "target(1)"), candidates(file, "target(2)", "target(2)")),
         )
@@ -1309,7 +1311,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
 
         assertEquals(
-            "Outer.target/1 OWN VALID via [] line 2 STOP\nMix.target/1 INDEXED VALID via [] INDEX",
+            "Outer.target/1 OWN VALID via [] line 2 STOP\nMix.target/0 INDEXED WRONG_ARITY via [] INDEX\nMix.target/1 INDEXED VALID via [] INDEX",
             candidates(file, "target(1)", "target(1)"),
         )
     }
@@ -2447,6 +2449,34 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
     }
 
+    /** Past a stop the index gives a function at every arity, local or remote, so a call at an arity it doesn't take has it as a near miss. */
+    fun testPastAStopTheIndexGivesAFunctionAtEveryArity() {
+        val file = file(
+            """
+            defmodule Some.Processor do
+              def process(item, opts), do: {item, opts}
+            end
+
+            defmodule User do
+              1.f()
+              alias Some.Processor
+
+              def go(a), do: heap(a, a, a)
+              def again(x), do: Processor.process(x, x, x)
+              def heap(a), do: a
+            end
+            """
+        )
+
+        assertEquals(
+            listOf(
+                "User.heap/1 INDEXED WRONG_ARITY via [] line 11 INDEX",
+                "Some.Processor.process/2 INDEXED WRONG_ARITY via [] line 2 INDEX",
+            ),
+            listOf(candidates(file, "heap(a, a, a)", "heap(a, a, a)"), candidates(file, "Processor.process(x, x, x)", "Processor.process(x, x, x)")),
+        )
+    }
+
     /** A `def` in a `quote` defines nothing in the module the `quote` is in, so the index gives none. */
     fun testPastAStopTheIndexGivesNoDefinitionInAQuote() {
         val file = file(
@@ -2454,19 +2484,19 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             defmodule Q do
               defmacro make do
                 quote do
-                  def quoted(a), do: a
+                  def quoted_here(a), do: a
                 end
               end
             end
 
             defmodule User do
               1.f()
-              def go, do: quoted(1)
+              def go, do: quoted_here(1)
             end
             """
         )
 
-        assertEquals("", candidates(file, "quoted(1)", "quoted(1)"))
+        assertEquals("", candidates(file, "quoted_here(1)", "quoted_here(1)"))
     }
 
     /**
@@ -2950,6 +2980,38 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
                 candidates(file, "changed(1, 2, 3)", "changed(1, 2, 3)"),
                 candidates(file, "hidden(1)", "hidden(1)"),
             ),
+        )
+    }
+
+    /**
+     * Past a stop, an MFA whose arity isn't a literal names each arity the name index holds of the function, as Elixir
+     * has one function of each arity.
+     */
+    fun testPastAStopAnMfaOfAnyArityNamesEachArityTheIndexHolds() {
+        val file = file(
+            """
+            defmodule Foo do
+              def g(x), do: x
+            end
+
+            defmodule Some.Processor do
+              def process(item), do: item
+              def process(item, opts), do: {item, opts}
+            end
+
+            defmodule Caller do
+              import Foo, only: [Foo, g: 1]
+              alias Some.Processor
+
+              def calls(n), do: {Processor, :process, n}
+            end
+            """
+        )
+
+        assertEquals(
+            "Some.Processor.process/1 INDEXED OPAQUE via [] line 6 INDEX\n" +
+                "Some.Processor.process/2 INDEXED OPAQUE via [] line 7 INDEX",
+            ExpanderSourceRows.candidates(mfa(file, "{Processor, :process, n}")),
         )
     }
 

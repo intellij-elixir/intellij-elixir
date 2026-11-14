@@ -243,9 +243,11 @@ internal object ExpanderSource : CandidateSource {
         val wanted: (String) -> Boolean =
             if (call is Qualified) writtenModule(call.qualifier()) ?: return emptyList() else { _ -> true }
         val own by lazy { ownModular(call)?.let(::indexNames).orEmpty() }
-        val indexed = indexed(file, name, use.arity, { it in own }, wanted)
+        val isOwn = { module: String -> module in own }
+        val indexed = indexed(file, name, isOwn, wanted)
 
-        return beside(emptyList(), indexed, name, use.arity, remote = call is Qualified).mapNotNull { found(it, use, null) }
+        return ownFirst(beside(emptyList(), indexed, name, use.arity, remote = call is Qualified), isOwn)
+            .mapNotNull { found(it, use, null) }
     }
 
     /** [use]'s candidates, its file expanded with [inputs] in place of its SDK's. */
@@ -273,7 +275,8 @@ internal object ExpanderSource : CandidateSource {
         return if (call is Qualified) {
             qualified(at, call.qualifier(), name, use.arity)
         } else {
-            buildList {
+            val isOwn = isOwn(at)
+            val reached = buildList {
                 val defined = ownDefined(at, name)
                 // This lookup is the use's first, so a MODULE gap is one it met: what its module defines isn't known.
                 val ownUnknown = Uncertain.MODULE in at.gaps
@@ -282,18 +285,24 @@ internal object ExpanderSource : CandidateSource {
                 addAll(specialForms(at, name, use.arity))
                 // Past where the env is known, what the code after it brings in may be any definition of the name; on
                 // reached code in a module not known to its end, any the module defines.
-                val isOwn = isOwn(at)
                 val wanted: ((String) -> Boolean)? = when {
                     at.uncertain != null -> { _ -> true }
                     ownUnknown -> isOwn
                     else -> null
                 }
                 if (name != null && wanted != null) {
-                    addAll(beside(this, indexed(at.file, name, use.arity, isOwn, wanted), name, use.arity, remote = false))
+                    val indexed = indexed(at.file, name, isOwn, wanted)
+                    addAll(beside(this, indexed, name, use.arity, remote = false))
                 }
             }
+
+            ownFirst(reached, isOwn)
         }
     }
+
+    /** [reached], what the module [isOwn] takes defines first, as a local call of an arity it defines calls its own. */
+    private fun ownFirst(reached: List<Reached>, isOwn: (String) -> Boolean): List<Reached> =
+        reached.sortedBy { !isOwn(it.defined.module) }
 
     /**
      * The module [qualifier] names, else a [Uncertain.MODULE] gap, and its definitions of [name], as a remote call
@@ -331,7 +340,7 @@ internal object ExpanderSource : CandidateSource {
         val key = Module.indexName(module).takeIf { unknown }
         if (key == null && aliased == null) return found
 
-        val indexed = indexed(at.file, name, arity, isOwn(at)) { it == key || aliased?.invoke(it) == true }
+        val indexed = indexed(at.file, name, isOwn(at)) { it == key || aliased?.invoke(it) == true }
 
         return found + beside(found, indexed, name, arity, remote)
     }
@@ -581,8 +590,8 @@ internal object ExpanderSource : CandidateSource {
         /** Whether [declaration] takes [arity] arguments, which is not known past a head with no largest arity. */
         fun admits(arity: Int?): Boolean = arity == null || declaration.arity.admits(arity)
 
-        /** Its module and name, which are one Elixir function among the definitions admitting one arity. */
-        val key: Pair<String, String> get() = module to declaration.name
+        /** Its module, name and declared arity. */
+        val function: Triple<String, String, ArityKnowledge> get() = Triple(module, declaration.name, declaration.arity)
 
         /** Its declaration and the PSI declaring it, which the exports or copies answered by one written head share. */
         val declaredAt: Pair<PsiElement, Declaration> get() = element to declaration
@@ -851,20 +860,18 @@ internal object ExpanderSource : CandidateSource {
         }
 
     /**
-     * The name index's definitions of [name] admitting [arity] in [file]'s scope, in each module [wanted] takes, each
-     * [Uncertain.INDEX]: the public ones, and the private ones of each module [own] takes, the modules the use is in. One
-     * for each module and name, as Elixir has one function of each among those admitting an arity, so a library's source
-     * and its `.beam` give one.
+     * The name index's definitions of [name] at every arity in [file]'s scope, in each module [wanted] takes, each
+     * [Uncertain.INDEX], for the use's applicability to judge: the public ones, and the private ones of each module [own]
+     * takes, the modules the use is in, one for each module, name and declared arity.
      */
-    private fun indexed(file: PsiFile, name: String, arity: Int?, own: (String) -> Boolean, wanted: (String) -> Boolean): List<Defined> =
+    private fun indexed(file: PsiFile, name: String, own: (String) -> Boolean, wanted: (String) -> Boolean): List<Defined> =
         indexed(file, name)
             .filter { defined ->
                 defined.declaration.name == name &&
-                    defined.admits(arity) &&
                     wanted(defined.module) &&
                     (defined.declaration.visibility != Visibility.PRIVATE || own(defined.module))
             }
-            .distinctBy { it.key }
+            .distinctBy { it.function }
 
     /**
      * What the name index defines [name] as in [file]'s resolve scope, held on [file] until a tracker of
@@ -942,8 +949,8 @@ internal object ExpanderSource : CandidateSource {
             .firstOrNull { definition(it)?.type == Definition.Type.MODULAR }
 
     /**
-     * [indexed]'s definitions that none of [found] admitting [arity] has the module and name of, each [Reach.INDEXED],
-     * reached by a [remote] call or a local one.
+     * [indexed]'s definitions that none of [found] has the module, name and arity of, each [Reach.INDEXED], reached by a
+     * [remote] call or a local one at [arity].
      */
     private fun beside(
         found: List<Reached>,
@@ -952,10 +959,10 @@ internal object ExpanderSource : CandidateSource {
         arity: Int?,
         remote: Boolean,
     ): List<Reached> {
-        val known = found.filter { it.defined.admits(arity) }.mapTo(HashSet()) { it.defined.key }
+        val known = found.mapTo(HashSet()) { it.defined.function }
 
         return indexed
-            .filter { it.key !in known }
+            .filter { it.function !in known }
             .map { reached(it, Reach.INDEXED, emptyList(), name, arity, remote) }
     }
 
