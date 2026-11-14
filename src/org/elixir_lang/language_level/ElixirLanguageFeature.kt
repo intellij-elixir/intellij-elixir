@@ -1840,6 +1840,23 @@ enum class ElixirLanguageFeature(
     EVAL_ENV_KEEPS_CONTEXT_MODULES(sinceElixir = "1.18.0-rc.0"),
 
     /**
+     * `Code.eval_string/3` raises `ArgumentError` for a binding that isn't a list. Before it, `elixir_erl_var:load_binding`
+     * raises `FunctionClauseError`.
+     *
+     * `elixir-lang/elixir@d61ba915b` ("Raise `ArgumentError` on invalid binding in `Code.eval_string/3` (#15146)"),
+     * first released in v1.20.0-rc.3.
+     */
+    EVAL_STRING_CHECKS_THE_BINDING(sinceElixir = "1.20.0-rc.3"),
+
+    /**
+     * `Code.require_file/2` releases a file whose code raised, so a later require of it runs it again. Before it, the file
+     * stays acquired, and a later require waits for it without end.
+     *
+     * `elixir-lang/elixir@d33ea6e96` ("require_file releases the file if compilation fails"), first released in v1.20.1.
+     */
+    REQUIRE_FILE_RELEASES_A_RAISED_FILE(sinceElixir = "1.20.1"),
+
+    /**
      * A function's default arguments are expanded in turn, each seeing the variables the ones before it bound. Before
      * it, each is expanded from the state before the defaults.
      *

@@ -1,0 +1,4 @@
+kind: exs
+run: timeout 15 elixir -r script.exs -e 'IO.inspect(:ended, label: "ANSWER")'
+probe: script.exs:
+judge: ends

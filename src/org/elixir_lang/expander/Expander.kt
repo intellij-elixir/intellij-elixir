@@ -10,12 +10,17 @@ import com.intellij.util.system.OS
 import org.elixir_lang.expander.interpreter.ARM_BUDGET
 import org.elixir_lang.expander.interpreter.Binding
 import org.elixir_lang.expander.interpreter.Declined
+import org.elixir_lang.expander.interpreter.EMPTY
 import org.elixir_lang.expander.interpreter.Evaluated
 import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.Given
 import org.elixir_lang.expander.interpreter.RunningCall
 import org.elixir_lang.expander.interpreter.Unknown
+import org.elixir_lang.expander.interpreter.UnknownBinary
 import org.elixir_lang.expander.interpreter.ValueUse
+import org.elixir_lang.expander.interpreter.atom
+import org.elixir_lang.expander.interpreter.list
+import org.elixir_lang.expander.interpreter.tuple
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAILED_COMPILE_PURGES_MODULE
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAST_PATH_ADDS_CONTEXT_MODULE
@@ -131,8 +136,9 @@ object Expander {
         val level = run.level
         val state = ExState.empty(level)
 
+        // `Code`'s evaluations expand the whole of what they're given, whatever it holds.
         val expansion =
-            if (DEFMODULE_FAST_PATH.isSufficient(level) && env.module == null && onlyDefmodule(forms)) {
+            if (!run.evaluates && DEFMODULE_FAST_PATH.isSufficient(level) && env.module == null && onlyDefmodule(forms)) {
                 fastCompile(forms, state, env, run)
             } else {
                 slowCompile(forms, state, env, run)
@@ -160,6 +166,7 @@ object Expander {
             // A last expression the walk didn't run as a unit, as a literal, is run here for its value.
             val last = lastStatement(forms)
             val value = run.fileValues.ranGave(last, run)
+                ?: lastModule(last, run)
                 ?: (expanded as? Expansion.Expanded)?.let {
                     read.muted = true
                     try {
@@ -168,11 +175,21 @@ object Expander {
                         read.muted = false
                     }
                 }
-            read.result = (value as? Evaluated.Value)?.value ?: Unknown
+            run.fileValue = (value as? Evaluated.Value)?.value ?: Unknown
+            read.result = run.fileValue
         }
 
         return run.fileExpansion(if (top is Expansion.Expanded) walked.ended ?: top else top, walked.endsRun)
     }
+
+    /**
+     * The value of a `defmodule` that is a followed file's [last] statement, which the walk compiled and doesn't run:
+     * `{:module, name, binary, term}` of the module the run loaded last.
+     */
+    private fun lastModule(last: ElixirAst, run: Run): Evaluated? =
+        run.takeIf { it.isFollowed && onlyDefmodule(last) }?.lastLoaded?.let {
+            Evaluated.Value(tuple(atom("module"), atom(it), UnknownBinary, Unknown))
+        }
 
     /**
      * `elixir_compiler:fast_compile/2` for each of [forms]: each module compiled directly, with no module variables,
@@ -314,6 +331,10 @@ internal class Run(
     val files: RunFiles = RunFiles.NONE,
     /** The env the file's forms are expanded from, `elixir_env:new()`, `null` where the run expands no file. */
     val newEnv: Env? = null,
+    /** The run that followed this one's file or string with `Code`, `null` for a file not followed. */
+    private val parent: Run? = null,
+    /** Whether the run is `Code`'s evaluation of a file or string, which Elixir expands whole, never by the fast path. */
+    val evaluates: Boolean = false,
 ) {
     /** Each macro argument's term and node. */
     val origins = Origins()
@@ -696,15 +717,16 @@ internal class Run(
         if (loadedExports == ModuleExports.Absent) {
             if (result.module in compiled && (!placed || !FAILED_COMPILE_PURGES_MODULE.isSufficient(level))) return
 
-            compiled.remove(result.module)
-            compiledStructs.remove(result.module)
-            loadedClauses.remove(result.module)
+            forget(result.module)
+            loadOrder.remove(result.module)
             observer.loaded(result, loadedExports, ModuleStruct.Absent)
             observer.clausesLoaded(result.module, null)
 
             return
         }
 
+        loadedLast(result.module, result)
+        ownLoads += result.module
         val loadedStruct = LoadedModules.struct(result)
         compiledStructs[result.module] = loadedStruct
         compiled[result.module] = loadedExports
@@ -713,6 +735,125 @@ internal class Run(
 
         if (loaded == null) loadedClauses.remove(result.module) else loadedClauses[result.module] = loaded
         observer.clausesLoaded(result.module, loaded)
+    }
+
+    /** The modules the run loaded, in the order Elixir loads them. */
+    private val loadOrder = LinkedHashMap<String, ExpansionResult>()
+
+    /**
+     * The modules `Code` gives as the run's file's, as `elixir_compiler` lists what a file compiled: each the run loaded,
+     * once for each load, in turn, with those of the code it evaluated, whose loads Elixir lists as the file's own.
+     */
+    private val ownLoads = ArrayList<String>()
+
+    /** [module], loaded as [result]: a module loaded again moves to the end. */
+    private fun loadedLast(module: String, result: ExpansionResult) {
+        loadOrder.remove(module)
+        loadOrder[module] = result
+    }
+
+    /** [module] as no module of the run's. */
+    private fun forget(module: String) {
+        compiled.remove(module)
+        compiledStructs.remove(module)
+        loadedClauses.remove(module)
+    }
+
+    /** The module the run loaded last, `null` where it loaded none. */
+    val lastLoaded: String? get() = loadOrder.keys.lastOrNull()
+
+    /** Whether `Code` followed the run's file or string. */
+    val isFollowed: Boolean get() = parent != null
+
+    /** The value of the file's last expression, where the run is a read's or a follow's. */
+    var fileValue: OtpErlangObject = Unknown
+
+    /** The env a file `Code` follows starts from: the [newEnv] of the file the outermost run expands. */
+    val emptyEnv: Env? get() = parent?.emptyEnv ?: newEnv
+
+    /** The paths `Code.require_file/1,2` required: a read's, else the outermost run's, shared with what it follows. */
+    val required: MutableSet<String> = config?.required ?: parent?.required ?: HashSet()
+
+    /** The files being run, this one's innermost, so that a follow of one of them ends the cycle. */
+    val following: Set<String> get() = (parent?.following ?: emptySet()) + setOfNotNull(file())
+
+    /**
+     * [forms], `Code`'s follow of [file] from [env], run in a run of their own, which then merges into this one
+     * ([adopt]). A follow in code that may not run declines, as the modules it loads would join nothing.
+     */
+    fun follow(forms: ElixirAst, env: Env, file: String, virtualFile: VirtualFile?, evaluates: Boolean): Followed {
+        unjoined("Code's follow")
+
+        val caller = this
+        val child = Run(
+            level,
+            ExpansionObserver.NONE,
+            caller.exports,
+            caller::structOf,
+            appEnv,
+            counters,
+            { file },
+            { _ -> caller.file()?.let(caller::workingDirectory) },
+            { caller.clausesOf(it) },
+            virtualFile,
+            os,
+            buildTarget,
+            config,
+            files,
+            env,
+            parent = caller,
+            evaluates = evaluates,
+        )
+
+        val expansion = Expander.expandFile(forms, child)
+
+        adopt(child)
+
+        return Followed(
+            child.ownLoads.toList(),
+            child.fileValue,
+            child.bindingOut(expansion.top),
+            expansion.top,
+            child.fileValues.certainAt(null) && expansion.modules.all { it.certain },
+        )
+    }
+
+    /**
+     * What [child] loaded and wrote, as this run's: its modules, in the order it loaded them, the apps it wrote, the
+     * answers it assumed, and whether code it doesn't follow ran.
+     */
+    private fun adopt(child: Run) {
+        for ((module, result) in child.loadOrder) {
+            val exports = child.compiled[module] ?: continue
+            val followed = FollowedModule(module, exports, child.compiledStructs[module] ?: ModuleStruct.Unreadable)
+
+            loadedLast(module, result)
+            reached(followed, child.loadedClauses[module], result)
+        }
+        if (child.evaluates) ownLoads += child.ownLoads
+        if (child.written !== written) written.addAll(child.written)
+        assumptions += child.assumptions
+        if (child.unfollowedRan) declinedCodeRan()
+    }
+
+    /** [module], which a follow loaded with [clauses], as loaded here; [result] tells the observer, for a module of this run's follow. */
+    private fun reached(module: FollowedModule, clauses: ModuleClauses?, result: ExpansionResult?) {
+        compiled[module.name] = module.exports
+        compiledStructs[module.name] = module.struct
+        if (clauses == null) loadedClauses.remove(module.name) else loadedClauses[module.name] = clauses
+        result?.let { observer.loaded(it, module.exports, module.struct) }
+        observer.clausesLoaded(module.name, clauses)
+    }
+
+    /** `{name, value}` of each variable [top] left bound, by name, as `Code`'s evaluations give the binding. */
+    private fun bindingOut(top: Expansion): OtpErlangObject {
+        val state = (top as? Expansion.Expanded)?.state ?: return EMPTY
+        val bound = state.read.entries
+            .filter { (variable, _) -> variable.context == Variable.NIL }
+            .map { (variable, version) -> variable.name to (fileValues.bindings[Binding(version)] ?: Unknown) }
+            .sortedBy { it.first }
+
+        return list(bound.map { (name, value) -> tuple(atom(name), value) })
     }
 
     /** What each bitstring expanded builds, by node, for the bitstring that nests it. */
@@ -1148,3 +1289,13 @@ internal fun expandedShape(node: ElixirAst): ElixirAst {
         else -> node
     }
 }
+
+/** A module `Code`'s follow loaded: what it exports and its struct. */
+internal class FollowedModule(val name: String, val exports: ModuleExports, val struct: ModuleStruct)
+
+/**
+ * What `Code`'s follow left: the [modules] it gives as the file's, those it loaded and those of the code it evaluated;
+ * the [value] of its last expression and the [binding] it left; how it ended, [top]; and whether what it ran is
+ * Elixir's, [certain].
+ */
+internal class Followed(val modules: List<String>, val value: OtpErlangObject, val binding: OtpErlangObject, val top: Expansion, val certain: Boolean)

@@ -1,0 +1,4 @@
+kind: body
+run: mix run --no-start -e 'IO.inspect((Code.ensure_loaded(A); function_exported?(A, :yes, 0)), label: "ANSWER")'
+probe: lib/a.ex:A#yes/0
+judge: passes

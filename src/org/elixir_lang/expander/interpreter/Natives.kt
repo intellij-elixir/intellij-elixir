@@ -356,7 +356,10 @@ internal class Natives(private val evaluation: Evaluation) {
                 module(key, args)
             },
             "Elixir.Application" to reading(Natives::application),
-            "Elixir.Code" to reading { key, _ -> if (key == "can_await_module_compilation?/0") canAwaitModuleCompilation() else null },
+            // A followed file's code may write anything.
+            "Elixir.Code" to writing { key, args ->
+                if (key == "can_await_module_compilation?/0") canAwaitModuleCompilation() else follow.call(key, args)
+            },
             "Elixir.Atom" to reading { key, args -> if (key == "to_string/1") erlang("atom_to_binary/1", args) else null },
             "Elixir.String" to reading(Natives::string),
             "Elixir.String.Chars" to reading { key, args -> if (key == "to_string/1") toString(args[0]) else null },
@@ -420,6 +423,8 @@ internal class Natives(private val evaluation: Evaluation) {
     )
 
     private val level get() = evaluation.run.level
+
+    private val follow = CodeFollow(evaluation)
 
     /**
      * [module]'s [function] applied to [args], or `null` where it isn't one of these. In [tail] position, a call

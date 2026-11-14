@@ -910,6 +910,14 @@ internal class ProjectModules(private val project: Project) {
                 return child.expansion
             }
 
+            override fun followed(path: String): FollowedFile? {
+                val target = stamps.find(pathFileSystem, path)?.takeUnless { it.isDirectory } ?: return null
+                val psi = read(target) ?: return null
+                stamps.source(target)
+
+                return FollowedFile(Lowering.lower(psi, inputs.level), target)
+            }
+
             override fun wildcard(pattern: String): List<String>? {
                 val fileSystem = pathFileSystem ?: return null
                 val slash = pattern.lastIndexOf('/')

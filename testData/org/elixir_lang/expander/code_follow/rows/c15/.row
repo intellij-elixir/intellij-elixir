@@ -1,0 +1,4 @@
+kind: config
+run: mix run --no-start -e 'IO.inspect(P.r(), label: "ANSWER")'
+probe: lib/p.ex:P.k lib/p.ex:P.o lib/p.ex:P.a
+judge: value

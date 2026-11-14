@@ -5,6 +5,7 @@ import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
+import com.intellij.openapi.vfs.VirtualFile
 import org.elixir_lang.expander.interpreter.EMPTY
 import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.expander.interpreter.atom
@@ -22,6 +23,7 @@ import org.elixir_lang.expander.interpreter.tuple
 import org.elixir_lang.expander.interpreter.unknownOf
 import org.elixir_lang.language_level.ElixirLanguageFeature.CONFIG_VALIDATES_EVERY_ENTRY
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.lowering.ElixirAst
 
 /**
  * `Config`'s state for one read of a project's config, as `Config.__eval__!/3` keeps it in the process dictionary: the
@@ -37,6 +39,9 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
 
     /** The files read, newest first, as `Config.Reader.read_imports!/2` lists them. */
     val imports = ArrayList<String>()
+
+    /** The paths `Code.require_file/1,2` required in the read, which every file it follows shares. */
+    val required = HashSet<String>()
 
     /** The files in [imports] that only code that may not have run read, so a later import of one may or may not raise. */
     val maybeImports = HashSet<String>()
@@ -284,6 +289,9 @@ internal interface RunFiles {
     /** The files whose paths match the wildcard [pattern] under its fixed prefix directory, `null` where not known. */
     fun wildcard(pattern: String): List<String>?
 
+    /** The file at [path] lowered, for `Code` to follow, `null` where it can't be read. */
+    fun followed(path: String): FollowedFile? = null
+
     companion object {
         val NONE = object : RunFiles {
             override fun exists(path: String): Boolean? = null
@@ -292,6 +300,9 @@ internal interface RunFiles {
         }
     }
 }
+
+/** A file `Code` follows: its [forms], lowered, and the [virtualFile] they were read from. */
+internal class FollowedFile(val forms: ElixirAst, val virtualFile: VirtualFile)
 
 /**
  * [left] and [right], two configs a read may have, joined per app: pair for pair where both wrote the app and its lists

@@ -274,9 +274,9 @@ class ProjectAppEnvHeavyTest : ConfigHeavyTestCase() {
     }
 
     /**
-     * A config file whose expansion compiles a module that reads the env, beside an alias key: the read is made while
-     * the config file runs, so it is configured, and the module expanded on its own expands. The alias key, past an
-     * `import` of a module only `Code.require_file` loads, can't be named, so it may be the key read.
+     * A config file that requires a module reading the env, then imports it beside an alias key, expands, and so does
+     * the module on its own. Elixir raises `CompileError`: it expands the file before running it, when the module isn't
+     * loaded yet.
      */
     fun testAConfigFileThatCompilesAModuleReadingTheEnvBesideAnAliasKeyExpands() {
         val root = project(
@@ -393,7 +393,7 @@ class ProjectAppEnvHeavyTest : ConfigHeavyTestCase() {
             ),
             Triple("a config without import Config", "config :dep, :key, :other", bothUnknown),
             Triple(
-                "an alias key past an import of a module only Code.require_file loads",
+                "an import of a module the file requires, which Elixir expands before the require runs, raising",
                 "import Config\n\nCode.require_file(\"../lib/other.ex\", __DIR__)\nimport Other\nconfig :dep, App.Repo, a: 1",
                 depUnknown,
             ),
@@ -565,23 +565,24 @@ class ProjectAppEnvHeavyTest : ConfigHeavyTestCase() {
         assertEquals("Elixir.H compiled f/0 loop/2\nElixir.Dep compiled different/0 equal/0", ended(psi(root, "lib/dep.ex")))
     }
 
-    /** Elixir writes `:dep`'s key here: the code the arm's assumption passes over may write the read's config. */
-    fun testADeclinePassedOverInAReadAnswersAsMainDoes() {
+    /** The read follows the file a `case` requires, and that file's write of `:dep`'s key is the read's. */
+    fun testAFileACaseRequiresWritesTheRead() {
         val (dep, other) = readers(
             "import Config\n\ncase Code.require_file(\"extra.exs\", __DIR__) do\n  nil -> raise \"no\"\n  _ -> :ok\nend\n",
             "config/extra.exs" to "import Config\nconfig :dep, :key, :other\n",
         )
 
-        assertEquals("Elixir.Dep compiled different/0 equal/0\nElixir.Other compiled different/0 equal/0", "${ended(dep)}\n${ended(other)}")
+        assertEquals("Elixir.Dep compiled different/0\nElixir.Other compiled equal/0", "${ended(dep)}\n${ended(other)}")
     }
 
-    fun testADeclinePassedOverInAGuardedArmInAReadAnswersAsMainDoes() {
+    /** The read follows the file a `cond` condition requires, and that file's write of `:dep`'s key is the read's. */
+    fun testAFileACondConditionRequiresWritesTheRead() {
         val (dep, other) = readers(
             "import Config\n\ncond do\n  Code.require_file(\"extra.exs\", __DIR__) == nil -> raise \"no\"\n  true -> :ok\nend\n",
             "config/extra.exs" to "import Config\nconfig :dep, :key, :other\n",
         )
 
-        assertEquals("Elixir.Dep compiled different/0 equal/0\nElixir.Other compiled different/0 equal/0", "${ended(dep)}\n${ended(other)}")
+        assertEquals("Elixir.Dep compiled different/0\nElixir.Other compiled equal/0", "${ended(dep)}\n${ended(other)}")
     }
 
     /** A `case` of a system read runs each arm that may be taken, and a raise in one leaves the read's keys known. */
