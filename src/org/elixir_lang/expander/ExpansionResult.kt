@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.util.TextRange
 import org.elixir_lang.lowering.ElixirAst
 
 /**
@@ -132,4 +133,11 @@ internal data class FileExpansion(
     val modules: List<ExpansionResult>,
     val endsRun: Boolean,
     val unfollowedRan: Boolean,
-)
+) {
+    /** The result of [module] whose module body holds [range], nested modules included. */
+    fun resultAt(module: String, range: TextRange): ExpansionResult? =
+        ProjectModules.results(this).firstOrNull { result ->
+            result.module == module &&
+                result.units.any { it.owner == ExpansionResult.Owner.ModuleBody && it.node.meta.origin.contains(range) }
+        }
+}

@@ -295,6 +295,10 @@
                 implementationClass="org.elixir_lang.code_insight.completion.contributor.ConfigKey"
                 language="Elixir"/>
 
+        <completion.contributor
+                implementationClass="org.elixir_lang.code_insight.completion.contributor.VerifiedRoute"
+                language="Elixir"/>
+
         <codeInsight.lineMarkerProvider
                 implementationClass="org.elixir_lang.code_insight.line_marker_provider.CallDefinition"
                 language="Elixir"/>
