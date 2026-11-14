@@ -1,7 +1,6 @@
 package org.elixir_lang.annotator
 
 import com.intellij.openapi.editor.colors.TextAttributesKey
-import com.intellij.openapi.util.Disposer
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.FUNCTION_CALL
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.IGNORED_VARIABLE
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.MACRO_CALL
@@ -12,7 +11,6 @@ import org.elixir_lang.ElixirSyntaxHighlighter.Companion.VARIABLE
 import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.declaration.DistinctKeyScheme
 import org.elixir_lang.declaration.enableExpander
-import org.elixir_lang.expander.LegSdk
 import java.io.File
 
 /** What the editor colours a call by, whatever the called thing is: a variable, a macro, a type, a `Kernel` function. */
@@ -230,9 +228,7 @@ class CallableHighlightingTest : BeamLibraryTestCase() {
     }
 
     private fun expanderOn() {
-        LegSdk.setUp(module, testRootDisposable)
-        Disposer.register(testRootDisposable) { LegSdk.tearDown(module) }
-        enableExpander(testRootDisposable)
+        enableExpander(module, testRootDisposable)
     }
 
     private fun configure(code: String) {
