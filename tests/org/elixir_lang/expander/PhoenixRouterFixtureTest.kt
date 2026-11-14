@@ -43,7 +43,7 @@ class PhoenixRouterFixtureTest : HeavyTestCase() {
     /** Each router's `Helpers`, read from another file, exports the functions Elixir's does. */
     fun testARoutersHelpersExportWhatElixirsDo() {
         val compiled = shapes.getOrThrow() ?: return
-        val corpus = setUp(compiled)
+        val corpus = setUpCorpus(compiled)
         val holder = ProjectModules(project)
         val asker = corpus.psi(compiled.project, "lib/asker.ex")
         val routers = compiled.routers
@@ -61,7 +61,7 @@ class PhoenixRouterFixtureTest : HeavyTestCase() {
      */
     fun testACreatedHelperIsDeclaredWhereItsRoutersCallbackMadeIt() {
         val compiled = shapes.getOrThrow() ?: return
-        val corpus = setUp(compiled)
+        val corpus = setUpCorpus(compiled)
         val asker = corpus.psi(compiled.project, "lib/asker.ex")
         val declared = declaredAt(field(compiled.routers, HELPERS_ROUTER, "helper_lines"), "user_path")
         val call = "Routes.user_path(conn, :index)"
@@ -84,7 +84,7 @@ class PhoenixRouterFixtureTest : HeavyTestCase() {
      */
     fun testARouterOfManyRoutesEndsAsElixirsCompileDoes() {
         val compiled = shapes.getOrThrow() ?: return
-        val corpus = setUp(compiled)
+        val corpus = setUpCorpus(compiled)
         val holder = ProjectModules(project)
         val routers = compiled.routers
         val off = helpersOff(MANY_ROUTES)
@@ -102,7 +102,7 @@ class PhoenixRouterFixtureTest : HeavyTestCase() {
      */
     fun testTheGeneratedRouterEndsAsElixirsCompileDoes() {
         val compiled = demo.getOrThrow() ?: return
-        val corpus = setUp(compiled)
+        val corpus = setUpCorpus(compiled)
         val holder = ProjectModules(project)
         val routers = compiled.routers
         val files = mapOf(
@@ -116,7 +116,7 @@ class PhoenixRouterFixtureTest : HeavyTestCase() {
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }
 
-    private fun setUp(compiled: Compiled): PhoenixCorpus =
+    private fun setUpCorpus(compiled: Compiled): PhoenixCorpus =
         ExpanderProgress.setUp(project, module, testRootDisposable, compiled.project).also { corpus = it }
 
     private companion object {
