@@ -5,10 +5,13 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import org.elixir_lang.Module
 import org.elixir_lang.declaration.Declaration
+import org.elixir_lang.declaration.Declared
+import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.SameFunction
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Reach
+import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
@@ -126,22 +129,25 @@ object SourceFileDocsHelper {
                 null
             }
         }
-        else -> when (val form = functionForm(call)) {
-            Form.CLAUSE, Form.DELEGATION, Form.EXCEPTION -> declaredDocs(call, remote, declaringModule, used)
+        // The form the use found the function declared with: a source that knows the macro's module gives it where
+        // resolving the call can't, as for the SDK's `EEx` read from its `.beam`.
+        else -> when (val form = (used?.declared as? Declared.Source)?.form ?: functionForm(call)) {
+            Form.CLAUSE, Form.DELEGATION, Form.EXCEPTION -> declaredDocs(call, form, remote, declaringModule, used)
             Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> templateDocs(call, form, remote, declaringModule)
             Form.CALLBACK, null -> null
         }
     }
 
-    /** The form [call] declares a function with: a `def*` clause, a `defdelegate`, a `defexception`, an EEx function or an embed. */
+    /** The form the documentation's source declares [call] with, where it declares a function: a `def*` clause, a `defdelegate`, a `defexception`, an EEx function or an embed. */
     @RequiresReadLock
     private fun functionForm(call: Call): Form? =
-        DeclaringForm.declaredBy(call)?.takeIf { form ->
-            when (form) {
-                Form.CLAUSE, Form.DELEGATION, Form.EXCEPTION, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> true
-                Form.CALLBACK -> false
+        sourceFor(Feature.DOCUMENTATION).declaredForm(call)
+            ?.takeIf { form ->
+                when (form) {
+                    Form.CLAUSE, Form.DELEGATION, Form.EXCEPTION, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> true
+                    Form.CALLBACK -> false
+                }
             }
-        }
 
     /** What [declaring] declares with [form] as one function, spelled as its head names it: the one read of it. */
     @RequiresReadLock
@@ -193,10 +199,10 @@ object SourceFileDocsHelper {
      * `use`, else in the module [declaring] is written in.
      */
     @RequiresReadLock
-    private fun declaredDocs(declaring: Call, remote: Boolean, declaringModule: String?, used: Declaration? = null): FetchedDocs? {
+    private fun declaredDocs(declaring: Call, form: Form, remote: Boolean, declaringModule: String?, used: Declaration? = null): FetchedDocs? {
         val index = enclosingModularMacroCall(declaring)?.let(::indexName)
         val module = index?.let(Module::inspect)
-        val functions = listedFunctions(declaring, remote, used) ?: return null
+        val functions = listedFunctions(declaring, form, remote, used) ?: return null
 
         val entries = functions.map { function ->
             val maxima = function.map { it.arities.maximum }
@@ -223,20 +229,19 @@ object SourceFileDocsHelper {
     /** The functions [declaredDocs] lists for [declaring], ascending by arity, each the declarations that are one function, which a delegation's block shows. */
     @RequiresReadLock
     internal fun listedGroups(declaring: Call, remote: Boolean): List<List<Written>> =
-        listedFunctions(declaring, remote).orEmpty().sortedBy { function -> function.minOf { it.arities.minimum } }
+        functionForm(declaring)?.let { listedFunctions(declaring, it, remote) }.orEmpty()
 
     /** The docs of declarations that are one function, merged. */
     internal fun merged(documentation: List<FetchedDocs.FunctionOrMacroDocumentation>): FetchedDocs.FunctionOrMacroDocumentation =
         documentation.reduce { acc, next -> acc.merge(next) }
 
     /**
-     * The functions of the name [used], else the one function [declaring] declares, that its use can reach, each the
-     * declarations that are one function, as [declaredDocs] describes.
+     * The functions of the name [used], else the one function [declaring] declares with [declaringForm], that its use
+     * can reach, ascending by arity, each the declarations that are one function, as [declaredDocs] describes.
      */
     @RequiresReadLock
-    private fun listedFunctions(declaring: Call, remote: Boolean, used: Declaration? = null): List<List<Written>>? {
+    private fun listedFunctions(declaring: Call, declaringForm: Form, remote: Boolean, used: Declaration? = null): List<List<Written>>? {
         val state = ResolveState.initial()
-        val declaringForm = functionForm(declaring) ?: return null
         val listed = used ?: declarationOf(declaring, declaringForm, state) ?: return null
         val listedArities = listed.arity.arityInterval() ?: return null
         val modular = enclosingModularMacroCall(declaring) ?: return null
@@ -246,11 +251,15 @@ object SourceFileDocsHelper {
             .flatMap { sibling ->
                 ProgressManager.checkCanceled()
 
-                val form = functionForm(sibling) ?: return@flatMap emptyList()
+                val form = (if (sibling == declaring) declaringForm else DeclaringForm.shapedForm(sibling))
+                    ?.takeUnless { it == Form.CALLBACK }
+                    ?: return@flatMap emptyList()
+                val named = Declarations.of(form, sibling, state)
+                    .mapNotNull { it.declaration?.takeIf { declaration -> declaration.name == listed.name } }
+                if (named.isEmpty() || (sibling != declaring && functionForm(sibling) != form)) return@flatMap emptyList()
                 val hidden = hidesDoc(sibling)
 
-                Declarations.of(form, sibling, state).mapNotNull { spelled ->
-                    val declaration = spelled.declaration?.takeIf { it.name == listed.name } ?: return@mapNotNull null
+                named.mapNotNull { declaration ->
                     val arities = declaration.arity.arityInterval() ?: return@mapNotNull null
                     val head = DeclaringForm.head(sibling, form, declaration.name, declaration.arity) ?: return@mapNotNull null
                     val documentation = if (form == Form.EXCEPTION) {
@@ -324,7 +333,7 @@ object SourceFileDocsHelper {
      */
     @RequiresReadLock
     private fun templateDocs(call: Call, form: Form, remote: Boolean, declaringModule: String?): FetchedDocs? =
-        templateHead(call, form)?.let { head -> ownDocs(call, head)?.let { own -> declaredDocs(call, remote, declaringModule) ?: own } }
+        templateHead(call, form)?.let { head -> ownDocs(call, head)?.let { own -> declaredDocs(call, form, remote, declaringModule) ?: own } }
 
     /** The `@doc` written on an EEx function or an embed, shown with [head], or `null` when it has none. */
     @RequiresReadLock

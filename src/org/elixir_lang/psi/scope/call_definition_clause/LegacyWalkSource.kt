@@ -22,6 +22,7 @@ import org.elixir_lang.declaration.Candidate
 import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.CompletionPosition
 import org.elixir_lang.declaration.Declared
+import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Head
 import org.elixir_lang.declaration.Reach
@@ -312,6 +313,10 @@ object LegacyWalkSource : CandidateSource {
 
     @RequiresReadLock
     override fun writtenNames(call: Call): List<WrittenName> = emptyList()
+
+    /** The form [call]'s shape writes, where resolving the call confirms a form whose macro is known only by resolving it. */
+    @RequiresReadLock
+    override fun declaredForm(call: Call): Form? = DeclaringForm.declaredBy(call)
 
     /** What the walk finds visible at [position]. */
     private fun visibleByWalk(position: Call): List<Visible> {

@@ -22,6 +22,7 @@ import org.elixir_lang.code_insight.Signature
 import org.elixir_lang.code_insight.signatures
 import org.elixir_lang.declaration.Answer
 import org.elixir_lang.declaration.CandidateSource
+import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Preferred
@@ -879,6 +880,88 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val greet = read { ExpanderSource.candidates(use(file, "def usage", "greet(\"x\")"), false) }
 
         assertEquals("Views.greet/1 IMPORT VALID via [import Views]", render(greet).substringBefore(" line "))
+    }
+
+    /**
+     * A function the SDK's `EEx` or `Mix.Generator` makes is declared at the call that makes it, with that call's form,
+     * as the walk declares one, not at the clause of the macro that writes its `def`.
+     */
+    fun testALibraryMacrosFunctionIsDeclaredAtTheCallThatMakesIt() {
+        val template = File(createTempDir("template"), "page.eex").apply { writeText("<%= a %>") }
+        val file = file(
+            """
+            defmodule Templates do
+              require EEx
+              require Mix.Generator
+
+              EEx.function_from_string(:def, :from_string, "<%= a %>", [:a])
+              EEx.function_from_file(:def, :from_file, "${template.path}", [:a])
+              Mix.Generator.embed_template(:page, "<%= @a %>")
+
+              def calls(a), do: {from_string(a), from_file(a), page_template(a)}
+            end
+
+            defmodule Imported do
+              import EEx
+
+              function_from_string(:def, :imported, "<%= a %>", [:a])
+
+              def calls(a), do: imported(a)
+            end
+
+            defmodule Caller do
+              def calls(a), do: Templates.from_string(a)
+            end
+            """
+        )
+
+        assertEquals(
+            listOf(
+                "Templates.from_string/1 EEX_FUNCTION_FROM EEx.function_from_string(:def, :from_string, \"<%= a %>\", [:a])",
+                "Templates.from_file/1 EEX_FUNCTION_FROM EEx.function_from_file(:def, :from_file, \"${template.path}\", [:a])",
+                "Templates.page_template/1 GENERATOR_EMBED Mix.Generator.embed_template(:page, \"<%= @a %>\")",
+                "Imported.imported/1 EEX_FUNCTION_FROM function_from_string(:def, :imported, \"<%= a %>\", [:a])",
+                "Templates.from_string/1 EEX_FUNCTION_FROM EEx.function_from_string(:def, :from_string, \"<%= a %>\", [:a])",
+            ),
+            listOf(
+                "{from_string(a), from_file(a), page_template(a)}" to "from_string(a)",
+                "{from_string(a), from_file(a), page_template(a)}" to "from_file(a)",
+                "{from_string(a), from_file(a), page_template(a)}" to "page_template(a)",
+                "do: imported(a)" to "imported(a)",
+                "Templates.from_string(a)" to "Templates.from_string(a)",
+            ).flatMap { (context, call) -> declaredAt(file, context, call) },
+        )
+    }
+
+    /**
+     * A macro of the project's own named and called as `EEx`'s is not `EEx`'s: the function it writes is declared at its
+     * `def`, not at the call.
+     */
+    fun testAMacroShapedLikeALibrarysIsNotTakenForIt() {
+        val file = file(
+            """
+            defmodule MyGen do
+              defmacro function_from_string(kind, name, template, args, options) do
+                quote do
+                  def unquote(name)(a), do: {unquote(kind), unquote(template), unquote(args), unquote(options), a}
+                end
+              end
+            end
+
+            defmodule Mine do
+              require MyGen
+
+              MyGen.function_from_string(:def, :mine, "x", [:a], [])
+
+              def calls(a), do: mine(a)
+            end
+            """
+        )
+
+        assertEquals(
+            listOf("Mine.mine/1 CLAUSE def unquote(name)(a), do: {unquote(kind), unquote(template), unquote(args), unquote(options), a}"),
+            declaredAt(file, "do: mine(a)", "mine(a)"),
+        )
     }
 
     fun testAnOuterImportIsSeenFromANestedModule() {
@@ -3013,6 +3096,17 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val use = use(file, context, call, last)
 
         return render(read { source.candidates(use, incompleteCode) })
+    }
+
+    /** Where [ExpanderSource] declares each find at the use [call] in [context]: `<module>.<name>/<arity> <form> <element's first line>`. */
+    private fun declaredAt(file: PsiFile, context: String, call: String): List<String> {
+        val use = use(file, context, call)
+
+        return read {
+            ExpanderSource.candidates(use, false).map { found ->
+                "${name(found)} ${(found.candidate.declaration.declared as? Declared.Source)?.form} ${found.element.text.lines().first()}"
+            }
+        }
     }
 
     /** [preferred], each candidate then the targets it delegates to, indented, one per line. */

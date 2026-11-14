@@ -10,6 +10,8 @@ import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Doc
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByLanguage
 import org.elixir_lang.beam.term.inspect
 import org.elixir_lang.code_insight.definition
+import org.elixir_lang.declaration.Feature
+import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
@@ -17,7 +19,6 @@ import org.elixir_lang.psi.QuotableKeywordList
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.impl.prevSiblingSequence
-import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 
 /** What the documentation of one declaration holds; [module] is `null` where the module is not known, as in a `quote`. */
 sealed class FetchedDocs(open val module: String?) {
@@ -179,15 +180,18 @@ internal fun hidesDoc(call: Call): Boolean =
 private fun docAbove(call: Call): AtUnqualifiedNoParenthesesCall<*>? =
     callDefinitionAttributeListByName(call)[DOC]?.firstOrNull { it.moduleAttributeValue() !is QuotableKeywordList }
 
-private fun callDefinitionAttributeListByName(callDefinitionCall: Call): Map<String, List<AtUnqualifiedNoParenthesesCall<*>>> =
-    callDefinitionCall
+private fun callDefinitionAttributeListByName(callDefinitionCall: Call): Map<String, List<AtUnqualifiedNoParenthesesCall<*>>> {
+    val source = sourceFor(Feature.DOCUMENTATION)
+
+    return callDefinitionCall
         .prevSiblingSequence()
         .drop(1)
         // Every declaration takes the attributes written above it, so the run ends at the previous one.
-        .takeWhile { it !is Call || DeclaringForm.declaredBy(it) == null }
+        .takeWhile { it !is Call || source.declaredForm(it) == null }
         .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
         .filter { CALL_DEFINITION_ATTRIBUTE_NAME_SET.contains(it.atIdentifier.identifierName()) }
         .groupBy { it.atIdentifier.identifierName() }
+}
 
 private fun List<AtUnqualifiedNoParenthesesCall<*>>.joinModuleAttributeQuoteText(): String? =
     this

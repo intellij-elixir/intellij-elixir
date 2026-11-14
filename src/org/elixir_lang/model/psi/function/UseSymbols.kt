@@ -22,6 +22,7 @@ import org.elixir_lang.declaration.admits
 import org.elixir_lang.declaration.atItsHead
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.passed
+import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.model.psi.atom.contentTextRange
 import org.elixir_lang.model.psi.protocol.ProtocolFunction
@@ -230,7 +231,7 @@ internal object UseSymbols {
         when (definition) {
             is BeamCallDefinition -> listOf(definition.declaration())
             is Call ->
-                DeclaringForm.declaredBy(definition)
+                sourceFor(Feature.SYMBOL_REFERENCES).declaredForm(definition)
                     ?.let { form -> Declarations.of(form, definition, ResolveState.initial()).mapNotNull { it.declaration } }
                     .orEmpty()
             else -> emptyList()

@@ -378,16 +378,45 @@ internal object ExpanderSource : CandidateSource {
         } + compiled
     }
 
-    /**
-     * The names [call] writes ([DeclaringForm.writtenName]) whose heads its module's table holds, matched by the call
-     * that writes or injects each, a stopped module's as its table stood at the stop; for one the table doesn't hold, as
-     * past a stop or with no env reached, the name index's head at the call, marked [Uncertain.INDEX].
-     */
+    /** The names [call] writes whose heads are known ([written]). */
     @RequiresReadLock
     override fun writtenNames(call: Call): List<WrittenName> {
         ThreadingAssertions.assertReadAccess()
 
         val form = DeclaringForm.shapedForm(call) ?: return emptyList()
+
+        return written(call, form).map { (element, defined) ->
+            WrittenName(element, defined.declaration.capabilities.presentation, defined.uncertain)
+        }
+    }
+
+    /**
+     * The form [call]'s shape writes; for a form whose macro is known only by its module ([DeclaringForm.macroModule]),
+     * the form of what the call writes or injects, whatever name it writes them under, else none.
+     */
+    @RequiresReadLock
+    override fun declaredForm(call: Call): Form? {
+        val form = DeclaringForm.shapedForm(call) ?: return null
+        if (DeclaringForm.macroModule(form) == null) return form
+        // A name the call computes spells nothing, so where the names it spells find nothing, every name is read.
+        val defined = written(call, form).map { (_, defined) -> defined }.ifEmpty {
+            inputs(call)?.let { at(call, it) }?.let { ownDefined(it, null) }.orEmpty().filter { writes(call, it, head = null) }
+        }
+
+        return defined.firstNotNullOfOrNull { (it.declaration.declared as? Declared.Source)?.form }
+    }
+
+    /** Whether [call] writes or injects [defined]: as [head] where one is given, else under any name. */
+    private fun writes(call: Call, defined: Defined, head: PsiElement?): Boolean =
+        defined.injectedBy == call || defined.element == call && (head == null || defined.written == head)
+
+    /**
+     * For each name [call] writes with [form] ([DeclaringForm.writtenName]), the name and the head its module's table
+     * holds of it, matched by the call that writes or injects it, a stopped module's as its table stood at the stop; for
+     * one the table doesn't hold, as past a stop or with no env reached, the name index's head at the call, marked
+     * [Uncertain.INDEX].
+     */
+    private fun written(call: Call, form: Form): List<Pair<PsiElement, Defined>> {
         val file = call.containingFile as? ElixirFile ?: return emptyList()
         val at by lazy(LazyThreadSafetyMode.NONE) { inputs(call)?.let { at(call, it) } }
         val indexReady = !DumbService.isDumb(file.project)
@@ -396,11 +425,11 @@ internal object ExpanderSource : CandidateSource {
             val declaration = spelled.declaration ?: return@mapNotNull null
             val head = DeclaringForm.head(call, form, declaration.name, declaration.arity) ?: return@mapNotNull null
             val element = DeclaringForm.writtenName(call, form, head) ?: return@mapNotNull null
-            val writes = { defined: Defined -> defined.injectedBy == call || defined.element == call && defined.written == head }
+            val writes = { defined: Defined -> writes(call, defined, head) }
             val defined = at?.let { ownDefined(it, declaration.name) }.orEmpty().firstOrNull(writes)
                 ?: if (indexReady) indexed(file, declaration.name).firstOrNull(writes) else null
 
-            defined?.let { WrittenName(element, it.declaration.capabilities.presentation, it.uncertain) }
+            defined?.let { element to it }
         }
     }
 
@@ -539,7 +568,7 @@ internal object ExpanderSource : CandidateSource {
         val result = at.holder.expansion(at.file, at.inputs).resultAt(module, at.range) ?: return at.gap(Uncertain.MODULE)
         if (!result.ownDefinitionsKnown) at.gap(Uncertain.MODULE)
 
-        return defined(at.file, result, name)
+        return defined(at.file, result, name, at.inputs)
     }
 
     /** What [env]'s imports of [name] reach, each through its `import` call in [file]. */
@@ -724,7 +753,7 @@ internal object ExpanderSource : CandidateSource {
             ProjectModules.Located.Unknown -> at.gap(Uncertain.NO_EXPANSION)
             ProjectModules.Located.None -> emptyList()
             is ProjectModules.Located.Several -> everyCopy(at, located, module, name)
-            is ProjectModules.Located.Source -> known(at, located.result)?.let { defined(located.file, it, name) }.orEmpty()
+            is ProjectModules.Located.Source -> known(at, located.result)?.let { defined(located.file, it, name, at.inputs) }.orEmpty()
             is ProjectModules.Located.Compiled -> compiled(at, located, name)
         }
 
@@ -864,9 +893,10 @@ internal object ExpanderSource : CandidateSource {
 
     /**
      * [result]'s module's definitions of [name], or of every name when it is `null`, in [file]: one for each head, each
-     * with its arities. A head a macro's output injected is declared where the macro writes it.
+     * with its arities. A head a macro's output injected is declared where the macro writes it, or, where the macro is
+     * one that declares with a [Form] of its own, at the call of it.
      */
-    private fun defined(file: ElixirFile, result: ExpansionResult, name: String?): List<Defined> =
+    private fun defined(file: ElixirFile, result: ExpansionResult, name: String?, inputs: ProjectModules.Inputs): List<Defined> =
         NameIndex.of(result.table).named(name).flatMap { (nameArity, entry) ->
             val arity = if (entry.defaults == 0) {
                 ArityKnowledge.Exact(nameArity.arity)
@@ -876,8 +906,10 @@ internal object ExpanderSource : CandidateSource {
             entry.heads.mapNotNull { head ->
                 ProgressManager.checkCanceled()
 
-                val injectedBy = head.injected?.call?.let { injectingCall(file, it) }
-                val call = head.injected?.place?.let { placed(file, it) }
+                val injected = head.injected
+                val injectedBy = injected?.call?.let { injectingCall(file, it) }
+                val call = injectedBy?.takeIf { callsItsFormsMacro(it, injected.call, inputs) }
+                    ?: injected?.place?.let { placed(file, it) }
                     ?: declaringCall(file, head.at.meta.origin)
                     ?: return@mapNotNull null
                 val stored = definer(entry.kind).capabilities
@@ -1048,6 +1080,26 @@ internal object ExpanderSource : CandidateSource {
             DefinitionTable.Kind.DEFMACRO -> Definer.DEFMACRO
             DefinitionTable.Kind.DEFMACROP -> Definer.DEFMACROP
         }
+
+    /**
+     * Whether [call], as [node] in the expansion, shaped like a form whose macro only its module tells, dispatches to
+     * that module ([DeclaringForm.macroModule]): through the receiver the expansion gave its qualifier, or the imports
+     * of the env it was expanded in.
+     */
+    private fun callsItsFormsMacro(call: Call, node: ElixirAst.Call, inputs: ProjectModules.Inputs): Boolean {
+        val module = DeclaringForm.shapedForm(call)?.let(DeclaringForm::macroModule) ?: return false
+        val at = at(call, inputs) ?: return false
+        val receiver = if (call is Qualified) {
+            receiver(at, call.qualifier())
+        } else {
+            val name = call.functionName() ?: return false
+            val match = findImportByNameArity(node.meta, name, call.resolvedFinalArity(), emptyList(), at.env, inputs.level)
+
+            (match as? ImportMatch.Macro)?.receiver
+        }
+
+        return receiver?.let(Module::indexName) == module
+    }
 
     /** The call written in [file] whose evaluated output [call] is, at its origin. */
     private fun injectingCall(file: PsiFile, call: ElixirAst.Call): Call? =

@@ -122,7 +122,7 @@ object DeclaringForm {
 
     /** The form [call] itself declares with, or `null` when it declares nothing. */
     @RequiresReadLock
-    fun declaredBy(call: Call): Form? = shapedForm(call)?.let { Declaring(call, it) }?.takeIf(::declares)?.form
+    internal fun declaredBy(call: Call): Form? = shapedForm(call)?.let { Declaring(call, it) }?.takeIf(::declares)?.form
 
     /** Whether [element] is a declaring call or a name one declares, as what a reference resolves to can be. */
     @RequiresReadLock

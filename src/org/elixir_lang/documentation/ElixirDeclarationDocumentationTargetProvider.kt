@@ -10,7 +10,9 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.createSmartPointer
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.ElixirLanguage
+import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Form
+import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 
@@ -27,8 +29,7 @@ internal class ElixirDeclarationDocumentationTargetProvider : DocumentationTarge
         val leaf = file.findElementAt(offset)?.takeIf { it.language.isKindOf(ElixirLanguage) } ?: return null
         val named = DeclaringForm.named(leaf)
 
-        // `named` reads shape alone: a call only shaped like `function_from_*` or `embed_*` declares nothing.
-        return if (named != null && DeclaringForm.declaredBy(named.call) != null) {
+        return if (named != null && sourceFor(Feature.DOCUMENTATION).declaredForm(named.call) != null) {
             val documented = if (named.form == Form.DELEGATION) {
                 PsiTreeUtil.getParentOfType(leaf, Call::class.java, false)?.let(::delegationHeadDocumented)
             } else {

@@ -43,6 +43,10 @@ interface CandidateSource {
     /** The names the declaring [call] writes beyond a clause's own head word. */
     @RequiresReadLock
     fun writtenNames(call: Call): List<WrittenName>
+
+    /** The form [call] declares with, or `null` where it declares nothing. */
+    @RequiresReadLock
+    fun declaredForm(call: Call): Form?
 }
 
 /**
