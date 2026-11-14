@@ -31,6 +31,12 @@ abstract class QuickDocumentationTestCase : PlatformTestCase() {
         enableExpander(testRootDisposable)
     }
 
+    /** [test], run with the expander on ([expanderOn]). */
+    protected fun withTheExpanderOn(test: () -> Unit) {
+        expanderOn()
+        test()
+    }
+
     /** An EEx function and a `def` of the same name, documented as "Renders with one." and "Renders with two.", are both listed, each linked from the header. */
     protected fun assertBothArities(documentation: String) {
         assertTrue("Expected the EEx function's @doc, got: $documentation", "Renders with one." in documentation)

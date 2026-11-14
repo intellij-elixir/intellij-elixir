@@ -7,6 +7,7 @@ import com.intellij.psi.PsiReference
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.impl.source.tree.LeafPsiElement
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.util.parentsOfType
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Use
@@ -15,8 +16,13 @@ import org.elixir_lang.expander.ExpanderSource
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirIdentifier
 import org.elixir_lang.psi.ElixirRelativeIdentifier
+import org.elixir_lang.psi.ElixirStructOperation
+import org.elixir_lang.psi.ElixirVariable
 import org.elixir_lang.psi.QualifiableAlias
+import org.elixir_lang.psi.QuoteMacro
+import org.elixir_lang.psi.__module__.isInBody
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.call.name.Function.__MODULE__
 import org.elixir_lang.psi.impl.declaringModuleCall
 import org.elixir_lang.psi.impl.isInterpolatedWithin
 import org.elixir_lang.psi.operation.capture.NonNumeric
@@ -42,7 +48,9 @@ internal object DocumentedAt {
     fun of(original: PsiElement): PsiElement? {
         choiceAt(original)?.let { return it.element }
         atomAt(original)?.let { return moduleOf(it) }
-        return aliasAt(original)?.let(::moduleOf)
+        aliasAt(original)?.let { return moduleOf(it) }
+
+        return structModuleAt(original)?.let(::moduleOf)
     }
 
     /**
@@ -137,6 +145,21 @@ internal object DocumentedAt {
 
         return alias
     }
+
+    /** `__MODULE__` written as a struct's name, `%__MODULE__{}`, which holds [element]. */
+    private fun structModuleAt(element: PsiElement): ElixirVariable? =
+        PsiTreeUtil.getParentOfType(element, ElixirVariable::class.java, false)
+            ?.takeIf { it.name == __MODULE__ && it.parent is ElixirStructOperation }
+
+    /**
+     * The module [variable], a struct's `__MODULE__`, names, as Elixir expands it: the module whose body it is written
+     * in. None in a `quote`'s body, whose module is its caller's.
+     */
+    private fun moduleOf(variable: ElixirVariable): PsiElement? =
+        variable.parentsOfType<Call>(withSelf = false)
+            .filter { isInBody(it, variable) }
+            .takeWhile { !QuoteMacro.`is`(it) }
+            .firstOrNull(::isModular)
 
     /** The modular [alias] declares, else the one modular its reference resolves to. */
     private fun moduleOf(alias: QualifiableAlias): PsiElement? =

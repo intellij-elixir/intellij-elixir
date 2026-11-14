@@ -17,11 +17,6 @@ class FunctionCallQuickDocumentationTest : QuickDocumentationTestCase() {
 
     fun testQuickDocOnACallOfNoDefinitionShowsNothingWithTheExpanderOn() = withTheExpanderOn(::testQuickDocOnACallOfNoDefinitionShowsNothing)
 
-    private fun withTheExpanderOn(test: () -> Unit) {
-        expanderOn()
-        test()
-    }
-
     fun testQuickDocOnLocalFunctionCallShowsAtDoc() {
         myFixture.configureByFiles("local_function.ex")
 

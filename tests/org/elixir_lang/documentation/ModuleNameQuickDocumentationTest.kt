@@ -51,11 +51,6 @@ class ModuleNameQuickDocumentationTest : QuickDocumentationTestCase() {
     fun testQuickDocOnAQualifyingAliasShowsTheModulesModuledocWithTheExpanderOn() =
         withTheExpanderOn(::testQuickDocOnAQualifyingAliasShowsTheModulesModuledoc)
 
-    private fun withTheExpanderOn(test: () -> Unit) {
-        expanderOn()
-        test()
-    }
-
     private fun protocol(
         defprotocolLine: String,
         defimplLine: String = "defimpl Describable, for: Tuple do"
