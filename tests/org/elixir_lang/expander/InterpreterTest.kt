@@ -1576,6 +1576,164 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             tables = true,
         )
 
+    fun testOnlyTheSelectedCondClauseDefines() =
+        assertFile(
+            """
+            defmodule A do
+              cond do
+                false -> def f, do: 1
+                true -> def g, do: 1
+              end
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.A compiled [g/0 def]",
+            tables = true,
+        )
+
+    fun testOnlyTheSelectedWithElseClauseDefines() =
+        assertFile(
+            """
+            defmodule A do
+              with {:ok, _} <- :error do
+                def f, do: 1
+              else
+                _ -> def g, do: 1
+              end
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.A compiled [g/0 def]",
+            tables = true,
+        )
+
+    fun testTheDoOfAWithThatMatchesNothingDefinesNothing() =
+        assertFile(
+            """
+            defmodule A do
+              with {:ok, _} <- :error do
+                def f, do: 1
+              end
+              def h, do: 1
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.A compiled [h/0 def]",
+            tables = true,
+        )
+
+    fun testOnlyTheSelectedTryElseClauseDefines() =
+        assertFile(
+            """
+            defmodule A do
+              try do
+                :ok
+              else
+                :error -> def f, do: 1
+                :ok -> def g, do: 1
+              end
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.A compiled [g/0 def]",
+            tables = true,
+        )
+
+    /** A `@before_compile` callback reads what the body's `with`, `cond` or `try ... else` wrote. */
+    fun testABeforeCompileCallbackReadsAWriteInASelectedBody() {
+        val callback = """
+            defmodule H do
+              defmacro __before_compile__(env) do
+                n = length(Module.get_attribute(env.module, :a))
+                quote do: def(unquote(:"g#{n}")(), do: 1)
+              end
+            end
+        """.trimIndent()
+
+        val bodies = listOf(
+            "with {:ok, x} <- {:ok, 1} do\n    @a x\n  end",
+            "with {:ok, x} <- :error do\n    @a x\n  else\n    _ -> @a 2\n  end",
+            "cond do\n    false -> @a 0\n    true -> @a 1\n  end",
+            "try do\n    :ok\n  else\n    :error -> @a 0\n    :ok -> @a 1\n  end",
+        )
+        val compiled = "top expanded\nmodule Elixir.H compiled [__before_compile__/1 defmacro]\nmodule Elixir.A compiled [g1/0 def]"
+
+        assertEquals(
+            bodies.joinToString("\n\n") { "$it\n$compiled" },
+            bodies.joinToString("\n\n") { body ->
+                "$body\n" + file(
+                    "$callback\ndefmodule A do\n  Module.register_attribute(__MODULE__, :a, accumulate: true)\n  @before_compile H\n  $body\nend",
+                    tables = true,
+                )
+            },
+        )
+    }
+
+    /** `use Phoenix.Controller`'s shape: its `__using__` writes the accumulated `@plugs` inside a `with`'s `do`. */
+    fun testABeforeCompileCallbackReadsPlugsAUsingWroteInAWith() =
+        assertFile(
+            """
+            defmodule P do
+              defmacro __using__(opts) do
+                quote bind_quoted: [opts: opts] do
+                  require P
+                  Module.register_attribute(__MODULE__, :plugs, accumulate: true)
+                  @before_compile P
+                  with {layout, view} <- P.__plugs__(__MODULE__, opts) do
+                    P.plug(:put_new_layout, layout)
+                    P.plug(:put_new_view, view)
+                  end
+                end
+              end
+
+              defmacro plug(plug, opts), do: quote(do: @plugs({unquote(plug), unquote(opts), true}))
+
+              def __plugs__(_module, opts), do: {Keyword.get(opts, :layouts, []), Keyword.fetch!(opts, :formats)}
+
+              defmacro __before_compile__(env) do
+                n = length(Module.get_attribute(env.module, :plugs))
+                quote do: def(unquote(:"plugs#{n}")(), do: 1)
+              end
+            end
+
+            defmodule A do
+              use P, formats: [:html, :json]
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.P compiled [__before_compile__/1 defmacro, __plugs__/2 def, __using__/1 defmacro, plug/2 defmacro]\n" +
+                "module Elixir.A compiled [plugs2/0 def]",
+            tables = true,
+        )
+
+    /**
+     * The walk doesn't follow a `receive`'s bodies, nor a `try`'s that rescues, so each definition in them is listed,
+     * where Elixir defines only the one that runs (#4509).
+     */
+    fun testEveryDefinitionInAReceiveOrARescuingTryIsListed() {
+        assertFile(
+            """
+            defmodule A do
+              receive do
+                _ -> def f, do: 1
+              after
+                0 -> def g, do: 1
+              end
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.A compiled [f/0 def, g/0 def]",
+            tables = true,
+        )
+        assertFile(
+            """
+            defmodule A do
+              try do
+                def f, do: 1
+              rescue
+                _ -> def g, do: 1
+              end
+            end
+            """.trimIndent(),
+            "top expanded\nmodule Elixir.A compiled [f/0 def, g/0 def]",
+            tables = true,
+        )
+    }
+
     /** A block's statement is whole wherever the block is, so one in a list's part leaves the list known. */
     fun testADeclinedStatementInABlockInAListPartLeavesTheListKnown() =
         assertFile(

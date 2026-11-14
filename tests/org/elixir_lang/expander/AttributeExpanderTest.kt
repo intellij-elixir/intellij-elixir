@@ -1112,11 +1112,8 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
         )
 
-    /**
-     * A write in a `cond` clause isn't selected, so its argument isn't evaluated: the clause that doesn't run raises
-     * nothing, and a later read is unknown.
-     */
-    fun testAWriteInACondClauseLeavesALaterReadUnknown() =
+    /** A write in the clause a `cond` selects is a statement, and the clause that doesn't run raises nothing. */
+    fun testAWriteInASelectedCondClauseIsAStatement() =
         assertEvery(
             """
             defmodule U2 do
@@ -1131,12 +1128,215 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.U2 compiled
-              write a node not a statement `@a :erlang.hd(v)`
-              write a 0 not a statement `@a 0`
+              write a 0 `@a 0`
+              read a in def f/0: 0
+              final a: 0
+            """.trimIndent(),
+        )
+
+    fun testAWriteInAWithsDoIsAStatement() =
+        assertEvery(
+            """
+            defmodule A do
+              with {:ok, x} <- {:ok, 1} do
+                @a x
+              end
+              def f, do: @a
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A compiled
+              write a 1 `@a x`
+              read a in def f/0: 1
+              final a: 1
+            """.trimIndent(),
+        )
+
+    /** A write in the `else` clause a `with` selects is a statement, and its `do`, which doesn't run, raises nothing. */
+    fun testAWriteInASelectedWithElseClauseIsAStatement() =
+        assertEvery(
+            """
+            defmodule A do
+              v = []
+              with {:ok, x} <- :error do
+                @a :erlang.hd(v)
+              else
+                :error -> @a 2
+              end
+              def f, do: @a
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A compiled
+              write a 2 `@a 2`
+              read a in def f/0: 2
+              final a: 2
+            """.trimIndent(),
+        )
+
+    fun testAWriteInTheDoOfAWithThatMatchesNothingDoesNotRun() =
+        assertEvery(
+            """
+            defmodule A do
+              @a 1
+              with {:ok, _} <- :error do
+                @a 2
+              end
+              def f, do: @a
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A compiled
+              write a 1 `@a 1`
+              read a in def f/0: 1
+              final a: 1
+            """.trimIndent(),
+        )
+
+    fun testAWriteInASelectedTryElseClauseIsAStatement() =
+        assertEvery(
+            """
+            defmodule A do
+              try do
+                :ok
+              else
+                :error -> @a 1
+                :ok -> @a 2
+              end
+              def f, do: @a
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A compiled
+              write a 2 `@a 2`
+              read a in def f/0: 2
+              final a: 2
+            """.trimIndent(),
+        )
+
+    /** A `try`'s `do`, the `else` clause it selects and its `after` run in that order. */
+    fun testWritesInATrysDoElseAndAfterAreStatements() =
+        assertEvery(
+            """
+            defmodule A do
+              Module.register_attribute(__MODULE__, :a, accumulate: true)
+              try do
+                @a 0
+                :ok
+              else
+                :error -> @a 1
+                :ok -> @a 2
+              after
+                @a 3
+              end
+              def f, do: @a
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A compiled
+              register a accumulate true `Module.register_attribute(__MODULE__, :a, accumulate: true)`
+              write a 0 `@a 0`
+              write a 2 `@a 2`
+              write a 3 `@a 3`
+              read a in def f/0: [3, 2, 0]
+              final a: [3, 2, 0]
+            """.trimIndent(),
+        )
+
+    /** A `cond` or a `with` on a value the evaluator can't produce may run any of its bodies. */
+    fun testAWriteInACondOrWithTheEvaluatorCannotSelectIsNotAStatement() {
+        assertEvery(
+            """
+            defmodule A do
+              cond do
+                System.get_env("ATTRIBUTE_NEVER") -> @a 2
+                true -> @a 1
+              end
+              def f, do: @a
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A compiled
+              write a 2 not a statement `@a 2`
+              write a 1 not a statement `@a 1`
               read a in def f/0: unexpanded
               final a: unknown
             """.trimIndent(),
         )
+        assertEvery(
+            """
+            defmodule A do
+              with nil <- System.get_env("ATTRIBUTE_NEVER") do
+                @a 1
+              else
+                _ -> @a 2
+              end
+              def f, do: @a
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A compiled
+              write a 1 not a statement `@a 1`
+              write a 2 not a statement `@a 2`
+              read a in def f/0: unexpanded
+              final a: unknown
+            """.trimIndent(),
+        )
+    }
+
+    /**
+     * The walk doesn't follow a `receive`'s bodies, nor a `try`'s that rescues, though Elixir runs the one it
+     * selects (#4509).
+     */
+    fun testAWriteInAReceiveOrARescuingTryIsNotAStatement() {
+        assertEvery(
+            """
+            defmodule A do
+              receive do
+                _ -> @a 1
+              after
+                0 -> @a 2
+              end
+              def f, do: @a
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A compiled
+              write a 1 not a statement `@a 1`
+              write a 2 not a statement `@a 2`
+              read a in def f/0: unexpanded
+              final a: unknown
+            """.trimIndent(),
+        )
+        assertEvery(
+            """
+            defmodule A do
+              try do
+                @a 1
+              rescue
+                _ -> @a 2
+              end
+              def f, do: @a
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A compiled
+              write a 1 not a statement `@a 1`
+              write a 2 not a statement `@a 2`
+              read a in def f/0: unexpanded
+              final a: unknown
+            """.trimIndent(),
+        )
+    }
 
     fun testAValueWithNoTerm() =
         assertEvery(
@@ -2097,6 +2297,51 @@ class AttributeExpanderTest : ExpanderTestCase() {
               read doc in def r_doc/0: :nil
               final doc: :nil
               attributes f/0: doc "a"
+            """.trimIndent(),
+        )
+
+    fun testADefinitionInASelectedCondClauseTakesTheAttributes() =
+        assertEvery(
+            """
+            defmodule A do
+              @doc "a"
+              cond do
+                false -> def f, do: 1
+                true -> def g, do: 1
+              end
+              def r_doc, do: @doc
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A compiled
+              write doc {2, "a"} `@doc "a"`
+              read doc in def r_doc/0: :nil
+              final doc: :nil
+              attributes g/0: doc "a"
+            """.trimIndent(),
+        )
+
+    fun testADefinitionInASelectedWithElseClauseTakesTheAttributes() =
+        assertEvery(
+            """
+            defmodule A do
+              @doc "a"
+              with {:ok, _} <- :error do
+                def f, do: 1
+              else
+                _ -> def g, do: 1
+              end
+              def r_doc, do: @doc
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A compiled
+              write doc {2, "a"} `@doc "a"`
+              read doc in def r_doc/0: :nil
+              final doc: :nil
+              attributes g/0: doc "a"
             """.trimIndent(),
         )
 
