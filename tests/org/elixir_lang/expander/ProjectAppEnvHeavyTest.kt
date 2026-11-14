@@ -389,7 +389,17 @@ class ProjectAppEnvHeavyTest : ConfigHeavyTestCase() {
             Triple(
                 "an evaluated put_env",
                 "import Config\n\nCode.eval_string(\"Application.put_env(:dep, :key, :other)\")\n:ok",
-                known,
+                depUnknown,
+            ),
+            Triple(
+                "an evaluated persistent put_env",
+                "import Config\n\nCode.eval_string(\"Application.put_env(:dep, :key, :other, persistent: true)\")\n:ok",
+                depUnknown,
+            ),
+            Triple(
+                "an evaluated put_env of a key the app doesn't declare",
+                "import Config\n\nCode.eval_string(\"Application.put_env(:dep, :other_key, :other)\")\n:ok",
+                depUnknown,
             ),
             Triple("a config without import Config", "config :dep, :key, :other", bothUnknown),
             Triple(

@@ -292,6 +292,9 @@ internal interface RunFiles {
     /** The file at [path] lowered, for `Code` to follow, `null` where it can't be read. */
     fun followed(path: String): FollowedFile? = null
 
+    /** [text] parsed and lowered as if it began on [line], for `Code` to evaluate, `null` where there is no project to parse it in. */
+    fun parsed(text: String, line: Int): ElixirAst? = null
+
     companion object {
         val NONE = object : RunFiles {
             override fun exists(path: String): Boolean? = null

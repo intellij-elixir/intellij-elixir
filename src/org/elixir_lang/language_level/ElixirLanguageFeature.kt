@@ -1840,6 +1840,33 @@ enum class ElixirLanguageFeature(
     EVAL_ENV_KEEPS_CONTEXT_MODULES(sinceElixir = "1.18.0-rc.0"),
 
     /**
+     * `Code`'s evaluations give the binding by `elixir_erl_var:dump_binding`'s fold over a map of the variables: by
+     * `{name, context}` descending, up to the 32 variables a map keeps in order, and a name given twice takes the
+     * value given last. Before it, the binding is sorted, a variable without a context named by its name alone, and
+     * a name given twice takes the value given first.
+     *
+     * `elixir-lang/elixir@37b6b03ef` ("Use maps as bindings on Erlang/OTP 24 for faster evaluation") and
+     * `elixir-lang/elixir@f0b227d40` ("No longer auto-sort bindings"), first released in v1.12.0-rc.0.
+     */
+    EVAL_BINDING_DESCENDS(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * `Code`'s evaluation of what compiles to an atom gives back the binding it was given. Before it, it gives the
+     * binding as it loads it: reversed, a name without a context as `{name, nil}`.
+     *
+     * `elixir-lang/elixir@9137fd1cb` ("Do not return context tuples on optimized eval"), first released in v1.12.3.
+     */
+    EVAL_ATOM_GIVES_ITS_BINDING(sinceElixir = "1.12.3"),
+
+    /**
+     * `Code`'s evaluation of an integer or a float gives back the binding it was given, as an atom's does. Before it,
+     * it gives the binding the evaluation leaves.
+     *
+     * `elixir-lang/elixir@fdf96ad48` ("Prune binding from env and on literals"), first released in v1.14.2.
+     */
+    EVAL_NUMBER_GIVES_ITS_BINDING(sinceElixir = "1.14.2"),
+
+    /**
      * `Code.eval_string/3` raises `ArgumentError` for a binding that isn't a list. Before it, `elixir_erl_var:load_binding`
      * raises `FunctionClauseError`.
      *

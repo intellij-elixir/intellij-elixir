@@ -553,7 +553,7 @@ internal class Evaluation(
      * [term], evaluated at the call, as code ([rebuilt]), each node placed where its term was; where [callers], only
      * where the caller wrote it ([placeOf]).
      */
-    private fun code(term: OtpErlangObject, callers: Boolean = false): ElixirAst? =
+    fun code(term: OtpErlangObject, callers: Boolean = false): ElixirAst? =
         rebuilt(term, call.meta.origin, run, built = false, known = nodes::get) { each, node ->
             placeOf(each, callers)?.let { run.placedAt[node] = it }
         }
@@ -610,6 +610,9 @@ internal class Evaluation(
 
     /** The module of the exception Elixir raises for [thrown], an `error`. */
     fun exceptionModule(thrown: Thrown): String {
+        // Normalizing a reason not known would only assume on it.
+        if (thrown.reason is UnknownValue) decline("the raise's reason isn't known")
+
         val exception = try {
             normalize(thrown.reason, thrown.stacktrace)
         } catch (_: Thrown) {
@@ -1348,7 +1351,7 @@ internal class Evaluation(
     fun evalEnv(options: List<OtpErlangObject>): EvalEnv {
         val file = option(options, "file")
         ENV_OPTIONS.firstOrNull { option(options, it) != null }?.let { decline("env_for_eval/1 with the option $it") }
-        val newEnv = run.newEnv ?: decline("env_for_eval/1 of options outside a file's expansion")
+        val newEnv = run.emptyEnv ?: decline("env_for_eval/1 of options outside a file's expansion")
         val line = option(options, "line")?.let { smallInt(seen(it)) ?: decline("env_for_eval/1 with the line %s", it) }
 
         return EvalEnv(newEnv.copy(file = file?.let(::fileText) ?: "nofile"), line)

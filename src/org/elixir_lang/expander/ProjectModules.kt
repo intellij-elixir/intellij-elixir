@@ -49,6 +49,7 @@ import org.elixir_lang.mix.sync.scopedLibraryNameToken
 import org.elixir_lang.model.psi.config.ConfigFiles
 import org.elixir_lang.model.psi.config.ConfigSettings
 import org.elixir_lang.navigation.isDecompiled
+import org.elixir_lang.psi.ElementFactory
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.Import.Term
 import org.elixir_lang.reference.Resolver
@@ -916,6 +917,12 @@ internal class ProjectModules(private val project: Project) {
                 stamps.source(target)
 
                 return FollowedFile(Lowering.lower(psi, inputs.level), target)
+            }
+
+            override fun parsed(text: String, line: Int): ElixirAst {
+                val psi = ElementFactory.createFile(project, text)
+
+                return Lowering.lower(psi, inputs.level, firstLine = line)
             }
 
             override fun wildcard(pattern: String): List<String>? {

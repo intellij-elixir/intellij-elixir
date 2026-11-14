@@ -296,6 +296,9 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             DOCS_SIGNATURE_OF_FN_NAMES_CLAUSES to ("1.12.3" to "1.13.0-rc.0"),
             DUPLICATE_MATCH_UNPACKED_ONCE to ("1.18.0-rc.0" to "1.18.0"),
             IN_REFUSES_UNESCAPED_RIGHT_SIDE to ("1.13.4" to "1.14.0-rc.0"),
+            EVAL_BINDING_DESCENDS to ("1.11.4" to "1.12.0-rc.0"),
+            EVAL_ATOM_GIVES_ITS_BINDING to ("1.12.2" to "1.12.3"),
+            EVAL_NUMBER_GIVES_ITS_BINDING to ("1.14.1" to "1.14.2"),
             EVAL_STRING_CHECKS_THE_BINDING to ("1.20.0-rc.2" to "1.20.0-rc.3"),
             REQUIRE_FILE_RELEASES_A_RAISED_FILE to ("1.20.0" to "1.20.1"),
         )
