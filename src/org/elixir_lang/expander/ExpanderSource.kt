@@ -600,6 +600,7 @@ internal object ExpanderSource : CandidateSource {
      * @property imported whether each `import` crossed that leaves out some of a definition's arities brings it in at
      *   the arity reaching it, which a use with no name needs as well
      * @property remote whether a remote call reaches it, which a private definition refuses
+     * @property arities the arities of [defined] that the `import` crossed brings in, `null` where none was crossed
      */
     private class Reached(
         val defined: Defined,
@@ -612,6 +613,7 @@ internal object ExpanderSource : CandidateSource {
         val named: Boolean,
         val imported: Boolean,
         val remote: Boolean,
+        val arities: Set<Int>? = null,
     )
 
     /** [heldOnly], and what it reaches when it delegates. */
@@ -761,7 +763,7 @@ internal object ExpanderSource : CandidateSource {
         val admitted = arity == null || imported == null || arity in imported
         val named = name != null && defined.declaration.name == name && admitted
 
-        return Reached(defined, reach, paths, emptyList(), emptyList(), null, name, named, admitted, remote)
+        return Reached(defined, reach, paths, emptyList(), emptyList(), null, name, named, admitted, remote, imported)
     }
 
     /**
@@ -1124,6 +1126,7 @@ internal object ExpanderSource : CandidateSource {
                 reached.defined.head,
                 reached.through,
                 reached.defined.uncertain ?: envUncertain,
+                reached.arities,
             )
         }
 

@@ -98,8 +98,10 @@ sealed class CompletionPosition {
 /**
  * A [candidate] at a use, the PSI [element] that declares it, [via], the `import` and `use` calls and then the
  * `defdelegate` calls it was reached through, the [head] that declares it, and for a delegation target the head of the
- * delegation the use reached it through, [delegatedThrough], as that delegation's own [head] is, and why it may not
- * be what Elixir reaches, [uncertain], `null` where it is.
+ * delegation the use reached it through, [delegatedThrough], as that delegation's own [head] is, why it may not be
+ * what Elixir reaches, [uncertain], `null` where it is, and the arities of it the `import` it was reached through
+ * brings in, [imported], where its source records them; `null` where it records none, and the `import` calls in [via]
+ * say.
  */
 data class Found(
     val candidate: Candidate,
@@ -108,6 +110,7 @@ data class Found(
     val head: Head,
     val delegatedThrough: Head?,
     val uncertain: Uncertain? = null,
+    val imported: Set<Int>? = null,
 ) {
     val certain: Boolean get() = uncertain == null
 }

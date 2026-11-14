@@ -121,4 +121,31 @@ class WrongArityQuickDocumentationTest : QuickDocumentationTestCase() {
 
         assertEquals("", documentation)
     }
+
+    /** At an arity an `import` a `use` injects leaves out, the function is documented as a near miss. */
+    fun testAnArityAUsesImportLeavesOutIsANearMissWithTheExpanderOn() {
+        expanderOn()
+        myFixture.addFileToProject(
+            "pad.ex",
+            """
+            defmodule Pad do
+              @doc "Pads."
+              def pad(a, b \\ 1, c \\ 2), do: {a, b, c}
+            end
+
+            defmodule U do
+              defmacro __using__(_) do
+                quote do
+                  import Pad, only: [pad: 1, pad: 3]
+                end
+              end
+            end
+            """.trimIndent()
+        )
+        myFixture.configureByText("p.ex", "defmodule P do\n  use U\n  def one, do: pad(1)\n  def two, do: pa<caret>d(1, 2)\nend\n")
+
+        val documentation = quickDocumentationAtCaret().orEmpty()
+
+        assertTrue("Expected the near miss's docs, got: $documentation", "Pads." in documentation)
+    }
 }

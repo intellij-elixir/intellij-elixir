@@ -128,9 +128,14 @@ internal object UseSymbols {
     private fun step(use: Use): List<Preferred> =
         Resolved.step(use, false)
 
-    /** Whether each `import` [found] was reached through brings it in at [arity]. */
+    /**
+     * Whether the `import` [found] was reached through brings it in at [arity]: as [Found.imported] says where its
+     * source records the arities, which an `import` a `use` injects needs, else as each `import` call in its `via` says.
+     */
     @RequiresReadLock
     internal fun admits(found: Found, arity: Int): Boolean {
+        found.imported?.let { return arity in it }
+
         val declaration = found.candidate.declaration
 
         return found.via.filter { Import.`is`(it) }.all { importCall ->

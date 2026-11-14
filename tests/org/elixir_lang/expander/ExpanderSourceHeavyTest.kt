@@ -27,6 +27,7 @@ import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Preferred
+import org.elixir_lang.declaration.RejectedCall
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.Uncertain
 import org.elixir_lang.declaration.Use
@@ -48,6 +49,7 @@ import org.elixir_lang.expander.ExpanderSourceRows.withExpanderSwitch
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
+import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirFile
@@ -1447,6 +1449,42 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             "Pad.pad/1..2 IMPORT WRONG_ARITY via [import Pad, only: [pad: 1]] line 2",
             candidates(file, "do: pad(1, 2)", "pad(1, 2)"),
         )
+    }
+
+    /**
+     * A call at an arity an `import` a `use` injects leaves out is a near miss for the arities that `import`'s `only:`
+     * brings in, as for one written in the module.
+     */
+    fun testANearMissThroughAUseNamesTheAritiesItsImportBringsIn() {
+        val file = file(
+            """
+            defmodule Pad do
+              def pad(a, b \\ 1, c \\ 2), do: {a, b, c}
+            end
+
+            defmodule U do
+              defmacro __using__(_) do
+                quote do
+                  import Pad, only: [pad: 1, pad: 3]
+                end
+              end
+            end
+
+            defmodule P do
+              use U
+              def one, do: pad(1)
+              def two, do: pad(1, 2)
+            end
+            """
+        )
+        val use = use(file, "do: pad(1, 2)", "pad(1, 2)")
+
+        val named = read {
+            RejectedCall.named(ExpanderSource.candidates(use, false), Found::candidate, false, UseSymbols::admits)
+                ?.map { "${name(it.candidate)} ${it.arities}" }
+        }
+
+        assertEquals(listOf("Pad.pad/1..3 [1, 3]"), named)
     }
 
     fun testVisibleGivesAnOnlyImportsArities() {
