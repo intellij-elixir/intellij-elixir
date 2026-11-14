@@ -1,5 +1,7 @@
 package org.elixir_lang.documentation
 
+import com.intellij.openapi.util.text.StringUtil
+
 /** A delegation without its own `@doc` shows its head and links what it delegates to; one hidden with `@doc false` shows no target. */
 class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase() {
     /** A delegation without its own `@doc` shows its head and links what it delegates to, whose docs follow. */
@@ -356,8 +358,8 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
 
         val shown = quickDocumentationAtCaret().orEmpty()
 
-        assertEquals("Expected the repeated head once, got: $shown", 1, "def reduce(enumerable, fun)".toRegex(RegexOption.LITERAL).findAll(shown).count())
-        assertEquals("Expected the other head kept, got: $shown", 1, "def reduce([h | t], fun)".toRegex(RegexOption.LITERAL).findAll(shown).count())
+        assertEquals("Expected the repeated head once, got: $shown", 1, StringUtil.getOccurrenceCount(shown, "def reduce(enumerable, fun)"))
+        assertEquals("Expected the other head kept, got: $shown", 1, StringUtil.getOccurrenceCount(shown, "def reduce([h | t], fun)"))
     }
 
     /** The clauses of a function defined beside the delegation reached are one function, as the arities card shows them, with a head for each. */
