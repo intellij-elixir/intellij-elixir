@@ -222,6 +222,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         unconfirmed: Boolean,
     ): String {
         val documentationHtml = StringBuilder()
+        val linkables = HashMap<String, Boolean>()
 
         if (unconfirmed) documentationHtml.append("<p>").append(UNCONFIRMED).append("</p>")
 
@@ -249,14 +250,14 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         }
 
         documentationHtml.append(DocumentationMarkup.DEFINITION_END)
-        DelegationBlock.appendTo(documentationHtml, delegations) { own, writtenIn -> appendFunctionContent(documentationHtml, element, own, writtenIn) }
+        DelegationBlock.appendTo(documentationHtml, delegations) { own, writtenIn -> appendFunctionContent(documentationHtml, element, own, linkables, writtenIn) }
 
         when (fetchedDocs) {
             is FetchedDocs.CallbackDocumentation -> {
                 fetchedDocs.doc.let { doc ->
                     documentationHtml
                         .append(DocumentationMarkup.CONTENT_START)
-                        .append(html(element, doc))
+                        .append(html(element, doc, linkables = linkables))
                         .append(DocumentationMarkup.CONTENT_END)
                 }
             }
@@ -265,12 +266,12 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 fetchedDocs.moduledoc.let { moduledoc ->
                     documentationHtml
                         .append(DocumentationMarkup.CONTENT_START)
-                        .append(html(element, moduledoc))
+                        .append(html(element, moduledoc, linkables = linkables))
                         .append(DocumentationMarkup.CONTENT_END)
                 }
             }
 
-            is FetchedDocs.FunctionOrMacroDocumentation -> appendFunctionContent(documentationHtml, element, fetchedDocs)
+            is FetchedDocs.FunctionOrMacroDocumentation -> appendFunctionContent(documentationHtml, element, fetchedDocs, linkables)
 
             is FetchedDocs.Arities -> {
                 for (entry in fetchedDocs.entries) {
@@ -281,7 +282,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                     }
 
                     // Another copy's doc is written in that copy, so a link of no module there is to that copy's function.
-                    appendFunctionContent(documentationHtml, element, entry.documentation, entry.documentation.module.takeIf { entry.otherCopy != 0 })
+                    appendFunctionContent(documentationHtml, element, entry.documentation, linkables, entry.documentation.module.takeIf { entry.otherCopy != 0 })
                 }
             }
 
@@ -289,7 +290,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 fetchedDocs.typedoc.let { typedoc ->
                     documentationHtml
                         .append(DocumentationMarkup.CONTENT_START)
-                        .append(html(element, typedoc))
+                        .append(html(element, typedoc, linkables = linkables))
                         .append(DocumentationMarkup.CONTENT_END)
                 }
             }
@@ -303,6 +304,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         documentationHtml: StringBuilder,
         element: PsiElement,
         function: FetchedDocs.FunctionOrMacroDocumentation,
+        linkables: MutableMap<String, Boolean>,
         writtenIn: String? = null
     ) {
         function.doc?.let { doc ->
@@ -318,7 +320,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                     doc.formattedByLanguage.values.map { formatted ->
                         documentationHtml
                             .append(DocumentationMarkup.CONTENT_START)
-                            .append(html(element, formatted, writtenIn))
+                            .append(html(element, formatted, writtenIn, linkables))
                             .append(DocumentationMarkup.CONTENT_END)
                     }
             }
@@ -336,7 +338,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                     .append(DocumentationMarkup.SECTION_HEADER_START)
                     .append("Deprecated")
                     .append(DocumentationMarkup.SECTION_SEPARATOR)
-                    .append(html(element, deprecated, writtenIn))
+                    .append(html(element, deprecated, writtenIn, linkables))
                     .append(DocumentationMarkup.SECTION_END)
             }
 
@@ -363,13 +365,18 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         }
     }
 
-    private fun html(element: PsiElement, otpErlangObject: OtpErlangObject, writtenIn: String?): String =
+    private fun html(
+        element: PsiElement,
+        otpErlangObject: OtpErlangObject,
+        writtenIn: String?,
+        linkables: MutableMap<String, Boolean>,
+    ): String =
         when (otpErlangObject) {
             is OtpErlangBinary ->
                 otpErlangObject
                     .binaryValue()
                     .let { String(it, Charsets.UTF_8) }
-                    .let { html(element, it, writtenIn) }
+                    .let { html(element, it, writtenIn, linkables) }
 
             else -> {
                 LOG.warn("Don't know how to render deprecated metadata: $otpErlangObject")
@@ -378,8 +385,13 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             }
         }
 
-    private fun html(element: PsiElement, markdownText: String, writtenIn: String? = null): String {
-        val flavour = MarkdownFlavourDescriptor(element, writtenIn)
+    private fun html(
+        element: PsiElement,
+        markdownText: String,
+        writtenIn: String? = null,
+        linkables: MutableMap<String, Boolean> = HashMap(),
+    ): String {
+        val flavour = MarkdownFlavourDescriptor(element, writtenIn, linkables)
         val parsedTree = MarkdownParser(flavour).buildMarkdownTreeFromString(markdownText)
 
         return HtmlGenerator(markdownText, parsedTree, flavour, false)

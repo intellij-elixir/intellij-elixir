@@ -27,9 +27,15 @@ import java.util.regex.Pattern
  * Overrides the default code block providers to add syntax highlighting
  * ([CodeBlockHtmlProvider], [CodeFenceHtmlProvider]) and augments `CODE_SPAN`
  * with hyperlink resolution for module and function references. Where the text was written in another module than the
- * one [element] is in, [writtenIn] names it, and a link to a function of no module is to that module's.
+ * one [element] is in, [writtenIn] names it, and a link to a function of no module is to that module's. [linkables] holds
+ * [linkable]'s answers by span link, as a doc, and the other docs shown with it, often name one function
+ * several times.
  */
-class MarkdownFlavourDescriptor(private val element: PsiElement, private val writtenIn: String? = null) : GFMFlavourDescriptor() {
+class MarkdownFlavourDescriptor(
+    private val element: PsiElement,
+    private val writtenIn: String?,
+    private val linkables: MutableMap<String, Boolean>,
+) : GFMFlavourDescriptor() {
     private val project: Project = element.project
 
     fun renderGenericCode(
@@ -85,7 +91,9 @@ class MarkdownFlavourDescriptor(private val element: PsiElement, private val wri
             }
 
     /** Whether [span] names something the project has; a function of no module is the document's own, and not looked up. */
-    private fun linkable(span: SpanLink): Boolean {
+    private fun linkable(span: SpanLink): Boolean = linkables.getOrPut(span.link) { looksUp(span) }
+
+    private fun looksUp(span: SpanLink): Boolean {
         val parsed = DocumentationLink.parse(span.link)
 
         return if (parsed != null) {
