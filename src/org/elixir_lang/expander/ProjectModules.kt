@@ -73,6 +73,9 @@ internal class ProjectModules(private val project: Project) {
     private val files = ByFile<Loaded>()
     private val beams = ByFile<Read>()
 
+    /** The expansions [warm] reached, kept apart from their files' PSI, which is let go once no editor shows it. */
+    private val warmed = ByFile<Held>()
+
     /** Module names' and paths' counts. */
     private val names: ModuleNamesTracker by lazy { ModuleNamesTracker.getInstance(project) }
     @Volatile
@@ -172,7 +175,23 @@ internal class ProjectModules(private val project: Project) {
 
     /** The copy of [atom] Elixir loads for [asker], as [exports] and [struct] choose it. */
     @RequiresReadLock
-    fun locate(asker: PsiFile, atom: String, inputs: Inputs): Located = located(asker, atom, inputs, choose(asker, atom))
+    fun locate(asker: PsiFile, atom: String, inputs: Inputs): Located = located(asker, atom, choose(asker, atom)) { held(it, inputs) }!!
+
+    /**
+     * [locate]'s answer where it needs no expansion run: `null` where it would expand a source file whose expansion
+     * isn't held, or isn't current.
+     */
+    @RequiresReadLock
+    fun locateHeld(asker: PsiFile, atom: String, inputs: Inputs): Located? =
+        located(asker, atom, choose(asker, atom)) { current(it, inputs) }
+
+    /** [locate], keeping each source file's expansion it reaches, so that [locateHeld] finds it while it is current. */
+    @RequiresReadLock
+    fun warm(asker: PsiFile, atom: String, inputs: Inputs) {
+        located(asker, atom, choose(asker, atom)) { file ->
+            held(file, inputs).also { kept -> file.virtualFile?.takeIf { kept.transient.isNone }?.let { warmed[it] = kept } }
+        }
+    }
 
     /**
      * Each of [several]'s copies of [atom] as [locate] answers one it alone holds: a `.beam`, or a source file's module.
@@ -180,9 +199,10 @@ internal class ProjectModules(private val project: Project) {
      */
     @RequiresReadLock
     fun locateEach(asker: PsiFile, several: Located.Several, atom: String, inputs: Inputs): List<Located> =
-        several.each.map { located(asker, atom, inputs, Choice.One(it, emptyList())) }.filter { it != Located.None }
+        several.each.map { located(asker, atom, Choice.One(it, emptyList())) { file -> held(file, inputs) }!! }.filter { it != Located.None }
 
-    private fun located(asker: PsiFile, atom: String, inputs: Inputs, choice: Choice): Located =
+    /** `null` where [hold] gives a source file no expansion. */
+    private fun located(asker: PsiFile, atom: String, choice: Choice, hold: (ElixirFile) -> Held?): Located? =
         when (choice) {
             Choice.Unknown -> Located.Unknown
             Choice.None -> Located.None
@@ -193,10 +213,10 @@ internal class ProjectModules(private val project: Project) {
                         Located.Compiled(copy.virtualFile, compiled(copy.virtualFile).exports, copy.source?.let { read(it) })
                     is Copy.Source -> {
                         val file = if (copy.virtualFile == fileOf(asker)) asker as? ElixirFile ?: copy.file else copy.file
-                        val held = held(file, inputs)
+                        val held = hold(file) ?: return null
 
                         if (held.loaded.answer(atom, choice.parents) == null) {
-                            located(asker, atom, inputs, choice.fallingThrough())
+                            located(asker, atom, choice.fallingThrough(), hold)
                         } else {
                             Located.Source(file, held.results[atom])
                         }
@@ -225,16 +245,23 @@ internal class ProjectModules(private val project: Project) {
         compute(file, inputs, emptyMap(), Memo(), observer = observer).expansion
 
     private fun held(file: ElixirFile, inputs: Inputs): Held {
-        file.getUserData(held)?.takeIf { it.loaded.isCurrent(inputs) }?.let { return it }
+        current(file, inputs)?.let { return it }
 
         val computed = compute(file, inputs, emptyMap(), Memo(), records = true)
         if (computed.transient.isNone) {
-            file.virtualFile?.let { files[it] = computed.loaded }
+            file.virtualFile?.let {
+                files[it] = computed.loaded
+                if (warmed[it] != null) warmed[it] = computed
+            }
             file.putUserData(held, computed)
         }
 
         return computed
     }
+
+    /** [file]'s held expansion, or the one [warm] kept for it, where what it read is unchanged. */
+    private fun current(file: ElixirFile, inputs: Inputs): Held? =
+        (file.getUserData(held) ?: file.virtualFile?.let { warmed[it] })?.takeIf { it.loaded.isCurrent(inputs) }
 
     /** [asker]'s file as compiling, with none of its modules loaded yet. */
     private fun compiling(asker: PsiFile): Map<VirtualFile, Map<String, Answer>> =

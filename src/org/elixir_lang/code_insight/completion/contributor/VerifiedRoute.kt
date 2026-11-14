@@ -12,10 +12,15 @@ import com.intellij.codeInsight.completion.CompletionType
 import com.intellij.codeInsight.completion.PlainPrefixMatcher
 import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInsight.lookup.LookupElementBuilder
+import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.components.Service
+import com.intellij.openapi.components.service
 import com.intellij.openapi.project.DumbService
+import com.intellij.openapi.project.Project
 import com.intellij.patterns.PlatformPatterns.psiElement
 import com.intellij.psi.PsiFile
 import com.intellij.util.ProcessingContext
+import com.intellij.util.concurrency.AppExecutorUtil
 import org.elixir_lang.declaration.expanderPathOn
 import org.elixir_lang.expander.AttributeValue
 import org.elixir_lang.expander.ExpansionResult
@@ -30,6 +35,10 @@ import org.elixir_lang.psi.HeredocLineable
 import org.elixir_lang.psi.Import.Term
 import org.elixir_lang.psi.Sigil
 import org.elixir_lang.psi.SigilHeredocLiteral
+import org.elixir_lang.util.ElixirProjectDisposable
+import org.jetbrains.annotations.TestOnly
+import org.jetbrains.concurrency.CancellablePromise
+import java.util.concurrent.Callable
 
 /**
  * Inside `~p`, the paths of the routes of the router the caret's module names in `@router`, as its `@phoenix_routes`
@@ -97,7 +106,10 @@ private fun pathSoFar(sigil: Sigil, offset: Int): List<String>? {
     return parts.map(StringBuilder::toString).takeIf { it.none { part -> '?' in part } }
 }
 
-/** The paths of the routes of the router [sigil]'s module names in `@router`, `null` where they aren't known. */
+/**
+ * The paths of the routes of the router [sigil]'s module names in `@router`, `null` where they aren't known, as while
+ * the router's expansion is not yet held, which this starts.
+ */
 private fun paths(sigil: Sigil, asker: PsiFile): List<String>? {
     val file = sigil.containingFile as? ElixirFile ?: return null
     val project = file.project
@@ -107,8 +119,10 @@ private fun paths(sigil: Sigil, asker: PsiFile): List<String>? {
     val module = holder.indexed(file, inputs).envs.placed(sigil.textRange).env.module ?: return null
     val compiled = holder.expansion(file, inputs).resultAt(module, sigil.textRange) ?: return null
     val router = ((compiled.attributes.final["router"] as? AttributeValue.Known)?.term as? Term.Atom)?.name ?: return null
+    val located = holder.locateHeld(asker, router, inputs)
+    if (located == null) project.service<RouterWarmUp>().warm(asker, router, inputs)
 
-    return (holder.locate(asker, router, inputs) as? ProjectModules.Located.Source)?.result?.let(::routePaths)
+    return (located as? ProjectModules.Located.Source)?.result?.let(::routePaths)
 }
 
 /** The path of each route [router]'s `@phoenix_routes` holds when its body ends. */
@@ -137,3 +151,27 @@ private fun lookup(path: String): LookupElement {
 }
 
 private const val INTERPOLATION = "#{}"
+
+/** Expands routers in the background for the completions after the one that found them not held. */
+@Service(Service.Level.PROJECT)
+internal class RouterWarmUp(private val project: Project) {
+    private val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("Elixir router warm-up", 1)
+
+    /** The last warm-up started. */
+    @get:TestOnly
+    @Volatile
+    var pending: CancellablePromise<*>? = null
+        private set
+
+    /**
+     * Expands [router] as [asker] locates it, one run at a time for each router, restarted after a write as any
+     * non-blocking read is.
+     */
+    fun warm(asker: PsiFile, router: String, inputs: ProjectModules.Inputs) {
+        pending = ReadAction.nonBlocking(Callable { if (asker.isValid) ProjectModules.getInstance(project).warm(asker, router, inputs) })
+            .inSmartMode(project)
+            .coalesceBy(this, router)
+            .expireWith(ElixirProjectDisposable.getInstance(project))
+            .submit(executor)
+    }
+}

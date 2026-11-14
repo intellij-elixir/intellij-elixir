@@ -4,16 +4,19 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.codeInsight.lookup.Lookup
 import com.intellij.codeInsight.lookup.LookupManager
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiDocumentManager
+import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.LegSdkFixtureTestCase
 import org.elixir_lang.expander.PhoenixCorpus
 import org.elixir_lang.expander.PhoenixRouterFixture
+import org.elixir_lang.expander.psiLetGo
 import org.elixir_lang.expander.utf8
 import org.elixir_lang.model.psi.config.caret
 import java.io.File
@@ -31,6 +34,7 @@ class VerifiedRouteCompletionTest : LegSdkFixtureTestCase() {
         enableExpander(myFixture.testRootDisposable)
         myFixture.addFileToProject(CARET, "defmodule Caret do\n  use DemoWeb, :verified_routes\n\n  def root, do: ~p\"/\"\nend\n")
         val root = ROWS.first()
+        warm(root)
 
         val expected = PhoenixRouterFixture.routesOf(compiled.routers, "DemoWeb.Router")
             .map { utf8((it as OtpErlangTuple).elementAt(1)) }
@@ -44,6 +48,7 @@ class VerifiedRouteCompletionTest : LegSdkFixtureTestCase() {
     fun testEachPlaceOffersTheRoutesUnderItsPathSoFar() {
         if (!shapes()) return
         myFixture.addFileToProject(HEEX, HEEX_CALLER)
+        warm(ROWS.first())
 
         val expected = """
             root: offers / /assets/css-:md5 /files/*path /mailbox /users/:id /users/:id/edit /users/:id/posts/:post_id /users/register
@@ -76,12 +81,44 @@ class VerifiedRouteCompletionTest : LegSdkFixtureTestCase() {
         assertEquals(expected, actual)
     }
 
+    /**
+     * A completion before the router's expansion is held offers nothing, so it runs no expansion of the router itself:
+     * it warms the router in a read of its own, and the completion after that offers the routes.
+     */
+    fun testACompletionBeforeTheRouterIsHeldOffersNothingAndTheNextOffersItsRoutes() {
+        if (!shapes()) return
+        val row = ROWS[1]
+
+        val cold = warm(row)
+        val warm = row(row)
+
+        assertEquals(
+            "under a segment: none\nunder a segment: offers /users/:id /users/:id/edit /users/:id/posts/:post_id /users/register",
+            "$cold\n$warm",
+        )
+    }
+
+    /** A router's routes, once warmed, are still offered after its PSI, which no editor shows, is collected. */
+    fun testAWarmedRoutersRoutesAreOfferedAfterAGarbageCollection() {
+        if (!shapes()) return
+        val row = ROWS[1]
+        warm(row)
+        val router = File(PhoenixRouterFixture.demo.getOrThrow()!!.project, "routers/route_shapes_router.ex")
+
+        assertTrue("the router's PSI is let go", psiLetGo(project, LocalFileSystem.getInstance().findFileByIoFile(router)!!))
+        assertEquals("under a segment: offers /users/:id /users/:id/edit /users/:id/posts/:post_id /users/register", row(row))
+    }
+
     /** With the expander off nothing is offered, as the route list is the expander's. */
     fun testWithTheExpanderOffNothingIsOffered() {
         if (!shapes(expander = false)) return
 
         assertEquals("root: none", row(ROWS.first()))
     }
+
+    /** What [row] offers before the router is held, once the router's expansion that this completion starts has finished. */
+    private fun warm(row: Row): String =
+        row(row).also { PlatformTestUtil.waitForPromise(project.service<RouterWarmUp>().pending ?: error("no completion warmed a router")) }
 
     /** The demo's files as the module's, with `routers/` a source root too, so its routers are found from source. */
     private fun project(compiled: PhoenixRouterFixture.Compiled) {
