@@ -2692,7 +2692,11 @@ internal class Evaluation(
 
                 // The raise may have come before any of the body's writes, or between them.
                 if (before != null && read != null) {
-                    read.join(before, listOf(before) + raisedAt + read.snapshot())
+                    read.join(before, buildList {
+                        add(before)
+                        addAll(raisedAt)
+                        add(read.snapshot())
+                    })
                 }
 
                 val joinedValue = joined(

@@ -195,7 +195,7 @@ class ProjectAppEnvHeavyTest : ConfigHeavyTestCase() {
     /** Mix sync makes a library for each dependency `mix.lock` names, before `deps.get` gives it any root. */
     fun testAnUnfetchedDeclaredDependencyStaysUnknown() {
         val root = project("lib/engines.ex" to templateEngines())
-        mixLibrary("phoenix_view [app]")
+        phoenixViewLibrary()
 
         assertEquals("Elixir.Engines compiled different/0 equal/0", ended(psi(root, "lib/engines.ex")))
     }
@@ -246,11 +246,14 @@ class ProjectAppEnvHeavyTest : ConfigHeavyTestCase() {
         "defmodule App.MixProject do\n  use Mix.Project\n\n  def project, do: $project\n\n" +
             definitions.prependIndent("  ") + "\nend\n"
 
-    /** A library in the project's table of Mix's kind, named as Mix sync names one, with no roots, on the module. */
-    private fun mixLibrary(name: String) {
+    /**
+     * `phoenix_view`'s library in the project's table, of Mix's kind, named as Mix sync names it, with no roots, on the
+     * module.
+     */
+    private fun phoenixViewLibrary() {
         WriteAction.runAndWait<Throwable> {
             val model = LibraryTablesRegistrar.getInstance().getLibraryTable(project).modifiableModel
-            val library = model.createLibrary(name, MixLibraryKind)
+            val library = model.createLibrary("phoenix_view [app]", MixLibraryKind)
             model.commit()
             ModuleRootModificationUtil.addDependency(module, library)
         }

@@ -149,18 +149,16 @@ class AppEnvTest : PlatformTestCase() {
             ":application.set_env(Application.get_env(:dep, :configured), :key, :other)" to null,
             "Application.put_env(:other, :key, :other)" to "equal/0",
         )
-        val read = "Application.get_env(:dep, :key)"
-
         assertEquals(
             writes.joinToString("\n") { (write, expected) -> "$write: ${expected ?: "different/0 equal/0"}" },
             writes.joinToString("\n") { (write, _) ->
-                "$write: " + defined("defmodule A do\n  $write\n${defines(read, ":value")}end\n")
+                "$write: " + defined("defmodule A do\n  $write\n${defines(READ, ":value")}end\n")
             },
         )
         assertEquals(
             "a write after the read",
             "equal/0",
-            defined("defmodule A do\n${defines(read, ":value")}  Application.put_env(:dep, :key, :other)\nend\n"),
+            defined("defmodule A do\n${defines(READ, ":value")}  Application.put_env(:dep, :key, :other)\nend\n"),
         )
     }
 
@@ -222,17 +220,7 @@ class AppEnvTest : PlatformTestCase() {
         assertEquals(
             reads.joinToString("\n") { (read, value) -> "$read: " + if (value == null) "different/0 equal/0" else "equal/0" },
             reads.joinToString("\n") { (read, value) ->
-                val compared = value ?: "true"
-                val code = "defmodule A do\n  require Application\n" +
-                    "  if $read == $compared, do: def(equal, do: 1)\n" +
-                    "  if $read != $compared, do: def(different, do: 1)\nend\n"
-                val result = expand(code).modules.single()
-
-                "$read: " + if (result.ended == Ended.Compiled) {
-                    result.table.entries.map { "${it.key.name}/${it.key.arity}" }.sorted().joinToString(" ")
-                } else {
-                    "${result.ended}"
-                }
+                "$read: " + defined("defmodule A do\n  require Application\n${defines(read, value ?: "true")}end\n")
             },
         )
 
@@ -261,6 +249,9 @@ class AppEnvTest : PlatformTestCase() {
     }
 
     private companion object {
+        /** The read of `dep`'s `key`, which the writes' rows test. */
+        const val READ = "Application.get_env(:dep, :key)"
+
         /**
          * The leg's apps, `dep` declaring the keys the rows read, one of which a config file also sets, `own`, whose
          * `.app` can't be read, and `unread`, which a config file sets in a way that can't be read besides setting one
