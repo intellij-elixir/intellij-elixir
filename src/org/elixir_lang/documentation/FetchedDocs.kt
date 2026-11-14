@@ -71,7 +71,7 @@ sealed class FetchedDocs(open val module: String?) {
                 val callDefinitionAttributeListByName = callDefinitionAttributeListByName(call)
                 val deprecated = callDefinitionAttributeListByName[DEPRECATED]?.joinModuleAttributeQuoteText()
                     ?.let { OtpErlangBinary(it.toByteArray()) }
-                val doc = docAbove(call)?.moduleAttributeValue()?.documentationMarkdownText()
+                val doc = docAbove(callDefinitionAttributeListByName)?.moduleAttributeValue()?.documentationMarkdownText()
                     ?.let { MarkdownByLanguage.english(it) }
                 val impls = callDefinitionAttributeListByName[IMPL].moduleAttributeValueTextList()
                 val specs = callDefinitionAttributeListByName[SPEC].moduleAttributeValueTextList()
@@ -178,8 +178,10 @@ internal fun hidesDoc(call: Call): Boolean =
         ?.let { AtomName.of(it) in SourceFileDocsHelper.HIDDEN_DOCUMENTATION } == true
 
 /** The `@doc` above [call] that stands, the nearest one: a keyword list only sets metadata beside the doc and replaces nothing. */
-private fun docAbove(call: Call): AtUnqualifiedNoParenthesesCall<*>? =
-    callDefinitionAttributeListByName(call)[DOC]?.firstOrNull { it.moduleAttributeValue() !is QuotableKeywordList }
+private fun docAbove(call: Call): AtUnqualifiedNoParenthesesCall<*>? = docAbove(callDefinitionAttributeListByName(call))
+
+private fun docAbove(attributeListByName: Map<String, List<AtUnqualifiedNoParenthesesCall<*>>>): AtUnqualifiedNoParenthesesCall<*>? =
+    attributeListByName[DOC]?.firstOrNull { it.moduleAttributeValue() !is QuotableKeywordList }
 
 private fun callDefinitionAttributeListByName(callDefinitionCall: Call): Map<String, List<AtUnqualifiedNoParenthesesCall<*>>> {
     val source = sourceFor(Feature.DOCUMENTATION)
