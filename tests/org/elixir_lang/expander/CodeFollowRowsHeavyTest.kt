@@ -109,27 +109,50 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
 
     private companion object {
         val ROWS = listOf(
+            Row("b1", ":from_h", elixir = ":from_h"),
             Row("b3", "raises unloaded_module", elixir = "exit 1 raises CompileError"),
             Row("b4", "raises unloaded_module", elixir = "exit 1 raises CompileError"),
             // Which of Elixir's runs comes first is a race.
             Row("b5", "{unknown, unknown}", elixir = "{true, false} / {false, true}"),
+            Row("b6", "{[H], nil, nil}", elixir = "{[H], nil, nil}"),
+            // Which of Elixir's runs comes first is a race.
+            Row("b7", "unknown", elixir = ":h2 / exit 1 raises CompileError"),
+            Row(
+                "b8",
+                "{unknown, nil, [M1, M2], nil, {:last, []}}",
+                elixir = "{[M1, M2], nil, [M1, M2], nil, {:last, []}}",
+                Before(PATH_EXPAND_READS_CWD_LAZILY, "{unknown, unknown, unknown, unknown, unknown}"),
+            ),
+            Row("b9a", "{[H], unknown}", elixir = "{[H], [H]}"),
+            Row("b9b", "{unknown, [H]}", elixir = "{[H], [H]}", Before(PATH_EXPAND_READS_CWD_LAZILY, "{unknown, unknown}")),
             Row("b10", "{2, {2, [x: 2, y: 1]}, 4}", elixir = "{2, {2, [x: 2, y: 1]}, 4}"),
             Row("b11", "{nil, A, \"/x\", \"nofile\"}", elixir = "{nil, A, \"/x\", \"nofile\"}"),
             Row("b12", ":from_s", elixir = ":from_s"),
             Row("b13", "false", elixir = "1"),
+            Row("b14", "[a: \"support\", b: \"d.exs\"]", elixir = "[a: \"support\", b: \"d.exs\"]"),
             Row("b15", "true", elixir = ":from_macro"),
+            Row("b16", "true", elixir = ":from_h"),
+            Row("b17", "true", elixir = ":from_h"),
+            Row("b18", ":from_h", elixir = ":from_h"),
             Row("b19", ":ended", elixir = "exit 124"),
             Row("b20", ":ended", elixir = "exit 124"),
             Row("b21", "{unknown, unknown}", elixir = "{true, false} / {false, true}"),
             Row("b22", "true", elixir = "true"),
+            Row("b23", "{1, 2, [y: 2]}", elixir = "{1, 2, [y: 2]}"),
+            Row("b24", ":from_h", elixir = ":from_h"),
+            Row("b25", "[H]", elixir = "[H]"),
             Row("b26", "{2, [x: 1]}", elixir = "{2, [x: 1]}"),
             Row("b27", "{4, []}", elixir = "{4, []}"),
+            Row("b28", "{:from_dep, \"d\"}", elixir = "{:from_dep, \"d\"}"),
             Row("b29", "unknown", elixir = "exit 1 raises UndefinedFunctionError"),
             Row("b30", "unknown", elixir = "exit 1 raises UndefinedFunctionError"),
             Row("b31", "[A]", elixir = "[A]", Before(EVAL_ENV_KEEPS_CONTEXT_MODULES, "[]")),
             Row("b32", "{:f, 0}", elixir = "{:f, 0}"),
             // A string evaluated in a module's env evaluates another from `elixir_env:new()`'s env.
             Row("b33", "{nil, Bar}", elixir = "{nil, Bar}"),
+            // A require of a file whose earlier require raised runs it again, where before it waits for the file without end.
+            // The first raise is one a `try` may catch, so the plugin declines there.
+            Row("b34", "unknown", elixir = ":raised", Before(REQUIRE_FILE_RELEASES_A_RAISED_FILE, elixir = "exit 124")),
             Row("c1", "{:value, nil, :from_file}", elixir = "{:value, nil, :from_file}"),
             Row("c2", "{:between, nil}", elixir = "{:between, nil}"),
             Row("c3c", "{:value, nil, :from_file}", elixir = "{:value, nil, :from_file}"),
@@ -169,6 +192,7 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("c27", "{:value, nil, 1}", elixir = "{:value, nil, 1}"),
             Row("c28", "{:value, nil, unknown}", elixir = "{:value, nil, nil}"),
             Row("c29", "{:value, nil, unknown}", elixir = "exit 1 raises CompileError"),
+            Row("c30", "{nil, unknown}", elixir = "{nil, :from_h}"),
             Row("c32", "unknown", elixir = ":from_required"),
             // The binding an evaluation gives: its variables by name, descending since 1.12, ascending before.
             Row(
@@ -232,6 +256,9 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("c43", "false", elixir = "false"),
             Row("e1", ":ended", elixir = "exit 124"),
             Row("e2", ":ended", elixir = "exit 124"),
+            Row("e3", "raises Elixir.Code.LoadError", elixir = "exit 1 raises Code.LoadError"),
+            Row("e4", "raises Elixir.Code.LoadError", elixir = "exit 1 raises Code.LoadError"),
+            Row("e5", "raises Elixir.RuntimeError", elixir = "exit 1 raises RuntimeError"),
             Row("e6", "{unknown, unknown, unknown}", elixir = "exit 1 raises RuntimeError"),
             Row("e7", "raises Elixir.FunctionClauseError", elixir = "exit 1 raises FunctionClauseError"),
             Row("e8", "raises null", elixir = "exit 1 raises TokenMissingError"),
@@ -243,6 +270,10 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
                 Before(EVAL_STRING_CHECKS_THE_BINDING, "unknown", "exit 1 raises FunctionClauseError"),
             ),
             Row("e10", "unknown", elixir = "[Sub.Inner, Sub]"),
+            // Which of Elixir's runs comes first is a race.
+            Row("i1", "unknown", elixir = ":from_h / exit 1 raises CompileError"),
+            Row("i2", ":from_dep", elixir = ":from_dep", Before(LAZY_MODULE_LOADING, ":from_h")),
+            Row("i3", ":from_h", elixir = ":from_h"),
             Row("i4", "true", elixir = ":from_h"),
             Row("i5", "{:value, nil, unknown}", elixir = "{:value, nil, nil}"),
             Row("i6", "{41, \"/x/y.ex\"}", elixir = "{41, \"/x/y.ex\"}"),
@@ -252,6 +283,19 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("i14", "unknown", elixir = "{:raised, :raised}", Before(REQUIRE_FILE_RELEASES_A_RAISED_FILE, elixir = "exit 124")),
             Row("i16", ":from_c", elixir = ":from_c"),
             Row("i17", ":from_first", elixir = ":from_first"),
+            // A test script runs beside its siblings, so which of them requires the file first is a race.
+            Row("i19", "{unknown, :from_h}", elixir = "{false, :from_h}"),
+            // Code a module body evaluates passes over an arm whose test declined: what that test may have done isn't known,
+            // in the module and in the script after it.
+            Row("i20", "unknown", elixir = "{false, true}", Before(LAZY_MODULE_LOADING, elixir = "{true, true}")),
+            Row("i21", "unknown", elixir = "{true, true}"),
+            Row("i22", "unknown", elixir = "{false, true}", Before(LAZY_MODULE_LOADING, elixir = "{true, true}")),
+            // A follow the read declined requires nothing: the body follows the file itself, beside its siblings.
+            Row("i31", "{unknown, :from_h}", elixir = "{true, :from_h}"),
+            Row("i32", "unknown", elixir = "true"),
+            Row("i33", "unknown", elixir = "true"),
+            // A string evaluated after code that declined doesn't know whether that code required the file.
+            Row("i35", "unknown", elixir = "true"),
             // Each evaluation's `make_ref/0` makes a reference no other has made.
             Row("i36", "{false, false}", elixir = "{false, false}"),
             // A string evaluated after the body wrote an app's env reads it as the body does.

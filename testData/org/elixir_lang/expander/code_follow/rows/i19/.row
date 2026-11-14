@@ -1,0 +1,4 @@
+kind: exs
+run: mix test
+probe: test/b_test.exs:BTest.v test/b_test.exs:BTest.w
+judge: value

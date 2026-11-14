@@ -22,6 +22,7 @@ import org.elixir_lang.expander.interpreter.tuple
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAILED_COMPILE_PURGES_MODULE
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAST_PATH_ADDS_CONTEXT_MODULE
+import org.elixir_lang.language_level.ElixirLanguageFeature.LAZY_MODULE_LOADING
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
@@ -455,9 +456,13 @@ internal class Run(
 
     /**
      * Whether code the expander doesn't follow ran, which may have changed the directory the compile runs in
-     * ([workingDirectory]) and created modules with `Module.create/3` ([maybeCreated]); once set it stays.
+     * ([workingDirectory]), created modules with `Module.create/3` ([maybeCreated]) and required files with
+     * `Code.require_file/1,2`; once set it stays.
      */
     private var unfollowedRan = false
+
+    /** Whether code the expander doesn't follow ran in the run ([unfollowedRan]), or in the run `Code` followed it from. */
+    val mayHaveRunUnfollowed: Boolean get() = unfollowedRan || parent?.mayHaveRunUnfollowed == true
 
     /** The file's expansion, ending at [top], with the modules the run compiled and whether code it doesn't follow ran. */
     fun fileExpansion(top: Expansion, endsRun: Boolean): FileExpansion = FileExpansion(top, compiledInto, endsRun, unfollowedRan)
@@ -777,6 +782,13 @@ internal class Run(
     val following: Set<String> get() = (parent?.following ?: emptySet()) + setOfNotNull(file())
 
     /**
+     * Whether nothing runs beside the run, so which of a file's callers runs it first is known: a config read, or a
+     * script outside test-source content, whose scripts `mix test` loads in parallel. A followed run is as its caller is.
+     */
+    val sequential: Boolean =
+        parent?.sequential ?: (config != null || virtualFile?.let { it.extension == "exs" && buildTarget?.mixEnv != "test" } == true)
+
+    /**
      * [forms], `Code`'s follow of [file] from [env], run in a run of their own, which then merges into this one
      * ([adopt]). A follow in code that may not run declines, as the modules it loads would join nothing. [observed], a
      * node of [forms], is the one whose expansion the result keeps.
@@ -849,11 +861,22 @@ internal class Run(
             val followed = FollowedModule(module, exports, child.compiledStructs[module] ?: ModuleStruct.Unreadable)
 
             loadedLast(module, result)
-            reached(followed, child.loadedClauses[module], result)
+            followLoaded(followed, child.loadedClauses[module], result)
         }
         if (child.evaluates) ownLoads += child.ownLoads
         assumptions += child.assumptions
         if (child.unfollowedRan) declinedCodeRan()
+    }
+
+    /**
+     * [module], which this run's follow loaded with [clauses], as the run sees it ([seenAfterFollow]): beside the run, the
+     * build may compile the index's copy too. Where it sees the index's, the run's own goes.
+     */
+    private fun followLoaded(module: FollowedModule, clauses: ModuleClauses?, result: ExpansionResult) {
+        val seen = seenAfterFollow(module, clauses, if (sequential) null else files.copyOf(module.name), level)
+            ?: return forget(module.name)
+
+        reached(seen.module, seen.clauses, result)
     }
 
     /** [module], which a follow loaded with [clauses], as loaded here; [result] tells the observer, for a module of this run's follow. */
@@ -1319,7 +1342,27 @@ internal fun expandedShape(node: ElixirAst): ElixirAst {
 }
 
 /** A module `Code`'s follow loaded: what it exports and its struct. */
-internal class FollowedModule(val name: String, val exports: ModuleExports, val struct: ModuleStruct)
+internal class FollowedModule(val name: String, val exports: ModuleExports, val struct: ModuleStruct) {
+    /** The module, its exports and struct not known. */
+    fun unknown() = FollowedModule(name, ModuleExports.Unreadable, ModuleStruct.Unreadable)
+}
+
+/** A module a follow loaded, with its [clauses], `null` where they aren't known. */
+internal class FollowedLoad(val module: FollowedModule, val clauses: ModuleClauses?)
+
+/**
+ * The one site that says what a run sees of [module], which a file's follow loaded with [clauses], `null` where it sees
+ * the index's copy. [compiled] is `null` where the index holds no copy or nothing compiles beside the run: the followed
+ * module. `false`, a source copy or several the build compiles too, races the follow, so the module isn't known. `true`,
+ * a compiled copy on the code path: where Elixir loads lazily ([LAZY_MODULE_LOADING]) a parallel compile doesn't load
+ * the module it compiles, so the copy stays; before, the module the follow compiled is loaded.
+ */
+internal fun seenAfterFollow(module: FollowedModule, clauses: ModuleClauses?, compiled: Boolean?, level: ElixirLanguageLevel): FollowedLoad? =
+    when (compiled) {
+        null -> FollowedLoad(module, clauses)
+        false -> FollowedLoad(module.unknown(), null)
+        true -> FollowedLoad(module, clauses).takeUnless { LAZY_MODULE_LOADING.isSufficient(level) }
+    }
 
 /**
  * What `Code`'s follow left: the [modules] it gives as the file's, those it loaded and those of the code it evaluated;

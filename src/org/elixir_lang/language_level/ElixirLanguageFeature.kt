@@ -1867,6 +1867,25 @@ enum class ElixirLanguageFeature(
     EVAL_NUMBER_GIVES_ITS_BINDING(sinceElixir = "1.14.2"),
 
     /**
+     * A parallel compile loads a module it compiles only once code asks for it, so where the code path already holds a
+     * compiled copy of the module, that copy is the one code sees. Before it, the module compiled is loaded as it
+     * compiles.
+     *
+     * `elixir-lang/elixir@64a387da8` ("Load modules lazily and only if needed", #14453), first released in
+     * v1.19.0-rc.0.
+     */
+    LAZY_MODULE_LOADING(sinceElixir = "1.19.0-rc.0"),
+
+    /**
+     * `Path.expand/1` and `Path.absname/1` read `File.cwd!/0` only for a path that isn't absolute. Before it, each reads
+     * it first.
+     *
+     * `elixir-lang/elixir@741757f2a` ("Lazily evaluate File.cwd! in Path.expand and Path.absname (#13061)"), first
+     * released in v1.16.0-rc.1.
+     */
+    PATH_EXPAND_READS_CWD_LAZILY(sinceElixir = "1.16.0-rc.1"),
+
+    /**
      * `Code.eval_string/3` raises `ArgumentError` for a binding that isn't a list. Before it, `elixir_erl_var:load_binding`
      * raises `FunctionClauseError`.
      *

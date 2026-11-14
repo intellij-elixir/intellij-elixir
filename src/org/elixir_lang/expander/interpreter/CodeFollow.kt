@@ -10,6 +10,7 @@ import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.Expansion
 import org.elixir_lang.expander.Followed
+import org.elixir_lang.expander.Require
 import org.elixir_lang.expander.TermEscapeView
 import org.elixir_lang.expander.VARIABLE_ORDER
 import org.elixir_lang.expander.Variable
@@ -26,8 +27,8 @@ import org.elixir_lang.psi.Import.Term
 
 /**
  * `Code.require_file/1,2`, `eval_file/1,2`, `compile_file/1,2`, `eval_string/1,2,3` and `eval_quoted/1,2,3`: the one
- * site that runs the code those forms run, the file forms in a config read. A form that isn't one of those, or an
- * argument whose error Elixir's clauses give, returns `null`, so `Code`'s clauses run.
+ * site that runs the code those forms run. A form that isn't one of those, or an argument whose error Elixir's clauses
+ * give, returns `null`, so `Code`'s clauses run.
  */
 internal class CodeFollow(private val evaluation: Evaluation) {
     private val run get() = evaluation.run
@@ -36,16 +37,11 @@ internal class CodeFollow(private val evaluation: Evaluation) {
 
     fun call(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
         when (key) {
-            "eval_string/1", "eval_string/2", "eval_string/3" -> evalString(args)
-            "eval_quoted/1", "eval_quoted/2", "eval_quoted/3" -> evalQuoted(args)
-            else -> if (run.config == null) null else fileForm(key, args)
-        }
-
-    private fun fileForm(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
-        when (key) {
             "require_file/1", "require_file/2" -> path(args)?.let(::requireFile)
             "compile_file/1", "compile_file/2" -> path(args)?.let(::compileFile)
             "eval_file/1", "eval_file/2" -> path(args)?.let(::evalFile)
+            "eval_string/1", "eval_string/2", "eval_string/3" -> evalString(args)
+            "eval_quoted/1", "eval_quoted/2", "eval_quoted/3" -> evalQuoted(args)
             else -> null
         }
 
@@ -69,11 +65,22 @@ internal class CodeFollow(private val evaluation: Evaluation) {
         return path
     }
 
-    /** `elixir_code_server`'s require-once: `nil` for a path the read already required, else the modules it loaded. */
+    /**
+     * `elixir_code_server`'s require-once: `nil` for a path the run, or the config read its build follows, already
+     * required, else the modules it loaded. Where code that declined may have required it
+     * ([mayHaveRunUnfollowed][org.elixir_lang.expander.Run.mayHaveRunUnfollowed]), or in a run beside others
+     * ([sequential][org.elixir_lang.expander.Run.sequential]), where which of them requires the path first is a race,
+     * the modules are loaded but what the call gives isn't known.
+     */
     private fun requireFile(path: String): OtpErlangObject {
-        if (!run.required.add(path)) return NIL
+        val earlier = if (path in run.required) Require.REQUIRED else if (run.config == null) run.files.requiredByRead(path) else null
+        if (earlier == Require.REQUIRED) return NIL
+        val maybe = earlier == Require.MAYBE || run.mayHaveRunUnfollowed
 
-        return modules(follow(path, evaluates = false))
+        val modules = modules(follow(path, evaluates = false))
+        run.required += path
+
+        return if (run.sequential && !maybe) modules else Unknown
     }
 
     private fun compileFile(path: String): OtpErlangObject = modules(follow(path, evaluates = false))

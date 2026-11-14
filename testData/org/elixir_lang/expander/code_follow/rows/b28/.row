@@ -1,0 +1,4 @@
+kind: body
+run: mix run --no-start -e 'IO.inspect(D.r(), label: "ANSWER")'
+probe: deps_src/d/lib/d.ex:D.r
+judge: value

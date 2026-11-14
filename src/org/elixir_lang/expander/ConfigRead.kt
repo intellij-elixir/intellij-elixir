@@ -216,9 +216,10 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
     }
 
     /** The read's outcome where it raised, or its result holds a value not known. */
-    fun raised(): ConfigTable = ConfigTable(OtpErlangList(), imports.toList(), declined, unknown = true)
+    fun raised(): ConfigTable = ConfigTable(OtpErlangList(), imports.toList(), declined, unknown = true, required = required.toSet())
 
-    private fun outcome(config: OtpErlangObject) = ConfigTable(config, imports.toList(), declined, written.copy())
+    private fun outcome(config: OtpErlangObject) =
+        ConfigTable(config, imports.toList(), declined, written.copy(), required = required.toSet())
 
     /** Whether `Config.validate!/2` lets [result] by: before [CONFIG_VALIDATES_EVERY_ENTRY], the first entry not `{atom, _}` ends its check. */
     private fun isValid(result: OtpErlangObject, level: ElixirLanguageLevel): Boolean {
@@ -278,6 +279,15 @@ internal fun sameRead(left: ConfigRead.Snapshot?, right: ConfigRead.Snapshot?): 
         left.imports == right.imports && left.shape == right.shape && sameTerm(left.config, right.config, held = true)
     }
 
+/** Whether earlier code required a path with `Code.require_file/1,2`, so a later require of it gives `nil`. */
+internal enum class Require {
+    /** It did: a later require gives `nil`. */
+    REQUIRED,
+
+    /** Code that declined may have: a later require may give `nil`, or run the file. */
+    MAYBE,
+}
+
 /** What a run reaches of the project's files by path: imported config files and existence checks, each stamped. */
 internal interface RunFiles {
     /** Whether a file or directory is at [path], `null` where that can't be known. */
@@ -294,6 +304,18 @@ internal interface RunFiles {
 
     /** [text] parsed and lowered as if it began on [line], for `Code` to evaluate, `null` where there is no project to parse it in. */
     fun parsed(text: String, line: Int): ElixirAst? = null
+
+    /**
+     * Whether the config read the run's build follows required [path] with `Code.require_file/1,2`, `null` where it
+     * didn't; a read's run follows none.
+     */
+    fun requiredByRead(path: String): Require? = null
+
+    /**
+     * Which copy of [module] the index holds for the run's file: `true` one compiled copy, `false` one source copy,
+     * several, or any where the index can't say, `null` none.
+     */
+    fun copyOf(module: String): Boolean? = null
 
     companion object {
         val NONE = object : RunFiles {
@@ -381,6 +403,7 @@ private fun firstPairs(keywords: OtpErlangObject): Map<OtpErlangObject, OtpErlan
  *
  * @property declined whether a unit of the read declined, so [config] isn't what Elixir's is
  * @property written the apps whose env the read wrote
+ * @property required the paths the read required with `Code.require_file/1,2`, which the build's own files then don't
  */
 internal class ConfigTable(
     val config: OtpErlangObject,
@@ -388,6 +411,7 @@ internal class ConfigTable(
     val declined: Boolean = false,
     private val written: WrittenApps = WrittenApps(),
     val unknown: Boolean = false,
+    val required: Set<String> = emptySet(),
 ) {
     /**
      * [app]'s [key]: [AppEnvValue.Declared] with its value where the table knows it, [AppEnvValue.Configured] where it

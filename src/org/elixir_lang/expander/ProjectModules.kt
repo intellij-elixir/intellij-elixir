@@ -122,16 +122,13 @@ internal class ProjectModules(private val project: Project) {
         inProgress: Map<VirtualFile, Map<String, Answer>>,
         reading: Boolean = false,
     ): ReadClauses {
-        val (choice, stamps) = chosen(asker, atom)
+        val stamps = Stamps()
         var transient = Transient.NONE
+        val choice = chosen(asker, atom, stamps) { transient = it }
 
         fun read(choice: Choice): ModuleClauses? =
             when (choice) {
-                Choice.Unknown -> {
-                    transient = Transient.DUMB
-                    null
-                }
-                Choice.None, is Choice.Several -> null
+                Choice.Unknown, Choice.None, is Choice.Several -> null
                 is Choice.One ->
                     when (val copy = choice.copy) {
                         is Copy.Compiled -> compiledClauses(copy.virtualFile, inputs.level)
@@ -284,17 +281,14 @@ internal class ProjectModules(private val project: Project) {
         memo: Memo,
         reading: Boolean = false,
     ): Looked {
-        val (choice, stamps) = chosen(asker, atom)
+        val stamps = Stamps()
         var transient = Transient.NONE
+        val choice = chosen(asker, atom, stamps) { transient = it }
 
         fun answer(choice: Choice): Answer =
             when (choice) {
-                Choice.Unknown -> {
-                    transient = Transient.DUMB
-                    UNREADABLE
-                }
                 Choice.None -> ABSENT
-                is Choice.Several -> UNREADABLE
+                Choice.Unknown, is Choice.Several -> UNREADABLE
                 is Choice.One ->
                     when (val copy = choice.copy) {
                         is Copy.Compiled -> compiled(copy.virtualFile)
@@ -321,15 +315,16 @@ internal class ProjectModules(private val project: Project) {
     }
 
     /**
-     * [choose]'s choice, with the stamps that move when it may: none where it is unknown, else its entry's and each of
-     * several copies' own. A source copy's content stamps are its expansion's.
+     * [choose]'s choice, with [stamps] gaining those that move when it may: none where it is unknown, which holds only
+     * while the index is dumb ([transient]), else its entry's and each of several copies' own. A source copy's content
+     * stamps are its expansion's.
      */
-    private fun chosen(asker: PsiFile, atom: String): Pair<Choice, Stamps> {
-        val stamps = Stamps()
+    private fun chosen(asker: PsiFile, atom: String, stamps: Stamps, transient: (Transient) -> Unit): Choice {
         val choice = choose(asker, atom, stamps)
         if (choice is Choice.Several) choice.copies.forEach { stamps.copy(it) }
+        if (choice == Choice.Unknown) transient(Transient.DUMB)
 
-        return choice to stamps
+        return choice
     }
 
     /**
@@ -882,6 +877,24 @@ internal class ProjectModules(private val project: Project) {
     /** A config table with the stamps of every file, existence check and import its read made. */
     private class HeldTable(val table: ConfigTable, val stamps: Stamps)
 
+    /** What the config read of [build], the build [file] is in, left, for a file outside a read. An unknown env has no read. */
+    private fun readOf(file: VirtualFile?, build: BuildTarget?, inputs: Inputs, stamps: Stamps, transient: (Transient) -> Unit): ConfigTable {
+        val env = build?.configEnv ?: return ConfigTable.EMPTY
+
+        return file?.let { configTable(it, env, build.target, inputs, stamps, transient) } ?: ConfigTable.EMPTY
+    }
+
+    /**
+     * Which copy of a module the index holds, where it [chose][chosen] [choice], as [RunFiles.copyOf] gives it. A dumb
+     * index may hold any, so it counts as several.
+     */
+    private fun indexCopy(choice: Choice): Boolean? =
+        when (choice) {
+            is Choice.One -> choice.copy is Copy.Compiled
+            is Choice.Several, Choice.Unknown -> false
+            Choice.None -> null
+        }
+
     /** The project's files [from]'s run reaches by path, through [from]'s file system, with [stamps] gaining each read. */
     private fun runFiles(
         from: VirtualFile?,
@@ -893,6 +906,11 @@ internal class ProjectModules(private val project: Project) {
     ): RunFiles {
         // A path means what it does on the SDK's machine, which this file system is only where `runPath` says.
         val pathFileSystem = from?.takeIf { runPath(it, inputs.os, OS.CURRENT) != null }?.fileSystem
+        // The file whose index `Code`'s follows ask which copy of a module it holds.
+        val asker by lazy(LazyThreadSafetyMode.NONE) { from?.let(::read) }
+        // Which copy the asker's index holds of each module the run or any it followed asked about, chosen once.
+        val choices = HashMap<String, Choice>()
+        fun choiceOf(module: String): Choice? = asker?.let { choices.getOrPut(module) { chosen(it, module, stamps, transient) } }
 
         return object : RunFiles {
             override fun exists(path: String): Boolean? {
@@ -924,6 +942,14 @@ internal class ProjectModules(private val project: Project) {
 
                 return Lowering.lower(psi, inputs.level, firstLine = line)
             }
+
+            // A read that declined may have required any path.
+            override fun requiredByRead(path: String): Require? =
+                readOf(from, buildTarget(from, null, stamps), inputs, stamps, transient).let { table ->
+                    if (path in table.required) Require.REQUIRED else Require.MAYBE.takeIf { table.declined }
+                }
+
+            override fun copyOf(module: String): Boolean? = choiceOf(module)?.let(::indexCopy)
 
             override fun wildcard(pattern: String): List<String>? {
                 val fileSystem = pathFileSystem ?: return null

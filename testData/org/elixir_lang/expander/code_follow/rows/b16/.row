@@ -1,0 +1,4 @@
+kind: body
+run: mix run --no-start -e 'IO.inspect(A.I.r(), label: "ANSWER")'
+probe: lib/a.ex:A.I#r/0
+judge: passes

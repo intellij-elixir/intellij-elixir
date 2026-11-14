@@ -1,0 +1,4 @@
+kind: config
+run: timeout 30 mix run --no-start -e 'Code.require_file("script.exs"); IO.inspect(R.r(), label: "ANSWER")'
+probe: script.exs:R.v
+judge: value
