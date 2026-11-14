@@ -750,10 +750,11 @@ internal class Run(
      */
     private val ownLoads = ArrayList<String>()
 
-    /** [module], loaded as [result]: a module loaded again moves to the end. */
+    /** [module], loaded as [result]: a module loaded again moves to the end, past what an ensure reached under it. */
     private fun loadedLast(module: String, result: ExpansionResult) {
         loadOrder.remove(module)
         loadOrder[module] = result
+        ensured.remove(module)
     }
 
     /** [module] as no module of the run's. */
@@ -861,32 +862,45 @@ internal class Run(
             val followed = FollowedModule(module, exports, child.compiledStructs[module] ?: ModuleStruct.Unreadable)
 
             loadedLast(module, result)
-            followLoaded(followed, child.loadedClauses[module], result)
+            // A run alone compiles beside nothing.
+            see(FollowedLoad(followed, child.loadedClauses[module]), if (sequential) null else files.copyOf(module), result)
         }
+        child.ensured.values.forEach(::ensuredLoaded)
         if (child.evaluates) ownLoads += child.ownLoads
         assumptions += child.assumptions
         if (child.unfollowedRan) declinedCodeRan()
     }
 
     /**
-     * [module], which this run's follow loaded with [clauses], as the run sees it ([seenAfterFollow]): beside the run, the
-     * build may compile the index's copy too. Where it sees the index's, the run's own goes.
+     * Each module the run's `ensure_compiled`s reached since the run last loaded it, by name, with its clauses, which the
+     * run that follows this one reaches too.
      */
-    private fun followLoaded(module: FollowedModule, clauses: ModuleClauses?, result: ExpansionResult) {
-        val seen = seenAfterFollow(module, clauses, if (sequential) null else files.copyOf(module.name), level, FollowedBy.FILE)
-            ?: return forget(module.name)
+    private val ensured = LinkedHashMap<String, FollowedLoad>()
 
-        reached(seen.module, seen.clauses, result)
+    /**
+     * [loaded], which the follows of a module's file this run ensures is compiled loaded. That file compiled in the build,
+     * beside the index's copy, however this run is compiled.
+     */
+    fun ensuredLoaded(loaded: FollowedLoad) {
+        ensured[loaded.module.name] = loaded
+        see(loaded, files.copyOf(loaded.module.name), null)
     }
 
-    /** [module], which a follow loaded with [clauses], as loaded here; [result] tells the observer, for a module of this run's follow. */
-    private fun reached(module: FollowedModule, clauses: ModuleClauses?, result: ExpansionResult?) {
-        compiled[module.name] = module.exports
-        compiledStructs[module.name] = module.struct
-        if (clauses == null) loadedClauses.remove(module.name) else loadedClauses[module.name] = clauses
-        config?.followed(module, clauses)
-        result?.let { observer.loaded(it, module.exports, module.struct) }
-        observer.clausesLoaded(module.name, clauses)
+    /**
+     * [loaded], as the run sees it ([seenAfterFollow]) beside the index's [copy], which the build may compile too. Where it
+     * sees the index's, the run's own goes. The observer is told it loaded as [result], for a module of this run's follow,
+     * else that the run reached it.
+     */
+    private fun see(loaded: FollowedLoad, copy: Boolean?, result: ExpansionResult?) {
+        val seen = seenAfterFollow(loaded, copy, level, FollowedBy.FILE) ?: return forget(loaded.module.name)
+        val name = seen.module.name
+
+        compiled[name] = seen.module.exports
+        compiledStructs[name] = seen.module.struct
+        if (seen.clauses == null) loadedClauses.remove(name) else loadedClauses[name] = seen.clauses
+        config?.followed(seen)
+        if (result == null) observer.reached(seen.module) else observer.loaded(result, seen.module.exports, seen.module.struct)
+        observer.clausesLoaded(name, seen.clauses)
     }
 
     /** Each variable [top] left bound, with its value, unknown where the run doesn't have it. */
@@ -1343,42 +1357,36 @@ internal fun expandedShape(node: ElixirAst): ElixirAst {
 }
 
 /** A module `Code`'s follow loaded: what it exports and its struct. */
-internal class FollowedModule(val name: String, val exports: ModuleExports, val struct: ModuleStruct) {
-    /** The module, its exports and struct not known. */
-    fun unknown() = FollowedModule(name, ModuleExports.Unreadable, ModuleStruct.Unreadable)
-}
+internal class FollowedModule(val name: String, val exports: ModuleExports, val struct: ModuleStruct)
 
 /** A module a follow loaded, with its [clauses], `null` where they aren't known. */
-internal class FollowedLoad(val module: FollowedModule, val clauses: ModuleClauses?)
+internal class FollowedLoad(val module: FollowedModule, val clauses: ModuleClauses?) {
+    /** The module, its exports, struct and clauses not known. */
+    fun unknown() = FollowedLoad(FollowedModule(module.name, ModuleExports.Unreadable, ModuleStruct.Unreadable), null)
+}
 
 /** Whose follow loaded a module: the file's own run, or the config read its build runs after. */
 internal enum class FollowedBy { FILE, READ }
 
 /**
- * The one site that says what a run sees of [module], which a follow [by] loaded with [clauses], `null` where it sees
- * the index's copy. [compiled] is `null` where the index holds no copy or nothing compiles beside the run: the followed
- * module. `false`, a source copy or several the build compiles too, races the follow, so the module isn't known. `true`,
- * a compiled copy on the code path: where Elixir loads lazily ([LAZY_MODULE_LOADING]) a module is loaded once, when code
+ * The one site that says what a run sees of [loaded], which a follow [by] loaded, `null` where it sees the index's
+ * copy. [compiled] is `null` where the index holds no copy or nothing compiles beside the run: the followed module.
+ * `false`, a source copy or several the build compiles too, races the follow, so the module isn't known. `true`, a
+ * compiled copy on the code path: where Elixir loads lazily ([LAZY_MODULE_LOADING]) a module is loaded once, when code
  * first asks for it, so a file's follow, compiling beside the build, leaves the copy, and a read's, which ran before the
  * build, stays. Before, a module is loaded as it compiles: a file's follow, the last to compile it, is seen, and a read's
  * only where the dependency doesn't compile again in the build, which isn't known.
  */
-internal fun seenAfterFollow(
-    module: FollowedModule,
-    clauses: ModuleClauses?,
-    compiled: Boolean?,
-    level: ElixirLanguageLevel,
-    by: FollowedBy,
-): FollowedLoad? =
+internal fun seenAfterFollow(loaded: FollowedLoad, compiled: Boolean?, level: ElixirLanguageLevel, by: FollowedBy): FollowedLoad? =
     when (compiled) {
-        null -> FollowedLoad(module, clauses)
-        false -> FollowedLoad(module.unknown(), null)
+        null -> loaded
+        false -> loaded.unknown()
         true -> {
             val lazy = LAZY_MODULE_LOADING.isSufficient(level)
 
             when (by) {
-                FollowedBy.FILE -> if (lazy) null else FollowedLoad(module, clauses)
-                FollowedBy.READ -> if (lazy) FollowedLoad(module, clauses) else FollowedLoad(module.unknown(), null)
+                FollowedBy.FILE -> if (lazy) null else loaded
+                FollowedBy.READ -> if (lazy) loaded else loaded.unknown()
             }
         }
     }

@@ -110,6 +110,13 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
     private companion object {
         val ROWS = listOf(
             Row("b1", ":from_h", elixir = ":from_h"),
+            // A body sees what the module it ensures is compiled loaded by its own follows.
+            Row(
+                "b2",
+                ":from_h",
+                elixir = ":from_h",
+                Before(ENSURE_COMPILED_BANG, "raises Elixir.UndefinedFunctionError", "exit 1 raises UndefinedFunctionError"),
+            ),
             Row("b3", "raises unloaded_module", elixir = "exit 1 raises CompileError"),
             Row("b4", "raises unloaded_module", elixir = "exit 1 raises CompileError"),
             // Which of Elixir's runs comes first is a race.
@@ -286,6 +293,13 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
                 Before(UNREQUIRED_MACRO_CALLED_AS_FUNCTION, "no-attribute"),
                 Before(LAZY_MODULE_LOADING, "unknown", ":from_dep"),
             ),
+            // Two files define `H`, so Elixir fails the compile; the copy a body sees isn't known.
+            Row(
+                "i8",
+                "unknown",
+                elixir = "exit 1 raises CompileError",
+                Before(ENSURE_COMPILED_BANG, "raises Elixir.UndefinedFunctionError", "exit 1 raises UndefinedFunctionError"),
+            ),
             Row("i9", "{:value, nil, unknown}", elixir = "{:value, nil, {:error, :nofile}}"),
             Row("i10", "{:value, nil, {:error, :nofile}}", elixir = "{:value, nil, {:error, :nofile}}"),
             Row("i11", "unknown", elixir = ":from_h", Before(UNREQUIRED_MACRO_CALLED_AS_FUNCTION, "no-attribute")),
@@ -301,6 +315,8 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             ),
             Row("i16", ":from_c", elixir = ":from_c"),
             Row("i17", ":from_first", elixir = ":from_first"),
+            // A file ensuring a file that is still running, as the one that asked for it, reaches nothing and ends.
+            Row("i18", ":from_a", elixir = ":from_a"),
             // A test script runs beside its siblings, so which of them requires the file first is a race.
             Row("i19", "{unknown, :from_h}", elixir = "{false, :from_h}"),
             // Code a module body evaluates passes over an arm whose test declined: what that test may have done isn't known,
@@ -314,10 +330,21 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("i24", "{:from_h, :from_t, :from_h}", elixir = "{:from_h, :from_t, :from_h}"),
             // A module only the read defines, through `Code.eval_string`, is exported to the bodies that ask for it.
             Row("i25", "{:from_string, true}", elixir = "{:from_string, true}"),
+            // A module nested in the file a body ensures is compiled is the file's own, not one its follows loaded.
+            Row("i26", "{:from_n, :from_h}", elixir = "{:from_n, :from_h}"),
+            // A script runs alone, but the file it ensures is compiled compiled in the build, beside the index's copy of `H`.
+            Row("i27", "unknown", elixir = "exit 1 raises CompileError"),
+            // A module whose definitions aren't known still ran the follows its file recorded.
+            Row("i28", ":from_h", elixir = ":from_h"),
+            // An ensured module's follows reach the module that ensures the ensurer.
+            Row("i29", ":from_h", elixir = ":from_h"),
+            // An ensure in a string a body evaluates reaches the body.
+            Row("i30", ":from_h", elixir = ":from_h"),
             // A follow the read declined requires nothing: the body follows the file itself, beside its siblings.
             Row("i31", "{unknown, :from_h}", elixir = "{true, :from_h}"),
             Row("i32", "unknown", elixir = "true"),
             Row("i33", "unknown", elixir = "true"),
+            Row("i34", ":mine", elixir = ":mine"),
             // A string evaluated after code that declined doesn't know whether that code required the file.
             Row("i35", "unknown", elixir = "true"),
             // Each evaluation's `make_ref/0` makes a reference no other has made.
@@ -328,6 +355,8 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("i37c", "unknown", elixir = ":other"),
             // A string evaluated inside a `try` runs inside it, which may catch its raise.
             Row("i38", "unknown", elixir = ":rescued"),
+            // A second ensure of a module loads nothing its file's follows loaded again.
+            Row("i39", ":from_string", elixir = ":from_string"),
             // A string a body evaluates reads the module the body compiles, which its run doesn't see.
             Row("i41", "unknown", elixir = "1"),
             // A follow of a path not known writes what it may: the read declines.

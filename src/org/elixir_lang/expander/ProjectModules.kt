@@ -110,7 +110,7 @@ internal class ProjectModules(private val project: Project) {
      */
     @RequiresReadLock
     fun clauses(asker: PsiFile, atom: String, inputs: Inputs): ModuleClauses? =
-        clauses(asker, atom, inputs, compiling(asker)).clauses
+        clauses(asker, atom, inputs, compiling(asker), Memo()).clauses
 
     /**
      * [atom]'s clauses for [asker], with the stamps of what was read for them, as [lookup] gives an answer's.
@@ -120,6 +120,7 @@ internal class ProjectModules(private val project: Project) {
         atom: String,
         inputs: Inputs,
         inProgress: Map<VirtualFile, Map<String, Answer>>,
+        memo: Memo,
         reading: Boolean = false,
     ): ReadClauses {
         val stamps = Stamps()
@@ -140,11 +141,11 @@ internal class ProjectModules(private val project: Project) {
                         }
                         is Copy.Source if reading -> null
                         is Copy.Source -> {
-                            val (loaded, modules, below) = sourceClauses(copy, inputs, inProgress)
-                            transient = below
-                            stamps.addAll(loaded.stamps)
+                            val run = sourceClauses(copy, inputs, inProgress, memo)
+                            transient = run.transient
+                            stamps.addAll(run.loaded.stamps)
 
-                            modules[atom] ?: if (loaded.answer(atom, choice.parents) == null) read(choice.fallingThrough()) else null
+                            run.modules[atom] ?: if (run.loaded.answer(atom, choice.parents) == null) read(choice.fallingThrough()) else null
                         }
                     }
             }
@@ -503,24 +504,18 @@ internal class ProjectModules(private val project: Project) {
         return clauses
     }
 
-    /** The clauses of each module [copy] loads, by expanding it again, with the expansion that compiled them. */
+    /** The clauses of each module [copy] loads, with the expansion that compiled them. */
     private fun sourceClauses(
         copy: Copy.Source,
         inputs: Inputs,
         inProgress: Map<VirtualFile, Map<String, Answer>>,
-    ): Triple<Loaded, Map<String, ModuleClauses>, Transient> {
+        memo: Memo,
+    ): SourceRun {
         (clauseCache[copy.virtualFile] as? Clauses.Source)
             ?.takeIf { it.loaded.isCurrent(inputs) && it.loaded.holdsWhile(inProgress) }
-            ?.let { return Triple(it.loaded, it.modules, Transient.NONE) }
+            ?.let { return SourceRun(it, Transient.NONE) }
 
-        val modules = HashMap<String, ModuleClauses>()
-        val computed = compute(copy.file, inputs, inProgress, Memo(), observer = clausesInto(modules))
-        if (computed.transient.isNone) {
-            files[copy.virtualFile] = computed.loaded
-            clauseCache[copy.virtualFile] = Clauses.Source(computed.loaded, modules)
-        }
-
-        return Triple(computed.loaded, modules, computed.transient)
+        return expanded(copy, inputs, inProgress, memo)
     }
 
     /** An observer putting each module's clauses, as it loads, into [modules], or taking them out where it has none. */
@@ -555,19 +550,35 @@ internal class ProjectModules(private val project: Project) {
         files[copy.virtualFile]
             ?.takeIf { it.isCurrent(inputs) && it.holdsWhile(inProgress) }
             ?.let { return it to Transient.NONE }
+
+        return expanded(copy, inputs, inProgress, memo).let { it.loaded to it.transient }
+    }
+
+    /**
+     * [copy] expanded, from [memo] where this call already expanded it under [inProgress]. The clauses it loads are kept
+     * with it, so a later read of them doesn't expand the file again: held where nothing it read holds only for this
+     * run, and else in [memo].
+     */
+    private fun expanded(copy: Copy.Source, inputs: Inputs, inProgress: Map<VirtualFile, Map<String, Answer>>, memo: Memo): SourceRun {
         memo.of(copy.virtualFile, inProgress)?.let { return it }
 
-        // The clauses the expansion loads are kept, so a later read of them doesn't expand the file again.
         val modules = HashMap<String, ModuleClauses>()
         val computed = compute(copy.file, inputs, inProgress, memo, observer = clausesInto(modules))
+        val run = SourceRun(Clauses.Source(computed.loaded, modules), computed.transient)
         if (computed.transient.isNone) {
             files[copy.virtualFile] = computed.loaded
-            clauseCache[copy.virtualFile] = Clauses.Source(computed.loaded, modules)
+            clauseCache[copy.virtualFile] = run.clauses
         } else if (!computed.transient.dumb) {
-            memo.add(copy.virtualFile, computed.loaded to computed.transient)
+            memo.add(copy.virtualFile, run)
         }
 
-        return computed.loaded to computed.transient
+        return run
+    }
+
+    /** A source file's expansion: the modules it loaded with their [clauses], and what it read that holds only for its run. */
+    private class SourceRun(val clauses: Clauses.Source, val transient: Transient) {
+        val loaded: Loaded get() = clauses.loaded
+        val modules: Map<String, ModuleClauses> get() = clauses.modules
     }
 
     /**
@@ -618,7 +629,7 @@ internal class ProjectModules(private val project: Project) {
                 indexCopy(chosen(file, atom, stamps) { transients += it }).also { copies[atom] = it }
             }
 
-            return seenAfterFollow(followed, clauses, copy, inputs.level, FollowedBy.READ)
+            return seenAfterFollow(FollowedLoad(followed, clauses), copy, inputs.level, FollowedBy.READ)
         }
         val ask = { atom: String ->
             seenFromRead(atom, false)?.module?.let { Answer(it.exports, it.struct) }
@@ -674,6 +685,11 @@ internal class ProjectModules(private val project: Project) {
                     }
                     observer.loaded(result, exports, struct)
                 }
+
+                override fun reached(module: FollowedModule) {
+                    modules[module.name] = Answer(module.exports, module.struct)
+                    observer.reached(module)
+                }
             },
             file = {
                 // A rename or move discards this run's answers.
@@ -684,7 +700,7 @@ internal class ProjectModules(private val project: Project) {
             os = inputs.os,
             buildTarget = buildTarget,
             config = config,
-            files = runFiles(virtualFile, inputs, within, memo, stamps, { buildRead }) { transients += it },
+            files = runFiles(virtualFile, inputs, within, memo, stamps, config != null, { buildRead }) { transients += it },
             directories = { path ->
                 // A `mix.exs` created or deleted above the file moves its answer.
                 stamps.track(names.above(path))
@@ -696,7 +712,7 @@ internal class ProjectModules(private val project: Project) {
                 if (seen != null) {
                     seen.clauses
                 } else {
-                    clauses(file, atom, inputs, within, config != null).also { read ->
+                    clauses(file, atom, inputs, within, memo, config != null).also { read ->
                         stamps.addAll(read.stamps)
                         transients += read.transient
                     }.clauses
@@ -708,9 +724,16 @@ internal class ProjectModules(private val project: Project) {
         val uncompiled = LoadedModules.uncompiledExports(expansion)?.let { Answer(it, ModuleStruct.Unreadable) }
         val transient = Transient.merged(transients + used.map(Looked::transient)).leaving(compiling)
 
-        val loaded = Loaded(inputs, modules, uncompiled, expansion.unfollowedRan, stamps)
+        val loaded = Loaded(inputs, modules, uncompiled, expansion.unfollowedRan, stamps, followedBy(expansion, modules))
 
         return Held(loaded, expansion, results, lowering, transient, envs, receivers)
+    }
+
+    /** The modules [expansion]'s follows loaded, of those its run [loaded]: each that isn't its own, at its top or nested. */
+    private fun followedBy(expansion: FileExpansion, loaded: Map<String, Answer>): List<FollowedModule> {
+        val own = results(expansion).mapTo(HashSet()) { it.module }
+
+        return loaded.filterKeys { it !in own }.map { (name, answer) -> FollowedModule(name, answer.exports, answer.struct) }
     }
 
     /** The app env a default build of the project sees, for an expansion that keeps no stamps, of the `.app` files [asker] loads. */
@@ -960,13 +983,17 @@ internal class ProjectModules(private val project: Project) {
             Choice.None -> null
         }
 
-    /** The project's files [from]'s run reaches by path, through [from]'s file system, with [stamps] gaining each read. */
+    /**
+     * The project's files [from]'s run reaches by path, through [from]'s file system, with [stamps] gaining each read;
+     * where it is [reading] config, it runs no file of the build.
+     */
     private fun runFiles(
         from: VirtualFile?,
         inputs: Inputs,
         within: Map<VirtualFile, Map<String, Answer>>,
         memo: Memo,
         stamps: Stamps,
+        reading: Boolean,
         buildRead: () -> BuildRead?,
         transient: (Transient) -> Unit,
     ): RunFiles {
@@ -974,6 +1001,8 @@ internal class ProjectModules(private val project: Project) {
         val pathFileSystem = from?.takeIf { runPath(it, inputs.os, OS.CURRENT) != null }?.fileSystem
         // The file whose index `Code`'s follows ask which copy of a module it holds.
         val asker by lazy(LazyThreadSafetyMode.NONE) { from?.let(::read) }
+        // The files whose follows an ensure reached, in the run or any it followed.
+        val reachedFiles = HashSet<VirtualFile>()
         // Which copy the asker's index holds of each module the run or any it followed asked about, chosen once.
         val choices = HashMap<String, Choice>()
         fun choiceOf(module: String): Choice? = asker?.let { choices.getOrPut(module) { chosen(it, module, stamps, transient) } }
@@ -1016,6 +1045,21 @@ internal class ProjectModules(private val project: Project) {
                 }
 
             override fun copyOf(module: String): Boolean? = choiceOf(module)?.let(::indexCopy)
+
+            override fun loadedWith(module: String): List<FollowedLoad> {
+                if (reading) return emptyList()
+                val copy = (choiceOf(module) as? Choice.One)?.copy as? Copy.Source ?: return emptyList()
+                // A file still running has followed only part of what it will, and asking it again wouldn't end.
+                if (copy.virtualFile in within) return emptyList()
+                // The file compiled once, so what its follows loaded comes once, not over what the run loaded since.
+                if (!reachedFiles.add(copy.virtualFile)) return emptyList()
+                val run = sourceClauses(copy, inputs, within, memo)
+
+                stamps.addAll(run.loaded.stamps)
+                transient(run.transient)
+
+                return run.loaded.followed.map { FollowedLoad(it, run.modules[it.name]) }
+            }
 
             override fun wildcard(pattern: String): List<String>? {
                 val fileSystem = pathFileSystem ?: return null
@@ -1205,6 +1249,8 @@ internal class ProjectModules(private val project: Project) {
      *   compiled, and `null` where the file leaves the name no module, so it answers as it would without the file
      * @property unfollowedRan whether code the expander doesn't follow ran in the file's run, which may have created a
      *   module under a name no `defmodule` in the file names ([FileExpansion.unfollowedRan])
+     * @property followed the modules the file's follows loaded, which a module that ensures one of its own is compiled
+     *   then sees, with their clauses in [clauseCache]
      */
     private class Loaded(
         val inputs: Inputs,
@@ -1212,6 +1258,7 @@ internal class ProjectModules(private val project: Project) {
         val uncompiled: Answer?,
         val unfollowedRan: Boolean,
         val stamps: Stamps,
+        val followed: List<FollowedModule>,
     ) {
         fun isCurrent(inputs: Inputs): Boolean = inputs == this.inputs && stamps.isCurrent()
 
@@ -1245,14 +1292,12 @@ internal class ProjectModules(private val project: Project) {
      * read from one has the answer it read.
      */
     private class Memo {
-        private val held = HashMap<VirtualFile, MutableList<Pair<Loaded, Transient>>>()
+        private val held = HashMap<VirtualFile, MutableList<SourceRun>>()
 
-        fun of(virtualFile: VirtualFile, inProgress: Map<VirtualFile, Map<String, Answer>>): Pair<Loaded, Transient>? =
-            held[virtualFile]?.firstOrNull { (loaded, transient) ->
-                loaded.holdsWhile(inProgress) && transient.holdsWhile(inProgress)
-            }
+        fun of(virtualFile: VirtualFile, inProgress: Map<VirtualFile, Map<String, Answer>>): SourceRun? =
+            held[virtualFile]?.firstOrNull { it.loaded.holdsWhile(inProgress) && it.transient.holdsWhile(inProgress) }
 
-        fun add(virtualFile: VirtualFile, value: Pair<Loaded, Transient>) {
+        fun add(virtualFile: VirtualFile, value: SourceRun) {
             held.getOrPut(virtualFile, ::ArrayList) += value
         }
     }

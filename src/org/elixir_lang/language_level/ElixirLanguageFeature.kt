@@ -1877,6 +1877,14 @@ enum class ElixirLanguageFeature(
     LAZY_MODULE_LOADING(sinceElixir = "1.19.0-rc.0"),
 
     /**
+     * `Code.ensure_compiled!/1` is defined. Before it, a call of it raises `UndefinedFunctionError`.
+     *
+     * `elixir-lang/elixir@bc63b5fb8` ("Add ensure_compiled! to better handle deadlocks, closes #10802"), first released
+     * in v1.12.0-rc.0.
+     */
+    ENSURE_COMPILED_BANG(sinceElixir = "1.12.0-rc.0"),
+
+    /**
      * `Path.expand/1` and `Path.absname/1` read `File.cwd!/0` only for a path that isn't absolute. Before it, each reads
      * it first.
      *

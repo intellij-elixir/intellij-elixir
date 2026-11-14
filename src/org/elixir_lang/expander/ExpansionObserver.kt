@@ -43,6 +43,9 @@ internal fun interface ExpansionObserver {
     /** [result]'s module loaded, with the [exports] and [struct] Elixir gives it. */
     fun loaded(result: ExpansionResult, exports: ModuleExports, struct: ModuleStruct) {}
 
+    /** [module], which another file's follows loaded, reached by the run's `ensure_compiled` of that file's module. */
+    fun reached(module: FollowedModule) {}
+
     /** A source [module] loaded with [clauses], `null` where it loads with none, as one that doesn't compile does. */
     fun clausesLoaded(module: String, clauses: ModuleClauses?) {}
 

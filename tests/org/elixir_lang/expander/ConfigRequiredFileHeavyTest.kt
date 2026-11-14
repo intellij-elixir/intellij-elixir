@@ -89,6 +89,10 @@ class ConfigRequiredFileHeavyTest : ConfigHeavyTestCase() {
             "_ = :erlang.binary_to_integer(System.get_env(\"UNSET_N\", \"1\"))\n",
         )
 
+    /** `Code`'s clauses answer an `ensure_compiled` of a module not known, which reaches no file the read follows. */
+    fun testEnsureCompiledOfAModuleNotKnownReadsOn() =
+        assertReads("config :app, k1: 1\n_ = Code.ensure_compiled(String.to_atom(System.get_env(\"M\", \"Elixir.Nope\")))\nconfig :app, k2: 2\n")
+
     fun testAFileARequiredFileRequiresLoadsItsModulesAsItsOwn() = assertNestedLoad("require_file", "a=1")
 
     fun testAFileARequiredFileCompilesLoadsItsModulesAsItsOwn() = assertNestedLoad("compile_file", "a=1")

@@ -27,8 +27,8 @@ import org.elixir_lang.psi.Import.Term
 
 /**
  * `Code.require_file/1,2`, `eval_file/1,2`, `compile_file/1,2`, `eval_string/1,2,3` and `eval_quoted/1,2,3`: the one
- * site that runs the code those forms run. A form that isn't one of those, or an argument whose error Elixir's clauses
- * give, returns `null`, so `Code`'s clauses run.
+ * site that runs the code those forms run, and what `ensure_compiled/1,!` reach of it. A form that isn't one of those,
+ * or an argument whose error Elixir's clauses give, returns `null`, so `Code`'s clauses run.
  */
 internal class CodeFollow(private val evaluation: Evaluation) {
     private val run get() = evaluation.run
@@ -42,8 +42,23 @@ internal class CodeFollow(private val evaluation: Evaluation) {
             "eval_file/1", "eval_file/2" -> path(args)?.let(::evalFile)
             "eval_string/1", "eval_string/2", "eval_string/3" -> evalString(args)
             "eval_quoted/1", "eval_quoted/2", "eval_quoted/3" -> evalQuoted(args)
+            "ensure_compiled/1", "ensure_compiled!/1" -> {
+                reachFollowsOf(args[0])
+                null
+            }
             else -> null
         }
+
+    /**
+     * What [module]'s file's own follows loaded comes with it
+     * ([loadedWith][org.elixir_lang.expander.RunFiles.loadedWith]): they ran as the file compiled, whether or not the
+     * module then loads. The answer is `Code`'s clauses', through `code:ensure_loaded/1`.
+     */
+    private fun reachFollowsOf(module: OtpErlangObject) {
+        val name = (module as? OtpErlangAtom)?.atomValue() ?: return
+
+        run.files.loadedWith(name).forEach(run::ensuredLoaded)
+    }
 
     /** `find_file!/2`: the file's absolute path, or `null` where the file argument isn't a binary, whose error is the clauses'. */
     private fun path(args: List<OtpErlangObject>): String? {

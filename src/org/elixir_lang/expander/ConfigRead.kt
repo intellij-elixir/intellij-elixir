@@ -46,9 +46,9 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
     /** The modules the read's follows loaded, with their clauses, which the build the read runs before then sees. */
     private val followed = LinkedHashMap<String, FollowedLoad>()
 
-    /** [module], which a follow of the read loaded with [clauses]. */
-    fun followed(module: FollowedModule, clauses: ModuleClauses?) {
-        followed[module.name] = FollowedLoad(module, clauses)
+    /** [loaded], which a follow of the read loaded. */
+    fun followed(loaded: FollowedLoad) {
+        followed[loaded.module.name] = loaded
     }
 
     /** The clauses of each module in [followed] that has them. */
@@ -328,6 +328,13 @@ internal interface RunFiles {
      * several, or any where the index can't say, `null` none.
      */
     fun copyOf(module: String): Boolean? = null
+
+    /**
+     * The modules the follows of [module]'s file loaded, with their clauses, where the index holds one source copy of it
+     * that isn't still running; none for a config read, which runs no file of the build, or for a file whose follows the
+     * run already reached.
+     */
+    fun loadedWith(module: String): List<FollowedLoad> = emptyList()
 
     companion object {
         val NONE = object : RunFiles {
