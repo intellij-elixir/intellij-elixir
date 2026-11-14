@@ -43,6 +43,18 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
     /** The paths `Code.require_file/1,2` required in the read, which every file it follows shares. */
     val required = HashSet<String>()
 
+    /** The modules the read's follows loaded, with their clauses, which the build the read runs before then sees. */
+    private val followed = LinkedHashMap<String, FollowedLoad>()
+
+    /** [module], which a follow of the read loaded with [clauses]. */
+    fun followed(module: FollowedModule, clauses: ModuleClauses?) {
+        followed[module.name] = FollowedLoad(module, clauses)
+    }
+
+    /** The clauses of each module in [followed] that has them. */
+    fun followedClauses(): Map<String, ModuleClauses> =
+        followed.entries.mapNotNull { (name, loaded) -> loaded.clauses?.let { name to it } }.toMap()
+
     /** The files in [imports] that only code that may not have run read, so a later import of one may or may not raise. */
     val maybeImports = HashSet<String>()
 
@@ -216,10 +228,10 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
     }
 
     /** The read's outcome where it raised, or its result holds a value not known. */
-    fun raised(): ConfigTable = ConfigTable(OtpErlangList(), imports.toList(), declined, unknown = true, required = required.toSet())
+    fun raised(): ConfigTable = outcome(EMPTY, WrittenApps(), unknown = true)
 
-    private fun outcome(config: OtpErlangObject) =
-        ConfigTable(config, imports.toList(), declined, written.copy(), required = required.toSet())
+    private fun outcome(config: OtpErlangObject, written: WrittenApps = this.written.copy(), unknown: Boolean = false) =
+        ConfigTable(config, imports.toList(), declined, written, unknown, required.toSet(), followed.mapValues { it.value.module })
 
     /** Whether `Config.validate!/2` lets [result] by: before [CONFIG_VALIDATES_EVERY_ENTRY], the first entry not `{atom, _}` ends its check. */
     private fun isValid(result: OtpErlangObject, level: ElixirLanguageLevel): Boolean {
@@ -404,6 +416,7 @@ private fun firstPairs(keywords: OtpErlangObject): Map<OtpErlangObject, OtpErlan
  * @property declined whether a unit of the read declined, so [config] isn't what Elixir's is
  * @property written the apps whose env the read wrote
  * @property required the paths the read required with `Code.require_file/1,2`, which the build's own files then don't
+ * @property followed the modules the read's follows loaded, by name, which the build's files then see
  */
 internal class ConfigTable(
     val config: OtpErlangObject,
@@ -412,6 +425,7 @@ internal class ConfigTable(
     private val written: WrittenApps = WrittenApps(),
     val unknown: Boolean = false,
     val required: Set<String> = emptySet(),
+    val followed: Map<String, FollowedModule> = emptyMap(),
 ) {
     /**
      * [app]'s [key]: [AppEnvValue.Declared] with its value where the table knows it, [AppEnvValue.Configured] where it

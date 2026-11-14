@@ -596,10 +596,35 @@ internal class ProjectModules(private val project: Project) {
         // A re-read answer joins the one it supersedes, as the expansion used both.
         val used = ArrayList<Looked>()
         val transients = ArrayList<Transient>()
+        // The config read the file's build runs after, whose follows loaded modules the file then sees. A read reads none.
+        val buildRead by lazy(LazyThreadSafetyMode.NONE) {
+            if (config != null) null else readOf(virtualFile, buildTarget, inputs, stamps) { transients += it }
+        }
+        // Which copy the index holds of each module the read followed, asked once for its exports, struct and clauses.
+        val copies = HashMap<String, Boolean?>()
+        // The clauses of each module the read followed, read once for every call into it.
+        val followedClauses = HashMap<String, ModuleClauses?>()
+        fun seenFromRead(atom: String, withClauses: Boolean): FollowedLoad? {
+            val read = buildRead ?: return null
+            val followed = read.table.followed[atom] ?: return null
+            val clauses = when {
+                !withClauses -> null
+                atom in followedClauses -> followedClauses[atom]
+                else -> readClauses(read, atom, stamps) { transients += it }.also { followedClauses[atom] = it }
+            }
+            val copy = if (atom in copies) {
+                copies[atom]
+            } else {
+                indexCopy(chosen(file, atom, stamps) { transients += it }).also { copies[atom] = it }
+            }
+
+            return seenAfterFollow(followed, clauses, copy, inputs.level, FollowedBy.READ)
+        }
         val ask = { atom: String ->
-            looked[atom]
-                ?.takeIf { it.transient.holdsWhile(within) }
-                ?.answer
+            seenFromRead(atom, false)?.module?.let { Answer(it.exports, it.struct) }
+                ?: looked[atom]
+                    ?.takeIf { it.transient.holdsWhile(within) }
+                    ?.answer
                 ?: lookup(file, atom, inputs, within, memo, config != null).also {
                     looked[atom] = it
                     used += it
@@ -615,7 +640,7 @@ internal class ProjectModules(private val project: Project) {
             inputs.level,
             { ask(it).exports },
             { ask(it).struct },
-            appEnv(inputs, stamps, virtualFile, file, buildTarget, config, inProgress) { transients += it },
+            appEnv(inputs, stamps, virtualFile, file, { buildRead }, config, inProgress) { transients += it },
             object : ExpansionObserver by observer {
                 override fun entering(node: ElixirAst, state: ExState, env: Env) {
                     envs?.entering(node, env)
@@ -659,17 +684,23 @@ internal class ProjectModules(private val project: Project) {
             os = inputs.os,
             buildTarget = buildTarget,
             config = config,
-            files = runFiles(virtualFile, inputs, within, memo, stamps) { transients += it },
+            files = runFiles(virtualFile, inputs, within, memo, stamps, { buildRead }) { transients += it },
             directories = { path ->
                 // A `mix.exs` created or deleted above the file moves its answer.
                 stamps.track(names.above(path))
                 virtualFile?.fileSystem?.findFileByPath(path)?.let(::compileDirectory)
             },
             clauses = { atom ->
-                clauses(file, atom, inputs, within, config != null).also { read ->
-                    stamps.addAll(read.stamps)
-                    transients += read.transient
-                }.clauses
+                val seen = seenFromRead(atom, true)
+
+                if (seen != null) {
+                    seen.clauses
+                } else {
+                    clauses(file, atom, inputs, within, config != null).also { read ->
+                        stamps.addAll(read.stamps)
+                        transients += read.transient
+                    }.clauses
+                }
             },
         )
         used.forEach { stamps.addAll(it.stamps) }
@@ -684,7 +715,7 @@ internal class ProjectModules(private val project: Project) {
 
     /** The app env a default build of the project sees, for an expansion that keeps no stamps, of the `.app` files [asker] loads. */
     @RequiresReadLock
-    fun appEnv(inputs: Inputs, asker: PsiFile): AppEnv = appEnv(inputs, Stamps(), null, asker, null, null, emptyMap()) {}
+    fun appEnv(inputs: Inputs, asker: PsiFile): AppEnv = appEnv(inputs, Stamps(), null, asker, { null }, null, emptyMap()) {}
 
     /**
      * The app env a default build of the project sees: the config table [file]'s build reads where its read declined
@@ -704,7 +735,7 @@ internal class ProjectModules(private val project: Project) {
         stamps: Stamps,
         file: VirtualFile?,
         asker: PsiFile,
-        buildTarget: BuildTarget?,
+        buildRead: () -> BuildRead?,
         read: ConfigRead?,
         inProgress: Map<VirtualFile, Map<String, Answer>>,
         transient: (Transient) -> Unit,
@@ -740,12 +771,6 @@ internal class ProjectModules(private val project: Project) {
             { app -> ConfigSettings.unread(project, app, config) },
             declaration,
         )
-        val table by lazy {
-            val configEnv = buildTarget?.configEnv
-
-            if (file != null && configEnv != null) configTable(file, configEnv, buildTarget.target, inputs, stamps, transient) else null
-        }
-
         return AppEnv { app, key ->
             when {
                 DumbService.isDumb(project) -> {
@@ -753,7 +778,7 @@ internal class ProjectModules(private val project: Project) {
                     AppEnvValue.Unreadable
                 }
                 read != null || file != null && scope.contains(file) || configRunning() -> AppEnvValue.Configured
-                else -> table?.takeUnless { it.declined }?.let { table ->
+                else -> buildRead()?.table?.takeUnless { it.declined }?.let { table ->
                     table.of(app, key) ?: AppEnv.declared(declaration(app), key)
                 } ?: env.of(app, key).also {
                     // Whether a config file's call sets or writes a key rests on the module its expansion names, so on
@@ -771,7 +796,7 @@ internal class ProjectModules(private val project: Project) {
     @TestOnly
     @RequiresReadLock
     fun configTable(file: VirtualFile, inputs: Inputs, env: String): ConfigTable? =
-        configTable(file, env, BuildTarget.HOST, inputs, Stamps()) {}
+        buildRead(file, env, BuildTarget.HOST, inputs, Stamps()) {}?.table
 
     /**
      * The config files the `:dev`, `:test` and `:prod` reads of each content `mix.exs` import, its config file included.
@@ -781,18 +806,19 @@ internal class ProjectModules(private val project: Project) {
     fun reachedConfigFiles(inputs: Inputs): Set<VirtualFile> =
         ConfigFiles.projects(project).flatMapTo(HashSet()) { (mixExs, entry) ->
             REACHED_ENVS
-                .flatMap { env -> configTable(mixExs, entry.configPath, env, BuildTarget.HOST, inputs, Stamps()) {}?.files.orEmpty() }
+                .flatMap { env -> buildRead(mixExs, entry.configPath, env, BuildTarget.HOST, inputs, Stamps()) {}?.table?.files.orEmpty() }
                 .mapNotNull(mixExs.fileSystem::findFileByPath)
         }
 
-    private fun configTable(
+    /** The config read [file]'s build makes under [env], from the innermost content `mix.exs` above it. */
+    private fun buildRead(
         file: VirtualFile,
         env: String,
         target: String,
         inputs: Inputs,
         stamps: Stamps,
         transient: (Transient) -> Unit,
-    ): ConfigTable? {
+    ): BuildRead? {
         // A `mix.exs` created or deleted above the file moves which project's config it reads.
         stamps.track(names.above(file.path))
         val (mixExs, configPath) = generateSequence(file.parent) { it.parent }
@@ -800,10 +826,10 @@ internal class ProjectModules(private val project: Project) {
             .firstNotNullOfOrNull { mixExs -> ConfigFiles.configPath(project, mixExs)?.let { mixExs to it } }
             ?: return null
 
-        return configTable(mixExs, configPath, env, target, inputs, stamps, transient)
+        return buildRead(mixExs, configPath, env, target, inputs, stamps, transient)
     }
 
-    private fun configTable(
+    private fun buildRead(
         mixExs: VirtualFile,
         configPath: ProjectKeywords.Reading<String>,
         env: String,
@@ -811,37 +837,67 @@ internal class ProjectModules(private val project: Project) {
         inputs: Inputs,
         stamps: Stamps,
         transient: (Transient) -> Unit,
-    ): ConfigTable? {
+    ): BuildRead? {
         stamps.source(mixExs)
         val written = configPath.written ?: return null
         val path = ConfigFiles.configFilePath(mixExs, written)
         // Where it is missing, empty for the default path, as `Mix.Tasks.Loadconfig` then reads none, and else unknown, as it
         // raises. That reads how `mix.exs` wrote the path, so it isn't held by the path.
         val configFile = stamps.find(mixExs.fileSystem, path)?.takeUnless { it.isDirectory }
-            ?: return if (ProjectKeywords.isDefault(written)) ConfigTable.EMPTY else ConfigTable.UNKNOWN
-        val directory = mixExs.parent.path
-        val key = TableKey(path, directory, env, target, inputs)
+            ?: return BuildRead(if (ProjectKeywords.isDefault(written)) ConfigTable.EMPTY else ConfigTable.UNKNOWN)
+        val source = ReadSource(TableKey(path, mixExs.parent.path, env, target, inputs), configFile)
 
-        tables[key]?.takeIf { it.stamps.isCurrent() }?.let { held ->
+        tables[source.key]?.takeIf { it.stamps.isCurrent() }?.let { held ->
             stamps.addAll(held.stamps)
 
-            return held.table
+            return BuildRead(held.table, source)
         }
 
+        return evaluated(source, stamps, transient)
+    }
+
+    /**
+     * The read at [source], evaluated: held in [tables] where nothing it read holds only for this run, with the clauses
+     * of the modules its follows loaded in [clauseCache] beside it.
+     */
+    private fun evaluated(source: ReadSource, stamps: Stamps, transient: (Transient) -> Unit): BuildRead {
+        val key = source.key
         val held = Stamps()
         val transients = ArrayList<Transient>()
-        val table = evaluateConfig(configFile, ConfigRead(env, target, directory), inputs, held) { transients += it }
+        val read = ConfigRead(key.env, key.target, key.directory)
+        val table = evaluateConfig(source.configFile, read, key.inputs, held) { transients += it }
         val merged = Transient.merged(transients)
+        val clauses = read.followedClauses()
 
         stamps.addAll(held)
         if (merged.isNone) {
             tables.values.removeIf { !it.stamps.isCurrent() }
             tables[key] = HeldTable(table, held)
+            if (table.followed.isNotEmpty()) {
+                val reads = (clauseCache[source.configFile] as? Clauses.Read)?.reads.orEmpty().filterValues { it.stamps.isCurrent() }
+                clauseCache[source.configFile] = Clauses.Read(reads + (key to Clauses.ReadModules(held, clauses)))
+            }
         } else {
             transient(merged)
         }
 
-        return table
+        return BuildRead(table, source, clauses)
+    }
+
+    /**
+     * The clauses of [module], which [read]'s follows loaded: the read's own where it was just evaluated, else its
+     * [Clauses.Read] entry. Where that was evicted, the read's table is dropped and the read evaluated again.
+     */
+    private fun readClauses(read: BuildRead, module: String, stamps: Stamps, transient: (Transient) -> Unit): ModuleClauses? {
+        read.clauses?.let { return it[module] }
+        val source = read.source ?: return null
+
+        (clauseCache[source.configFile] as? Clauses.Read)?.reads?.get(source.key)
+            ?.takeIf { it.stamps.isCurrent() }
+            ?.let { return it.modules[module] }
+        tables.remove(source.key)
+
+        return evaluated(source, stamps, transient).clauses?.get(module)
     }
 
     /** [configFile] read as `Config.Reader.read_imports!/2` reads it. */
@@ -877,11 +933,20 @@ internal class ProjectModules(private val project: Project) {
     /** A config table with the stamps of every file, existence check and import its read made. */
     private class HeldTable(val table: ConfigTable, val stamps: Stamps)
 
-    /** What the config read of [build], the build [file] is in, left, for a file outside a read. An unknown env has no read. */
-    private fun readOf(file: VirtualFile?, build: BuildTarget?, inputs: Inputs, stamps: Stamps, transient: (Transient) -> Unit): ConfigTable {
-        val env = build?.configEnv ?: return ConfigTable.EMPTY
+    /** Where a build's config read evaluates: the table's [key] in [tables], and the root [configFile]. */
+    private class ReadSource(val key: TableKey, val configFile: VirtualFile)
 
-        return file?.let { configTable(it, env, build.target, inputs, stamps, transient) } ?: ConfigTable.EMPTY
+    /**
+     * What a build's config read left: its [table], and where it evaluated a file, the [source] it read; [clauses], the
+     * clauses of the modules its follows loaded, where it was evaluated for this ask.
+     */
+    private class BuildRead(val table: ConfigTable, val source: ReadSource? = null, val clauses: Map<String, ModuleClauses>? = null)
+
+    /** What the config read of [build], the build [file] is in, left, for a file outside a read. An unknown env has no read. */
+    private fun readOf(file: VirtualFile?, build: BuildTarget?, inputs: Inputs, stamps: Stamps, transient: (Transient) -> Unit): BuildRead? {
+        val env = build?.configEnv ?: return null
+
+        return file?.let { buildRead(it, env, build.target, inputs, stamps, transient) }
     }
 
     /**
@@ -902,6 +967,7 @@ internal class ProjectModules(private val project: Project) {
         within: Map<VirtualFile, Map<String, Answer>>,
         memo: Memo,
         stamps: Stamps,
+        buildRead: () -> BuildRead?,
         transient: (Transient) -> Unit,
     ): RunFiles {
         // A path means what it does on the SDK's machine, which this file system is only where `runPath` says.
@@ -945,7 +1011,7 @@ internal class ProjectModules(private val project: Project) {
 
             // A read that declined may have required any path.
             override fun requiredByRead(path: String): Require? =
-                readOf(from, buildTarget(from, null, stamps), inputs, stamps, transient).let { table ->
+                buildRead()?.table?.let { table ->
                     if (path in table.required) Require.REQUIRED else Require.MAYBE.takeIf { table.declined }
                 }
 
@@ -1246,6 +1312,17 @@ internal class ProjectModules(private val project: Project) {
         class Source(val loaded: Loaded, val modules: Map<String, ModuleClauses>) : Clauses {
             override fun weight(): Long = modules.values.sumOf(ModuleClauses::weight)
         }
+
+        /**
+         * Each module's that the follows of the config reads of one root config file loaded, by the key each read is held
+         * under in [tables].
+         */
+        class Read(val reads: Map<TableKey, ReadModules>) : Clauses {
+            override fun weight(): Long = reads.values.sumOf { read -> read.modules.values.sumOf(ModuleClauses::weight) }
+        }
+
+        /** The clauses of the modules one read's follows loaded, as the read that [stamps] stamp loaded them. */
+        class ReadModules(val stamps: Stamps, val modules: Map<String, ModuleClauses>)
     }
 
     /** Values by file, which let go of deleted files' when a value is stored after `VFS_STRUCTURE_MODIFICATIONS` moves. */

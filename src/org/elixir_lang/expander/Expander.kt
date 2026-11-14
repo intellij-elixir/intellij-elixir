@@ -873,7 +873,7 @@ internal class Run(
      * build may compile the index's copy too. Where it sees the index's, the run's own goes.
      */
     private fun followLoaded(module: FollowedModule, clauses: ModuleClauses?, result: ExpansionResult) {
-        val seen = seenAfterFollow(module, clauses, if (sequential) null else files.copyOf(module.name), level)
+        val seen = seenAfterFollow(module, clauses, if (sequential) null else files.copyOf(module.name), level, FollowedBy.FILE)
             ?: return forget(module.name)
 
         reached(seen.module, seen.clauses, result)
@@ -884,6 +884,7 @@ internal class Run(
         compiled[module.name] = module.exports
         compiledStructs[module.name] = module.struct
         if (clauses == null) loadedClauses.remove(module.name) else loadedClauses[module.name] = clauses
+        config?.followed(module, clauses)
         result?.let { observer.loaded(it, module.exports, module.struct) }
         observer.clausesLoaded(module.name, clauses)
     }
@@ -1350,18 +1351,36 @@ internal class FollowedModule(val name: String, val exports: ModuleExports, val 
 /** A module a follow loaded, with its [clauses], `null` where they aren't known. */
 internal class FollowedLoad(val module: FollowedModule, val clauses: ModuleClauses?)
 
+/** Whose follow loaded a module: the file's own run, or the config read its build runs after. */
+internal enum class FollowedBy { FILE, READ }
+
 /**
- * The one site that says what a run sees of [module], which a file's follow loaded with [clauses], `null` where it sees
+ * The one site that says what a run sees of [module], which a follow [by] loaded with [clauses], `null` where it sees
  * the index's copy. [compiled] is `null` where the index holds no copy or nothing compiles beside the run: the followed
  * module. `false`, a source copy or several the build compiles too, races the follow, so the module isn't known. `true`,
- * a compiled copy on the code path: where Elixir loads lazily ([LAZY_MODULE_LOADING]) a parallel compile doesn't load
- * the module it compiles, so the copy stays; before, the module the follow compiled is loaded.
+ * a compiled copy on the code path: where Elixir loads lazily ([LAZY_MODULE_LOADING]) a module is loaded once, when code
+ * first asks for it, so a file's follow, compiling beside the build, leaves the copy, and a read's, which ran before the
+ * build, stays. Before, a module is loaded as it compiles: a file's follow, the last to compile it, is seen, and a read's
+ * only where the dependency doesn't compile again in the build, which isn't known.
  */
-internal fun seenAfterFollow(module: FollowedModule, clauses: ModuleClauses?, compiled: Boolean?, level: ElixirLanguageLevel): FollowedLoad? =
+internal fun seenAfterFollow(
+    module: FollowedModule,
+    clauses: ModuleClauses?,
+    compiled: Boolean?,
+    level: ElixirLanguageLevel,
+    by: FollowedBy,
+): FollowedLoad? =
     when (compiled) {
         null -> FollowedLoad(module, clauses)
         false -> FollowedLoad(module.unknown(), null)
-        true -> FollowedLoad(module, clauses).takeUnless { LAZY_MODULE_LOADING.isSufficient(level) }
+        true -> {
+            val lazy = LAZY_MODULE_LOADING.isSufficient(level)
+
+            when (by) {
+                FollowedBy.FILE -> if (lazy) null else FollowedLoad(module, clauses)
+                FollowedBy.READ -> if (lazy) FollowedLoad(module, clauses) else FollowedLoad(module.unknown(), null)
+            }
+        }
     }
 
 /**

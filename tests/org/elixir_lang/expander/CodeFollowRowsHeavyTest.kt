@@ -192,7 +192,8 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("c27", "{:value, nil, 1}", elixir = "{:value, nil, 1}"),
             Row("c28", "{:value, nil, unknown}", elixir = "{:value, nil, nil}"),
             Row("c29", "{:value, nil, unknown}", elixir = "exit 1 raises CompileError"),
-            Row("c30", "{nil, unknown}", elixir = "{nil, :from_h}"),
+            Row("c30", "{nil, :from_h}", elixir = "{nil, :from_h}"),
+            Row("c31", ":from_h", elixir = ":from_h"),
             Row("c32", "unknown", elixir = ":from_required"),
             // The binding an evaluation gives: its variables by name, descending since 1.12, ascending before.
             Row(
@@ -277,10 +278,27 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("i4", "true", elixir = ":from_h"),
             Row("i5", "{:value, nil, unknown}", elixir = "{:value, nil, nil}"),
             Row("i6", "{41, \"/x/y.ex\"}", elixir = "{41, \"/x/y.ex\"}"),
+            // Before 1.13 `H.v()` reads the macros of the copy of `H` that is loaded, which isn't known: the body stops there.
+            Row(
+                "i7",
+                ":from_h",
+                elixir = ":from_h",
+                Before(UNREQUIRED_MACRO_CALLED_AS_FUNCTION, "no-attribute"),
+                Before(LAZY_MODULE_LOADING, "unknown", ":from_dep"),
+            ),
             Row("i9", "{:value, nil, unknown}", elixir = "{:value, nil, {:error, :nofile}}"),
+            Row("i10", "{:value, nil, {:error, :nofile}}", elixir = "{:value, nil, {:error, :nofile}}"),
+            Row("i11", "unknown", elixir = ":from_h", Before(UNREQUIRED_MACRO_CALLED_AS_FUNCTION, "no-attribute")),
             Row("i12", "unknown", elixir = "true"),
             Row("i13", "unknown", elixir = "false"),
             Row("i14", "unknown", elixir = "{:raised, :raised}", Before(REQUIRE_FILE_RELEASES_A_RAISED_FILE, elixir = "exit 124")),
+            Row(
+                "i15",
+                ":from_h",
+                elixir = ":from_h",
+                Before(UNREQUIRED_MACRO_CALLED_AS_FUNCTION, "no-attribute"),
+                Before(LAZY_MODULE_LOADING, "unknown"),
+            ),
             Row("i16", ":from_c", elixir = ":from_c"),
             Row("i17", ":from_first", elixir = ":from_first"),
             // A test script runs beside its siblings, so which of them requires the file first is a race.
@@ -290,6 +308,12 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("i20", "unknown", elixir = "{false, true}", Before(LAZY_MODULE_LOADING, elixir = "{true, true}")),
             Row("i21", "unknown", elixir = "{true, true}"),
             Row("i22", "unknown", elixir = "{false, true}", Before(LAZY_MODULE_LOADING, elixir = "{true, true}")),
+            // A root config that defines a module a lookup picks: the followed module's answer is the same whichever is read first.
+            Row("i23", "{unknown, :from_h, :from_h, unknown}", elixir = "{:from_c, :from_h, :from_h, :from_c}"),
+            // The dev and test reads follow different files, so each build sees its own read's copy.
+            Row("i24", "{:from_h, :from_t, :from_h}", elixir = "{:from_h, :from_t, :from_h}"),
+            // A module only the read defines, through `Code.eval_string`, is exported to the bodies that ask for it.
+            Row("i25", "{:from_string, true}", elixir = "{:from_string, true}"),
             // A follow the read declined requires nothing: the body follows the file itself, beside its siblings.
             Row("i31", "{unknown, :from_h}", elixir = "{true, :from_h}"),
             Row("i32", "unknown", elixir = "true"),
