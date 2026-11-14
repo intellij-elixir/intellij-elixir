@@ -17,5 +17,8 @@ class SpecificationQuickDocumentationTest : QuickDocumentationTestCase() {
         val documentation = quickDocumentationAtCaret()
 
         assertTrue("Expected the @doc, got: $documentation", documentation?.contains("Adds two numbers together.") == true)
+        assertFalse("Expected no plain line, got: $documentation", PLAIN_LINE in documentation.orEmpty())
     }
+
+    fun testAtASpecHeadWithTheExpanderOn() = withTheExpanderOn(::testAtASpecHead)
 }

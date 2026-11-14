@@ -41,6 +41,9 @@ class DelegationWithDefaultsQuickDocumentationTest : QuickDocumentationTestCase(
         assertOpensAtTwo(quickDocumentationAtCaret().orEmpty(), myFixture.documentationAnchorAtCaret(project))
     }
 
+    fun testACallThroughAChainOpensTheTargetsEntryForTheArityTheLastDelegationPassesWithTheExpanderOn() =
+        withTheExpanderOn(::testACallThroughAChainOpensTheTargetsEntryForTheArityTheLastDelegationPasses)
+
     /** A followed link to the first delegation of a chain opens where a call of it does. */
     fun testALinkThroughAChainOpensTheTargetsEntryForTheArityTheLastDelegationPasses() {
         chain()
@@ -51,12 +54,18 @@ class DelegationWithDefaultsQuickDocumentationTest : QuickDocumentationTestCase(
         )
     }
 
+    fun testALinkThroughAChainOpensTheTargetsEntryForTheArityTheLastDelegationPassesWithTheExpanderOn() =
+        withTheExpanderOn(::testALinkThroughAChainOpensTheTargetsEntryForTheArityTheLastDelegationPasses)
+
     /** At the head of the first delegation of a chain, the card opens where a call of it does. */
     fun testTheHeadOfAChainsFirstDelegationOpensTheTargetsEntryForTheArityTheLastDelegationPasses() {
         chain(atTheHead = true)
 
         assertOpensAtTwo(quickDocumentationAtCaret().orEmpty(), myFixture.documentationAnchorAtCaret(project))
     }
+
+    fun testTheHeadOfAChainsFirstDelegationOpensTheTargetsEntryForTheArityTheLastDelegationPassesWithTheExpanderOn() =
+        withTheExpanderOn(::testTheHeadOfAChainsFirstDelegationOpensTheTargetsEntryForTheArityTheLastDelegationPasses)
 
     /**
      * `Chain.f/1` delegates to `Chain.Middle.f/2`, whose default fills in the second argument for `Chain.End.f/2`, with

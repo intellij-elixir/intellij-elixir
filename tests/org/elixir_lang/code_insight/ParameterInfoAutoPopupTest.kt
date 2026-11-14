@@ -1,6 +1,6 @@
 package org.elixir_lang.code_insight
 
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 
 /**
  * The parameter-info popup as the user meets it: typed into, and appearing on its own or not.
@@ -11,7 +11,7 @@ import org.elixir_lang.PlatformTestCase
  * tests drive the real typed-handler chain through [parameterInfoPopupAfterTyping] and assert on what
  * appears.
  */
-class ParameterInfoAutoPopupTest : PlatformTestCase() {
+class ParameterInfoAutoPopupTest : ExpanderSettingTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/code_insight/parameter_info"
 
     /** Typing the comma that begins the next argument pops the hint up. This is what #3934 restored. */

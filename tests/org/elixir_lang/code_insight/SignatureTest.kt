@@ -1,14 +1,14 @@
 package org.elixir_lang.code_insight
 
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.beam.psi.impl.CallDefinitionImpl
 import org.elixir_lang.beam.psi.impl.CallDefinitionStubImpl
 import org.elixir_lang.beam.psi.stubs.ModuleStub
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.psi.ArityInterval
 import java.io.File
 
-class SignatureTest : PlatformTestCase() {
+class SignatureTest : ExpanderSettingTestCase() {
     fun testBeamDefinitionKeepsItsStoredParameters() {
         assertEquals(listOf("x", "q"), beamSignature(2, listOf("x", "q"), false).parameters)
     }

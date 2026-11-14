@@ -38,10 +38,7 @@ class ErlangAtomQualifierHoverDocumentationTest : QuickDocumentationTestCase() {
         )
     }
 
-    fun testModuleAtomHoverShowsModuleDocsWithTheExpanderOn() {
-        expanderOn()
-        testModuleAtomHoverShowsModuleDocs()
-    }
+    fun testModuleAtomHoverShowsModuleDocsWithTheExpanderOn() = withTheExpanderOn(::testModuleAtomHoverShowsModuleDocs)
 
     fun testAtomQualifiedFunctionHoverShowsSpecHead() {
         myFixture.configureByFiles("function_hover.ex")

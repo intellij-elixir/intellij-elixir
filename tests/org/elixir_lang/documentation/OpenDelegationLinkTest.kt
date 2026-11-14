@@ -10,10 +10,17 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
+import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.psi.call.Call
 
 class OpenDelegationLinkTest : HeavyTestCase() {
+    /** Run the expander off, whatever the run's default: this class pins the walk's answers. */
+    override fun setUp() {
+        super.setUp()
+        disableExpander(testRootDisposable)
+    }
+
     fun testALinkThroughAnOpenDelegationOpensTheTargetInTheLinkingModule() {
         val context = contextOf(
             """

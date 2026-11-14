@@ -6,7 +6,6 @@ import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
-import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
 import org.elixir_lang.code_insight.parameterInfoSignaturesAtCaret
 import org.elixir_lang.model.psi.function.FunctionSymbol
@@ -18,7 +17,7 @@ import org.elixir_lang.psi.call.Call
  * arity is the user's, and a call names it alone.
  */
 @Suppress("UnstableApiUsage")
-class OverridableTest : PlatformTestCase() {
+class OverridableTest : ExpanderSettingTestCase() {
     override fun setUp() {
         super.setUp()
         HeadlessDataManager.fallbackToProductionDataManager(myFixture.testRootDisposable)
@@ -45,6 +44,9 @@ class OverridableTest : PlatformTestCase() {
         assertEquals(listOf("preferred.ex:6"), goTo())
         assertEquals(listOf("def f(user)"), labels())
     }
+
+    fun testADefinitionThatDefoverridableFollowsIsReplacedByALaterOneWithTheExpanderOn() =
+        withTheExpanderOn(::testADefinitionThatDefoverridableFollowsIsReplacedByALaterOne)
 
     fun testWhatAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinition() {
         myFixture.addFileToProject(
@@ -80,6 +82,9 @@ class OverridableTest : PlatformTestCase() {
         assertEquals(listOf("def g(user)"), labels())
     }
 
+    fun testWhatAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinitionWithTheExpanderOn() =
+        withTheExpanderOn(::testWhatAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinition)
+
     fun testADelegationThatDefoverridableFollowsIsReplacedByALaterDefinition() {
         myFixture.addFileToProject("t.ex", "defmodule T do\n  def id(s), do: s\nend\n")
         configure(
@@ -102,6 +107,9 @@ class OverridableTest : PlatformTestCase() {
         assertEquals(listOf("preferred.ex:6"), goTo())
         assertEquals(listOf("def id(user)"), labels())
     }
+
+    fun testADelegationThatDefoverridableFollowsIsReplacedByALaterDefinitionWithTheExpanderOn() =
+        withTheExpanderOn(::testADelegationThatDefoverridableFollowsIsReplacedByALaterDefinition)
 
     fun testADelegationAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinition() {
         myFixture.addFileToProject("t.ex", "defmodule T do\n  def id(s), do: s\nend\n")
@@ -138,6 +146,9 @@ class OverridableTest : PlatformTestCase() {
         assertEquals(listOf("def id(user)"), labels())
     }
 
+    fun testADelegationAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinitionWithTheExpanderOn() =
+        withTheExpanderOn(::testADelegationAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinition)
+
     /** What a `use` injects is defined where the `use` is, so a `defoverridable` after the `use` takes it. */
     fun testWhatAUseInjectsIsMadeOverridableByADefoverridableAfterTheUse() {
         myFixture.addFileToProject(
@@ -172,6 +183,9 @@ class OverridableTest : PlatformTestCase() {
         assertEquals(listOf("preferred.ex:6"), goTo())
         assertEquals(listOf("def g(user)"), labels())
     }
+
+    fun testWhatAUseInjectsIsMadeOverridableByADefoverridableAfterTheUseWithTheExpanderOn() =
+        withTheExpanderOn(::testWhatAUseInjectsIsMadeOverridableByADefoverridableAfterTheUse)
 
     /** A `use` inside a `use`'s `quote` injects where that `quote` is, so a `defoverridable` after it there takes it. */
     fun testWhatANestedUseInjectsIsMadeOverridableByADefoverridableAfterIt() {
@@ -220,6 +234,9 @@ class OverridableTest : PlatformTestCase() {
         assertEquals(listOf("def g(user)"), labels())
     }
 
+    fun testWhatANestedUseInjectsIsMadeOverridableByADefoverridableAfterItWithTheExpanderOn() =
+        withTheExpanderOn(::testWhatANestedUseInjectsIsMadeOverridableByADefoverridableAfterIt)
+
     fun testDefoverridableOfAnotherArityLeavesTheDefinitionTheUsers() {
         configure(
             """
@@ -243,7 +260,13 @@ class OverridableTest : PlatformTestCase() {
     }
 
     /** A head with a default declares `f/1` and `f/2`; replacing `f/2` leaves `f/1`, which Elixir keeps, to the head. */
-    fun testDefoverridableOfOneArityOfADefaultHeadLeavesItTheOther() {
+    fun testDefoverridableOfOneArityOfADefaultHeadLeavesItTheOther() = assertTheHeadKeepsTheOtherArity(listOf("a, b \\\\ 1"))
+
+    /** With the expander on, Parameter Info shows the user's `f/2` beside the head, where the walk shows the head alone. */
+    fun testDefoverridableOfOneArityOfADefaultHeadLeavesItTheOtherWithTheExpanderOn() =
+        withTheExpanderOn { assertTheHeadKeepsTheOtherArity(listOf("a, b \\\\ 1", "a, b")) }
+
+    private fun assertTheHeadKeepsTheOtherArity(parameterInfo: List<String>) {
         configure(
             """
             defmodule M do
@@ -258,7 +281,7 @@ class OverridableTest : PlatformTestCase() {
             """
         )
 
-        assertEquals(listOf("a, b \\\\ 1"), myFixture.parameterInfoSignaturesAtCaret())
+        assertEquals(parameterInfo, myFixture.parameterInfoSignaturesAtCaret())
         assertEquals(listOf("2 -> []", "6 -> []"), kept(incompleteCode = true))
         assertEquals(listOf("2 -> []"), kept(incompleteCode = false))
         atName()

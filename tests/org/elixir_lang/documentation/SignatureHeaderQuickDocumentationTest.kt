@@ -2,7 +2,6 @@ package org.elixir_lang.documentation
 
 import com.intellij.lang.documentation.DocumentationMarkup
 import com.intellij.openapi.util.text.StringUtil
-import org.elixir_lang.expander.ExpanderSourceRows.withExpanderSwitch
 
 /**
  * Quick Documentation heads each function with the signature Elixir records for it, then each `@spec`, then each
@@ -228,15 +227,8 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
     fun testAnExceptionWithoutAMessageIsHeadedByTheSignatureOfExceptionAlone() =
         assertException("[:reason]", "Oops.excep<caret>tion(m)", "exception(args)")
 
-    fun testAnOverriddenMessageIsHeadedByTheUsersDefAlone() = assertOverriddenMessage()
-
-    fun testAnOverriddenMessageIsHeadedByTheUsersDefAloneWithTheExpanderOn() {
-        expanderOn()
-        assertOverriddenMessage()
-    }
-
     /** `defexception [:message]` makes `message/1` overridable, so the user's `def message/1` replaces it and heads it alone. */
-    private fun assertOverriddenMessage() =
+    fun testAnOverriddenMessageIsHeadedByTheUsersDefAlone() =
         assertHeader(
             """
             defmodule Oops do
@@ -255,15 +247,11 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
             "  def message(user)"
         )
 
-    fun testAMessageOfAnotherArityInsideTheExceptionIsListedAlone() = assertMessageOfAnotherArity()
-
-    fun testAMessageOfAnotherArityInsideTheExceptionIsListedAloneWithTheExpanderOn() {
-        expanderOn()
-        assertMessageOfAnotherArity()
-    }
+    fun testAnOverriddenMessageIsHeadedByTheUsersDefAloneWithTheExpanderOn() =
+        withTheExpanderOn(::testAnOverriddenMessageIsHeadedByTheUsersDefAlone)
 
     /** Inside `Oops`, a use of the user's `message/2` lists it alone: not the `message/1` that `defexception` defines beside it. */
-    private fun assertMessageOfAnotherArity() =
+    fun testAMessageOfAnotherArityInsideTheExceptionIsListedAlone() =
         assertHeader(
             """
             defmodule Oops do
@@ -278,6 +266,34 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
             "message(e, extra)",
             "  def message(e, extra)"
         )
+
+    fun testAMessageOfAnotherArityInsideTheExceptionIsListedAloneWithTheExpanderOn() =
+        withTheExpanderOn(::testAMessageOfAnotherArityInsideTheExceptionIsListedAlone)
+
+    /** A `defdelegate` of a list of heads delegates each, so a use of one is headed by its own head. */
+    fun testADelegationOfAListOfHeadsIsHeadedByTheHeadTheUseNamesWithTheExpanderOn() {
+        expanderOn()
+        assertHeader(
+            """
+            defmodule Target do
+              def eff(a, b), do: {a, b}
+              def gee(c), do: c
+            end
+
+            defmodule Delegates do
+              @doc "Delegates."
+              defdelegate [eff(a, b), gee(c)], to: Target
+            end
+
+            defmodule Caller do
+              def calls(m), do: Delegates.ef<caret>f(m, 2)
+            end
+            """,
+            "<i>module</i> <b>Delegates</b>",
+            "eff(a, b)",
+            "  defdelegate eff(a, b)"
+        )
+    }
 
     /** Elixir defines `message/1` only for an exception with a `:message` field. */
     fun testAnExceptionWithoutAMessageDocumentsNoMessage() {
@@ -404,10 +420,8 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
     fun testAStructPatternAUseInjectsIsNamedByTheModuleThatUsesItAtALink() =
         assertInjectedTitle("def f(%__MODULE__{}), do: :ok", "f(injected)", linked = true)
 
-    fun testAStructPatternAUseInjectsIsNamedByTheModuleThatUsesItAtALinkWithTheExpanderOn() {
-        expanderOn()
-        withExpanderSwitch { assertInjectedTitle("def f(%__MODULE__{}), do: :ok", "f(injected)", linked = true) }
-    }
+    fun testAStructPatternAUseInjectsIsNamedByTheModuleThatUsesItAtALinkWithTheExpanderOn() =
+        withTheExpanderOn(::testAStructPatternAUseInjectsIsNamedByTheModuleThatUsesItAtALink)
 
     fun testANestedStructPatternAUseInjectsIsNamedByItsLastAliasAtALink() =
         assertInjectedTitle("def f(%__MODULE__.Inner{}), do: :ok", "f(inner)", linked = true)

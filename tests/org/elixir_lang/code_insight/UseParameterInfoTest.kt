@@ -1,9 +1,9 @@
 package org.elixir_lang.code_insight
 
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 
 /** What a use shows when it names no one declaration, or names a declaration that is not a definition. */
-class UseParameterInfoTest : PlatformTestCase() {
+class UseParameterInfoTest : ExpanderSettingTestCase() {
     /** `Mod.unquote(name)(|)` can reach any function of `Mod`, so it describes none of them. */
     fun testAQualifiedUnquotedNameShowsNothing() =
         assertEquals(

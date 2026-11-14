@@ -25,32 +25,42 @@ class QuotedSpellingQuickDocumentationTest : QuickDocumentationTestCase() {
     fun testRemoteCallAtTheEscape() = assertDocumentsHello("Q.\"hel\\x6<caret>co\"(\"d\")")
     fun testMfaAtTheEscape() = assertDocumentsHello("{Q, :\"hel\\x6<caret>co\", 1}")
 
-    fun testApplyBareWithTheExpanderOn() = assertDocumentsHelloWithTheExpanderOn("apply(Q, :hel<caret>lo, [\"a\"])")
-    fun testApplyQuotedWithTheExpanderOn() = assertDocumentsHelloWithTheExpanderOn("apply(Q, :\"hel<caret>lo\", [\"a\"])")
-    fun testApplyEscapedWithTheExpanderOn() = assertDocumentsHelloWithTheExpanderOn("apply(Q, :\"he<caret>l\\x6co\", [\"a\"])")
-    fun testMfaBareWithTheExpanderOn() = assertDocumentsHelloWithTheExpanderOn("{Q, :hel<caret>lo, 1}")
-    fun testMfaQuotedWithTheExpanderOn() = assertDocumentsHelloWithTheExpanderOn("{Q, :\"hel<caret>lo\", 1}")
-    fun testMfaEscapedWithTheExpanderOn() = assertDocumentsHelloWithTheExpanderOn("{Q, :\"he<caret>l\\x6co\", 1}")
-    fun testRemoteCallBareWithTheExpanderOn() = assertDocumentsHelloWithTheExpanderOn("Q.hel<caret>lo(\"b\")")
-    fun testRemoteCallQuotedWithTheExpanderOn() = assertDocumentsHelloWithTheExpanderOn("Q.\"hel<caret>lo\"(\"b\")")
+    fun testApplyBareWithTheExpanderOn() = withTheExpanderOn(::testApplyBare)
+    fun testApplyQuotedWithTheExpanderOn() = withTheExpanderOn(::testApplyQuoted)
+    fun testApplyEscapedWithTheExpanderOn() = withTheExpanderOn(::testApplyEscaped)
+    fun testMfaBareWithTheExpanderOn() = withTheExpanderOn(::testMfaBare)
+    fun testMfaQuotedWithTheExpanderOn() = withTheExpanderOn(::testMfaQuoted)
+    fun testMfaEscapedWithTheExpanderOn() = withTheExpanderOn(::testMfaEscaped)
+    fun testRemoteCallBareWithTheExpanderOn() = withTheExpanderOn(::testRemoteCallBare)
+    fun testRemoteCallQuotedWithTheExpanderOn() = withTheExpanderOn(::testRemoteCallQuoted)
     fun testRemoteCallEscapedWithTheExpanderOn() = assertDocumentsTheCalledNameWithTheExpanderOn("Q.\"he<caret>l\\x6co\"(\"d\")")
-    fun testCaptureBareWithTheExpanderOn() = assertDocumentsHelloWithTheExpanderOn("&Q.hel<caret>lo/1")
-    fun testCaptureQuotedWithTheExpanderOn() = assertDocumentsHelloWithTheExpanderOn("&Q.\"hel<caret>lo\"/1")
+    fun testCaptureBareWithTheExpanderOn() = withTheExpanderOn(::testCaptureBare)
+    fun testCaptureQuotedWithTheExpanderOn() = withTheExpanderOn(::testCaptureQuoted)
     fun testCaptureEscapedWithTheExpanderOn() = assertDocumentsTheCalledNameWithTheExpanderOn("&Q.\"he<caret>l\\x6co\"/1")
     fun testRemoteCallAtTheEscapeWithTheExpanderOn() = assertDocumentsTheCalledNameWithTheExpanderOn("Q.\"hel\\x6<caret>co\"(\"d\")")
-    fun testMfaAtTheEscapeWithTheExpanderOn() = assertDocumentsHelloWithTheExpanderOn("{Q, :\"hel\\x6<caret>co\", 1}")
+    fun testMfaAtTheEscapeWithTheExpanderOn() = withTheExpanderOn(::testMfaAtTheEscape)
 
-    private fun assertDocumentsHelloWithTheExpanderOn(use: String) {
+    /** A caller of the editor's documentation element, rather than of the target, is given what Quick Documentation documents. */
+    fun testTheEditorsDocumentationElementIsWhatTheUseDocumentsWithTheExpanderOn() {
         expanderOn()
-        assertDocumentsHello(use)
+        configure("Q.\"hel<caret>lo\"(\"b\")")
+
+        val element = ReadAction.nonBlocking(Callable {
+            val offset = myFixture.caretOffset
+
+            ElixirDocumentationProvider()
+                .getCustomDocumentationElement(myFixture.editor, myFixture.file, myFixture.file.findElementAt(offset), offset)
+                ?.text
+        }).executeSynchronously()
+
+        assertEquals("def hello(name), do: name", element)
     }
 
     /**
      * The expander reads [use], a quoted remote call or capture with an escape in its name, as the leg's Elixir does:
      * from 1.18 it calls `Q.hello/1`, and before it, `:"hel\\x6co"`, which `Q` doesn't define, so nothing is documented.
      */
-    private fun assertDocumentsTheCalledNameWithTheExpanderOn(use: String) {
-        expanderOn()
+    private fun assertDocumentsTheCalledNameWithTheExpanderOn(use: String) = withTheExpanderOn {
         configure(use)
 
         val unescaped = ReadAction.nonBlocking(Callable {

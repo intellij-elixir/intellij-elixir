@@ -1,7 +1,5 @@
 package org.elixir_lang.documentation
 
-import org.elixir_lang.expander.ExpanderSourceRows.withExpanderSwitch
-
 /** A link to a name at another arity opens that name, not a longer name that begins with it. */
 class OtherArityLinkTest : QuickDocumentationTestCase() {
     fun testALinkToANameAtAnotherArityOpensItNotALongerName() {
@@ -46,15 +44,8 @@ class OtherArityLinkTest : QuickDocumentationTestCase() {
         assertTrue("Expected foo/2's doc, got: $opened", opened?.contains("Two arguments.") == true)
     }
 
-    fun testACallbackLinkOpensTheCallbackAtAnotherArityBesideAFunctionAtTheLinkedArity() = assertCallbackBesideAFunction()
-
-    fun testACallbackLinkOpensTheCallbackAtAnotherArityBesideAFunctionAtTheLinkedArityWithTheExpanderOn() {
-        expanderOn()
-        withExpanderSwitch { assertCallbackBesideAFunction() }
-    }
-
     /** A `c:` link names only a callback, so a `def` at the linked arity leaves it opening the callback at another. */
-    private fun assertCallbackBesideAFunction() {
+    fun testACallbackLinkOpensTheCallbackAtAnotherArityBesideAFunctionAtTheLinkedArity() {
         myFixture.configureByText(
             "docs.ex",
             """
@@ -76,14 +67,10 @@ class OtherArityLinkTest : QuickDocumentationTestCase() {
         assertFalse("Expected no def's doc, got: $opened", "One argument." in opened)
     }
 
-    fun testACallbackLinkToANameAtAnotherArityOpensItNotALongerName() = assertCallbackAtAnotherArity()
+    fun testACallbackLinkOpensTheCallbackAtAnotherArityBesideAFunctionAtTheLinkedArityWithTheExpanderOn() =
+        withTheExpanderOn(::testACallbackLinkOpensTheCallbackAtAnotherArityBesideAFunctionAtTheLinkedArity)
 
-    fun testACallbackLinkToANameAtAnotherArityOpensItNotALongerNameWithTheExpanderOn() {
-        expanderOn()
-        withExpanderSwitch { assertCallbackAtAnotherArity() }
-    }
-
-    private fun assertCallbackAtAnotherArity() {
+    fun testACallbackLinkToANameAtAnotherArityOpensItNotALongerName() {
         myFixture.configureByText(
             "docs.ex",
             """
@@ -103,4 +90,7 @@ class OtherArityLinkTest : QuickDocumentationTestCase() {
 
         assertTrue("Expected foo/2's doc, got: $opened", opened?.contains("Two arguments.") == true)
     }
+
+    fun testACallbackLinkToANameAtAnotherArityOpensItNotALongerNameWithTheExpanderOn() =
+        withTheExpanderOn(::testACallbackLinkToANameAtAnotherArityOpensItNotALongerName)
 }

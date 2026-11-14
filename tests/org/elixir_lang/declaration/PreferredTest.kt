@@ -6,6 +6,7 @@ import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.psi.Arguments
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 
 /**
  * The preference step over what the walk finds with `incompleteCode` `true`. Each test asserts that input first, as the
@@ -336,7 +337,7 @@ class PreferredTest : PlatformTestCase() {
         return Use.of(PsiTreeUtil.getParentOfType(arguments, Call::class.java)!!) as Use.Named
     }
 
-    private fun candidates(): List<Found> = sourceFor(Feature.PARAMETER_INFO).candidates(use(), true)
+    private fun candidates(): List<Found> = LegacyWalkSource.candidates(use(), true)
 
     private fun candidateLines(): Set<Int> = candidates().map { line(it.element) }.toSet()
 

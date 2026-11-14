@@ -9,6 +9,7 @@ import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.enclosingCallAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
+import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.documentation.ElixirDocumentationProvider
 import org.elixir_lang.documentation.FetchedDocs
 import org.elixir_lang.documentation.SourceFileDocsHelper
@@ -116,6 +117,7 @@ class ModuleBodyThroughBlocksTest : PlatformTestCase() {
         assertDocLinkFindsDef("def <caret>f, do: :ok\n\n  case :a do\n    :a -> def g, do: :ok\n  end")
 
     private fun assertDocLinkFindsDef(body: String) {
+        disableExpander(testRootDisposable)
         configureInModule(body)
 
         val def = myFixture.enclosingCallAtCaret { CallDefinitionClause.`is`(it) }!!

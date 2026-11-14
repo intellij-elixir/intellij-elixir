@@ -1,9 +1,6 @@
 package org.elixir_lang.documentation
 
-import com.intellij.openapi.util.Disposer
-import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.declaration.enableExpander
-import org.elixir_lang.expander.LegSdk
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 
 /** The line Quick Documentation shows above an entry the expander could not confirm, as users read it. */
 internal const val PLAIN_LINE = "The expander could not confirm that this is the definition used here."
@@ -21,27 +18,9 @@ internal const val PLAIN_LINE = "The expander could not confirm that this is the
  * refactors (e.g. relocating or replacing the classic call reference) as long as the user still
  * sees the correct documentation - it locks behaviour, not implementation.
  */
-abstract class QuickDocumentationTestCase : PlatformTestCase() {
+abstract class QuickDocumentationTestCase : ExpanderSettingTestCase() {
     /** @see quickDocumentationAtCaret */
     protected fun quickDocumentationAtCaret(): String? = myFixture.quickDocumentationAtCaret(project)
-
-    /** Run the expander on, with the leg's SDK as the module's, so the expansion answers rather than the name index. */
-    protected fun expanderOn() {
-        legSdk()
-        enableExpander(testRootDisposable)
-    }
-
-    /** [test], run with the expander on ([expanderOn]). */
-    protected fun withTheExpanderOn(test: () -> Unit) {
-        expanderOn()
-        test()
-    }
-
-    /** The leg's SDK as the module's, so its modules are read from their `.beam` files. */
-    protected fun legSdk() {
-        LegSdk.setUp(module, testRootDisposable)
-        Disposer.register(testRootDisposable) { LegSdk.tearDown(module) }
-    }
 
     /** An EEx function and a `def` of the same name, documented as "Renders with one." and "Renders with two.", are both listed, each linked from the header. */
     protected fun assertBothArities(documentation: String) {

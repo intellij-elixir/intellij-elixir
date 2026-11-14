@@ -1,9 +1,9 @@
 package org.elixir_lang.code_insight
 
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 
 /** Parameter Info describes a function whichever form declares it, not only `def`. */
-class FormsParameterInfoTest : PlatformTestCase() {
+class FormsParameterInfoTest : ExpanderSettingTestCase() {
     fun testAnEExFunctionShowsItsArgumentNames() =
         assertEquals(listOf("a, b"), shownFromEEx("[:a, :b]"))
 
@@ -20,6 +20,26 @@ class FormsParameterInfoTest : PlatformTestCase() {
 
     fun testAnEExFunctionWithoutArgumentsShowsNoParameters() =
         assertEquals(listOf("<no parameters>"), shownFromEEx("[]"))
+
+    /** Bindings the plugin cannot read as a list leave the parameters unknown, so they are not shown as none. */
+    fun testAnSdkEExFunctionWhoseBindingsAreNotAListShowsNoEmptyParameterListWithTheExpanderOn() = withTheExpanderOn {
+        val shown = myFixture.parameterInfoSignaturesIn(
+            "pages.ex",
+            """
+            defmodule Pages do
+              require EEx
+
+              @args [:a, :b]
+
+              EEx.function_from_string(:def, :page, "<%= a %><%= b %>", @args)
+
+              def calls(x), do: page(<caret>x, x)
+            end
+            """.trimIndent()
+        )
+
+        assertFalse("Expected no empty parameter list, got: $shown", "<no parameters>" in shown)
+    }
 
     fun testEmbedTemplateShowsAssigns() =
         assertEquals(listOf("assigns"), shownFromEmbed("embed_template(:log, \"Log\")", "log_template(<caret>)"))

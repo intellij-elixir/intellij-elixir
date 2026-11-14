@@ -3,6 +3,7 @@ package org.elixir_lang.reference.mfa_tuple
 import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.code_insight.completionStringsAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
+import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.documentation.quickDocumentationAtCaret
 import java.io.File
 
@@ -326,6 +327,7 @@ class StaleBeamModuleAtomTest : BeamLibraryTestCase() {
     }
 
     fun testQuickDocumentationShowsTheSourceDocumentation() {
+        disableExpander(testRootDisposable)
         myFixture.configureByText("caller.ex", caller("""apply(:"Elixir.Mod", :<caret>f, [q, x])""").trimIndent())
 
         val documentation = myFixture.quickDocumentationAtCaret(project).orEmpty()

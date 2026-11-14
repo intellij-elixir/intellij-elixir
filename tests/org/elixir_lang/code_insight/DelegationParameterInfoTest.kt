@@ -1,12 +1,12 @@
 package org.elixir_lang.code_insight
 
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 
 /**
  * A call of a `defdelegate` names the delegation, so Parameter Info shows the delegation's own head, once. What the
  * delegation reaches is not a second signature.
  */
-class DelegationParameterInfoTest : PlatformTestCase() {
+class DelegationParameterInfoTest : ExpanderSettingTestCase() {
     fun testAPlainDelegationShowsItsHead() =
         assertEquals(
             listOf(SNOC_HEAD),

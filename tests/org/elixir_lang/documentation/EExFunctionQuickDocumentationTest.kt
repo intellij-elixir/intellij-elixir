@@ -1,6 +1,6 @@
 package org.elixir_lang.documentation
 
-import org.elixir_lang.expander.ExpanderSourceRows.withExpanderSwitch
+import org.elixir_lang.expander.LegSdk
 
 /** An EEx `function_from_*` declares a function, and the `@doc` written above it documents that function. */
 class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
@@ -275,6 +275,52 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
         assertFalse("Expected no @doc, got: $documentation", "Renders." in documentation)
     }
 
+    /** A name the SDK's `EEx` is given computed still names the function it makes, so the `@doc` above it is that function's. */
+    fun testTheDocAboveAnSdkEExFunctionWithAComputedNameIsNotTheNextDefinitionsWithTheExpanderOn() {
+        val documentation = documentationWithTheExpanderOn(
+            "pages.ex",
+            """
+            defmodule Pages do
+              require EEx
+
+              name = :page
+
+              @doc "Renders."
+              EEx.function_from_string(:def, name, "<%= a %>", [:a])
+
+              def other(x), do: x
+
+              def calls(x), do: oth<caret>er(x)
+            end
+            """.trimIndent()
+        )
+
+        assertTrue("Expected other/1's entry, got: $documentation", "other(x)" in documentation)
+        assertFalse("Expected no @doc, got: $documentation", "Renders." in documentation)
+    }
+
+    /** Bindings the plugin cannot read as a list leave the signature Elixir records unknown, so none is shown, not an empty one. */
+    fun testAnSdkEExFunctionWhoseBindingsAreNotAListShowsNoEmptyParameterListWithTheExpanderOn() {
+        val documentation = documentationWithTheExpanderOn(
+            "pages.ex",
+            """
+            defmodule Pages do
+              require EEx
+
+              @args [:a, :b]
+
+              @doc "Renders."
+              EEx.function_from_string(:def, :page, "<%= a %><%= b %>", @args)
+
+              def calls(x), do: pa<caret>ge(x, x)
+            end
+            """.trimIndent()
+        )
+
+        assertTrue("Expected the @doc, got: $documentation", "Renders." in documentation)
+        assertFalse("Expected no empty parameter list, got: $documentation", "page()" in documentation)
+    }
+
     /**
      * With the expander, a call of a project's own `EEx.function_from_string` whose macro defines no function declares
      * nothing, so the `@doc` above it is the next definition's.
@@ -323,15 +369,14 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** Without the expander the SDK's `EEx`, read from its `.beam`, is not known as `EEx`, so the walk declares nothing. */
     fun testAnSdkEExFunctionShowsNothingFromTheWalk() {
-        legSdk()
+        LegSdk.heldUntil(module, testRootDisposable)
         myFixture.configureByText("pages.ex", sdkEExPages(local = "def calls(x), do: pa<caret>ge(x, x)"))
 
         assertNull(quickDocumentationAtCaret())
     }
 
     fun testAnSdkEmbedShowsItsEntryWithTheExpanderOn() {
-        expanderOn()
-        myFixture.configureByText(
+        val documentation = documentationWithTheExpanderOn(
             "embeds.ex",
             """
             defmodule Embeds do
@@ -344,8 +389,6 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-
-        val documentation = withExpanderSwitch { quickDocumentationAtCaret() }.orEmpty()
 
         assertTrue("Expected the @doc, got: $documentation", "Embedded." in documentation)
         assertTrue("Expected the signature, got: $documentation", "page_template(assigns)" in documentation)
@@ -364,10 +407,7 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
      * function's entry, its `@doc` and Elixir's signature, not `EEx.function_from_string`'s.
      */
     private fun assertSdkEExEntry(caller: String = "", local: String = "") {
-        expanderOn()
-        myFixture.configureByText("pages.ex", sdkEExPages(caller, local))
-
-        val documentation = withExpanderSwitch { quickDocumentationAtCaret() }.orEmpty()
+        val documentation = documentationWithTheExpanderOn("pages.ex", sdkEExPages(caller, local))
 
         assertTrue("Expected the @doc, got: $documentation", "Renders." in documentation)
         assertTrue("Expected the signature, got: $documentation", "page(a, b)" in documentation)

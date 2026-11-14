@@ -2,7 +2,6 @@ package org.elixir_lang.code_insight
 
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.declaration.enableExpander
-import org.elixir_lang.expander.LegSdk
 
 /**
  * With Run the expander on and the leg's SDK, a call typed past where the expansion stops is answered from the name
@@ -11,8 +10,7 @@ import org.elixir_lang.expander.LegSdk
 class StoppedModuleParameterInfoTest : PlatformTestCase() {
     override fun setUp() {
         super.setUp()
-        LegSdk.heldUntil(module, testRootDisposable)
-        enableExpander(testRootDisposable)
+        enableExpander(module, testRootDisposable)
         // `import Foo, only: [Foo, g: 1]` raises, as `only:` takes a keyword list, so the expansion stops there.
         myFixture.addFileToProject("foo.ex", "defmodule Foo do\n  def g(x), do: x\nend\n")
     }

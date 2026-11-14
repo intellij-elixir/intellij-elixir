@@ -1,12 +1,12 @@
 package org.elixir_lang.code_insight
 
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
 
 /**
  * A function with default arguments is one definition, so Parameter Info shows its head as written, once, whichever
  * arities the call or an `import` brings in.
  */
-class DefaultsParameterInfoTest : PlatformTestCase() {
+class DefaultsParameterInfoTest : ExpanderSettingTestCase() {
     private val pairHead = """
         defmodule Definer do
           def pair(a \\ nil, b \\ nil)

@@ -1,36 +1,28 @@
 package org.elixir_lang.documentation
 
-import org.elixir_lang.expander.ExpanderSourceRows.withExpanderSwitch
-
 /** A followed function link opens what a call of the name documents. */
 class LinkTargetQuickDocumentationTest : QuickDocumentationTestCase() {
     fun testALinkToAnOverriddenExceptionMessageOpensTheUsersDef() = assertOverriddenMessage()
 
-    fun testALinkToAnOverriddenExceptionMessageOpensTheUsersDefWithTheExpanderOn() {
-        expanderOn()
-        withExpanderSwitch { assertOverriddenMessage() }
-    }
+    fun testALinkToAnOverriddenExceptionMessageOpensTheUsersDefWithTheExpanderOn() = withTheExpanderOn(::assertOverriddenMessage)
 
     fun testALinkToAnUndocumentedDelegationDocumentsItsTarget() = assertDelegationTarget()
 
-    fun testALinkToAnUndocumentedDelegationDocumentsItsTargetWithTheExpanderOn() {
-        expanderOn()
-        withExpanderSwitch { assertDelegationTarget() }
-    }
+    fun testALinkToAnUndocumentedDelegationDocumentsItsTargetWithTheExpanderOn() = withTheExpanderOn(::assertDelegationTarget)
 
     fun testALinkThroughAChainOfUndocumentedDelegationsDocumentsTheLastTarget() = assertChainTarget()
 
-    fun testALinkThroughAChainOfUndocumentedDelegationsDocumentsTheLastTargetWithTheExpanderOn() {
-        expanderOn()
-        assertChainTarget()
-    }
+    fun testALinkThroughAChainOfUndocumentedDelegationsDocumentsTheLastTargetWithTheExpanderOn() = withTheExpanderOn(::assertChainTarget)
 
     fun testALinkToADelegationWithDefaultsOpensTheTargetsEntryForTheArityItPasses() = assertDefaultsArity()
 
-    fun testALinkToADelegationWithDefaultsOpensTheTargetsEntryForTheArityItPassesWithTheExpanderOn() {
-        expanderOn()
-        assertDefaultsArity()
-    }
+    fun testALinkToADelegationWithDefaultsOpensTheTargetsEntryForTheArityItPassesWithTheExpanderOn() =
+        withTheExpanderOn(::assertDefaultsArity)
+
+    fun testALinkInACompiledModulesDocsToAnotherCompiledModuleOpensItsFunction() = assertCompiledToCompiled()
+
+    fun testALinkInACompiledModulesDocsToAnotherCompiledModuleOpensItsFunctionWithTheExpanderOn() =
+        withTheExpanderOn(::assertCompiledToCompiled)
 
     /** `defexception [:message]` defines `message/1` as overridable, so the user's `def message/1` is the one a link opens. */
     private fun assertOverriddenMessage() {
@@ -123,5 +115,28 @@ class LinkTargetQuickDocumentationTest : QuickDocumentationTestCase() {
             "Expected the anchor ($anchor) on the target's entry for snoc/2, got: $opened",
             opened.substringAfter("""id="$anchor"""").substringBefore("id=\"").contains("Two.")
         )
+    }
+
+    /** A link in one `.beam`'s docs to a function of another `.beam`'s module opens that function. */
+    private fun assertCompiledToCompiled() {
+        myFixture.addCompiledLibrary(
+            """
+            defmodule Compiled do
+              @doc "See `LinkedTarget.f/1`."
+              def g(a), do: a
+
+              @doc "Target's f."
+              def f(a), do: a
+            end
+            """.trimIndent(),
+            CompiledBuild("LinkedFrom"),
+            CompiledBuild("LinkedTarget")
+        )
+        myFixture.configureByText("caller.ex", "defmodule Caller do\n  def calls(a), do: LinkedFrom.<caret>g(a)\nend\n")
+
+        val opened = myFixture.followedLinkAtCaret(project, "psi_element://LinkedTarget.f/1").orEmpty()
+
+        assertTrue("Expected LinkedTarget.f/1's doc, got: $opened", "Target's f." in opened)
+        assertTrue("Expected LinkedTarget as the defining module, got: $opened", "<b>LinkedTarget</b>" in opened)
     }
 }
