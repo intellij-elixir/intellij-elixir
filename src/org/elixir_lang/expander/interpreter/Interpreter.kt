@@ -2311,14 +2311,14 @@ internal class Evaluation(
      * function given it directly isn't run, and a call of what it gives, which may be that function, declines. `null`,
      * as it declines, where the native may write what the run holds ([Natives.writesTheRun]), may run a function its
      * arguments name, which may write ([Natives.runsAFunction], as `inspect/2` may on options not known), never returns
-     * ([Natives.neverReturns]), or is given a function inside another argument, which it may run. The native is taken
-     * to have declined on the value not known: where it declined on a known shape Elixir always raises on, what follows
-     * reads as if the raise may not happen. In a [guard], a raise fails the guard, which the clause's test takes as one
-     * not known, so nothing may have raised.
+     * ([Natives.neverReturns]), always raises on these arguments ([Natives.alwaysRaises]), or is given a function inside
+     * another argument, which it may run. The native is taken to have declined on the value not known: where it declined
+     * on another known shape Elixir always raises on, what follows reads as if the raise may not happen. In a [guard],
+     * a raise fails the guard, which the clause's test takes as one not known, so nothing may have raised.
      */
     private fun givenUnknown(module: String, function: String, args: List<OtpErlangObject>, guard: Boolean): OtpErlangObject? {
         if (natives.writesTheRun(module, function, args.size) || natives.runsAFunction(module, function, args)) return null
-        if (natives.neverReturns(module, function, args.size)) return null
+        if (natives.neverReturns(module, function, args.size) || natives.alwaysRaises(module, function, args)) return null
         if (!anyHeld(args, visit = ::isUnknown)) return null
         if (holdsAFunction(args.filterNot(::isFunction))) return null
 

@@ -853,6 +853,14 @@ class ConfigArmsHeavyTest : ConfigHeavyTestCase() {
     fun testAnInspectionWithOptionsWhoseTailIsABinaryNotKnownDeclines() =
         assertInspectionDeclines("_ = inspect(1, [{:limit, 5} | System.get_env(\"X\", \"\")])\nconfig :app, k1: 1\n")
 
+    /** Options with a known tail that isn't a list: Elixir raises `FunctionClauseError` whatever the value inspected. */
+    fun testAnInspectionNotKnownWithAnImproperListOfOptionsDeclines() =
+        assertInspectionDeclines("_ = inspect(System.get_env(\"X\"), [{:limit, 5} | :b])\nconfig :app, k1: 1\n")
+
+    /** Options holding an element that isn't a pair: Elixir raises `FunctionClauseError` whatever the value inspected. */
+    fun testAnInspectionNotKnownWithOptionsHoldingANonPairDeclines() =
+        assertInspectionDeclines("_ = inspect(System.get_env(\"X\"), [{:limit, 5}, :a])\nconfig :app, k1: 1\n")
+
     fun testAStringOfAFetchedAppEnvTheFileWroteAStructToDeclines() =
         assertStructDeclines(CHARS, "Application.put_env(:other, :s, struct(S))\nconfig :app, j: to_string(Application.fetch_env!(:other, :s)), k1: 1\n")
 

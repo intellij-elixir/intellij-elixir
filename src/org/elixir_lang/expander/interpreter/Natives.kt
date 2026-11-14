@@ -229,10 +229,11 @@ private val RUNS = mapOf(
 )
 
 /**
- * Each native that runs a function one of its options names, by receiver, name and arity, to the index of its options and
- * that option: `inspect/2`'s `:inspect_fun`.
+ * Each native given options, by receiver, name and arity, to the index of its options and the option among them that
+ * names a function it runs: `inspect/2`'s `:inspect_fun`. Elixir raises where those options are a list that isn't a
+ * proper list of pairs.
  */
-private val RUNS_AN_OPTION = mapOf(Triple("Elixir.Kernel", "inspect", 2) to (1 to atom("inspect_fun")))
+private val OPTIONS = mapOf(Triple("Elixir.Kernel", "inspect", 2) to (1 to atom("inspect_fun")))
 
 /**
  * How a native calls the [code] of a struct's module, for the arguments at [arguments]: for each struct one holds where
@@ -511,20 +512,34 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /**
      * Whether [module]'s [function], given [args], runs a function they name ([RUNS]), or options that may name one
-     * ([RUNS_AN_OPTION]): options not known, or holding that option, an element or a key not known. A tail not known,
-     * which [cons] leaves only where it is a binary, is taken as one too: Elixir raises on it, and the native declines.
+     * ([OPTIONS]): options not known, or holding that option, an element or a key not known.
      */
     fun runsAFunction(module: String, function: String, args: List<OtpErlangObject>): Boolean {
-        val key = Triple(module, function, args.size)
-        val (index, option) = RUNS_AN_OPTION[key] ?: return runsAFunction(module, function, args.size)
-        val options = args[index]
+        val (options, option) = optionsOf(module, function, args) ?: return runsAFunction(module, function, args.size)
         if (isUnknown(options)) return true
-        val (elements, tail) = cells(options) ?: return false
+        val elements = cells(options)?.first ?: return false
 
-        return tail?.let(::isUnknown) == true || elements.any { element ->
-            isUnknown(element) || pairKey(element)?.let { isUnknown(it) || it == option } == true
-        }
+        return elements.any { element -> isUnknown(element) || pairKey(element)?.let { isUnknown(it) || it == option } == true }
     }
+
+    /**
+     * Whether Elixir raises on [args] whatever the values not known in them are: [module]'s [function] is given options
+     * ([OPTIONS]) that are a list with a tail, which [cons] leaves not known only where it is a binary, or holding a known
+     * element that isn't a pair.
+     */
+    fun alwaysRaises(module: String, function: String, args: List<OtpErlangObject>): Boolean {
+        val options = optionsOf(module, function, args)?.first ?: return false
+        val (elements, tail) = options.takeUnless(::isUnknown)?.let(::cells) ?: return false
+
+        return tail != null || elements.any { !isUnknown(it) && pairKey(it) == null }
+    }
+
+    /**
+     * The options [module]'s [function] is given in [args] ([OPTIONS]), with the option among them that names a
+     * function it runs.
+     */
+    private fun optionsOf(module: String, function: String, args: List<OtpErlangObject>): Pair<OtpErlangObject, OtpErlangAtom>? =
+        OPTIONS[Triple(module, function, args.size)]?.let { (index, option) -> args[index] to option }
 
     /**
      * The argument of [module]'s [function], given [args], that names the module it writes: the one its [ModuleEffects]
