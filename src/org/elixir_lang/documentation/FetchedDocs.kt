@@ -102,9 +102,10 @@ sealed class FetchedDocs(open val module: String?) {
 
     /** Every function of one name in a module, ascending by arity: an [Entry] each, as default arguments cover several arities of one. */
     data class Arities(override val module: String?, val entries: List<Entry>) : FetchedDocs(module) {
-        data class Entry(val arities: ArityInterval, val documentation: FunctionOrMacroDocumentation) {
+        /** One function's documentation, from the module's [otherCopy]th other copy where the module has several. */
+        data class Entry(val arities: ArityInterval, val documentation: FunctionOrMacroDocumentation, val otherCopy: Int = 0) {
             /** Names this entry in a link to it. */
-            val id: String get() = "arity-${arities.definition().first}"
+            val id: String get() = "arity-${arities.definition().first}" + if (otherCopy == 0) "" else "-copy-$otherCopy"
         }
 
         /** Whether there are several entries, so each is linked to its own anchor. */

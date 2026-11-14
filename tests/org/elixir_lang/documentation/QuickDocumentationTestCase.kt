@@ -5,6 +5,9 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.expander.LegSdk
 
+/** The line Quick Documentation shows above an entry the expander could not confirm, as users read it. */
+internal const val PLAIN_LINE = "The expander could not confirm that this is the definition used here."
+
 /**
  * Base class for Quick Documentation (Ctrl+Q) tests that drive the IDE's real documentation
  * pipeline the way a user does - by resolving the documentation target for the current caret

@@ -17,6 +17,7 @@ import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.None
 import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Form
+import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Reach
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.declaringModuleName
@@ -36,6 +37,9 @@ import java.util.function.Consumer
 
 private val LOG = logger<ElixirDocumentationProvider>()
 
+/** The line above a definition the expander could not confirm is the one a use reaches. */
+private const val UNCONFIRMED = "The expander could not confirm that this is the definition used here."
+
 internal class ElixirDocumentationProvider : DocumentationProvider {
     /** Rendered documentation, and the anchor it opens at. */
     class Rendered(val html: String, val anchor: String?)
@@ -48,16 +52,35 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
         // Where no use is known, the function is seen from outside its module, as from a link followed. Its signature is
         // made in the module the use or link found it declared in, as Parameter Info's is.
-        val found = choice?.found
+        val remote = !isInside(element, head, choice)
 
-        return fetchDocs(element, remote = !isInside(element, head, choice), found?.declaringModuleName(), found?.candidate?.declaration)?.let { fetched ->
+        return fetchDocs(element, remote, choice?.found)?.let { own ->
+            val (fetched, everyCopyShown) = withCopies(own, choice?.copies.orEmpty(), remote)
             val reaching = reachedThrough(head, choice)?.takeIf { it.delegation != element }
             val delegations = reaching?.let { DelegationBlock.of(it.delegation, it.index, remote = !it.inside) }.orEmpty()
             // Through a delegation the target is called at the arity the delegation passes on, not the one written at the use.
             val opened = reaching?.let { DelegationBlock.passedTo(it.delegation, element) } ?: followed?.arity ?: calledArity(head, used?.use)
 
-            Rendered(formatDocs(element, fetched, delegations), anchor(fetched, opened))
+            Rendered(formatDocs(element, fetched, delegations, choice?.unconfirmed(everyCopyShown) == true), anchor(fetched, opened))
         }
+    }
+
+    /**
+     * [fetched], then each of [copies]' entries, as its own entry from its own copy of the module, and whether each copy,
+     * [fetched]'s included, has entries there.
+     */
+    private fun withCopies(fetched: FetchedDocs, copies: List<Found>, remote: Boolean): Pair<FetchedDocs, Boolean> {
+        if (fetched !is FetchedDocs.Arities) return fetched to false
+
+        val entries = copies.mapIndexed { index, copy ->
+            (fetchDocs(copy.element, remote, copy) as? FetchedDocs.Arities)
+                ?.entries
+                ?.map { it.copy(otherCopy = index + 1) }
+                .orEmpty()
+        }
+
+        return fetched.copy(entries = fetched.entries + entries.flatten()) to
+            (fetched.entries.isNotEmpty() && entries.all { it.isNotEmpty() })
     }
 
     /**
@@ -191,12 +214,16 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         return contextElement?.let(DocumentedAt::of)
     }
 
+    /** [fetchedDocs] rendered, with [delegations]' entries, under the line that the expander could not confirm it where [unconfirmed]. */
     private fun formatDocs(
         element: PsiElement,
         fetchedDocs: FetchedDocs,
-        delegations: List<DelegationBlock.Entry>
+        delegations: List<DelegationBlock.Entry>,
+        unconfirmed: Boolean,
     ): String {
         val documentationHtml = StringBuilder()
+
+        if (unconfirmed) documentationHtml.append("<p>").append(UNCONFIRMED).append("</p>")
 
         documentationHtml.append(DocumentationMarkup.DEFINITION_START)
 
@@ -253,7 +280,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                         documentationHtml.append(DocumentationMarkup.CONTENT_END)
                     }
 
-                    appendFunctionContent(documentationHtml, element, entry.documentation)
+                    // Another copy's doc is written in that copy, so a link of no module there is to that copy's function.
+                    appendFunctionContent(documentationHtml, element, entry.documentation, entry.documentation.module.takeIf { entry.otherCopy != 0 })
                 }
             }
 
@@ -358,10 +386,14 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             .generateHtml()
     }
 
-    private fun fetchDocs(element: PsiElement, remote: Boolean, declaringModule: String?, used: Declaration?): FetchedDocs? =
-    // For compiled Beam elements, prefer docs from the decompiled source mirror so hover uses
+    /** [element]'s docs, read as [found], the find of the use or link that documents it, declares it. */
+    private fun fetchDocs(element: PsiElement, remote: Boolean, found: Found?): FetchedDocs? {
+        val declaringModule = found?.declaringModuleName()
+        val used = found?.candidate?.declaration
+
+        // For compiled Beam elements, prefer docs from the decompiled source mirror so hover uses
         // the cached inline docs from decompilation, headed by what the `.beam` itself records.
-        if (element.containingFile?.originalFile is BeamFileImpl) {
+        return if (element.containingFile?.originalFile is BeamFileImpl) {
             val sourceElement = (element as? PsiCompiledElement)?.mirror ?: element.navigationElement
 
             SourceFileDocsHelper.fetchDocs(sourceElement, remote, declaringModule, used)?.let { BeamDocsHelper.headed(element, it) }
@@ -369,4 +401,5 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         } else {
             SourceFileDocsHelper.fetchDocs(element, remote, declaringModule, used)
         }
+    }
 }

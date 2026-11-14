@@ -65,7 +65,7 @@ internal object FunctionLink {
         val results = results(projection)
 
         if (results.none(ResolveResult::isValidResult)) {
-            return projection.firstOrNull()?.let { Documented.Choice(it.element, it, null, inside = false, insideDelegation = false) }
+            return projection.firstOrNull()?.let { Documented.choice(step, it.element, use = null) }
         }
 
         val target = Resolved.target(results) ?: return null
@@ -75,12 +75,6 @@ internal object FunctionLink {
         val throughOne = delegatedTo.filter { found -> found.element == one || one in found.via }
         val element = preferred?.let { Documented.documented(listOf(it.found) + throughOne) } ?: target
 
-        return Documented.Choice(
-            element,
-            projection.firstOrNull { it.element == element },
-            preferred?.found?.takeIf { element != target },
-            inside = false,
-            insideDelegation = false,
-        )
+        return Documented.choice(step, element, use = null)
     }
 }
