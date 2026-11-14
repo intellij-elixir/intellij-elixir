@@ -22,6 +22,7 @@ import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.writtenAtom
 import org.elixir_lang.psi.mix.Generator
 import org.elixir_lang.psi.scope.WalkProbe
+import org.elixir_lang.resolvesToModularName
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Callback
 import org.elixir_lang.structure_view.element.Delegation
@@ -61,6 +62,21 @@ object DeclaringForm {
             else -> null
         }
     }
+
+    /**
+     * The module whose macro declares with [form], where a call's shape alone doesn't say: `EEx`'s `function_from_*`
+     * and `Mix.Generator`'s embeds.
+     */
+    fun macroModule(form: Form): String? =
+        when (form) {
+            Form.EEX_FUNCTION_FROM -> "EEx"
+            Form.GENERATOR_EMBED -> "Mix.Generator"
+            Form.CLAUSE, Form.CALLBACK, Form.DELEGATION, Form.EXCEPTION -> null
+        }
+
+    /** Whether [call] resolves to the macro of [form]'s [macroModule]. */
+    fun resolvesToMacroOf(call: Call, state: ResolveState, form: Form): Boolean =
+        macroModule(form)?.let { resolvesToModularName(call, state, it) } == true
 
     /**
      * [syntacticForm], or the shape of a [resolvingForm] without resolving whose call it is. A head a clause or
@@ -119,13 +135,9 @@ object DeclaringForm {
             .filterIsInstance<Call>()
             .mapNotNull { call -> shapedForm(call)?.let { Declaring(call, it) } }
 
-    /** Whether [declaring] declares: a call shaped like a [resolvingForm] only when it is that form's macro. */
+    /** Whether [declaring] declares: a call shaped like a form with a [macroModule] only when it is that module's macro. */
     private fun declares(declaring: Declaring): Boolean =
-        when (declaring.form) {
-            Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED ->
-                resolvingForm(declaring.call, ResolveState.initial()) == declaring.form
-            Form.CLAUSE, Form.CALLBACK, Form.DELEGATION, Form.EXCEPTION -> true
-        }
+        macroModule(declaring.form) == null || resolvesToMacroOf(declaring.call, ResolveState.initial(), declaring.form)
 
     /** The names [call] writes the functions it declares with [form] under: in `def unquote(:name)(...)`, the atom. */
     @RequiresReadLock
