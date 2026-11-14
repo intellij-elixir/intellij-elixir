@@ -37,23 +37,24 @@ import java.util.function.Consumer
 private val LOG = logger<ElixirDocumentationProvider>()
 
 internal class ElixirDocumentationProvider : DocumentationProvider {
-    /** Rendered documentation, and the anchor it opens at: the entry of the arity the original element uses, or the arity a followed link gave. */
+    /** Rendered documentation, and the anchor it opens at. */
     class Rendered(val html: String, val anchor: String?)
 
     @RequiresReadLock
-    fun render(element: PsiElement, originalElement: PsiElement?, linkedArity: Int? = null): Rendered? {
+    fun render(element: PsiElement, originalElement: PsiElement?, followed: DocumentationLink.Followed? = null): Rendered? {
         val head = headAt(originalElement)
-        val choice = DocumentedAt.choiceAt(originalElement)?.takeIf { it.element == element }
+        val used = DocumentedAt.useAt(originalElement)
+        val choice = (followed?.opened() ?: used?.choice())?.takeIf { it.element == element }
 
-        // Where no use is known, as for a link followed, the function is seen from outside its module. Its signature is
-        // made in the module the use found it declared in, as Parameter Info's is.
+        // Where no use is known, the function is seen from outside its module, as from a link followed. Its signature is
+        // made in the module the use or link found it declared in, as Parameter Info's is.
         val found = choice?.found
 
         return fetchDocs(element, remote = !isInside(element, head, choice), found?.declaringModuleName(), found?.candidate?.declaration)?.let { fetched ->
             val reaching = reachedThrough(head, choice)?.takeIf { it.delegation != element }
             val delegations = reaching?.let { DelegationBlock.of(it.delegation, it.index, remote = !it.inside) }.orEmpty()
             // Through a delegation the target is called at the arity the delegation passes on, not the one written at the use.
-            val opened = linkedArity ?: reaching?.let { DelegationBlock.passed(it.delegation) } ?: calledArity(head, originalElement)
+            val opened = reaching?.let { DelegationBlock.passedTo(it.delegation, element) } ?: followed?.arity ?: calledArity(head, used?.use)
 
             Rendered(formatDocs(element, fetched, delegations), anchor(fetched, opened))
         }
@@ -101,11 +102,11 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             ?.let { arities -> arity?.let(arities::entryAt)?.id }
 
     /**
-     * The arity used where [original] is written: at a call, a capture, an MFA atom or a declaration's head, [head] where
+     * The arity used at the caret: at a call, a capture or an MFA atom, [use]'s; at a declaration's head, [head]'s where
      * one is there.
      */
-    private fun calledArity(head: Head?, original: PsiElement?): Int? =
-        head?.declaration?.let(UseSymbols::headArity) ?: when (val use = DocumentedAt.useAt(original)?.use) {
+    private fun calledArity(head: Head?, use: Use?): Int? =
+        head?.declaration?.let(UseSymbols::headArity) ?: when (use) {
             is Use.OfCall -> use.arity
             is Use.Specified -> use.arity
             is Use.Remote -> use.arity
@@ -174,6 +175,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         return super.getDocumentationElementForLookupItem(psiManager, `object`, element)
     }
 
+    @RequiresReadLock
     override fun getDocumentationElementForLink(
         psiManager: PsiManager,
         link: String,

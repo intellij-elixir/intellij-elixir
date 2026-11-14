@@ -5,9 +5,11 @@ import com.intellij.codeInsight.documentation.DocumentationManagerProtocol.PSI_E
 import com.intellij.platform.backend.documentation.DocumentationLinkHandler
 import com.intellij.platform.backend.documentation.DocumentationTarget
 import com.intellij.platform.backend.documentation.LinkResolveResult
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 
 /** Follows a link in Elixir documentation; a link only another language's provider resolves is not followed. */
 internal class ElixirDocumentationLinkHandler : DocumentationLinkHandler {
+    @RequiresReadLock
     override fun resolveLink(target: DocumentationTarget, url: String): LinkResolveResult? {
         if (target !is ElixirDocumentationTarget || !url.startsWith(PSI_ELEMENT_PROTOCOL)) {
             return null
@@ -19,9 +21,11 @@ internal class ElixirDocumentationLinkHandler : DocumentationLinkHandler {
         val anchor =
             if (separator >= 0) withoutProtocol.substring(separator + PSI_ELEMENT_PROTOCOL_REF_SEPARATOR.length) else null
 
-        return DocumentationLink
-            .element(link, target.targetElement)
-            ?.let { ElixirDocumentationTarget.of(it, null, anchor, DocumentationLink.parse(link)?.arity) }
+        val followed = DocumentationLink.Followed(link, target.targetElement)
+
+        return followed
+            .element()
+            ?.let { ElixirDocumentationTarget.of(it, null, anchor, followed) }
             ?.let { LinkResolveResult.resolvedTarget(it) }
     }
 }

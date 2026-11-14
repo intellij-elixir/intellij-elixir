@@ -34,6 +34,57 @@ class DelegationWithDefaultsQuickDocumentationTest : QuickDocumentationTestCase(
         )
     }
 
+    /** Through a chain of delegations the target is called at the arity the last one passes on, so the card opens at its entry. */
+    fun testACallThroughAChainOpensTheTargetsEntryForTheArityTheLastDelegationPasses() {
+        chain()
+
+        assertOpensAtTwo(quickDocumentationAtCaret().orEmpty(), myFixture.documentationAnchorAtCaret(project))
+    }
+
+    /** A followed link to the first delegation of a chain opens where a call of it does. */
+    fun testALinkThroughAChainOpensTheTargetsEntryForTheArityTheLastDelegationPasses() {
+        chain()
+
+        assertOpensAtTwo(
+            myFixture.followedLinkAtCaret(project, "psi_element://Chain.f/1").orEmpty(),
+            myFixture.followedAnchorAtCaret(project, "psi_element://Chain.f/1"),
+        )
+    }
+
+    /** At the head of the first delegation of a chain, the card opens where a call of it does. */
+    fun testTheHeadOfAChainsFirstDelegationOpensTheTargetsEntryForTheArityTheLastDelegationPasses() {
+        chain(atTheHead = true)
+
+        assertOpensAtTwo(quickDocumentationAtCaret().orEmpty(), myFixture.documentationAnchorAtCaret(project))
+    }
+
+    /**
+     * `Chain.f/1` delegates to `Chain.Middle.f/2`, whose default fills in the second argument for `Chain.End.f/2`, with
+     * the caret on `Chain`'s head [atTheHead], else on a call of `Chain.f/1` in `Caller`.
+     */
+    private fun chain(atTheHead: Boolean = false) {
+        myFixture.addFileToProject(
+            "chain_end.ex",
+            "defmodule Chain.End do\n  @doc \"One.\"\n  def f(x), do: x\n\n  @doc \"Two.\"\n  def f(x, y), do: {x, y}\nend\n"
+        )
+        myFixture.addFileToProject("chain_middle.ex", "defmodule Chain.Middle do\n  defdelegate f(x, y \\\\ 0), to: Chain.End\nend\n")
+        if (atTheHead) {
+            myFixture.configureByText("chain.ex", "defmodule Chain do\n  defdelegate <caret>f(x), to: Chain.Middle\nend\n")
+        } else {
+            myFixture.addFileToProject("chain.ex", "defmodule Chain do\n  defdelegate f(x), to: Chain.Middle\nend\n")
+            myFixture.configureByText("chain_caller.ex", "defmodule Caller do\n  def run(a), do: Chain.<caret>f(a)\nend\n")
+        }
+    }
+
+    /** [documentation] opens at [anchor], on `Chain.End.f/2`'s entry. */
+    private fun assertOpensAtTwo(documentation: String, anchor: String?) {
+        assertNotNull("Expected an anchor, got: $documentation", anchor)
+        assertTrue(
+            "Expected the anchor ($anchor) on the entry for f/2, got: $documentation",
+            documentation.substringAfter("""id="$anchor"""").substringBefore("id=\"").contains("Two.")
+        )
+    }
+
     /** Each case its own module: the project keeps the files of the one before. */
     private fun docsAtEachUse(module: String, doc: String): Map<String, String?> {
         myFixture.addFileToProject(

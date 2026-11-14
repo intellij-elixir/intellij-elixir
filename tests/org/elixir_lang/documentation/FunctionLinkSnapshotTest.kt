@@ -27,7 +27,7 @@ class FunctionLinkSnapshotTest : SnapshotTestCase() {
                 val arity = parsed.arity!!
                 val results = FunctionLink.results(context, parsed.module, parsed.name, arity)
                 val exists = FunctionLink.exists(context, parsed.module, parsed.name, arity, callback)
-                val target = FunctionLink.target(context, parsed.module, parsed.name, arity, callback)
+                val target = FunctionLink.opened(context, parsed.module, parsed.name, arity, callback)?.element
 
                 "`$link`  in $module  ->  ${describe(snapshot, results)}  exists=$exists  " +
                     "target=${target?.let { location(snapshot, it) } ?: "none"}"

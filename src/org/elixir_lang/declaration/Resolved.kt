@@ -15,18 +15,20 @@ import org.elixir_lang.structure_view.element.Delegation
 object Resolved {
     /**
      * The step's answer at [use] from [feature]'s source: each candidate with what it delegates to. Only the candidates
-     * the use [reaches] are preferred, so one it cannot reach does not displace the arity it can.
+     * the use [reaches] and [among] keeps are preferred, so one it cannot reach does not displace the arity it can.
      */
     @RequiresReadLock
     fun step(
         use: Use,
         incompleteCode: Boolean,
         bound: Boolean = false,
-        feature: Feature = Feature.SYMBOL_REFERENCES
+        feature: Feature = Feature.SYMBOL_REFERENCES,
+        among: (Found) -> Boolean = { true }
     ): List<Preferred> =
         preferred(
             use,
-            sourceFor(feature).candidates(use, incompleteCode).filter { reaches(use, it) && takes(feature, it.uncertain, bound) },
+            sourceFor(feature).candidates(use, incompleteCode)
+                .filter { reaches(use, it) && takes(feature, it.uncertain, bound) && among(it) },
             incompleteCode,
             bound
         )

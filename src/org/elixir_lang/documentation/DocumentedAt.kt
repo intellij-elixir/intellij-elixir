@@ -28,7 +28,11 @@ import org.elixir_lang.reference.resolver.Callable
 /** The one read of what Quick Documentation documents at a caret, which both documentation providers ask. */
 internal object DocumentedAt {
     /** The use written at a caret, and whether a valid variable binds its name. */
-    class UseAt(val use: Use, val bound: Boolean)
+    class UseAt(val use: Use, val bound: Boolean) {
+        /** What it documents. */
+        @RequiresReadLock
+        fun choice(): Documented.Choice = Documented.of(use, bound)
+    }
 
     /**
      * What [original] documents: what the use written there documents, else the module its name names; `null` where
@@ -51,7 +55,7 @@ internal object DocumentedAt {
 
     /** What the use written at [original] documents; `null` where no use is written there. */
     @RequiresReadLock
-    fun choiceAt(original: PsiElement?): Documented.Choice? = useAt(original)?.let { Documented.of(it.use, it.bound) }
+    private fun choiceAt(original: PsiElement?): Documented.Choice? = useAt(original)?.choice()
 
     /** The use written at [original]: an MFA's atom, else the call whose name is there. */
     @RequiresReadLock

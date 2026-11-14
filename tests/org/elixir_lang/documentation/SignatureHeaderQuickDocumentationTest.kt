@@ -2,6 +2,7 @@ package org.elixir_lang.documentation
 
 import com.intellij.lang.documentation.DocumentationMarkup
 import com.intellij.openapi.util.text.StringUtil
+import org.elixir_lang.expander.ExpanderSourceRows.withExpanderSwitch
 
 /**
  * Quick Documentation heads each function with the signature Elixir records for it, then each `@spec`, then each
@@ -399,15 +400,17 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
     fun testAStructPatternAUseInjectsIsNamedByItsVariable() =
         assertInjectedTitle("def f(%__MODULE__{} = s), do: s", "f(s)")
 
-    /**
-     * A link names no use, so the module that calls `use` is not known, and with it the signature Elixir records, which
-     * names the struct by that module: the head stands alone.
-     */
-    fun testAStructPatternAUseInjectsHasNoSignatureAtALink() =
-        assertInjectedTitle("def f(%__MODULE__{}), do: :ok", "def f(%__MODULE__{})", linked = true)
+    /** A link to a function a `use` injects finds it in the module that calls `use`, which names its struct. */
+    fun testAStructPatternAUseInjectsIsNamedByTheModuleThatUsesItAtALink() =
+        assertInjectedTitle("def f(%__MODULE__{}), do: :ok", "f(injected)", linked = true)
 
-    fun testANestedStructPatternAUseInjectsHasNoSignatureAtALink() =
-        assertInjectedTitle("def f(%__MODULE__.Inner{}), do: :ok", "def f(%__MODULE__.Inner{})", linked = true)
+    fun testAStructPatternAUseInjectsIsNamedByTheModuleThatUsesItAtALinkWithTheExpanderOn() {
+        expanderOn()
+        withExpanderSwitch { assertInjectedTitle("def f(%__MODULE__{}), do: :ok", "f(injected)", linked = true) }
+    }
+
+    fun testANestedStructPatternAUseInjectsIsNamedByItsLastAliasAtALink() =
+        assertInjectedTitle("def f(%__MODULE__.Inner{}), do: :ok", "f(inner)", linked = true)
 
     /**
      * Quick Documentation of `f/1`, which `Injected` gets from [head] in a `use`'s `quote`, at a call of it, or by the

@@ -3,10 +3,12 @@ package org.elixir_lang.documentation
 import com.intellij.codeInsight.documentation.DocumentationManagerProtocol.PSI_ELEMENT_PROTOCOL
 import com.intellij.lang.documentation.DocumentationMarkup
 import com.intellij.openapi.util.text.StringUtil
+import com.intellij.psi.PsiElement
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Module
 import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.declaration.Form
+import org.elixir_lang.declaration.Preferred
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.call.Call
@@ -73,10 +75,27 @@ internal object DelegationBlock {
         )
     }
 
-    /** The arity [delegation]'s head calls its targets at, which fills in the defaults of a call written at a lower one. */
+    /**
+     * The arity [element], which [delegation] reaches, is called at: the arity the delegation nearest it on the way
+     * passes on, which fills in the defaults of a call written at a lower one.
+     */
     @RequiresReadLock
-    fun passed(delegation: Call): Int? =
-        UseSymbols.headUse(Delegation.head(delegation))?.let { (_, use) -> Documented.atItsHead(delegation)?.let { UseSymbols.passed(it, use) } }
+    fun passedTo(delegation: Call, element: PsiElement): Int? {
+        val preferred = Documented.atItsHead(delegation) ?: return null
+        val nearest = preferred.admittedDelegatedTo
+            .firstOrNull { it.element == element }
+            ?.via
+            ?.lastOrNull { Delegation.`is`(it) }
+            ?.takeUnless { it == delegation }
+            ?: return passed(delegation, preferred)
+
+        return Documented.atItsHead(nearest)?.let { passed(nearest, it) }
+    }
+
+    /** The arity [delegation]'s head calls its targets at, [preferred] being what the step prefers at that head. */
+    @RequiresReadLock
+    private fun passed(delegation: Call, preferred: Preferred): Int? =
+        UseSymbols.headUse(Delegation.head(delegation))?.let { (_, use) -> UseSymbols.passed(preferred, use) }
 
     @RequiresReadLock
     private fun targets(delegation: Call): List<String> {
