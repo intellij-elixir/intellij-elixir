@@ -22,6 +22,9 @@
 
 ### Enhancements
 
+- [#4696](https://github.com/intellij-elixir/intellij-elixir/pull/4696) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, a Phoenix 1.8 controller compiles in the expander, and a module body's `cond`, `with`, and `try` with an `else` but no `rescue` or `catch` run only the body Elixir chooses, so an attribute written or a function defined there is known afterwards, as for `case` and `if`.** Refs [#4694](https://github.com/intellij-elixir/intellij-elixir/issues/4694).
+
 - [#4692](https://github.com/intellij-elixir/intellij-elixir/pull/4692) [@sh41](https://github.com/sh41)
   - **With "Run the expander" on, a Phoenix router compiles in the expander, `helpers: false` too, so another file's calls to its `Routes` helpers resolve, and go to declaration on one lands on the router's `defmodule` line; a router can still stop, with helpers on once it has more than a few routes and with helpers off once it has many ([#4688](https://github.com/intellij-elixir/intellij-elixir/issues/4688)).** Refs [#4597](https://github.com/intellij-elixir/intellij-elixir/issues/4597).
 
