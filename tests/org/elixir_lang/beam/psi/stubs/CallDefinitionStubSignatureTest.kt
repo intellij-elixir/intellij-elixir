@@ -117,14 +117,14 @@ class CallDefinitionStubSignatureTest : PlatformTestCase() {
     // Docs chunk signatures
 
     fun testDocsSignatureNamesMayBeGenerated() {
-        val stubs = callDefinitionStubs(stub(withoutDbgi(beamBytes("Docs/Elixir.Kernel"))))
+        val stubs = callDefinitionStubs(stub(BeamBytes.withoutChunk(beamBytes("Docs/Elixir.Kernel"), "Dbgi")))
 
         assertSignature(stubs, "def", "apply", 3, listOf("module", "function_name", "args"), true)
     }
 
     // `Docs` has only `inspect/2` and `def/2`, whose defaults cover `inspect/1` and `def/1`.
     fun testDocsSignatureOfALowerArityTheDefaultsCover() {
-        val stubs = callDefinitionStubs(stub(withoutDbgi(beamBytes("Docs/Elixir.Kernel"))))
+        val stubs = callDefinitionStubs(stub(BeamBytes.withoutChunk(beamBytes("Docs/Elixir.Kernel"), "Dbgi")))
 
         assertSignature(stubs, "def", "inspect", 1, listOf("term"), true)
         assertSignature(stubs, "defmacro", "def", 1, listOf("call"), true)
@@ -133,7 +133,7 @@ class CallDefinitionStubSignatureTest : PlatformTestCase() {
     // Heads of functions with default arguments
 
     fun testDocsHeadIsStoredAtEveryArityTheDefaultsCover() {
-        val stubs = callDefinitionStubs(stub(withoutDbgi(beamBytes("Docs/Elixir.Kernel"))))
+        val stubs = callDefinitionStubs(stub(BeamBytes.withoutChunk(beamBytes("Docs/Elixir.Kernel"), "Dbgi")))
 
         assertHead(stubs, "def", "inspect", 1, listOf("term", "opts \\\\ []"))
         assertHead(stubs, "def", "inspect", 2, listOf("term", "opts \\\\ []"))
@@ -142,7 +142,7 @@ class CallDefinitionStubSignatureTest : PlatformTestCase() {
     }
 
     fun testDebugInfoHeadIsStoredAtEveryArityTheDefaultClausesCover() {
-        val stubs = callDefinitionStubs(stub(withoutDocs(beamBytes("Docs/Elixir.Kernel"))))
+        val stubs = callDefinitionStubs(stub(BeamBytes.withoutChunk(beamBytes("Docs/Elixir.Kernel"), "Docs")))
 
         assertHead(stubs, "def", "inspect", 1, listOf("term", "opts \\\\ []"))
         assertHead(stubs, "def", "inspect", 2, listOf("term", "opts \\\\ []"))
@@ -283,22 +283,6 @@ class CallDefinitionStubSignatureTest : PlatformTestCase() {
 
     private fun callDefinitionStubs(root: Stub): List<CallDefinitionStub<*>> =
         root.childrenStubs.flatMap { module -> module.childrenStubs.filterIsInstance<CallDefinitionStub<*>>() }
-
-    private fun withoutDbgi(bytes: ByteArray): ByteArray =
-        BeamBytes.beam(
-            *BeamBytes.chunks(bytes)
-                .filter { it.id != "Dbgi" }
-                .map { it.id to bytes.copyOfRange(it.data, it.data + it.size) }
-                .toTypedArray()
-        )
-
-    private fun withoutDocs(bytes: ByteArray): ByteArray =
-        BeamBytes.beam(
-            *BeamBytes.chunks(bytes)
-                .filter { it.id != "Docs" }
-                .map { it.id to bytes.copyOfRange(it.data, it.data + it.size) }
-                .toTypedArray()
-        )
 
     /** Replaces the Elixir debug info clauses of each name/arity with one whose arguments are not a list. */
     private fun withUnreadableClauses(bytes: ByteArray, vararg nameArities: Pair<String, Int>): ByteArray {

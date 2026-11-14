@@ -17,6 +17,7 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
+import org.elixir_lang.beam.BeamBytes
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.Signature
 import org.elixir_lang.code_insight.signatures
@@ -2056,7 +2057,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
     fun testAnAbsenceInABeamWithNoExportsIsUncertain() {
         val ebin = FileUtil.createTempDirectory("no_exports_ebin", null, true)
         val beam = File("testData/org/elixir_lang/expander/injecting_use", "Elixir.InjectingUse.beam").readBytes()
-        File(ebin, "Elixir.InjectingUse.beam").writeBytes(withoutExports(beam))
+        File(ebin, "Elixir.InjectingUse.beam").writeBytes(BeamBytes.withoutChunk(beam, "ExpT"))
         val file = file("defmodule Asker do\n  def f, do: InjectingUse.missing(1)\nend")
 
         val absence = WalkTestSupport.withLibrary(project, module, testRootDisposable, "no_exports", ebin) {
@@ -3271,23 +3272,6 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
 
     /** Why [ExpanderSource]'s answer to [use] may be missing what it reaches, or `certain`. */
     private fun absence(use: Use): String = read { ExpanderSource.answer(use, false) }.absence?.name ?: "certain"
-
-    /** [beam], an IFF `FOR1`/`BEAM` file, with its exports chunk, `ExpT`, dropped. */
-    private fun withoutExports(beam: ByteArray): ByteArray {
-        val input = java.nio.ByteBuffer.wrap(beam)
-        val out = java.io.ByteArrayOutputStream()
-        out.write(beam, 8, 4) // "BEAM"
-        var at = 12
-        while (at < beam.size) {
-            val size = input.getInt(at + 4)
-            val padded = (size + 3) and 3.inv()
-            if (String(beam, at, 4, Charsets.US_ASCII) != "ExpT") out.write(beam, at, 8 + padded)
-            at += 8 + padded
-        }
-        val body = out.toByteArray()
-
-        return java.nio.ByteBuffer.allocate(8 + body.size).put("FOR1".toByteArray()).putInt(body.size).put(body).array()
-    }
 
     /** How each module [file] defines at its top ended, by name. */
     private fun ended(file: PsiFile): Map<String, String> =
