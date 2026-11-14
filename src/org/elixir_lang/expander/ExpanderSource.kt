@@ -568,7 +568,7 @@ internal object ExpanderSource : CandidateSource {
      * @property injected whether a macro's output injected it, rather than its module's own body writing it, though
      *   [injectedBy] may not be found
      */
-    private class Defined(
+    private data class Defined(
         val declaration: Declaration,
         val element: PsiElement,
         val written: PsiElement?,
@@ -584,8 +584,7 @@ internal object ExpanderSource : CandidateSource {
         /** Its head, which tells apart the heads of a list of `defdelegate` heads, and the modules one macro's output declares it in. */
         val head: Head get() = Head(written, module, placedBy, declaration.name, declaration.arity)
 
-        fun marked(uncertain: Uncertain): Defined =
-            Defined(declaration, element, written, module, injectedBy, delegation, this.uncertain ?: uncertain, injected)
+        fun marked(uncertain: Uncertain): Defined = copy(uncertain = this.uncertain ?: uncertain)
 
         /** Whether [declaration] takes [arity] arguments, which is not known past a head with no largest arity. */
         fun admits(arity: Int?): Boolean = arity == null || declaration.arity.admits(arity)
@@ -627,7 +626,7 @@ internal object ExpanderSource : CandidateSource {
 
     /** [heldOnly], and what it reaches when it delegates. */
     private fun held(at: At, defined: Defined, name: String?, arity: Int?, remote: Boolean, crossed: Set<Head>): List<Reached> =
-        andDelegated(at, heldOnly(defined, name, arity, remote), defined.admits(arity), crossed)
+        andDelegated(at, heldOnly(defined, name, arity, remote), arity, crossed)
 
     /**
      * [defined], which its module holds, looked up there as [name] at [arity]: through the call whose output injected
@@ -659,9 +658,8 @@ internal object ExpanderSource : CandidateSource {
     ): List<Reached> =
         importedDefined(at, file, env, name).flatMap { (defined, reach, call, arities) ->
             val reached = reached(defined, reach, listOfNotNull(call), name, arity, remote = false, arities)
-            val admits = defined.admits(arity) && (arity == null || arity in arities)
 
-            listOf(reached) + throughDelegation(at, reached, reached.named, admits, crossed)
+            andDelegated(at, reached, arity, crossed)
         }
 
     /**
@@ -690,7 +688,7 @@ internal object ExpanderSource : CandidateSource {
     /** `Kernel.SpecialForms`, which no env lists, as Elixir imports it everywhere. */
     private fun specialForms(at: At, name: String?, arity: Int): List<Reached> =
         specialFormsDefined(at, name).flatMap {
-            reachedFrom(at, it, Reach.IMPLICIT_IMPORT, emptyList(), name, arity, remote = false, emptySet())
+            andDelegated(at, reached(it, Reach.IMPLICIT_IMPORT, emptyList(), name, arity, remote = false), arity, emptySet())
         }
 
     /**
@@ -701,16 +699,7 @@ internal object ExpanderSource : CandidateSource {
         ofModule(at, SPECIAL_FORMS, name).map { defined ->
             val arity = specialFormArity(defined.declaration.name, at.inputs.level) ?: return@map defined
 
-            Defined(
-                defined.declaration.copy(arity = arity),
-                defined.element,
-                defined.written,
-                defined.module,
-                defined.injectedBy,
-                defined.delegation,
-                defined.uncertain,
-                defined.injected,
-            )
+            defined.copy(declaration = defined.declaration.copy(arity = arity))
         }
 
     /**
@@ -737,23 +726,14 @@ internal object ExpanderSource : CandidateSource {
         return own + imported(at, source.file, body, name, arity, crossed)
     }
 
-    /** [defined], looked up as [name] at [arity], and what it reaches when it delegates. */
-    private fun reachedFrom(
-        at: At,
-        defined: Defined,
-        reach: Reach,
-        paths: List<Call>,
-        name: String?,
-        arity: Int?,
-        remote: Boolean,
-        crossed: Set<Head>,
-    ): List<Reached> = andDelegated(at, reached(defined, reach, paths, name, arity, remote), defined.admits(arity), crossed)
-
-    /** [reached], and what it reaches when it delegates ([throughDelegation]). */
-    private fun andDelegated(at: At, reached: Reached, admits: Boolean, crossed: Set<Head>): List<Reached> {
+    /**
+     * [reached], looked up at [arity], and what it reaches when it delegates ([throughDelegation]), where it admits that
+     * arity through the path it was reached by.
+     */
+    private fun andDelegated(at: At, reached: Reached, arity: Int?, crossed: Set<Head>): List<Reached> {
         ProgressManager.checkCanceled()
 
-        return listOf(reached) + throughDelegation(at, reached, reached.named, admits, crossed)
+        return listOf(reached) + throughDelegation(at, reached, reached.defined.admits(arity) && reached.imported, crossed)
     }
 
     /**
@@ -777,18 +757,12 @@ internal object ExpanderSource : CandidateSource {
 
     /**
      * What [delegation] reaches: its target module's lookup of the function it calls, at its head's largest arity,
-     * named only where [named] is. A `defdelegate` head already crossed is not crossed again. A head the use reaches
+     * named only where [delegation] is. A `defdelegate` head already crossed is not crossed again. A head the use reaches
      * itself, with nothing [crossed], is followed whatever its validity; one reached through a delegation only where
      * it [admits] the arity that delegation calls it at, as no other head runs. A target keeps the mark of a head
      * that may not be the one Elixir loads.
      */
-    private fun throughDelegation(
-        at: At,
-        delegation: Reached,
-        named: Boolean,
-        admits: Boolean,
-        crossed: Set<Head>,
-    ): List<Reached> {
+    private fun throughDelegation(at: At, delegation: Reached, admits: Boolean, crossed: Set<Head>): List<Reached> {
         val target = delegation.defined.delegation ?: return emptyList()
         if (crossed.isNotEmpty() && !admits) return emptyList()
         val element = delegation.defined.element as? Call ?: return emptyList()
@@ -809,7 +783,7 @@ internal object ExpanderSource : CandidateSource {
                     listOf(headArity) + it.heads,
                     delegation.through ?: head,
                     it.searched,
-                    named && it.named,
+                    delegation.named && it.named,
                     delegation.imported && it.imported,
                     it.remote,
                 )
