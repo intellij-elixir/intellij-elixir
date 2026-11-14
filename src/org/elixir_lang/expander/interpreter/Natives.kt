@@ -501,11 +501,15 @@ internal class Natives(private val evaluation: Evaluation) {
     /**
      * The types [term] may be of, by the module `defimpl ... for:` names, that [code]'s protocol has no implementation in
      * Elixir for: a known term's ([unimplementedType]), and each of them for a value not known that came from no module,
-     * `BitString` only for a binary.
+     * `BitString` only for a binary and `Atom` only for a boolean.
      */
     fun unimplementedTypes(code: StructCode, term: OtpErlangObject): Collection<String> =
-        if (term === Unknown || code.unimplemented.isEmpty()) code.unimplemented
-        else listOfNotNull(unimplementedType(code, if (term === UnknownBinary) SOME_BINARY else term))
+        when {
+            code.unimplemented.isEmpty() -> code.unimplemented
+            term === UnknownBoolean -> listOfNotNull(unimplementedType(code, TRUE))
+            term is UnknownValue && term.fromNoModule -> code.unimplemented
+            else -> listOfNotNull(unimplementedType(code, if (term === UnknownBinary) SOME_BINARY else term))
+        }
 
     /** Whether [module]'s [function] of [arity] runs a function it is given ([RUNS]). */
     fun runsAFunction(module: String, function: String, arity: Int): Boolean = Triple(module, function, arity) in RUNS

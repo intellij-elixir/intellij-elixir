@@ -887,12 +887,12 @@ class ConfigTryHeavyTest : ConfigHeavyTestCase() {
         assertEquals("k=0 k1=1", afterBefore("  for {_, v} when v == \"a\" <- System.get_env(),\n    do: config(:app, k: 1)\n"))
 
     /**
-     * An `and` in a generator's guard, over a type test of a value not known, marks a raise, as its left isn't known to
-     * be a boolean. Elixir gives `k=0 k1=1`, as `is_binary/1` gives one.
+     * An `and` in a generator's guard, over a type test of a value not known, marks no raise, as its left is a boolean,
+     * so the write past the `for` runs.
      */
-    fun testAnAndInAGeneratorGuardOverATypeTestMarksARaise() =
+    fun testAnAndInAGeneratorGuardOverATypeTestMarksNoRaise() =
         assertEquals(
-            "k=Configured k1=1",
+            "k=0 k1=1",
             afterBefore("  for {_, v} when is_binary(v) and v != \"\" <- System.get_env(),\n    do: config(:app, k: 1)\n"),
         )
 

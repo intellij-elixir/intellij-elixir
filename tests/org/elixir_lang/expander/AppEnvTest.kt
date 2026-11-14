@@ -215,13 +215,14 @@ class AppEnvTest : PlatformTestCase() {
 
     /**
      * Asserts that each read gives its value: the module defining `equal/0` where the read gives it and `different/0`
-     * where it doesn't, or both where the read's value isn't known (`null`).
+     * where it doesn't, or both where the read's value isn't known (`null`), compared with `true`, which a value not
+     * known, a boolean among them, may be.
      */
     private fun assertAnswers(vararg reads: Pair<String, String?>) =
         assertEquals(
             reads.joinToString("\n") { (read, value) -> "$read: " + if (value == null) "different/0 equal/0" else "equal/0" },
             reads.joinToString("\n") { (read, value) ->
-                val compared = value ?: ":unknowable"
+                val compared = value ?: "true"
                 val code = "defmodule A do\n  require Application\n" +
                     "  if $read == $compared, do: def(equal, do: 1)\n" +
                     "  if $read != $compared, do: def(different, do: 1)\nend\n"

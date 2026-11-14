@@ -282,8 +282,13 @@ private const val NAMED_BITS = 1024
 internal class Thrown(val kind: String, val reason: OtpErlangObject, val stacktrace: OtpErlangObject) :
     RuntimeException(null, null, false, false)
 
-/** A value the evaluator doesn't know, of any type: an [Unknown], a [Holding] or a [ModuleUnknown]. */
-internal sealed class UnknownValue : OtpErlangObject() {
+/**
+ * A value the evaluator doesn't know: an [Unknown], of any type, a [Holding], a [ModuleUnknown] or an [UnknownBoolean].
+ */
+internal sealed class UnknownValue(
+    /** Whether the value came from no module being compiled, so holds none ([holdsNoModule]). */
+    val fromNoModule: Boolean,
+) : OtpErlangObject() {
     override fun encode(buf: OtpOutputStream) = decline("an unknown value has no external form")
 
     override fun equals(other: Any?) = this === other
@@ -294,7 +299,7 @@ internal sealed class UnknownValue : OtpErlangObject() {
 }
 
 /** A value the evaluator doesn't know that came from no module. */
-internal object Unknown : UnknownValue() {
+internal object Unknown : UnknownValue(fromNoModule = true) {
     // Java serialization calls it.
     @Suppress("unused")
     private fun readResolve(): Any = Unknown
@@ -304,7 +309,7 @@ internal object Unknown : UnknownValue() {
  * A value the evaluator doesn't know that came from a module being compiled, as a `__CALLER__` or `__ENV__` field
  * [Env][org.elixir_lang.expander.Env] doesn't hold does: it may be or hold any of them ([Given]).
  */
-internal object ModuleUnknown : UnknownValue() {
+internal object ModuleUnknown : UnknownValue(fromNoModule = false) {
     // Java serialization calls it.
     @Suppress("unused")
     private fun readResolve(): Any = ModuleUnknown
@@ -314,17 +319,74 @@ internal object ModuleUnknown : UnknownValue() {
  * What code holds of a module being compiled that it was read as writing [names] of ([Given]), that reading resting on
  * the values of [read] there: never a value of the code.
  */
-internal class AttributesWritten(val module: String, val names: Set<String>, val read: Set<String>) : UnknownValue()
+internal class AttributesWritten(val module: String, val names: Set<String>, val read: Set<String>) :
+    UnknownValue(fromNoModule = false)
 
 /** What code holds of a call whose effect the walk applies: that it writes [names] of [module] ([Given]), never a value of the code. */
-internal class EffectWritten(val module: String, val names: Set<String>) : UnknownValue()
+internal class EffectWritten(val module: String, val names: Set<String>) : UnknownValue(fromNoModule = false)
 
 /** A value the evaluator doesn't know, built from [parts] it does, any of which may be or hold a module being compiled. */
-internal class Holding(val parts: List<OtpErlangObject>) : UnknownValue()
+internal class Holding(val parts: List<OtpErlangObject>) : UnknownValue(fromNoModule = false)
 
-/** Whether [term] holds no module being compiled: [Unknown], [UnknownBinary], a number or a binary. */
+/** A boolean the evaluator doesn't know: `true` or `false`, never another value, and so no module being compiled. */
+internal object UnknownBoolean : UnknownValue(fromNoModule = true) {
+    // Java serialization calls it.
+    @Suppress("unused")
+    private fun readResolve(): Any = UnknownBoolean
+
+    override fun toString() = "#UnknownBoolean"
+}
+
+/**
+ * The values [term] may be: itself where it is known, `true` and `false` for [UnknownBoolean], `null` where it may be
+ * any.
+ */
+internal fun possibleValues(term: OtpErlangObject): List<OtpErlangObject>? =
+    when {
+        term === UnknownBoolean -> BOOLEANS
+        isUnknown(term) -> null
+        else -> listOf(term)
+    }
+
+/** Whether each of [values] is `true`, `false` or [UnknownBoolean]. */
+internal fun allBooleans(values: List<OtpErlangObject>): Boolean =
+    values.all { it === UnknownBoolean || it in BOOLEANS }
+
+/** Whether [value] is a binary, or [UnknownBinary]. */
+internal fun isBinaryValue(value: OtpErlangObject): Boolean = value === UnknownBinary || (value as? OtpErlangBitstr)?.pad_bits() == 0
+
+/**
+ * What [values], each a value code may give, join to where they aren't one known term: a boolean not known where each is
+ * a boolean, a binary not known where each is a binary, else a value not known that holds what they may hold
+ * ([unknownOf]).
+ */
+internal fun joinedUnknown(values: List<OtpErlangObject>): OtpErlangObject =
+    if (allBooleans(values)) UnknownBoolean else unknownBinaryOf(values)
+
+/** A binary not known where each of [results] is a binary, as their concatenation then is, else [unknownOf]. */
+internal fun unknownBinaryOf(results: List<OtpErlangObject>): OtpErlangObject =
+    if (results.all(::isBinaryValue)) UnknownBinary else unknownOf(results)
+
+/**
+ * The raise of code that raises whichever way it went, raising each of [raised], where they are one raise: one kind, one
+ * known reason and one known stacktrace. `null` where they aren't, as a handler can't be chosen over a reason not known.
+ */
+internal fun joinedRaise(raised: List<Thrown>): Thrown? {
+    val first = raised.first()
+    if (raised.any { it.kind != first.kind }) return null
+    if (!oneKnownTerm(raised.map { it.reason }) || !oneKnownTerm(raised.map { it.stacktrace })) return null
+
+    return first
+}
+
+/** What [values], each a value a run may give, join to: the one known term they all are, else [joinedUnknown]. */
+internal fun joinOf(values: List<OtpErlangObject>): OtpErlangObject = if (oneKnownTerm(values)) values[0] else joinedUnknown(values)
+
+/**
+ * Whether [term] holds no module being compiled: an [UnknownValue] from none, [UnknownBinary], a number or a binary.
+ */
 internal fun holdsNoModule(term: OtpErlangObject): Boolean =
-    term === Unknown || term === UnknownBinary || isNumber(term) || term is OtpErlangBitstr
+    term is UnknownValue && term.fromNoModule || term === UnknownBinary || isNumber(term) || term is OtpErlangBitstr
 
 /** Whether [term] is a value not known that may be or hold a module being compiled: a [Holding] or [ModuleUnknown]. */
 internal fun fromCompiling(term: OtpErlangObject): Boolean = term is Holding || term === ModuleUnknown
@@ -432,6 +494,7 @@ internal class Closure(
 
 internal val TRUE = OtpErlangAtom("true")
 internal val FALSE = OtpErlangAtom("false")
+internal val BOOLEANS = listOf(TRUE, FALSE)
 internal val NIL = OtpErlangAtom("nil")
 internal val EMPTY = OtpErlangList()
 internal val STRUCT = OtpErlangAtom("__struct__")

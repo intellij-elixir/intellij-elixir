@@ -29,6 +29,16 @@ internal fun callValue(module: String?, name: String, args: List<Term>, level: E
 /** The value of a `case` or `cond` whose clauses' bodies have [values]. */
 internal fun clausesValue(values: List<Term>): Term = if (values.all(::returnsBoolean)) BOOLEAN_NODE else NODE
 
+/**
+ * `elixir_utils:returns_boolean/1` of a call of [module].[name] of [arity], after `inline/3`, whose arguments it can't
+ * read.
+ */
+internal fun returnsBooleanCall(module: String, name: String, arity: Int, level: ElixirLanguageLevel): Boolean {
+    val (inlinedModule, inlinedName) = inline(module, name, arity, level) ?: (module to name)
+
+    return returnsBoolean(callValue(inlinedModule, inlinedName, List(arity) { NODE }, level))
+}
+
 private fun returnsBoolean(module: String, name: String, args: List<Term>, level: ElixirLanguageLevel): Boolean =
     when (module) {
         "erlang" -> when (args.size) {

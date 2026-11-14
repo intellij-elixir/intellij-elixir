@@ -14,6 +14,7 @@ import org.elixir_lang.expander.interpreter.holdsClosure
 import org.elixir_lang.expander.interpreter.holdsUnknown
 import org.elixir_lang.expander.interpreter.isKeyword
 import org.elixir_lang.expander.interpreter.isUnknown
+import org.elixir_lang.expander.interpreter.joinedUnknown
 import org.elixir_lang.expander.interpreter.keyValue
 import org.elixir_lang.expander.interpreter.list
 import org.elixir_lang.expander.interpreter.properElements
@@ -428,6 +429,7 @@ private fun joinedValue(value: OtpErlangObject?, other: OtpErlangObject?): OtpEr
         value != null && other != null && sameKnownTerm(value, other) -> value
         other != null && holdsAlready(other, value) -> other
         value != null && holdsAlready(value, other) -> value
+        value != null && other != null -> joinedUnknown(listOf(value, other))
         else -> unknownOf(listOfNotNull(value, other))
     }
 

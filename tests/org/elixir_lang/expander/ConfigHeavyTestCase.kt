@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
@@ -96,6 +97,22 @@ abstract class ConfigHeavyTestCase : HeavyTestCase() {
             table.declined -> "declined"
             table.unknown -> "raised"
             else -> keys.joinToString(" ") { key -> "$key=${answer(table, key)}" }
+        }
+    }
+
+    /**
+     * [keys] as [config] and the [extra] files beside it set them, from a content root of their own, which is removed
+     * once read.
+     */
+    protected fun keysInOwnRoot(config: String, keys: List<String>, extra: Array<Pair<String, String>> = emptyArray()): String {
+        val roots = ModuleRootManager.getInstance(module).contentRoots.toSet()
+
+        try {
+            return keys(config, *keys.toTypedArray(), extra = extra)
+        } finally {
+            ModuleRootManager.getInstance(module).contentRoots
+                .filterNot(roots::contains)
+                .forEach { PsiTestUtil.removeContentEntry(module, it) }
         }
     }
 

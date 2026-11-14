@@ -357,6 +357,8 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("i38", "unknown", elixir = ":rescued"),
             // A second ensure of a module loads nothing its file's follows loaded again.
             Row("i39", ":from_string", elixir = ":from_string"),
+            // A call over 64 booleans not known has more combinations than are counted.
+            Row("i40", "unknown", elixir = ":first"),
             // A string a body evaluates reads the module the body compiles, which its run doesn't see.
             Row("i41", "unknown", elixir = "1"),
             // A follow of a path not known writes what it may: the read declines.

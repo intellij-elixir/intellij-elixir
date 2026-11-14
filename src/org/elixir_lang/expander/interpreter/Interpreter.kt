@@ -61,6 +61,7 @@ import org.elixir_lang.expander.metaValue
 import org.elixir_lang.expander.orGuards
 import org.elixir_lang.expander.rebuilt
 import org.elixir_lang.expander.rescueHead
+import org.elixir_lang.expander.returnsBooleanCall
 import org.elixir_lang.expander.splitOptions
 import org.elixir_lang.expander.stopGeneratedMarks
 import org.elixir_lang.expander.unfollowed
@@ -322,10 +323,10 @@ internal class Frame(
 
     /**
      * Binds each variable [patterns] bind, but those already bound, to [value], a value that isn't known: none where it
-     * is [Unknown], which came from no module being compiled.
+     * came from no module being compiled ([UnknownValue.fromNoModule]).
      */
     fun bindEach(patterns: List<ElixirAst>, value: UnknownValue) {
-        if (value !== Unknown) bindUnknown(patterns, value)
+        if (!value.fromNoModule) bindUnknown(patterns, value)
     }
 
     /**
@@ -734,7 +735,8 @@ internal class Evaluation(
 
     /**
      * [definition] of [module]'s, called as [function] with [args]; [arity] is its stacktrace entry's. In [tail]
-     * position, the call is made, not run ([called]).
+     * position, the call is made, not run ([called]). Called from a [guard], its clauses run as the guard, which Elixir
+     * compiles the call into.
      */
     fun invoke(
         module: ModuleClauses,
@@ -743,7 +745,8 @@ internal class Evaluation(
         args: List<OtpErlangObject>,
         arity: Int = args.size,
         tail: Boolean = false,
-    ): OtpErlangObject = called(tail) { invoked(module, definition, function, args, arity) }
+        guard: Boolean = false,
+    ): OtpErlangObject = called(tail) { invoked(module, definition, function, args, arity, guard) }
 
     /**
      * [call]'s value. In [tail] position, the call itself, which the loop its caller runs in runs ([looped]) once its
@@ -784,6 +787,7 @@ internal class Evaluation(
         function: String,
         args: List<OtpErlangObject>,
         arity: Int,
+        guard: Boolean,
     ): OtpErlangObject {
         ProgressManager.checkCanceled()
         entered++
@@ -791,7 +795,9 @@ internal class Evaluation(
         val clauses = definition.clauses ?: decline("${module.module}.$function/${args.size}'s clauses aren't known")
         // In an arm that may not run, a call over a value not known that repeats one running, from the same state, gives
         // what that one does, which isn't known and may be anything its body builds, or raises as it may.
-        if (!run.mayNotRun || !anyHeld(args, visit = ::isUnknown)) return clauseRun(module, clauses, function, args, arity)
+        if (!run.mayNotRun || !anyHeld(args, visit = ::isUnknown)) {
+            return clauseRun(module, clauses, function, args, arity, guard)
+        }
 
         val running = RunningCall(module.module, function, args, run.state(), run.catching, run.config?.raisedAt)
 
@@ -811,7 +817,7 @@ internal class Evaluation(
         run.runningOverUnknown.add(running)
         var returned = false
         try {
-            var value = clauseRun(module, clauses, function, args, arity)
+            var value = clauseRun(module, clauses, function, args, arity, guard)
 
             // Once it has run to its end, its tail call included, a pass whose call repeating it gave in its place runs
             // again from where the call started, the call repeating it now leaving the run where the passes before may
@@ -826,7 +832,7 @@ internal class Evaluation(
                 running.repeated = false
                 run.takeArm()
                 run.restore(running.state)
-                value = clauseRun(module, clauses, function, args, arity)
+                value = clauseRun(module, clauses, function, args, arity, guard)
             }
 
             returned = true
@@ -839,22 +845,28 @@ internal class Evaluation(
         }
     }
 
-    /** The clause of [clauses] that [args] match, run; a call in the body's tail position is made, not run. */
+    /**
+     * The clause of [clauses] that [args] match, run, in a [guard]'s frames where it is called from one; a call in the
+     * body's tail position is made, not run.
+     */
     private fun clauseRun(
         module: ModuleClauses,
         clauses: List<ModuleClauses.Clause>,
         function: String,
         args: List<OtpErlangObject>,
         arity: Int,
+        guard: Boolean,
     ): OtpErlangObject {
         stack.addFirst(frame(module.module, function, integer(arity.toLong())))
         try {
-            val arms = Arms(values = args) { soleArm(clauses.filter { it.args.size == args.size }.map { it.body }, Frame(module)) }
+            val arms = Arms(values = args) {
+                soleArm(clauses.filter { it.args.size == args.size }.map { it.body }, Frame(module, guard = guard))
+            }
 
             for (clause in clauses) {
                 if (clause.args.size != args.size) continue
 
-                val frame = Frame(module)
+                val frame = Frame(module, guard = guard)
 
                 val body = clause.body
 
@@ -1423,9 +1435,10 @@ internal class Evaluation(
             val value = selecting(args.subList(1, 2), emptyList(), emptyList(), frame) {
                 val left = once(args[0], frame)
 
-                // Outside a guard, whose test declines on it, a left not known may not be a boolean, or may run the right.
+                // Outside a guard, whose test declines on it, a left not known may run the right, and may raise where
+                // it may not be a boolean.
                 if (!frame.guard && isUnknown(left)) {
-                    raiseMayBeCaught()
+                    if (mayBeOtherThanBoolean(left)) raiseMayBeCaught()
 
                     return joined(listOf(armOf(args[1], frame.copy())), skipped = left)
                 }
@@ -1439,6 +1452,66 @@ internal class Evaluation(
         }
 
         return remote(receiver, name, operands(args, frame, marks, before = listOf(receiver)), marks, tail, frame.guard)
+    }
+
+    /** Whether [value] may be other than `true` or `false` ([allBooleans]). */
+    private fun mayBeOtherThanBoolean(value: OtpErlangObject): Boolean = !allBooleans(listOf(value))
+
+    /**
+     * The native [module]`.`[function] over each of the values [args] may be ([possibleValues]), where one is a boolean
+     * not known and none may be any value: what their values join to ([joinOf]); where some raise, Elixir may raise
+     * ([raiseMayBeCaught]), and where all do, it raises the one raise they are ([joinedRaise]). In a [guard], where
+     * some raise the guard may fail, so the value is one not known. `null` where the native may write or not return
+     * ([mayWriteOrNotReturn]), writes a module, or declines on one of them, or where all raise but not as one raise.
+     */
+    private fun overPossible(
+        module: String,
+        function: String,
+        args: List<OtpErlangObject>,
+        guard: Boolean,
+    ): OtpErlangObject? {
+        if (args.none { it === UnknownBoolean }) return null
+
+        if (mayWriteOrNotReturn(module, function, args) || natives.writes(module, function, args).isNotEmpty()) return null
+
+        val combinations = possibleCombinations(args) ?: return null
+        val values = ArrayList<OtpErlangObject>()
+        val raised = ArrayList<Thrown>()
+
+        for (combination in combinations) {
+            try {
+                values += natives.call(module, function, combination) ?: return null
+            } catch (thrown: Thrown) {
+                raised += thrown
+            } catch (_: Declined) {
+                return null
+            }
+        }
+
+        if (values.isEmpty()) throw joinedRaise(raised) ?: return null
+        if (raised.isEmpty()) return joinOf(values)
+
+        return if (guard) unknownOf(values) else unlessRaised(joinOf(values))
+    }
+
+    /**
+     * Each way to pick one of what each of [values] may be ([possibleValues]), in order; `null` where one may be any value,
+     * or past [COMBINATIONS].
+     */
+    private fun possibleCombinations(values: List<OtpErlangObject>): List<List<OtpErlangObject>>? {
+        val each = values.map { possibleValues(it) ?: return null }
+        var count = 1L
+        for (possible in each) {
+            // Counted no further than the bound, so the count can't wrap.
+            count *= possible.size
+            if (count > COMBINATIONS) return null
+        }
+
+        val empty: List<List<OtpErlangObject>> = listOf(emptyList())
+
+        return each.fold(empty) { prefixes, possible ->
+            prefixes.flatMap { prefix -> possible.map { prefix + it } }
+        }
     }
 
     /**
@@ -2189,7 +2262,9 @@ internal class Evaluation(
             ?.takeIf { !it.kind.macro }
             ?: decline("a capture of $name/$arity, which isn't a function of ${module.module}")
 
-        return Closure(arity, { listOf(OtpErlangAtom(module.module)) }, run = run) { values -> invoked(module, definition, name, values, values.size) }
+        return Closure(arity, { listOf(OtpErlangAtom(module.module)) }, run = run) { values ->
+            invoked(module, definition, name, values, values.size, guard = false)
+        }
     }
 
     /** [function] applied to [args]; in [tail] position, the call is made, not run ([called]). */
@@ -2220,8 +2295,8 @@ internal class Evaluation(
 
     /**
      * `receiver:function(args)`: a native, else a public function of a module whose clauses can be read. A decline in
-     * it [marks] what [args] give it ([calling]). A native's unknown result came from a module being compiled where an
-     * argument it may return ([Natives.returnable]) gives one. In [tail] position, the call is made, not run ([called]).
+     * it [marks] what [args] give it ([calling]). A native's unknown result is [nativeResult]'s. In [tail] position,
+     * the call is made, not run ([called]).
      * In a [guard], a native given a value not known isn't taken to maybe raise ([givenUnknown]).
      */
     fun remote(
@@ -2239,12 +2314,18 @@ internal class Evaluation(
 
         nativeResult(module, function, args, marks, tail, guard)?.let { return it }
 
-        return if (marks) callingDefined(module, function, args, tail) else defined(module, function, args, tail)
+        return if (marks) {
+            callingDefined(module, function, args, tail, guard)
+        } else {
+            defined(module, function, args, tail, guard)
+        }
     }
 
     /**
-     * [module]`.`[function]`(`[args]`)` where it is a native, else `null`, called by its module or from outside it alike. Its
-     * unknown result came from a module being compiled where an argument it may return ([Natives.returnable]) gives one.
+     * [module]`.`[function]`(`[args]`)` where it is a native, else `null`, called by its module or from outside it
+     * alike. Its unknown result is a boolean not known where the call returns a boolean (Elixir's `returns_boolean`,
+     * [returnsBooleanCall]) outside a [guard], and else came from a module being compiled where an argument it may
+     * return ([Natives.returnable]) gives one.
      */
     private fun nativeResult(
         module: String,
@@ -2255,7 +2336,11 @@ internal class Evaluation(
         guard: Boolean = false,
     ): OtpErlangObject? =
         native(module, function, args, marks, tail, guard)?.let { result ->
-            if (result === Unknown) unknownOf(natives.returnable(module, function, args)) else result
+            when {
+                result !== Unknown -> result
+                !guard && returnsBooleanCall(module, function, args.size, run.level) -> UnknownBoolean
+                else -> unknownOf(natives.returnable(module, function, args))
+            }
         }
 
     /**
@@ -2295,6 +2380,8 @@ internal class Evaluation(
             val struct = natives.dispatches(module, function, args.size)?.let { givenAStruct(it, args, marks) } == true
             val before = entered
 
+            if (!struct) overPossible(module, function, args, guard)?.let { return@marking it }
+
             try {
                 natives.call(module, function, args, tail)
             } catch (declined: Declined) {
@@ -2309,21 +2396,27 @@ internal class Evaluation(
      * What the native [module]`.`[function] gives where it declined on [args] that hold a value not known: Elixir gives
      * a value not known, which [nativeResult] builds from those it may return, or raises ([raiseMayBeCaught]). A
      * function given it directly isn't run, and a call of what it gives, which may be that function, declines. `null`,
-     * as it declines, where the native may write what the run holds ([Natives.writesTheRun]), may run a function its
-     * arguments name, which may write ([Natives.runsAFunction], as `inspect/2` may on options not known), never returns
-     * ([Natives.neverReturns]), always raises on these arguments ([Natives.alwaysRaises]), or is given a function inside
+     * as it declines, where the native may write or not return ([mayWriteOrNotReturn]), or is given a function inside
      * another argument, which it may run. The native is taken to have declined on the value not known: where it declined
      * on another known shape Elixir always raises on, what follows reads as if the raise may not happen. In a [guard],
      * a raise fails the guard, which the clause's test takes as one not known, so nothing may have raised.
      */
     private fun givenUnknown(module: String, function: String, args: List<OtpErlangObject>, guard: Boolean): OtpErlangObject? {
-        if (natives.writesTheRun(module, function, args.size) || natives.runsAFunction(module, function, args)) return null
-        if (natives.neverReturns(module, function, args.size) || natives.alwaysRaises(module, function, args)) return null
+        if (mayWriteOrNotReturn(module, function, args)) return null
         if (!anyHeld(args, visit = ::isUnknown)) return null
         if (holdsAFunction(args.filterNot(::isFunction))) return null
 
         return if (guard) Unknown else unlessRaised(Unknown)
     }
+
+    /**
+     * Whether the native [module]`.`[function], given [args], may write what the run holds ([Natives.writesTheRun]),
+     * may run a function they name, which may write ([Natives.runsAFunction], as `inspect/2` may on options not known),
+     * never returns ([Natives.neverReturns]) or always raises on them ([Natives.alwaysRaises]).
+     */
+    private fun mayWriteOrNotReturn(module: String, function: String, args: List<OtpErlangObject>): Boolean =
+        natives.writesTheRun(module, function, args.size) || natives.runsAFunction(module, function, args) ||
+            natives.neverReturns(module, function, args.size) || natives.alwaysRaises(module, function, args)
 
     /**
      * Whether the native [dispatch] describes is given a struct in [args], or a term that may be of a type whose
@@ -2374,8 +2467,17 @@ internal class Evaluation(
         return calledGave(declined, natives.runs(module, function, args) + natives.writes(module, function, args))
     }
 
-    /** [module]`.`[function]`(`[args]`)`, from its clauses: what Elixir runs where it isn't a native. */
-    private fun defined(module: String, function: String, args: List<OtpErlangObject>, tail: Boolean): OtpErlangObject {
+    /**
+     * [module]`.`[function]`(`[args]`)`, from its clauses: what Elixir runs where it isn't a native; from a [guard], as
+     * one ([invoke]).
+     */
+    private fun defined(
+        module: String,
+        function: String,
+        args: List<OtpErlangObject>,
+        tail: Boolean,
+        guard: Boolean,
+    ): OtpErlangObject {
         if (module in Natives.CLAUSES_UNREAD) decline("$module:$function/${args.size} isn't a native")
 
         val clauses = run.clausesOf(module) ?: decline("no clauses of $module")
@@ -2383,7 +2485,7 @@ internal class Evaluation(
         val definition = clauses.definitions[nameArity]
 
         when (definition?.kind) {
-            DefinitionTable.Kind.DEF -> return invoke(clauses, definition, function, args, tail = tail)
+            DefinitionTable.Kind.DEF -> return invoke(clauses, definition, function, args, tail = tail, guard = guard)
             DefinitionTable.Kind.DEFMACRO, DefinitionTable.Kind.DEFMACROP -> decline("calls the macro $module.$nameArity")
             DefinitionTable.Kind.DEFP, null -> {}
         }
@@ -2410,14 +2512,20 @@ internal class Evaluation(
      * compiled that [args] give it ([calling]), but an argument that is one whose writes its clauses say
      * ([attributesWritten]) gives only those.
      */
-    private fun callingDefined(module: String, function: String, args: List<OtpErlangObject>, tail: Boolean): OtpErlangObject =
+    private fun callingDefined(
+        module: String,
+        function: String,
+        args: List<OtpErlangObject>,
+        tail: Boolean,
+        guard: Boolean,
+    ): OtpErlangObject =
         marking({ declined ->
             val written = run.compiling.keys.mapNotNull { given ->
                 attributesWritten(given, module, function, args.size, args.indices.filter { args[it] == atom(given) })
             }
 
             calledGave(declined, args, written)
-        }) { defined(module, function, args, tail) }
+        }) { defined(module, function, args, tail, guard) }
 
     /** [call], given [args]: a decline in it may have written each module being compiled that [args] give it ([Given]). */
     private inline fun <T> calling(args: List<OtpErlangObject>, call: () -> T): T = marking({ calledGave(it, args) }, call)
@@ -2927,7 +3035,7 @@ internal class Evaluation(
             ) { iterations ->
                 // Any number of them, none included, may run: each starts from, and ends in, an accumulator not known.
                 val started = acc
-                val before = unknownOf(listOf(acc))
+                val before = joinedUnknown(listOf(acc))
 
                 acc = before
                 if (!iterations()) {
@@ -2939,7 +3047,7 @@ internal class Evaluation(
                     // A pass that moves it on from where the last one moved it may build on it without end, as a body
                     // building a container around it, or a function, does.
                     before === movedTo -> ModuleUnknown
-                    else -> unknownOf(listOf(before, acc))
+                    else -> joinedUnknown(listOf(before, acc))
                 }
                 (acc !== before).also { if (it) movedTo = acc }
             }
@@ -2986,17 +3094,18 @@ internal class Evaluation(
         // Any of them may be collected, so where the collection may reject one, Elixir may raise.
         if (values.any(collection.mayReject)) raiseMayBeCaught()
 
-        return unknownOf(values)
+        return collection.unknown(values)
     }
 
     /**
      * What a `for` collects into: [take] each result as its body gives it, after `uniq:`, and [collect] them at the
-     * end, as `elixir_erl_for` builds the collection; [mayReject] is whether [collect] may raise on a result, where
-     * [take] doesn't check it.
+     * end, as `elixir_erl_for` builds the collection; [unknown], what the collection is where any of the results may be
+     * collected; and [mayReject], whether [collect] may raise on a result, where [take] doesn't check it.
      */
     private class Collection(
         val take: (OtpErlangObject) -> Unit,
         val collect: (List<OtpErlangObject>) -> OtpErlangObject,
+        val unknown: (List<OtpErlangObject>) -> OtpErlangObject = ::unknownOf,
         val mayReject: (OtpErlangObject) -> Boolean = { false },
     )
 
@@ -3036,14 +3145,14 @@ internal class Evaluation(
             IntoForm.MAP -> Collection({}, fromList) { pairKey(it) == null }
             // `build_inline_each/7`.
             IntoForm.BINARY ->
-                Collection({ if (seen(it) !is OtpErlangBitstr) error(tuple(atom("badarg"), it)) }, bits::concat)
+                Collection({ if (seen(it) !is OtpErlangBitstr) error(tuple(atom("badarg"), it)) }, bits::concat, unknown = ::unknownBinaryOf)
             // A collector rejects a result with an `ArgumentError` from 1.17, a `FunctionClauseError` before.
             IntoForm.COLLECTABLE -> when (into) {
                 is OtpErlangList if into.arity() == 0 -> Collection({}, ::list)
                 is OtpErlangMap if into.arity() == 0 ->
                     Collection({ if (pairKey(seen(it)) == null) decline("for into a map: %s", it) }, fromList)
                 is OtpErlangBinary if into.size() == 0 ->
-                    Collection({ if (seen(it) !is OtpErlangBitstr) decline("for into a binary: %s", it) }, bits::concat)
+                    Collection({ if (seen(it) !is OtpErlangBitstr) decline("for into a binary: %s", it) }, bits::concat, unknown = ::unknownBinaryOf)
                 // `Collectable.into/1` is given it.
                 else -> calling(listOf(into!!)) { decline("for into: %s", into) }
             }
@@ -3362,6 +3471,37 @@ internal class Evaluation(
     ) {
         private val sole by lazy(LazyThreadSafetyMode.NONE, sole)
 
+        /** The unguarded patterns of the arms that may be taken, each with the frame it matches in. */
+        private val covering = ArrayList<Pair<List<ElixirAst>, Frame>>()
+
+        /**
+         * The combinations of what [values] may be ([possibleCombinations]) that none of [covering] matches yet, `null`
+         * where they can't be listed.
+         */
+        private val uncovered by lazy(LazyThreadSafetyMode.NONE) {
+            values.ifEmpty { null }?.let { possibleCombinations(it) }?.toMutableList()
+        }
+
+        /** How many of [covering] [uncovered] was read over. */
+        private var coveredOver = 0
+
+        /**
+         * Whether every combination of what [values] may be matches one of [covering], so that the raise of no arm matching
+         * can't come.
+         */
+        private fun covered(): Boolean {
+            if (covering.isEmpty()) return false
+            val left = uncovered ?: return false
+
+            while (coveredOver < covering.size) {
+                val (patterns, frame) = covering[coveredOver++]
+
+                left.removeAll { combination -> orOnDecline(false) { matches(patterns, combination, frame.copy(), fresh = true) } }
+            }
+
+            return left.isEmpty()
+        }
+
         /** The decline of the first arm passed over. */
         private var passed: Declined? = null
 
@@ -3381,11 +3521,13 @@ internal class Evaluation(
             patterns: List<ElixirAst> = emptyList(),
             guards: List<ElixirAst> = emptyList(),
             test: () -> Boolean,
-        ): Boolean =
-            try {
+        ): Boolean {
+            // Past arms that may be taken for every value the subject may be, no later arm is.
+            return (maybe == null || !covered()) && try {
                 test()
             } catch (declined: Declined) {
                 if (subject == null && declined.onValue) {
+                    if (guards.isEmpty() && patterns.size == values.size && uncovered != null) covering += patterns to frame.copy()
                     if (mayBind(patterns, guards, frame)) {
                         (maybe ?: ArrayList<MaybeArm>().also { maybe = it }) += armOf(body, frame)
                     }
@@ -3403,6 +3545,7 @@ internal class Evaluation(
                 passed = passed ?: declined
                 left
             }
+        }
 
         /**
          * Whether the arm whose test declined on a value not known may be taken, binding [patterns] in [frame] as it
@@ -3450,12 +3593,13 @@ internal class Evaluation(
         }
 
         /**
-         * No arm is known to be taken: where some may be, their join, as no clause may match; where one was passed over,
-         * or the values weren't known, the loop declines; else `null`.
+         * No arm is known to be taken: where some may be, their join, as no clause may match unless they cover every
+         * value the subject may be ([covered]); where one was passed over, or the values weren't known, the loop
+         * declines; else `null`.
          */
         fun none(): OtpErlangObject? {
             maybe?.let {
-                raiseMayBeCaught()
+                if (!covered()) raiseMayBeCaught()
 
                 return joined(it)
             }
@@ -3475,12 +3619,13 @@ internal class Evaluation(
         }
 
     /**
-     * What [arms], any of which may be the one Elixir takes, give, with, where none of them may run, [skipped], the value
-     * then, and the run as it was before them: each runs from the run's state before them ([RunState]), as code that may
-     * not run ([Run.mayNotRun]), and their values and the states they end in join. A value they all give alike is known,
-     * else unknown; the states join as [Run.joinedState] says. Where an arm raises, the code around them may have raised
-     * there ([mayHaveRaised]); where one declines, every arm was given what it holds. Past the [ARM_BUDGET]
-     * ([Run.takeArm]), or nested past the thread's stack, the arms decline at the outermost.
+     * What [arms], any of which may be the one Elixir takes, give, with, where none of them may run, [skipped], the
+     * value then, and the run as it was before them: each runs from the run's state before them ([RunState]), as code
+     * that may not run ([Run.mayNotRun]), and their values and the states they end in join ([joinOf]); the states join
+     * as [Run.joinedState] says. Where every arm raises, they raise the one raise they are ([joinedRaise]), else a value
+     * not known that may have raised. Where an arm raises, the code around them may have raised there ([mayHaveRaised]);
+     * where one declines, every arm was given what it holds. Past the [ARM_BUDGET] ([Run.takeArm]), or nested past the
+     * thread's stack, the arms decline at the outermost.
      */
     private fun joined(arms: List<MaybeArm>, skipped: OtpErlangObject? = null): OtpErlangObject {
         val before = run.state()
@@ -3529,9 +3674,7 @@ internal class Evaluation(
         run.restore(run.joinedState(before, if (skipped != null) returned + before else returned, raisedIn, caught))
         if (values.isEmpty() && skipped == null) {
             // Every arm raises.
-            val first = raised.firstOrNull()
-
-            if (!raises && first != null && raised.all { it.kind == first.kind } && oneKnownTerm(raised.map { it.reason })) throw first
+            if (!raises && raised.isNotEmpty()) joinedRaise(raised)?.let { throw it }
 
             return unlessRaised(Unknown)
         }
@@ -3541,9 +3684,7 @@ internal class Evaluation(
             mayHaveRaised()
         }
 
-        val all = values + listOfNotNull(skipped)
-
-        return if (oneKnownTerm(all)) all[0] else unknownOf(all)
+        return joinOf(values + listOfNotNull(skipped))
     }
 
     /** Whether [body] only raises: it is a call of a native that never returns ([Natives.neverReturns]). */
@@ -3804,15 +3945,51 @@ internal class Evaluation(
             when (val value = seen(eval(guard, frame))) {
                 TRUE -> return true
                 FALSE -> {}
-                else -> error(tuple(atom(if (index < guards.lastIndex) "badarg" else "case_clause"), value))
+                else -> filterError(index, guards, value)
             }
         }
 
         return guards.isEmpty()
     }
 
-    /** Whether a generator's [guards] may keep the element [frame] binds ([filters]): where they read a value not known, they may. */
-    private fun keeps(guards: List<ElixirAst>, frame: Frame): Boolean = orOnUnknown(true) { filters(guards, frame) }
+    /** The error a generator's guard at [index] of [guards] raises on [value], which isn't a boolean ([filters]). */
+    private fun filterError(index: Int, guards: List<ElixirAst>, value: OtpErlangObject): Nothing =
+        error(tuple(atom(if (index < guards.lastIndex) "badarg" else "case_clause"), value))
+
+    /**
+     * Whether a generator's [guards] may keep the element [frame] binds, run as [filters] runs them: where a guard's
+     * value isn't known, they may, and where it may be other than a boolean ([mayBeOtherThanBoolean]), Elixir may raise
+     * there. Past a guard that may have kept the element, a raise or a value that isn't a boolean may not come.
+     */
+    private fun keeps(guards: List<ElixirAst>, frame: Frame): Boolean = orOnUnknown(true) {
+        var maybe = false
+
+        for ((index, guard) in guards.withIndex()) {
+            val value = try {
+                eval(guard, frame)
+            } catch (thrown: Thrown) {
+                if (!maybe) throw thrown
+                raiseMayBeCaught()
+                return@orOnUnknown true
+            }
+
+            when {
+                value == TRUE -> return@orOnUnknown true
+                value == FALSE -> {}
+                isUnknown(value) -> {
+                    if (mayBeOtherThanBoolean(value)) raiseMayBeCaught()
+                    maybe = true
+                }
+                maybe -> {
+                    raiseMayBeCaught()
+                    return@orOnUnknown true
+                }
+                else -> filterError(index, guards, value)
+            }
+        }
+
+        guards.isEmpty() || maybe
+    }
 
     /** The value of `do:` in the keyword list [keywords]. */
     private fun doOption(keywords: ElixirAst): ElixirAst = optionOrNull(keywords, "do") ?: decline("no do:")
@@ -3876,6 +4053,12 @@ private const val CALLERS = 0
 
 /** The arms that may not be taken, past which the next declines, as arms calling functions with arms double. */
 internal const val ARM_BUDGET = 4096
+
+/**
+ * The combinations of what a call's or a clause's values may be that are tried ([Evaluation.overPossible],
+ * [Evaluation.Arms]), past which none is.
+ */
+private const val COMBINATIONS = 16
 
 /**
  * A call of [module]'s [function] over [args], one of which isn't known, from the run's [state] as it was then, under

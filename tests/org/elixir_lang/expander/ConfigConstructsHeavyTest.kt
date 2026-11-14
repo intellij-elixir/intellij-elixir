@@ -1,7 +1,5 @@
 package org.elixir_lang.expander
 
-import com.intellij.openapi.roots.ModuleRootManager
-import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageFeature.CONFIG_READ_CONFIG
 import org.elixir_lang.language_level.ElixirLanguageFeature.RAISE_ERROR_INFO
@@ -1259,7 +1257,7 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
 
         assertEquals(
             listOf(writer.expected, onLeg("k=0 v=nil k1=1", "k=0 v=:none k1=1")),
-            listOf(answer(Construct.CASE, writer), read(sentinel, listOf("k", "v", "k1"))),
+            listOf(answer(Construct.CASE, writer), keysInOwnRoot(sentinel, listOf("k", "v", "k1"))),
         )
     }
 
@@ -1424,23 +1422,7 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
     private fun answer(construct: Construct, cell: Cell): String {
         val (config, extra) = files(construct, cell.value, cell.effect, cell.origin)
 
-        return read(config, listOfNotNull("k", "v", "j".takeIf { cell.effect == Effect.ENV }, "k1"), extra)
-    }
-
-    /**
-     * [keys] as [config] and the [extra] files beside it set them, from a content root of their own, which is removed
-     * once read.
-     */
-    private fun read(config: String, keys: List<String>, extra: Array<Pair<String, String>> = emptyArray()): String {
-        val roots = ModuleRootManager.getInstance(module).contentRoots.toSet()
-
-        try {
-            return keys(config, *keys.toTypedArray(), extra = extra)
-        } finally {
-            ModuleRootManager.getInstance(module).contentRoots
-                .filterNot(roots::contains)
-                .forEach { PsiTestUtil.removeContentEntry(module, it) }
-        }
+        return keysInOwnRoot(config, listOfNotNull("k", "v", "j".takeIf { cell.effect == Effect.ENV }, "k1"), extra)
     }
 
     /** `config/config.exs`, less its `import Config`, and the files beside it. */

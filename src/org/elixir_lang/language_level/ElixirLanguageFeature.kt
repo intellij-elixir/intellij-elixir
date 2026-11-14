@@ -1911,6 +1911,15 @@ enum class ElixirLanguageFeature(
     REQUIRE_FILE_RELEASES_A_RAISED_FILE(sinceElixir = "1.20.1"),
 
     /**
+     * An evaluated file's stacktrace starts with a frame naming the file and the line that raised. Before it, the
+     * stacktrace starts at `erl_eval`'s frames, the same for every line.
+     *
+     * `elixir-lang/elixir@57ee3e811` ("Improve eval stacktraces on Erlang/OTP 25+", #11665), first released in
+     * v1.14.0-rc.0, on OTP 25 and later.
+     */
+    EVAL_STACKTRACE_NAMES_THE_FILE(sinceElixir = "1.14.0-rc.0", sinceOtp = "25.0-rc1"),
+
+    /**
      * A function's default arguments are expanded in turn, each seeing the variables the ones before it bound. Before
      * it, each is expanded from the state before the defaults.
      *
