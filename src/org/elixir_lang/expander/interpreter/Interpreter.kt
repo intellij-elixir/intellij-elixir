@@ -1252,7 +1252,7 @@ internal class Evaluation(
      */
     fun createModule(args: List<OtpErlangObject>): OtpErlangObject? {
         val name = (seen(args[0]) as? OtpErlangAtom)?.atomValue() ?: return null
-        val created = macroEnvOf(args[2])?.let { createEnv(it) }
+        val created = macroEnvOf(args[2])?.let { CreateEnv(evalEnv(it), generated = false) }
             ?: createEnv(properElements(seen(args[2]))?.map(::seen) ?: return null)
             ?: return null
         val at = call as? ElixirAst.Call ?: decline("Module.create/3 outside a call")
@@ -1271,7 +1271,7 @@ internal class Evaluation(
             onNode = inheriting(at, run),
         )
 
-        val result = createdModule(name, linified, created.env, at, run, bodyValues)
+        val result = createdModule(name, linified, created.eval.env, at, run, bodyValues)
 
         return when (val outcome = result.ended.seenAt(at)) {
             null -> {
@@ -1287,18 +1287,23 @@ internal class Evaluation(
     }
 
     /**
-     * The env `Module.create/3` compiles its module in, and the line and `generated: true` `linify_with_context_counter/3`
-     * reads from its metadata.
+     * The env `Module.create/3` compiles its module in ([eval]'s), and the line and `generated: true`
+     * `linify_with_context_counter/3` reads from its metadata.
      */
-    private data class CreateEnv(val env: Env, val line: Int, val generated: Boolean)
+    private class CreateEnv(val eval: EvalEnv, val generated: Boolean) {
+        val line: Int get() = eval.line ?: 0
+    }
+
+    /** What `elixir:env_for_eval/1` gives its callers: the [env], and the [line] it was given, `null` where none was. */
+    class EvalEnv(val env: Env, val line: Int?)
 
     /**
-     * `elixir:env_for_eval/1` of a `%Macro.Env{}` [term] as `Module.create/3` gives it to `elixir_module:compile`, and
-     * the metadata it takes from it: the term's aliases, requires, imports and file, with no macro aliases, context or
-     * function, and its context modules from [EVAL_ENV_KEEPS_CONTEXT_MODULES]. An entry that isn't known, or isn't the
-     * shape `Macro.Env` holds, declines, but for a file that isn't known where the run's isn't either.
+     * `elixir:env_for_eval/1` of a `%Macro.Env{}` [term]: the term's aliases, requires, imports, file and line, with no
+     * macro aliases or context, and its context modules from [EVAL_ENV_KEEPS_CONTEXT_MODULES]. It reads no module or
+     * function, which each caller keeps or clears itself. An entry that isn't known, or isn't the shape `Macro.Env`
+     * holds, declines, but for a file that isn't known where the run's isn't either.
      */
-    private fun createEnv(term: OtpErlangMap): CreateEnv {
+    fun evalEnv(term: OtpErlangMap): EvalEnv {
         fun field(name: String) = macroEnvField(term, name)
         fun name(value: OtpErlangObject) = (seen(value) as? OtpErlangAtom)?.atomValue() ?: decline("a Macro.Env's name %s", value)
         fun elements(value: OtpErlangObject) = properElements(seen(value)) ?: decline("a Macro.Env's list %s", value)
@@ -1333,26 +1338,35 @@ internal class Evaluation(
                 ?.let(::fileText),
         )
 
-        return CreateEnv(env, field("line").let { smallInt(it) ?: decline("a Macro.Env's line %s", it) }, generated = false)
+        return EvalEnv(env, field("line").let { smallInt(it) ?: decline("a Macro.Env's line %s", it) })
     }
 
     /**
-     * `elixir:env_for_eval/1` of [options], a keyword list, as `Module.create/3` gives it to `elixir_module:compile`, and
-     * the metadata it takes from them: `elixir_env:new()`'s env with the given `:file`, and the `:line` and
-     * `generated: true`. `null` without `:file`, for `Module.create/3`'s clause to raise. An option that sets the env
-     * otherwise declines.
+     * `elixir:env_for_eval/1` of [options], a keyword list: `elixir_env:new()`'s env with the given `:file`, else
+     * `"nofile"`, and the `:line` given. An option that sets the env otherwise declines.
+     */
+    fun evalEnv(options: List<OtpErlangObject>): EvalEnv {
+        val file = option(options, "file")
+        ENV_OPTIONS.firstOrNull { option(options, it) != null }?.let { decline("env_for_eval/1 with the option $it") }
+        val newEnv = run.newEnv ?: decline("env_for_eval/1 of options outside a file's expansion")
+        val line = option(options, "line")?.let { smallInt(seen(it)) ?: decline("env_for_eval/1 with the line %s", it) }
+
+        return EvalEnv(newEnv.copy(file = file?.let(::fileText) ?: "nofile"), line)
+    }
+
+    /**
+     * `Module.create/3`'s env from [options], a keyword list ([evalEnv]), and the metadata it takes from them: the
+     * `:line`, else 0, and `generated: true`. `null` without `:file`, for its clause to raise.
      */
     private fun createEnv(options: List<OtpErlangObject>): CreateEnv? {
-        fun option(key: String) = keyValue(options) { seen(it) == atom(key) }
+        option(options, "file") ?: return null
+        val eval = evalEnv(options)
 
-        val file = option("file") ?: return null
-        ENV_OPTIONS.firstOrNull { option(it) != null }?.let { decline("Module.create/3 with the option $it") }
-        val newEnv = run.newEnv ?: decline("Module.create/3 with options outside a file's expansion")
-        val line = option("line")?.let { smallInt(seen(it)) ?: decline("Module.create/3 with the line %s", it) } ?: 0
-        val generated = option("generated")?.let(::seen) == TRUE
-
-        return CreateEnv(newEnv.copy(file = fileText(file)), line, generated)
+        return CreateEnv(eval, generated = option(options, "generated")?.let(::seen) == TRUE)
     }
+
+    /** The value of [key] in [options], a keyword list, `null` where it has none. */
+    private fun option(options: List<OtpErlangObject>, key: String) = keyValue(options) { seen(it) == atom(key) }
 
     /** [term], a file `elixir_utils:get_file/2` takes, as text; any other term declines. */
     private fun fileText(term: OtpErlangObject): String = natives.utf8(term) ?: decline("a file that isn't UTF-8 text %s", term)
