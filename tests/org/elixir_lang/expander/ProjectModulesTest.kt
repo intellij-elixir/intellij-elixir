@@ -2825,10 +2825,9 @@ class ProjectModulesTest : PlatformTestCase() {
 
     /**
      * A `def` in a module-body `for`, in an `fn` a call runs or one bound and called, in a `try` with only an `after`, or
-     * in a `case`'s selected branch is on the statement path: the module loads with what ran defined, a certain raise
-     * there leaves it absent, and a decline in the name or in the subject leaves it unreadable. A `cond` selects
-     * nothing, so a `def` in one leaves the module unreadable. A row labelled `expander` pins the expander's answer
-     * where Elixir loads the module with what it defines.
+     * in a `case`'s or a `cond`'s selected branch is on the statement path: the module loads with what ran defined, a
+     * certain raise there leaves it absent, and a decline in the name or in the subject leaves it unreadable. A row
+     * labelled `expander` pins the expander's answer where Elixir loads the module with what it defines.
      */
     fun testASelectedBranchIsOnTheStatementPath() {
         addLegElixir()
@@ -2864,8 +2863,8 @@ class ProjectModulesTest : PlatformTestCase() {
             Triple("for-unnamed-expander-unreadable", "for n <- [:f] do\n    def unquote((receive do after 0 -> n end))(), do: 1\n  end", "Unreadable Stopped"),
             Triple("each-unnamed-expander-unreadable", "Enum.each([:f], fn n ->\n    def unquote((receive do after 0 -> n end))(), do: 1\n  end)", "Unreadable Stopped"),
             Triple("if-defdelegate-loaded", "x = true\n  if x do\n    defdelegate f(l), to: :erlang, as: :length\n  end", "Present [f/1] Compiled"),
-            // Controls the walk doesn't follow: Elixir loads `f/0` from the `cond` and the `case` (#4508).
-            Triple("cond-expander-unreadable", "cond do\n    true -> def f, do: 1\n  end", "Unreadable Compiled"),
+            Triple("cond-loaded", "cond do\n    true -> def f, do: 1\n  end", "Present [f/0] Compiled"),
+            // A control the walk doesn't follow: Elixir loads `f/0` from the `case` (#4508).
             Triple("case-declined-expander-unreadable", "case (receive do after 0 -> :a end) do\n    :a -> def f, do: 1\n    _ -> :ok\n  end", "Unreadable Compiled"),
             // An `fn` a match binds runs its body where a later statement calls it, however it is reached, and never else.
             Triple("fn-unrun-loaded", "_ = fn -> def f, do: 1 end", "Present [] Compiled"),
@@ -3147,7 +3146,7 @@ class ProjectModulesTest : PlatformTestCase() {
      */
     fun testAStopAtAnUnreadableModuleMarksTheEnclosingModules() {
         addLegElixir()
-        add("sw.ex", "defmodule SW do\n  cond do\n    true -> def f, do: 1\n  end\n\n  defmacro w, do: Module.put_attribute(Enum.at(__CALLER__.context_modules, 1), :x, :b)\nend\n")
+        add("sw.ex", "defmodule SW do\n  try do\n    def f, do: 1\n  rescue\n    _ -> :ok\n  end\n\n  defmacro w, do: Module.put_attribute(Enum.at(__CALLER__.context_modules, 1), :x, :b)\nend\n")
         add("sr.ex", "defmodule SR do\n  defmacro r(module, key), do: Module.get_attribute(module, key)\nend\n")
         val two = "defmodule Two do\n    require SR\n    def unquote(SR.r(:\"Elixir.SM\", :x))(), do: 1\n  end"
         val stopping = "defmodule N do\n    def f do\n      require SW\n      SW.w()\n    end\n  end"

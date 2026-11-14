@@ -149,7 +149,7 @@ internal class Compiling(
 
     val unnamed = mutableListOf<AttributeLog.DefinitionAttributes>()
 
-    val statements = Statements().apply { add(body) }
+    val statements = Statements(level).apply { add(body) }
 
     /** What the module body's statements bound so far, and how far what ran is Elixir's. */
     val values = BodyValues(statements, known, placed, reached, ::site)
@@ -641,9 +641,9 @@ internal class BodyValues(
 /**
  * The statements of a module body or of the file's top level, in the order the body runs them: what runs once, where
  * the body does. A match runs the statements of its right side before it binds, and a macro's output runs in place of
- * its call.
+ * its call. [level] splits a `with`'s options as the evaluator does.
  */
-internal class Statements {
+internal class Statements(private val level: ElixirLanguageLevel) {
     /** The statements on the statement path. */
     private val contained: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
 
@@ -669,9 +669,9 @@ internal class Statements {
     private val inert: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
 
     /**
-     * The statements of the bodies the walk follows as a statement runs: a `for`'s, a `case` clause's, a `try`'s with
-     * only an `after`, and those of an `fn` a call is given or a match binds. Each runs where the body runs it, as many
-     * times as it does, so none is on the statement path.
+     * The statements of the bodies the walk follows as a statement runs: those [followedBodies] gives, and those of an
+     * `fn` a call is given or a match binds. Each runs where the body runs it, as many times as it does, so none is on
+     * the statement path.
      */
     private val followed: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
 
@@ -699,10 +699,7 @@ internal class Statements {
     /** Whether [node] is a statement the walk runs where its body does: on the statement path or in a body it follows. */
     fun runs(node: ElixirAst): Boolean = contains(node) || follows(node)
 
-    /**
-     * The `fn` whose body holds the followed statement [node], or `null` where a `for`, a `case` or a `try` with only an
-     * `after` runs it.
-     */
+    /** The `fn` whose body holds the followed statement [node], or `null` where a [followedBodies] body holds it. */
     fun holderOf(node: ElixirAst): ElixirAst? = holders[node]
 
     /** Whether one of [fns] holds the followed statement [node], in its body or an `fn`'s body in it. */
@@ -910,10 +907,11 @@ internal class Statements {
 
     /**
      * The bodies of [node] the walk follows as [node] runs, which [add] enters: a `for`'s `do`, or each clause's body
-     * where the `do` has clauses; each clause's body of a `case`, which `if` and `unless` expand to; and the `do` and the
-     * `after` of a `try` that has only those, which a raise in the `do` goes on out of. An `fn`'s are followed where a
-     * match binds it ([add]) or a function call is given it ([called]). A `def`'s body runs where it is called, so it
-     * isn't entered, nor is a `cond`'s, `with`'s, `receive`'s, or a `try`'s that rescues or catches.
+     * where the `do` has clauses; each clause's body of a `case`, which `if` and `unless` expand to, and of a `cond`;
+     * a `with`'s `do` and each of its `else` clauses' bodies; and the `do`, each `else` clause's body and the `after`
+     * of a `try` that has only those, which a raise in the `do` goes on out of. An `fn`'s are followed where a match
+     * binds it ([add]) or a function call is given it ([called]). A `def`'s body runs where it is called, so it isn't
+     * entered, nor is a `receive`'s, or a `try`'s that rescues or catches.
      */
     private fun followedBodies(node: ElixirAst): List<ElixirAst> {
         if (node !is ElixirAst.Call) return emptyList()
@@ -922,22 +920,36 @@ internal class Statements {
 
         return when {
             isFor(node) -> doBodies(forOptions(arguments).second)
-            isCall(node, "case", 2) -> doBodies((arguments[1] as? ElixirAst.ListNode)?.elements.orEmpty())
+            isCall(node, "case", 2) || isCall(node, "cond", 1) ->
+                doBodies((arguments.last() as? ElixirAst.ListNode)?.elements.orEmpty())
+            isNamedCall(node, "with") ->
+                withOptions(arguments, level).second.let { doBodies(it) + arrowBodies(optionValue(it, "else")) }
             isCall(node, "try", 1) -> {
                 val options = (arguments[0] as? ElixirAst.ListNode)?.elements.orEmpty()
 
-                if (options.all { keyOf(it) == "do" || keyOf(it) == "after" }) options.map(::valueOf) else emptyList()
+                if (options.all { keyOf(it) in FOLLOWED_TRY_KEYS }) {
+                    options.flatMap { if (keyOf(it) == "else") arrowBodies(valueOf(it)) else listOf(valueOf(it)) }
+                } else {
+                    emptyList()
+                }
             }
             else -> emptyList()
         }
     }
 
+    /** The value [options] pairs with [key]. */
+    private fun optionValue(options: List<ElixirAst>, key: String): ElixirAst? =
+        options.firstOrNull { keyOf(it) == key }?.let(::valueOf)
+
+    /** The body of each `->` of [clauses], a list of them. */
+    private fun arrowBodies(clauses: ElixirAst?): List<ElixirAst> =
+        (clauses as? ElixirAst.ListNode)?.elements?.let(::clauseBodies).orEmpty()
+
     /** The bodies the `do:` of [options] runs: each clause's where it is a list of clauses, else the one body. */
     private fun doBodies(options: List<ElixirAst>): List<ElixirAst> {
-        val body = options.firstOrNull { keyOf(it) == "do" }?.let(::valueOf) ?: return emptyList()
-        val arrows = (body as? ElixirAst.ListNode)?.elements?.takeIf { it.isNotEmpty() }
+        val body = optionValue(options, "do") ?: return emptyList()
 
-        return arrows?.let { clauseBodies(it) }?.ifEmpty { null } ?: listOf(body)
+        return arrowBodies(body).ifEmpty { listOf(body) }
     }
 
     /** The body of each `->` of [arrows], where every one is a `->`. */
@@ -2307,3 +2319,6 @@ private val RESERVED_MODULES =
 
 /** The names `elixir_module` reserves from [BOOLEAN_AND_NIL_MODULES_RESERVED]. */
 private val BOOLEAN_AND_NIL_MODULES = setOf("Elixir.True", "Elixir.False", "Elixir.Nil")
+
+/** The keys of a `try` whose bodies [Statements] follows: one with any other key rescues or catches. */
+private val FOLLOWED_TRY_KEYS = setOf("do", "else", "after")

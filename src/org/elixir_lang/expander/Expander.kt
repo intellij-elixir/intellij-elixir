@@ -807,7 +807,7 @@ internal class Run(
     val bodyQuotes = ModuleClauses.Quotes()
 
     /** The file's top-level statements. */
-    val fileStatements = Statements()
+    val fileStatements = Statements(level)
 
     /** What the file's top-level statements bound so far, and how far what ran is Elixir's. */
     val fileValues = BodyValues(fileStatements)
