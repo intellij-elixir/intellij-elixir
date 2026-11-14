@@ -24,6 +24,7 @@ import org.elixir_lang.declaration.Answer
 import org.elixir_lang.documentation.MarkdownFlavourDescriptor
 import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.Declared
+import org.elixir_lang.declaration.EXPANDER_FEATURES
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Preferred
@@ -2164,10 +2165,10 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
     }
 
     /**
-     * Highlighting, whose rule takes an uncertain answer, gets each of a module's several copies; a feature whose rule
-     * takes none gets none of them, though the expander finds each.
+     * Highlighting, Quick Documentation and Parameter Info, whose rules take an uncertain answer, get each of a module's
+     * several copies; a feature whose rule takes none gets none of them, though the expander finds each.
      */
-    fun testOnlyHighlightingGetsSeveralCopies() {
+    fun testOnlyTheFeaturesTakingUncertainAnswersGetSeveralCopies() {
         file("defmodule Twice do\n  def g(a), do: a\nend\n")
         file("defmodule Twice do\n  def g(a), do: a\nend\n")
         val caller = file("defmodule Caller do\n  def f, do: Twice.g(1)\nend\n")
@@ -2181,14 +2182,14 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         }
 
         assertEquals(listOf(Uncertain.SEVERAL, Uncertain.SEVERAL), found)
-        assertEquals(Feature.entries.associateWith { if (it == Feature.HIGHLIGHTING) 2 else 0 }, stepped)
+        assertEquals(Feature.entries.associateWith { if (it in EXPANDER_FEATURES) 2 else 0 }, stepped)
     }
 
     /**
-     * A delegation in several copies may not be the one Elixir loads, so neither is the target it reaches: only
-     * highlighting gets the copies.
+     * A delegation in several copies may not be the one Elixir loads, so neither is the target it reaches: only the
+     * features taking uncertain answers get the copies.
      */
-    fun testOnlyHighlightingGetsADelegationInSeveralCopies() {
+    fun testOnlyTheFeaturesTakingUncertainAnswersGetADelegationInSeveralCopies() {
         file("defmodule Twice do\n  defdelegate g(a), to: Target\nend\n")
         file("defmodule Twice do\n  defdelegate g(a), to: Target\nend\n")
         file("defmodule Target do\n  def g(a), do: a\nend\n")
@@ -2206,7 +2207,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             listOf("OWN SEVERAL", "DELEGATION_TARGET SEVERAL", "OWN SEVERAL", "DELEGATION_TARGET SEVERAL"),
             found,
         )
-        assertEquals(Feature.entries.associateWith { if (it == Feature.HIGHLIGHTING) 2 else 0 }, stepped)
+        assertEquals(Feature.entries.associateWith { if (it in EXPANDER_FEATURES) 2 else 0 }, stepped)
     }
 
     /** Past a stop every feature keeps the env's find, marked STOP. */
@@ -2335,10 +2336,10 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
     }
 
     /**
-     * A written name the table holds reaches every feature; one the index holds past a stop, marked INDEX, only
-     * highlighting, whose rule takes an uncertain answer.
+     * A written name the table holds reaches every feature; one the index holds past a stop, marked INDEX, only the
+     * features whose rules take an uncertain answer.
      */
-    fun testOnlyHighlightingGetsAWrittenNameTheIndexHolds() {
+    fun testOnlyTheFeaturesTakingUncertainAnswersGetAWrittenNameTheIndexHolds() {
         val file = file(STOPPED)
         val calls = STOPPED_CALLS.take(2).map { ExpanderSourceRows.call(file, it, it) }
 
@@ -2353,21 +2354,24 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(
             listOf(
                 Feature.entries.associateWith { 1 },
-                Feature.entries.associateWith { if (it == Feature.HIGHLIGHTING) 1 else 0 },
+                Feature.entries.associateWith { if (it in EXPANDER_FEATURES) 1 else 0 },
             ),
             taken,
         )
     }
 
-    /** With the setting alone only highlighting asks the expander, so every other feature gets the walk's none. */
-    fun testWithTheSettingOnlyHighlightingGetsAWrittenNameWithTheExpanderOn() {
+    /**
+     * With the setting alone only highlighting, Quick Documentation and Parameter Info ask the expander, so every other
+     * feature gets the walk's none.
+     */
+    fun testWithTheSettingOnlyTheExpandersFeaturesGetAWrittenNameWithTheExpanderOn() {
         enableExpander(testRootDisposable)
         val file = file(STOPPED)
         val before = STOPPED_CALLS.first().let { ExpanderSourceRows.call(file, it, it) }
 
         val taken = read { Feature.entries.associateWith { Resolved.writtenNames(before, it).size } }
 
-        assertEquals(Feature.entries.associateWith { if (it == Feature.HIGHLIGHTING) 1 else 0 }, taken)
+        assertEquals(Feature.entries.associateWith { if (it in EXPANDER_FEATURES) 1 else 0 }, taken)
     }
 
     /** A `.beam`'s definition is declared by its module as the module index names it, without `inspect`'s quotes. */

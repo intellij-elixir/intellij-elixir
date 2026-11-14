@@ -26,8 +26,7 @@ abstract class QuickDocumentationTestCase : PlatformTestCase() {
 
     /** Run the expander on, with the leg's SDK as the module's, so the expansion answers rather than the name index. */
     protected fun expanderOn() {
-        LegSdk.setUp(module, testRootDisposable)
-        Disposer.register(testRootDisposable) { LegSdk.tearDown(module) }
+        legSdk()
         enableExpander(testRootDisposable)
     }
 
@@ -35,6 +34,12 @@ abstract class QuickDocumentationTestCase : PlatformTestCase() {
     protected fun withTheExpanderOn(test: () -> Unit) {
         expanderOn()
         test()
+    }
+
+    /** The leg's SDK as the module's, so its modules are read from their `.beam` files. */
+    protected fun legSdk() {
+        LegSdk.setUp(module, testRootDisposable)
+        Disposer.register(testRootDisposable) { LegSdk.tearDown(module) }
     }
 
     /** An EEx function and a `def` of the same name, documented as "Renders with one." and "Renders with two.", are both listed, each linked from the header. */

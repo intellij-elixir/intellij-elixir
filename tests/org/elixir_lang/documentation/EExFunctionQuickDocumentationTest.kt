@@ -275,9 +275,55 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
         assertFalse("Expected no @doc, got: $documentation", "Renders." in documentation)
     }
 
+    /**
+     * With the expander, a call of a project's own `EEx.function_from_string` whose macro defines no function declares
+     * nothing, so the `@doc` above it is the next definition's.
+     */
+    fun testTheDocAboveASourceEExMacroThatDefinesNothingIsTheNextDefinitionsWithTheExpanderOn() {
+        val documentation = documentationWithTheExpanderOn("render.ex", sourceEExViews().replace("do: other(assigns)", "do: oth<caret>er(assigns)"))
+
+        assertTrue("Expected the @doc on other/1, got: $documentation", "Renders the page." in documentation)
+    }
+
+    /** With the expander, the name a project's own `EEx.function_from_string` is given, whose macro defines no function, documents nothing. */
+    fun testTheNameASourceEExMacroThatDefinesNothingIsGivenDocumentsNothingWithTheExpanderOn() {
+        val documentation = documentationWithTheExpanderOn("render.ex", sourceEExViews().replace(":render,", ":ren<caret>der,"))
+
+        assertFalse("Expected no @doc, got: $documentation", "Renders the page." in documentation)
+    }
+
+    /** A user's macro shaped like `EEx.function_from_string` declares what it injects, so the name its call writes is not titled as an EEx function. */
+    fun testTheNameAMacroShapedLikeEExWritesIsNotTitledAsAnEExFunctionWithTheExpanderOn() {
+        val documentation = documentationWithTheExpanderOn("mine.ex", myGenMine().replace(":mine,", ":mi<caret>ne,"))
+
+        assertFalse("Expected no EEx title, got: $documentation", "mine(a, b)" in documentation)
+    }
+
+    /** A user's macro shaped like `EEx.function_from_string` that injects a `def` keeps the `@doc` above its call from the next definition. */
+    fun testTheDocAboveAMacroShapedLikeEExThatInjectsADefIsNotTheNextDefinitionsWithTheExpanderOn() {
+        val documentation = documentationWithTheExpanderOn("mine.ex", myGenMine().replace("do: other(a)", "do: oth<caret>er(a)"))
+
+        assertTrue("Expected other/1's entry, got: $documentation", "other(a)" in documentation)
+        assertFalse("Expected no @doc on other/1, got: $documentation", "Mine." in documentation)
+    }
+
+    /** A user's macro shaped like `EEx.function_from_string` is not listed as an EEx function beside the module's other arities. */
+    fun testAMacroShapedLikeEExIsNotListedBesideTheOtherAritiesWithTheExpanderOn() {
+        val documentation = documentationWithTheExpanderOn(
+            "mine.ex",
+            myGenMine().replace(
+                "def calls(a), do: mine(a)",
+                "@doc \"Three.\"\n  def mine(a, b, c), do: {a, b, c}\n\n  def calls(a), do: mi<caret>ne(a, a, a)"
+            )
+        )
+
+        assertTrue("Expected mine/3's @doc, got: $documentation", "Three." in documentation)
+        assertFalse("Expected no entry with the macro call's @doc, got: $documentation", "Mine." in documentation)
+    }
+
     /** Without the expander the SDK's `EEx`, read from its `.beam`, is not known as `EEx`, so the walk declares nothing. */
     fun testAnSdkEExFunctionShowsNothingFromTheWalk() {
-        expanderOn()
+        legSdk()
         myFixture.configureByText("pages.ex", sdkEExPages(local = "def calls(x), do: pa<caret>ge(x, x)"))
 
         assertNull(quickDocumentationAtCaret())
@@ -327,6 +373,52 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
         assertTrue("Expected the signature, got: $documentation", "page(a, b)" in documentation)
         assertFalse("Expected none of EEx's own doc, got: $documentation", "function_from_string" in documentation)
     }
+
+    /**
+     * A project's own `EEx`, whose `function_from_string` expands to `nil`, then `Views`, which calls it under a `@doc`,
+     * then defines `other/1` and `page/1`, which calls it.
+     */
+    private fun sourceEExViews(): String =
+        """
+        defmodule EEx do
+          defmacro function_from_string(_kind, _name, _source, _args \\ [], _options \\ []), do: nil
+        end
+
+        defmodule Views do
+          require EEx
+
+          @doc "Renders the page."
+          EEx.function_from_string(:def, :render, "<%= @a %>", [:assigns])
+
+          def other(assigns), do: assigns
+
+          def page(assigns), do: other(assigns)
+        end
+        """.trimIndent()
+
+    /** `Mine`, whose `@doc` is above a call of `MyGen`'s macro shaped like `EEx.function_from_string`, which defines `mine/1` with a `def`. */
+    private fun myGenMine(): String =
+        """
+        defmodule MyGen do
+          defmacro function_from_string(kind, name, template, args, options) do
+            quote do
+              def unquote(name)(a), do: {unquote(kind), unquote(template), unquote(args), unquote(options), a}
+            end
+          end
+        end
+
+        defmodule Mine do
+          require MyGen
+
+          @doc "Mine."
+          MyGen.function_from_string(:def, :mine, "x", [:a, :b], [])
+
+          def other(a), do: a
+
+          def calls(a), do: mine(a)
+          def calls_other(a), do: other(a)
+        end
+        """.trimIndent()
 
     /** `Pages`, whose `page/2` the SDK's `EEx` makes and whose [local] uses it, then a module whose [caller] uses it. */
     private fun sdkEExPages(caller: String = "", local: String = ""): String =

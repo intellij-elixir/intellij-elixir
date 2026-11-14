@@ -33,6 +33,28 @@ class ConditionalDefinitionQuickDocumentationTest : QuickDocumentationTestCase()
         assertTrue("Expected the else branch's docs, got: $documentation", documentation?.contains("Else snocs.") == true)
     }
 
+    /** A function under an `if` the expansion never takes is not defined, so with the expander its call documents nothing. */
+    fun testAFunctionUnderAnIfNotTakenDocumentsNothingWithTheExpanderOn() {
+        expanderOn()
+        myFixture.configureByText(
+            "documented.ex",
+            """
+            defmodule Documented do
+              if false do
+                @doc "Never snocs."
+                def snoc(q, x), do: {q, x}
+              end
+            end
+
+            defmodule Caller do
+              def calls(a, b), do: Documented.sn<caret>oc(a, b)
+            end
+            """.trimIndent()
+        )
+
+        assertNull(quickDocumentationAtCaret())
+    }
+
     private fun assertDocumented(doc: String, definition: () -> String) {
         myFixture.configureByText(
             "documented.ex",

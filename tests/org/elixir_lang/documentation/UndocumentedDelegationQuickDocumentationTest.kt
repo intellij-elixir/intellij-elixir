@@ -443,4 +443,37 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
         assertTrue("Expected a link to the target, got: $shown", "psi_element://Head.Target.snoc/2" in shown)
         assertTrue("Expected the target's docs, got: $shown", "Head target docs." in shown)
     }
+
+    /** `as: @attr` delegates to the function the attribute names, so a call documents that target. */
+    fun testACallOfADelegationAsAnAttributeDocumentsItsTargetWithTheExpanderOn() =
+        assertAsAnAttributeDocumentsItsTarget("Attr.g<caret>o(a, a)")
+
+    fun testAnApplyOfADelegationAsAnAttributeDocumentsItsTargetWithTheExpanderOn() =
+        assertAsAnAttributeDocumentsItsTarget("apply(Attr, :g<caret>o, [a, a])")
+
+    fun testAnMfaOfADelegationAsAnAttributeDocumentsItsTargetWithTheExpanderOn() =
+        assertAsAnAttributeDocumentsItsTarget("{Attr, :g<caret>o, 2}")
+
+    private fun assertAsAnAttributeDocumentsItsTarget(use: String) {
+        expanderOn()
+        myFixture.addFileToProject(
+            "attr.ex",
+            """
+            defmodule Attr.Target do
+              @doc "Attr target docs."
+              def run(a, b), do: {a, b}
+            end
+
+            defmodule Attr do
+              @target :run
+              defdelegate go(a, b), to: Attr.Target, as: @target
+            end
+            """.trimIndent()
+        )
+        myFixture.configureByText("attr_caller.ex", "defmodule AttrCaller do\n  def calls(a), do: $use\nend\n")
+
+        val shown = quickDocumentationAtCaret().orEmpty()
+
+        assertTrue("Expected the target's docs, got: $shown", "Attr target docs." in shown)
+    }
 }

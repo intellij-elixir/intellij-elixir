@@ -33,7 +33,7 @@ class ExpanderFlagTest : LightTestCase() {
         assertTrue(defaultWithRunExpander("true"))
     }
 
-    fun testTheSettingOnMovesHighlightingOnly() {
+    fun testTheSettingOnMovesHighlightingDocumentationAndParameterInfo() {
         assertFalse(expanderFlagOn())
         assertEquals(Feature.entries.associateWith { LegacyWalkSource }, Feature.entries.associateWith(::sourceFor))
 
@@ -41,7 +41,7 @@ class ExpanderFlagTest : LightTestCase() {
 
         assertTrue(expanderFlagOn())
         assertEquals(
-            Feature.entries.associateWith { if (it == Feature.HIGHLIGHTING) ExpanderSource else LegacyWalkSource },
+            Feature.entries.associateWith { if (it in EXPANDER_FEATURES) ExpanderSource else LegacyWalkSource },
             Feature.entries.associateWith(::sourceFor),
         )
     }

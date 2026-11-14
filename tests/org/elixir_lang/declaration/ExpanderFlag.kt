@@ -4,6 +4,9 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.util.Disposer
 import org.elixir_lang.settings.ElixirExperimentalSettings
 
+/** The features that read the expander with the setting on, and take its uncertain answers. */
+internal val EXPANDER_FEATURES = setOf(Feature.HIGHLIGHTING, Feature.DOCUMENTATION, Feature.PARAMETER_INFO)
+
 /** Turns the Experimental setting that opens the expander's path on until [disposable] is disposed, which restores it. */
 internal fun enableExpander(disposable: Disposable) {
     setExpander(true, disposable)
