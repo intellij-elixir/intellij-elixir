@@ -116,11 +116,7 @@ class DefaultsParameterInfoTest : ExpanderSettingTestCase() {
             )
         )
 
-    private fun shown(text: String): List<String> {
-        myFixture.configureByText("defaults.ex", text)
-
-        return myFixture.parameterInfoSignaturesAtCaret()
-    }
+    private fun shown(text: String): List<String> = myFixture.parameterInfoSignaturesIn("defaults.ex", text)
 
     private companion object {
         const val PAIR_HEAD = "a \\\\ nil, b \\\\ nil"

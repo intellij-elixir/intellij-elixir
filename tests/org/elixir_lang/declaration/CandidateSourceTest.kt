@@ -1,10 +1,9 @@
 package org.elixir_lang.declaration
 
-import com.intellij.psi.PsiDocumentManager
-import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.expander.ExpanderSourceRows.lineOf
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.scope.call_definition_clause.Declarations
@@ -116,7 +115,7 @@ class CandidateSourceTest : PlatformTestCase() {
             ),
             candidates("target(1)", false).map { found ->
                 "${lineOf(found.element)} ${found.candidate.declaration.name} ${found.candidate.reach} " +
-                    "via ${found.via.map(::lineOf)}"
+                    "via ${found.via.map { lineOf(it) }}"
             }.toSet()
         )
     }
@@ -134,7 +133,7 @@ class CandidateSourceTest : PlatformTestCase() {
             ),
             candidates("t(1)", false).map { found ->
                 "${lineOf(found.element)} ${found.candidate.declaration.name} ${found.candidate.reach} " +
-                    "via ${found.via.map(::lineOf)}"
+                    "via ${found.via.map { lineOf(it) }}"
             }.sorted()
         )
     }
@@ -319,12 +318,6 @@ class CandidateSourceTest : PlatformTestCase() {
 
         return PsiTreeUtil.findChildrenOfType(myFixture.file, Call::class.java)
             .first { it.textRange.startOffset == offset && it.text.startsWith(text) }
-    }
-
-    private fun lineOf(element: PsiElement): Int {
-        val document = PsiDocumentManager.getInstance(project).getDocument(element.containingFile)!!
-
-        return document.getLineNumber(element.textRange.startOffset) + 1
     }
 
     override fun getTestDataPath(): String = "testData/org/elixir_lang/declaration/candidate_source"

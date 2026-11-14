@@ -1,11 +1,7 @@
 package org.elixir_lang.declaration
 
-import com.intellij.psi.PsiDocumentManager
-import com.intellij.psi.PsiElement
-import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.psi.Arguments
-import org.elixir_lang.psi.call.Call
+import org.elixir_lang.expander.ExpanderSourceRows.lineOf
 import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 
 /**
@@ -57,7 +53,7 @@ class PreferredTest : PlatformTestCase() {
             """
         )
 
-        val target = candidates().single { line(it.element) == 2 }
+        val target = candidates().single { lineOf(it.element) == 2 }
 
         assertEquals(listOf("2 -> []"), preferredLines(incompleteCode = true, found = listOf(target)))
     }
@@ -81,7 +77,7 @@ class PreferredTest : PlatformTestCase() {
         )
 
         val found = candidates()
-        val delegation = found.single { line(it.element) == 6 }
+        val delegation = found.single { lineOf(it.element) == 6 }
 
         assertEquals(
             listOf("6 -> [2]", "6 -> []"),
@@ -331,15 +327,11 @@ class PreferredTest : PlatformTestCase() {
         myFixture.configureByText("preferred.ex", text.trimIndent())
     }
 
-    private fun use(): Use.Named {
-        val arguments = PsiTreeUtil.getParentOfType(myFixture.file.findElementAt(myFixture.caretOffset), Arguments::class.java)
-
-        return Use.of(PsiTreeUtil.getParentOfType(arguments, Call::class.java)!!) as Use.Named
-    }
+    private fun use(): Use.Named = Use.of(myFixture.callAtCaret()) as Use.Named
 
     private fun candidates(): List<Found> = LegacyWalkSource.candidates(use(), true)
 
-    private fun candidateLines(): Set<Int> = candidates().map { line(it.element) }.toSet()
+    private fun candidateLines(): Set<Int> = candidates().map { lineOf(it.element) }.toSet()
 
     /** Each entry as `line -> [lines of what it reaches]`, in the order given. */
     private fun preferredLines(
@@ -347,13 +339,7 @@ class PreferredTest : PlatformTestCase() {
         found: List<Found> = candidates(),
         bound: Boolean = false
     ): List<String> =
-        preferred(use(), found, incompleteCode, bound).map { entry ->
-            "${line(entry.found.element)} -> ${entry.delegatedTo.map { line(it.element) }}"
-        }
+        preferred(use(), found, incompleteCode, bound).entryLines()
 
     private fun lines(vararg lines: Int): Set<Int> = lines.toSet()
-
-    private fun line(element: PsiElement): Int =
-        PsiDocumentManager.getInstance(project).getDocument(element.containingFile)!!
-            .getLineNumber(element.textRange.startOffset) + 1
 }

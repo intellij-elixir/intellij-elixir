@@ -4,13 +4,10 @@ import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.model.psi.PsiSymbolReferenceService
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.psi.PsiDocumentManager
-import com.intellij.psi.PsiElement
-import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
 import org.elixir_lang.code_insight.parameterInfoSignaturesAtCaret
+import org.elixir_lang.expander.ExpanderSourceRows.lineOf
 import org.elixir_lang.model.psi.function.FunctionSymbol
-import org.elixir_lang.psi.Arguments
-import org.elixir_lang.psi.call.Call
 
 /**
  * `defoverridable` makes overridable only what is already defined when it runs, so a later definition of that name and
@@ -389,28 +386,20 @@ class OverridableTest : ExpanderSettingTestCase() {
 
     /** What the step keeps at the call, as `line -> [lines of what it delegates to]`. */
     private fun kept(incompleteCode: Boolean): List<String> {
-        val use = Use.of(call()) as Use.Named
+        val use = Use.of(myFixture.callAtCaret()) as Use.Named
 
-        return preferred(use, sourceFor(Feature.SYMBOL_REFERENCES).candidates(use, true), incompleteCode).map { entry ->
-            "${line(entry.found.element)} -> ${entry.delegatedTo.map { line(it.element) }}"
-        }
-    }
-
-    private fun call(): Call {
-        val arguments = PsiTreeUtil.getParentOfType(myFixture.file.findElementAt(myFixture.caretOffset), Arguments::class.java)
-
-        return PsiTreeUtil.getParentOfType(arguments, Call::class.java)!!
+        return preferred(use, sourceFor(Feature.SYMBOL_REFERENCES).candidates(use, true), incompleteCode).entryLines()
     }
 
     /** Moves the caret from the arguments onto the call's name. */
     private fun atName() {
-        myFixture.editor.caretModel.moveToOffset(call().functionNameElement()!!.textOffset)
+        myFixture.editor.caretModel.moveToOffset(myFixture.callAtCaret().functionNameElement()!!.textOffset)
     }
 
     private fun goTo(): List<String> =
         myFixture.gotoDeclarationTargetsAtCaret().orEmpty()
             .mapNotNull { it.destination }
-            .map { "${it.containingFile.name}:${line(it)}" }
+            .map { "${it.containingFile.name}:${lineOf(it)}" }
 
     /** The chooser row of each function Symbol the call resolves to. */
     private fun labels(): List<String> =
@@ -420,8 +409,4 @@ class OverridableTest : ExpanderSettingTestCase() {
             .flatMap { it.resolveReference() }
             .filterIsInstance<FunctionSymbol>()
             .map { it.presentation().presentableText }
-
-    private fun line(element: PsiElement): Int =
-        PsiDocumentManager.getInstance(project).getDocument(element.containingFile)!!
-            .getLineNumber(element.textRange.startOffset) + 1
 }

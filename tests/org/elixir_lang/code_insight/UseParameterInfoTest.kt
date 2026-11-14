@@ -59,9 +59,5 @@ class UseParameterInfoTest : ExpanderSettingTestCase() {
             )
         )
 
-    private fun shown(text: String): List<String> {
-        myFixture.configureByText("use.ex", text)
-
-        return myFixture.parameterInfoSignaturesAtCaret()
-    }
+    private fun shown(text: String): List<String> = myFixture.parameterInfoSignaturesIn("use.ex", text)
 }

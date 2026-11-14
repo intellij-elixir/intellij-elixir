@@ -48,7 +48,6 @@ import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertNull
 import junit.framework.TestCase.assertTrue
 import org.elixir_lang.junit.onPooledThread
-import org.elixir_lang.psi.Arguments
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.Callable
 
