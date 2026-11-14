@@ -24,15 +24,28 @@ class DelegationWithDefaultsQuickDocumentationTest : QuickDocumentationTestCase(
         )
         myFixture.configureByText("caller_opens.ex", "defmodule CallerOpens do\n  def run(a), do: Opens.sn<caret>oc(a)\nend\n")
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-        val anchor = myFixture.documentationAnchorAtCaret(project)
+        assertOpensAtTwo(quickDocumentationAtCaret().orEmpty(), myFixture.documentationAnchorAtCaret(project))
+    }
 
-        assertNotNull("Expected an anchor, got: $documentation", anchor)
-        assertTrue(
-            "Expected the anchor ($anchor) on the target's entry for snoc/2, got: $documentation",
-            documentation.substringAfter("""id="$anchor"""").substringBefore("id=\"").contains("Two.")
+    /** A delegation's default fills in its argument, so the link opens at the target's entry for the arity passed on. */
+    fun testALinkToADelegationWithDefaultsOpensTheTargetsEntryForTheArityItPasses() {
+        myFixture.addFileToProject(
+            "target_opens.ex",
+            "defmodule Opens.Target do\n  @doc \"One.\"\n  def snoc(q), do: q\n\n  @doc \"Two.\"\n  def snoc(q, x), do: {q, x}\nend\n"
+        )
+        myFixture.configureByText(
+            "delegator_opens.ex",
+            "defmodule Op<caret>ens do\n  @moduledoc \"Documented.\"\n\n  defdelegate snoc(q, x \\\\ nil), to: Opens.Target\nend\n"
+        )
+
+        assertOpensAtTwo(
+            myFixture.followedLinkAtCaret(project, "psi_element://Opens.snoc/1").orEmpty(),
+            myFixture.followedAnchorAtCaret(project, "psi_element://Opens.snoc/1"),
         )
     }
+
+    fun testALinkToADelegationWithDefaultsOpensTheTargetsEntryForTheArityItPassesWithTheExpanderOn() =
+        withTheExpanderOn(::testALinkToADelegationWithDefaultsOpensTheTargetsEntryForTheArityItPasses)
 
     /** Through a chain of delegations the target is called at the arity the last one passes on, so the card opens at its entry. */
     fun testACallThroughAChainOpensTheTargetsEntryForTheArityTheLastDelegationPasses() {
@@ -85,12 +98,12 @@ class DelegationWithDefaultsQuickDocumentationTest : QuickDocumentationTestCase(
         }
     }
 
-    /** [documentation] opens at [anchor], on `Chain.End.f/2`'s entry. */
+    /** [documentation] opens at [anchor], on the target's entry for arity 2, whose `@doc` is "Two.". */
     private fun assertOpensAtTwo(documentation: String, anchor: String?) {
         assertNotNull("Expected an anchor, got: $documentation", anchor)
         assertTrue(
-            "Expected the anchor ($anchor) on the entry for f/2, got: $documentation",
-            documentation.substringAfter("""id="$anchor"""").substringBefore("id=\"").contains("Two.")
+            "Expected the anchor ($anchor) on the target's entry for arity 2, got: $documentation",
+            "Two." in anchoredEntry(documentation, anchor)
         )
     }
 

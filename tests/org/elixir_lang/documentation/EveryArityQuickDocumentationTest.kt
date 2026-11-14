@@ -27,9 +27,6 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
         )
     }
 
-    private fun linkedIds(documentation: String): List<String> =
-        Regex("""href="#([^"]+)"""").findAll(documentation).map { it.groupValues[1] }.toList()
-
     fun testEveryArityIsShownAscendingWhateverTheSourceOrder() {
         configure("def calls(a), do: pu<caret>sh(a, a)")
 
@@ -70,7 +67,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
 
         assertNotNull("Expected an anchor", anchor)
         assertTrue("Expected the anchor ($anchor) on an entry, got: $documentation", """id="$anchor"""" in documentation)
-        assertTrue("Expected the entry anchored to hold Two., got: $documentation", documentation.substringAfter("""id="$anchor"""").substringBefore("id=\"").contains("Two."))
+        assertTrue("Expected the entry anchored to hold Two., got: $documentation", "Two." in anchoredEntry(documentation, anchor))
     }
 
     /** A call interpolated into a quoted atom is a call: the atom around it does not decide the arity. */
@@ -81,7 +78,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
         val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertNotNull("Expected an anchor, got: $documentation", anchor)
-        assertTrue("Expected the entry anchored to hold Two., got: $documentation", documentation.substringAfter("""id="$anchor"""").substringBefore("id=\"").contains("Two."))
+        assertTrue("Expected the entry anchored to hold Two., got: $documentation", "Two." in anchoredEntry(documentation, anchor))
     }
 
     fun testACapturedFunctionOpensAtItsArity() {
@@ -91,7 +88,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
         val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertNotNull("Expected an anchor", anchor)
-        assertTrue("Expected the entry anchored to hold Three., got: $documentation", documentation.substringAfter("""id="$anchor"""").substringBefore("id=\"").contains("Three."))
+        assertTrue("Expected the entry anchored to hold Three., got: $documentation", "Three." in anchoredEntry(documentation, anchor))
     }
 
     fun testAnArityNoEntryHasOpensAtNone() {
@@ -122,7 +119,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
         val anchor = myFixture.documentationAnchorAtCaret(project)
 
         assertEquals("Expected an entry per function, got: $documentation", 2, linkedIds(documentation).distinct().size)
-        assertTrue("Expected the entry anchored to hold Defaults., got: $documentation", documentation.substringAfter("""id="$anchor"""").substringBefore("id=\"").contains("Defaults."))
+        assertTrue("Expected the entry anchored to hold Defaults., got: $documentation", "Defaults." in anchoredEntry(documentation, anchor))
     }
 
     /** The default arity is as much the defaults' entry as the full one. */
@@ -146,7 +143,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
         val anchor = myFixture.documentationAnchorAtCaret(project)
 
         assertNotNull("Expected an anchor", anchor)
-        assertTrue("Expected the entry anchored to hold Defaults., got: $documentation", documentation.substringAfter("""id="$anchor"""").substringBefore("id=\"").contains("Defaults."))
+        assertTrue("Expected the entry anchored to hold Defaults., got: $documentation", "Defaults." in anchoredEntry(documentation, anchor))
     }
 
     /** From outside the module, a private arity is not listed with the others, nor is one marked `@doc false`. */

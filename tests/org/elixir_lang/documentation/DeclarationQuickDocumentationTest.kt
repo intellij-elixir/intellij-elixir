@@ -219,7 +219,7 @@ class DeclarationQuickDocumentationTest : QuickDocumentationTestCase() {
         assertNotNull("Expected an anchor", anchor)
         assertTrue(
             "Expected the anchor ($anchor) on the entry for push/2, got: $documentation",
-            documentation.substringAfter("""id="$anchor"""").substringBefore("id=\"").contains("Two.")
+            "Two." in anchoredEntry(documentation, anchor)
         )
     }
 
@@ -323,7 +323,7 @@ class DeclarationQuickDocumentationTest : QuickDocumentationTestCase() {
         assertNotNull("Expected an anchor, got: $documentation", anchor)
         assertTrue(
             "Expected the anchor ($anchor) on the entry for f/2, got: $documentation",
-            documentation.substringAfter("""id="$anchor"""").substringBefore("id=\"").contains("Two.")
+            "Two." in anchoredEntry(documentation, anchor)
         )
     }
 
