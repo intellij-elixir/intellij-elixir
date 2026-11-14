@@ -438,10 +438,7 @@ internal object ExpanderSource : CandidateSource {
     /** The definitions of [name], or of every name when it is `null`, in the module body [at] is in. */
     private fun ownDefined(at: At, name: String?): List<Defined> {
         val module = at.env.module ?: return emptyList()
-        val result = ProjectModules.results(at.holder.expansion(at.file, at.inputs)).firstOrNull { result ->
-            result.module == module &&
-                result.units.any { it.owner == ExpansionResult.Owner.ModuleBody && it.node.meta.origin.contains(at.range) }
-        } ?: return at.gap(Uncertain.MODULE)
+        val result = at.holder.expansion(at.file, at.inputs).resultAt(module, at.range) ?: return at.gap(Uncertain.MODULE)
         if (!result.ownDefinitionsKnown) at.gap(Uncertain.MODULE)
 
         return defined(at.file, result, name)
