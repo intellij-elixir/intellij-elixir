@@ -3122,7 +3122,7 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun configured(read: ConfigRead, config: OtpErlangObject): OtpErlangObject {
         val before = read.configAsRead()
 
-        read.configured(configMerge(read.config, config))
+        read.configured(configMerge(read.config, config), config)
 
         return before
     }

@@ -146,10 +146,35 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
         }
     }
 
-    /** The read's config once a `config` call merged it, which it leaves not empty. */
-    fun configured(config: OtpErlangObject) {
+    /**
+     * The read's config once a `config` call merged [written] into it, which it leaves not empty. An app [written] sets
+     * every key of, each once, is no longer [Shape.shapeless]: whatever pairs its list held, the merged list holds one pair
+     * for each key [written] sets.
+     */
+    fun configured(config: OtpErlangObject, written: OtpErlangObject) {
+        val shapeless = stillShapeless(written)
+
         this.config = config
-        shape = shape.copy(mayBeEmpty = false)
+        shape = shape.copy(shapeless = shapeless, mayBeEmpty = false)
+    }
+
+    /**
+     * The apps of [Shape.shapeless] [written] doesn't set every key of that their list in the config holds, each once: a
+     * key written twice merges its second value into the list's second copy of it, which a shapeless list doesn't hold.
+     */
+    private fun stillShapeless(written: OtpErlangObject): Set<OtpErlangObject> {
+        if (shape.shapeless.isEmpty()) return shape.shapeless
+        val apps = config.takeUnless(::isUnknown)?.let(::firstPairs) ?: return shape.shapeless
+        val writes = firstPairs(written)
+
+        return shape.shapeless.filterNotTo(HashSet()) { app ->
+            val settings = apps[app] ?: return@filterNotTo false
+            val sets = writes[app] ?: return@filterNotTo false
+            if (!bothKeywords(settings, sets)) return@filterNotTo false
+            val keys = firstPairs(sets).keys
+
+            keys.size == properElements(sets)!!.size && keys.containsAll(firstPairs(settings).keys)
+        }
     }
 
     /**
