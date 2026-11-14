@@ -3222,21 +3222,26 @@ internal class Evaluation(
             val before = run.state()
             val moved = comprehended.repeated {
                 val scope = bound()
-                val reached = comprehended.reached
 
-                joined(
-                    listOf(
-                        MaybeArm({ marks(rest, scope) + comprehended.held() }) {
-                            // The guards run as each iteration's filters ([filters]), so they may raise past what earlier ones wrote.
-                            if (keeps(guards, scope)) continuing(scope)
-                            NIL
-                        },
-                    ),
-                    skipped = NIL,
-                )
-                (comprehended.reached > reached).also { if (it) comprehended.overUnknown = true }
+                mayReach(comprehended, scope, rest) {
+                    // The guards run as each iteration's filters ([guardsKeep]), so they may raise past what earlier
+                    // ones wrote.
+                    if (keeps(guards, scope)) continuing(scope)
+                }
             }
         } while (moved || !before.isAt(run.state()))
+    }
+
+    /**
+     * Runs [body] in [scope] as an arm that may not be taken ([joined]), before [rest]: whether it reached the `for`'s
+     * body, which then makes the `for`'s value one not known.
+     */
+    private fun mayReach(comprehended: Comprehended, scope: Frame, rest: List<ElixirAst>, body: () -> Unit): Boolean {
+        val reached = comprehended.reached
+
+        joined(listOf(MaybeArm({ marks(rest, scope) + comprehended.held() }) { body(); NIL }), skipped = NIL)
+
+        return (comprehended.reached > reached).also { if (it) comprehended.overUnknown = true }
     }
 
     /**
@@ -3276,6 +3281,16 @@ internal class Evaluation(
         // An iteration that declines doesn't end the loop.
         val turn = InTurn<Thrown>()
 
+        // The qualifiers after this one and the body, in [scope], as an arm that may not be taken ([mayReach])
+        // where the qualifier may keep the element.
+        fun follow(keep: Keep, scope: Frame) {
+            when (keep) {
+                Keep.YES -> next(scope)
+                Keep.NO -> {}
+                Keep.MAYBE -> mayReach(comprehended, scope, rest) { next(scope) }
+            }
+        }
+
         if (isListGenerator(qualifier)) {
             val (head, enumerable) = (qualifier as ElixirAst.Call).arguments!!
             val (patterns, guards) = clauseHead(ElixirAst.ListNode(head.meta, listOf(head)))
@@ -3296,11 +3311,13 @@ internal class Evaluation(
                 turn.iterate(comprehended.declines) {
                     val scope = frame.copy()
 
-                    val qualifies = comprehended.qualifying(rest, heads, listOf(element), frame) {
-                        matches(patterns, listOf(element), scope, fresh = true) && filters(guards, scope)
+                    val keep = comprehended.qualifying(rest, heads, listOf(element), frame) {
+                        val matched = matches(patterns, listOf(element), scope, fresh = true)
+
+                        if (matched) guardsKeep(guards, scope) else Keep.NO
                     }
 
-                    if (qualifies) next(scope)
+                    follow(keep, scope)
                 }
             }
         } else if (isBitstringGenerator(qualifier)) {
@@ -3332,8 +3349,15 @@ internal class Evaluation(
                     turn.iterate(comprehended.declines) { next(scope) }
                 }
             }
-        } else if (comprehended.qualifying(rest, comprehended.patterns, emptyList(), frame) { truthy(eval(qualifier, frame)) }) {
-            next(frame)
+        } else {
+            // A filter tests truthiness, so a value not known may keep the element, and raises on none.
+            val keep = comprehended.qualifying(rest, comprehended.patterns, emptyList(), frame) {
+                val value = eval(qualifier, frame)
+
+                orOnUnknown(Keep.MAYBE) { if (truthy(value)) Keep.YES else Keep.NO }
+            }
+
+            follow(keep, frame)
         }
 
         turn.declined?.let { throw it }
@@ -3947,33 +3971,21 @@ internal class Evaluation(
             else -> true
         }
 
-    /**
-     * Whether a generator's [guards] keep its element, as `elixir_erl_for:translate_gen/5` runs them: not as a guard
-     * but as a filter, joined by `orelse`, in which `true` keeps it and `false` skips it. Any other value raises, as an
-     * error in them does.
-     */
-    private fun filters(guards: List<ElixirAst>, frame: Frame): Boolean {
-        for ((index, guard) in guards.withIndex()) {
-            when (val value = seen(eval(guard, frame))) {
-                TRUE -> return true
-                FALSE -> {}
-                else -> filterError(index, guards, value)
-            }
-        }
+    /** Whether a generator's [guards] may keep the element [frame] binds ([guardsKeep]), as where they decline. */
+    private fun keeps(guards: List<ElixirAst>, frame: Frame): Boolean =
+        orOnUnknown(true) { guardsKeep(guards, frame) != Keep.NO }
 
-        return guards.isEmpty()
-    }
-
-    /** The error a generator's guard at [index] of [guards] raises on [value], which isn't a boolean ([filters]). */
-    private fun filterError(index: Int, guards: List<ElixirAst>, value: OtpErlangObject): Nothing =
-        error(tuple(atom(if (index < guards.lastIndex) "badarg" else "case_clause"), value))
+    /** Whether a qualifier keeps an element: [YES], [NO], or, where what it reads isn't known, [MAYBE]. */
+    private enum class Keep { YES, NO, MAYBE }
 
     /**
-     * Whether a generator's [guards] may keep the element [frame] binds, run as [filters] runs them: where a guard's
-     * value isn't known, they may, and where it may be other than a boolean ([mayBeOtherThanBoolean]), Elixir may raise
-     * there. Past a guard that may have kept the element, a raise or a value that isn't a boolean may not come.
+     * Whether a generator's [guards] keep the element [frame] binds, as `elixir_erl_for:translate_gen/5` runs them:
+     * not as a guard but as a filter, joined by `orelse`, in which `true` keeps it and `false` skips it, and any other
+     * value raises, as an error in them does. Where a guard's value isn't known, they may keep it ([Keep.MAYBE]), and
+     * where that value may be other than a boolean ([mayBeOtherThanBoolean]), Elixir may raise there. Past a guard that
+     * may have kept the element, a raise or a value that isn't a boolean may not come.
      */
-    private fun keeps(guards: List<ElixirAst>, frame: Frame): Boolean = orOnUnknown(true) {
+    private fun guardsKeep(guards: List<ElixirAst>, frame: Frame): Keep {
         var maybe = false
 
         for ((index, guard) in guards.withIndex()) {
@@ -3982,11 +3994,12 @@ internal class Evaluation(
             } catch (thrown: Thrown) {
                 if (!maybe) throw thrown
                 raiseMayBeCaught()
-                return@orOnUnknown true
+                return Keep.MAYBE
             }
 
             when {
-                value == TRUE -> return@orOnUnknown true
+                // A guard after one not known runs only where that one gave `false`.
+                value == TRUE -> return Keep.YES
                 value == FALSE -> {}
                 isUnknown(value) -> {
                     if (mayBeOtherThanBoolean(value)) raiseMayBeCaught()
@@ -3994,13 +4007,17 @@ internal class Evaluation(
                 }
                 maybe -> {
                     raiseMayBeCaught()
-                    return@orOnUnknown true
+                    return Keep.MAYBE
                 }
-                else -> filterError(index, guards, value)
+                else -> error(tuple(atom(if (index < guards.lastIndex) "badarg" else "case_clause"), value))
             }
         }
 
-        guards.isEmpty() || maybe
+        return when {
+            guards.isEmpty() -> Keep.YES
+            maybe -> Keep.MAYBE
+            else -> Keep.NO
+        }
     }
 
     /** The value of `do:` in the keyword list [keywords]. */
