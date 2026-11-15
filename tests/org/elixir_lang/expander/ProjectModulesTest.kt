@@ -1174,22 +1174,61 @@ class ProjectModulesTest : PlatformTestCase() {
         assertSharedValueAMacroBuildsConvertsInBoundedWork("Macro.expand(t, __CALLER__)\n    :ok")
     }
 
-    /** A module body that applies [doubling] forty times to `t = []`, then runs [after], expands in [SHARED_VALUE_CHECKS]. */
+    /** A shared value a map is keyed by converts in bounded work. */
+    fun testASharedValueAMapIsKeyedByConvertsInBoundedWork() {
+        assertSharedValueConvertsInBoundedWork("  x = %{t => 1}\n")
+    }
+
+    /** Two terms holding one shared value are ordered in bounded work. */
+    fun testASharedValueOrderedConvertsInBoundedWork() {
+        assertSharedValueConvertsInBoundedWork("  x = {t, 1} < {t, 2}\n")
+    }
+
+    /** Two shared values built apart are ordered in bounded work, each pair of their parts compared once. */
+    fun testTwoSharedValuesBuiltApartOrderedConvertInBoundedWork() {
+        assertSharedValueConvertsInBoundedWork("$SECOND_SHARED_VALUE  x = t < u\n")
+    }
+
+    /** Two terms holding one shared value are compared in bounded work. */
+    fun testASharedValueComparedConvertsInBoundedWork() {
+        assertSharedValueConvertsInBoundedWork("  x = {t, 1} == {t, 2}\n")
+    }
+
+    /** Two shared values built apart are compared in bounded work, each pair of their parts compared once. */
+    fun testTwoSharedValuesBuiltApartComparedConvertInBoundedWork() {
+        assertSharedValueConvertsInBoundedWork("$SECOND_SHARED_VALUE  x = t == u\n")
+    }
+
+    /** A shared value `unquote` is given in a module body is validated in bounded work. */
+    fun testASharedValueUnquotedConvertsInBoundedWork() {
+        assertSharedValueConvertsInBoundedWork("  x = quote(do: unquote(t))\n")
+    }
+
+    /** A shared value a macro returns is linified in bounded work. */
+    fun testASharedValueAMacroReturnsConvertsInBoundedWork() {
+        assertSharedValueAMacroBuildsConvertsInBoundedWork("t")
+    }
+
+    /**
+     * A module body that applies [doubling] [SHARED_VALUE_DOUBLINGS] times to `t = []`, then runs [after], expands in
+     * [SHARED_VALUE_CHECKS].
+     */
     private fun assertSharedValueConvertsInBoundedWork(after: String, doubling: String = "t = {t, t}") {
         addLegElixir()
-        val doubled = "  $doubling\n".repeat(40)
-        val a = add("a.ex", "defmodule A do\n  t = []\n$doubled$after  def g, do: 1\nend\n")
+        val a = add("a.ex", "defmodule A do\n${sharedValue("t", doubling = doubling)}$after  def g, do: 1\nend\n")
 
         val checks = expandUnder(ProjectModules(project), a, SHARED_VALUE_CHECKS)
 
         assertTrue("$checks", checks < SHARED_VALUE_CHECKS)
     }
 
-    /** A macro whose body doubles `t` forty times, then ends in [last], expands where it is called in [SHARED_VALUE_CHECKS]. */
+    /**
+     * A macro whose body doubles `t` [SHARED_VALUE_DOUBLINGS] times, then ends in [last], expands where it is called in
+     * [SHARED_VALUE_CHECKS].
+     */
     private fun assertSharedValueAMacroBuildsConvertsInBoundedWork(last: String) {
         addLegElixir()
-        val doubled = "    t = {t, t}\n".repeat(40)
-        add("b.ex", "defmodule B do\n  defmacro m do\n    t = []\n$doubled    $last\n  end\nend\n")
+        add("b.ex", "defmodule B do\n  defmacro m do\n${sharedValue("t", "    ")}    $last\n  end\nend\n")
         val a = add("a.ex", "defmodule A do\n  require B\n  B.m()\n  def g, do: 1\nend\n")
 
         val checks = expandUnder(ProjectModules(project), a, SHARED_VALUE_CHECKS)
@@ -3490,6 +3529,15 @@ class ProjectModulesTest : PlatformTestCase() {
          * 2^41.
          */
         const val SHARED_VALUE_CHECKS = 2_000_000
+
+        const val SHARED_VALUE_DOUBLINGS = 40
+
+        /** [name] bound to `[]`, then [doubling] applied to it [SHARED_VALUE_DOUBLINGS] times, each line at [indent]. */
+        fun sharedValue(name: String, indent: String = "  ", doubling: String = "$name = {$name, $name}") =
+            "$indent$name = []\n" + "$indent$doubling\n".repeat(SHARED_VALUE_DOUBLINGS)
+
+        /** A shared value `u` built as `t` is, but apart from it. */
+        val SECOND_SHARED_VALUE = sharedValue("u")
 
         const val DEPRECATED =
             "defmodule A do\n  @deprecated \"Use A.new/0 instead\"\n  def old, do: 1\n" +

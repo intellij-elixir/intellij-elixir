@@ -975,6 +975,17 @@ class ModuleExpanderTest : ExpanderTestCase() {
         assertCancelledAt("($list :erlang.length(quote(do: unquote(l))))", unwalked + (1 shl DOUBLINGS) / 2)
     }
 
+    /** A macro unquoting many calls that share one long list as what they call validates that list once. */
+    fun testAnUnquoteValidatesASharedCallOnce() {
+        val calls = longList("l") + "c = for _ <- l, do: {l, [], []}; "
+        // Building the calls makes most of the checks, so the validation's are counted from the same body's not unquoting them.
+        val unvalidated = checks("($calls :erlang.length(c))")
+        val validated = checks("($calls :erlang.length(quote(do: unquote(c))))") - unvalidated
+
+        // Validating the list again for each call would check each of its elements once per call.
+        assertTrue("$validated checks", validated < (1 shl DOUBLINGS) * 8)
+    }
+
     /** A macro whose comprehension rejects every element of a long list is cancelled while it scans them. */
     fun testARejectingComprehensionIsCancelledAsItScans() {
         val list = "l = [:a]; " + "l = :erlang.++(l, l); ".repeat(DOUBLINGS)
