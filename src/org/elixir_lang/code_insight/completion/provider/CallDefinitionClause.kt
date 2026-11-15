@@ -4,12 +4,10 @@ import com.intellij.codeInsight.completion.CompletionParameters
 import com.intellij.codeInsight.completion.CompletionProvider
 import com.intellij.codeInsight.completion.CompletionResultSet
 import com.intellij.psi.PsiElement
-import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.ProcessingContext
 import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
 import org.elixir_lang.code_insight.completion.qualifiedLookupElements
 import org.elixir_lang.declaration.CompletionPosition
-import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.reference.CaptureNameArity
 
 class CallDefinitionClause : CompletionProvider<CompletionParameters>() {
@@ -23,10 +21,7 @@ class CallDefinitionClause : CompletionProvider<CompletionParameters>() {
 
     /** A capture's name, `&Mod.<caret>/arity`, is offered by its [CaptureNameArity] reference, not as a call. */
     private fun isCaptureName(position: PsiElement?): Boolean =
-        position?.parent?.parent?.let { qualifiedName ->
-            (PsiTreeUtil.getParentOfType(qualifiedName, NonNumeric::class.java)?.reference as? CaptureNameArity)
-                ?.nameElement == qualifiedName
-        } ?: false
+        position?.parent?.parent?.let(CaptureNameArity::of) != null
 
     override fun addCompletions(
         parameters: CompletionParameters,

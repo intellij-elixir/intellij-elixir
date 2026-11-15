@@ -25,7 +25,6 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.__MODULE__
 import org.elixir_lang.psi.impl.declaringModuleCall
 import org.elixir_lang.psi.impl.isInterpolatedWithin
-import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.psi.stub.type.call.Stub.isModular
 import org.elixir_lang.reference.CaptureNameArity
 import org.elixir_lang.reference.Resolver
@@ -70,7 +69,7 @@ internal object DocumentedAt {
     fun useAt(original: PsiElement?): UseAt? =
         atomAt(original)?.let(Use::mfa)?.let { UseAt(it, bound = false) }
             ?: callAt(original)?.let { call ->
-                val capture = captureOf(call)
+                val capture = CaptureNameArity.of(call)
 
                 useOf(call, capture)?.let { UseAt(it, bound = capture == null && isBound(call, it)) }
             }
@@ -92,16 +91,6 @@ internal object DocumentedAt {
 
     /** Whether a valid variable binds [call]'s name, which a use of it then names, where the name is no capture's. */
     private fun isBound(call: Call, use: Use): Boolean = use is Use.OfCall && Callable.bound(call, false)
-
-    /**
-     * Inside `&Mod.name/arity` the name carries no reference of its own: it lives on the capture operator, which alone
-     * spans the `/arity`.
-     */
-    private fun captureOf(call: Call): CaptureNameArity? =
-        PsiTreeUtil.getParentOfType(call, NonNumeric::class.java)
-            ?.reference
-            ?.let { it as? CaptureNameArity }
-            ?.takeIf { it.nameElement == call }
 
     /**
      * The use [call] is, read from its reference's kind, or from [capture]'s where [call] is that capture's name;
