@@ -30,6 +30,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.childExpressions
 import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
+import org.elixir_lang.structure_view.element.Delegation
 import org.intellij.markdown.html.HtmlGenerator
 import org.intellij.markdown.parser.MarkdownParser
 import java.util.function.Consumer
@@ -56,10 +57,10 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
         return fetchDocs(element, remote, choice?.found)?.let { own ->
             val (fetched, everyCopyShown) = withCopies(own, choice?.copies.orEmpty(), remote)
-            val reaching = reachedThrough(head, choice)?.takeIf { it.delegation != element }
-            val delegations = reaching?.let { DelegationBlock.of(it.delegation, it.index, remote = !it.inside) }.orEmpty()
+            val reached = reachedThrough(head, choice)?.takeIf { it.delegation != element }
+            val delegations = reached?.let(DelegationBlock::of).orEmpty()
             // Through a delegation the target is called at the arity the delegation passes on, not the one written at the use.
-            val opened = reaching?.let { DelegationBlock.passedTo(it.delegation, element) } ?: followed?.arity ?: calledArity(head, used?.use)
+            val opened = reached?.let { DelegationBlock.passedTo(it, element) } ?: followed?.arity ?: calledArity(head, used?.use)
 
             Rendered(formatDocs(element, fetched, delegations, choice?.unconfirmed(everyCopyShown) == true), anchor(fetched, opened))
         }
@@ -90,16 +91,13 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
     private fun isInside(element: PsiElement, head: Head?, choice: Documented.Choice?): Boolean =
         head?.call == element || choice?.inside == true
 
-    /** A delegation, the index name of the module that holds it when it is known, and whether the use is inside that module. */
-    private class Reaching(val delegation: Call, val index: String?, val inside: Boolean)
-
     /**
      * The delegation the caret reached the documented element through, which has no `@doc` of its own to show instead:
      * the one [head], the declaring call at the caret, is, else the one the use [choice] went through.
      */
-    private fun reachedThrough(head: Head?, choice: Documented.Choice?): Reaching? =
+    private fun reachedThrough(head: Head?, choice: Documented.Choice?): DelegationBlock.Reached? =
         if (head != null) {
-            head.call.takeIf { head.form == Form.DELEGATION }?.let { delegation -> Reaching(delegation, moduleOf(delegation), inside = true) }
+            head.call.takeIf { head.form == Form.DELEGATION }?.let { delegation -> DelegationBlock.Reached(delegation, Delegation.head(delegation), moduleOf(delegation), inside = true) }
         } else {
             val found = choice?.delegation
 
@@ -107,7 +105,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 // What a `use` injects is in the module that holds the `use`, which `quote` does not name.
                 val injectedInto = found.takeIf { it.candidate.reach == Reach.USE }?.declaringModuleName()
 
-                Reaching(delegation, injectedInto ?: moduleOf(delegation), inside = choice.insideDelegation)
+                DelegationBlock.Reached(delegation, found.head.written, injectedInto ?: moduleOf(delegation), inside = choice.insideDelegation)
             }
         }
 

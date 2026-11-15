@@ -46,8 +46,7 @@ internal class ElixirDeclarationDocumentationTargetProvider : DocumentationTarge
 
     /** A `defdelegate` [head] documents its delegation, then what it delegates to. */
     private fun delegationHeadDocumented(head: Call): PsiElement? {
-        val delegation = DeclaringForm.named(head)?.call ?: return null
-        val preferred = Documented.atItsHead(delegation) ?: return null
+        val preferred = Documented.headed(head) ?: return null
 
         return Documented.documented(listOf(preferred.found) + preferred.admittedDelegatedTo)
     }

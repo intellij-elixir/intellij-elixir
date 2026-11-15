@@ -130,7 +130,7 @@ internal object Documented {
 
     /** Whether [preferred] is a delegation that [element] is one of the targets of. */
     @RequiresReadLock
-    private fun reaches(preferred: Preferred, element: PsiElement?): Boolean =
+    fun reaches(preferred: Preferred, element: PsiElement?): Boolean =
         element != null && preferred.found.isDelegation() && preferred.admittedDelegatedTo.any { it.element == element }
 
     /** With no valid target, what [use] is a near miss for: each head [RejectedCall.named] gives, a delegation with its targets. */
@@ -146,13 +146,9 @@ internal object Documented {
     private fun withTargets(preferred: Preferred): Preferred =
         preferred.found.head.written?.takeIf { preferred.found.isDelegation() }?.let(::headed) ?: preferred
 
-    /** [delegation] as the step prefers it at the use its own head is, for documentation. */
-    @RequiresReadLock
-    fun atItsHead(delegation: Call): Preferred? = headed(Delegation.head(delegation))
-
     /** The delegation [written] heads, as the step prefers it at the use [written] is, for documentation. */
     @RequiresReadLock
-    private fun headed(written: PsiElement?): Preferred? =
+    fun headed(written: PsiElement?): Preferred? =
         UseSymbols.headUse(written)?.let { (head, use) -> atItsHead(head, use, Feature.DOCUMENTATION) }
 
     /**
