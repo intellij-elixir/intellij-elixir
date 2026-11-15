@@ -21,6 +21,7 @@ import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.Signature
 import org.elixir_lang.code_insight.signatures
 import org.elixir_lang.declaration.Answer
+import org.elixir_lang.documentation.MarkdownFlavourDescriptor
 import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Feature
@@ -35,10 +36,12 @@ import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.declaration.preferred
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.expander.ExpanderSourceRows.arity
+import org.elixir_lang.expander.ExpanderSourceRows.callbacks
 import org.elixir_lang.expander.ExpanderSourceRows.modulars
 import org.elixir_lang.expander.ExpanderSourceRows.read
 import org.elixir_lang.expander.ExpanderSourceRows.render
 import org.elixir_lang.expander.ExpanderSourceRows.renderVisible
+import org.elixir_lang.expander.ExpanderSourceRows.rows
 import org.elixir_lang.expander.ExpanderSourceRows.use
 import org.elixir_lang.expander.ExpanderSourceRows.withBeamLibrary
 import org.elixir_lang.expander.ExpanderSourceRows.withExpanderSwitch
@@ -2745,11 +2748,11 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val (target, linker) = modulars(file, "defmodule Target", "defmodule Linker")
 
         assertEquals(
-            ExpanderSourceRows.rows(
+            rows(
                 "remote" to "Target.later/1 INDEXED VALID via [] line 9 INDEX",
                 "own" to "Target.later/1 INDEXED VALID via [] line 9 INDEX",
             ),
-            ExpanderSourceRows.rows(
+            rows(
                 "remote" to ExpanderSourceRows.candidates(read { Use.link(linker, target, "later", 1) }),
                 "own" to ExpanderSourceRows.candidates(read { Use.link(target, target, "later", 1) }),
             ),
@@ -2997,6 +3000,142 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
 
         assertAnswersAsTheWalk(read { Use.link(linker, target, "t", 1) }, "Target.t/1 OWN VALID via [] line 2")
         assertAnswersAsTheWalk(read { Use.link(linker, linker, "own", 1) }, "Linker.own/1 OWN VALID via [] line 7")
+    }
+
+    /** A link names the callbacks its module writes. */
+    fun testALinkNamesTheCallbacksItsModuleWrites() {
+        val file = file(
+            """
+            defmodule Basics do
+              @callback only_callback(integer) :: term
+            end
+
+            defmodule Linker do
+              @moduledoc "See `c:Basics.only_callback/1`."
+            end
+            """
+        )
+        val (basics, linker) = modulars(file, "defmodule Basics", "defmodule Linker")
+
+        assertAnswersAsTheWalk(read { Use.link(linker, basics, "only_callback", 1) }, "Basics.only_callback/1 OWN VALID via [] line 2")
+    }
+
+    /** A link names the callbacks of each copy of a module written more than once, each marked SEVERAL. */
+    fun testALinkNamesTheCallbacksOfEachCopyOfAModule() {
+        file("defmodule Basics do\n  @callback only_callback(integer) :: term\nend\n")
+        file("defmodule Basics do\n  @callback only_callback(integer) :: term\nend\n")
+        val linking = file("defmodule Linker do\n  @moduledoc \"See `c:Basics.only_callback/1`.\"\nend\n")
+        val (linker) = modulars(linking, "defmodule Linker")
+        val uses = read {
+            MarkdownFlavourDescriptor.modulars(linker, "Basics").map { entrance -> Use.link(linker, entrance, "only_callback", 1) }
+        }
+
+        assertEquals(
+            rows(
+                "expander" to "only_callback SEVERAL\nonly_callback SEVERAL",
+                "walk" to "only_callback null",
+            ),
+            rows(
+                "expander" to callbacksFound(uses.first(), ExpanderSource),
+                "walk" to callbacksFound(uses.first(), LegacyWalkSource),
+            ),
+        )
+    }
+
+    /**
+     * A compiled module with no source attached has its callbacks unread, so a link to one finds nothing and says so: the
+     * module's definitions aren't known.
+     */
+    fun testALinkToACallbackOfACompiledModuleIsAnAbsenceMarkedModule() {
+        val linking = file("defmodule Linker do\n  @moduledoc \"See `c:GenServer.init/1`.\"\nend\n")
+        val (linker) = modulars(linking, "defmodule Linker")
+        val use = read { Use.link(linker, MarkdownFlavourDescriptor.modulars(linker, "GenServer").first(), "init", 1) }
+
+        assertEquals(
+            rows("expander" to "MODULE", "walk" to ""),
+            rows(
+                "expander" to absence(use),
+                "walk" to callbacksFound(use, LegacyWalkSource),
+            ),
+        )
+    }
+
+    /** The callbacks [source] finds at [use], `<name> <uncertain>` one per line. */
+    private fun callbacksFound(use: Use, source: CandidateSource): String =
+        callbacks(use, source) { "${it.candidate.declaration.name} ${it.uncertain}" }
+
+    /**
+     * A link to a name that is both a function and a callback names the function first, so a plain link opens it, as
+     * ExDoc reads one, and a `c:` link the callback. The walk names them in the order they are written.
+     */
+    fun testALinkToAFunctionThatIsAlsoACallbackNamesTheFunctionFirst() {
+        val file = file(
+            """
+            defmodule Basics do
+              @callback both(integer) :: term
+
+              def both(a), do: a
+            end
+
+            defmodule Linker do
+              @moduledoc "See `Basics.both/1`."
+            end
+            """
+        )
+        val (basics, linker) = modulars(file, "defmodule Basics", "defmodule Linker")
+        val use = read { Use.link(linker, basics, "both", 1) }
+
+        assertEquals(
+            rows(
+                "expander" to "Basics.both/1 OWN VALID via [] line 4\nBasics.both/1 OWN VALID via [] line 2",
+                "walk" to "Basics.both/1 OWN VALID via [] line 2\nBasics.both/1 OWN VALID via [] line 4",
+            ),
+            rows(
+                "expander" to ExpanderSourceRows.candidates(use),
+                "walk" to ExpanderSourceRows.candidates(use, LegacyWalkSource),
+            ),
+        )
+    }
+
+    /** A link names a callback a `use` injects, declared at the `@callback` its macro's `quote` writes. */
+    fun testALinkNamesACallbackAUseInjects() {
+        val file = file(
+            """
+            defmodule Behaviour do
+              defmacro __using__(_) do
+                quote do
+                  @callback injected(integer) :: term
+                end
+              end
+            end
+
+            defmodule Basics do
+              use Behaviour
+            end
+
+            defmodule Linker do
+              @moduledoc "See `c:Basics.injected/1`."
+            end
+            """
+        )
+        val (basics, linker) = modulars(file, "defmodule Basics", "defmodule Linker")
+
+        assertAnswersAsTheWalk(read { Use.link(linker, basics, "injected", 1) }, "Basics.injected/1 USE VALID via [use Behaviour] line 4")
+    }
+
+    /** A call never names a callback: a callback is a contract, not a function a call runs. */
+    fun testACallOfANameOnlyACallbackWritesFindsNothing() {
+        val file = file(
+            """
+            defmodule Basics do
+              @callback foo(integer) :: term
+
+              def run, do: foo(1)
+            end
+            """
+        )
+
+        assertEquals("", candidates(file, "foo(1)", "foo(1)"))
     }
 
     /** The use of the head `f(integer)` written in [file]'s only `@spec`. */

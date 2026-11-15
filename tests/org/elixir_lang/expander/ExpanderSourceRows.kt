@@ -21,6 +21,7 @@ import org.elixir_lang.declaration.SOURCE_PROPERTY
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.declaringModuleName
+import org.elixir_lang.declaration.isContract
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.WalkTestSupport
 import org.junit.Assert.assertEquals
@@ -94,6 +95,10 @@ internal object ExpanderSourceRows {
     /** [source]'s candidates for [use], the expander's by default, in complete code unless [incompleteCode], rendered one per line. */
     fun candidates(use: Use, source: CandidateSource = ExpanderSource, incompleteCode: Boolean = false): String =
         render(read { source.candidates(use, incompleteCode) })
+
+    /** The callbacks [source] finds at [use], one per line as [describe] writes each. */
+    fun callbacks(use: Use, source: CandidateSource, describe: (Found) -> String): String =
+        read { source.candidates(use, false).filter(::isContract).joinToString("\n", transform = describe) }
 
     /** The use that is the call [call], found in the only occurrence of [context], or its last with [last]. */
     fun use(file: PsiFile, context: String, call: String, last: Boolean = false): Use.OfCall =

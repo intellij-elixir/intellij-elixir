@@ -1,5 +1,7 @@
 package org.elixir_lang.documentation
 
+import org.elixir_lang.expander.ExpanderSourceRows.withExpanderSwitch
+
 /** A link to a name at another arity opens that name, not a longer name that begins with it. */
 class OtherArityLinkTest : QuickDocumentationTestCase() {
     fun testALinkToANameAtAnotherArityOpensItNotALongerName() {
@@ -48,7 +50,7 @@ class OtherArityLinkTest : QuickDocumentationTestCase() {
 
     fun testACallbackLinkOpensTheCallbackAtAnotherArityBesideAFunctionAtTheLinkedArityWithTheExpanderOn() {
         expanderOn()
-        assertCallbackBesideAFunction()
+        withExpanderSwitch { assertCallbackBesideAFunction() }
     }
 
     /** A `c:` link names only a callback, so a `def` at the linked arity leaves it opening the callback at another. */
@@ -74,7 +76,14 @@ class OtherArityLinkTest : QuickDocumentationTestCase() {
         assertFalse("Expected no def's doc, got: $opened", "One argument." in opened)
     }
 
-    fun testACallbackLinkToANameAtAnotherArityOpensItNotALongerName() {
+    fun testACallbackLinkToANameAtAnotherArityOpensItNotALongerName() = assertCallbackAtAnotherArity()
+
+    fun testACallbackLinkToANameAtAnotherArityOpensItNotALongerNameWithTheExpanderOn() {
+        expanderOn()
+        withExpanderSwitch { assertCallbackAtAnotherArity() }
+    }
+
+    private fun assertCallbackAtAnotherArity() {
         myFixture.configureByText(
             "docs.ex",
             """

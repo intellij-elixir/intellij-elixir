@@ -49,8 +49,9 @@ internal object LoadedModules {
 
         if (ModuleExports.BEHAVIOUR_INFO in definitions) return ModuleExports.Behaviour.Unreadable
 
-        val functions = result.attributes.callbacks ?: return ModuleExports.Behaviour.Unreadable
-        val macros = result.attributes.macrocallbacks?.toSet() ?: return ModuleExports.Behaviour.Unreadable
+        val functions = result.attributes.callbacks?.map(TypespecHead::nameArity) ?: return ModuleExports.Behaviour.Unreadable
+        val macros = result.attributes.macrocallbacks?.mapTo(HashSet(), TypespecHead::nameArity)
+            ?: return ModuleExports.Behaviour.Unreadable
         val callbacks = functions + macros
 
         if (callbacks.any { definitions[it]?.kind?.public == false }) return ModuleExports.Behaviour.Unreadable

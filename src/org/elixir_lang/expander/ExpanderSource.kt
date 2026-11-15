@@ -144,16 +144,81 @@ internal object ExpanderSource : CandidateSource {
     /**
      * What a link reaches from the module it is read from, its entrance: as a remote call of the module it names; in
      * the module it is written in, as a local call there, with what that imports; each with the index's definitions as
-     * a qualified call gets them ([withIndexed]).
+     * a qualified call gets them ([withIndexed]). Beside them, the module's callbacks of the name, which only a link
+     * names.
      */
     private fun linked(at: At, use: Use.Link): List<Reached> {
         val context = use.context as? Call
         val own = use.entrance == context || use.entrance == context?.let(CallDefinitionClause::enclosingModularMacroCall)
 
         return modules(use.entrance).flatMap { module ->
-            val found = inModule(at, module, use.name, use.arity, imports = own, emptySet(), remote = !own)
+            val located = at.locate(module)
+            val found = inModule(at, module, use.name, use.arity, imports = own, emptySet(), remote = !own, located)
 
-            withIndexed(at, module, found, use.name, use.arity, remote = !own, { at.holder.locate(at.file, module, at.inputs) }, aliased = null)
+            withIndexed(at, module, found, use.name, use.arity, remote = !own, located = located) +
+                callbacks(at, located, module, use.name).map { heldOnly(it, use.name, use.arity, remote = !own) }
+        }
+    }
+
+    /**
+     * The `@callback`s and `@macrocallback`s of [name] in [module], [located], in each copy where it has several
+     * ([eachLocated]).
+     */
+    private fun callbacks(at: At, located: ProjectModules.Located, module: String, name: String): List<Defined> =
+        eachLocated(at, located, module, { source -> callbacks(at, source, name) }) { compiled ->
+            callbacks(at, compiled, module, name)
+        }
+
+    /**
+     * The `@callback`s and `@macrocallback`s of [name] that the source attached to [located] writes for [module], each
+     * declared at its `@callback`, and kept only where the `.beam`'s `behaviour_info(:callbacks)` lists it, so a
+     * module that is no behaviour has none; with no source attached, a [Uncertain.MODULE] gap, as the `.beam`'s aren't
+     * read.
+     */
+    private fun callbacks(at: At, located: ProjectModules.Located.Compiled, module: String, name: String): List<Defined> {
+        val source = located.source ?: return at.gap(Uncertain.MODULE)
+        val indexName = Module.indexName(module)
+        val compiledWith = when (val behaviour = (located.exports as? ModuleExports.Present)?.behaviour) {
+            ModuleExports.Behaviour.None -> emptyList()
+            is ModuleExports.Behaviour.Callbacks -> behaviour.callbacks
+            ModuleExports.Behaviour.Unreadable, null -> null
+        }
+        if (compiledWith?.isEmpty() == true) return emptyList()
+
+        return NameIndex.callbacks(source, indexName).named(name)
+            .filter { head ->
+                compiledWith == null || compiledWith.any { listed ->
+                    // `behaviour_info(:callbacks)` lists a macro callback as its `MACRO-` export.
+                    val macro = ModuleExports.macroOf(listed)
+
+                    declaresEntry(head.declaration, macro ?: listed, macro != null)
+                }
+            }
+            .map { head -> Defined(head.declaration, head.call, head.call, indexName, null) }
+    }
+
+    /** Whether the head [declaration] declares [entry] of a `.beam`'s, a macro's where [macro], by kind, name and arity. */
+    private fun declaresEntry(declaration: Declaration, entry: NameArity, macro: Boolean): Boolean =
+        declaration.capabilities.compileTime == macro && declaration.name == entry.name && declaration.arity.admits(entry.arity)
+
+    /**
+     * The `@callback`s and `@macrocallback`s of [name] in [located]'s bag when its body ends. Each is declared where its
+     * definition would be ([defined]): at the `@callback` written in the module's own body, or for one a macro's output
+     * injected, where the macro writes it, else at the call of the macro.
+     */
+    private fun callbacks(at: At, located: ProjectModules.Located.Source, name: String): List<Defined> {
+        val result = located.result ?: return at.gap(Uncertain.MODULE)
+        val attributes = result.attributes
+        val heads = (attributes.callbacks ?: return at.gap(Uncertain.MODULE)).map { it to Definer.DEF } +
+            (attributes.macrocallbacks ?: return at.gap(Uncertain.MODULE)).map { it to Definer.DEFMACRO }
+
+        return heads.filter { (head, _) -> head.nameArity.name == name }.mapNotNull { (head, definer) ->
+            val placement = placement(located.file, head.at, head.injected) ?: return@mapNotNull null
+            val call = placement.call
+            val declared = Declared.Source(Form.CALLBACK, CallDefinitionClause.sourceOrigin(call))
+            val declaration = Declaration(name, ArityKnowledge.Exact(head.nameArity.arity), definer.capabilities, declared)
+
+            placement.defined(declaration, call.takeIf { placement.form == Form.CALLBACK }, Module.indexName(result.module))
         }
     }
 
@@ -237,10 +302,11 @@ internal object ExpanderSource : CandidateSource {
      */
     private fun qualified(at: At, qualifier: PsiElement, name: String?, arity: Int?): List<Reached> {
         val module = receiver(at, qualifier) ?: return at.gap(Uncertain.MODULE)
-        val found = inModule(at, module, name, arity, imports = false, emptySet())
+        val located = at.locate(module)
+        val found = inModule(at, module, name, arity, imports = false, emptySet(), located = located)
         val aliased = if (at.uncertain == null) null else aliasNames(qualifier)
 
-        return withIndexed(at, module, found, name, arity, remote = true, aliased = aliased)
+        return withIndexed(at, module, found, name, arity, remote = true, located = located, aliased = aliased)
     }
 
     /**
@@ -255,13 +321,13 @@ internal object ExpanderSource : CandidateSource {
         name: String?,
         arity: Int?,
         remote: Boolean,
-        located: () -> ProjectModules.Located = { at.locate(module) },
+        located: ProjectModules.Located? = null,
         aliased: ((String) -> Boolean)? = null,
     ): List<Reached> {
         if (name == null || found.any { it.defined.declaration.name == name && it.defined.admits(arity) }) return found
         // At a call this lookup is the use's first, so a MODULE gap is one it met; a link through several modules may
         // have met it at an earlier one, which only adds finds marked uncertain.
-        val unknown = Uncertain.MODULE in at.gaps || (at.uncertain != null && located() == ProjectModules.Located.None)
+        val unknown = Uncertain.MODULE in at.gaps || (at.uncertain != null && (located ?: at.locate(module)) == ProjectModules.Located.None)
         val key = Module.indexName(module).takeIf { unknown }
         if (key == null && aliased == null) return found
 
@@ -648,10 +714,10 @@ internal object ExpanderSource : CandidateSource {
         imports: Boolean,
         crossed: Set<Head>,
         remote: Boolean = true,
+        located: ProjectModules.Located = at.locate(module),
     ): List<Reached> {
         ProgressManager.checkCanceled()
 
-        val located = at.holder.locate(at.file, module, at.inputs)
         val own = definedIn(at, located, module, name).flatMap { held(at, it, name, arity, remote, crossed) }
         val source = located as? ProjectModules.Located.Source ?: return own
         val result = source.result?.takeIf { imports } ?: return own
@@ -745,30 +811,42 @@ internal object ExpanderSource : CandidateSource {
 
     /** [module]'s declarations of [name], or of every name when it is `null`, from its copy that [at]'s file loads. */
     private fun ofModule(at: At, module: String, name: String?): List<Defined> =
-        definedIn(at, at.holder.locate(at.file, module, at.inputs), module, name)
+        definedIn(at, at.locate(module), module, name)
 
     /** [module]'s declarations of [name], or of every name when it is `null`, in [located], with the gap it meets. */
     private fun definedIn(at: At, located: ProjectModules.Located, module: String, name: String?): List<Defined> =
+        eachLocated(
+            at,
+            located,
+            module,
+            { source -> known(at, source.result)?.let { defined(source.file, it, name, at.inputs) }.orEmpty() },
+        ) { compiled -> compiled(at, compiled, name) }
+
+    /**
+     * What [source] reads of [located] where it is in source, and [compiled] where it is a `.beam`; where it has several
+     * copies, what each copy gives, each [Uncertain.SEVERAL], as which copy loads is unknown. Copies that answer from
+     * one source give it once.
+     */
+    private fun eachLocated(
+        at: At,
+        located: ProjectModules.Located,
+        module: String,
+        source: (ProjectModules.Located.Source) -> List<Defined>,
+        compiled: (ProjectModules.Located.Compiled) -> List<Defined>,
+    ): List<Defined> =
         when (located) {
             ProjectModules.Located.Unknown -> at.gap(Uncertain.NO_EXPANSION)
             ProjectModules.Located.None -> emptyList()
-            is ProjectModules.Located.Several -> everyCopy(at, located, module, name)
-            is ProjectModules.Located.Source -> known(at, located.result)?.let { defined(located.file, it, name, at.inputs) }.orEmpty()
-            is ProjectModules.Located.Compiled -> compiled(at, located, name)
+            is ProjectModules.Located.Several -> {
+                at.gap(Uncertain.SEVERAL)
+                at.holder.locateEach(at.file, located, module, at.inputs)
+                    .flatMap { copy -> eachLocated(at, copy, module, source, compiled) }
+                    .distinctBy { it.declaredAt }
+                    .map { it.marked(Uncertain.SEVERAL) }
+            }
+            is ProjectModules.Located.Source -> source(located)
+            is ProjectModules.Located.Compiled -> compiled(located)
         }
-
-    /**
-     * Each of [several]'s copies' declarations of [name], each [Uncertain.SEVERAL], as which copy loads is unknown.
-     * Copies that answer from one source give it once.
-     */
-    private fun everyCopy(at: At, several: ProjectModules.Located.Several, module: String, name: String?): List<Defined> {
-        at.gap(Uncertain.SEVERAL)
-
-        return at.holder.locateEach(at.file, several, module, at.inputs)
-            .flatMap { copy -> definedIn(at, copy, module, name) }
-            .distinctBy { it.declaredAt }
-            .map { it.marked(Uncertain.SEVERAL) }
-    }
 
     /**
      * The name index's definitions of [name] admitting [arity] in [file]'s scope, in each module [wanted] takes, each
@@ -906,35 +984,56 @@ internal object ExpanderSource : CandidateSource {
             entry.heads.mapNotNull { head ->
                 ProgressManager.checkCanceled()
 
-                val injected = head.injected
-                val injectedBy = injected?.call?.let { injectingCall(file, it) }
-                val call = injectedBy?.takeIf { callsItsFormsMacro(it, injected.call, inputs) }
-                    ?: injected?.place?.let { placed(file, it) }
-                    ?: declaringCall(file, head.at.meta.origin)
+                val placement = placement(file, head.at, head.injected) { call, node -> callsItsFormsMacro(call, node, inputs) }
                     ?: return@mapNotNull null
+                val call = placement.call
                 val stored = definer(entry.kind).capabilities
                 // `super` saves an overridden public definition as a private one, with the head it was written with, so
                 // the table gives the visibility and the written head the rest. A head placed at its macro's clause
                 // has only the table's.
                 val definer = CallDefinitionClause.definer(call)?.takeIf { declares(call, nameArity.name) }
                 val capabilities = (definer?.capabilities ?: stored).copy(visibility = stored.visibility)
-                val form = DeclaringForm.shapedForm(call) ?: Form.CLAUSE
+                val form = placement.form ?: Form.CLAUSE
                 val declared = Declared.Source(form, CallDefinitionClause.sourceOrigin(call))
                 // A head placed at its macro's clause, or at the call that injected it, is written by neither.
                 val written = call.takeIf { form != Form.CLAUSE || definer != null }
                     ?.let { DeclaringForm.head(it, form, nameArity.name, arity) }
 
-                Defined(
-                    Declaration(nameArity.name, arity, capabilities, declared),
-                    call,
-                    written,
-                    Module.indexName(result.module),
-                    injectedBy,
-                    head.delegation,
-                    injected = head.injected != null,
-                )
+                placement.defined(Declaration(nameArity.name, arity, capabilities, declared), written, Module.indexName(result.module), head.delegation)
             }
         }
+
+    /**
+     * Where a head is declared, [call], and the [form] its shape writes there, if any; whether a macro's output
+     * [injected] it, and the call whose output did.
+     */
+    private class Placement(val call: Call, val injected: Boolean, val injectedBy: Call?) {
+        val form: Form? = DeclaringForm.shapedForm(call)
+
+        /** [declaration] declared here, written by [written], as a definition of [module] with the [delegation] its head makes. */
+        fun defined(declaration: Declaration, written: PsiElement?, module: String, delegation: DefinitionTable.Delegation? = null): Defined =
+            Defined(declaration, call, written, module, injectedBy, delegation, injected = injected)
+    }
+
+    /**
+     * Where the expansion's [head] is declared in [file]: for one [injected] by a macro's output, at the macro's call
+     * where [atItsCall] takes it, else where the macro writes it; else at the declaring call at its origin. A head
+     * written in the module's own body places itself.
+     */
+    private fun placement(
+        file: ElixirFile,
+        head: ElixirAst,
+        injected: DefinitionTable.Injected?,
+        atItsCall: (Call, ElixirAst.Call) -> Boolean = { _, _ -> false },
+    ): Placement? {
+        val injectedBy = injected?.call?.let { injectingCall(file, it) }
+        val call = injected?.let { macro -> injectedBy?.takeIf { atItsCall(it, macro.call) } }
+            ?: injected?.place?.let { placed(file, it) }
+            ?: declaringCall(file, head.meta.origin)
+            ?: return null
+
+        return Placement(call, injected != null, injectedBy)
+    }
 
     /**
      * [located]'s exports of [name], or of every name when it is `null`: each declared by the heads its attached source
@@ -974,9 +1073,7 @@ internal object ExpanderSource : CandidateSource {
             val macro = nameArity in exports.macros
             // Only a public head of the export's kind can write it.
             val written = heads?.named(nameArity.name).orEmpty().filter { head ->
-                val capabilities = head.declaration.capabilities
-
-                capabilities.public && capabilities.compileTime == macro && head.declaration.arity.admits(nameArity.arity)
+                head.declaration.capabilities.public && declaresEntry(head.declaration, nameArity, macro)
             }
 
             if (written.isEmpty()) {

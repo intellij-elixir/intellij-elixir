@@ -24,9 +24,12 @@ import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.parameterInfoSignaturesAtCaret
 import org.elixir_lang.declaration.*
+import org.elixir_lang.documentation.MarkdownFlavourDescriptor
 import org.elixir_lang.documentation.quickDocumentationAtCaret
 import org.elixir_lang.elixir_surface.LegManifest
+import org.elixir_lang.expander.ExpanderSourceRows.callbacks
 import org.elixir_lang.expander.ExpanderSourceRows.candidates
+import org.elixir_lang.expander.ExpanderSourceRows.modulars
 import org.elixir_lang.expander.ExpanderSourceRows.read
 import org.elixir_lang.expander.ExpanderSourceRows.rows
 import org.elixir_lang.expander.ExpanderSourceRows.withExpanderSwitch
@@ -489,6 +492,49 @@ class SourceOfCompiledHeavyTest : LegSdkFixtureTestCase() {
                 "x0" in assign,
             ),
         )
+    }
+
+    /** A `c:` link to a callback of a module the SDK holds as a `.beam` names the `@callback` its attached source writes. */
+    fun testALinkToACallbackOfACompiledModuleNamesTheCallbackItsSourceWrites() {
+        val file = caller("defmodule Caller do\n  @moduledoc \"See `c:GenServer.init/1`.\"\nend\n")
+        val line = sdkHeads("lib/gen_server.ex", "@callback init(").first()
+
+        assertEquals(
+            rows("expander" to "init elixir/lib/gen_server.ex:$line null", "walk" to "init elixir/lib/gen_server.ex:$line null"),
+            rows(
+                "expander" to linkedCallbacks(file, "GenServer", "init", ExpanderSource),
+                "walk" to linkedCallbacks(file, "GenServer", "init", LegacyWalkSource),
+            ),
+        )
+    }
+
+    /**
+     * A `.beam` holds the callbacks its module was compiled with, so a `@callback` only its attached source writes, as
+     * in a source edited since, is none: in a behaviour, one it doesn't list; in a module that is no behaviour, any.
+     */
+    fun testALinkToACallbackOnlyTheAttachedSourceOfACompiledModuleWritesFindsNothing() {
+        dependency()
+        for ((source, module) in listOf("protocol.ex" to "defprotocol SourceOfCompiled.Protocol do", "unexported.ex" to "defmodule SourceOfCompiled.Unexported do")) {
+            val written = read { PsiManager.getInstance(project).findFile(dir("deps/d/lib/$source"))!! }
+            edit(project, written, read { written.text }.replace(module, "$module\n  @callback extra(term) :: term"))
+        }
+        val file = caller("defmodule Caller do\n  @moduledoc \"See `c:SourceOfCompiled.Protocol.extra/1` and `c:SourceOfCompiled.Unexported.extra/1`.\"\nend\n")
+
+        assertEquals(
+            rows("behaviour" to "", "no behaviour" to ""),
+            rows(
+                "behaviour" to linkedCallbacks(file, "SourceOfCompiled.Protocol", "extra"),
+                "no behaviour" to linkedCallbacks(file, "SourceOfCompiled.Unexported", "extra"),
+            ),
+        )
+    }
+
+    /** The callbacks [source] finds at the `c:` link to [module]'s [name]`/1` in `Caller`'s docs in [file], one `name place uncertain` each. */
+    private fun linkedCallbacks(file: PsiFile, module: String, name: String, source: CandidateSource = ExpanderSource): String {
+        val linker = modulars(file, "defmodule Caller").single()
+        val use = read { Use.link(linker, MarkdownFlavourDescriptor.modulars(linker, module).single(), name, 1) }
+
+        return callbacks(use, source) { found -> "${found.candidate.declaration.name} ${place(found.element)} ${found.uncertain}" }
     }
 
     fun testParameterInfoNamesTheHeadsParameters() {

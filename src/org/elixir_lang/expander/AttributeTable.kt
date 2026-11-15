@@ -13,6 +13,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.BEHAVIOUR_VALUE_CHEC
 import org.elixir_lang.language_level.ElixirLanguageFeature.DIALYZER_ATTRIBUTE_CHECKED
 import org.elixir_lang.language_level.ElixirLanguageFeature.NIFS_ATTRIBUTE_CHECKED
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.model.psi.module_attribute.TYPESPECS
 import org.elixir_lang.model.psi.module_attribute.accumulating
 import org.elixir_lang.psi.Import.Term
@@ -98,6 +99,14 @@ internal sealed interface Effect {
     data class OtherModule(val module: String?, val effect: Effect) : Effect
 }
 
+/**
+ * A typespec write's name and arity, and where it is written, as [DefinitionTable.Head] has a definition's.
+ *
+ * @property at the `@` that built the write, or the `Kernel.Typespec` call
+ * @property injected how a macro's output injected it, when one did
+ */
+internal class TypespecHead(val nameArity: NameArity, val at: ElixirAst, val injected: DefinitionTable.Injected?)
+
 internal sealed interface EffectOutcome {
     data object Stored : EffectOutcome
 
@@ -135,8 +144,8 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
     private val changed = mutableSetOf<String>()
     private var everyChanged = false
 
-    /** Each typespec write's name and arity still in its attribute's bag, oldest first, `null` where it isn't known. */
-    private val heads = mutableMapOf<String, List<NameArity?>>()
+    /** Each typespec write's head still in its attribute's bag, oldest first, `null` where it isn't known. */
+    private val heads = mutableMapOf<String, MutableList<TypespecHead?>>()
 
     /** The kind, name and arity of each callback whose `@doc` its first write took, `null` where they aren't known. */
     private var documented: MutableSet<Pair<String, NameArity>>? = mutableSetOf()
@@ -150,10 +159,16 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
     }
 
     /**
-     * Applies [effect] at its place in the module body. An effect that isn't a [statement] may run any number of
-     * times or not at all, so every later read of what it touches is unknown.
+     * Applies [effect] at its place in the module body, [at], which a macro's output [injected] when one did. An effect
+     * that isn't a [statement] may run any number of times or not at all, so every later read of what it touches is
+     * unknown. A typespec write's head is known only [at] a node.
      */
-    fun apply(effect: Effect, statement: Boolean = true): EffectOutcome {
+    fun apply(
+        effect: Effect,
+        statement: Boolean = true,
+        at: ElixirAst? = null,
+        injected: DefinitionTable.Injected? = null,
+    ): EffectOutcome {
         if (!statement) return applyElsewhere(effect)
 
         return when (effect) {
@@ -162,7 +177,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
             is Effect.Delete -> EffectOutcome.Stored.also { delete(effect.name) }
             is Effect.TypespecWrite -> EffectOutcome.Stored.also {
                 store(effect.name, AttributeValue.Unknown)
-                heads[effect.name] = heads[effect.name].orEmpty() + effect.head
+                heads.getOrPut(effect.name, ::mutableListOf) += effect.head?.let { head -> at?.let { TypespecHead(head, it, injected) } }
                 takeDoc(effect)
             }
             // Whether Elixir refuses a write whose attribute isn't known isn't known either.
@@ -335,10 +350,10 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
     }
 
     /**
-     * The name and arity of each typespec write of [name] in its bag at this point, oldest first, or `null` where one
-     * of them, or whether a write ran, isn't known.
+     * The head of each typespec write of [name] in its bag at this point, oldest first, or `null` where one of them, or
+     * whether a write ran, isn't known.
      */
-    fun heads(name: String): List<NameArity>? {
+    fun heads(name: String): List<TypespecHead>? {
         if (isUnknown(name)) return null
 
         return heads[name].orEmpty().map { it ?: return null }
