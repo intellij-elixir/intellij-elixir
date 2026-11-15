@@ -479,7 +479,7 @@ internal class ProjectModules(private val project: Project) {
         return answer
     }
 
-    /** The Elixir [file] a module's clauses are read from: a source file, or a `.beam`'s decompiled mirror. */
+    /** The Elixir [file]: a source file, or a `.beam`'s decompiled mirror. */
     @RequiresBackgroundThread(generateAssertion = false)
     @RequiresReadLock
     fun read(file: VirtualFile): ElixirFile? {
@@ -499,8 +499,7 @@ internal class ProjectModules(private val project: Project) {
         } catch (_: IOException) {
             return null
         }
-        val mirror = read(beam) ?: return null
-        val clauses = CompiledModule.of(bytes, beam.path, mirror, level, deprecations)?.let { ModuleClauses.of(it, beam, stamp) }
+        val clauses = CompiledModule.of(bytes, beam.path, level, deprecations)?.let { ModuleClauses.of(it, beam, stamp) }
         clauseCache[beam] = Clauses.Compiled(stamp, level, clauses)
 
         return clauses

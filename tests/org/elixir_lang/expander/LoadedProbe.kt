@@ -7,6 +7,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiManager
@@ -26,15 +27,15 @@ internal val appBeams: Map<String, File> by lazy {
 internal fun beamsIn(ebin: File): List<File> = ebin.listFiles { file -> file.extension == "beam" }.orEmpty().toList()
 
 /**
- * The leg's modules' clauses, read from their [appBeams] `.beam`s in [project] as `ProjectModules` reads an SDK's, each
- * once. The `.beam`s' roots are readable until [disposable] is disposed.
+ * The leg's modules' clauses, read from their [appBeams] `.beam`s as `ProjectModules` reads an SDK's, each once.
+ * The `.beam`s' roots are readable until [disposable] is disposed.
  */
-internal fun sdkClauses(project: Project, disposable: Disposable): ModuleClauses.Lookup {
+internal fun sdkClauses(disposable: Disposable): ModuleClauses.Lookup {
     allowAppBeamRoots(disposable)
 
     val read = HashMap<String, ModuleClauses?>()
 
-    return ModuleClauses.Lookup { module -> read.getOrPut(module) { appBeams[module]?.let { clausesOf(project, it) } } }
+    return ModuleClauses.Lookup { module -> read.getOrPut(module) { appBeams[module]?.let(::clausesOf) } }
 }
 
 /** The roots of the [appBeams] `.beam`s, readable until [disposable] is disposed. */
@@ -53,18 +54,26 @@ internal fun mirrorOf(project: Project, beam: File): ElixirFile? {
     }
 }
 
-/** The clauses of [beam], read through its decompiled file in [project]; `null` where it has no export chunk. */
-internal fun clausesOf(project: Project, beam: File): ModuleClauses? =
-    ReadAction.computeBlocking<ModuleClauses?, Throwable> {
-        val file = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(beam)!!
-        val mirror = mirrorOf(project, beam)!!
-        val bytes = beam.readBytes()
-        val deprecations = (LoadedModules.exports(bytes, beam.path) as? ModuleExports.Present)?.deprecated
+/** The module [beam], read as `ProjectModules` reads a `.beam`; `null` where it has no export chunk or no debug info. */
+internal fun compiledOf(beam: File): CompiledModule? {
+    val bytes = beam.readBytes()
+    val deprecations = (LoadedModules.exports(bytes, beam.path) as? ModuleExports.Present)?.deprecated ?: return null
 
-        deprecations
-            ?.let { CompiledModule.of(bytes, beam.path, mirror, legLevel(), it) }
-            ?.let { ModuleClauses.of(it, file, file.modificationStamp) }
-    }
+    return CompiledModule.of(bytes, beam.path, legLevel(), deprecations)
+}
+
+/** The clauses of [beam]; `null` where [compiledOf] answers null. */
+internal fun clausesOf(beam: File): ModuleClauses? = compiledOf(beam)?.let { clausesOf(it, beam) }
+
+/** [compiled]'s clauses, read from [beam] at its current stamp. */
+internal fun clausesOf(compiled: CompiledModule, beam: File): ModuleClauses {
+    val file = virtualFileOf(beam)
+
+    return ModuleClauses.of(compiled, file, file.modificationStamp)
+}
+
+/** [beam] in the local file system. */
+internal fun virtualFileOf(beam: File): VirtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(beam)!!
 
 /**
  * What [answer], an expression of the loaded module `m`, gives for each of [modules] on the leg's node, [BATCH_SIZE]

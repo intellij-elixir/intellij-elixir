@@ -16,8 +16,7 @@ import java.util.IdentityHashMap
  * @property quotes the escaped block of each `quote` a source clause holds, built when its definition expanded
  * @property dispatches what each call and bitstring segment of a source clause expanded as, recorded when its
  *   definition expanded
- * @property file the file the clauses' origins are in, as [ProjectModules] holds it: the source file, or the `.beam`
- *   whose decompiled mirror a [Source.DBGI] clause's origin is in
+ * @property file the file the clauses are read from, as [ProjectModules] holds it: the source file, or the `.beam`
  */
 internal class ModuleClauses(
     val module: String,
@@ -258,15 +257,14 @@ internal class ModuleClauses(
                 file,
             )
 
-        /** [compiled]'s clauses, read from [beam] at [stamp]; `null` where its `.beam` holds none. */
-        fun of(compiled: CompiledModule, beam: VirtualFile, stamp: Long): ModuleClauses? {
-            val read = compiled.bodies as? CompiledModule.Bodies.Read ?: return null
+        /** [compiled]'s clauses, read from [beam] at [stamp]. */
+        fun of(compiled: CompiledModule, beam: VirtualFile, stamp: Long): ModuleClauses {
             val kinds = compiled.table.kinds
 
             return ModuleClauses(
                 compiled.module,
-                read.clauses.entries.associate { (key, clauses) ->
-                    val nameArity = NameArity(key.name, key.arity)
+                compiled.clauses.entries.associate { (key, clauses) ->
+                    val nameArity = key.toNameArity()
 
                     nameArity to Definition(
                         kinds.getValue(nameArity),
