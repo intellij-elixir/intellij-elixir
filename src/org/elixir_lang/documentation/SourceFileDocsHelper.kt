@@ -223,7 +223,7 @@ object SourceFileDocsHelper {
             )
         }
 
-        return entries.sortedBy { it.arities.minimum }.takeIf(List<*>::isNotEmpty)?.let { FetchedDocs.Arities(module, it) }
+        return entries.takeIf(List<*>::isNotEmpty)?.let { FetchedDocs.Arities(module, it) }
     }
 
     /** The functions [declaredDocs] lists for [declaring], ascending by arity, each the declarations that are one function, which a delegation's block shows. */
