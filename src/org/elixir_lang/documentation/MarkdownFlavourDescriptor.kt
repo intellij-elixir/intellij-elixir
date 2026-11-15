@@ -4,6 +4,7 @@ import com.intellij.codeInsight.documentation.DocumentationManagerProtocol
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.PsiElement
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Module
 import org.elixir_lang.psi.ElementFactory
 import org.elixir_lang.psi.ElixirAtom
@@ -91,8 +92,10 @@ class MarkdownFlavourDescriptor(
             }
 
     /** Whether [span] names something the project has; a function of no module is the document's own, and not looked up. */
+    @RequiresReadLock
     private fun linkable(span: SpanLink): Boolean = linkables.getOrPut(span.link) { looksUp(span) }
 
+    @RequiresReadLock
     private fun looksUp(span: SpanLink): Boolean {
         val parsed = DocumentationLink.parse(span.link)
 

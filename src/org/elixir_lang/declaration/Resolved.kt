@@ -95,18 +95,18 @@ object Resolved {
 
     /**
      * [projection] as `multiResolve` gives it: a result per element, valid when one of its candidates is admitted and
-     * no contract, and [Opaque] when each such candidate is `OPAQUE`.
+     * no contract, unless [contracts] counts them, and [Opaque] when each such candidate is `OPAQUE`.
      */
     @RequiresReadLock
-    fun results(projection: List<Found>): List<ResolveResult> =
+    fun results(projection: List<Found>, contracts: Boolean = false): List<ResolveResult> =
         projection
             .groupBy { it.element }
             .map { (element, found) ->
-                result(element, found.filter { it.candidate.applicability.admitted && !isContract(it) })
+                result(element, found.filter { it.candidate.applicability.admitted && (contracts || !isContract(it)) })
             }
 
     /** [element]'s result from its [admitted] candidates: valid when one is `VALID`, [Opaque] when each is `OPAQUE`. */
-    internal fun result(element: PsiElement, admitted: List<Found>): ResolveResult =
+    private fun result(element: PsiElement, admitted: List<Found>): ResolveResult =
         when {
             admitted.any { it.candidate.applicability == Applicability.VALID } -> PsiElementResolveResult(element, true)
             admitted.isNotEmpty() -> Opaque(element)

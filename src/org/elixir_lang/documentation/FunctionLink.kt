@@ -4,7 +4,6 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveResult
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.declaration.Feature
-import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Preferred
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.Use
@@ -41,15 +40,16 @@ internal object FunctionLink {
                 .orEmpty()
         }
 
-    /** The definitions the link names, valid when a call of the name would resolve to them; a [callback] link's, only callbacks. */
+    /**
+     * The definitions the link names, valid when a call of the name would resolve to them; a [callback] link's, only
+     * callbacks. A callback counts, as a link names one.
+     */
+    @RequiresReadLock
     fun results(context: PsiElement, module: String?, name: String, arity: Int, callback: Boolean = false): List<ResolveResult> =
-        results(Resolved.projection(step(context, module, name, arity, callback), Feature.DOCUMENTATION))
-
-    /** A result for each element [found] names, by its admitted candidates: a callback counts, as a link names one. */
-    private fun results(found: List<Found>): List<ResolveResult> =
-        found.groupBy { it.element }.map { (element, found) -> Resolved.result(element, found.filter { it.candidate.applicability.admitted }) }
+        Resolved.results(Resolved.projection(step(context, module, name, arity, callback), Feature.DOCUMENTATION), contracts = true)
 
     /** Whether the link names a definition; a [callback] link names only a callback. */
+    @RequiresReadLock
     fun exists(context: PsiElement, module: String?, name: String, arity: Int, callback: Boolean): Boolean =
         results(context, module, name, arity, callback).any(ResolveResult::isValidResult)
 
@@ -62,7 +62,7 @@ internal object FunctionLink {
     fun opened(context: PsiElement, module: String?, name: String, arity: Int, callback: Boolean): Documented.Choice? {
         val step = step(context, module, name, arity, callback)
         val projection = Resolved.projection(step, Feature.DOCUMENTATION)
-        val results = results(projection)
+        val results = Resolved.results(projection, contracts = true)
 
         if (results.none(ResolveResult::isValidResult)) {
             return projection.firstOrNull()?.let { Documented.choice(step, it.element, use = null) }
@@ -71,7 +71,7 @@ internal object FunctionLink {
         val target = Resolved.target(results) ?: return null
         val preferred = step.firstOrNull { it.found.element == target }
         val delegatedTo = preferred?.admittedDelegatedTo.orEmpty()
-        val one = Resolved.target(results(delegatedTo))
+        val one = Resolved.target(Resolved.results(delegatedTo, contracts = true))
         val throughOne = delegatedTo.filter { found -> found.element == one || one in found.via }
         val element = preferred?.let { Documented.documented(listOf(it.found) + throughOne) } ?: target
 
