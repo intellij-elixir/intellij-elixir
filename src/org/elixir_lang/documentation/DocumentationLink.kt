@@ -114,10 +114,10 @@ internal object DocumentationLink {
             val module = parsed.module
             val arity = parsed.arity ?: return null
 
-            when (val kind = parsed.kind) {
-                null, "c" -> opened(parsed, context)?.element
+            when {
+                parsed.callback != null -> opened(parsed, context)?.element
 
-                "t" -> {
+                parsed.kind == "t" -> {
                     val relative = atomName(parsed.name, context)
 
                     val resolveResults = if (module != null) {
@@ -141,7 +141,7 @@ internal object DocumentationLink {
                 }
 
                 else -> {
-                    LOG.warn("Don't know how to find element for link ($link) of kind ($kind) for ${context.javaClass.name}")
+                    LOG.warn("Don't know how to find element for link ($link) of kind (${parsed.kind}) for ${context.javaClass.name}")
 
                     null
                 }

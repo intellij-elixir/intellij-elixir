@@ -43,7 +43,7 @@ class FunctionLinkSnapshotTest : SnapshotTestCase() {
 
             links.map { link ->
                 val parsed = DocumentationLink.parse(link)!!
-                val callback = parsed.kind == "c"
+                val callback = parsed.callback!!
                 val arity = parsed.arity!!
                 val results = FunctionLink.results(context, parsed.module, parsed.name, arity)
                 val exists = FunctionLink.exists(context, parsed.module, parsed.name, arity, callback)

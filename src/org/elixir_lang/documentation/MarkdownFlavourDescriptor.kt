@@ -102,17 +102,12 @@ class MarkdownFlavourDescriptor(
         return if (parsed != null) {
             val module = parsed.module
             val arity = parsed.arity
+            val callback = parsed.callback
 
             when {
                 arity == null -> false
                 module == null -> true
-                parsed.kind == null || parsed.kind == "c" -> FunctionLink.exists(
-                    element,
-                    module,
-                    parsed.name,
-                    arity,
-                    callback = parsed.kind == "c"
-                )
+                callback != null -> FunctionLink.exists(element, module, parsed.name, arity, callback)
                 else -> modulars(element, module).isNotEmpty()
             }
         } else {
