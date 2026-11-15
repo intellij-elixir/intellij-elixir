@@ -739,18 +739,6 @@ private class SameTerm(private val held: Boolean, root: OtpErlangObject? = null)
     }
 }
 
-private fun holdsFloat(term: OtpErlangObject): Boolean {
-    ProgressManager.checkCanceled()
-
-    return when (term) {
-        is OtpErlangDouble -> true
-        is OtpErlangTuple -> term.elements().any(::holdsFloat)
-        is OtpErlangList -> term.elements().any(::holdsFloat) || term.lastTail?.let(::holdsFloat) == true
-        is OtpErlangMap -> term.keys().any(::holdsFloat) || term.values().any(::holdsFloat)
-        else -> false
-    }
-}
-
 internal fun entries(map: OtpErlangMap): List<Pair<OtpErlangObject, OtpErlangObject>> = map.keys().zip(map.values())
 
 /** [term], which must hold nothing unknown ([isUnknown]), as a map key or a compared term must. */
@@ -762,6 +750,8 @@ internal fun holdsUnknown(term: OtpErlangObject): Boolean = holds(term, ::isUnkn
 
 /** Whether [term] is or holds a [Closure]. */
 internal fun holdsClosure(term: OtpErlangObject): Boolean = holds(term) { it is Closure }
+
+private fun holdsFloat(term: OtpErlangObject): Boolean = holds(term) { it is OtpErlangDouble }
 
 /** Whether [term] or a part of it [matches], each of its shared parts read once. */
 private fun holds(term: OtpErlangObject, matches: (OtpErlangObject) -> Boolean): Boolean {
