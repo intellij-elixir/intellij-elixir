@@ -15,6 +15,7 @@ import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
+import org.elixir_lang.expander.interpreter.Pairs
 import org.elixir_lang.expander.interpreter.bitSize
 import org.elixir_lang.language_level.ElixirLanguageFeature.NEGATIVE_ZERO_IS_DISTINCT
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -95,7 +96,7 @@ private val SIGNED_TERM_ORDER = order(Numbers(exact = false, signed = true))
 private val SIGNED_MAP_KEY_ORDER = order(Numbers(exact = true, signed = true))
 
 private fun order(numbers: Numbers): Comparator<OtpErlangObject> =
-    Comparator { left, right -> compareTerms(left, right, numbers) }
+    Comparator { left, right -> Comparison(numbers, root = left).compare(left, right) }
 
 /**
  * How two numbers compare: [exact] puts every integer before every float, as `=:=` does, else they compare by value.
@@ -137,31 +138,83 @@ private fun holdsDistinctIdentities(left: OtpErlangObject, right: OtpErlangObjec
 
 internal class UnorderedTerms : IllegalArgumentException("no known order between two terms")
 
-private fun compareTerms(left: OtpErlangObject, right: OtpErlangObject, numbers: Numbers): Int {
-    ProgressManager.checkCanceled()
+/** One comparison of two terms under [numbers], each pair of their containers compared once. */
+private class Comparison(private val numbers: Numbers, root: OtpErlangObject? = null) {
+    private val compared = Pairs<Int>(root)
 
-    val leftRank = rank(left) ?: throw UnorderedTerms()
-    val ranks = leftRank.compareTo(rank(right) ?: throw UnorderedTerms())
-    if (ranks != 0) return ranks
+    private var keyComparison: Comparison? = null
 
-    return when (left) {
-        is OtpErlangLong, is OtpErlangDouble -> compareNumbers(left, right, numbers)
-        is OtpErlangAtom -> ATOM_ORDER.compare(left.atomValue(), (right as OtpErlangAtom).atomValue())
-        is OtpErlangExternalFun if right is OtpErlangExternalFun ->
-            compareValuesBy(left, right, ATOM_ORDER) { it.module }.takeIf { it != 0 }
-                ?: compareValuesBy(left, right, ATOM_ORDER) { it.function }.takeIf { it != 0 }
-                ?: left.arity.compareTo(right.arity)
-        is OtpErlangTuple -> {
-            val other = right as OtpErlangTuple
+    /** Compares a map's keys, under [Numbers.keys]. */
+    private val keys: Comparison
+        get() = keyComparison
+            ?: numbers.keys.let { if (it == numbers) this else Comparison(it) }.also { keyComparison = it }
 
-            left.arity().compareTo(other.arity()).takeIf { it != 0 }
-                ?: compareElements(left.elements().asList(), other.elements().asList(), numbers)
-        }
-        is OtpErlangMap -> compareMaps(left, right as OtpErlangMap, numbers)
-        is OtpErlangList, is OtpErlangString -> compareLists(left, right, numbers)
-        is OtpErlangBitstr -> compareBits(left, right as OtpErlangBitstr)
-        else -> if (left == right) 0 else throw UnorderedTerms()
+    fun compare(left: OtpErlangObject, right: OtpErlangObject): Int {
+        ProgressManager.checkCanceled()
+
+        val leftRank = rank(left) ?: throw UnorderedTerms()
+        val ranks = leftRank.compareTo(rank(right) ?: throw UnorderedTerms())
+        if (ranks != 0) return ranks
+
+        compared[left, right]?.let { return it }
+
+        return when (left) {
+            is OtpErlangLong, is OtpErlangDouble -> compareNumbers(left, right, numbers)
+            is OtpErlangAtom -> ATOM_ORDER.compare(left.atomValue(), (right as OtpErlangAtom).atomValue())
+            is OtpErlangExternalFun if right is OtpErlangExternalFun ->
+                compareValuesBy(left, right, ATOM_ORDER) { it.module }.takeIf { it != 0 }
+                    ?: compareValuesBy(left, right, ATOM_ORDER) { it.function }.takeIf { it != 0 }
+                    ?: left.arity.compareTo(right.arity)
+            is OtpErlangTuple -> {
+                val other = right as OtpErlangTuple
+
+                left.arity().compareTo(other.arity()).takeIf { it != 0 }
+                    ?: compareElements(left.elements().asList(), other.elements().asList())
+            }
+            is OtpErlangMap -> compareMaps(left, right as OtpErlangMap)
+            is OtpErlangList, is OtpErlangString -> compareLists(left, right)
+            is OtpErlangBitstr -> compareBits(left, right as OtpErlangBitstr)
+            else -> if (left == right) 0 else throw UnorderedTerms()
+        }.also { compared[left, right] = it }
     }
+
+    /** By size, then the keys in their order, then the values in the keys' order. */
+    private fun compareMaps(left: OtpErlangMap, right: OtpErlangMap): Int {
+        left.arity().compareTo(right.arity()).takeIf { it != 0 }?.let { return it }
+
+        val keyOrder = Comparator(keys::compare)
+        // By entry, as a key's lookup compares it again.
+        val leftEntries = left.entrySet().sortedWith(compareBy(keyOrder) { it.key })
+        val rightEntries = right.entrySet().sortedWith(compareBy(keyOrder) { it.key })
+
+        return keys.compareElements(leftEntries.map { it.key }, rightEntries.map { it.key }).takeIf { it != 0 }
+            ?: compareElements(leftEntries.map { it.value }, rightEntries.map { it.value })
+    }
+
+    /** Cell by cell: the heads, then the tails, so an improper tail compares as the term it is. */
+    private fun compareLists(left: OtpErlangObject, right: OtpErlangObject): Int {
+        val (leftElements, leftTail) = cells(left)
+        val (rightElements, rightTail) = cells(right)
+        val shared = minOf(leftElements.size, rightElements.size)
+
+        compareElements(leftElements.subList(0, shared), rightElements.subList(0, shared)).takeIf { it != 0 }
+            ?.let { return it }
+
+        return compareRests(rest(leftElements, leftTail, shared), rest(rightElements, rightTail, shared))
+    }
+
+    /** Where one list ends in `[]`, which sorts before what follows the other's cells, unless that is a lesser term. */
+    private fun compareRests(left: OtpErlangObject?, right: OtpErlangObject?): Int =
+        when {
+            left == null && right == null -> 0
+            left == null -> if (isList(right!!)) -1 else compare(EMPTY_LIST, right)
+            right == null -> -compareRests(null, left)
+            else -> compare(left, right)
+        }
+
+    private fun compareElements(left: List<OtpErlangObject>, right: List<OtpErlangObject>): Int =
+        (0 until minOf(left.size, right.size)).firstNotNullOfOrNull { i -> compare(left[i], right[i]).takeIf { it != 0 } }
+            ?: left.size.compareTo(right.size)
 }
 
 /** `null` for a term the interpreter holds without knowing it, which has no known place. */
@@ -190,41 +243,6 @@ private fun number(term: OtpErlangObject): BigDecimal =
             BigDecimal((term as OtpErlangDouble).doubleValue().takeIf(Double::isFinite) ?: throw UnorderedTerms())
     }
 
-/** By size, then the keys in their order, then the values in the keys' order. */
-private fun compareMaps(left: OtpErlangMap, right: OtpErlangMap, numbers: Numbers): Int {
-    left.arity().compareTo(right.arity()).takeIf { it != 0 }?.let { return it }
-
-    val keys = numbers.keys
-    val keyOrder = Comparator<OtpErlangObject> { a, b -> compareTerms(a, b, keys) }
-    // By entry, as a key's lookup compares it again.
-    val leftEntries = left.entrySet().sortedWith(compareBy(keyOrder) { it.key })
-    val rightEntries = right.entrySet().sortedWith(compareBy(keyOrder) { it.key })
-
-    return compareElements(leftEntries.map { it.key }, rightEntries.map { it.key }, keys).takeIf { it != 0 }
-        ?: compareElements(leftEntries.map { it.value }, rightEntries.map { it.value }, numbers)
-}
-
-/** Cell by cell: the heads, then the tails, so an improper tail compares as the term it is. */
-private fun compareLists(left: OtpErlangObject, right: OtpErlangObject, numbers: Numbers): Int {
-    val (leftElements, leftTail) = cells(left)
-    val (rightElements, rightTail) = cells(right)
-    val shared = minOf(leftElements.size, rightElements.size)
-
-    compareElements(leftElements.subList(0, shared), rightElements.subList(0, shared), numbers).takeIf { it != 0 }
-        ?.let { return it }
-
-    return compareRests(rest(leftElements, leftTail, shared), rest(rightElements, rightTail, shared), numbers)
-}
-
-/** Where one list ends in `[]`, which sorts before what follows the other's cells, unless that is a lesser term. */
-private fun compareRests(left: OtpErlangObject?, right: OtpErlangObject?, numbers: Numbers): Int =
-    when {
-        left == null && right == null -> 0
-        left == null -> if (isList(right!!)) -1 else compareTerms(EMPTY_LIST, right, numbers)
-        right == null -> -compareRests(null, left, numbers)
-        else -> compareTerms(left, right, numbers)
-    }
-
 private fun isList(term: OtpErlangObject): Boolean = term is OtpErlangList || term is OtpErlangString
 
 /** A list's elements and its improper tail, `null` where it ends in `[]`. */
@@ -239,10 +257,6 @@ private fun rest(elements: List<OtpErlangObject>, tail: OtpErlangObject?, from: 
     if (from < elements.size) OtpErlangList(elements.subList(from, elements.size).toTypedArray(), tail) else tail
 
 private val EMPTY_LIST = OtpErlangList()
-
-private fun compareElements(left: List<OtpErlangObject>, right: List<OtpErlangObject>, numbers: Numbers): Int =
-    left.zip(right).firstNotNullOfOrNull { (a, b) -> compareTerms(a, b, numbers).takeIf { it != 0 } }
-        ?: left.size.compareTo(right.size)
 
 /** Bit by bit, a prefix first. */
 private fun compareBits(left: OtpErlangBitstr, right: OtpErlangBitstr): Int {
