@@ -273,6 +273,8 @@
 
 ### Bug Fixes
 
+- [#4702](https://github.com/intellij-elixir/intellij-elixir/pull/4702) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, a module whose body or macro builds a value holding one part in many places, such as `t = {t, t}` written many times, and then keys a map by it, compares or orders it, unquotes it or returns it from a macro, is expanded instead of stalling.** Refs [#4701](https://github.com/intellij-elixir/intellij-elixir/issues/4701).
 - [#4689](https://github.com/intellij-elixir/intellij-elixir/pull/4689) [@sh41](https://github.com/sh41)
   - **An Elixir SDK with no Erlang SDK is reported once, where its Erlang SDK can be set up, instead of also failing the dependency check with an internal error when a project opens, or once for each of a Mix import's tasks.** Fixes [#4013](https://github.com/intellij-elixir/intellij-elixir/issues/4013).
 - [#4681](https://github.com/intellij-elixir/intellij-elixir/pull/4681) [@sh41](https://github.com/sh41)
