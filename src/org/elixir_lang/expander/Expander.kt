@@ -342,9 +342,6 @@ internal class Run(
     /** The modules whose exports the run read, in the order it read them. */
     val consulted = mutableListOf<String>()
 
-    /** The references `make_ref/0` has made in the run's evaluations, so each is new. */
-    private var refs = 0
-
     /**
      * How many answers the run's evaluations assumed, in a native or a macro's output, each of which Elixir may not have
      * given: a raise whose inputs aren't known taken not to happen, or an answer that holds only where what it reads
@@ -514,9 +511,6 @@ internal class Run(
 
     /** `Path.relative_to_cwd/1` of [file], its SDK running as [os], where Elixir compiled it ([workingDirectory]); `null` where that isn't known. */
     fun relativeToCwd(file: String, os: OS): String? = workingDirectory(file)?.let { relativeTo(file, it, os) }
-
-    /** The number of a reference no evaluation in the run has made before. */
-    fun nextRef(): Int = ++refs
 
     /** How many expansions in progress asked for the expanded AST of every node below them. */
     var asking = 0

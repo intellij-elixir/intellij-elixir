@@ -152,6 +152,8 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("c28", "{:value, nil, unknown}", elixir = "{:value, nil, nil}"),
             Row("c29", "{:value, nil, unknown}", elixir = "exit 1 raises CompileError"),
             Row("c32", "unknown", elixir = ":from_required"),
+            // Each file a read imports makes references none of the others made.
+            Row("c43", "false", elixir = "false"),
             Row("e1", ":ended", elixir = "exit 124"),
             Row("e2", ":ended", elixir = "exit 124"),
             Row("e6", "{unknown, unknown, unknown}", elixir = "exit 1 raises RuntimeError"),

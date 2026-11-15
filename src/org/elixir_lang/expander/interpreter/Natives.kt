@@ -86,6 +86,7 @@ import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.security.MessageDigest
 import java.util.IdentityHashMap
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
 
 /** The frames a stacktrace `erlang:raise/3` stores holds at most: the default `backtrace_depth`, which Elixir keeps. */
@@ -677,7 +678,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "monotonic_time/1", "system_time/1", "time_offset/1" -> readGiven(args[0], ::isTimeUnit, badarg)
             "unique_integer/1" -> readGiven(args[0], { isListOf(it, UNIQUE_MODIFIERS) }, badarg)
             "nodes/1" -> readGiven(args[0], { isOneOf(it, NODE_TYPES) || isListOf(it, NODE_TYPES) }, badarg)
-            "make_ref/0" -> OtpErlangRef(LOCAL_NODE, intArrayOf(evaluation.run.nextRef(), 0, 0), 0)
+            "make_ref/0" -> OtpErlangRef(LOCAL_NODE, newRefIds(), 0)
             "</2" -> forAnyTerm { bool(compare(args[0], args[1], level) < 0) }
             ">/2" -> forAnyTerm { bool(compare(args[0], args[1], level) > 0) }
             "=</2" -> forAnyTerm { bool(compare(args[0], args[1], level) <= 0) }
@@ -2972,7 +2973,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
         val tag = atom(if (bytes.size == 1) "bm" else "ac")
 
-        return tuple(tag, CompiledPattern(tag, bytes.requireNoNulls(), evaluation.run.nextRef()))
+        return tuple(tag, CompiledPattern(tag, bytes.requireNoNulls(), newRefIds()))
     }
 
     /** `os:type/0`: the OS family and name the run's SDK runs as. */
@@ -3628,6 +3629,12 @@ private val LOG_LEVELS = listOf("none", "emergency", "alert", "critical", "error
 /** The node of a process or reference the evaluator makes. */
 private const val LOCAL_NODE = "nonode@nohost"
 
+/** The references made so far: Erlang's are unique on the node, so every run, a followed one included, counts on one. */
+private val refsMade = AtomicLong()
+
+/** The ids of a reference no evaluation has made before. */
+private fun newRefIds(): IntArray = refsMade.incrementAndGet().let { intArrayOf(it.toInt(), (it ushr 32).toInt(), 0) }
+
 /** `self()`: the one process a macro body runs in. */
 private val SELF = OtpErlangPid(LOCAL_NODE, 0, 0, 0)
 
@@ -3644,8 +3651,8 @@ private val TRIM_ALL = atom("trim_all")
  * The reference `binary:compile_pattern/1` gives the patterns of [bytes] as, under [tag]: only one it made is a compiled
  * pattern, as Erlang's is a magic reference that only it makes, so a tuple built by hand isn't.
  */
-private class CompiledPattern(val tag: OtpErlangAtom, val bytes: List<ByteArray>, id: Int) :
-    OtpErlangRef(LOCAL_NODE, intArrayOf(id, 0, 0), 0) {
+private class CompiledPattern(val tag: OtpErlangAtom, val bytes: List<ByteArray>, ids: IntArray) :
+    OtpErlangRef(LOCAL_NODE, ids, 0) {
     override fun equals(other: Any?) = this === other
 
     override fun hashCode() = System.identityHashCode(this)
