@@ -188,27 +188,24 @@ class InjectedDefinitionTest : PlatformTestCase() {
     }
 
     /** A `def` the caller wrote, which the macro rebuilds around its metadata, is placed where the caller wrote it. */
-    fun testACallersDefTheMacroRebuildsIsPlacedAtItsDef() =
-        assertCallersDefIsPlaced(
-            "defmacro deco(do: {:def, meta, [head, [do: body]]}) do\n" +
-                "    {:def, meta, [head, [do: quote(do: (_ = :wrapped; unquote(body)))]]}\n  end",
+    fun testACallersDefTheMacroRebuildsIsPlacedAtItsDef() {
+        add(
+            "deco.ex",
+            "defmodule Deco do\n  defmacro deco(do: {:def, meta, [head, [do: body]]}) do\n" +
+                "    {:def, meta, [head, [do: quote(do: (_ = :wrapped; unquote(body)))]]}\n  end\nend\n",
         )
+
+        assertEquals(
+            "def f/0 a.ex line 5 `def f, do: raise(\"x\")`",
+            injected("defmodule A do\n  require Deco\n\n  Deco.deco do\n    def f, do: raise(\"x\")\n  end\nend\n"),
+        )
+    }
 
     /** The term the walk gives back equals what the macro was given, so it is the caller's node, as a pass-through is. */
     fun testACallersDefTheMacroWalksIsNotInjected() {
         add("deco.ex", "defmodule Deco do\n  defmacro deco(do: block), do: Macro.prewalk(block, & &1)\nend\n")
 
         assertEquals("", injected("defmodule A do\n  require Deco\n\n  Deco.deco do\n    def f, do: raise(\"x\")\n  end\nend\n"))
-    }
-
-    /** `A`'s `def f`, given to `Deco.deco`, defined as [deco], is placed at its own `def`. */
-    private fun assertCallersDefIsPlaced(deco: String) {
-        add("deco.ex", "defmodule Deco do\n  $deco\nend\n")
-
-        assertEquals(
-            "def f/0 a.ex line 5 `def f, do: raise(\"x\")`",
-            injected("defmodule A do\n  require Deco\n\n  Deco.deco do\n    def f, do: raise(\"x\")\n  end\nend\n"),
-        )
     }
 
     /** Each `def` another macro quotes, which `__using__` expands with `Macro.expand/2`, is placed at its `def`. */

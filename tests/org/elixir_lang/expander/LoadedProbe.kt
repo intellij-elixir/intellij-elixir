@@ -144,7 +144,7 @@ private val EEX_BEAMS: String by lazy {
  * Binds `use_module.(m, path)`, true where `m` is loaded. Test forks share the node, and a second load would make a
  * running user's copy old, which a purge then kills, so a module loaded from `path` is loaded once and its uses counted.
  */
-internal val USE_MODULE = """
+internal const val USE_MODULE = """
     use_module = fn m, path ->
       key = {IntellijElixir.Test.SharedLoads, m}
 
@@ -171,7 +171,7 @@ internal val USE_MODULE = """
 """
 
 /** Binds `drop_module.(m)`, which ends a use of `m` that [USE_MODULE] counted, unloading `m` after the last. */
-private val DROP_MODULE = """
+private const val DROP_MODULE = """
     drop_module = fn m ->
       key = {IntellijElixir.Test.SharedLoads, m}
 
