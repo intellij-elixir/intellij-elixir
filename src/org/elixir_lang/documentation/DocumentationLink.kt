@@ -87,67 +87,60 @@ internal object DocumentationLink {
 
         /** What it opens where it names a function or callback, as a use's choice. */
         @RequiresReadLock
-        fun opened(): Documented.Choice? = parsed?.let { opened(it, context) }
+        fun opened(): Documented.Choice? {
+            val parsed = parsed ?: return null
+            val callback = parsed.callback ?: return null
+            val arity = parsed.arity ?: return null
+
+            return FunctionLink.opened(context, parsed.module, parsed.name, arity, callback)
+        }
 
         /** The element it opens: a function, callback or type, else a module. */
         @RequiresReadLock
-        fun element(): PsiElement? = element(link, parsed, context)
-    }
+        fun element(): PsiElement? {
+            return if (parsed != null) {
+                val module = parsed.module
+                val arity = parsed.arity ?: return null
 
-    /** What [parsed] opens followed from [context] where it names a function or callback, as a use's choice. */
-    @RequiresReadLock
-    private fun opened(parsed: Parsed, context: PsiElement): Documented.Choice? {
-        val callback = parsed.callback ?: return null
-        val arity = parsed.arity ?: return null
+                when {
+                    parsed.callback != null -> opened()?.element
 
-        return FunctionLink.opened(context, parsed.module, parsed.name, arity, callback)
+                    parsed.kind == "t" -> {
+                        val relative = atomName(parsed.name, context)
+
+                        val resolveResults = if (module != null) {
+                            MarkdownFlavourDescriptor
+                                .modulars(context, module)
+                                .flatMap { modular ->
+                                    org.elixir_lang.psi.scope.type.MultiResolve.resolveResults(
+                                        relative,
+                                        arity,
+                                        false,
+                                        modular
+                                    )
+                                }
+                        } else {
+                            org.elixir_lang.psi.scope.type.MultiResolve.resolveResults(relative, arity, false, context)
+                        }
+
+                        resolveResults
+                            .let { Resolver.preferred(context, false, it) }
+                            .firstNotNullOfOrNull { it.element }
+                    }
+
+                    else -> {
+                        LOG.warn("Don't know how to find element for link ($link) of kind (${parsed.kind}) for ${context.javaClass.name}")
+
+                        null
+                    }
+                }
+            } else {
+                MarkdownFlavourDescriptor.modulars(context, link).firstOrNull()
+            }
+        }
     }
 
     /** The element [link] opens when followed from [context]: a function, callback or type, else a module. */
     @RequiresReadLock
-    fun element(link: String, context: PsiElement): PsiElement? = element(link, parse(link), context)
-
-    /** The element [link], read as [parsed], opens when followed from [context]. */
-    @RequiresReadLock
-    private fun element(link: String, parsed: Parsed?, context: PsiElement): PsiElement? {
-        return if (parsed != null) {
-            val module = parsed.module
-            val arity = parsed.arity ?: return null
-
-            when {
-                parsed.callback != null -> opened(parsed, context)?.element
-
-                parsed.kind == "t" -> {
-                    val relative = atomName(parsed.name, context)
-
-                    val resolveResults = if (module != null) {
-                        MarkdownFlavourDescriptor
-                            .modulars(context, module)
-                            .flatMap { modular ->
-                                org.elixir_lang.psi.scope.type.MultiResolve.resolveResults(
-                                    relative,
-                                    arity,
-                                    false,
-                                    modular
-                                )
-                            }
-                    } else {
-                        org.elixir_lang.psi.scope.type.MultiResolve.resolveResults(relative, arity, false, context)
-                    }
-
-                    resolveResults
-                        .let { Resolver.preferred(context, false, it) }
-                        .firstNotNullOfOrNull { it.element }
-                }
-
-                else -> {
-                    LOG.warn("Don't know how to find element for link ($link) of kind (${parsed.kind}) for ${context.javaClass.name}")
-
-                    null
-                }
-            }
-        } else {
-            MarkdownFlavourDescriptor.modulars(context, link).firstOrNull()
-        }
-    }
+    fun element(link: String, context: PsiElement): PsiElement? = Followed(link, context).element()
 }
