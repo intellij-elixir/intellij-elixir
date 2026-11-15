@@ -841,8 +841,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
     /** A macro subtracting one long list from another is cancelled while it scans them. */
     fun testAListSubtractionIsCancelledAsItScans() {
-        val lists = "l = [1]; " + "l = :erlang.++(l, l); ".repeat(DOUBLINGS) +
-            "r = [2]; " + "r = :erlang.++(r, r); ".repeat(DOUBLINGS)
+        val lists = longList("l", "1") + longList("r", "2")
         // Parsing the body makes most of the checks, so the scan's are counted from the same body's with one element
         // to scan.
         val unscanned = checks("($lists :erlang.length(:erlang.--(l, [r])))")
@@ -865,8 +864,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
     /** A macro merging two long keyword lists is cancelled while it scans them. */
     fun testAKeywordMergeIsCancelledAsItScans() {
-        val lists = "l = [a: 1]; " + "l = :erlang.++(l, l); ".repeat(DOUBLINGS) +
-            "r = [b: 2]; " + "r = :erlang.++(r, r); ".repeat(DOUBLINGS)
+        val lists = longList("l", "a: 1") + longList("r", "b: 2")
         // Parsing the body makes most of the checks, so the scan's are counted from the same body's with one pair on
         // the left.
         val unscanned = checks("($lists :erlang.length(Keyword.merge([a: 1], r)))")
@@ -911,7 +909,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
     /** A macro searching a binary for a long list of patterns is cancelled as it compares them at one position. */
     fun testABinarySearchIsCancelledAsItComparesPatterns() {
-        val patterns = "p = [<<1>>]; " + "p = :erlang.++(p, p); ".repeat(DOUBLINGS)
+        val patterns = longList("p", "<<1>>")
 
         assertCancelledIn("org.elixir_lang.expander.interpreter.Filename", "binaryMatches", (1 shl DOUBLINGS) / 2) {
             expandMacro("($patterns :binary.match(<<0>>, p))")
@@ -988,7 +986,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
     /** A macro whose comprehension rejects every element of a long list is cancelled while it scans them. */
     fun testARejectingComprehensionIsCancelledAsItScans() {
-        val list = "l = [:a]; " + "l = :erlang.++(l, l); ".repeat(DOUBLINGS)
+        val list = longList("l")
         // Building the list makes most of the checks, so the scan's are counted from the same body's over one element.
         val unscanned = checks("($list :erlang.length(for :b <- [:a], do: 1))")
 
@@ -1008,7 +1006,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
     /** A macro whose body is [call] of a long list, built from one element by doubling, is cancelled within [call]. */
     private fun assertCancelledAsItCalls(call: (String) -> String) {
-        val list = "l = [1]; " + "l = :erlang.++(l, l); ".repeat(DOUBLINGS)
+        val list = longList("l", "1")
         // Building the list makes most of the checks, so the calls' are counted from the same body's over one element.
         val uncalled = checks("($list ${call("[1]")})")
 
@@ -3536,8 +3534,9 @@ class ModuleExpanderTest : ExpanderTestCase() {
         /** A list `t` that holds itself twice at every depth: built in [DOUBLINGS] steps, walked in 2^[DOUBLINGS]. */
         val TREE = "t = []; " + "t = [t, t]; ".repeat(DOUBLINGS)
 
-        /** A flat list [name] of 2^[DOUBLINGS] atoms, which shares no container. */
-        fun longList(name: String) = "$name = [:a]; " + "$name = :erlang.++($name, $name); ".repeat(DOUBLINGS)
+        /** A flat list [name] holding [element] 2^[DOUBLINGS] times, its only shared part [element]. */
+        fun longList(name: String, element: String = ":a") =
+            "$name = [$element]; " + "$name = :erlang.++($name, $name); ".repeat(DOUBLINGS)
 
         /** Two flat lists `t` and `u` of atoms, built apart. */
         val TWO_LONG_LISTS = longList("t") + longList("u")
