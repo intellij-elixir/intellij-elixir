@@ -5,6 +5,7 @@ import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
+import com.intellij.openapi.vfs.VirtualFile
 import org.elixir_lang.expander.interpreter.EMPTY
 import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.expander.interpreter.atom
@@ -13,6 +14,7 @@ import org.elixir_lang.expander.interpreter.holdsClosure
 import org.elixir_lang.expander.interpreter.holdsUnknown
 import org.elixir_lang.expander.interpreter.isKeyword
 import org.elixir_lang.expander.interpreter.isUnknown
+import org.elixir_lang.expander.interpreter.joinedUnknown
 import org.elixir_lang.expander.interpreter.keyValue
 import org.elixir_lang.expander.interpreter.list
 import org.elixir_lang.expander.interpreter.properElements
@@ -22,6 +24,7 @@ import org.elixir_lang.expander.interpreter.tuple
 import org.elixir_lang.expander.interpreter.unknownOf
 import org.elixir_lang.language_level.ElixirLanguageFeature.CONFIG_VALIDATES_EVERY_ENTRY
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.lowering.ElixirAst
 
 /**
  * `Config`'s state for one read of a project's config, as `Config.__eval__!/3` keeps it in the process dictionary: the
@@ -37,6 +40,21 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
 
     /** The files read, newest first, as `Config.Reader.read_imports!/2` lists them. */
     val imports = ArrayList<String>()
+
+    /** The paths `Code.require_file/1,2` required in the read, which every file it follows shares. */
+    val required = HashSet<String>()
+
+    /** The modules the read's follows loaded, with their clauses, which the build the read runs before then sees. */
+    private val followed = LinkedHashMap<String, FollowedLoad>()
+
+    /** [loaded], which a follow of the read loaded. */
+    fun followed(loaded: FollowedLoad) {
+        followed[loaded.module.name] = loaded
+    }
+
+    /** The clauses of each module in [followed] that has them. */
+    fun followedClauses(): Map<String, ModuleClauses> =
+        followed.entries.mapNotNull { (name, loaded) -> loaded.clauses?.let { name to it } }.toMap()
 
     /** The files in [imports] that only code that may not have run read, so a later import of one may or may not raise. */
     val maybeImports = HashSet<String>()
@@ -129,10 +147,35 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
         }
     }
 
-    /** The read's config once a `config` call merged it, which it leaves not empty. */
-    fun configured(config: OtpErlangObject) {
+    /**
+     * The read's config once a `config` call merged [written] into it, which it leaves not empty. An app [written] sets
+     * every key of, each once, is no longer [Shape.shapeless]: whatever pairs its list held, the merged list holds one pair
+     * for each key [written] sets.
+     */
+    fun configured(config: OtpErlangObject, written: OtpErlangObject) {
+        val shapeless = stillShapeless(written)
+
         this.config = config
-        shape = shape.copy(mayBeEmpty = false)
+        shape = shape.copy(shapeless = shapeless, mayBeEmpty = false)
+    }
+
+    /**
+     * The apps of [Shape.shapeless] [written] doesn't set every key of that their list in the config holds, each once: a
+     * key written twice merges its second value into the list's second copy of it, which a shapeless list doesn't hold.
+     */
+    private fun stillShapeless(written: OtpErlangObject): Set<OtpErlangObject> {
+        if (shape.shapeless.isEmpty()) return shape.shapeless
+        val apps = config.takeUnless(::isUnknown)?.let(::firstPairs) ?: return shape.shapeless
+        val writes = firstPairs(written)
+
+        return shape.shapeless.filterNotTo(HashSet()) { app ->
+            val settings = apps[app] ?: return@filterNotTo false
+            val sets = writes[app] ?: return@filterNotTo false
+            if (!bothKeywords(settings, sets)) return@filterNotTo false
+            val keys = firstPairs(sets).keys
+
+            keys.size == properElements(sets)!!.size && keys.containsAll(firstPairs(settings).keys)
+        }
     }
 
     /**
@@ -211,9 +254,10 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
     }
 
     /** The read's outcome where it raised, or its result holds a value not known. */
-    fun raised(): ConfigTable = ConfigTable(OtpErlangList(), imports.toList(), declined, unknown = true)
+    fun raised(): ConfigTable = outcome(EMPTY, WrittenApps(), unknown = true)
 
-    private fun outcome(config: OtpErlangObject) = ConfigTable(config, imports.toList(), declined, written.copy())
+    private fun outcome(config: OtpErlangObject, written: WrittenApps = this.written.copy(), unknown: Boolean = false) =
+        ConfigTable(config, imports.toList(), declined, written, unknown, required.toSet(), followed.mapValues { it.value.module })
 
     /** Whether `Config.validate!/2` lets [result] by: before [CONFIG_VALIDATES_EVERY_ENTRY], the first entry not `{atom, _}` ends its check. */
     private fun isValid(result: OtpErlangObject, level: ElixirLanguageLevel): Boolean {
@@ -273,6 +317,15 @@ internal fun sameRead(left: ConfigRead.Snapshot?, right: ConfigRead.Snapshot?): 
         left.imports == right.imports && left.shape == right.shape && sameTerm(left.config, right.config, held = true)
     }
 
+/** Whether earlier code required a path with `Code.require_file/1,2`, so a later require of it gives `nil`. */
+internal enum class Require {
+    /** It did: a later require gives `nil`. */
+    REQUIRED,
+
+    /** Code that declined may have: a later require may give `nil`, or run the file. */
+    MAYBE,
+}
+
 /** What a run reaches of the project's files by path: imported config files and existence checks, each stamped. */
 internal interface RunFiles {
     /** Whether a file or directory is at [path], `null` where that can't be known. */
@@ -284,6 +337,31 @@ internal interface RunFiles {
     /** The files whose paths match the wildcard [pattern] under its fixed prefix directory, `null` where not known. */
     fun wildcard(pattern: String): List<String>?
 
+    /** The file at [path] lowered, for `Code` to follow, `null` where it can't be read. */
+    fun followed(path: String): FollowedFile? = null
+
+    /** [text] parsed and lowered as if it began on [line], for `Code` to evaluate, `null` where there is no project to parse it in. */
+    fun parsed(text: String, line: Int): ElixirAst? = null
+
+    /**
+     * Whether the config read the run's build follows required [path] with `Code.require_file/1,2`, `null` where it
+     * didn't; a read's run follows none.
+     */
+    fun requiredByRead(path: String): Require? = null
+
+    /**
+     * Which copy of [module] the index holds for the run's file: `true` one compiled copy, `false` one source copy,
+     * several, or any where the index can't say, `null` none.
+     */
+    fun copyOf(module: String): Boolean? = null
+
+    /**
+     * The modules the follows of [module]'s file loaded, with their clauses, where the index holds one source copy of it
+     * that isn't still running; none for a config read, which runs no file of the build, or for a file whose follows the
+     * run already reached.
+     */
+    fun loadedWith(module: String): List<FollowedLoad> = emptyList()
+
     companion object {
         val NONE = object : RunFiles {
             override fun exists(path: String): Boolean? = null
@@ -292,6 +370,9 @@ internal interface RunFiles {
         }
     }
 }
+
+/** A file `Code` follows: its [forms], lowered, and the [virtualFile] they were read from. */
+internal class FollowedFile(val forms: ElixirAst, val virtualFile: VirtualFile)
 
 /**
  * [left] and [right], two configs a read may have, joined per app: pair for pair where both wrote the app and its lists
@@ -348,6 +429,7 @@ private fun joinedValue(value: OtpErlangObject?, other: OtpErlangObject?): OtpEr
         value != null && other != null && sameKnownTerm(value, other) -> value
         other != null && holdsAlready(other, value) -> other
         value != null && holdsAlready(value, other) -> value
+        value != null && other != null -> joinedUnknown(listOf(value, other))
         else -> unknownOf(listOfNotNull(value, other))
     }
 
@@ -367,6 +449,8 @@ private fun firstPairs(keywords: OtpErlangObject): Map<OtpErlangObject, OtpErlan
  *
  * @property declined whether a unit of the read declined, so [config] isn't what Elixir's is
  * @property written the apps whose env the read wrote
+ * @property required the paths the read required with `Code.require_file/1,2`, which the build's own files then don't
+ * @property followed the modules the read's follows loaded, by name, which the build's files then see
  */
 internal class ConfigTable(
     val config: OtpErlangObject,
@@ -374,6 +458,8 @@ internal class ConfigTable(
     val declined: Boolean = false,
     private val written: WrittenApps = WrittenApps(),
     val unknown: Boolean = false,
+    val required: Set<String> = emptySet(),
+    val followed: Map<String, FollowedModule> = emptyMap(),
 ) {
     /**
      * [app]'s [key]: [AppEnvValue.Declared] with its value where the table knows it, [AppEnvValue.Configured] where it

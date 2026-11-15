@@ -1,0 +1,4 @@
+kind: config
+run: mix run --no-start -e '{c, h} = P.r(); {h2, c2} = Q.r(); IO.inspect({c, h, h2, c2}, label: "ANSWER")'
+probe: lib/p.ex:P.c lib/p.ex:P.h lib/q.ex:Q.h lib/q.ex:Q.c
+judge: value

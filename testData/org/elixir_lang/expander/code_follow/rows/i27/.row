@@ -1,0 +1,4 @@
+kind: body
+run: mix run --no-start priv/s.exs
+probe: priv/s.exs:S.v
+judge: value

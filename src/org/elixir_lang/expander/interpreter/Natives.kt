@@ -86,6 +86,7 @@ import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.security.MessageDigest
 import java.util.IdentityHashMap
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
 
 /** The frames a stacktrace `erlang:raise/3` stores holds at most: the default `backtrace_depth`, which Elixir keeps. */
@@ -228,10 +229,11 @@ private val RUNS = mapOf(
 )
 
 /**
- * Each native that runs a function one of its options names, by receiver, name and arity, to the index of its options and
- * that option: `inspect/2`'s `:inspect_fun`.
+ * Each native given options, by receiver, name and arity, to the index of its options and the option among them that
+ * names a function it runs: `inspect/2`'s `:inspect_fun`. Elixir raises where those options are a list that isn't a
+ * proper list of pairs.
  */
-private val RUNS_AN_OPTION = mapOf(Triple("Elixir.Kernel", "inspect", 2) to (1 to atom("inspect_fun")))
+private val OPTIONS = mapOf(Triple("Elixir.Kernel", "inspect", 2) to (1 to atom("inspect_fun")))
 
 /**
  * How a native calls the [code] of a struct's module, for the arguments at [arguments]: for each struct one holds where
@@ -356,7 +358,10 @@ internal class Natives(private val evaluation: Evaluation) {
                 module(key, args)
             },
             "Elixir.Application" to reading(Natives::application),
-            "Elixir.Code" to reading { key, _ -> if (key == "can_await_module_compilation?/0") canAwaitModuleCompilation() else null },
+            // A followed file's code may write anything.
+            "Elixir.Code" to writing { key, args ->
+                if (key == "can_await_module_compilation?/0") canAwaitModuleCompilation() else follow.call(key, args)
+            },
             "Elixir.Atom" to reading { key, args -> if (key == "to_string/1") erlang("atom_to_binary/1", args) else null },
             "Elixir.String" to reading(Natives::string),
             "Elixir.String.Chars" to reading { key, args -> if (key == "to_string/1") toString(args[0]) else null },
@@ -420,6 +425,8 @@ internal class Natives(private val evaluation: Evaluation) {
     )
 
     private val level get() = evaluation.run.level
+
+    private val follow = CodeFollow(evaluation)
 
     /**
      * [module]'s [function] applied to [args], or `null` where it isn't one of these. In [tail] position, a call
@@ -494,31 +501,49 @@ internal class Natives(private val evaluation: Evaluation) {
     /**
      * The types [term] may be of, by the module `defimpl ... for:` names, that [code]'s protocol has no implementation in
      * Elixir for: a known term's ([unimplementedType]), and each of them for a value not known that came from no module,
-     * `BitString` only for a binary.
+     * `BitString` only for a binary and `Atom` only for a boolean.
      */
     fun unimplementedTypes(code: StructCode, term: OtpErlangObject): Collection<String> =
-        if (term === Unknown || code.unimplemented.isEmpty()) code.unimplemented
-        else listOfNotNull(unimplementedType(code, if (term === UnknownBinary) SOME_BINARY else term))
+        when {
+            code.unimplemented.isEmpty() -> code.unimplemented
+            term === UnknownBoolean -> listOfNotNull(unimplementedType(code, TRUE))
+            term is UnknownValue && term.fromNoModule -> code.unimplemented
+            else -> listOfNotNull(unimplementedType(code, if (term === UnknownBinary) SOME_BINARY else term))
+        }
 
     /** Whether [module]'s [function] of [arity] runs a function it is given ([RUNS]). */
     fun runsAFunction(module: String, function: String, arity: Int): Boolean = Triple(module, function, arity) in RUNS
 
     /**
      * Whether [module]'s [function], given [args], runs a function they name ([RUNS]), or options that may name one
-     * ([RUNS_AN_OPTION]): options not known, or holding that option, an element or a key not known. A tail not known,
-     * which [cons] leaves only where it is a binary, is taken as one too: Elixir raises on it, and the native declines.
+     * ([OPTIONS]): options not known, or holding that option, an element or a key not known.
      */
     fun runsAFunction(module: String, function: String, args: List<OtpErlangObject>): Boolean {
-        val key = Triple(module, function, args.size)
-        val (index, option) = RUNS_AN_OPTION[key] ?: return runsAFunction(module, function, args.size)
-        val options = args[index]
+        val (options, option) = optionsOf(module, function, args) ?: return runsAFunction(module, function, args.size)
         if (isUnknown(options)) return true
-        val (elements, tail) = cells(options) ?: return false
+        val elements = cells(options)?.first ?: return false
 
-        return tail?.let(::isUnknown) == true || elements.any { element ->
-            isUnknown(element) || pairKey(element)?.let { isUnknown(it) || it == option } == true
-        }
+        return elements.any { element -> isUnknown(element) || pairKey(element)?.let { isUnknown(it) || it == option } == true }
     }
+
+    /**
+     * Whether Elixir raises on [args] whatever the values not known in them are: [module]'s [function] is given options
+     * ([OPTIONS]) that are a list with a tail, which [cons] leaves not known only where it is a binary, or holding a known
+     * element that isn't a pair.
+     */
+    fun alwaysRaises(module: String, function: String, args: List<OtpErlangObject>): Boolean {
+        val options = optionsOf(module, function, args)?.first ?: return false
+        val (elements, tail) = options.takeUnless(::isUnknown)?.let(::cells) ?: return false
+
+        return tail != null || elements.any { !isUnknown(it) && pairKey(it) == null }
+    }
+
+    /**
+     * The options [module]'s [function] is given in [args] ([OPTIONS]), with the option among them that names a
+     * function it runs.
+     */
+    private fun optionsOf(module: String, function: String, args: List<OtpErlangObject>): Pair<OtpErlangObject, OtpErlangAtom>? =
+        OPTIONS[Triple(module, function, args.size)]?.let { (index, option) -> args[index] to option }
 
     /**
      * The argument of [module]'s [function], given [args], that names the module it writes: the one its [ModuleEffects]
@@ -672,7 +697,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "monotonic_time/1", "system_time/1", "time_offset/1" -> readGiven(args[0], ::isTimeUnit, badarg)
             "unique_integer/1" -> readGiven(args[0], { isListOf(it, UNIQUE_MODIFIERS) }, badarg)
             "nodes/1" -> readGiven(args[0], { isOneOf(it, NODE_TYPES) || isListOf(it, NODE_TYPES) }, badarg)
-            "make_ref/0" -> OtpErlangRef(LOCAL_NODE, intArrayOf(evaluation.run.nextRef(), 0, 0), 0)
+            "make_ref/0" -> OtpErlangRef(LOCAL_NODE, newRefIds(), 0)
             "</2" -> forAnyTerm { bool(compare(args[0], args[1], level) < 0) }
             ">/2" -> forAnyTerm { bool(compare(args[0], args[1], level) > 0) }
             "=</2" -> forAnyTerm { bool(compare(args[0], args[1], level) <= 0) }
@@ -2967,7 +2992,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
         val tag = atom(if (bytes.size == 1) "bm" else "ac")
 
-        return tuple(tag, CompiledPattern(tag, bytes.requireNoNulls(), evaluation.run.nextRef()))
+        return tuple(tag, CompiledPattern(tag, bytes.requireNoNulls(), newRefIds()))
     }
 
     /** `os:type/0`: the OS family and name the run's SDK runs as. */
@@ -3101,7 +3126,7 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun configured(read: ConfigRead, config: OtpErlangObject): OtpErlangObject {
         val before = read.configAsRead()
 
-        read.configured(configMerge(read.config, config))
+        read.configured(configMerge(read.config, config), config)
 
         return before
     }
@@ -3623,6 +3648,12 @@ private val LOG_LEVELS = listOf("none", "emergency", "alert", "critical", "error
 /** The node of a process or reference the evaluator makes. */
 private const val LOCAL_NODE = "nonode@nohost"
 
+/** The references made so far: Erlang's are unique on the node, so every run, a followed one included, counts on one. */
+private val refsMade = AtomicLong()
+
+/** The ids of a reference no evaluation has made before. */
+private fun newRefIds(): IntArray = refsMade.incrementAndGet().let { intArrayOf(it.toInt(), (it ushr 32).toInt(), 0) }
+
 /** `self()`: the one process a macro body runs in. */
 private val SELF = OtpErlangPid(LOCAL_NODE, 0, 0, 0)
 
@@ -3639,8 +3670,8 @@ private val TRIM_ALL = atom("trim_all")
  * The reference `binary:compile_pattern/1` gives the patterns of [bytes] as, under [tag]: only one it made is a compiled
  * pattern, as Erlang's is a magic reference that only it makes, so a tuple built by hand isn't.
  */
-private class CompiledPattern(val tag: OtpErlangAtom, val bytes: List<ByteArray>, id: Int) :
-    OtpErlangRef(LOCAL_NODE, intArrayOf(id, 0, 0), 0) {
+private class CompiledPattern(val tag: OtpErlangAtom, val bytes: List<ByteArray>, ids: IntArray) :
+    OtpErlangRef(LOCAL_NODE, ids, 0) {
     override fun equals(other: Any?) = this === other
 
     override fun hashCode() = System.identityHashCode(this)

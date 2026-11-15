@@ -1,0 +1,4 @@
+kind: config
+run: timeout 30 mix run --no-start -e 'IO.inspect(B.v(), label: "ANSWER")'
+probe: lib/b.ex:B.v
+judge: value

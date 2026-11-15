@@ -21,6 +21,8 @@ class Lowering private constructor(
     val languageLevel: ElixirLanguageLevel,
     private val text: CharSequence,
     private val lines: Lines,
+    /** The line the text starts on, as `Code`'s `line:` option places the text it parses. */
+    private val firstLine: Int = 1,
 ) {
     /**
      * A shape with its own `quote()` belongs to a family, even when only its parent reaches it, as a digit or an
@@ -71,21 +73,22 @@ class Lowering private constructor(
     companion object {
         val classifier = ShapeTable.column(Bucket.UNKNOWN) { it.lowering }
 
-        /** [file] lowered for [languageLevel], which the caller resolves once for the file. */
+        /** [file] lowered for [languageLevel], which the caller resolves once for the file, starting on [firstLine]. */
+        @JvmOverloads
         @RequiresReadLock
-        fun lower(file: ElixirFile, languageLevel: ElixirLanguageLevel): ElixirAst {
+        fun lower(file: ElixirFile, languageLevel: ElixirLanguageLevel, firstLine: Int = 1): ElixirAst {
             ThreadingAssertions.assertReadAccess()
 
-            return of(file, languageLevel).lower(file)
+            return of(file, languageLevel, firstLine).lower(file)
         }
 
         @RequiresReadLock
-        internal fun of(file: ElixirFile, languageLevel: ElixirLanguageLevel): Lowering {
+        internal fun of(file: ElixirFile, languageLevel: ElixirLanguageLevel, firstLine: Int = 1): Lowering {
             ThreadingAssertions.assertReadAccess()
 
             val text = file.text
 
-            return Lowering(languageLevel, text, Tokenization.lines(file, text, languageLevel))
+            return Lowering(languageLevel, text, Tokenization.lines(file, text, languageLevel), firstLine)
         }
 
         /** A lowering over [text] whose positions come from [lines], which the caller has built. */
@@ -130,7 +133,8 @@ class Lowering private constructor(
     internal fun isAvailable(feature: ElixirLanguageFeature): Boolean = feature.isSufficient(languageLevel)
 
     /** Elixir's line and column for [offset]. */
-    internal fun position(offset: Int): Meta.Position = lines.position(offset)
+    internal fun position(offset: Int): Meta.Position =
+        lines.position(offset).let { if (firstLine == 1) it else Meta.Position(it.line + firstLine - 1, it.column) }
 
     internal fun meta(element: PsiElement, vararg keys: Meta.Key?): Meta = meta(element.textRange, *keys)
 

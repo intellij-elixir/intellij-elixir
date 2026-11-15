@@ -1,0 +1,4 @@
+kind: exs
+run: elixir -r script.exs -e 'IO.inspect(A.r(), label: "ANSWER")'
+probe: script.exs:A#r/0
+judge: passes

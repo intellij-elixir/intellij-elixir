@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
@@ -15,8 +16,10 @@ import org.elixir_lang.expander.interpreter.holdsUnknown
 import org.elixir_lang.expander.interpreter.keyValue
 import org.elixir_lang.expander.interpreter.properElements
 import org.elixir_lang.junit.HeavyTestCase
+import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageFeature.CONFIG_READ_CONFIG
 import org.elixir_lang.lowering.inspect
+import org.elixir_lang.psi.Import.Term
 import java.io.File
 import java.util.concurrent.Callable
 import org.elixir_lang.model.psi.config.disableMixDepsCheck
@@ -46,12 +49,19 @@ abstract class ConfigHeavyTestCase : HeavyTestCase() {
         (defaults.filter { (path, _) -> sources.none { it.first == path } } + sources).forEach { (path, text) ->
             FileUtil.writeToFile(File(directory, path), text)
         }
+        val root = rooted(directory)
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
+
+        return root
+    }
+
+    /** [directory] as a content root of the module, its `lib` a source root and its `test` a test source root. */
+    protected fun rooted(directory: File): VirtualFile {
         val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!
         VfsUtil.markDirtyAndRefresh(false, true, true, root)
         PsiTestUtil.addContentRoot(module, root)
-        PsiTestUtil.addSourceRoot(module, root.findChild("lib")!!)
+        root.findChild("lib")?.let { PsiTestUtil.addSourceRoot(module, it) }
         root.findChild("test")?.let { PsiTestUtil.addSourceRoot(module, it, true) }
-        IndexingTestUtil.waitUntilIndexesAreReady(project)
 
         return root
     }
@@ -87,6 +97,22 @@ abstract class ConfigHeavyTestCase : HeavyTestCase() {
             table.declined -> "declined"
             table.unknown -> "raised"
             else -> keys.joinToString(" ") { key -> "$key=${answer(table, key)}" }
+        }
+    }
+
+    /**
+     * [keys] as [config] and the [extra] files beside it set them, from a content root of their own, which is removed
+     * once read.
+     */
+    protected fun keysInOwnRoot(config: String, keys: List<String>, extra: Array<Pair<String, String>> = emptyArray()): String {
+        val roots = ModuleRootManager.getInstance(module).contentRoots.toSet()
+
+        try {
+            return keys(config, *keys.toTypedArray(), extra = extra)
+        } finally {
+            ModuleRootManager.getInstance(module).contentRoots
+                .filterNot(roots::contains)
+                .forEach { PsiTestUtil.removeContentEntry(module, it) }
         }
     }
 
@@ -143,7 +169,54 @@ abstract class ConfigHeavyTestCase : HeavyTestCase() {
     protected fun assertRead(expected: String, actual: String, before: String = "raised") = assertEquals(onLeg(expected, before), actual)
 
     /** [expected] on a leg with `Config.read_config/1`, else [before]. */
-    protected fun onLeg(expected: String, before: String): String = if (CONFIG_READ_CONFIG.isSufficient(legLevel())) expected else before
+    protected fun onLeg(expected: String, before: String): String = onLeg(expected, arrayOf(Before(CONFIG_READ_CONFIG, before)))
+
+    /** What a row gives before [feature]: the plugin's [answer], and [elixir], Elixir's, where each differs. */
+    protected class Before(val feature: ElixirLanguageFeature, val answer: String? = null, val elixir: String? = null)
+
+    /** [expected], or on a leg without one of [before]'s features, the oldest of them whose [field] differs. */
+    protected fun onLeg(expected: String, before: Array<out Before>, field: (Before) -> String? = Before::answer): String {
+        val level = legLevel()
+
+        return before
+            .filter { !it.feature.isSufficient(level) && field(it) != null }
+            .minWithOrNull(compareBy({ it.feature.sinceElixir }, { it.feature.sinceOtp }))
+            ?.let(field) ?: expected
+    }
+
+    /** An attribute's final [value], as `judge.sh` prints Elixir's: `no-attribute` where the module has none. */
+    internal fun rendered(value: AttributeValue?): String =
+        when (value) {
+            null -> "no-attribute"
+            is AttributeValue.Known -> render(value.term)
+            is AttributeValue.Held -> "held:${value.value}"
+            AttributeValue.Unknown -> "unknown"
+        }
+
+    private fun render(term: Term): String =
+        when (term) {
+            is Term.Atom -> when {
+                term.name.startsWith("Elixir.") -> term.name.removePrefix("Elixir.")
+                term.name in listOf("nil", "true", "false") -> term.name
+                else -> ":${term.name}"
+            }
+            is Term.Integer -> term.value.toString()
+            is Term.Binary -> term.bytes?.let { "\"${String(it)}\"" } ?: "binary"
+            is Term.List -> renderList(term)
+            is Term.Pair -> "{${render(term.first)}, ${render(term.second)}}"
+            is Term.Tuple -> term.elements.joinToString(", ", "{", "}", transform = ::render)
+            else -> term.toString()
+        }
+
+    private fun renderList(list: Term.List): String {
+        val keyword = list.tail == null && list.elements.isNotEmpty() && list.elements.all { it is Term.Pair && it.first is Term.Atom }
+
+        return if (keyword) {
+            list.elements.joinToString(", ", "[", "]") { "${((it as Term.Pair).first as Term.Atom).name}: ${render(it.second)}" }
+        } else {
+            list.elements.joinToString(", ", "[", "]", transform = ::render)
+        }
+    }
 
     /** [before], then a `try` around a second import of `config/o.exs`, which may raise, so the read declines. */
     protected fun assertImportedAgainDeclines(before: String) =

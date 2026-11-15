@@ -1,0 +1,4 @@
+kind: body
+run: mix run --no-start -e 'IO.inspect(B.r(), label: "ANSWER")'
+probe: lib/b.ex:B.v
+judge: value

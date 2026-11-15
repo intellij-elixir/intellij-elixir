@@ -296,6 +296,15 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             DOCS_SIGNATURE_OF_FN_NAMES_CLAUSES to ("1.12.3" to "1.13.0-rc.0"),
             DUPLICATE_MATCH_UNPACKED_ONCE to ("1.18.0-rc.0" to "1.18.0"),
             IN_REFUSES_UNESCAPED_RIGHT_SIDE to ("1.13.4" to "1.14.0-rc.0"),
+            EVAL_BINDING_DESCENDS to ("1.11.4" to "1.12.0-rc.0"),
+            EVAL_ATOM_GIVES_ITS_BINDING to ("1.12.2" to "1.12.3"),
+            EVAL_NUMBER_GIVES_ITS_BINDING to ("1.14.1" to "1.14.2"),
+            LAZY_MODULE_LOADING to ("1.18.4" to "1.19.0-rc.0"),
+            ENSURE_COMPILED_BANG to ("1.11.4" to "1.12.0-rc.0"),
+            PATH_EXPAND_READS_CWD_LAZILY to ("1.16.0-rc.0" to "1.16.0-rc.1"),
+            EVAL_STRING_CHECKS_THE_BINDING to ("1.20.0-rc.2" to "1.20.0-rc.3"),
+            REQUIRE_FILE_RELEASES_A_RAISED_FILE to ("1.20.0" to "1.20.1"),
+            EVAL_STACKTRACE_NAMES_THE_FILE to ("1.13.4" to "1.14.0-rc.0"),
         )
 
         assertEquals(entries.filter { it.sinceElixir != null }.toSet(), boundaries.keys)
@@ -380,6 +389,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             BINARY_PART_REJECTS_BITSTRINGS to ("26.2.5.21" to "27.0-rc1"),
             MAP_UPDATE_RAISES_WHERE_DISCARDED to ("25.3" to "25.3.1"),
             INTEGERS_UP_TO_4_MBIT to ("26.0.1" to "26.0.2"),
+            EVAL_STACKTRACE_NAMES_THE_FILE to ("24.3.4.17" to "25.0-rc1"),
         )
 
         assertEquals(entries.filter { it.sinceOtp != null }.toSet(), boundaries.keys)

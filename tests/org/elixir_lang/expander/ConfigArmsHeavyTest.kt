@@ -378,6 +378,60 @@ class ConfigArmsHeavyTest : ConfigHeavyTestCase() {
             ),
         )
 
+    /**
+     * A write of every key an arm may have set leaves the app's list the same whichever way the arm went: Elixir sets `j`
+     * to `"1"`. Before `Config.read_config/1`, its call raises.
+     */
+    fun testAWriteOfEveryKeyAnArmMayHaveSetLeavesTheAppKnown() =
+        assertRead(
+            "j=\"1\" k1=1",
+            keys(
+                "if System.get_env(\"X\"), do: config(:app, k: 0)\nconfig :app, k: 1\n" +
+                    "config :app, j: to_string(Config.read_config(:app)[:k]), k1: 1\n",
+                "j",
+                "k1",
+            ),
+        )
+
+    /**
+     * A write naming a key twice merges the two values into what the arm may have set: Elixir's `j` is 1 or 2. Before
+     * `Config.read_config/1`, its call raises.
+     */
+    fun testAWriteNamingAKeyTwiceAfterAnArmMayHaveSetItLeavesTheAppNotKnown() =
+        assertRead(
+            "j=Configured k1=1",
+            keys(
+                "if System.get_env(\"X\"), do: config(:app, k: [x: 1], k: [y: 2])\nconfig :app, k: [a: 1], k: [b: 2]\n" +
+                    "[_, {:k, v}] = Config.read_config(:app)\nconfig :app, j: length(v), k1: 1\n",
+                "j",
+                "k1",
+            ),
+        )
+
+    /** A write's keyword merges into what the arm may have set: Elixir's `j` is 1 or 2. */
+    fun testAKeywordWrittenAfterAnArmMayHaveSetItLeavesItNotKnown() =
+        assertRead(
+            "j=Configured k1=1",
+            keys(
+                "if System.get_env(\"X\"), do: config(:app, k: [x: 1])\nconfig :app, k: [a: 1]\n" +
+                    "config :app, j: length(Config.read_config(:app)[:k]), k1: 1\n",
+                "j",
+                "k1",
+            ),
+        )
+
+    /** A write of only some of those keys leaves the arm's other pair in the list or not: Elixir's `j` is 1 or 2. */
+    fun testAWriteOfSomeKeysAnArmMayHaveSetLeavesTheAppNotKnown() =
+        assertRead(
+            "j=Configured k1=1",
+            keys(
+                "if System.get_env(\"X\"), do: config(:app, k: 0, m: 0)\nconfig :app, k: 1\n" +
+                    "config :app, j: length(Config.read_config(:app)), k1: 1\n",
+                "j",
+                "k1",
+            ),
+        )
+
     /** The second test runs only where the first is false, so its config may not be written. */
     fun testAConfigInALaterCondTestMayBeWritten() =
         assertEquals(
@@ -852,6 +906,14 @@ class ConfigArmsHeavyTest : ConfigHeavyTestCase() {
      */
     fun testAnInspectionWithOptionsWhoseTailIsABinaryNotKnownDeclines() =
         assertInspectionDeclines("_ = inspect(1, [{:limit, 5} | System.get_env(\"X\", \"\")])\nconfig :app, k1: 1\n")
+
+    /** Options with a known tail that isn't a list: Elixir raises `FunctionClauseError` whatever the value inspected. */
+    fun testAnInspectionNotKnownWithAnImproperListOfOptionsDeclines() =
+        assertInspectionDeclines("_ = inspect(System.get_env(\"X\"), [{:limit, 5} | :b])\nconfig :app, k1: 1\n")
+
+    /** Options holding an element that isn't a pair: Elixir raises `FunctionClauseError` whatever the value inspected. */
+    fun testAnInspectionNotKnownWithOptionsHoldingANonPairDeclines() =
+        assertInspectionDeclines("_ = inspect(System.get_env(\"X\"), [{:limit, 5}, :a])\nconfig :app, k1: 1\n")
 
     fun testAStringOfAFetchedAppEnvTheFileWroteAStructToDeclines() =
         assertStructDeclines(CHARS, "Application.put_env(:other, :s, struct(S))\nconfig :app, j: to_string(Application.fetch_env!(:other, :s)), k1: 1\n")

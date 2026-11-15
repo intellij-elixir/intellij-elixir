@@ -1,0 +1,4 @@
+kind: body
+run: timeout 20 mix run --no-start -e 'IO.inspect(A.r(), label: "ANSWER")'
+probe: lib/a.ex:A.v
+judge: value

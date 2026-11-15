@@ -1,0 +1,4 @@
+kind: config
+run: MIX_ENV=test mix run --no-start -e 'IO.inspect(A.r(), label: "ANSWER")'
+probe: test/support/a.ex:A.v
+judge: value

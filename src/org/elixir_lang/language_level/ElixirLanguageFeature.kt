@@ -1840,6 +1840,86 @@ enum class ElixirLanguageFeature(
     EVAL_ENV_KEEPS_CONTEXT_MODULES(sinceElixir = "1.18.0-rc.0"),
 
     /**
+     * `Code`'s evaluations give the binding by `elixir_erl_var:dump_binding`'s fold over a map of the variables: by
+     * `{name, context}` descending, up to the 32 variables a map keeps in order, and a name given twice takes the
+     * value given last. Before it, the binding is sorted, a variable without a context named by its name alone, and
+     * a name given twice takes the value given first.
+     *
+     * `elixir-lang/elixir@37b6b03ef` ("Use maps as bindings on Erlang/OTP 24 for faster evaluation") and
+     * `elixir-lang/elixir@f0b227d40` ("No longer auto-sort bindings"), first released in v1.12.0-rc.0.
+     */
+    EVAL_BINDING_DESCENDS(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * `Code`'s evaluation of what compiles to an atom gives back the binding it was given. Before it, it gives the
+     * binding as it loads it: reversed, a name without a context as `{name, nil}`.
+     *
+     * `elixir-lang/elixir@9137fd1cb` ("Do not return context tuples on optimized eval"), first released in v1.12.3.
+     */
+    EVAL_ATOM_GIVES_ITS_BINDING(sinceElixir = "1.12.3"),
+
+    /**
+     * `Code`'s evaluation of an integer or a float gives back the binding it was given, as an atom's does. Before it,
+     * it gives the binding the evaluation leaves.
+     *
+     * `elixir-lang/elixir@fdf96ad48` ("Prune binding from env and on literals"), first released in v1.14.2.
+     */
+    EVAL_NUMBER_GIVES_ITS_BINDING(sinceElixir = "1.14.2"),
+
+    /**
+     * A parallel compile loads a module it compiles only once code asks for it, so where the code path already holds a
+     * compiled copy of the module, that copy is the one code sees. Before it, the module compiled is loaded as it
+     * compiles.
+     *
+     * `elixir-lang/elixir@64a387da8` ("Load modules lazily and only if needed", #14453), first released in
+     * v1.19.0-rc.0.
+     */
+    LAZY_MODULE_LOADING(sinceElixir = "1.19.0-rc.0"),
+
+    /**
+     * `Code.ensure_compiled!/1` is defined. Before it, a call of it raises `UndefinedFunctionError`.
+     *
+     * `elixir-lang/elixir@bc63b5fb8` ("Add ensure_compiled! to better handle deadlocks, closes #10802"), first released
+     * in v1.12.0-rc.0.
+     */
+    ENSURE_COMPILED_BANG(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * `Path.expand/1` and `Path.absname/1` read `File.cwd!/0` only for a path that isn't absolute. Before it, each reads
+     * it first.
+     *
+     * `elixir-lang/elixir@741757f2a` ("Lazily evaluate File.cwd! in Path.expand and Path.absname (#13061)"), first
+     * released in v1.16.0-rc.1.
+     */
+    PATH_EXPAND_READS_CWD_LAZILY(sinceElixir = "1.16.0-rc.1"),
+
+    /**
+     * `Code.eval_string/3` raises `ArgumentError` for a binding that isn't a list. Before it, `elixir_erl_var:load_binding`
+     * raises `FunctionClauseError`.
+     *
+     * `elixir-lang/elixir@d61ba915b` ("Raise `ArgumentError` on invalid binding in `Code.eval_string/3` (#15146)"),
+     * first released in v1.20.0-rc.3.
+     */
+    EVAL_STRING_CHECKS_THE_BINDING(sinceElixir = "1.20.0-rc.3"),
+
+    /**
+     * `Code.require_file/2` releases a file whose code raised, so a later require of it runs it again. Before it, the file
+     * stays acquired, and a later require waits for it without end.
+     *
+     * `elixir-lang/elixir@d33ea6e96` ("require_file releases the file if compilation fails"), first released in v1.20.1.
+     */
+    REQUIRE_FILE_RELEASES_A_RAISED_FILE(sinceElixir = "1.20.1"),
+
+    /**
+     * An evaluated file's stacktrace starts with a frame naming the file and the line that raised. Before it, the
+     * stacktrace starts at `erl_eval`'s frames, the same for every line.
+     *
+     * `elixir-lang/elixir@57ee3e811` ("Improve eval stacktraces on Erlang/OTP 25+", #11665), first released in
+     * v1.14.0-rc.0, on OTP 25 and later.
+     */
+    EVAL_STACKTRACE_NAMES_THE_FILE(sinceElixir = "1.14.0-rc.0", sinceOtp = "25.0-rc1"),
+
+    /**
      * A function's default arguments are expanded in turn, each seeing the variables the ones before it bound. Before
      * it, each is expanded from the state before the defaults.
      *

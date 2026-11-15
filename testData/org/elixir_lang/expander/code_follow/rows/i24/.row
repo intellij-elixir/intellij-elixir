@@ -1,0 +1,4 @@
+kind: config
+run: export LIB=$(mix run --no-start -e 'IO.write(inspect({P.r(), Q.r()}))' | tail -1) && mix test
+probe: lib/p.ex:P.v test/t_test.exs:TTest.w lib/q.ex:Q.v
+judge: value

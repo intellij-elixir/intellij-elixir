@@ -1,16 +1,16 @@
 package org.elixir_lang.expander
 
-import com.intellij.openapi.roots.ModuleRootManager
-import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageFeature.CONFIG_READ_CONFIG
+import org.elixir_lang.language_level.ElixirLanguageFeature.IN_LIST_LISTS_MEMBER
 import org.elixir_lang.language_level.ElixirLanguageFeature.RAISE_ERROR_INFO
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRING_SPLIT_TRIMS_IN_BINARY_SPLIT
 
 /**
  * Each control-flow construct a config file runs, over a value known, one not known, one that may raise or one read
  * back from an app's env the file wrote, with a config write, an app's env written then read, or nothing inside it, in
- * the file itself or in an `fn` a file it imports made. A value that may raise is read inside a `try` that rescues it.
+ * the file itself, in an `fn` a file it imports made, in a module of a file it requires, at the top of a file it
+ * evaluates, or in a string it evaluates. A value that may raise is read inside a `try` that rescues it.
  * Each answer is `Config.Reader`'s over `X` unset, `"y"`, `"22"` and `"0"`: where they differ, `Configured`, and a
  * written app's env reads unknown.
  */
@@ -42,6 +42,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.WRITTEN, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "raised"),
             Cell(Value.WRITTEN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.WRITTEN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
         )
 
     fun testACond() =
@@ -71,6 +74,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.WRITTEN, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "raised"),
             Cell(Value.WRITTEN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.WRITTEN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
         )
 
     fun testAnIf() =
@@ -100,6 +106,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.WRITTEN, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "raised"),
             Cell(Value.WRITTEN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.WRITTEN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
         )
 
     fun testAnUnless() =
@@ -129,6 +138,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.WRITTEN, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "raised"),
             Cell(Value.WRITTEN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.WRITTEN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
         )
 
     fun testAWith() =
@@ -158,6 +170,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.WRITTEN, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "raised"),
             Cell(Value.WRITTEN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.WRITTEN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
         )
 
     fun testAWithsElse() =
@@ -187,6 +202,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.WRITTEN, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "raised"),
             Cell(Value.WRITTEN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.WRITTEN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
         )
 
     fun testATrysRescue() =
@@ -210,6 +228,33 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=0 v=:no k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=0 v=:no k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=0 v=:no k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=:no j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:no j=Configured k1=1"))),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=:no j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:no j=Configured k1=1"))),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=:no j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:no j=Configured k1=1"))),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=:no k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=:no k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=:no k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=0 v=:no k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=0 v=:no k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=0 v=:no k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=:no j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:no j=Configured k1=1"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=:no j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:no j=Configured k1=1"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=:no j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:no j=Configured k1=1"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=:no k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=:no k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=:no k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testATrysCatch() =
@@ -233,6 +278,33 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=0 v=:no k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=0 v=:no k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=0 v=:no k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=:no j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:no j=Configured k1=1"))),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=:no j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:no j=Configured k1=1"))),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=:no j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:no j=Configured k1=1"))),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=:no k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=:no k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=:no k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=0 v=:no k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=0 v=:no k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=0 v=:no k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=:no j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:no j=Configured k1=1"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=:no j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:no j=Configured k1=1"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=:no j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:no j=Configured k1=1"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=:no k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=:no k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=:no k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testATrysAfter() =
@@ -256,6 +328,33 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=\"1\" k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=\"1\" k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=\"1\" k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=\"1\" j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=\"1\" j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=\"1\" j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=\"1\" k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=\"1\" k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=\"1\" k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=1 v=Configured k1=1", pins = listOf(Pin(null, "k=Configured v=Configured k1=1"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testATrysElse() =
@@ -279,6 +378,33 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=:yes j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=:yes j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=:yes j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=:yes k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAReceive() =
@@ -302,6 +428,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAnFnsCall() =
@@ -325,6 +454,33 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=:yes j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=:yes j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=:yes j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=:yes k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testALocalCall() =
@@ -348,8 +504,36 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=:yes j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=:yes j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=:yes j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=:yes k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
+    /** A remote capture's call (`(&H.f/1).(v)`) takes this path too. */
     fun testARemoteCall() =
         assertCells(
             Construct.REMOTE_CALL,
@@ -371,6 +555,33 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=:yes j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=:yes j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=:yes j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=:yes k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testATailLoop() =
@@ -394,6 +605,33 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=[:yes] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=[:yes] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=[:yes] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=[:yes] k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testARecursion() =
@@ -417,6 +655,33 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=[:yes] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=[:yes] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=[:yes] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=[:yes] k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAFor() =
@@ -440,6 +705,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"), Pin(STRING_SPLIT_TRIMS_IN_BINARY_SPLIT, null))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAForOverABitstring() =
@@ -463,6 +731,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
         )
 
     fun testAForsFilter() =
@@ -474,18 +745,21 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.KNOWN, Effect.ENV, Origin.IMPORTED, "k=0 v=[:yes] j=Configured k1=1", before = "raised"),
             Cell(Value.KNOWN, Effect.NONE, Origin.HERE, "k=0 v=[:yes] k1=1"),
             Cell(Value.KNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=[:yes] k1=1", before = "raised"),
-            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.HERE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
-            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
-            Cell(Value.UNKNOWN, Effect.ENV, Origin.HERE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
-            Cell(Value.UNKNOWN, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
-            Cell(Value.UNKNOWN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
-            Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
-            Cell(Value.RAISING, Effect.CONFIG, Origin.HERE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
-            Cell(Value.RAISING, Effect.CONFIG, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
-            Cell(Value.RAISING, Effect.ENV, Origin.HERE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
-            Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "declined"))),
-            Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
-            Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.HERE, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.HERE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.HERE, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.HERE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
+            Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
         )
 
     fun testAForsGeneratorGuard() =
@@ -497,24 +771,28 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.KNOWN, Effect.ENV, Origin.IMPORTED, "k=0 v=[:yes] j=Configured k1=1", before = "raised"),
             Cell(Value.KNOWN, Effect.NONE, Origin.HERE, "k=0 v=[:yes] k1=1"),
             Cell(Value.KNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=[:yes] k1=1", before = "raised"),
-            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.HERE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
-            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
-            Cell(Value.UNKNOWN, Effect.ENV, Origin.HERE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
-            Cell(Value.UNKNOWN, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
-            Cell(Value.UNKNOWN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
-            Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
-            Cell(Value.RAISING, Effect.CONFIG, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
-            Cell(Value.RAISING, Effect.CONFIG, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
-            Cell(Value.RAISING, Effect.ENV, Origin.HERE, "k=0 v=Configured j=nil k1=1", pins = listOf(Pin(null, "declined"))),
-            Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=nil k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "declined"))),
-            Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
-            Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
-            Cell(Value.WRITTEN, Effect.CONFIG, Origin.HERE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
-            Cell(Value.WRITTEN, Effect.CONFIG, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
-            Cell(Value.WRITTEN, Effect.ENV, Origin.HERE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
-            Cell(Value.WRITTEN, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
-            Cell(Value.WRITTEN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
-            Cell(Value.WRITTEN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.HERE, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.HERE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
+            // The element is kept as a maybe, so the body's write before its raise may run.
+            Cell(Value.RAISING, Effect.CONFIG, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "k=Configured v=Configured k1=1"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "k=Configured v=Configured k1=1"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.HERE, "k=0 v=Configured j=nil k1=1", pins = listOf(Pin(null, "k=0 v=Configured j=Configured k1=1"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=nil k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "k=0 v=Configured j=Configured k1=1"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.WRITTEN, Effect.CONFIG, Origin.HERE, "k=Configured v=Configured k1=1"),
+            Cell(Value.WRITTEN, Effect.CONFIG, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "raised"),
+            Cell(Value.WRITTEN, Effect.ENV, Origin.HERE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.WRITTEN, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "raised"),
+            Cell(Value.WRITTEN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
+            Cell(Value.WRITTEN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
         )
 
     fun testAForIntoAMap() =
@@ -538,6 +816,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"), Pin(STRING_SPLIT_TRIMS_IN_BINARY_SPLIT, null))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAForsReduce() =
@@ -561,6 +842,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"), Pin(STRING_SPLIT_TRIMS_IN_BINARY_SPLIT, null))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAForsUniq() =
@@ -584,6 +868,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"), Pin(STRING_SPLIT_TRIMS_IN_BINARY_SPLIT, null))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAnAnd() =
@@ -607,6 +894,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
         )
 
     fun testAnOr() =
@@ -630,6 +920,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=true k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=true k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=true k1=1"),
         )
 
     fun testANot() =
@@ -641,6 +934,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
         )
 
     fun testARelaxedAnd() =
@@ -664,6 +960,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
         )
 
     fun testARelaxedOr() =
@@ -687,6 +986,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=nil k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "k=0 v=Configured j=Configured k1=1"))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
         )
 
     fun testAMatch() =
@@ -716,6 +1018,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.WRITTEN, Effect.ENV, Origin.IMPORTED, "k=0 v=:yes j=Configured k1=1", before = "raised"),
             Cell(Value.WRITTEN, Effect.NONE, Origin.HERE, "k=0 v=:yes k1=1"),
             Cell(Value.WRITTEN, Effect.NONE, Origin.IMPORTED, "k=0 v=:yes k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=:yes k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=:yes k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=:yes k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testARaise() =
@@ -739,6 +1044,33 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=\"x\" k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=\"x\" k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=\"x\" k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=\"x\" j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=\"x\" j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=\"x\" j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=\"x\" k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=\"x\" k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=\"x\" k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAThrow() =
@@ -762,6 +1094,33 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=\"1\" k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=\"1\" k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=\"1\" k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=\"1\" j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=\"1\" j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=\"1\" j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=\"1\" k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=\"1\" k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=\"1\" k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAnExit() =
@@ -785,6 +1144,33 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=\"1\" k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=\"1\" k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=\"1\" k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=\"1\" j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=\"1\" j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=\"1\" j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=\"1\" k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=\"1\" k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=\"1\" k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAnEnumReduce() =
@@ -808,6 +1194,33 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=1 k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=1 k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=1 k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=1 j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=1 j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=1 j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=1 k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=1 k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=1 k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAnEnumEach() =
@@ -831,6 +1244,33 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=:ok k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=:ok k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=:ok k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=:ok j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=:ok j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=:ok j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=:ok k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=:ok k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=:ok k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=:ok k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=:ok k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=:ok k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=:ok j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=:ok j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=:ok j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=:ok k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=:ok k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=:ok k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAnEnumMap() =
@@ -854,6 +1294,33 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=[:yes] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=[:yes] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=[:yes] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=[:yes] k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAListsForeach() =
@@ -877,6 +1344,33 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=:ok k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=:ok k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=:ok k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=:ok j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=:ok j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=:ok j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=:ok k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=:ok k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=:ok k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=:ok k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=:ok k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=:ok k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=:ok j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=:ok j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=:ok j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=:ok k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=:ok k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=:ok k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAnIn() =
@@ -890,6 +1384,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
             Cell(Value.WRITTEN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.WRITTEN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(IN_LIST_LISTS_MEMBER, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(IN_LIST_LISTS_MEMBER, "declined"))),
         )
 
     fun testAnEnumMember() =
@@ -901,6 +1398,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=false k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "k=0 v=Configured k1=1"))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=false k1=1", pins = listOf(Pin(null, "declined"), Pin(STRING_SPLIT_TRIMS_IN_BINARY_SPLIT, "k=0 v=Configured k1=1"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=false k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=false k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testARelaxedNot() =
@@ -912,6 +1412,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
         )
 
     fun testAMatchQuestion() =
@@ -923,6 +1426,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
         )
 
     fun testAReraise() =
@@ -946,6 +1452,33 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=\"x\" k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=\"x\" k1=1", pins = listOf(Pin(RAISE_ERROR_INFO, "declined"))),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=\"x\" k1=1", pins = listOf(Pin(RAISE_ERROR_INFO, "declined"))),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=\"x\" j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=\"x\" j=Configured k1=1", pins = listOf(Pin(RAISE_ERROR_INFO, "declined"))),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=\"x\" j=Configured k1=1", pins = listOf(Pin(RAISE_ERROR_INFO, "declined"))),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=\"x\" k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=\"x\" k1=1", pins = listOf(Pin(RAISE_ERROR_INFO, "declined"))),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=\"x\" k1=1", pins = listOf(Pin(RAISE_ERROR_INFO, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=Configured k1=1", pins = listOf(Pin(RAISE_ERROR_INFO, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=Configured k1=1", pins = listOf(Pin(RAISE_ERROR_INFO, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(RAISE_ERROR_INFO, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(RAISE_ERROR_INFO, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(RAISE_ERROR_INFO, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(RAISE_ERROR_INFO, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAnInARange() =
@@ -957,6 +1490,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAnInAVariable() =
@@ -968,6 +1504,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testALocalCapture() =
@@ -991,8 +1530,36 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "declined"))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=:yes j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=:yes j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=:yes j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=:yes k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
+    /** `cond`, an `fn` and `with`'s `else` with no clause matching take this path too. */
     fun testACaseNoClauseMatches() =
         assertCells(
             Construct.CASE_UNMATCHED,
@@ -1014,6 +1581,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "k=0 v=Configured j=Configured k1=1"))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=:rescued k1=1", pins = listOf(Pin(null, "k=0 v=Configured k1=1"))),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "k=0 v=Configured k1=1"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAWithWithoutElse() =
@@ -1037,6 +1607,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
         )
 
     fun testAForIntoABinary() =
@@ -1060,8 +1633,12 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"), Pin(STRING_SPLIT_TRIMS_IN_BINARY_SPLIT, null))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
+    /** `apply/3` takes this path too, as does a remote capture's call. */
     fun testAnApply() =
         assertCells(
             Construct.APPLY,
@@ -1083,8 +1660,36 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=:yes j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=:yes j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=:yes j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=:yes k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
+    /** `Enum.reject/2`, `Enum.any?/2`, `Enum.all?/2`, `:lists.filter/2` and `:lists.all/2` take this path too. */
     fun testAnEnumFilter() =
         assertCells(
             Construct.ENUM_FILTER,
@@ -1106,8 +1711,41 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=[1] k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=[1] k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=[1] k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=[1] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=[1] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=[1] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=[1] k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=[1] k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=[1] k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined")), of = Construct.ENUM_FILTER_FROM_X),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined")), of = Construct.ENUM_FILTER_FROM_X),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined")), of = Construct.ENUM_FILTER_FROM_X),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined")), of = Construct.ENUM_FILTER_FROM_X),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined")), of = Construct.ENUM_FILTER_FROM_X),
         )
 
+    /** `:lists.map/2` takes this path too. */
     fun testAnEnumFlatMap() =
         assertCells(
             Construct.ENUM_FLAT_MAP,
@@ -1129,6 +1767,33 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=[:yes] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=[:yes] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=[:yes] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=[:yes] k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAnEnumFind() =
@@ -1152,8 +1817,41 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=1 k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=1 k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=1 k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=1 j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=1 j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=1 j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=1 k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=1 k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=1 k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined")), of = Construct.ENUM_FIND_FROM_X),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined")), of = Construct.ENUM_FIND_FROM_X),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined")), of = Construct.ENUM_FIND_FROM_X),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined")), of = Construct.ENUM_FIND_FROM_X),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined")), of = Construct.ENUM_FIND_FROM_X),
         )
 
+    /** `Enum.reduce_while/3` and `:lists.mapfoldl/3` take this path too. */
     fun testAListsFoldl() =
         assertCells(
             Construct.LISTS_FOLDL,
@@ -1175,6 +1873,33 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=1 k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=1 k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=1 k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=1 j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=1 j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=1 j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=1 k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=1 k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=1 k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAListsSort() =
@@ -1198,8 +1923,41 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=[0, 1] k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=[0, 1] k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=[0, 1] k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=[0, 1] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=[0, 1] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=[0, 1] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=[0, 1] k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=[0, 1] k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=[0, 1] k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined")), of = Construct.LISTS_SORT_FROM_X),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined")), of = Construct.LISTS_SORT_FROM_X),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined")), of = Construct.LISTS_SORT_FROM_X),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined")), of = Construct.LISTS_SORT_FROM_X),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined")), of = Construct.LISTS_SORT_FROM_X),
         )
 
+    /** `Map.update/4`, `Keyword.update/4` and `get_and_update_in/3` take this path too. */
     fun testAnUpdateIn() =
         assertCells(
             Construct.UPDATE_IN,
@@ -1221,8 +1979,36 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=%{a: :yes} k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=%{a: :yes} k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=%{a: :yes} k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=%{a: :yes} j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=%{a: :yes} j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=%{a: :yes} j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=%{a: :yes} k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=%{a: :yes} k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=%{a: :yes} k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
+    /** `:lists.keymember/3`, `:maps.is_key/2` and `Map.has_key?/2` take this path too. */
     fun testAKeywordHasKey() =
         assertCells(
             Construct.KEYWORD_HAS_KEY,
@@ -1232,6 +2018,9 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
             Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     fun testAnEqual() =
@@ -1245,6 +2034,274 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
             Cell(Value.WRITTEN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
             Cell(Value.WRITTEN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
+        )
+
+    /**
+     * A tail loop between an `fn` `config.exs` made and one its origin made, many calls deep, raising at its end
+     * inside a `try` around its first call.
+     */
+    fun testATailLoopBetweenFnsTwoRunsMade() =
+        assertCells(
+            Construct.TAIL_LOOP_ACROSS,
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.IMPORTED, "k=1 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "k=Configured v=Configured k1=1"))),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=Configured k1=1", pins = listOf(Pin(null, "k=Configured v=Configured k1=1"))),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=Configured k1=1", pins = listOf(Pin(null, "k=Configured v=Configured k1=1"))),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=Configured k1=1", pins = listOf(Pin(null, "k=Configured v=Configured k1=1"))),
+            Cell(Value.KNOWN, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
+            Cell(Value.KNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.IMPORTED, "k=1 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.REQUIRED, "k=1 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_FILE, "k=1 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.EVAL_STRING, "k=1 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.REQUIRED, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.REQUIRED, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_FILE, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.EVAL_STRING, "k=0 v=Configured j=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+        )
+
+    /**
+     * A `for` whose pass reads an app's env, which the pass before wrote, and configures `k` where it was.
+     */
+    fun testAForWhosePassesReadTheAppsEnvTheLastWrote() =
+        assertCells(
+            Construct.FOR_PASSES,
+            Cell(Value.KNOWN, Effect.NONE, Origin.HERE, "k=1 v=[:ok, :ok] k1=1", pins = listOf(Pin(null, "k=Configured v=[:ok, :ok] k1=1"))),
+            Cell(Value.KNOWN, Effect.NONE, Origin.IMPORTED, "k=1 v=[:ok, :ok] k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "k=Configured v=[:ok, :ok] k1=1"))),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=1 v=[:ok, :ok] k1=1", pins = listOf(Pin(null, "k=Configured v=[:ok, :ok] k1=1"))),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=1 v=[:ok, :ok] k1=1", pins = listOf(Pin(null, "k=Configured v=[:ok, :ok] k1=1"))),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=1 v=[:ok, :ok] k1=1", pins = listOf(Pin(null, "k=Configured v=[:ok, :ok] k1=1"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.HERE, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+        )
+
+    /**
+     * As does a pass of `Enum.reduce/3`.
+     */
+    fun testAnEnumReduceWhosePassesReadTheAppsEnvTheLastWrote() =
+        assertCells(
+            Construct.REDUCE_PASSES,
+            Cell(Value.KNOWN, Effect.NONE, Origin.HERE, "k=1 v=2 k1=1", pins = listOf(Pin(null, "k=Configured v=2 k1=1"))),
+            Cell(Value.KNOWN, Effect.NONE, Origin.IMPORTED, "k=1 v=2 k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "k=Configured v=2 k1=1"))),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=1 v=2 k1=1", pins = listOf(Pin(null, "k=Configured v=2 k1=1"))),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=1 v=2 k1=1", pins = listOf(Pin(null, "k=Configured v=2 k1=1"))),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=1 v=2 k1=1", pins = listOf(Pin(null, "k=Configured v=2 k1=1"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.HERE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+        )
+
+    /**
+     * As does a recursive call.
+     */
+    fun testARecursionWhoseCallsReadTheAppsEnvTheLastWrote() =
+        assertCells(
+            Construct.RECURSION_PASSES,
+            Cell(Value.KNOWN, Effect.NONE, Origin.HERE, "k=1 v=2 k1=1", pins = listOf(Pin(null, "k=Configured v=2 k1=1"))),
+            Cell(Value.KNOWN, Effect.NONE, Origin.IMPORTED, "k=1 v=2 k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=1 v=2 k1=1", pins = listOf(Pin(null, "k=Configured v=2 k1=1"))),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=1 v=2 k1=1", pins = listOf(Pin(null, "k=Configured v=2 k1=1"))),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=1 v=2 k1=1", pins = listOf(Pin(null, "k=Configured v=2 k1=1"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.HERE, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+        )
+
+    /**
+     * A `case`'s arm that imports a file writing `:app`'s `k`.
+     */
+    fun testAnImportConfigInACasesArm() =
+        assertCells(
+            Construct.CASE_IMPORTING,
+            Cell(Value.KNOWN, Effect.NONE, Origin.HERE, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.IMPORTED, "k=1 v=:yes k1=1", before = "raised"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=1 v=:yes k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=1 v=:yes k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.HERE, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=Configured v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=Configured v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+        )
+
+    /**
+     * A `case`'s arm that writes `:app`'s `k`, read back after the `case` with `Config.read_config/1`.
+     */
+    fun testAConfigWriteInACasesArmReadBackAfterIt() =
+        assertCells(
+            Construct.CASE_READ_BACK,
+            Cell(Value.KNOWN, Effect.NONE, Origin.HERE, "k=1 v=:yes r=1 k1=1", before = "raised"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.IMPORTED, "k=1 v=:yes r=1 k1=1", before = "raised"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.REQUIRED, "k=1 v=:yes r=1 k1=1", before = "raised"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_FILE, "k=1 v=:yes r=1 k1=1", before = "raised"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.EVAL_STRING, "k=1 v=:yes r=1 k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.HERE, "k=Configured v=Configured r=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=Configured v=Configured r=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=Configured v=Configured r=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=Configured v=Configured r=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=Configured v=Configured r=Configured k1=1", before = "raised"),
+            Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=Configured v=Configured r=Configured k1=1", before = "raised", pins = listOf(Pin(null, "declined"), Pin(CONFIG_READ_CONFIG, null))),
+            Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=Configured v=Configured r=Configured k1=1", before = "raised"),
+            Cell(Value.RAISING, Effect.NONE, Origin.REQUIRED, "k=Configured v=Configured r=Configured k1=1", before = "raised", pins = listOf(Pin(null, "declined"), Pin(CONFIG_READ_CONFIG, null))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_FILE, "k=Configured v=Configured r=Configured k1=1", before = "raised", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.EVAL_STRING, "k=Configured v=Configured r=Configured k1=1", before = "raised", pins = listOf(Pin(null, "declined"))),
+        )
+
+    /**
+     * A `case` in an `fn` `config.exs` made, which the file it imports after calls.
+     */
+    fun testACaseInAnFnTheImportingFileMade() =
+        assertCells(
+            Construct.CASE,
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.IMPORTER, "k=1 v=:yes k1=1", before = "raised"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.IMPORTER, "k=0 v=:yes j=Configured k1=1", before = "raised"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.IMPORTER, "k=0 v=:yes k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.IMPORTER, "k=Configured v=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.IMPORTER, "k=0 v=Configured j=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTER, "k=0 v=Configured k1=1", before = "raised"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.IMPORTER, "k=Configured v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.RAISING, Effect.ENV, Origin.IMPORTER, "k=0 v=Configured j=Configured k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, null))),
+            Cell(Value.RAISING, Effect.NONE, Origin.IMPORTER, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+        )
+
+    /**
+     * A `case`'s arm that loads `H` with `Code.require_file/2`, `Code.eval_file/2` or `Code.eval_string/1`, then
+     * `H.v/0` read after the `case`: over a value not known, the arm may not run.
+     */
+    fun testAModuleACasesArmLoadsCalledAfterIt() =
+        assertCells(
+            Construct.CASE_REQUIRING,
+            Cell(Value.KNOWN, Effect.NONE, Origin.HERE, "k=0 v=:yes h=1 k1=1", of = Construct.CASE_REQUIRING),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.HERE, "k=0 v=:yes h=1 k1=1", pins = listOf(Pin(null, "declined")), of = Construct.CASE_REQUIRING),
+            Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=:yes h=1 k1=1", pins = listOf(Pin(null, "declined")), of = Construct.CASE_REQUIRING),
+            Cell(Value.KNOWN, Effect.NONE, Origin.HERE, "k=0 v=:yes h=1 k1=1", of = Construct.CASE_EVALUATING_FILE),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.HERE, "k=0 v=:yes h=1 k1=1", pins = listOf(Pin(null, "declined")), of = Construct.CASE_EVALUATING_FILE),
+            Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=:yes h=1 k1=1", pins = listOf(Pin(null, "declined")), of = Construct.CASE_EVALUATING_FILE),
+            Cell(Value.KNOWN, Effect.NONE, Origin.HERE, "k=0 v=:yes h=1 k1=1", of = Construct.CASE_EVALUATING_STRING),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.HERE, "k=0 v=:yes h=1 k1=1", pins = listOf(Pin(null, "declined")), of = Construct.CASE_EVALUATING_STRING),
+            Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=:yes h=1 k1=1", pins = listOf(Pin(null, "declined")), of = Construct.CASE_EVALUATING_STRING),
+        )
+
+    /**
+     * `and` in a `for`'s generator guard.
+     */
+    fun testAnAndInAForsGeneratorGuard() =
+        assertCells(
+            Construct.FOR_GUARD_AND,
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.HERE, "k=1 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.IMPORTED, "k=1 v=[:yes] k1=1", before = "raised"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.HERE, "k=0 v=[:yes] j=Configured k1=1"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.IMPORTED, "k=0 v=[:yes] j=Configured k1=1", before = "raised"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.HERE, "k=0 v=[:yes] k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=[:yes] k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.HERE, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.HERE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.HERE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "k=Configured v=Configured k1=1"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "k=Configured v=Configured k1=1"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.HERE, "k=0 v=Configured j=nil k1=1", pins = listOf(Pin(null, "k=0 v=Configured j=Configured k1=1"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=nil k1=1", before = "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "k=0 v=Configured j=Configured k1=1"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
+            Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "k=0 v=:rescued k1=1"),
+            Cell(Value.WRITTEN, Effect.CONFIG, Origin.HERE, "k=Configured v=Configured k1=1"),
+            Cell(Value.WRITTEN, Effect.CONFIG, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "raised"),
+            Cell(Value.WRITTEN, Effect.ENV, Origin.HERE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.WRITTEN, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "raised"),
+            Cell(Value.WRITTEN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
+            Cell(Value.WRITTEN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1"),
+        )
+
+    /**
+     * `or` in a `for`'s generator guard.
+     */
+    fun testAnOrInAForsGeneratorGuard() =
+        assertCells(
+            Construct.FOR_GUARD_OR,
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.HERE, "k=0 v=[] k1=1"),
+            Cell(Value.KNOWN, Effect.CONFIG, Origin.IMPORTED, "k=0 v=[] k1=1", before = "raised"),
+            Cell(Value.KNOWN, Effect.ENV, Origin.HERE, "k=0 v=[] j=nil k1=1", pins = listOf(Pin(null, "k=0 v=[] j=Configured k1=1"))),
+            Cell(Value.KNOWN, Effect.ENV, Origin.IMPORTED, "k=0 v=[] j=nil k1=1", before = "raised", pins = listOf(Pin(CONFIG_READ_CONFIG, "k=0 v=[] j=Configured k1=1"))),
+            Cell(Value.KNOWN, Effect.NONE, Origin.HERE, "k=0 v=[] k1=1"),
+            Cell(Value.KNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=[] k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.HERE, "k=Configured v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.CONFIG, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.HERE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.HERE, "k=0 v=:rescued k1=1", pins = listOf(Pin(null, "k=Configured v=Configured k1=1"))),
+            Cell(Value.RAISING, Effect.CONFIG, Origin.IMPORTED, "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "k=Configured v=Configured k1=1"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.HERE, "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=Configured j=Configured k1=1"))),
+            Cell(Value.RAISING, Effect.ENV, Origin.IMPORTED, "k=0 v=:rescued j=nil k1=1", pins = listOf(Pin(null, "k=0 v=:rescued j=Configured k1=1"), Pin(CONFIG_READ_CONFIG, "k=0 v=Configured j=Configured k1=1"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.HERE, "k=0 v=:rescued k1=1", pins = listOf(Pin(null, "k=0 v=Configured k1=1"))),
+            Cell(Value.RAISING, Effect.NONE, Origin.IMPORTED, "k=0 v=:rescued k1=1", pins = listOf(Pin(CONFIG_READ_CONFIG, "k=0 v=Configured k1=1"))),
+            Cell(Value.WRITTEN, Effect.CONFIG, Origin.HERE, "k=Configured v=Configured k1=1"),
+            Cell(Value.WRITTEN, Effect.CONFIG, Origin.IMPORTED, "k=Configured v=Configured k1=1", before = "raised"),
+            Cell(Value.WRITTEN, Effect.ENV, Origin.HERE, "k=0 v=Configured j=Configured k1=1"),
+            Cell(Value.WRITTEN, Effect.ENV, Origin.IMPORTED, "k=0 v=Configured j=Configured k1=1", before = "raised"),
+            Cell(Value.WRITTEN, Effect.NONE, Origin.HERE, "k=0 v=Configured k1=1"),
+            Cell(Value.WRITTEN, Effect.NONE, Origin.IMPORTED, "k=0 v=Configured k1=1", before = "raised"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.REQUIRED, "k=0 v=Configured k1=1"),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_FILE, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
+            Cell(Value.UNKNOWN, Effect.NONE, Origin.EVAL_STRING, "k=0 v=Configured k1=1", pins = listOf(Pin(null, "declined"))),
         )
 
     /**
@@ -1259,7 +2316,7 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
 
         assertEquals(
             listOf(writer.expected, onLeg("k=0 v=nil k1=1", "k=0 v=:none k1=1")),
-            listOf(answer(Construct.CASE, writer), read(sentinel, listOf("k", "v", "k1"))),
+            listOf(answer(Construct.CASE, writer), keysInOwnRoot(sentinel, listOf("k", "v", "k1"))),
         )
     }
 
@@ -1285,6 +2342,11 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             "(Application.put_env(:w, :x, System.get_env(\"X\")); if(Application.get_env(:w, :x), do: {:ok, 1}, else: {:error, 1}))",
         ),
         MESSAGE("\"x\"", "System.get_env(\"X\", \"x\")", "Integer.to_string(String.to_integer(System.get_env(\"X\", \"1\")))"),
+        PAIR(
+            "[1, 2]",
+            "String.split(System.get_env(\"X\", \"\"), \"2\")",
+            "[String.to_integer(System.get_env(\"X\", \"1\")), 2]",
+        ),
     }
 
     enum class Value { KNOWN, UNKNOWN, RAISING, WRITTEN }
@@ -1295,18 +2357,47 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
         NONE(null),
     }
 
-    enum class Origin { HERE, IMPORTED }
+    /** Where the construct's code is, and so which run makes it. */
+    enum class Origin {
+        /** `config/config.exs`. */
+        HERE,
+
+        /** An `fn` `config/o.exs` made (`config :fns, f: fn -> ... end`), which `config.exs` imports, then calls. */
+        IMPORTED,
+
+        /** `R.f/0` in `config/h.ex`, which `config.exs` requires with `Code.require_file/2`, then calls. */
+        REQUIRED,
+
+        /** The top of `config/f.exs`, which `config.exs` runs with `Code.eval_file/2`. */
+        EVAL_FILE,
+
+        /** A string `config.exs` runs with `Code.eval_string/3` in its own `__ENV__`. */
+        EVAL_STRING,
+
+        /** An `fn` `config.exs` made (`config :fns, g: fn -> ... end`), which `config/o.exs`, imported after, calls. */
+        IMPORTER,
+    }
 
     /**
      * A construct: its [expression] of the value and of the arm it takes, `taken(x)` running the effect then giving `x`,
      * and the module its expression calls, given that arm and the effect as a statement line. One with no module, whose
      * expression takes no arm, is a strict call with no code of its own: an effect inside it is its argument's
-     * construct, so it has none.
+     * construct, so it has none. Its code may follow the files [beside] `config.exs`, need `import Config` where that
+     * isn't in scope ([imports]), or be read [after] `v` in a key of its own. With [start], `v` is that call, given the
+     * value and what its origin made, inside a `try` whatever the value.
+     *
+     * The other cells that can't happen: an effect inside a construct with one of its own (the passes that write an
+     * app's env, and the `case`s that follow a file), and [TAIL_LOOP_ACROSS] from [Origin.HERE], where one run makes
+     * both `fn`s.
      */
     enum class Construct(
         val family: Family,
         val expression: (value: String, taken: (String) -> String) -> String,
         val module: ((taken: (String) -> String, statement: String) -> String)? = null,
+        val beside: Array<Pair<String, String>> = emptyArray(),
+        val imports: Boolean = false,
+        val after: Pair<String, String>? = null,
+        val start: ((made: String, value: String) -> String)? = null,
     ) {
         CASE(Family.TRUTHY, { v, t -> "case $v do\n  nil -> :no\n  _ -> ${t(":yes")}\nend" }),
         COND(Family.TRUTHY, { v, t -> "cond do\n  $v -> ${t(":yes")}\n  true -> :no\nend" }),
@@ -1384,12 +2475,76 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
         UPDATE_IN(Family.TRUTHY, { v, t -> "update_in(%{a: $v}, [:a], fn\n  nil -> :no\n  _ -> ${t(":yes")}\nend)" }),
         KEYWORD_HAS_KEY(Family.TUPLE, { v, _ -> "Keyword.has_key?([$v], :ok)" }),
         EQUAL(Family.TRUTHY, { v, _ -> "$v == \"y\"" }),
+        ENUM_FILTER_FROM_X(Family.LIST, { v, t -> "Enum.filter($v, fn _ -> ${t(X_IS_Y)} end)" }),
+        ENUM_FIND_FROM_X(Family.LIST, { v, t -> "Enum.find($v, fn _ -> ${t(X_IS_Y)} end)" }),
+        LISTS_SORT_FROM_X(Family.LIST, { v, t -> ":lists.sort(fn _, _ -> ${t(X_IS_Y)} end, [0 | $v])" }),
+        TAIL_LOOP_ACROSS(
+            Family.COUNT,
+            { _, _ -> "fn g, f, n -> f.(f, g, n) end" },
+            { t, _ -> "f = fn\n  _, _, 0 -> ${t("System.fetch_env!(\"X\")")}\n  f, g, n -> g.(g, f, n - 1)\nend\n" },
+            start = { made, v -> "f.(f, $made, $v + 100_000)" },
+        ),
+        FOR_PASSES(
+            Family.PAIR,
+            { v, _ ->
+                "for _ <- $v do\n  if Application.get_env(:other, :a), do: Config.config(:app, k: 1)\n" +
+                    "  Application.put_env(:other, :a, 1)\nend"
+            },
+        ),
+        REDUCE_PASSES(
+            Family.PAIR,
+            { v, _ ->
+                "Enum.reduce($v, 0, fn _, acc ->\n  if Application.get_env(:other, :a), do: Config.config(:app, k: 1)\n" +
+                    "  Application.put_env(:other, :a, 1)\n  acc + 1\nend)"
+            },
+        ),
+        RECURSION_PASSES(
+            Family.PAIR,
+            { v, _ -> "H.passes($v)" },
+            { _, _ ->
+                "defmodule H do\n  def passes([]), do: 0\n\n  def passes([_ | t]) do\n" +
+                    "    if Application.get_env(:other, :a), do: Config.config(:app, k: 1)\n" +
+                    "    Application.put_env(:other, :a, 1)\n    1 + passes(t)\n  end\nend\n"
+            },
+        ),
+        CASE_IMPORTING(
+            Family.TRUTHY,
+            { v, _ -> "case $v do\n  nil -> :no\n  _ -> (import_config \"a.exs\"; :yes)\nend" },
+            beside = arrayOf("config/a.exs" to "import Config\n\nconfig :app, k: 1\n"),
+            imports = true,
+        ),
+        CASE_READ_BACK(
+            Family.TRUTHY,
+            { v, _ -> "case $v do\n  nil -> :no\n  _ -> (Config.config(:app, k: 1); :yes)\nend" },
+            after = "r" to "Config.read_config(:app)[:k]",
+        ),
+        CASE_REQUIRING(
+            Family.TRUTHY,
+            { v, _ -> "case $v do\n  nil -> :no\n  _ -> (Code.require_file(\"h.ex\", __DIR__); :yes)\nend" },
+            beside = arrayOf("config/h.ex" to "defmodule H do\n  def v, do: 1\nend\n"),
+            after = "h" to "H.v()",
+        ),
+        CASE_EVALUATING_FILE(
+            Family.TRUTHY,
+            { v, _ -> "case $v do\n  nil -> :no\n  _ -> (Code.eval_file(\"f.exs\", __DIR__); :yes)\nend" },
+            beside = arrayOf("config/f.exs" to "defmodule H do\n  def v, do: 1\nend\n"),
+            after = "h" to "H.v()",
+        ),
+        CASE_EVALUATING_STRING(
+            Family.TRUTHY,
+            { v, _ ->
+                "case $v do\n  nil -> :no\n  _ -> (Code.eval_string(\"defmodule H, do: def(v, do: 1)\"); :yes)\nend"
+            },
+            after = "h" to "H.v()",
+        ),
+        FOR_GUARD_AND(Family.TRUTHY, { v, t -> "for x when is_binary(x) and x != \"y\" <- [$v], do: ${t(":yes")}" }),
+        FOR_GUARD_OR(Family.TRUTHY, { v, t -> "for x when x == \"y\" or byte_size(x) > 1 <- [$v], do: ${t(":yes")}" }),
     }
 
     /**
-     * One reading of a construct: over [value], with [effect] inside it, from [origin]. Elixir's answer is [expected], or
-     * [before] on a leg without `Config.read_config/1`. Where it has [pins], it asserts the plugin's answer now, which its
-     * #4508 entry moves to Elixir's.
+     * One reading of a construct: over [value], with [effect] inside it, from [origin], of [of] where it isn't `null`,
+     * a construct its method stands for. Elixir's answer is [expected], or [before] on a leg without
+     * `Config.read_config/1`. Where it has [pins], it asserts the plugin's answer now, which its #4508 entry moves to Elixir's.
      */
     class Cell(
         val value: Value,
@@ -1398,6 +2553,7 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
         val expected: String,
         val before: String = expected,
         val pins: List<Pin> = emptyList(),
+        val of: Construct? = null,
     )
 
     /**
@@ -1414,33 +2570,19 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
 
             line(cell, pin?.answer ?: onLeg(cell.expected, cell.before))
         }
-        val actual = cells.joinToString("\n") { line(it, answer(construct, it)) }
+        val actual = cells.joinToString("\n") { line(it, answer(it.of ?: construct, it)) }
 
         assertEquals(expected, actual)
     }
 
-    private fun line(cell: Cell, answer: String) = "${cell.value} ${cell.effect} ${cell.origin}: $answer"
+    private fun line(cell: Cell, answer: String) =
+        "${cell.value} ${cell.effect} ${cell.origin}${cell.of?.let { " $it" } ?: ""}: $answer"
 
     private fun answer(construct: Construct, cell: Cell): String {
         val (config, extra) = files(construct, cell.value, cell.effect, cell.origin)
+        val keys = listOfNotNull("k", "v", construct.after?.first, "j".takeIf { cell.effect == Effect.ENV }, "k1")
 
-        return read(config, listOfNotNull("k", "v", "j".takeIf { cell.effect == Effect.ENV }, "k1"), extra)
-    }
-
-    /**
-     * [keys] as [config] and the [extra] files beside it set them, from a content root of their own, which is removed
-     * once read.
-     */
-    private fun read(config: String, keys: List<String>, extra: Array<Pair<String, String>> = emptyArray()): String {
-        val roots = ModuleRootManager.getInstance(module).contentRoots.toSet()
-
-        try {
-            return keys(config, *keys.toTypedArray(), extra = extra)
-        } finally {
-            ModuleRootManager.getInstance(module).contentRoots
-                .filterNot(roots::contains)
-                .forEach { PsiTestUtil.removeContentEntry(module, it) }
-        }
+        return keysInOwnRoot(config, keys, extra)
     }
 
     /** `config/config.exs`, less its `import Config`, and the files beside it. */
@@ -1453,35 +2595,82 @@ class ConfigConstructsHeavyTest : ConfigHeavyTestCase() {
             Value.WRITTEN -> checkNotNull(construct.family.written)
         }
         val expression = construct.expression(read, taken)
-        val imported = origin == Origin.IMPORTED
-        val extra: Array<Pair<String, String>> =
-            if (imported) {
-                arrayOf(
-                    "config/o.exs" to "import Config\n\nconfig :fns,\n  f: fn ->\n${indent(expression)}\n  end\n",
-                )
-            } else {
-                emptyArray()
-            }
-        val body = if (imported) "Config.read_config(:fns)[:f].()" else expression
-        val bound = when {
-            value == Value.RAISING -> "v =\n  try do\n${indent(body)}\n  rescue\n    _ -> :rescued\n  end\n"
-            '\n' in body -> "v =\n  (\n${indent(body)}\n  )\n"
-            else -> "v = $body\n"
-        }
         val module = construct.module?.let { it(taken, effect.statement?.let { s -> "    $s\n" } ?: "") + "\n" } ?: ""
+        val env = if (effect == Effect.ENV) "config :app, j: Application.get_env(:other, :a)\n" else ""
+
+        if (origin == Origin.IMPORTER) {
+            val config = "config :app, k: 0\n\n${module}config :fns,\n  g: fn ->\n${indent(expression)}\n  end\n\n" +
+                "import_config \"o.exs\"\n\n${env}config :app, k1: 1\n"
+            val imported =
+                "import Config\n\n${bound("Config.read_config(:fns)[:g].()", value == Value.RAISING)}\nconfig :app, v: v\n"
+
+            return config to arrayOf("config/o.exs" to imported)
+        }
+
+        val (made, head, call) = made(expression, origin, construct.imports)
+        val body = construct.start?.invoke(call, read) ?: call
         val config = buildString {
             append("config :app, k: 0\n\n")
             append(module)
-            if (imported) append("import_config \"o.exs\"\n\n")
-            append(bound)
+            append(head)
+            append(bound(body, value == Value.RAISING || construct.start != null))
             append("\nconfig :app, v: v\n")
-            if (effect == Effect.ENV) append("config :app, j: Application.get_env(:other, :a)\n")
+            construct.after?.let { (key, after) -> append("config :app, $key: $after\n") }
+            append(env)
             append("config :app, k1: 1\n")
         }
 
-        return config to extra
+        return config to made + construct.beside
     }
+
+    /**
+     * The files that hold [code] from [origin], with `import Config` where it [imports] it and isn't in scope, what
+     * `config.exs` runs before it reads it, and the call there that gives its value.
+     */
+    private fun made(
+        code: String,
+        origin: Origin,
+        imports: Boolean,
+    ): Triple<Array<Pair<String, String>>, String, String> =
+        when (origin) {
+            Origin.HERE -> Triple(emptyArray(), "", code)
+            Origin.IMPORTED -> Triple(
+                arrayOf("config/o.exs" to "import Config\n\nconfig :fns,\n  f: fn ->\n${indent(code)}\n  end\n"),
+                "import_config \"o.exs\"\n\n",
+                "Config.read_config(:fns)[:f].()",
+            )
+            Origin.REQUIRED -> Triple(
+                arrayOf(
+                    "config/h.ex" to
+                        "defmodule R do\n${if (imports) "  import Config\n\n" else ""}  def f do\n${indent(code)}\n  end\nend\n",
+                ),
+                "Code.require_file(\"h.ex\", __DIR__)\n\n",
+                "R.f()",
+            )
+            Origin.EVAL_FILE -> Triple(
+                arrayOf("config/f.exs" to "${if (imports) "import Config\n\n" else ""}$code\n"),
+                "",
+                "elem(Code.eval_file(\"f.exs\", __DIR__), 0)",
+            )
+            Origin.EVAL_STRING -> Triple(
+                emptyArray(),
+                "",
+                "elem(Code.eval_string(${elixirString(code)}, [], __ENV__), 0)",
+            )
+            Origin.IMPORTER -> error("the importing file's fn is called by the file it imports")
+        }
+
+    /** `v` bound to [body], inside a `try` that rescues it where [rescued]. */
+    private fun bound(body: String, rescued: Boolean) =
+        when {
+            rescued -> "v =\n  try do\n${indent(body)}\n  rescue\n    _ -> :rescued\n  end\n"
+            '\n' in body -> "v =\n  (\n${indent(body)}\n  )\n"
+            else -> "v = $body\n"
+        }
 
     /** [text], each line not empty four spaces in. */
     private fun indent(text: String) = text.split('\n').joinToString("\n") { if (it.isEmpty()) it else "    $it" }
 }
+
+/** A value built from `X`, which a callback returns. */
+private const val X_IS_Y = "System.get_env(\"X\") == \"y\""

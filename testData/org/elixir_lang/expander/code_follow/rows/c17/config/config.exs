@@ -1,0 +1,3 @@
+import Config
+Code.eval_string("Application.put_env(:dep, :key, :other, persistent: true)")
+:ok
