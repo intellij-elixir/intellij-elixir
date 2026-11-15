@@ -15,6 +15,7 @@ import org.elixir_lang.declaration.Uncertain
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.atItsHead
 import org.elixir_lang.declaration.declaringModuleName
+import org.elixir_lang.declaration.isDelegation
 import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.call.Call
@@ -167,8 +168,6 @@ internal object Documented {
                 ?: found.firstOrNull { it.candidate.declaration.declared is Declared.Compiled }?.element
                 ?: found.firstOrNull { it.isDelegation() }?.element
         }
-
-    private fun Found.isDelegation(): Boolean = (candidate.declaration.declared as? Declared.Source)?.form == Form.DELEGATION
 
     /** Whether [found] is a source declaration that defines its function: `defexception`'s where Elixir records one. */
     @RequiresReadLock

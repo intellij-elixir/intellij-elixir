@@ -88,7 +88,8 @@ internal fun paired(found: List<Found>): List<Preferred> {
     return preferred + unpaired
 }
 
-private fun Found.isDelegation(): Boolean =
+/** Whether [this] is a `defdelegate` written in source. */
+internal fun Found.isDelegation(): Boolean =
     (candidate.declaration.declared as? Declared.Source)?.form == Form.DELEGATION
 
 /** Only what a complete call can use, unless the code is incomplete. */
