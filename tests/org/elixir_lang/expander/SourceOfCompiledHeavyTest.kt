@@ -124,7 +124,7 @@ class SourceOfCompiledHeavyTest : LegSdkFixtureTestCase() {
                 "single" to candidates(file, "Phoenix.Component.connected?(s)"),
                 "macro" to candidates(file, "Phoenix.Component.slot(:a)"),
                 "guard" to candidates(file, "Phoenix.Component.is_assigns(x)"),
-                "capture" to capture(file, "Phoenix.Component.assign", 3),
+                "capture" to capture(file, "Phoenix.Component.assign"),
                 "pipe" to candidates(file, "Phoenix.Component.assign(:k, 1)"),
                 "aliased" to candidates(file, "Component.assign(s, :aliased, 1)"),
                 "own delegation" to candidates(file, "Phoenix.Component.render(t)"),
@@ -305,7 +305,7 @@ class SourceOfCompiledHeavyTest : LegSdkFixtureTestCase() {
             ),
             rows(
                 "none" to candidates(file, "SourceOfCompiled.Unexported.spliced()"),
-                "capture" to capture(file, "SourceOfCompiled.Unexported.spliced", 3),
+                "capture" to capture(file, "SourceOfCompiled.Unexported.spliced"),
                 "defaulted" to candidates(file, "SourceOfCompiled.Unexported.g(x)"),
             ),
         )
@@ -676,9 +676,9 @@ class SourceOfCompiledHeavyTest : LegSdkFixtureTestCase() {
 
     private fun lines(prefix: String, vararg lines: Int): String = lines.joinToString("\n") { "$prefix line $it" }
 
-    /** The expander's candidates for the capture `&`[name]`/`[arity], which occurs once in [file]. */
-    private fun capture(file: PsiFile, name: String, arity: Int): String =
-        candidates(read { Use.capture(ExpanderSourceRows.call(file, "&$name/$arity", name), arity)!! })
+    /** The expander's candidates for the capture `&`[name]`/3`, which occurs once in [file]. */
+    private fun capture(file: PsiFile, name: String): String =
+        candidates(read { Use.capture(ExpanderSourceRows.call(file, "&$name/3", name), 3)!! })
 
     /** The use that is the call [call], which occurs once in [file]. */
     private fun use(file: PsiFile, call: String): Use.OfCall = ExpanderSourceRows.use(file, call, call)
