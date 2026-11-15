@@ -3,9 +3,11 @@ package org.elixir_lang.expander
 import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.vfs.VirtualFile
+import org.elixir_lang.expander.interpreter.CounterArray
 import org.elixir_lang.expander.interpreter.EMPTY
 import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.expander.interpreter.atom
@@ -313,6 +315,12 @@ internal class RunShared {
 
     /** The paths `Code.require_file/1,2` required. */
     val required = HashSet<String>()
+
+    /** The arrays `counters:new/2` made, by the reference each is named by; not hygiene's [Run.counters]. */
+    val counterArrays = HashMap<OtpErlangRef, CounterArray>()
+
+    /** How many cells the [counterArrays] hold in all. */
+    var counterCells = 0
 }
 
 /** Whether [left] and [right] are one state of a read: the same config ([sameTerm]), shape and files, or no read. */

@@ -343,6 +343,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "erlang" to Row(READS) { key, args, tail -> erlang(key, args, tail) },
             "lists" to reading(Natives::lists),
             "maps" to reading(Natives::maps),
+            "counters" to Row({ function, _ -> function == "add" || function == "put" }) { key, args, _ -> counters(key, args) },
             "elixir_quote" to reading(Natives::quote),
             "elixir_module" to writing(Natives::elixirModule),
             "code" to reading(Natives::code),
@@ -417,8 +418,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /**
      * A module whose functions are answered here: its [answer] for a function's `name/arity` key and arguments, `null`
-     * where it has none, in tail position or not ([call]), and whether a function of it [writes] what later code reads:
-     * a module's counter or tables, the app env, the read's config, or Elixir's static options.
+     * where it has none, in tail position or not ([call]), and whether a function of it [writes] what later code reads.
      */
     private class Row(
         val writes: Natives.(function: String, arity: Int) -> Boolean = { _, _ -> true },
@@ -1623,6 +1623,99 @@ internal class Natives(private val evaluation: Evaluation) {
             "keys/1" -> list(inOrder(map(args[0])).map { it.first })
             else -> null
         }
+
+    /**
+     * `counters`, over the arrays made in the runs that share the run's state
+     * ([counterArrays][org.elixir_lang.expander.RunShared.counterArrays]). Code that may not run
+     * ([mayNotRun][org.elixir_lang.expander.Run.mayNotRun]) reads a cell as not known and leaves one it writes not
+     * known, as nothing joins it, and past code that declined no cell is known
+     * ([declinedCodeRan][org.elixir_lang.expander.Run.declinedCodeRan]). `sub/3` and `info/1` aren't answered.
+     */
+    private fun counters(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
+        when (key) {
+            "new/2" -> newCounters(args)
+            "get/2" -> {
+                val array = counterArray("get", args)
+                val cell = array.cells[counterIndex(array, "get", args)]
+
+                cell?.takeUnless { evaluation.run.mayNotRun }?.let(::integer) ?: Unknown
+            }
+            // An increment is any 64 bits, signed or not, and wraps.
+            "add/3" -> writeCounter("add", args, { it.isLong || it.isULong }) { cell, n -> cell?.plus(n) }
+            "put/3" -> writeCounter("put", args, { it.isLong }) { _, n -> n }
+            else -> null
+        }
+
+    /**
+     * `counters:new/2`: its options are read before its size, and a size that would take the cells of the arrays the run
+     * shares past [COPY_NODES] declines.
+     */
+    private fun newCounters(args: List<OtpErlangObject>): OtpErlangObject {
+        val options = properElements(seen(args[1]))?.map(::seen)
+        val kind = if (options?.isEmpty() == true) {
+            "atomics"
+        } else {
+            (options?.singleOrNull() as? OtpErlangAtom)?.atomValue()?.takeIf { it == "atomics" || it == "write_concurrency" }
+                ?: countersError("badarg", "new", args, cause = "badopt")
+        }
+        val size = positiveInteger(args[0]) ?: countersError("badarg", "new", args)
+
+        if (size.bitLength() > 64) countersError("system_limit", "new", args)
+        val shared = evaluation.run.shared
+
+        if (size > BigInteger.valueOf((COPY_NODES - shared.counterCells).toLong())) decline("a `counters` array of $size cells")
+
+        val ref = newRef()
+
+        shared.counterArrays[ref] = CounterArray(kind, Array(size.toInt()) { 0L })
+        shared.counterCells += size.toInt()
+
+        return tuple(atom(kind), ref)
+    }
+
+    /**
+     * The array `counters:`[function]'s first argument names, raising `badarg` where it names none. A reference no
+     * `counters:new/2` of the runs sharing the run's state made declines: it may be another run's.
+     */
+    private fun counterArray(function: String, args: List<OtpErlangObject>): CounterArray {
+        val counter = (seen(args[0]) as? OtpErlangTuple)?.takeIf { it.arity() == 2 } ?: countersError("badarg", function, args)
+        val kind = (seen(counter.elementAt(0)) as? OtpErlangAtom)?.atomValue()
+        val ref = seen(counter.elementAt(1)) as? OtpErlangRef ?: countersError("badarg", function, args)
+        val array = evaluation.run.shared.counterArrays[ref] ?: decline("a `counters` reference no run sharing this one's state made")
+
+        return array.takeIf { it.kind == kind } ?: countersError("badarg", function, args)
+    }
+
+    /** The 0-based index of [array] that `counters:`[function]'s second argument names, raising `badarg` where none. */
+    private fun counterIndex(array: CounterArray, function: String, args: List<OtpErlangObject>): Int =
+        index(args[1], array.cells.size)?.minus(1) ?: countersError("badarg", function, args)
+
+    /**
+     * `counters:add/3` or `put/3`: the cell becomes [write] of its value and the third argument, where that [fits], else
+     * `badarg`.
+     */
+    private fun writeCounter(
+        function: String,
+        args: List<OtpErlangObject>,
+        fits: (OtpErlangLong) -> Boolean,
+        write: (cell: Long?, n: Long) -> Long?,
+    ): OtpErlangObject {
+        val array = counterArray(function, args)
+        val index = counterIndex(array, function, args)
+        val n = (seen(args[2]) as? OtpErlangLong)?.takeIf(fits) ?: countersError("badarg", function, args)
+
+        array.cells[index] = if (evaluation.run.mayNotRun) null else write(array.cells[index], n.longValue())
+
+        return atom("ok")
+    }
+
+    /** Raises [reason] from `counters:`[function] given [args], with the `error_info` `counters` gives it. */
+    private fun countersError(reason: String, function: String, args: List<OtpErlangObject>, cause: String? = null): Nothing {
+        val info = listOfNotNull(atom("module") to atom("erl_erts_errors"), cause?.let { atom("cause") to atom(it) })
+        val location = list(listOf(tuple(atom("error_info"), mapOf(info, level))))
+
+        evaluation.error(atom(reason), frame("counters", function, list(args), location))
+    }
 
     /**
      * [map]'s entries in the order `maps:to_list/1` gives them: term order, declining over 32 keys.
@@ -3689,6 +3782,15 @@ private val refsMade = AtomicLong()
 
 /** The ids of a reference no evaluation has made before. */
 private fun newRefIds(): IntArray = refsMade.incrementAndGet().let { intArrayOf(it.toInt(), (it ushr 32).toInt(), 0) }
+
+/** A reference no evaluation has made before, as `make_ref/0` gives it. */
+private fun newRef() = OtpErlangRef(LOCAL_NODE, newRefIds(), 0)
+
+/**
+ * An array `counters:new/2` made: its [kind], `atomics` or `write_concurrency`, and its [cells], each `null` where its
+ * value isn't known.
+ */
+internal class CounterArray(val kind: String, val cells: Array<Long?>)
 
 /** `self()`: the one process a macro body runs in. */
 private val SELF = OtpErlangPid(LOCAL_NODE, 0, 0, 0)

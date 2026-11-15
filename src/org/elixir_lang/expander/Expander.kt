@@ -480,11 +480,13 @@ internal class Run(
     }
 
     /**
-     * Code declined, and the evaluation or the walk went on past it, so what it ran isn't known. What that means for a
-     * read's table is for the unit's recording to say, as only that knows whether the unit is ported.
+     * Code declined, and the evaluation or the walk went on past it, so what it ran isn't known, nor the cells of the
+     * [counterArrays][RunShared.counterArrays] it may have written. What that means for a read's table is for the
+     * unit's recording to say, as only that knows whether the unit is ported.
      */
     fun declinedCodeRan() {
         unfollowedRan = true
+        shared.counterArrays.values.forEach { it.cells.fill(null) }
     }
 
     /**
@@ -871,7 +873,8 @@ internal class Run(
         child.ensured.values.forEach(::ensuredLoaded)
         if (child.evaluates) ownLoads += child.ownLoads
         assumptions += child.assumptions
-        if (child.unfollowedRan) declinedCodeRan()
+        // The arrays are shared, so the child's own decline cleared them.
+        if (child.unfollowedRan) unfollowedRan = true
     }
 
     /**

@@ -1043,6 +1043,11 @@ internal const val COPY_NODES = 1 shl 20
 internal fun tupleTerm(elements: List<Term>): Term =
     if (elements.size == 2) Term.Pair(elements[0], elements[1]) else Term.Tuple(elements)
 
-/** An `{M, F, ArgsOrArity, []}` stacktrace entry. */
-internal fun frame(module: String, function: String, argsOrArity: OtpErlangObject): OtpErlangTuple =
-    tuple(atom(module), atom(function), argsOrArity, EMPTY)
+/** An `{M, F, ArgsOrArity, Location}` stacktrace entry, its location `[]` unless given. */
+internal fun frame(
+    module: String,
+    function: String,
+    argsOrArity: OtpErlangObject,
+    location: OtpErlangObject = EMPTY,
+): OtpErlangTuple =
+    tuple(atom(module), atom(function), argsOrArity, location)

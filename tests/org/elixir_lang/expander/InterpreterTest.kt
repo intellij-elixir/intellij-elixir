@@ -3182,6 +3182,9 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             return Row(id, defs.trimIndent(), call, body, use, listOf(module), source, legs, UNPINNED, stopsAfter, ends = ends)
         }
 
+        /** A macro `m` giving `{kind, reason}` where [expression] raises, else its value. */
+        fun caught(expression: String) = "defmacro m, do: (try do $expression catch kind, reason -> {kind, reason} end)"
+
         /** A row whose `use` runs [statements] in the case module once it requires `EEx`. */
         fun eex(id: String, statements: String, ends: (ElixirLanguageLevel) -> String? = { null }): Row =
             use(id, using("quote do", "require EEx\n${statements.trimIndent()}"), ends = ends)
@@ -5975,6 +5978,208 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro(
                 "native:maps-take-elixir",
                 "defmacro m, do: Macro.escape([Map.pop(%{a: 1}, :a), Map.pop(%{a: 1}, :b, 0), Map.pop!(%{a: 1}, :a)])",
+            ),
+
+            // The natives: `counters`
+            macro(
+                "native:counters",
+                """
+                defmacro m do
+                  c = :counters.new(2, [])
+                  :counters.add(c, 1, 5)
+                  :counters.put(c, 2, 7)
+
+                  [:counters.add(c, 2, -10), :counters.get(c, 1), :counters.get(c, 2)]
+                end
+                """,
+            ),
+            macro(
+                "native:counters-options",
+                """
+                defmacro m do
+                  a = :counters.new(1, [:atomics])
+                  w = :counters.new(1, [:write_concurrency])
+                  :counters.add(a, 1, 1)
+                  :counters.put(w, 1, 2)
+
+                  [:counters.get(a, 1), :counters.get(w, 1), elem(a, 0), elem(w, 0)]
+                end
+                """,
+            ),
+            // Signed 64 bits, wrapping, and an increment may be any 64 bits, signed or not.
+            macro(
+                "native:counters-wrap",
+                """
+                defmacro m do
+                  c = :counters.new(2, [])
+                  :counters.put(c, 1, 9_223_372_036_854_775_807)
+                  :counters.add(c, 1, 1)
+                  :counters.add(c, 2, 18_446_744_073_709_551_615)
+
+                  [:counters.get(c, 1), :counters.get(c, 2)]
+                end
+                """,
+            ),
+            macro("native:counters-new-size-zero", caught(":counters.new(0, [])")),
+            macro("native:counters-new-size-negative", caught(":counters.new(-1, [])")),
+            macro("native:counters-new-size-float", caught(":counters.new(1.0, [])")),
+            macro("native:counters-new-system-limit", caught(":counters.new(18_446_744_073_709_551_616, [])")),
+            // The options are read before the size.
+            macro("native:counters-new-badopt-first", caught(":counters.new(0, [:x])")),
+            macro("native:counters-new-two-options", caught(":counters.new(1, [:atomics, :write_concurrency])")),
+            macro("native:counters-new-options-not-a-list", caught(":counters.new(1, :atomics)")),
+            // An array the evaluator won't hold.
+            macro("native:counters-new-large", "defmacro m, do: :counters.get(:counters.new(2_000_000, []), 1)", pins = DECLINED),
+            // The run keeps every array it made, so it holds no more cells in all than it would in one.
+            macro(
+                "native:counters-new-past-the-runs-cells",
+                "defmacro m, do: (_ = :counters.new(600_000, []); :counters.get(:counters.new(600_000, []), 1))",
+                pins = DECLINED,
+            ),
+            macro("native:counters-new-within-the-runs-cells", "defmacro m, do: (_ = :counters.new(500_000, []); :counters.get(:counters.new(500_000, []), 1))"),
+            macro("native:counters-get-index-zero", caught(":counters.get(:counters.new(1, []), 0)")),
+            macro("native:counters-get-index-past-size", caught(":counters.get(:counters.new(1, []), 2)")),
+            macro("native:counters-get-index-not-an-integer", caught(":counters.get(:counters.new(1, []), :a)")),
+            macro("native:counters-get-not-a-counter", caught(":counters.get(:a, 1)")),
+            macro("native:counters-get-tag-not-a-ref", caught(":counters.get({:atomics, :a}, 1)")),
+            macro(
+                "native:counters-get-kind-mismatch",
+                caught("r = elem(:counters.new(1, [:atomics]), 1); :counters.get({:write_concurrency, r}, 1)"),
+            ),
+            macro("native:counters-get-ref-not-made", "defmacro m, do: :counters.get({:atomics, make_ref()}, 1)", pins = DECLINED),
+            macro("native:counters-put-past-64-bits", caught(":counters.put(:counters.new(1, []), 1, 9_223_372_036_854_775_808)")),
+            macro("native:counters-add-past-64-bits", caught(":counters.add(:counters.new(1, []), 1, 18_446_744_073_709_551_616)")),
+            macro("native:counters-add-below-64-bits", caught(":counters.add(:counters.new(1, []), 1, -9_223_372_036_854_775_809)")),
+            macro("native:counters-add-not-an-integer", caught(":counters.add(:counters.new(1, []), 1, 1.0)")),
+            macro("native:counters-put-index-past-size", caught(":counters.put(:counters.new(1, []), 2, 0)")),
+            // The raise carries `error_info`, which a `rescue` hands `erl_erts_errors:format_error/2`, which isn't run, from
+            // `RESCUED_ERROR_MESSAGE_FROM_ERROR_INFO`.
+            macro(
+                "native:counters-error-info",
+                """
+                def top(f) do
+                  try do
+                    f.()
+                  catch
+                    :error, _ ->
+                      [{module, function, args, location} | _] = __STACKTRACE__
+                      {module, function, args, :lists.keyfind(:error_info, 1, location)}
+                  end
+                end
+
+                defmacro m do
+                  Macro.escape([
+                    top(fn -> :counters.new(0, []) end),
+                    top(fn -> :counters.new(1, [:x]) end),
+                    top(fn -> :counters.put(:a, 1, 0) end)
+                  ])
+                end
+                """,
+            ),
+            macro(
+                "native:counters-badarg-message",
+                "defmacro m, do: (try do :counters.get(:counters.new(1, []), 0) rescue e -> Exception.message(e) end)",
+                pins = { _, level -> OPAQUE.takeIf { RESCUED_ERROR_MESSAGE_FROM_ERROR_INFO.isSufficient(level) } },
+            ),
+            macro("native:counters-sub", "defmacro m, do: (c = :counters.new(1, []); :counters.sub(c, 1, 1); :counters.get(c, 1))", pins = DECLINED),
+            // Code that may not run neither reads a cell nor keeps what it writes.
+            macro(
+                "native:counters-arm-one",
+                "defmacro m, do: (c = :counters.new(1, []); if(:erlang.whereis(:init), do: :counters.add(c, 1, 1)); :counters.get(c, 1))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:counters-arm-both",
+                """
+                defmacro m do
+                  c = :counters.new(1, [])
+                  if :erlang.whereis(:init), do: :counters.add(c, 1, 1), else: :counters.add(c, 1, 1)
+                  :counters.get(c, 1)
+                end
+                """,
+                pins = DECLINED,
+            ),
+            macro(
+                "native:counters-arm-read",
+                "defmacro m, do: (c = :counters.new(1, []); if(:erlang.whereis(:init), do: :counters.get(c, 1), else: 0))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:counters-outside-arms",
+                "defmacro m, do: (c = :counters.new(1, []); _ = if(:erlang.whereis(:init), do: :a, else: :b); :counters.add(c, 1, 1); :counters.get(c, 1))",
+            ),
+            macro(
+                "native:counters-put-after-arm",
+                "defmacro m, do: (c = :counters.new(1, []); if(:erlang.whereis(:init), do: :counters.add(c, 1, 1)); :counters.put(c, 1, 7); :counters.get(c, 1))",
+            ),
+            macro(
+                "native:counters-add-after-arm",
+                "defmacro m, do: (c = :counters.new(1, []); if(:erlang.whereis(:init), do: :counters.add(c, 1, 1)); :counters.add(c, 1, 7); :counters.get(c, 1))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:counters-past-raise",
+                """
+                defmacro m do
+                  c = :counters.new(1, [])
+
+                  try do
+                    if :erlang.whereis(:init), do: raise("x")
+                    :counters.add(c, 1, 1)
+                  rescue
+                    RuntimeError -> :ok
+                  end
+
+                  :counters.get(c, 1)
+                end
+                """,
+                pins = DECLINED,
+            ),
+            // A pass reading a cell an earlier pass wrote.
+            macro(
+                "native:counters-for-over-unknown",
+                """
+                defmacro m do
+                  c = :counters.new(2, [])
+
+                  for _ <- if(:erlang.whereis(:init), do: [1, 2], else: []) do
+                    if :counters.get(c, 1) > 0, do: :counters.add(c, 2, 1)
+                    :counters.add(c, 1, 1)
+                  end
+
+                  :counters.get(c, 2)
+                end
+                """,
+                pins = DECLINED,
+            ),
+            // A write given a value not known declines, having made what it may write unknown.
+            macro(
+                "native:counters-add-unknown",
+                "defmacro m, do: (c = :counters.new(1, []); _ = :counters.add(c, 1, if(:erlang.whereis(:init), do: 1, else: 2)); :counters.get(c, 1))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:counters-add-unknown-index",
+                "defmacro m, do: (c = :counters.new(2, []); :counters.put(c, 2, 5); _ = :counters.add(c, if(:erlang.whereis(:init), do: 2, else: 1), 1); :counters.get(c, 2))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:counters-add-unknown-ref",
+                """
+                defmacro m do
+                  a = :counters.new(1, [])
+                  b = :counters.new(1, [])
+                  :counters.put(b, 1, 5)
+                  _ = :counters.add(if(:erlang.whereis(:init), do: b, else: a), 1, 1)
+                  :counters.get(b, 1)
+                end
+                """,
+                pins = DECLINED,
+            ),
+            macro(
+                "native:counters-get-unknown-index",
+                "defmacro m, do: (c = :counters.new(1, []); :counters.put(c, 1, 3); :counters.get(c, if(:erlang.whereis(:init), do: 1, else: 2)))",
+                pins = DECLINED,
             ),
 
             // The natives: loading
