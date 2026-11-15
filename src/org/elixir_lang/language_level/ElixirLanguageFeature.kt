@@ -2904,7 +2904,16 @@ enum class ElixirLanguageFeature(
      *
      * `erlang/otp@c013d3ad41` ("erts: Optimize flatmap internal ordering of atoms"), first released in OTP 26.0-rc1.
      */
-    MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER(sinceOtp = "26.0-rc1");
+    MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER(sinceOtp = "26.0-rc1"),
+
+    /**
+     * `erlang:term_to_binary/1` writes every atom in UTF-8, as minor version 2. Before it, an atom whose characters are
+     * all Latin-1 is written in Latin-1, `ATOM_EXT`.
+     *
+     * `erlang/otp@77d3f52aed` ("erts: Make term_to_binary encode atoms as UTF-8 by default"), first released in
+     * OTP 26.0-rc2.
+     */
+    TERM_TO_BINARY_UTF8_ATOMS(sinceOtp = "26.0-rc2");
 
 
     /** The first Elixir release with this behaviour, or `null` when every supported release has it. */

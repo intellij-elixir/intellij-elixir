@@ -385,6 +385,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             ERLANG_ERROR_3 to ("23.3.4.20" to "24.0-rc1"),
             RAISE_FRAME_TAKES_A_CAPTURE to ("24.3.4.17" to "25.0-rc1"),
             MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER to ("25.3.2.21" to "26.0-rc1"),
+            TERM_TO_BINARY_UTF8_ATOMS to ("26.0-rc1" to "26.0-rc2"),
             NEGATIVE_ZERO_IS_DISTINCT to ("26.2.5.21" to "27.0-rc1"),
             BINARY_PART_REJECTS_BITSTRINGS to ("26.2.5.21" to "27.0-rc1"),
             MAP_UPDATE_RAISES_WHERE_DISCARDED to ("25.3" to "25.3.1"),

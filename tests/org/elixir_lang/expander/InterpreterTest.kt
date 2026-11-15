@@ -6182,6 +6182,69 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 pins = DECLINED,
             ),
 
+            // The natives: `term_to_binary/1`
+            macro(
+                "native:term-to-binary",
+                """
+                defmacro m do
+                  :erlang.term_to_binary([
+                    0, 255, 256, -1, 2_147_483_647, 2_147_483_648, -2_147_483_648, -2_147_483_649,
+                    18_446_744_073_709_551_616, -18_446_744_073_709_551_616, 1.5, -2.0e300,
+                    "", "ab", [], [?a, ?b], [1, 256], [1 | 2], [[]], {}, {1, {2}},
+                    %{}, %{2 => :b, 1 => "a"}, %{1.0 => 1, 1 => 2}, %{:a => 1, 1 => 2}
+                  ])
+                end
+                """,
+            ),
+            // Latin-1 before OTP 26 where every character fits, else UTF-8: short, and over 255 bytes.
+            macro(
+                "native:term-to-binary-atoms",
+                "defmacro m, do: :erlang.term_to_binary([:ok, true, :\"é\", :\"日本\", :erlang.binary_to_atom(\"${"é".repeat(200)}\", :utf8), :erlang.binary_to_atom(\"${"日".repeat(100)}\", :utf8)])",
+            ),
+            // Over 255 bytes of magnitude, a large big.
+            macro(
+                "native:term-to-binary-bignums",
+                "defmacro m, do: :erlang.term_to_binary([:erlang.bsl(1, 2039), :erlang.bsl(1, 2040), -:erlang.bsl(1, 2040)])",
+            ),
+            macro(
+                "native:term-to-binary-large-tuple",
+                "defmacro m, do: :erlang.md5(:erlang.term_to_binary([:erlang.list_to_tuple(:lists.duplicate(255, 0)), :erlang.list_to_tuple(:lists.duplicate(256, 0))]))",
+            ),
+            // A list of bytes is a string up to 65535 of them.
+            macro(
+                "native:term-to-binary-long-string",
+                "defmacro m, do: :erlang.md5(:erlang.term_to_binary([:lists.duplicate(65_535, 1), :lists.duplicate(65_536, 1)]))",
+            ),
+            macro(
+                "native:term-to-binary-32-keys",
+                "defmacro m, do: :erlang.md5(:erlang.term_to_binary(:maps.from_list(for i <- 1..32, do: {i, i})))",
+            ),
+            // Past 32 keys a map is a hash trie, whose order is its keys' hashes.
+            macro(
+                "native:term-to-binary-33-keys",
+                "defmacro m, do: :erlang.md5(:erlang.term_to_binary(:maps.from_list(for i <- 1..33, do: {i, i})))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:term-to-binary-atom-keys",
+                "defmacro m, do: :erlang.term_to_binary(%{b: 1, a: 2})",
+                legs = { !MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER.isSufficient(it) },
+            ),
+            // The atoms' order is their index in the VM's atom table.
+            macro(
+                "native:term-to-binary-atom-keys-index-order",
+                "defmacro m, do: :erlang.term_to_binary(%{b: 1, a: 2})",
+                legs = { MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER.isSufficient(it) },
+                pins = DECLINED,
+            ),
+            // The bytes of a fun, pid or reference name the node.
+            macro("native:term-to-binary-fun", "defmacro m, do: :erlang.term_to_binary(fn -> 1 end)", pins = DECLINED),
+            macro("native:term-to-binary-ref", "defmacro m, do: :erlang.term_to_binary(make_ref())", pins = DECLINED),
+            macro("native:term-to-binary-pid", "defmacro m, do: :erlang.term_to_binary(self())", pins = DECLINED),
+            macro("native:term-to-binary-bitstring", "defmacro m, do: :erlang.term_to_binary(<<1::3>>)", pins = DECLINED),
+            macro("native:term-to-binary-unknown", "defmacro m, do: :erlang.term_to_binary([1, :erlang.whereis(:init)])", pins = DECLINED),
+            macro("native:term-to-binary-options", "defmacro m, do: :erlang.term_to_binary(1, [])", pins = DECLINED),
+
             // The natives: loading
             macro("native:ensure-loaded-loaded", "defmacro m, do: Macro.escape(:code.ensure_loaded(Enum))"),
             // The quoter's release runs in embedded mode, which answers `{:error, :embedded}`; a Mix compile is interactive.

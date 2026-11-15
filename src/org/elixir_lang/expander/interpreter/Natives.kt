@@ -10,6 +10,7 @@ import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpExternal
 import com.ericsson.otp.erlang.OtpErlangPid
 import com.ericsson.otp.erlang.OtpErlangPort
 import com.ericsson.otp.erlang.OtpErlangRef
@@ -64,6 +65,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.IO_WARN_TAKES_AN_ENV
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_SORT_KEEPS_EQUAL_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAKE_FUN_ARITY_CHECKED
+import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.RAISE_FRAME_TAKES_A_CAPTURE
 import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_ESCAPED_IN_FIXED_FIELD_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_ATTRIBUTES_IN
@@ -73,6 +75,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.OVERRIDABLE_GUARDS_M
 import org.elixir_lang.language_level.ElixirLanguageFeature.SPLICE_EMPTY_BEFORE_TAIL_RAISES
 import org.elixir_lang.language_level.ElixirLanguageFeature.STATIC_OPTIONS_IN_PERSISTENT_TERM
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRING_TO_ATOM_REQUIRES_BINARY
+import org.elixir_lang.language_level.ElixirLanguageFeature.TERM_TO_BINARY_UTF8_ATOMS
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.fitsAnAtom
@@ -857,6 +860,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "atom_to_list/1" ->
                 list((seen(args[0]) as? OtpErlangAtom ?: badarg()).atomValue().codePoints().toArray().map { integer(it.toLong()) })
             "md5/1" -> OtpErlangBinary(MessageDigest.getInstance("MD5").digest(iodataBytes(args[0], badarg)))
+            "term_to_binary/1" -> termToBinary(args[0])
             "binary_to_atom/1", "binary_to_atom/2" -> {
                 val text = atomText(args) ?: badarg()
 
@@ -1718,12 +1722,17 @@ internal class Natives(private val evaluation: Evaluation) {
     }
 
     /**
-     * [map]'s entries in the order `maps:to_list/1` gives them: term order, declining over 32 keys.
+     * [map]'s entries in the order `maps:to_list/1` gives them: term order, declining over 32 keys. Where the order must
+     * be [exact]ly the VM's, two atom keys decline from [MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER], which orders them by their
+     * index in its atom table.
      */
-    private fun inOrder(map: OtpErlangMap): List<Pair<OtpErlangObject, OtpErlangObject>> {
+    private fun inOrder(map: OtpErlangMap, exact: Boolean = false): List<Pair<OtpErlangObject, OtpErlangObject>> {
         val entries = entries(map)
 
         if (entries.size > 32) decline("the order of a map of more than 32 keys")
+        if (exact && MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER.isSufficient(level) && entries.count { seen(it.first) is OtpErlangAtom } > 1) {
+            decline("the order of a map's atom keys, which is their index in the VM's atom table")
+        }
 
         return entries.sortedWith { left, right -> compare(left.first, right.first, level, true) }
     }
@@ -3747,6 +3756,116 @@ internal class Natives(private val evaluation: Evaluation) {
         return bytes.toByteArray()
     }
 
+    /**
+     * `term_to_binary/1`: version 131, uncompressed. An atom whose characters are all Latin-1 is written in Latin-1
+     * before [TERM_TO_BINARY_UTF8_ATOMS], and a map's pairs in the VM's order, declining where [inOrder] can't say it. A
+     * fun, pid, port or reference, whose bytes name the node, declines, as does a bitstring not of whole bytes. Past
+     * [COPY_NODES] terms it declines, as their parts may be shared many times over.
+     */
+    private fun termToBinary(term: OtpErlangObject): OtpErlangBinary {
+        val bytes = Built()
+        val latin1Atoms = !TERM_TO_BINARY_UTF8_ATOMS.isSufficient(level)
+        var met = 0
+
+        // [tag], then [n] in [width] bytes.
+        fun tagged(tag: Int, n: Int, width: Int) {
+            bytes.write(tag)
+            for (shift in (width - 1) * 8 downTo 0 step 8) bytes.write(n ushr shift)
+        }
+
+        // [small]'s tag and a byte of [size] where it fits one, else [large]'s and [largeWidth] bytes.
+        fun header(size: Int, small: Int, large: Int, largeWidth: Int) =
+            if (size < 256) tagged(small, size, 1) else tagged(large, size, largeWidth)
+
+        fun walk(term: OtpErlangObject) {
+            ProgressManager.checkCanceled()
+
+            if (++met > COPY_NODES) decline("term_to_binary/1 of over $COPY_NODES terms")
+
+            when (val known = seen(term)) {
+                is OtpErlangAtom -> {
+                    val text = known.atomValue()
+                    val latin1 = if (latin1Atoms) latin1(text) else null
+
+                    if (latin1 != null) {
+                        tagged(OtpExternal.atomTag, latin1.size, 2)
+                        bytes.write(latin1)
+                    } else {
+                        val utf8 = text.toByteArray(Charsets.UTF_8)
+
+                        header(utf8.size, OtpExternal.smallAtomUtf8Tag, OtpExternal.atomUtf8Tag, 2)
+                        bytes.write(utf8)
+                    }
+                }
+                is OtpErlangLong -> {
+                    val n = known.bigIntegerValue()
+
+                    when {
+                        n.signum() >= 0 && n.bitLength() <= 8 -> tagged(OtpExternal.smallIntTag, n.toInt(), 1)
+                        n.bitLength() <= 31 -> tagged(OtpExternal.intTag, n.toInt(), 4)
+                        else -> {
+                            // Little-endian, with no zero byte past the most significant.
+                            val magnitude = n.abs().toByteArray().dropWhile { it == 0.toByte() }.reversed().toByteArray()
+
+                            header(magnitude.size, OtpExternal.smallBigTag, OtpExternal.largeBigTag, 4)
+                            bytes.write(if (n.signum() < 0) 1 else 0)
+                            bytes.write(magnitude)
+                        }
+                    }
+                }
+                is OtpErlangDouble -> {
+                    bytes.write(OtpExternal.newFloatTag)
+                    bytes.write(ByteBuffer.allocate(8).putDouble(known.doubleValue()).array())
+                }
+                is OtpErlangBitstr -> {
+                    if (known.pad_bits() != 0) decline("term_to_binary/1 of a bitstring not of whole bytes")
+
+                    val binary = known.binaryValue()
+
+                    tagged(OtpExternal.binTag, binary.size, 4)
+                    bytes.write(binary)
+                }
+                is OtpErlangTuple -> {
+                    header(known.arity(), OtpExternal.smallTupleTag, OtpExternal.largeTupleTag, 4)
+                    known.elements().forEach(::walk)
+                }
+                is OtpErlangMap -> {
+                    val pairs = inOrder(known, exact = true)
+
+                    tagged(OtpExternal.mapTag, pairs.size, 4)
+                    pairs.forEach { (key, value) ->
+                        walk(key)
+                        walk(value)
+                    }
+                }
+                else -> {
+                    val (elements, tail) = cells(known) ?: decline("term_to_binary/1 of %s, whose bytes name the node", known)
+                    val string = elements.takeIf { tail == null && it.size <= MAX_STRING_EXT }?.let { list ->
+                        ByteArray(list.size) { smallInt(seen(list[it]))?.takeIf { n -> n in 0..255 }?.toByte() ?: return@let null }
+                    }
+
+                    when {
+                        elements.isEmpty() && tail == null -> bytes.write(OtpExternal.nilTag)
+                        string != null -> {
+                            tagged(OtpExternal.stringTag, string.size, 2)
+                            bytes.write(string)
+                        }
+                        else -> {
+                            tagged(OtpExternal.listTag, elements.size, 4)
+                            elements.forEach(::walk)
+                            if (tail == null) bytes.write(OtpExternal.nilTag) else walk(tail)
+                        }
+                    }
+                }
+            }
+        }
+
+        bytes.write(OtpExternal.versionTag)
+        walk(term)
+
+        return OtpErlangBinary(bytes.toByteArray())
+    }
+
     /** The bytes a conversion writes, which decline past the size of a bitstring the interpreter builds. */
     private class Built : ByteArrayOutputStream() {
         override fun write(b: Int) {
@@ -3773,6 +3892,9 @@ private val STATIC_OPTIONS = mapOf("bootstrap" to FALSE, "identifier_tokenizer" 
 
 /** `logger`'s levels, the more severe first, as `logger_config:level_to_int/1` orders them. */
 private val LOG_LEVELS = listOf("none", "emergency", "alert", "critical", "error", "warning", "notice", "info", "debug", "all")
+
+/** The longest list `term_to_binary/1` writes as a string, `STRING_EXT` (`external.c`'s `MAX_STRING_LEN`). */
+private const val MAX_STRING_EXT = 0xFFFF
 
 /** The node of a process or reference the evaluator makes. */
 private const val LOCAL_NODE = "nonode@nohost"
