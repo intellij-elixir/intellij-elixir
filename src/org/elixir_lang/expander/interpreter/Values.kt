@@ -858,21 +858,32 @@ internal fun isKeyword(term: OtpErlangObject): Boolean =
 internal fun pairKey(term: OtpErlangObject): OtpErlangObject? =
     (term as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elementAt(0)
 
-/** `lists:keyfind/3`'s walk: the first tuple of [elements], each read by [read], whose element [n] [matches]. */
+/**
+ * `lists:keyfind/3`'s walk: the index of the first tuple of [elements], each read by [read], whose element [n] [matches],
+ * or -1. A tuple too short is passed over, as the guard `element(N, H) == Key` fails.
+ */
+internal inline fun keyIndex(
+    elements: List<OtpErlangObject>,
+    n: Long,
+    read: (OtpErlangObject) -> OtpErlangObject,
+    matches: (OtpErlangObject) -> Boolean,
+): Int {
+    elements.forEachIndexed { index, element ->
+        val tuple = read(element) as? OtpErlangTuple
+
+        if (tuple != null && tuple.arity() >= n && matches(tuple.elementAt(n.toInt() - 1))) return index
+    }
+
+    return -1
+}
+
+/** The tuple [keyIndex] finds. */
 internal inline fun keyFound(
     elements: List<OtpErlangObject>,
     n: Long,
     read: (OtpErlangObject) -> OtpErlangObject,
     matches: (OtpErlangObject) -> Boolean,
-): OtpErlangTuple? {
-    for (element in elements) {
-        val tuple = read(element) as? OtpErlangTuple ?: continue
-
-        if (tuple.arity() >= n && matches(tuple.elementAt(n.toInt() - 1))) return tuple
-    }
-
-    return null
-}
+): OtpErlangTuple? = keyIndex(elements, n, read, matches).takeIf { it >= 0 }?.let { read(elements[it]) as OtpErlangTuple }
 
 /** The value of the tuple [keyFound] finds, where it is a `{key, Value}` pair; `null` where none is or it isn't one. */
 internal inline fun keyValue(

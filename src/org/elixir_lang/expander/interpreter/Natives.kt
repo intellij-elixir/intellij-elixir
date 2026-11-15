@@ -129,6 +129,8 @@ private val RETURNABLE = mapOf(
     Triple("ordsets", "is_element", 2) to emptyList(),
     Triple("Elixir.Enum", "member?", 2) to emptyList(),
     Triple("lists", "keydelete", 3) to listOf(2),
+    Triple("lists", "keytake", 3) to listOf(2),
+    Triple("maps", "take", 2) to listOf(1),
     Triple("erlang", "map_get", 2) to listOf(1),
     Triple("erlang", "is_map_key", 2) to emptyList(),
     Triple("Elixir.Application", "get_env", 2) to emptyList(),
@@ -1025,18 +1027,25 @@ internal class Natives(private val evaluation: Evaluation) {
             "keyfind/3" -> keyfind(args) ?: FALSE
             "keymember/3" -> bool(keyfind(args) != null)
             "keydelete/3" -> {
-                val n = (seen(args[1]) as? OtpErlangLong)?.bigIntegerValue()?.takeIf { it.signum() > 0 }
-                    ?: noClause("keydelete", args)
+                val n = positiveInteger(args[1]) ?: noClause("keydelete", args)
                 val (elements, tail) = cells(args[2]) ?: noClause("keydelete3", args)
-                val index = elements.indexOfFirst { element ->
-                    (seen(element) as? OtpErlangTuple)?.takeIf { BigInteger.valueOf(it.arity().toLong()) >= n }
-                        ?.let { equal(it.elementAt(n.toInt() - 1), args[0], false, level) } == true
-                }
+                val index = keyIndexOf(elements, n, args[0])
 
                 when {
-                    index >= 0 -> cons(elements.take(index), cons(elements.drop(index + 1), tail ?: EMPTY))
+                    index >= 0 -> withoutAt(elements, index, tail)
                     tail != null -> noClause("keydelete3", listOf(args[0], args[1], tail))
                     else -> args[2]
+                }
+            }
+            "keytake/3" -> {
+                val n = positiveInteger(args[1]) ?: noClause("keytake", args)
+                val (elements, tail) = cells(args[2]) ?: noClause("keytake", listOf(args[0], args[1], args[2], EMPTY))
+                val index = keyIndexOf(elements, n, args[0])
+
+                when {
+                    index >= 0 -> tuple(atom("value"), elements[index], withoutAt(elements, index, tail))
+                    tail != null -> noClause("keytake", listOf(args[0], args[1], tail, list(elements.reversed())))
+                    else -> FALSE
                 }
             }
             "append/1" -> {
@@ -1456,6 +1465,18 @@ internal class Natives(private val evaluation: Evaluation) {
         }
     }
 
+    /** [term] where it is an integer above 0: `lists:keydelete/3`'s and `keytake/3`'s `N`, or a `counters` size. */
+    private fun positiveInteger(term: OtpErlangObject): BigInteger? =
+        (seen(term) as? OtpErlangLong)?.bigIntegerValue()?.takeIf { it.signum() > 0 }
+
+    /** [keyIndex] of a tuple whose element [n] is `==` [key]; an [n] past a `Long` is no tuple's. */
+    private fun keyIndexOf(elements: List<OtpErlangObject>, n: BigInteger, key: OtpErlangObject): Int =
+        if (n.bitLength() >= Long.SIZE_BITS) -1 else keyIndex(elements, n.toLong(), ::seen) { equal(it, key, false, level) }
+
+    /** The list of [elements] ending in [tail], `[]` where `null`, without the element at [index]. */
+    private fun withoutAt(elements: List<OtpErlangObject>, index: Int, tail: OtpErlangObject?): OtpErlangObject =
+        cons(elements.subList(0, index), cons(elements.subList(index + 1, elements.size), tail ?: EMPTY))
+
     /** `lists:keyfind/3`: the first tuple of the list whose element [args]`[1]` is `==` to [args]`[0]`. */
     private fun keyfind(args: List<OtpErlangObject>): OtpErlangTuple? {
         val badarg = { badargOf("lists", "keyfind", args) }
@@ -1556,6 +1577,10 @@ internal class Natives(private val evaluation: Evaluation) {
         }
     }
 
+    /** [map] without [key], as `maps:remove/2` gives it. */
+    private fun without(map: OtpErlangMap, key: OtpErlangObject): OtpErlangMap =
+        mapOf(entries(map).filterNot { equal(it.first, key, true, level) }, level)
+
     private fun maps(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
         when (key) {
             "get/2" -> valueAt(map(args[1]), args[0], level) ?: evaluation.error(tuple(atom("badkey"), args[0]))
@@ -1563,7 +1588,12 @@ internal class Natives(private val evaluation: Evaluation) {
             "find/2" -> valueAt(map(args[1]), args[0], level)?.let { tuple(atom("ok"), it) } ?: atom("error")
             "is_key/2" -> bool(valueAt(map(args[1]), args[0], level) != null)
             "put/3" -> mapOf(entries(map(args[2])) + (args[0] to args[1]), level)
-            "remove/2" -> mapOf(entries(map(args[1])).filterNot { equal(it.first, args[0], true, level) }, level)
+            "remove/2" -> without(map(args[1]), args[0])
+            "take/2" -> {
+                val map = map(args[1])
+
+                valueAt(map, args[0], level)?.let { tuple(it, without(map, args[0])) } ?: atom("error")
+            }
             "update/3" -> {
                 val map = map(args[2])
 

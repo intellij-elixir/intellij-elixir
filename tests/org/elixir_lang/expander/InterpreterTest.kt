@@ -5630,6 +5630,32 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 """,
                 pins = DECLINED_FROM_SOURCE,
             ),
+            macro("native:keytake", "defmacro m, do: Macro.escape(:lists.keytake(:b, 1, [{:a, 1}, {:b, 2}, {:b, 3}]))"),
+            macro("native:keytake-none", "defmacro m, do: :lists.keytake(:c, 1, [{:a, 1}])"),
+            macro("native:keytake-empty", "defmacro m, do: :lists.keytake(:c, 1, [])"),
+            macro("native:keytake-int-float", "defmacro m, do: Macro.escape(:lists.keytake(1, 1, [{1.0, :a}]))"),
+            macro(
+                "native:keytake-skips-non-tuples-and-short-tuples",
+                "defmacro m, do: Macro.escape(:lists.keytake(:a, 2, [:a, {:a}, {:x, :a}]))",
+            ),
+            macro("native:keytake-improper-tail-after-match", "defmacro m, do: Macro.escape(:lists.keytake(:a, 1, [{:a, 1} | :t]))"),
+            macro("native:keytake-improper-tail", "defmacro m, do: :lists.keytake(:a, 1, [{:b, 1} | :t])"),
+            macro("native:keytake-zero", "defmacro m, do: :lists.keytake(:a, 0, [{:a, 1}])"),
+            macro("native:keytake-not-an-integer", "defmacro m, do: :lists.keytake(:a, 1.0, [{:a, 1}])"),
+            macro("native:keytake-not-a-list", "defmacro m, do: :lists.keytake(:a, 1, :l)"),
+            macro("native:keytake-position-past-an-int", "defmacro m, do: :lists.keytake(:a, 4_294_967_297, [{:a, 1}])"),
+            macro(
+                "native:keytake-elixir",
+                "defmacro m, do: Macro.escape([List.keytake([a: 1, b: 2], :b, 0), Keyword.pop_first([a: 1, a: 2], :a)])",
+            ),
+            macro(
+                "native:keytake-unknown-element",
+                """
+                @x (receive do after 0 -> {:a, :first} end)
+                defmacro m, do: Macro.escape(:lists.keytake(:a, 1, [@x, {:a, :fallback}]))
+                """,
+                pins = DECLINED_FROM_SOURCE,
+            ),
             macro(
                 "pure:range-member-unknown",
                 """
@@ -5941,6 +5967,15 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro("pure:maps-badmap", "defmacro m, do: :maps.get(:a, 1)"),
             macro("pure:maps-badkey", "defmacro m, do: :maps.get(:b, %{a: 1})"),
             macro("pure:maps-from-list-badarg", "defmacro m, do: :maps.from_list([1])"),
+            macro("native:maps-take", "defmacro m, do: Macro.escape(:maps.take(:a, %{a: 1, b: 2}))"),
+            macro("native:maps-take-missing", "defmacro m, do: :maps.take(:c, %{a: 1})"),
+            // A key is taken where it is exactly equal, so `1.0` misses `1`.
+            macro("native:maps-take-exact", "defmacro m, do: :maps.take(1.0, %{1 => :x})"),
+            macro("native:maps-take-badmap", "defmacro m, do: :maps.take(:a, :b)"),
+            macro(
+                "native:maps-take-elixir",
+                "defmacro m, do: Macro.escape([Map.pop(%{a: 1}, :a), Map.pop(%{a: 1}, :b, 0), Map.pop!(%{a: 1}, :a)])",
+            ),
 
             // The natives: loading
             macro("native:ensure-loaded-loaded", "defmacro m, do: Macro.escape(:code.ensure_loaded(Enum))"),
