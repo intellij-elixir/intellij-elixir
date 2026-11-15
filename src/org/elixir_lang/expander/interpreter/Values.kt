@@ -795,6 +795,24 @@ internal class Pairs<R : Any>(private val root: OtpErlangObject? = null) {
     }
 }
 
+/**
+ * The containers a walk over one term has walked, so that it reads each part the term shares once. A leaf, which costs
+ * less to read again than to remember, is never kept.
+ */
+internal class WalkedParts {
+    /** Made at the first container. */
+    private var walked: MutableSet<OtpErlangObject>? = null
+
+    /** Whether [term] is a container walked before; it is walked from now. */
+    fun again(term: OtpErlangObject): Boolean {
+        if (!isContainer(term)) return false
+
+        val walked = walked ?: Collections.newSetFromMap(IdentityHashMap<OtpErlangObject, Boolean>()).also { walked = it }
+
+        return !walked.add(term)
+    }
+}
+
 private fun isContainer(term: OtpErlangObject): Boolean =
     term is OtpErlangTuple || term is OtpErlangMap || term is OtpErlangList
 

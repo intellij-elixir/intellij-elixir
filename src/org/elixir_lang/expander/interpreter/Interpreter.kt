@@ -540,7 +540,7 @@ internal class Evaluation(
         val function = ModuleExports.macroExport(NameArity(dispatch.name, args.size))
         val linifier = Linify(dispatch.receiver, run.level)
         val result = try {
-            invoke(module, definition, function.name, args, function.arity).also { linify(it, linifier) }
+            invoke(module, definition, function.name, args, function.arity).also { linify(it, linifier, WalkedParts()) }
         } catch (thrown: Thrown) {
             if (thrown.kind != "error") decline("the body ${thrown.kind}s")
 
@@ -562,10 +562,13 @@ internal class Evaluation(
     /**
      * Raises where `elixir_quote:linify_with_context_counter/3` raises on [term], the macro's result, before
      * `elixir_dispatch:expand_quoted/7` expands it: at the head [linifier] chooses, each `lists` call it makes on a
-     * node's metadata, and its comprehension over a list. What linify gives back is `linifyWithContextCounter`'s.
+     * node's metadata, and its comprehension over a list. What linify gives back is `linifyWithContextCounter`'s. A node
+     * [walked] before raised nothing, so it is not walked again.
      */
-    private fun linify(term: OtpErlangObject, linifier: Linify) {
+    private fun linify(term: OtpErlangObject, linifier: Linify, walked: WalkedParts) {
         ProgressManager.checkCanceled()
+
+        if (walked.again(term)) return
 
         when (term) {
             is OtpErlangTuple if term.arity() == 3 -> {
@@ -583,23 +586,29 @@ internal class Evaluation(
                     if (linifier.counted(clause) { keyfind("context", meta) == tuple(CONTEXT, atom(it)) }) {
                         keymember("counter", meta)
                     }
-                    linify(left, meta, right, linifier)
+                    linify(left, meta, right, linifier, walked)
                 }
             }
-            is OtpErlangTuple if term.arity() == 2 -> term.elements().forEach { linify(it, linifier) }
+            is OtpErlangTuple if term.arity() == 2 -> term.elements().forEach { linify(it, linifier, walked) }
             is OtpErlangList -> {
-                term.elements().forEach { linify(it, linifier) }
+                term.elements().forEach { linify(it, linifier, walked) }
                 term.lastTail?.let { error(tuple(atom("bad_generator"), it)) }
             }
         }
     }
 
     /** `do_tuple_linify`: [left], then [meta] as the line is written into it, then [right]. */
-    private fun linify(left: OtpErlangObject, meta: OtpErlangObject, right: OtpErlangObject, linifier: Linify) {
+    private fun linify(
+        left: OtpErlangObject,
+        meta: OtpErlangObject,
+        right: OtpErlangObject,
+        linifier: Linify,
+        walked: WalkedParts,
+    ) {
         if (linifier.readsStopGenerated) keyfind("stop_generated", meta)
-        linify(left, linifier)
+        linify(left, linifier, walked)
         if (lineOf(call.meta) != 0) keymember("line", meta)
-        linify(right, linifier)
+        linify(right, linifier, walked)
     }
 
     private fun keyfind(key: String, meta: OtpErlangObject) =
