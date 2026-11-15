@@ -46,9 +46,10 @@ internal data class CompiledModule(
     sealed interface Bodies {
         /**
          * Each definition's debug info clauses, in order, each as Elixir quotes an `fn` clause: `{:->, meta, [args, body]}`,
-         * with guards joined into the arguments by `when`. Every node's origin is that clause in the mirror.
+         * with guards joined into the arguments by `when`, by the kind debug info stores each as, its name and arity.
+         * Every node's origin is that clause in the mirror.
          */
-        data class Read(val clauses: Map<NameArity, List<ElixirAst>>) : Bodies
+        data class Read(val clauses: Map<MacroNameArity, List<ElixirAst>>) : Bodies
 
         /** The `.beam` holds no clauses: compiled without debug info, stripped, or Erlang. */
         data object Unreadable : Bodies
@@ -85,6 +86,19 @@ internal fun mirroredClauses(modular: Call): Map<MacroNameArity, List<Call>> =
 
         mirroredKey(call)?.let { it to call }
     }.groupBy({ it.first }, { it.second })
+
+/** Each definition's clauses' ranges in [modular], a mirror's module, as [mirroredClauses] gives them. */
+@RequiresReadLock
+internal fun mirroredRanges(modular: Call): Map<MacroNameArity, List<TextRange>> =
+    mirroredClauses(modular).mapValues { (_, calls) -> calls.map { it.textRange } }
+
+/**
+ * Where [clause] is in the mirror whose module is [modular] and whose [mirroredRanges] are [ranges]: its clause, or the
+ * module where the mirror has no such clause.
+ */
+@RequiresReadLock
+internal fun mirroredRange(clause: CompiledClause, modular: Call, ranges: Map<MacroNameArity, List<TextRange>>): TextRange =
+    ranges[clause.key]?.getOrNull(clause.index) ?: modular.textRange
 
 /** The definition a mirror's clause [call] is one of: the kind it stores, its name and arity; `null` for no clause. */
 @RequiresReadLock
@@ -130,7 +144,7 @@ private class Builder(
 
             Triple(definition, key, clauses)
         }
-        val bodies = mutableMapOf<NameArity, List<ElixirAst>>()
+        val bodies = mutableMapOf<MacroNameArity, List<ElixirAst>>()
 
         for ((definition, key, clauses) in read) {
             ProgressManager.checkCanceled()
@@ -146,7 +160,7 @@ private class Builder(
                 entry(table, kind, at, clauses.size, definition.defaults, isDefault(clauses)),
             )
 
-            bodies[NameArity(key.name, key.arity)] = clauses.mapIndexed { index, clause ->
+            bodies[key] = clauses.mapIndexed { index, clause ->
                 fnClause(clause, origin(mirror, index)) ?: return null
             }
         }

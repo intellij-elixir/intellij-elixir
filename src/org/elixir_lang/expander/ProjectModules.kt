@@ -14,6 +14,7 @@ import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.roots.impl.libraries.LibraryEx
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.ModificationTracker
+import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
@@ -30,6 +31,7 @@ import com.intellij.psi.util.CachedValuesManager
 import com.intellij.util.system.OS
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.beam.MacroNameArity
 import org.elixir_lang.expander.interpreter.Declined
 import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.equal
@@ -498,10 +500,27 @@ internal class ProjectModules(private val project: Project) {
             return null
         }
         val mirror = read(beam) ?: return null
-        val clauses = CompiledModule.of(bytes, beam.path, mirror, level, deprecations)?.let { ModuleClauses.of(it, beam) }
+        val clauses = CompiledModule.of(bytes, beam.path, mirror, level, deprecations)?.let { ModuleClauses.of(it, beam, stamp) }
         clauseCache[beam] = Clauses.Compiled(stamp, level, clauses)
 
         return clauses
+    }
+
+    /**
+     * Where [clause] is written in its `.beam`'s decompiled mirror: that clause, or the module where the mirror has no
+     * such clause; `null` where the `.beam` has changed since [clause] was read, or the mirror has no single module.
+     */
+    @RequiresBackgroundThread(generateAssertion = false)
+    @RequiresReadLock
+    fun placed(clause: CompiledClause): Pair<ElixirFile, TextRange>? {
+        val beam = clause.beam
+        if (beam.modificationStamp != clause.stamp) return null
+        val mirror = read(beam) ?: return null
+        val modular = mirror.modulars().singleOrNull() ?: return null
+        val held = (clauseCache[beam] as? Clauses.Compiled)?.takeIf { it.stamp == clause.stamp }
+        val ranges = held?.ranges ?: mirroredRanges(modular).also { held?.ranges = it }
+
+        return mirror to mirroredRange(clause, modular, ranges)
     }
 
     /** The clauses of each module [copy] loads, with the expansion that compiled them. */
@@ -1348,8 +1367,16 @@ internal class ProjectModules(private val project: Project) {
     private sealed interface Clauses {
         fun weight(): Long
 
-        /** A `.beam`'s, read at [stamp] and [level]; `null` where it holds none. */
+        /**
+         * A `.beam`'s, read at [stamp] and [level]; `null` where it holds none.
+         *
+         * @property ranges each definition's clauses' ranges in the mirror, by the kind each stores, name and arity, once
+         *   [placed] has walked it. Unweighed: one range per clause beside the clause's nodes.
+         */
         class Compiled(val stamp: Long, val level: ElixirLanguageLevel, val clauses: ModuleClauses?) : Clauses {
+            @Volatile
+            var ranges: Map<MacroNameArity, List<TextRange>>? = null
+
             override fun weight(): Long = clauses?.weight() ?: 0
         }
 

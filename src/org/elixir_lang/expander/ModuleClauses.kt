@@ -195,8 +195,9 @@ internal class ModuleClauses(
      * @property args without their defaults
      * @property guards each of the head's `when`s
      * @property body `null` where the clause stopped expanding, so whether a call matches it isn't known
+     * @property compiled which debug info clause it is; `null` for a source clause
      */
-    class Clause(val args: List<ElixirAst>, val guards: List<ElixirAst>, val body: ElixirAst?)
+    class Clause(val args: List<ElixirAst>, val guards: List<ElixirAst>, val body: ElixirAst?, val compiled: CompiledClause? = null)
 
     companion object {
         /** As measured over the clauses of the Elixir 1.20.4 apps' `.beam`s, with their mirrors released. */
@@ -257,33 +258,38 @@ internal class ModuleClauses(
                 file,
             )
 
-        /** [compiled]'s clauses, read from [file]; `null` where its `.beam` holds none. */
-        fun of(compiled: CompiledModule, file: VirtualFile?): ModuleClauses? {
+        /** [compiled]'s clauses, read from [beam] at [stamp]; `null` where its `.beam` holds none. */
+        fun of(compiled: CompiledModule, beam: VirtualFile, stamp: Long): ModuleClauses? {
             val read = compiled.bodies as? CompiledModule.Bodies.Read ?: return null
             val kinds = compiled.table.kinds
 
             return ModuleClauses(
                 compiled.module,
-                read.clauses.mapValues { (nameArity, clauses) ->
-                    Definition(kinds.getValue(nameArity), clauses.map(::dbgiClause))
+                read.clauses.entries.associate { (key, clauses) ->
+                    val nameArity = NameArity(key.name, key.arity)
+
+                    nameArity to Definition(
+                        kinds.getValue(nameArity),
+                        clauses.mapIndexed { index, clause -> dbgiClause(clause, CompiledClause(beam, stamp, key, index)) },
+                    )
                 },
                 Source.DBGI,
                 Quotes(),
                 Dispatches(),
-                file,
+                beam,
             )
         }
 
-        /** The `fn` clause [arrow] as `elixir_utils:extract_splat_guards/1` reads it. */
-        private fun dbgiClause(arrow: ElixirAst): Clause {
+        /** The `fn` clause [arrow], debug info's [compiled], as `elixir_utils:extract_splat_guards/1` reads it. */
+        private fun dbgiClause(arrow: ElixirAst, compiled: CompiledClause): Clause {
             val (head, body) = (arrow as ElixirAst.Call).arguments!!
             val args = (head as ElixirAst.ListNode).elements
             val splat = args.singleOrNull()?.let(::whenArguments)
 
             return if (splat != null) {
-                Clause(splat.dropLast(1), orGuards(splat.last()), body)
+                Clause(splat.dropLast(1), orGuards(splat.last()), body, compiled)
             } else {
-                Clause(args, emptyList(), body)
+                Clause(args, emptyList(), body, compiled)
             }
         }
     }

@@ -16,6 +16,7 @@ import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.util.concurrency.ThreadingAssertions
+import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.CallDefinition
 import org.elixir_lang.beam.psi.stubs.ModuleStub
@@ -939,9 +940,16 @@ internal object ExpanderSource : CandidateSource {
      * The declaring call at [place]: in its macro's file, as [ProjectModules] reads that file, `null` where it is gone, or
      * in [expanded].
      */
-    private fun placed(expanded: PsiFile, place: Place): Call? =
-        (if (place.file == null) expanded else ProjectModules.getInstance(expanded.project).read(place.file))
-            ?.let { declaringCall(it, place.origin) }
+    @RequiresBackgroundThread(generateAssertion = false)
+    @RequiresReadLock
+    internal fun placed(expanded: PsiFile, place: Place): Call? {
+        val holder = ProjectModules.getInstance(expanded.project)
+
+        return when (place) {
+            is Place.Written -> (if (place.file == null) expanded else holder.read(place.file))?.let { declaringCall(it, place.origin) }
+            is Place.Compiled -> holder.placed(place.clause)?.let { (mirror, origin) -> declaringCall(mirror, origin) }
+        }
+    }
 
     /** The `import` call whose origin is [origin]: the innermost call covering it named `import`. */
     private fun importCall(file: PsiFile, origin: TextRange): Call? =

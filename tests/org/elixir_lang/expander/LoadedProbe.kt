@@ -63,7 +63,7 @@ internal fun clausesOf(project: Project, beam: File): ModuleClauses? =
 
         deprecations
             ?.let { CompiledModule.of(bytes, beam.path, mirror, legLevel(), it) }
-            ?.let { ModuleClauses.of(it, file) }
+            ?.let { ModuleClauses.of(it, file, file.modificationStamp) }
     }
 
 /**

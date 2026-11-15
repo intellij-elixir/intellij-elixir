@@ -92,10 +92,10 @@ class CompiledModuleTest private constructor(
 
     /**
      * Each definition of [module] has as many clauses in its mirror as in its debug info, but a private one its code
-     * doesn't list, which the decompiler, rendering the code's definitions, has no clause of, and whose entry takes its
-     * origin inside the module there; and has a body per debug info clause, in order: an `fn` clause that
-     * `elixir_utils:extract_splat_guards/1` reads back as that clause's arguments and guards, whose origin is the same
-     * clause in the mirror, or the module there for a definition the mirror has no clause of.
+     * doesn't list, which the decompiler, rendering the code's definitions, has no clause of, and whose first clause is
+     * placed inside the module there; and has a body per debug info clause, in order: an `fn` clause that
+     * `elixir_utils:extract_splat_guards/1` reads back as that clause's arguments and guards, placed at the same clause in
+     * the mirror, or the module there for a definition the mirror has no clause of.
      */
     private fun assertModule(module: String, beam: File) {
         val checked = checked(module, beam)
@@ -127,7 +127,8 @@ class CompiledModuleTest private constructor(
         val mirror = mirror(beam)
         val mirrored = mirrorClauses(mirror)
         val modular = ReadAction.computeBlocking<TextRange, Throwable> { mirror.modulars().single().textRange }
-        val table by lazy { read(beam, mirror).table }
+        val definitionClauses by lazy { clausesOf(read(beam, mirror), beam).definitions }
+        val placed by lazy { resolver(mirror) }
         val locals = reading(beam) { reader ->
             reader.localsResult.valueOrNull?.macroNameAritySortedSetByMacro()?.values?.flatten().orEmpty()
                 .map { it.toNameArity() }
@@ -139,7 +140,7 @@ class CompiledModuleTest private constructor(
             val inMirror = mirrored[definition.macroNameArity].orEmpty().size
             val nameArity = NameArity(definition.name!!, definition.arity!!)
             val inCode = definition.macro !in PRIVATE || nameArity in locals
-            val origin = if (inCode) null else table[nameArity]?.at?.meta?.origin
+            val origin = if (inCode) null else definitionClauses[nameArity]?.clauses?.firstOrNull()?.compiled?.let(placed)
 
             if (!inCode) unlisted++
 
@@ -168,12 +169,14 @@ class CompiledModuleTest private constructor(
         )
         assertEquals(
             compiled.table.entries.mapValues { it.value.clauses },
-            (compiled.bodies as CompiledModule.Bodies.Read).clauses.mapValues { it.value.size },
+            (compiled.bodies as CompiledModule.Bodies.Read).clauses.entries.associate { (key, bodies) ->
+                NameArity(key.name, key.arity) to bodies.size
+            },
         )
         assertEquals(emptyList<String>(), differingBodies("CompiledFixture", compiledFixture.debugInfoBeam) {})
 
-        val beam = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(compiledFixture.debugInfoBeam)!!
-        val clauses = ModuleClauses.of(compiled, beam)!!
+        val beam = virtualFile(compiledFixture.debugInfoBeam)
+        val clauses = ModuleClauses.of(compiled, beam, beam.modificationStamp)!!
 
         assertEquals(
             listOf("Elixir.CompiledFixture", ModuleClauses.Source.DBGI, beam),
@@ -236,6 +239,27 @@ class CompiledModuleTest private constructor(
             },
         )
         assertEquals(CompiledModule.Bodies.Unreadable, compiled.bodies)
+    }
+
+    /**
+     * A compiled guard is placed at its `defguard` in the mirror, whether written with `defguard`, as `Integer`'s are, or
+     * as a `defmacro` under `@doc guard: true`, as `Kernel`'s are: debug info stores both as `defmacro`.
+     */
+    private fun compiledGuards() {
+        val guards = listOf("Elixir.Integer" to "is_even", "Elixir.Integer" to "is_odd", "Elixir.Kernel" to "is_struct")
+
+        assertEquals(
+            guards.map { (module, name) -> "$module defguard $name(" },
+            guards.map { (module, name) ->
+                val beam = appBeams.getValue(module)
+                val clause = clausesOf(read(beam), beam).definitions.getValue(NameArity(name, 1)).clauses!!.first().compiled!!
+                val text = ReadAction.computeBlocking<String, Throwable> {
+                    ProjectModules.getInstance(project).placed(clause)!!.let { (mirror, origin) -> origin.substring(mirror.text) }
+                }
+
+                "$module ${text.take("defguard $name(".length)}"
+            },
+        )
     }
 
     /**
@@ -351,7 +375,8 @@ class CompiledModuleTest private constructor(
     /**
      * Each [beam] definition clause whose body isn't an `fn` clause `elixir_utils:extract_splat_guards/1` reads back as that
      * clause's arguments and guards, with its mirror clause's range, or the module's for one the mirror has no clause of,
-     * or whose [ModuleClauses.Clause] isn't those arguments, guards and body; [compared] is called for each clause.
+     * or whose [ModuleClauses.Clause] isn't those arguments, guards and body, placed at that range; [compared] is called
+     * for each clause.
      */
     private fun differingBodies(module: String, beam: File, compared: () -> Unit): List<String> {
         val mirror = mirror(beam)
@@ -359,7 +384,8 @@ class CompiledModuleTest private constructor(
         val modular = ReadAction.computeBlocking<TextRange, Throwable> { mirror.modulars().single().textRange }
         val compiled = read(beam, mirror)
         val bodies = (compiled.bodies as CompiledModule.Bodies.Read).clauses
-        val definitionClauses = ModuleClauses.of(compiled, null)!!.definitions
+        val definitionClauses = clausesOf(compiled, beam).definitions
+        val placed = resolver(mirror)
 
         return definitions(beam).flatMap { definition ->
             val nameArity = "${definition.name}/${definition.arity}"
@@ -367,7 +393,7 @@ class CompiledModuleTest private constructor(
             val origins = mirrored[definition.macroNameArity]
                 ?.map { ReadAction.computeBlocking<TextRange, Throwable> { it.textRange } }
                 ?: clauses.map { modular }
-            val read = bodies[NameArity(definition.name!!, definition.arity!!)].orEmpty()
+            val read = bodies[definition.macroNameArity].orEmpty()
             val split = definitionClauses[NameArity(definition.name!!, definition.arity!!)]?.clauses.orEmpty()
             val counted = "$module $nameArity: ${read.size} bodies, ${split.size} split, ${clauses.size} clauses"
                 .takeIf { read.size != clauses.size || split.size != clauses.size }
@@ -391,6 +417,8 @@ class CompiledModuleTest private constructor(
                         .takeIf { actual != expected },
                     "$module $nameArity split clause $index: ${actualSplit.map(::inspect)}"
                         .takeIf { actualSplit != expected.first },
+                    "$module $nameArity clause $index placed at ${splitClause.compiled?.let(placed)}"
+                        .takeIf { splitClause.compiled?.let(placed) != expected.second },
                 )
             }
         }
@@ -404,6 +432,21 @@ class CompiledModuleTest private constructor(
             CompiledModule.of(bytes, beam.path, mirror, legLevel(), deprecations)
         }
             ?: throw AssertionError("$beam isn't read")
+
+    /** [compiled]'s clauses, as read from [beam] as it is now. */
+    private fun clausesOf(compiled: CompiledModule, beam: File): ModuleClauses =
+        virtualFile(beam).let { ModuleClauses.of(compiled, it, it.modificationStamp)!! }
+
+    /** Where a clause of [mirror]'s `.beam` is placed in [mirror]. */
+    private fun resolver(mirror: ElixirFile): (CompiledClause) -> TextRange {
+        val (modular, ranges) = ReadAction.computeBlocking<Pair<Call, Map<MacroNameArity, List<TextRange>>>, Throwable> {
+            mirror.modulars().single().let { it to mirroredRanges(it) }
+        }
+
+        return { clause -> ReadAction.computeBlocking<TextRange, Throwable> { mirroredRange(clause, modular, ranges) } }
+    }
+
+    private fun virtualFile(beam: File) = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(beam)!!
 
     /** [beam]'s mirror: its decompiled source. */
     private fun mirror(beam: File): ElixirFile = mirrorOf(project, beam)!!
@@ -442,6 +485,7 @@ class CompiledModuleTest private constructor(
                 add(Case.Named("testDocsOnly", CompiledModuleTest::docsOnly))
                 add(Case.Named("testStripped", CompiledModuleTest::stripped))
                 add(Case.Named("testErlang", CompiledModuleTest::erlang))
+                add(Case.Named("testACompiledGuardIsPlacedAtItsDefguard", CompiledModuleTest::compiledGuards))
                 add(Case.Named("testTableMatchesSource", CompiledModuleTest::tableMatchesSource))
             }
 

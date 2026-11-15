@@ -1,14 +1,26 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangBinary
+import com.ericsson.otp.erlang.OtpErlangList
+import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
 import com.intellij.testFramework.LightProjectDescriptor
 import com.intellij.util.system.OS
+import org.elixir_lang.NameArity
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.beam.term.inspect
+import org.elixir_lang.expander.ExpanderSourceRows.read
+import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.ElixirFile
+import org.elixir_lang.psi.scope.WalkTestSupport
 import org.elixir_lang.snapshot.LegElixirProjectDescriptor
+import java.io.File
+import kotlin.time.Duration.Companion.seconds
 
 /** The definitions a module's table holds of those a macro's output wrote into it. */
 class InjectedDefinitionTest : PlatformTestCase() {
@@ -230,6 +242,59 @@ class InjectedDefinitionTest : PlatformTestCase() {
         )
     }
 
+    /**
+     * A definition injected from a `.beam`'s `__using__` is placed nowhere once the `.beam` is replaced by a compile whose
+     * `__using__` is another clause, though where it was in the old mirror falls inside another call of the new one.
+     */
+    fun testADefinitionPlacedInABeamReplacedSinceIsPlacedNowhere() {
+        val sources = listOf(
+            "defmodule Placed do\n  defmacro __using__(_) do\n    quote do\n      def f, do: 1\n    end\n  end\nend\n",
+            "defmodule Placed do\n  defmacro __a__(x) do\n    x\n    |> List.wrap()\n    |> Enum.map(&(&1 + 1))\n" +
+                "    |> Enum.map(&(&1 * 2))\n    |> Enum.map(&(&1 - 3))\n    |> Enum.map(&(&1 + 4))\n    |> Enum.map(&(&1 * 5))\n" +
+                "    |> Enum.map(&(&1 - 6))\n    |> Enum.map(&(&1 + 7))\n    |> Enum.sum()\n  end\n\n" +
+                "  defmacro __using__(_) do\n    quote do\n      def g, do: 2\n    end\n  end\nend\n",
+        )
+        val compiled = Quoter.compile(
+            """
+            compile = fn source ->
+              [{module, binary}] = Code.compile_string(source)
+              :code.delete(module)
+              :code.purge(module)
+              binary
+            end
+
+            IntellijElixir.Quoter.Probe.send(__ENV__, [${sources.joinToString { "compile.(${elixirString(it)})" }}])
+            """.trimIndent(),
+            60.seconds,
+        )
+        assertEquals("compile ${compiled.diagnostics.map(::inspect)}", OtpErlangAtom("ok"), compiled.status)
+        val (before, after) = (compiled.messages.single() as OtpErlangList).elements().map { (it as OtpErlangBinary).binaryValue() }
+        val ebin = FileUtil.createTempDirectory("injected_definition_ebin", null, true)
+        File(ebin, "Elixir.Placed.beam").writeBytes(before)
+
+        WalkTestSupport.withLibrary(project, module, testRootDisposable, "injected_definition", ebin) { root ->
+            val beam = root.findChild("Elixir.Placed.beam")!!
+            val file = myFixture.addFileToProject("a.ex", "defmodule A do\n  use Placed\nend\n") as ElixirFile
+            val result = ProjectModules.results(holder.expansion(file, inputs)).single { it.module == "Elixir.A" }
+            val place = result.table[NameArity("f", 0)]!!.heads.single().injected!!.place!!
+            val used = read { ExpanderSource.placed(file, place)!!.let { it.text.lineSequence().first() to it.textRange } }
+
+            assertEquals("defmacro __using__(_) do", used.first)
+
+            WriteAction.runAndWait<Throwable> { beam.setBinaryContent(after) }
+
+            assertEquals(
+                "defmacro __a__/1",
+                read {
+                    mirroredClauses(holder.read(beam)!!.modulars().single()).entries
+                        .single { (_, clauses) -> clauses.any { it.textRange.contains(used.second) } }
+                        .key.let { "${it.macro} ${it.name}/${it.arity}" }
+                },
+            )
+            assertNull(read { ExpanderSource.placed(file, place) })
+        }
+    }
+
     /** Each definition the output injected names the call it came from; the module's own `def` names none. */
     fun testAnInjectedDefinitionNamesTheUseThatInjectedIt() {
         addUsing("      def f, do: 1\n      defp g(x), do: x\n")
@@ -403,12 +468,18 @@ class InjectedDefinitionTest : PlatformTestCase() {
     private fun injected(table: DefinitionTable, code: String? = null): String =
         table.entries.filterValues { !it.default }.flatMap { (nameArity, entry) ->
             entry.heads.mapNotNull { head ->
-                val place = head.injected?.place ?: return@mapNotNull null
-                val text = place.file?.let(::textOf) ?: checkNotNull(code) { "${nameArity.name}/${nameArity.arity} in the file expanded" }
-                val line = text.substring(0, place.origin.startOffset).count { it == '\n' } + 1
+                val (file, text, origin) = when (val place = head.injected?.place ?: return@mapNotNull null) {
+                    is Place.Written -> Triple(
+                        place.file?.name ?: "a.ex",
+                        place.file?.let(::textOf) ?: checkNotNull(code) { "${nameArity.name}/${nameArity.arity} in the file expanded" },
+                        place.origin,
+                    )
+                    is Place.Compiled ->
+                        read { holder.placed(place.clause)!!.let { (mirror, origin) -> Triple(place.clause.beam.name, mirror.text, origin) } }
+                }
+                val line = text.substring(0, origin.startOffset).count { it == '\n' } + 1
 
-                "${entry.kind.name.lowercase()} ${nameArity.name}/${nameArity.arity} ${place.file?.name ?: "a.ex"} " +
-                    "line $line `${firstLine(place.origin, text)}`"
+                "${entry.kind.name.lowercase()} ${nameArity.name}/${nameArity.arity} $file line $line `${firstLine(origin, text)}`"
             }
         }.joinToString(" | ")
 
@@ -420,7 +491,6 @@ class InjectedDefinitionTest : PlatformTestCase() {
         myFixture.addFileToProject(name, code)
     }
 
-    /** [file]'s text: a source file's, or a `.beam`'s decompiled mirror's. */
     private fun textOf(file: VirtualFile): String = PsiManager.getInstance(project).findFile(file)!!.text
 
     private fun firstLine(range: TextRange, text: String) = range.substring(text).lineSequence().first()
