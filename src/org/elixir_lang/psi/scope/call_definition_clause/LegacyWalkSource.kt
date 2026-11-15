@@ -424,13 +424,8 @@ object LegacyWalkSource : CandidateSource {
         if (reached.headNamed) {
             reached.searchedAtom?.let {
                 val named = reached.declaration.name == it && reached.admitted
-                val crossed = reached.via.map(::headArity)
 
-                if (arity == null) {
-                    Applicability.ofAnyArity(reached.declaration, named, crossed)
-                } else {
-                    Applicability.of(reached.declaration, it, named, arity, crossed)
-                }
+                Applicability.of(reached.declaration, it, named, arity, reached.via.map(::headArity))
             }
         } else {
             null

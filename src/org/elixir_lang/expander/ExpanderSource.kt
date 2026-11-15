@@ -1135,16 +1135,8 @@ internal object ExpanderSource : CandidateSource {
     }
 
     /** How [reached] applies at a use of [name]; a `null` [arity] is any arity, which leaves every definition undecided. */
-    private fun named(reached: Reached, name: String, arity: Int?): Applicability? {
-        val declaration = reached.defined.declaration
-        val reachedAs = reached.searched ?: name
-
-        return if (arity == null) {
-            Applicability.ofAnyArity(declaration, reached.named && declaration.name == reachedAs, reached.heads)
-        } else {
-            Applicability.of(declaration, reachedAs, reached.named, arity, reached.heads)
-        }
-    }
+    private fun named(reached: Reached, name: String, arity: Int?): Applicability? =
+        Applicability.of(reached.defined.declaration, reached.searched ?: name, reached.named, arity, reached.heads)
 
     /**
      * Whether [element] is a `def*` call of [name]: not the macro clause that debug info, which places nothing more
