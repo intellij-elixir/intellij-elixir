@@ -113,27 +113,29 @@ private data class Numbers(val exact: Boolean, val signed: Boolean) {
  * [UnorderedTerms].
  */
 internal fun termsEqual(left: OtpErlangObject, right: OtpErlangObject, exact: Boolean, level: ElixirLanguageLevel): Boolean =
-    !holdsDistinctIdentities(left, right) && termOrder(level, exact).compare(left, right) == 0
+    !holdsDistinctIdentities(left, right, Pairs(root = left)) && termOrder(level, exact).compare(left, right) == 0
 
 /**
  * Whether [left] and [right] hold, at one place outside a map, two different references, ports or pids: terms that are
  * unequal, though only the VM orders them.
  */
-private fun holdsDistinctIdentities(left: OtpErlangObject, right: OtpErlangObject): Boolean {
+private fun holdsDistinctIdentities(left: OtpErlangObject, right: OtpErlangObject, looked: Pairs<Boolean>): Boolean {
     ProgressManager.checkCanceled()
+
+    looked[left, right]?.let { return it }
 
     return when {
         left is OtpErlangTuple && right is OtpErlangTuple ->
-            left.elements().zip(right.elements()).any { (a, b) -> holdsDistinctIdentities(a, b) }
+            left.elements().zip(right.elements()).any { (a, b) -> holdsDistinctIdentities(a, b, looked) }
         left is OtpErlangList && right is OtpErlangList ->
-            left.elements().zip(right.elements()).any { (a, b) -> holdsDistinctIdentities(a, b) } ||
+            left.elements().zip(right.elements()).any { (a, b) -> holdsDistinctIdentities(a, b, looked) } ||
                 (left.arity() == right.arity() && left.lastTail != null && right.lastTail != null &&
-                    holdsDistinctIdentities(left.lastTail, right.lastTail))
+                    holdsDistinctIdentities(left.lastTail, right.lastTail, looked))
         left is OtpErlangRef && right is OtpErlangRef ||
             left is OtpErlangPort && right is OtpErlangPort ||
             left is OtpErlangPid && right is OtpErlangPid -> left != right
         else -> false
-    }
+    }.also { looked[left, right] = it }
 }
 
 internal class UnorderedTerms : IllegalArgumentException("no known order between two terms")
