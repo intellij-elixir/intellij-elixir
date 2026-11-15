@@ -883,23 +883,20 @@ class ModuleExpanderTest : ExpanderTestCase() {
     }
 
     /**
-     * A macro asking whether two lists that each hold one part twice at every depth are equal is cancelled as it walks
-     * them. Two lists built apart, since the VM, and the evaluator, answer a term equal to itself without walking it.
+     * A macro asking whether two long lists are equal is cancelled as it walks them. Two lists built apart, since the VM,
+     * and the evaluator, answer a term equal to itself without walking it.
      */
     fun testAnEqualityIsCancelledAsItWalks() {
-        // Building the lists makes most of the checks, so the walk's are counted from the same body's not comparing them.
-        val trees = "$TREE ${TREE.replace("t", "u")}"
-        val unwalked = checks("($trees :erlang.is_list(t))")
+        // Comparing a list with a tuple compares no elements, so the walks before the comparison are counted from it.
+        val unwalked = checks("($TWO_LONG_LISTS t == {u})")
 
-        assertCancelledAt("($trees t == u)", unwalked + (1 shl DOUBLINGS) / 2)
+        assertCancelledAt("($TWO_LONG_LISTS t == u)", unwalked + (1 shl DOUBLINGS) / 2)
     }
 
     /** Asking whether two such lists are equal looks through both for references, ports and pids, cancelled as it looks. */
     fun testAnEqualityIsCancelledAsItLooksForIdentities() {
-        val trees = "$TREE ${TREE.replace("t", "u")}"
-
         assertCancelledIn("org.elixir_lang.expander.TermOrderKt", "holdsDistinctIdentities", (1 shl DOUBLINGS) / 2) {
-            expandMacro("($trees t == u)")
+            expandMacro("($TWO_LONG_LISTS t == u)")
         }
     }
 
@@ -921,13 +918,12 @@ class ModuleExpanderTest : ExpanderTestCase() {
         }
     }
 
-    /** A macro ordering two such lists is cancelled while it compares them, once it has walked each. */
+    /** A macro ordering two long lists is cancelled while it compares them, once it has walked each. */
     fun testAComparisonIsCancelledAsItWalks() {
-        val trees = "$TREE ${TREE.replace("t", "u")}"
         // Ordering a list before a tuple compares no elements, so the walks before the comparison are counted from it.
-        val uncompared = checks("($trees :erlang.<(t, {u}))")
+        val uncompared = checks("($TWO_LONG_LISTS :erlang.<(t, {u}))")
 
-        assertCancelledAt("($trees :erlang.<(t, u))", uncompared + (1 shl DOUBLINGS) / 2)
+        assertCancelledAt("($TWO_LONG_LISTS :erlang.<(t, u))", uncompared + (1 shl DOUBLINGS) / 2)
     }
 
     /** A macro ordering two equal wide bitstrings is cancelled while it compares their bits, once it has written them. */
@@ -940,7 +936,10 @@ class ModuleExpanderTest : ExpanderTestCase() {
         assertCancelledAt("($bitstrings :erlang.<(a, b))", uncompared + bits / 2)
     }
 
-    /** A macro ordering such a list walks each of its shared parts once for an unknown value. */
+    /**
+     * A macro ordering a list that holds itself twice at every depth walks each of its shared parts once for an unknown
+     * value.
+     */
     fun testAComparedTermIsWalkedInBoundedWork() {
         // Building the list makes most of the checks, so the walk's are counted from the same body's not ordering it.
         val unwalked = checks("($TREE :erlang.is_list(t))")
@@ -950,15 +949,16 @@ class ModuleExpanderTest : ExpanderTestCase() {
         assertTrue("$walked checks", walked < (1 shl DOUBLINGS) / 2)
     }
 
-    /** A macro keying a map by such a list is cancelled while it looks in the key for a function. */
+    /** A macro keying a map by a long list is cancelled while it looks in the key for a function. */
     fun testAMapKeyIsCancelledAsItIsWalked() {
+        val list = longList("t")
         // Ordering the list walks it for an unknown value, as a key is, so the look for a function is counted from it.
-        val unwalked = checks("($TREE :erlang.<(t, {:a}))")
+        val unwalked = checks("($list :erlang.<(t, {:a}))")
 
-        assertCancelledAt("($TREE :erlang.map_size(%{t => 1}))", unwalked + (1 shl DOUBLINGS) / 2)
+        assertCancelledAt("($list :erlang.map_size(%{t => 1}))", unwalked + (1 shl DOUBLINGS) / 2)
     }
 
-    /** A macro escaping such a list is cancelled while it escapes it. */
+    /** A macro escaping a list that holds itself twice at every depth is cancelled while it escapes it. */
     fun testAnEscapeIsCancelledAsItWalks() {
         // Building the list makes most of the checks, so the escape's are counted from the same body's escaping `[[], []]`.
         val unwalked = checks("($TREE :erlang.length(Macro.escape([[], []])))")
@@ -966,13 +966,13 @@ class ModuleExpanderTest : ExpanderTestCase() {
         assertCancelledAt("($TREE :erlang.length(Macro.escape(t)))", unwalked + (1 shl DOUBLINGS) / 2)
     }
 
-    /** A macro unquoting a pair that holds itself twice at every depth is cancelled while it validates it. */
+    /** A macro unquoting a long list is cancelled while it validates it. */
     fun testAnUnquoteIsCancelledAsItValidates() {
-        val pairs = "p = :a; " + "p = {p, p}; ".repeat(DOUBLINGS)
-        // Building the pair makes most of the checks, so the validation's are counted from the same body's of `{:a, :a}`.
-        val unwalked = checks("($pairs :erlang.tuple_size(quote(do: unquote({:a, :a}))))")
+        val list = longList("l")
+        // Building the list makes most of the checks, so the validation's are counted from the same body's of `[:a]`.
+        val unwalked = checks("($list :erlang.length(quote(do: unquote([:a]))))")
 
-        assertCancelledAt("($pairs :erlang.tuple_size(quote(do: unquote(p))))", unwalked + (1 shl DOUBLINGS) / 2)
+        assertCancelledAt("($list :erlang.length(quote(do: unquote(l))))", unwalked + (1 shl DOUBLINGS) / 2)
     }
 
     /** A macro whose comprehension rejects every element of a long list is cancelled while it scans them. */
@@ -3524,5 +3524,11 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
         /** A list `t` that holds itself twice at every depth: built in [DOUBLINGS] steps, walked in 2^[DOUBLINGS]. */
         val TREE = "t = []; " + "t = [t, t]; ".repeat(DOUBLINGS)
+
+        /** A flat list [name] of 2^[DOUBLINGS] atoms, which shares no container. */
+        fun longList(name: String) = "$name = [:a]; " + "$name = :erlang.++($name, $name); ".repeat(DOUBLINGS)
+
+        /** Two flat lists `t` and `u` of atoms, built apart. */
+        val TWO_LONG_LISTS = longList("t") + longList("u")
     }
 }
