@@ -85,7 +85,6 @@ import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.security.MessageDigest
-import java.util.IdentityHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
 
@@ -3233,7 +3232,7 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun configMerge(config1: OtpErlangObject, config2: OtpErlangObject): OtpErlangObject {
         if (!isList(config1) || !isList(config2)) functionClause("Elixir.Config", "__merge__", listOf(config1, config2))
 
-        val merged = IdentityHashMap<OtpErlangObject, IdentityHashMap<OtpErlangObject, OtpErlangObject>>()
+        val merged = Pairs<OtpErlangObject>()
 
         return keywordMerge(config1, config2) { app1, app2 ->
             keywordMerge(app1, app2) { value1, value2 -> deepMerge(value1, value2, merged) }
@@ -3244,17 +3243,13 @@ internal class Natives(private val evaluation: Evaluation) {
      * `Config.deep_merge/3`: two keyword lists merged, keys by key, else the later value, or a value not known built from
      * both where either isn't known and both may be keyword lists; each pair of parts merged once, in [merged].
      */
-    private fun deepMerge(
-        value1: OtpErlangObject,
-        value2: OtpErlangObject,
-        merged: IdentityHashMap<OtpErlangObject, IdentityHashMap<OtpErlangObject, OtpErlangObject>>,
-    ): OtpErlangObject =
-        merged[value1]?.get(value2) ?: when {
+    private fun deepMerge(value1: OtpErlangObject, value2: OtpErlangObject, merged: Pairs<OtpErlangObject>): OtpErlangObject =
+        merged[value1, value2] ?: when {
             !mayBeKeyword(value1) || !mayBeKeyword(value2) -> value2
             isUnknown(value1) || isUnknown(value2) -> unknownOf(listOf(value1, value2))
             isKeyword(value1) && isKeyword(value2) ->
                 keywordMerge(value1, value2) { part1, part2 -> deepMerge(part1, part2, merged) }
-                    .also { merged.getOrPut(value1) { IdentityHashMap() }[value2] = it }
+                    .also { merged[value1, value2] = it }
             else -> value2
         }
 

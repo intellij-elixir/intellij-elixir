@@ -679,21 +679,17 @@ internal fun oneKnownTerm(terms: List<OtpErlangObject>): Boolean {
  * checks for cancellation at each node, as a term can hold one part in many places.
  */
 internal fun sameTerm(left: OtpErlangObject, right: OtpErlangObject, held: Boolean): Boolean =
-    if (left === right) held || !holdsUnknown(left) else SameTerm(held).same(left, right, root = true)
+    if (left === right) held || !holdsUnknown(left) else SameTerm(held, root = left).same(left, right)
 
-private class SameTerm(private val held: Boolean) {
-    /** Each pair of containers compared, and whether they were one term; made at the first pair. */
-    private var compared: IdentityHashMap<OtpErlangObject, IdentityHashMap<OtpErlangObject, Boolean>>? = null
+private class SameTerm(private val held: Boolean, root: OtpErlangObject? = null) {
+    private val compared = Pairs<Boolean>(root)
 
-    fun same(left: OtpErlangObject, right: OtpErlangObject, root: Boolean = false): Boolean {
+    fun same(left: OtpErlangObject, right: OtpErlangObject): Boolean {
         ProgressManager.checkCanceled()
 
         if (left === right && held) return true
 
-        // A leaf costs less to compare again than to remember, and the root pair, which neither term holds, is met once.
-        val remembered = !root && (left is OtpErlangTuple || left is OtpErlangMap || left is OtpErlangList)
-
-        if (remembered) compared?.get(left)?.get(right)?.let { return it }
+        compared[left, right]?.let { return it }
 
         val same = when {
             isUnknown(left) || isUnknown(right) -> false
@@ -723,16 +719,13 @@ private class SameTerm(private val held: Boolean) {
             }
         }
 
-        if (remembered) compared().getOrPut(left) { IdentityHashMap(2) }[right] = same
+        compared[left, right] = same
 
         return same
     }
 
     private fun sameTails(left: OtpErlangObject?, right: OtpErlangObject?): Boolean =
         if (left == null || right == null) left === right else same(left, right)
-
-    // A left container mostly meets one right, the one at its place in the other term, and most terms compared are small.
-    private fun compared() = compared ?: IdentityHashMap<OtpErlangObject, IdentityHashMap<OtpErlangObject, Boolean>>(4).also { compared = it }
 
     /** A key of [left] is one of [right]'s where they are one term, which only keys of one [hash] can be. */
     private fun sameEntries(left: OtpErlangMap, right: OtpErlangMap): Boolean {
@@ -789,6 +782,31 @@ private fun holds(term: OtpErlangObject, matches: (OtpErlangObject) -> Boolean):
 
     return holds(term)
 }
+
+/**
+ * What a walk over two terms answered for each pair of containers it met, so that it compares each pair the terms share
+ * once. A pair whose left is a leaf, which costs less to answer again than to remember, is never kept, nor is one whose
+ * left is the [root], as the walk's first pair is answered last, with nothing left to read it.
+ */
+internal class Pairs<R : Any>(private val root: OtpErlangObject? = null) {
+    /** Made at the first pair kept. */
+    private var answers: IdentityHashMap<OtpErlangObject, IdentityHashMap<OtpErlangObject, R>>? = null
+
+    operator fun get(left: OtpErlangObject, right: OtpErlangObject): R? =
+        if (isContainer(left)) answers?.get(left)?.get(right) else null
+
+    operator fun set(left: OtpErlangObject, right: OtpErlangObject, answer: R) {
+        if (isContainer(left) && left !== root) {
+            // A left container mostly meets one right, the one at its place in the other term, and most terms walked are small.
+            val answers = answers ?: IdentityHashMap<OtpErlangObject, IdentityHashMap<OtpErlangObject, R>>(4).also { answers = it }
+
+            answers.getOrPut(left) { IdentityHashMap(2) }[right] = answer
+        }
+    }
+}
+
+private fun isContainer(term: OtpErlangObject): Boolean =
+    term is OtpErlangTuple || term is OtpErlangMap || term is OtpErlangList
 
 /**
  * An attribute's [value], as the escaped value `@` gives in a function evaluates to; [seen] is told each atom in it. A
