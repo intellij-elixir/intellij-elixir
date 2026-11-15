@@ -17,6 +17,7 @@ import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.interpreter.Pairs
 import org.elixir_lang.expander.interpreter.bitSize
+import org.elixir_lang.expander.interpreter.cells
 import org.elixir_lang.language_level.ElixirLanguageFeature.NEGATIVE_ZERO_IS_DISTINCT
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.TermKind
@@ -195,8 +196,8 @@ private class Comparison(private val numbers: Numbers, root: OtpErlangObject? = 
 
     /** Cell by cell: the heads, then the tails, so an improper tail compares as the term it is. */
     private fun compareLists(left: OtpErlangObject, right: OtpErlangObject): Int {
-        val (leftElements, leftTail) = cells(left)
-        val (rightElements, rightTail) = cells(right)
+        val (leftElements, leftTail) = cells(left)!!
+        val (rightElements, rightTail) = cells(right)!!
         val shared = minOf(leftElements.size, rightElements.size)
 
         compareElements(leftElements.subList(0, shared), rightElements.subList(0, shared)).takeIf { it != 0 }
@@ -246,13 +247,6 @@ private fun number(term: OtpErlangObject): BigDecimal =
     }
 
 private fun isList(term: OtpErlangObject): Boolean = term is OtpErlangList || term is OtpErlangString
-
-/** A list's elements and its improper tail, `null` where it ends in `[]`. */
-private fun cells(list: OtpErlangObject): Pair<List<OtpErlangObject>, OtpErlangObject?> =
-    when (list) {
-        is OtpErlangString -> list.stringValue().codePoints().toArray().map { OtpErlangLong(it.toLong()) } to null
-        else -> (list as OtpErlangList).let { it.elements().asList() to it.lastTail }
-    }
 
 /** What follows the first [from] cells: the rest of the list, or its tail, `null` for `[]`. */
 private fun rest(elements: List<OtpErlangObject>, tail: OtpErlangObject?, from: Int): OtpErlangObject? =
