@@ -2810,7 +2810,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             val beam = File(directory, "$module.beam").apply { writeBytes(binary) }
 
             Copy(
-                clausesOf(project, beam) ?: throw AssertionError("$module's clauses aren't read"),
+                clausesOf(beam) ?: throw AssertionError("$module's clauses aren't read"),
                 LoadedModules.exports(binary, beam.path),
             )
         }

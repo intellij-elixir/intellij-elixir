@@ -15,9 +15,10 @@ import kotlin.math.ceil
 /**
  * Times a cold `exports(M)` of every module name the Phoenix app named by
  * `-PexpanderPhoenix=<dir>` (`org.elixir_lang.expander.phoenix`) defines,
- * asked from `lib/demo.ex`, and the cold expansion of each of its app files, as macro bodies are evaluated, over five
- * runs, each on a new holder with no file's PSI held. Measures the heap the clause cache retains after the runs. Writes
- * each figure to `build/reports/interpreter-budget/<elixir version>/`, and fails on a p95 or the cache over its bound.
+ * asked from `lib/demo.ex`, and the cold expansion of its app files, as macro bodies are evaluated, over five runs, each
+ * on a new holder with no file's PSI held. Measures the heap the clause cache retains after the runs. Writes each figure
+ * to `build/reports/interpreter-budget/<elixir version>/`, and fails on the exports' p95, a run's expansions or the
+ * cache over its bound.
  *
  * It runs only when the expander switch and the corpus are both set.
  */
@@ -56,7 +57,7 @@ class InterpreterBudgetHeavyTest : HeavyTestCase() {
         val setup = corpus.setUp(module)
         val modules = (corpus.appFiles + corpus.depFiles).flatMap(::definedNames).distinct()
         val exports = mutableListOf<Long>()
-        val expansions = mutableListOf<Long>()
+        val runs = mutableListOf<Long>()
         val byFile = mutableMapOf<String, MutableList<Long>>()
         var expanding: ProjectModules? = null
 
@@ -70,14 +71,16 @@ class InterpreterBudgetHeavyTest : HeavyTestCase() {
             dropPsi(project)
 
             val holder = ProjectModules(project).also { expanding = it }
+            var run = 0L
             corpus.read {
                 for (file in corpus.appFiles) {
                     val psi = corpus.psi(file) ?: continue
                     val nanos = timed { holder.expansion(psi, inputs) }
-                    expansions += nanos
+                    run += nanos
                     byFile.getOrPut(file.relativeTo(corpus.dir).path) { mutableListOf() } += nanos
                 }
             }
+            runs += run
             dropPsi(project)
         }
 
@@ -87,14 +90,11 @@ class InterpreterBudgetHeavyTest : HeavyTestCase() {
         val cache = withCache - usedAfterGc()
         Reference.reachabilityFence(expanding)
 
-        val rows = listOf(
-            Row("exports(M), cold, per call", exports, EXPORTS_BOUND),
-            Row("expansion, cold, per app file", expansions, EXPANSION_BOUND),
-        )
         File(report, "cold.txt").writeText(
             machine(setup, modules.size) +
                 "measure\tsamples\tmedian\tp95\tbound (p95)\n" +
-                rows.joinToString("") { "${it.measure}\t${it.nanos.size}\t${time(median(it.nanos))}\t${time(p95(it.nanos))}\t${time(it.bound)}\n" } +
+                "exports(M), cold, per call\t${exports.size}\t${time(median(exports))}\t${time(p95(exports))}\t${time(EXPORTS_BOUND)}\n" +
+                "expansion of the app files, cold, per run\t${runs.joinToString(", ") { time(it) }}\tbound (each) ${time(RUN_BOUND)}\n" +
                 "clause cache, retained after the runs\t${mb(cache)}\tbound ${mb(CACHE_BOUND)}\n"
         )
 
@@ -104,8 +104,11 @@ class InterpreterBudgetHeavyTest : HeavyTestCase() {
                     .joinToString("") { "${it.key}\t${time(median(it.value))}\t${time(it.value.max())}\n" }
         )
 
-        val over = rows.filter { p95(it.nanos) > it.bound }.map { "${it.measure} p95 ${time(p95(it.nanos))} > ${time(it.bound)}" } +
-            listOfNotNull("clause cache ${mb(cache)} > ${mb(CACHE_BOUND)}".takeIf { cache > CACHE_BOUND })
+        val over = listOfNotNull(
+            "exports p95 ${time(p95(exports))} > ${time(EXPORTS_BOUND)}".takeIf { p95(exports) > EXPORTS_BOUND },
+            "a run's expansions ${time(runs.max())} > ${time(RUN_BOUND)}".takeIf { runs.max() > RUN_BOUND },
+            "clause cache ${mb(cache)} > ${mb(CACHE_BOUND)}".takeIf { cache > CACHE_BOUND },
+        )
         assertTrue(over.joinToString("; "), over.isEmpty())
     }
 
@@ -128,15 +131,15 @@ class InterpreterBudgetHeavyTest : HeavyTestCase() {
             appendLine("lowering errors: ${corpus.loweringErrors.values.sum()}")
         }
 
-    private class Row(val measure: String, val nanos: List<Long>, val bound: Long)
-
     private companion object {
         const val REPETITIONS = 5
         const val ASKER = "lib/demo.ex"
 
-        /** Each a p95 over the five runs. An app file's expansion now evaluates the macro bodies its `use`s reach. */
+        /** A p95 over the five runs. */
         const val EXPORTS_BOUND = 150_000_000L
-        const val EXPANSION_BOUND = 200_000_000L
+
+        /** Each run's expansions of the app files, which evaluate the macro bodies their `use`s reach. */
+        const val RUN_BOUND = 1_000_000_000L
 
         /** The clause cache's own bound. */
         const val CACHE_BOUND = 64L shl 20

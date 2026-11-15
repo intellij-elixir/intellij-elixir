@@ -13,6 +13,7 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.ericsson.otp.erlang.OtpOutputStream
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
+import org.elixir_lang.expander.CompiledClause
 import org.elixir_lang.expander.Compiling
 import org.elixir_lang.expander.ConfigRead
 import org.elixir_lang.expander.DefinitionTable
@@ -298,12 +299,16 @@ internal class PatternBindings(val fresh: Boolean) {
     val vars = HashMap<Binding, OtpErlangObject>()
 }
 
-/** The bindings of one clause of [module]'s, and the stacktrace a `rescue` or `catch` body reads. */
+/**
+ * The bindings of one clause of [module]'s, and the stacktrace a `rescue` or `catch` body reads; [compiled] is the debug
+ * info clause being run, where it is one.
+ */
 internal class Frame(
     val module: ModuleClauses,
     val vars: HashMap<Binding, OtpErlangObject> = HashMap(),
     val stacktrace: OtpErlangObject? = null,
     val guard: Boolean = false,
+    val compiled: CompiledClause? = null,
 ) {
     val source get() = module.source == ModuleClauses.Source.SOURCE
 
@@ -382,10 +387,10 @@ internal class Frame(
         }
     }
 
-    fun copy(stacktrace: OtpErlangObject? = this.stacktrace) = Frame(module, HashMap(vars), stacktrace, guard)
+    fun copy(stacktrace: OtpErlangObject? = this.stacktrace) = Frame(module, HashMap(vars), stacktrace, guard, compiled)
 
     /** This frame's bindings, read as a guard reads them. */
-    fun guarded() = Frame(module, vars, stacktrace, true)
+    fun guarded() = Frame(module, vars, stacktrace, true, compiled)
 }
 
 /**
@@ -738,7 +743,7 @@ internal class Evaluation(
 
             nodes[term] = each
             onNode(each, term)
-            val place = run.placedAt[each] ?: Place(null, each.meta.origin)
+            val place = run.placedAt[each] ?: Place.Written(null, each.meta.origin)
             metaOf(term).forEach { metaPlaces.putIfAbsent(it, IndexedValue(CALLERS, place)) }
         }
 
@@ -875,7 +880,7 @@ internal class Evaluation(
             for (clause in clauses) {
                 if (clause.args.size != args.size) continue
 
-                val frame = Frame(module, guard = guard)
+                val frame = Frame(module, guard = guard, compiled = clause.compiled)
 
                 val body = clause.body
 
@@ -1079,13 +1084,16 @@ internal class Evaluation(
         }
     }
 
-    /** [tuple], which [node] of [frame]'s clauses built, placed at [node]. */
+    /** [tuple], which [node] of [frame]'s clause built, placed at [node], or at the clause for a debug info clause. */
     private fun placed(tuple: OtpErlangTuple, node: ElixirAst, frame: Frame): OtpErlangTuple {
-        frame.module.file?.takeIf { tuple.arity() == 3 }?.let { file ->
-            val place = Place(file, node.meta.origin)
-            places[tuple] = place
-            metaOf(tuple).forEach { metaPlaces.putIfAbsent(it, IndexedValue(places.size, place)) }
-        }
+        if (tuple.arity() != 3) return tuple
+        val place = if (frame.source) {
+            frame.module.file?.let { Place.Written(it, node.meta.origin) }
+        } else {
+            frame.compiled?.let(Place::Compiled)
+        } ?: return tuple
+        places[tuple] = place
+        metaOf(tuple).forEach { metaPlaces.putIfAbsent(it, IndexedValue(places.size, place)) }
 
         return tuple
     }

@@ -7,6 +7,7 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.io.OSAgnosticPathUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.util.system.OS
+import org.elixir_lang.beam.MacroNameArity
 import org.elixir_lang.expander.interpreter.ARM_BUDGET
 import org.elixir_lang.expander.interpreter.Binding
 import org.elixir_lang.expander.interpreter.Declined
@@ -278,11 +279,19 @@ internal class Watched(val node: ElixirAst) {
     var expanded: ElixirAst? = null
 }
 
+/** Where a node of a macro's output is written. */
+internal sealed interface Place {
+    /** At [origin] in the macro's source [file], as [ProjectModules] chose it, or in the file the run expands where it is `null`. */
+    class Written(val file: VirtualFile?, val origin: TextRange) : Place
+
+    /** In a `.beam`'s debug info [clause], which [ProjectModules.placed] finds in the `.beam`'s decompiled mirror. */
+    class Compiled(val clause: CompiledClause) : Place
+}
+
 /**
- * Where a node of a macro's output is written: [origin] in the macro's [file], its source file or the `.beam` whose
- * decompiled mirror holds it, as [ProjectModules] chose it, or in the file the run expands where [file] is `null`.
+ * A clause of [beam]'s debug info, as read at [stamp]: the [index]th of the definition debug info stores as [key].
  */
-internal class Place(val file: VirtualFile?, val origin: TextRange)
+internal data class CompiledClause(val beam: VirtualFile, val stamp: Long, val key: MacroNameArity, val index: Int)
 
 /**
  * Whether [node], in the expansion of [call]'s macro, is one the expansion built rather than one of [call]'s arguments

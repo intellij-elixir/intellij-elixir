@@ -20,7 +20,7 @@ class ConfigNativesTest : PlatformTestCase() {
 
     override fun setUp() {
         super.setUp()
-        sdk = sdkClauses(project, testRootDisposable)
+        sdk = sdkClauses(testRootDisposable)
     }
 
     fun testAConfigOfABadAppOrOptionsRaisesAFunctionClauseError() {

@@ -50,7 +50,7 @@ abstract class SdkProbeTestCase(
     override fun setUp() {
         super.setUp()
 
-        sdk = sdkClauses(project, testRootDisposable)
+        sdk = sdkClauses(testRootDisposable)
     }
 
     /** [text] parsed and lowered at [level]. */

@@ -25,7 +25,7 @@ class AppEnvTest : PlatformTestCase() {
     override fun setUp() {
         super.setUp()
 
-        sdk = sdkClauses(project, testRootDisposable)
+        sdk = sdkClauses(testRootDisposable)
     }
 
     fun testGetEnv() =

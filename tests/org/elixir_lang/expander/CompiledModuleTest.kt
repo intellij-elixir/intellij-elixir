@@ -8,7 +8,6 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.io.FileUtil
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiFileFactory
 import com.intellij.util.ThrowableRunnable
@@ -92,10 +91,10 @@ class CompiledModuleTest private constructor(
 
     /**
      * Each definition of [module] has as many clauses in its mirror as in its debug info, but a private one its code
-     * doesn't list, which the decompiler, rendering the code's definitions, has no clause of, and whose entry takes its
-     * origin inside the module there; and has a body per debug info clause, in order: an `fn` clause that
-     * `elixir_utils:extract_splat_guards/1` reads back as that clause's arguments and guards, whose origin is the same
-     * clause in the mirror, or the module there for a definition the mirror has no clause of.
+     * doesn't list, which the decompiler, rendering the code's definitions, has no clause of, and whose first clause is
+     * placed inside the module there; and has a body per debug info clause, in order: an `fn` clause that
+     * `elixir_utils:extract_splat_guards/1` reads back as that clause's arguments and guards, placed at the same clause in
+     * the mirror, or the module there for a definition the mirror has no clause of.
      */
     private fun assertModule(module: String, beam: File) {
         val checked = checked(module, beam)
@@ -127,7 +126,8 @@ class CompiledModuleTest private constructor(
         val mirror = mirror(beam)
         val mirrored = mirrorClauses(mirror)
         val modular = ReadAction.computeBlocking<TextRange, Throwable> { mirror.modulars().single().textRange }
-        val table by lazy { read(beam, mirror).table }
+        val definitionClauses by lazy { clausesOf(beam)!!.definitions }
+        val placed by lazy { resolver(mirror) }
         val locals = reading(beam) { reader ->
             reader.localsResult.valueOrNull?.macroNameAritySortedSetByMacro()?.values?.flatten().orEmpty()
                 .map { it.toNameArity() }
@@ -139,7 +139,7 @@ class CompiledModuleTest private constructor(
             val inMirror = mirrored[definition.macroNameArity].orEmpty().size
             val nameArity = NameArity(definition.name!!, definition.arity!!)
             val inCode = definition.macro !in PRIVATE || nameArity in locals
-            val origin = if (inCode) null else table[nameArity]?.at?.meta?.origin
+            val origin = if (inCode) null else definitionClauses[nameArity]?.clauses?.firstOrNull()?.compiled?.let(placed)
 
             if (!inCode) unlisted++
 
@@ -168,95 +168,65 @@ class CompiledModuleTest private constructor(
         )
         assertEquals(
             compiled.table.entries.mapValues { it.value.clauses },
-            (compiled.bodies as CompiledModule.Bodies.Read).clauses.mapValues { it.value.size },
+            compiled.clauses.entries.associate { (key, bodies) -> key.toNameArity() to bodies.size },
         )
         assertEquals(emptyList<String>(), differingBodies("CompiledFixture", compiledFixture.debugInfoBeam) {})
 
-        val beam = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(compiledFixture.debugInfoBeam)!!
-        val clauses = ModuleClauses.of(compiled, beam)!!
+        val clauses = clausesOf(compiled, compiledFixture.debugInfoBeam)
 
         assertEquals(
-            listOf("Elixir.CompiledFixture", ModuleClauses.Source.DBGI, beam),
+            listOf("Elixir.CompiledFixture", ModuleClauses.Source.DBGI, virtualFileOf(compiledFixture.debugInfoBeam)),
             listOf(clauses.module, clauses.source, clauses.file),
         )
         assertEquals(compiled.table.kinds, clauses.definitions.mapValues { it.value.kind })
         assertEquals(Deprecations.Known(mapOf(NameArity("h", 1) to "Use g/1 instead")), compiled.deprecations)
     }
 
-    /** A module compiled without debug info: `Docs`' functions and macros, and each arity their defaults cover. */
+    /** A module compiled without debug info holds no clauses to read. */
     private fun docsOnly() {
-        val compiled = compiledFixture.docsOnly
-
-        assertEquals(
-            listOf(
-                "f/1 DEF default", "f/2 DEF 1", "g/1 DEF", "h/1 DEF", "k/1 DEF default", "k/2 DEF 1", "m/1 DEFMACRO",
-                "max/1 DEF", "max/2 DEF default", "max/3 DEF 2", "n/1 DEF", "n/2 DEF default", "n/3 DEF 2",
-                "o/0 DEF default", "o/1 DEF 1", "z/1 DEFMACRO",
-            ),
-            rows(compiled.table).map(::kindDefaults),
-        )
-        assertEquals(CompiledModule.Bodies.Unreadable, compiled.bodies)
+        assertNull(compiledOf(compiledFixture.docsOnlyBeam))
     }
 
-    /** A stripped module: its exports, less those the compiler adds, `behaviour_info/1` among them. */
+    /** A stripped module holds no clauses to read. */
     private fun stripped() {
-        val compiled = compiledFixture.stripped
-
-        assertEquals(
-            listOf(
-                "f/1 DEF", "f/2 DEF", "g/1 DEF", "h/1 DEF", "k/1 DEF", "k/2 DEF", "m/1 DEFMACRO", "max/1 DEF", "max/2 DEF",
-                "max/3 DEF", "n/1 DEF", "n/2 DEF", "n/3 DEF", "o/0 DEF", "o/1 DEF", "z/1 DEFMACRO",
-            ),
-            rows(compiled.table).map(::kind),
-        )
-        assertEquals(CompiledModule.Bodies.Unreadable, compiled.bodies)
+        assertNull(compiledOf(compiledFixture.strippedBeam))
     }
 
-    /** An Erlang module: its exports as functions, each with as many clauses as its mirror gives it. */
+    /** An Erlang module holds no Elixir debug info clauses to read. */
     private fun erlang() {
-        val beam = appBeams.getValue("queue")
-        val mirror = mirror(beam)
-        val mirrored = mirrorClauses(mirror)
-        val compiled = read(beam, mirror)
-        val exports = reading(beam) { reader ->
-            reader.exportsResult.valueOrNull!!.macroNameAritySortedSetByMacro().values.flatten()
-                .map { it.toNameArity() }
-                .filterNot { it.name == "module_info" }
-        }
-
-        assertEquals(exports.toSet(), compiled.table.entries.keys)
-        assertEquals(
-            emptyList<String>(),
-            compiled.table.entries.mapNotNull { (nameArity, entry) ->
-                val mirror = mirrored[MacroNameArity("def", nameArity.name, nameArity.arity)].orEmpty().size
-
-                "$nameArity ${entry.kind} ${entry.clauses} ${entry.defaults} ${entry.default}, mirror $mirror".takeUnless {
-                    entry.kind == DefinitionTable.Kind.DEF && entry.clauses == mirror && entry.defaults == 0 && !entry.default
-                }
-            },
-        )
-        assertEquals(CompiledModule.Bodies.Unreadable, compiled.bodies)
+        assertNull(compiledOf(appBeams.getValue("queue")))
     }
 
     /**
-     * The fixture's table read from source agrees with its `.beam`'s: every entry's kind, clauses, defaults and default
-     * with debug info; the public entries' kind, defaults and default from `Docs`; the exported entries' kind stripped.
+     * A compiled guard is placed at its `defguard` in the mirror, whether written with `defguard`, as `Integer`'s are, or
+     * as a `defmacro` under `@doc guard: true`, as `Kernel`'s are: debug info stores both as `defmacro`.
      */
-    private fun tableMatchesSource() {
-        val source = rows(sourceTable())
-        val public = source.filterNot { it.split(" ")[1] in setOf("DEFP", "DEFMACROP") }
+    private fun compiledGuards() {
+        val guards = listOf("Elixir.Integer" to "is_even", "Elixir.Integer" to "is_odd", "Elixir.Kernel" to "is_struct")
 
-        assertEquals(source, rows(compiledFixture.debugInfo.table))
-        assertEquals(public.map(::kindDefaults), rows(compiledFixture.docsOnly.table).map(::kindDefaults))
-        assertEquals(public.map(::kind), rows(compiledFixture.stripped.table).map(::kind))
+        assertEquals(
+            guards.map { (module, name) -> "$module defguard $name(" },
+            guards.map { (module, name) ->
+                val beam = appBeams.getValue(module)
+                val clause = clausesOf(beam)!!.definitions.getValue(NameArity(name, 1)).clauses!!.first().compiled!!
+                val text = ReadAction.computeBlocking<String, Throwable> {
+                    ProjectModules.getInstance(project).placed(clause)!!.let { (mirror, origin) -> origin.substring(mirror.text) }
+                }
+
+                "$module ${text.take("defguard $name(".length)}"
+            },
+        )
     }
 
-    private class Fixture(
-        val debugInfoBeam: File,
-        val debugInfo: CompiledModule,
-        val docsOnly: CompiledModule,
-        val stripped: CompiledModule,
-    )
+    /**
+     * The fixture's table read from source agrees with its `.beam`'s debug info: every entry's kind, clauses, defaults
+     * and default.
+     */
+    private fun tableMatchesSource() {
+        assertEquals(rows(sourceTable()), rows(compiledFixture.debugInfo.table))
+    }
+
+    private class Fixture(val debugInfoBeam: File, val debugInfo: CompiledModule, val docsOnlyBeam: File, val strippedBeam: File)
 
     /**
      * [FIXTURE] compiled by the leg's Elixir with debug info, without it, and with it then stripped. The quoter's
@@ -290,7 +260,7 @@ class CompiledModuleTest private constructor(
             File(File(directory, name).apply { mkdirs() }, "Elixir.CompiledFixture.beam").apply { writeBytes(bytes) }
         }
 
-        return Fixture(debugInfo, read(debugInfo), read(docsOnly), read(stripped))
+        return Fixture(debugInfo, read(debugInfo), docsOnly, stripped)
     }
 
     /** [FIXTURE]'s table, as the expander reads it from source at the leg's level. */
@@ -318,16 +288,6 @@ class CompiledModuleTest private constructor(
             (words + listOfNotNull("default".takeIf { entry.default })).joinToString(" ")
         }.sorted()
 
-    /** A [rows] row without its clauses, and with its defaults only where there are some. */
-    private fun kindDefaults(row: String): String {
-        val words = row.split(" ")
-
-        return listOfNotNull(words[0], words[1], words[3].takeIf { it != "0" }, words.getOrNull(4)).joinToString(" ")
-    }
-
-    /** A [rows] row's name, arity and kind. */
-    private fun kind(row: String): String = row.split(" ").take(2).joinToString(" ")
-
     /** The arguments, guards and body `elixir_utils:extract_splat_guards/1` reads from an `fn` clause. */
     private fun fnClause(term: OtpErlangObject): List<OtpErlangObject> {
         val (_, _, arrow) = (term as OtpErlangTuple).elements()
@@ -350,16 +310,16 @@ class CompiledModuleTest private constructor(
 
     /**
      * Each [beam] definition clause whose body isn't an `fn` clause `elixir_utils:extract_splat_guards/1` reads back as that
-     * clause's arguments and guards, with its mirror clause's range, or the module's for one the mirror has no clause of,
-     * or whose [ModuleClauses.Clause] isn't those arguments, guards and body; [compared] is called for each clause.
+     * clause's arguments and guards, or whose [ModuleClauses.Clause] isn't those arguments, guards and body placed at its
+     * mirror clause's range, or the module's for one the mirror has no clause of; [compared] is called for each clause.
      */
     private fun differingBodies(module: String, beam: File, compared: () -> Unit): List<String> {
         val mirror = mirror(beam)
         val mirrored = mirrorClauses(mirror)
         val modular = ReadAction.computeBlocking<TextRange, Throwable> { mirror.modulars().single().textRange }
-        val compiled = read(beam, mirror)
-        val bodies = (compiled.bodies as CompiledModule.Bodies.Read).clauses
-        val definitionClauses = ModuleClauses.of(compiled, null)!!.definitions
+        val compiled = read(beam)
+        val definitionClauses = clausesOf(compiled, beam).definitions
+        val placed = resolver(mirror)
 
         return definitions(beam).flatMap { definition ->
             val nameArity = "${definition.name}/${definition.arity}"
@@ -367,7 +327,7 @@ class CompiledModuleTest private constructor(
             val origins = mirrored[definition.macroNameArity]
                 ?.map { ReadAction.computeBlocking<TextRange, Throwable> { it.textRange } }
                 ?: clauses.map { modular }
-            val read = bodies[NameArity(definition.name!!, definition.arity!!)].orEmpty()
+            val read = compiled.clauses[definition.macroNameArity].orEmpty()
             val split = definitionClauses[NameArity(definition.name!!, definition.arity!!)]?.clauses.orEmpty()
             val counted = "$module $nameArity: ${read.size} bodies, ${split.size} split, ${clauses.size} clauses"
                 .takeIf { read.size != clauses.size || split.size != clauses.size }
@@ -378,8 +338,9 @@ class CompiledModuleTest private constructor(
                 val (clause, readPair) = pair
                 val (body, splitClause) = readPair
                 val (_, arguments, guards, block) = clause.elements()
-                val actual = fnClause(body.toOtp()) to body.meta.origin
-                val expected = listOf(arguments.toOtpErlangList(), guards, block) to origins.getOrNull(index)
+                val actual = fnClause(body.toOtp())
+                val expected = listOf(arguments.toOtpErlangList(), guards, block)
+                val placedAt = splitClause.compiled?.let(placed)
                 val actualSplit = listOf(
                     OtpErlangList(splitClause.args.map { it.toOtp() }.toTypedArray()),
                     OtpErlangList(splitClause.guards.map { it.toOtp() }.toTypedArray()),
@@ -387,23 +348,24 @@ class CompiledModuleTest private constructor(
                 )
 
                 listOfNotNull(
-                    "$module $nameArity clause $index: ${actual.first.map(::inspect)} at ${actual.second}"
-                        .takeIf { actual != expected },
-                    "$module $nameArity split clause $index: ${actualSplit.map(::inspect)}"
-                        .takeIf { actualSplit != expected.first },
+                    "$module $nameArity clause $index: ${actual.map(::inspect)}".takeIf { actual != expected },
+                    "$module $nameArity split clause $index: ${actualSplit.map(::inspect)}".takeIf { actualSplit != expected },
+                    "$module $nameArity clause $index placed at $placedAt".takeIf { placedAt != origins.getOrNull(index) },
                 )
             }
         }
     }
 
-    private fun read(beam: File, mirror: ElixirFile = mirror(beam)): CompiledModule =
-        ReadAction.computeBlocking<CompiledModule?, Throwable> {
-            val bytes = beam.readBytes()
-            val deprecations = (LoadedModules.exports(bytes, beam.path) as ModuleExports.Present).deprecated
+    private fun read(beam: File): CompiledModule = compiledOf(beam) ?: throw AssertionError("$beam isn't read")
 
-            CompiledModule.of(bytes, beam.path, mirror, legLevel(), deprecations)
+    /** Where a clause of [mirror]'s `.beam` is placed in [mirror]. */
+    private fun resolver(mirror: ElixirFile): (CompiledClause) -> TextRange {
+        val (modular, ranges) = ReadAction.computeBlocking<Pair<Call, Map<MacroNameArity, List<TextRange>>>, Throwable> {
+            mirror.modulars().single().let { it to mirroredRanges(it) }
         }
-            ?: throw AssertionError("$beam isn't read")
+
+        return { clause -> ReadAction.computeBlocking<TextRange, Throwable> { mirroredRange(clause, modular, ranges) } }
+    }
 
     /** [beam]'s mirror: its decompiled source. */
     private fun mirror(beam: File): ElixirFile = mirrorOf(project, beam)!!
@@ -442,6 +404,7 @@ class CompiledModuleTest private constructor(
                 add(Case.Named("testDocsOnly", CompiledModuleTest::docsOnly))
                 add(Case.Named("testStripped", CompiledModuleTest::stripped))
                 add(Case.Named("testErlang", CompiledModuleTest::erlang))
+                add(Case.Named("testACompiledGuardIsPlacedAtItsDefguard", CompiledModuleTest::compiledGuards))
                 add(Case.Named("testTableMatchesSource", CompiledModuleTest::tableMatchesSource))
             }
 
