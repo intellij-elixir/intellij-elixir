@@ -8,7 +8,7 @@ import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 
 object EEx {
     fun isFunctionFrom(call: Call, state: ResolveState): Boolean =
-        isFunctionFromShaped(SyntacticCall.of(call)) && DeclaringForm.resolvesToMacroOf(call, state, Form.EEX_FUNCTION_FROM)
+        DeclaringForm.macroForm(call, state) == Form.EEX_FUNCTION_FROM
 
     /** Named and called like a `function_from_*`, before resolving whether it is `EEx`'s. */
     fun isFunctionFromShaped(call: SyntacticCall): Boolean =

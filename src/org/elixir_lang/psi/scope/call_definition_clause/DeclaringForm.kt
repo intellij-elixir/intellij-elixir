@@ -56,12 +56,20 @@ object DeclaringForm {
         ThreadingAssertions.assertReadAccess()
         WalkProbe.count(WalkProbe.Counter.CLASSIFY)
 
-        return when {
-            EEx.isFunctionFrom(call, state) -> Form.EEX_FUNCTION_FROM
-            Generator.isEmbed(call, state) -> Form.GENERATOR_EMBED
+        return macroForm(call, state)
+    }
+
+    /** The form among those with a [macroModule] that [call] is shaped like, where it resolves to that module's macro. */
+    fun macroForm(call: Call, state: ResolveState): Form? =
+        macroShapedForm(SyntacticCall.of(call))?.takeIf { resolvesToMacroOf(call, state, it) }
+
+    /** The form [call] is shaped like among those with a [macroModule], before resolving whether it is that module's. */
+    private fun macroShapedForm(call: SyntacticCall): Form? =
+        when {
+            EEx.isFunctionFromShaped(call) -> Form.EEX_FUNCTION_FROM
+            Generator.isEmbedShaped(call) -> Form.GENERATOR_EMBED
             else -> null
         }
-    }
 
     /**
      * The module whose macro declares with [form], where a call's shape alone doesn't say: `EEx`'s `function_from_*`
@@ -75,7 +83,7 @@ object DeclaringForm {
         }
 
     /** Whether [call] resolves to the macro of [form]'s [macroModule]. */
-    fun resolvesToMacroOf(call: Call, state: ResolveState, form: Form): Boolean =
+    private fun resolvesToMacroOf(call: Call, state: ResolveState, form: Form): Boolean =
         macroModule(form)?.let { resolvesToModularName(call, state, it) } == true
 
     /**
@@ -89,11 +97,7 @@ object DeclaringForm {
     fun shapedForm(call: SyntacticCall): Form? =
         when {
             isWrittenHead(call) -> null
-            else -> syntacticForm(call) ?: when {
-                EEx.isFunctionFromShaped(call) -> Form.EEX_FUNCTION_FROM
-                Generator.isEmbedShaped(call) -> Form.GENERATOR_EMBED
-                else -> null
-            }
+            else -> syntacticForm(call) ?: macroShapedForm(call)
         }
 
     private fun isWrittenHead(call: SyntacticCall): Boolean =
