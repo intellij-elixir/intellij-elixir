@@ -90,7 +90,7 @@ class ReachTest {
     private companion object {
         val PUBLIC_FUNCTIONS = setOf(Definer.DEF, Definer.DEFMEMO)
         val PUBLIC = PUBLIC_FUNCTIONS + setOf(Definer.DEFMACRO, Definer.DEFGUARD)
-        val UNDECIDED_FUNCTION = Capabilities(false, false, false, Visibility.UNDECIDED)
-        val UNDECIDED_MACRO = Capabilities(true, true, false, Visibility.UNDECIDED)
+        val UNDECIDED_FUNCTION = Capabilities(quotesArguments = false, compileTime = false, usableInGuards = false, Visibility.UNDECIDED)
+        val UNDECIDED_MACRO = Capabilities(quotesArguments = true, compileTime = true, usableInGuards = false, Visibility.UNDECIDED)
     }
 }
