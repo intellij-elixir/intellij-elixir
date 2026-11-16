@@ -41,8 +41,8 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
     /** The files read, newest first, as `Config.Reader.read_imports!/2` lists them. */
     val imports = ArrayList<String>()
 
-    /** The paths `Code.require_file/1,2` required in the read, which every file it follows shares. */
-    val required = HashSet<String>()
+    /** What every file the read follows shares. */
+    val shared = RunShared()
 
     /** The modules the read's follows loaded, with their clauses, which the build the read runs before then sees. */
     private val followed = LinkedHashMap<String, FollowedLoad>()
@@ -84,9 +84,6 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
     var muted = false
 
     private var declined = false
-
-    /** The apps whose env the read wrote, across every file it imports. */
-    val written = WrittenApps()
 
     /** A unit of the read declined, or code it doesn't follow ran, so its table isn't what Elixir's is. */
     fun unitDeclined() {
@@ -256,8 +253,8 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
     /** The read's outcome where it raised, or its result holds a value not known. */
     fun raised(): ConfigTable = outcome(EMPTY, WrittenApps(), unknown = true)
 
-    private fun outcome(config: OtpErlangObject, written: WrittenApps = this.written.copy(), unknown: Boolean = false) =
-        ConfigTable(config, imports.toList(), declined, written, unknown, required.toSet(), followed.mapValues { it.value.module })
+    private fun outcome(config: OtpErlangObject, written: WrittenApps = shared.written.copy(), unknown: Boolean = false) =
+        ConfigTable(config, imports.toList(), declined, written, unknown, shared.required.toSet(), followed.mapValues { it.value.module })
 
     /** Whether `Config.validate!/2` lets [result] by: before [CONFIG_VALIDATES_EVERY_ENTRY], the first entry not `{atom, _}` ends its check. */
     private fun isValid(result: OtpErlangObject, level: ElixirLanguageLevel): Boolean {
@@ -307,6 +304,15 @@ internal class WrittenApps {
 
     /** The apps written so far, apart from later writes. */
     fun copy(): WrittenApps = WrittenApps().also { it.restore(this) }
+}
+
+/** What a config read, or else the outermost run, shares with every file it follows. */
+internal class RunShared {
+    /** The apps whose env an evaluation wrote, or, `null` among them, an app that isn't known. */
+    val written = WrittenApps()
+
+    /** The paths `Code.require_file/1,2` required. */
+    val required = HashSet<String>()
 }
 
 /** Whether [left] and [right] are one state of a read: the same config ([sameTerm]), shape and files, or no read. */

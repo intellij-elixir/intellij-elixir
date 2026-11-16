@@ -88,12 +88,12 @@ internal class CodeFollow(private val evaluation: Evaluation) {
      * the modules are loaded but what the call gives isn't known.
      */
     private fun requireFile(path: String): OtpErlangObject {
-        val earlier = if (path in run.required) Require.REQUIRED else run.files.requiredByRead(path)
+        val earlier = if (path in run.shared.required) Require.REQUIRED else run.files.requiredByRead(path)
         if (earlier == Require.REQUIRED) return NIL
         val maybe = earlier == Require.MAYBE || run.mayHaveRunUnfollowed
 
         val modules = modules(follow(path, evaluates = false))
-        run.required += path
+        run.shared.required += path
 
         return if (run.sequential && !maybe) modules else Unknown
     }

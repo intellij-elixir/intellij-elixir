@@ -361,26 +361,23 @@ internal class Run(
      */
     var assumptions = 0
 
-    /**
-     * The apps whose env the run's evaluations wrote: under a [config], those its read wrote in any of its files; in a
-     * followed run, those its caller's wrote too.
-     */
-    private val written: WrittenApps = config?.written ?: parent?.written ?: WrittenApps()
+    /** What the run shares with what it follows: a [config]'s read's, else the outermost run's. */
+    val shared: RunShared = config?.shared ?: parent?.shared ?: RunShared()
 
     /** Records that an evaluation wrote [app]'s env, or, `null`, an app that isn't known. */
-    fun wroteEnv(app: String?) = written.add(app)
+    fun wroteEnv(app: String?) = shared.written.add(app)
 
     /** The run's state as the code run later reads it ([RunState]). */
-    fun state() = RunState(config?.snapshot(), written.copy())
+    fun state() = RunState(config?.snapshot(), shared.written.copy())
 
     /** Puts the run back to [state], as code run again from there starts. */
     fun restore(state: RunState) {
         state.read?.let { config?.restore(it) }
-        written.restore(state.written)
+        shared.written.restore(state.written)
     }
 
     /** Where code run again from a state doesn't return, keeps the apps [ended] wrote written: code past it may read them. */
-    fun keepWritten(ended: List<RunState>) = ended.forEach { written.addAll(it.written) }
+    fun keepWritten(ended: List<RunState>) = ended.forEach { shared.written.addAll(it.written) }
 
     /**
      * The states where code that started at [from] may have ended, joined: [returned], or [raised] where it raised, which
@@ -404,7 +401,7 @@ internal class Run(
      * Whether an evaluation in the run, or under its [config] in any of the read's files, wrote [app]'s env, or, `null`,
      * that of any app, so its value isn't [appEnv]'s.
      */
-    fun wroteEnvOf(app: String?): Boolean = app in written
+    fun wroteEnvOf(app: String?): Boolean = app in shared.written
 
     /**
      * The modules being compiled that calls declined in the module-body code or macro being run were given, any of
@@ -784,9 +781,6 @@ internal class Run(
 
     /** The env a file `Code` follows starts from: the [newEnv] of the file the outermost run expands. */
     val emptyEnv: Env? get() = parent?.emptyEnv ?: newEnv
-
-    /** The paths `Code.require_file/1,2` required: a read's, else the outermost run's, shared with what it follows. */
-    val required: MutableSet<String> = config?.required ?: parent?.required ?: HashSet()
 
     /** The files being run, this one's innermost, so that a follow of one of them ends the cycle. */
     val following: Set<String> get() = (parent?.following ?: emptySet()) + setOfNotNull(file())
