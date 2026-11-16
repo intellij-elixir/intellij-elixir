@@ -1308,6 +1308,33 @@ enum class ElixirLanguageFeature(
     CODE_INDENTATION_STARTS_LATER_LINES(sinceElixir = "1.19.0-rc.0"),
 
     /**
+     * `elixir_tokenizer:tokenize/3` answers `{ok, Line, Column, Warnings, Tokens}`, where it ended beside the warnings
+     * and the tokens. Before it, `{ok, Tokens}`.
+     *
+     * `elixir-lang/elixir@23bb08885` ("Add Code.Fragment.container_cursor_to_quoted/2", #11315), first released in
+     * v1.13.0-rc.0.
+     */
+    TOKENIZER_ANSWERS_ITS_END(sinceElixir = "1.13.0-rc.0"),
+
+    /**
+     * An identifier, alias, keyword key or atom token's metadata holds its text as written, as a charlist, where it held
+     * `nil`.
+     *
+     * `elixir-lang/elixir@b401d1529` ("Run unicode security linting on more tokens"), first released in v1.14.0-rc.0.
+     */
+    TOKENIZER_KEEPS_IDENTIFIER_TEXT(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * `elixir_tokenizer:tokenize/3` answers `{ok, Line, Column, Warnings, Tokens, Terminators}`: its tokens last first,
+     * and the terminators a cursor's completion adds, `[]` with no cursor. From [TOKENIZER_ANSWERS_ITS_END] until it,
+     * the tokens are first first, with nothing after them.
+     *
+     * `elixir-lang/elixir@d7ea2fa2e` ("Handle cursor completion inside fn/rescue/catch/else/after"), first released in
+     * v1.17.0-rc.0.
+     */
+    TOKENIZER_ANSWERS_TOKENS_REVERSED(sinceElixir = "1.17.0-rc.0"),
+
+    /**
      * A quoted `Left.unquote(Expr)` call keeps its metadata as it is. Before it, the metadata is quoted ahead of the
      * call's other parts, so a variable in it, such as the line a `quote`'s prelude binds, is quoted as a variable.
      *

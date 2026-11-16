@@ -3249,6 +3249,18 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         /** A macro `m` giving `{kind, reason}` where [expression] raises, else its value. */
         fun caught(expression: String) = "defmacro m, do: (try do $expression catch kind, reason -> {kind, reason} end)"
 
+        /** A row of `elixir_tokenizer:tokenize/3` from line 1, as `EEx` calls it, of each of [texts], an Elixir list's items. */
+        fun tokenizes(id: String, texts: String): Row =
+            macro(
+                id,
+                "defp t(e), do: :elixir_tokenizer.tokenize(e, 1, file: \"eex\", check_terminators: false)\n" +
+                    "defmacro m, do: Macro.escape(for e <- [\n${texts.trimIndent()}\n], do: t(e))",
+            )
+
+        /** A row whose `elixir_tokenizer:tokenize/3` of [text] from line 1, as `EEx` calls it, declines. */
+        fun tokenizeDeclines(id: String, text: String): Row =
+            macro(id, "defmacro m, do: Macro.escape(:elixir_tokenizer.tokenize($text, 1, check_terminators: false))", pins = DECLINED)
+
         /** A row whose `use` runs [statements] in the case module once it requires `EEx`. */
         fun eex(id: String, statements: String, ends: (ElixirLanguageLevel) -> String? = { null }): Row =
             use(id, using("quote do", "require EEx\n${statements.trimIndent()}"), ends = ends)
@@ -6602,6 +6614,143 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                   Code.get_compiler_option(:parser_options)
                 end
                 """,
+                pins = DECLINED,
+            ),
+
+            // `elixir_tokenizer:tokenize/3` as `EEx` calls it: `ElixirLexer`'s tokens, named as the leg's tokenizer names them
+            tokenizes(
+                "native:tokenize",
+                """
+                ~c" @label ",
+                ~c" if @current_scope do ",
+                ~c" else ",
+                ~c" end ",
+                ~c" for {css_class, token_style} <- styles do ",
+                ~c" render_slot(@inner_block) ",
+                ~c" render_slot(col, row) ",
+                ~c" gettext(\"Count\") ",
+                ~c" Atom.to_string(token_type) ",
+                ~c" if token_style.color do "
+                """,
+            ),
+            // A name's kind is what follows it: a bracket, a key's colon, or a `do` past whitespace.
+            tokenizes(
+                "native:tokenize-names",
+                """
+                ~c" x[1] ",
+                ~c" @x(1) ",
+                ~c" Foo.Bar.baz(1) ",
+                ~c" x.Foo ",
+                ~c" x? ",
+                ~c" x! do ",
+                ~c" x  do ",
+                ~c" x\tdo ",
+                ~c" x . y ",
+                ~c" @ x ",
+                ~c" f(a: 1, do: 2, else: 3) ",
+                ~c" Foo: 1 ",
+                ~c" x.y: 1 ",
+                ~c" x y do ",
+                ~c" __MODULE__ "
+                """,
+            ),
+            tokenizes(
+                "native:tokenize-keywords",
+                """
+                ~c" fn x -> x end ",
+                ~c" after ",
+                ~c" catch ",
+                ~c" rescue ",
+                ~c" true ",
+                ~c" false ",
+                ~c" nil ",
+                ~c" f() do ",
+                ~c" Foo do ",
+                ~c" \"a\" do ",
+                ~c" x[1] do ",
+                ~c" end end ",
+                ~c" do do ",
+                ~c" true: 1 ",
+                ~c" end) "
+                """,
+            ),
+            tokenizes(
+                "native:tokenize-literals",
+                """
+                ~c" :a ",
+                ~c" :Foo ",
+                ~c" :a? ",
+                ~c" :do ",
+                ~c" 007 ",
+                ~c" 18446744073709551616 ",
+                ~c" \"\" ",
+                ~c"\"\"",
+                ~c"",
+                ~c"\t",
+                ~c" {a, [b]} ",
+                ~c" )( "
+                """,
+            ),
+            // An atom or a key is any name the lexer makes, `@` and a trailing `?` or `!` included.
+            tokenizes(
+                "native:tokenize-atoms",
+                """
+                ~c" :a@b ",
+                ~c" :Foo? ",
+                ~c" :Foo@b ",
+                ~c" :foo@ ",
+                ~c" a@b: 1 "
+                """,
+            ),
+            // The line is the one given, `file:` changes nothing, and the text may be any list of code points.
+            macro(
+                "native:tokenize-line",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :elixir_tokenizer.tokenize(~c"x y", 7, check_terminators: false),
+                    :elixir_tokenizer.tokenize([?x, ?\s, ?y], 0, check_terminators: false, file: "a.eex"),
+                    :elixir_tokenizer.tokenize(String.to_charlist("if x do"), 3, file: "b", check_terminators: false)
+                  ])
+                end
+                """,
+            ),
+            // Text the map can't name exactly declines: a newline, a comment, an operator, a character past ASCII, an escape,
+            // an interpolation, a charlist, `...` (an `ellipsis_op` from 1.17), a keyword after a dot, a quoted key, a name
+            // against a number, or what `elixir_tokenizer` rejects.
+            tokenizeDeclines("native:tokenize-newline", "~c\" a\\n b \""),
+            tokenizeDeclines("native:tokenize-comment", "~C( a # c )"),
+            tokenizeDeclines("native:tokenize-operator", "~c\" a + b \""),
+            tokenizeDeclines("native:tokenize-non-ascii", "~c\" é \""),
+            tokenizeDeclines("native:tokenize-escape", "~C( \"a\\nb\" )"),
+            tokenizeDeclines("native:tokenize-interpolation", "~C( \"a#{b}\" )"),
+            tokenizeDeclines("native:tokenize-charlist", "~C( 'ab' )"),
+            tokenizeDeclines("native:tokenize-ellipsis", "~c\" ... \""),
+            tokenizeDeclines("native:tokenize-keyword-after-dot", "~c\" x.end \""),
+            tokenizeDeclines("native:tokenize-quoted-key", "~C( \"a\": 1 )"),
+            tokenizeDeclines("native:tokenize-adjacent", "~c\" 1x \""),
+            tokenizeDeclines("native:tokenize-error", "~c\" x@y \""),
+            // `EEx` never checks terminators, and the other options change what the tokenizer gives.
+            macro("native:tokenize-terminators", "defmacro m, do: Macro.escape(:elixir_tokenizer.tokenize(~c\"x\", 1, file: \"eex\"))", pins = DECLINED),
+            macro(
+                "native:tokenize-option",
+                "defmacro m, do: Macro.escape(:elixir_tokenizer.tokenize(~c\"x\", 1, check_terminators: false, existing_atoms_only: true))",
+                pins = DECLINED,
+            ),
+            tokenizeDeclines("native:tokenize-binary", "\"x\""),
+            tokenizeDeclines("native:tokenize-do-after-fn", "~c\" fn do \""),
+            tokenizeDeclines("native:tokenize-do-after-comma", "~c\" a, do \""),
+            tokenizeDeclines("native:tokenize-alias-space-paren", "~c\" Foo (1) \""),
+            tokenizeDeclines("native:tokenize-aliases-space-paren", "~c\" Foo.Bar (x) do \""),
+            tokenizeDeclines("native:tokenize-reserved-block", "~c\" __block__ \""),
+            tokenizeDeclines("native:tokenize-reserved-aliases", "~c\" __aliases__(1) \""),
+            // An alias is letters, digits and `_`, and an operator's atom holds no text.
+            tokenizeDeclines("native:tokenize-alias-punctuation", "~c\" Foo! \""),
+            tokenizeDeclines("native:tokenize-operator-atom", "~c\" :+ \""),
+            tokenizeDeclines("native:tokenize-percent", "~c\" %{a: 1} \""),
+            macro(
+                "native:tokenize-terminators-true",
+                "defmacro m, do: Macro.escape(:elixir_tokenizer.tokenize(~c\"x\", 1, check_terminators: false, check_terminators: true))",
                 pins = DECLINED,
             ),
 

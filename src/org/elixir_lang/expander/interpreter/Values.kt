@@ -26,6 +26,7 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.fitsAnAtom
 import org.elixir_lang.psi.Import.Term
+import org.elixir_lang.unicode_util.isScalarValue
 import java.math.BigInteger
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -535,6 +536,24 @@ internal fun binary(text: String) = OtpErlangBinary(text.toByteArray(Charsets.UT
 internal fun tuple(vararg elements: OtpErlangObject) = OtpErlangTuple(arrayOf(*elements))
 
 internal fun list(elements: List<OtpErlangObject>) = OtpErlangList(elements.toTypedArray())
+
+/** [text]'s code points, each an integer. */
+internal fun codePoints(text: String): List<OtpErlangObject> = charlist(text).elements().asList()
+
+/** [text] as a list of its code points. */
+internal fun charlist(text: String): OtpErlangList = OtpErlangList(text)
+
+/** [term] where it is a Unicode code point, which a surrogate isn't, `null` where it is something else. */
+internal fun codePoint(term: OtpErlangObject): Int? = smallInt(term)?.takeIf { isScalarValue(it.toLong()) }
+
+/** The text of [term], a proper list of code points; `null` where it is not one. */
+internal fun charlistText(term: OtpErlangObject): String? =
+    when (val known = seen(term)) {
+        is OtpErlangString -> known.stringValue()
+        else -> properElements(known)?.let { elements ->
+            String(IntArray(elements.size) { codePoint(seen(elements[it])) ?: return null }, 0, elements.size)
+        }
+    }
 
 /**
  * `[heads | tail]`, unknown where [tail] is: how many cells follow, and whether the list is proper, aren't known, but it

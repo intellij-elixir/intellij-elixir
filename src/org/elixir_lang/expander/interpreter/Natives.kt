@@ -84,7 +84,6 @@ import org.elixir_lang.lowering.fitsAnAtom
 import org.elixir_lang.model.psi.config.ConfigFiles
 import org.elixir_lang.psi.Import.Term
 import org.elixir_lang.unicode_util.Graphemes
-import org.elixir_lang.unicode_util.isScalarValue
 import java.io.ByteArrayOutputStream
 import java.math.BigInteger
 import java.nio.ByteBuffer
@@ -410,6 +409,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "Elixir.Mix.Config" to writing { key, args -> if (key == "__import__!/2") mixConfigImport(args[0], args[1]) else null },
             "Elixir.File" to reading { key, args -> if (key == "exists?/1" || key == "exists?/2") fileExists(args[0]) else null },
             "elixir_import" to reading { key, args -> if (key == "special_form/2") isSpecialForm(args[0], args[1]) else null },
+            "elixir_tokenizer" to reading { key, args -> if (key == "tokenize/3") tokenize(args) else null },
         )
 
         /** A row none of whose functions writes what later code reads. */
@@ -1640,6 +1640,34 @@ internal class Natives(private val evaluation: Evaluation) {
             "keys/1" -> list(inOrder(map(args[0])).map { it.first })
             else -> null
         }
+
+    /**
+     * `elixir_tokenizer:tokenize/3` of a charlist from a line, as `EEx` calls it: with `check_terminators: false`, and
+     * maybe a binary `file:`, which changes nothing it gives. Any other text, line or option declines, and [Tokenizer]
+     * declines where its map isn't exact.
+     */
+    private fun tokenize(args: List<OtpErlangObject>): OtpErlangObject {
+        val text = charlistText(args[0]) ?: decline("elixir_tokenizer:tokenize/3 of %s", args[0])
+        val line = smallInt(seen(args[1]))?.takeIf { it >= 0 } ?: decline("elixir_tokenizer:tokenize/3 from the line %s", args[1])
+        val options = properElements(seen(args[2]))?.map(::seen) ?: decline("elixir_tokenizer:tokenize/3 given the options %s", args[2])
+        var checksTerminators = true
+
+        // `check_terminators: true` is read before 1.13 and passed over from it, so only `false` is ported.
+        for (option in options) {
+            val (key, value) = keywordPair(option)?.let { (key, value) -> key to seen(value) }
+                ?: decline("elixir_tokenizer:tokenize/3 given the option %s", option)
+
+            when (key) {
+                "check_terminators" if value == FALSE -> checksTerminators = false
+                "file" if value is OtpErlangBinary -> {}
+                else -> decline("elixir_tokenizer:tokenize/3 given the option %s", option)
+            }
+        }
+
+        if (checksTerminators) decline("elixir_tokenizer:tokenize/3, its terminators checked")
+
+        return Tokenizer(level).tokenize(text, line)
+    }
 
     /**
      * `counters`, over the arrays made in the runs that share the run's state
@@ -3679,10 +3707,6 @@ internal class Natives(private val evaluation: Evaluation) {
             },
         )
     }
-
-    /** [term] where it is a Unicode code point, which a surrogate isn't, `null` where it is something else. */
-    private fun codePoint(term: OtpErlangObject): Int? =
-        smallInt(term)?.takeIf { isScalarValue(it.toLong()) }
 
     /**
      * `unicode_util:gc/1`: the first grapheme cluster of a binary or a flat list of code points, then the rest. Where

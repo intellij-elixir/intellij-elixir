@@ -4,7 +4,6 @@ import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangBinary
 import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
-import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
@@ -215,12 +214,7 @@ internal class CodeFollow(private val evaluation: Evaluation) {
     private fun textOf(term: OtpErlangObject): String? =
         when (val known = seen(term)) {
             is OtpErlangBinary -> evaluation.natives.utf8(known)
-            is OtpErlangString -> known.stringValue()
-            else -> properElements(known)?.let { elements ->
-                val points = elements.map { smallInt(seen(it))?.takeIf(Character::isValidCodePoint) ?: return null }
-
-                String(points.toIntArray(), 0, points.size)
-            }
+            else -> charlistText(known)
         }
 
     /**
