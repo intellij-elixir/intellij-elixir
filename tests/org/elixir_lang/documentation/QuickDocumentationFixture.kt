@@ -103,6 +103,12 @@ fun anchoredEntry(documentation: String, anchor: String?): String =
 fun linkedIds(documentation: String): List<String> =
     Regex("""href="#([^"]+)"""").findAll(documentation).map { it.groupValues[1] }.toList()
 
+/** The header's links to [name]'s arities in rendered [documentation], in order: each arity with the parameters it shows. */
+fun linkedHeads(documentation: String, name: String): List<Pair<String, String>> =
+    Regex("""<a href="#arity-(\d)">${Regex.escape(name)}\(([^)]*)\)</a>""").findAll(documentation)
+        .map { it.groupValues[1] to it.groupValues[2] }
+        .toList()
+
 /** The target the platform offers first at the caret. */
 @Suppress("UnstableApiUsage")
 fun CodeInsightTestFixture.documentationTargetAtCaret(project: Project): DocumentationTarget? =

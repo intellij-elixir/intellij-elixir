@@ -7,7 +7,7 @@ import org.elixir_lang.Module
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Feature
-import org.elixir_lang.declaration.SameFunction
+import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Reach
@@ -243,7 +243,7 @@ object SourceFileDocsHelper {
     private fun listedFunctions(declaring: Call, declaringForm: Form, remote: Boolean, used: Declaration? = null): List<List<Written>>? {
         val state = ResolveState.initial()
         val listed = used ?: declarationOf(declaring, declaringForm, state) ?: return null
-        val listedArities = listed.arity.arityInterval() ?: return null
+        if (listed.arity == ArityKnowledge.Unknown) return null
         val modular = enclosingModularMacroCall(declaring) ?: return null
         val module = moduleName(modular)
 
@@ -271,18 +271,14 @@ object SourceFileDocsHelper {
                     Written(sibling, form, head, declaration, arities, documentation, hidden)
                 }
             }
-        val functions = mutableListOf<MutableList<Written>>()
-
-        for (one in written.sortedBy { it.arities.minimum }) {
-            ProgressManager.checkCanceled()
-
-            // A `def` replaces what `defexception` defines rather than joining it, so that is one function alone.
-            val function = if (one.generated) null else functions.firstOrNull { function ->
-                function.none(Written::generated) && function.any { it.declaration.sameFunction(one.declaration) == SameFunction.YES }
-            }
-
-            if (function == null) functions += mutableListOf(one) else function += one
-        }
+        val usedIdentity = listed.identity
+        // One function per identity, as Elixir keys its definitions. A `def` replaces what `defexception` defines
+        // rather than joining it, so that, like a declaration of no known identity, is one function alone. They are
+        // ascending by the full arity that keys each.
+        val functions = written.sortedBy { it.arities.minimum }
+            .groupBy { one -> one.declaration.identity?.takeUnless { one.generated } ?: one }
+            .values
+            .sortedBy { function -> function.maxOf { it.arities.maximum ?: Int.MAX_VALUE } }
 
         return functions.filter { function ->
             FetchedDocs.Arities.listed(
@@ -290,7 +286,11 @@ object SourceFileDocsHelper {
                 exported = function.any { Reach.OWN.exports(it.declaration.capabilities) },
                 hidden = function.any { it.hidden },
                 // Where a `def` of its arity replaced what `defexception` defines, the use found the `def`.
-                used = function.any { if (it.generated) it.call == declaring else it.arities.overlaps(listedArities) },
+                used = function.any {
+                    val identity = it.declaration.identity
+
+                    if (it.generated || identity == null || usedIdentity == null) it.call == declaring else identity == usedIdentity
+                },
                 generated = function.any(Written::generated)
             )
         }

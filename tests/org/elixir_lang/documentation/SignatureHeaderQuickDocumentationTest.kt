@@ -377,8 +377,11 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
         assertTrue("Expected the second entry titled by its signature, got: $documentation", "<a id=\"arity-2\"></a><b>f(a, b)</b>" in documentation)
     }
 
-    /** Declarations whose arities overlap are one entry, which names each full arity by its signature. */
-    fun testOneEntryCoveringTwoKeysHasASignatureForEach() =
+    /**
+     * A head whose defaults cover an arity another `def` defines is a function of its own, as Elixir keys each by its
+     * full arity, so each is its own entry, ascending by that arity.
+     */
+    fun testDefaultsOverlappingAnotherArityAreAFunctionOfTheirOwn() =
         assertHeader(
             """
             defmodule Keys do
@@ -389,10 +392,10 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """,
             "<i>module</i> <b>Keys</b>",
-            "g2(a, b)",
-            """g2(a, b \\ 1, c \\ 2)""",
-            """  def g2(a, b \\ 1, c \\ 2)""",
-            "  def g2(a, b)"
+            """<a href="#arity-2">g2(a, b)</a>""",
+            "  def g2(a, b)",
+            """<a href="#arity-3">g2(a, b \\ 1, c \\ 2)</a>""",
+            """  def g2(a, b \\ 1, c \\ 2)"""
         )
 
     /** Its arity is known only once the splice expands, so no signature can be known for it: its head names it. */
@@ -473,19 +476,17 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
         )
 
     /**
-     * Its debug info decompiles each arity a default covers as a function of its own; the `Docs` chunk records only the
-     * full one, which keeps its defaults.
+     * Its debug info decompiles each arity a default covers as a head of its own; they are one function, which the
+     * `Docs` chunk titles once, with its defaults.
      */
     fun testACompiledModuleKeepsTheDefaultsItsDocsChunkRecords() =
         assertCompiledHeader(
             "CompiledHeader",
             "split",
             "<i>module</i> <b>CompiledHeader</b>",
-            """<a href="#arity-1">split(string)</a>""",
+            """split(string, pattern \\ " ", options \\ [])""",
             "  def split(string)",
-            """<a href="#arity-2">split(string, pattern)</a>""",
             "  def split(string, pattern)",
-            """<a href="#arity-3">split(string, pattern \\ " ", options \\ [])</a>""",
             "  def split(string, pattern, options)"
         )
 

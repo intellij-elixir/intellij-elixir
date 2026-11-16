@@ -4,8 +4,11 @@ import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.psi.PsiElement
+import org.elixir_lang.NameArity
 import org.elixir_lang.beam.BeamReader
+import org.elixir_lang.beam.CompiledIdentity
 import org.elixir_lang.beam.psi.Module
+import org.elixir_lang.code_insight.definition
 import org.elixir_lang.declaration.Presentation
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
@@ -26,7 +29,7 @@ object BeamDocsHelper {
 
     /**
      * [decompiled], what [element]'s decompiled source documents, with each function titled by the signatures the
-     * `Docs` chunk records for the full arities it covers, where it records any, and, where the decompiled source writes
+     * `Docs` chunk records for its full arity, where it records any, and, where the decompiled source writes
      * no `@spec`, as it does not from Elixir's debug info, given those the chunk's metadata records, else those the debug
      * info holds for its arities.
      */
@@ -48,7 +51,7 @@ object BeamDocsHelper {
 
             decompiled.copy(entries = decompiled.entries.map { entry ->
                 val documentation = entry.documentation
-                val documented = docs?.let { documented(it, exported, name, entry.arities) }.orEmpty()
+                val documented = docs?.let { documented(it, exported, name, entry.arities.definition().first) }.orEmpty()
                 val titles = documented.flatMap(::signatures)
 
                 entry.copy(
@@ -68,15 +71,15 @@ object BeamDocsHelper {
     }
 
     /**
-     * The signatures [docs] records for the definitions named [name] at [arities], ascending by arity, as Quick
-     * Documentation and Parameter Info both show them: [element]'s kind tried first, whichever language compiled it.
+     * The signatures [docs] records for the definition named [name] whose full arity is [full], as Quick Documentation
+     * and Parameter Info both show them: [element]'s kind tried first, whichever language compiled it.
      */
-    internal fun signatures(docs: Docs, element: MaybeExported, name: String, arities: ArityInterval): List<String> =
-        documented(docs, element, name, arities).flatMap(::signatures)
+    internal fun signatures(docs: Docs, element: MaybeExported, name: String, full: Int): List<String> =
+        documented(docs, element, name, full).flatMap(::signatures)
 
-    /** What [docs] records for the definitions named [name] at [arities], [element]'s kind tried first. */
-    private fun documented(docs: Docs, element: MaybeExported, name: String, arities: ArityInterval): List<Documented> =
-        docs.documentedNamed(kindForElement(element), name).filter { it.arity in arities }
+    /** What [docs] records for the definition named [name] whose full arity is [full], [element]'s kind tried first. */
+    private fun documented(docs: Docs, element: MaybeExported, name: String, full: Int): List<Documented> =
+        kindForElement(element).mapNotNull { kind -> docs.documented(kind, name, full) }
 
     /** [documented]'s signatures, without the `\r` a chunk can carry, which a document cannot hold. */
     private fun signatures(documented: Documented): List<String> = documented.signatures.map { it.replace("\r", "") }
@@ -91,7 +94,12 @@ object BeamDocsHelper {
                     }
                     is MaybeExported -> {
                         element.exportedName()?.let { name ->
-                            val own = (element as? BeamCallDefinition)?.nameArityInterval?.arityInterval
+                            // Read only for an entry `Docs` lists: a `.beam` without `Docs` would decode its whole debug info for nothing.
+                            val own by lazy(LazyThreadSafetyMode.NONE) {
+                                (element as? BeamCallDefinition)?.nameArityInterval?.let {
+                                    CompiledIdentity.of(reader, it.name, it.arityInterval.minimum)
+                                }
+                            }
                             val entries = documentation?.docs
                                 ?.documentedNamed(kindForElement(element), name)
                                 ?.mapNotNull { entry(module, it)?.takeIf { entry -> visible(entry, own) } }
@@ -106,12 +114,12 @@ object BeamDocsHelper {
             }
 
     /** A function marked `@doc false` is not listed with the others, but is when it is the one asked about. */
-    private fun visible(entry: FetchedDocs.Arities.Entry, own: ArityInterval?): Boolean =
+    private fun visible(entry: FetchedDocs.Arities.Entry, own: NameArity?): Boolean =
         FetchedDocs.Arities.listed(
             inside = false,
             exported = true,
             hidden = entry.documentation.doc is Hidden,
-            used = own?.overlaps(entry.arities) == true
+            used = own != null && entry.arities.maximum == own.arity
         )
 
     private fun entry(module: String, documented: Documented): FetchedDocs.Arities.Entry? {

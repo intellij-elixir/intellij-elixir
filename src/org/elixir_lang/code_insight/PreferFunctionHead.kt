@@ -14,7 +14,6 @@ import org.elixir_lang.declaration.Preferred
 import org.elixir_lang.declaration.clauseOrder
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.documentation.BeamDocsHelper
-import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
 
@@ -107,7 +106,7 @@ private fun recordedParameters(group: List<Pair<Signature, Found>>, docsOf: (Vir
 
                 head.containingFile.virtualFile
                     ?.let(docsOf)
-                    ?.let { docs -> BeamDocsHelper.signatures(docs, head, name, ArityInterval(full, full)).firstOrNull() }
+                    ?.let { docs -> BeamDocsHelper.signatures(docs, head, name, full).firstOrNull() }
                     ?.let(::signatureParameters)
                     // A signature that is no call, as an operator's `left <~> right`, names no parameters to read.
                     ?.takeIf { full in ParameterText.arities(it) }

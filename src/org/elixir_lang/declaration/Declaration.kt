@@ -2,6 +2,9 @@ package org.elixir_lang.declaration
 
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
+import org.elixir_lang.NameArity
+import org.elixir_lang.beam.CompiledIdentity
+import org.elixir_lang.beam.FileType as BeamFileType
 import org.elixir_lang.call.Visibility
 import org.elixir_lang.psi.arityInterval
 
@@ -29,6 +32,21 @@ data class Declaration(
     }
 
     fun sameFunction(other: Declaration): SameFunction = sameFunction(other.name, other.arity)
+
+    /**
+     * The function this declaration is one of, as Elixir's definition table keys it: its name and its full arity, each
+     * default counted; null where the arity is not known. A `.beam`'s decompiled mirror writes each arity a default
+     * generates as a head of its own, so a head there is the `.beam`'s export, read as compiled.
+     */
+    val identity: NameArity?
+        get() = when (val declared = declared) {
+            is Declared.Source -> arity.passed()?.let { arity ->
+                declared.origin.file.takeIf { it.fileType is BeamFileType }?.let { CompiledIdentity.of(it, name, arity) }
+                    ?: NameArity(name, arity)
+            }
+            is Declared.Compiled ->
+                declared.origin.let { CompiledIdentity.of(it.file, it.name, it.arity) }
+        }
 }
 
 enum class SameFunction { YES, NO, UNKNOWN }

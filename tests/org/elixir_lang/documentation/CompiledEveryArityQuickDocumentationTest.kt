@@ -21,28 +21,10 @@ class CompiledEveryArityQuickDocumentationTest : BeamLibraryTestCase() {
         HeadlessDataManager.fallbackToProductionDataManager(testRootDisposable)
     }
 
-    fun testEveryArityIsShownWithDebugInfo() {
-        val (documentation, anchor) = documentationAndAnchor("EveryArity")
+    /** Its debug info decompiles each arity a default covers as a head of its own, which is one function still. */
+    fun testEveryArityIsShownWithDebugInfo() = assertEachFunctionShown("EveryArity")
 
-        assertEveryArityShown(documentation)
-        assertNotNull("Expected an anchor", anchor)
-        assertEquals("Expected a link per head, got: $documentation", 3, linkedIds(documentation).distinct().size)
-        assertTrue(
-            "Expected the entry anchored to be the called arity's, got: $documentation",
-            "<b>push(a)</b>" in anchoredEntry(documentation, anchor)
-        )
-    }
-
-    fun testEveryArityIsShownFromTheDocsChunk() {
-        val (documentation, anchor) = documentationAndAnchor("EveryArityDocsOnly")
-
-        assertEveryArityShown(documentation)
-        assertEquals("Expected a link per function, got: $documentation", 2, linkedIds(documentation).distinct().size)
-        assertTrue(
-            "Expected the entry anchored to hold the defaults' doc, got: $documentation",
-            "One or two." in anchoredEntry(documentation, anchor)
-        )
-    }
+    fun testEveryArityIsShownFromTheDocsChunk() = assertEachFunctionShown("EveryArityDocsOnly")
 
     /** From outside the module, a private arity is not listed and one marked `@doc false` is not either. */
     fun testAHiddenAndAPrivateArityAreNotListedWithDebugInfo() {
@@ -78,6 +60,18 @@ class CompiledEveryArityQuickDocumentationTest : BeamLibraryTestCase() {
         assertEquals("Expected a link per visible arity, got: $documentation", 2, linkedIds(documentation).distinct().size)
         assertFalse("Expected no entry for push(a, b, c, d), got: $documentation", "push(a, b, c, d)" in documentation)
         assertFalse("Expected no entry for push(a, b), got: $documentation", "push(a, b)" in documentation)
+    }
+
+    private fun assertEachFunctionShown(module: String) {
+        val (documentation, anchor) = documentationAndAnchor(module)
+
+        assertEveryArityShown(documentation)
+        assertNotNull("Expected an anchor", anchor)
+        assertEquals("Expected a link per function, got: $documentation", 2, linkedIds(documentation).distinct().size)
+        assertTrue(
+            "Expected the entry anchored to hold the defaults' doc, got: $documentation",
+            "One or two." in anchoredEntry(documentation, anchor)
+        )
     }
 
     private fun assertEveryArityShown(documentation: String) {
