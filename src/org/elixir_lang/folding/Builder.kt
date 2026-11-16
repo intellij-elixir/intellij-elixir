@@ -95,14 +95,16 @@ internal class Builder : FoldingBuilderEx() {
                                             if (isDocumentationName(name)) {
                                                 val noParenthesesOneArgument =
                                                     atUnqualifiedNoParenthesesCall.noParenthesesOneArgument
-                                                foldingDescriptorList.add(
-                                                    FoldingDescriptor(
-                                                        noParenthesesOneArgument.node,
-                                                        noParenthesesOneArgument.textRange,
-                                                        null,
-                                                        "\"...\""
+                                                if (spansLines(noParenthesesOneArgument.textRange)) {
+                                                    foldingDescriptorList.add(
+                                                        FoldingDescriptor(
+                                                            noParenthesesOneArgument.node,
+                                                            noParenthesesOneArgument.textRange,
+                                                            null,
+                                                            "\"...\""
+                                                        )
                                                     )
-                                                )
+                                                }
                                             } else if (isTypeName(name)) {
                                                 atUnqualifiedNoParenthesesCall
                                                     .argument
@@ -110,7 +112,7 @@ internal class Builder : FoldingBuilderEx() {
                                                         if (child is Type) {
                                                             val rightOperand: PsiElement? =
                                                                 Normalized.rightOperand(child)
-                                                            if (rightOperand != null) {
+                                                            if (rightOperand != null && spansLines(rightOperand.textRange)) {
                                                                 foldingDescriptorList.add(
                                                                     FoldingDescriptor(
                                                                         rightOperand.node,
@@ -141,14 +143,16 @@ internal class Builder : FoldingBuilderEx() {
                                                                     firstFinalArgument.textOffset,
                                                                     last.textRange.endOffset
                                                                 )
-                                                                foldingDescriptorList.add(
-                                                                    FoldingDescriptor(
-                                                                        call.parent.node,
-                                                                        textRange,
-                                                                        null,
-                                                                        "..."
+                                                                if (spansLines(textRange)) {
+                                                                    foldingDescriptorList.add(
+                                                                        FoldingDescriptor(
+                                                                            call.parent.node,
+                                                                            textRange,
+                                                                            null,
+                                                                            "..."
+                                                                        )
                                                                     )
-                                                                )
+                                                                }
                                                             }
 
                                                     }
@@ -169,6 +173,14 @@ internal class Builder : FoldingBuilderEx() {
                                             foldingDescriptorList.add(FoldingDescriptor(stabOperation, textRange))
                                             return true
                                         }
+
+                                        /**
+                                         * The gutter offers no fold icon for a one-line region, so once expanded it could
+                                         * not be folded again by mouse.
+                                         */
+                                        private fun spansLines(textRange: TextRange): Boolean =
+                                            document.getLineNumber(textRange.startOffset) !=
+                                                    document.getLineNumber(textRange.endOffset)
 
                                         private fun isFirstInGroup(
                                             call: Call,

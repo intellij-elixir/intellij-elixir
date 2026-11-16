@@ -111,26 +111,49 @@ class ModuleAttributeFoldingTest : PlatformTestCase() {
         )
     }
 
-    fun testTypeFoldsItsDefinition() = assertTypeFoldsItsDefinition("@type t :: :a | :b")
+    fun testOneLineDocumentationDoesNotFold() {
+        myFixture.configureByText("test.ex", "defmodule Documented do\n  @doc \"Says hello.\"\n  def hello, do: :ok\nend\n")
+        CodeFoldingManager.getInstance(project).updateFoldRegions(myFixture.editor)
+
+        val regions = myFixture.editor.foldingModel.allFoldRegions
+
+        assertEquals(
+            "regions: " + regions.map { "${it.placeholderText} ${it.startOffset}" },
+            emptyList<String>(),
+            regions.filter { it.placeholderText == "\"...\"" }.map { it.placeholderText }
+        )
+    }
+
+    fun testTypeFoldsItsDefinition() = assertTypeFoldsItsDefinition("@type t ::\n  $TYPE_DEFINITION")
 
     /** `@type (t :: ...)` is quoted as `@type t :: ...`, so it folds the same operand. */
     fun testParenthesizedTypeFoldsItsDefinition() {
-        assertTypeFoldsItsDefinition("@type (t :: :a | :b)")
-        assertTypeFoldsItsDefinition("@type ((t :: :a | :b))")
+        assertTypeFoldsItsDefinition("@type (t ::\n  $TYPE_DEFINITION)")
+        assertTypeFoldsItsDefinition("@type ((t ::\n  $TYPE_DEFINITION))")
+    }
+
+    fun testOneLineTypeDoesNotFold() {
+        myFixture.configureByText("test.ex", "defmodule Typed do\n  @type t :: :a | :b\nend\n")
+
+        assertEquals(emptyList<String>(), definitionFolds(":a | :b"))
     }
 
     private fun assertTypeFoldsItsDefinition(attribute: String) {
         myFixture.configureByText("test.ex", "defmodule Typed do\n  $attribute\nend\n")
+
+        assertEquals("`$attribute`", listOf("..."), definitionFolds(TYPE_DEFINITION))
+    }
+
+    /** The placeholders of the folds over exactly [definition]. */
+    private fun definitionFolds(definition: String): List<String> {
         CodeFoldingManager.getInstance(project).updateFoldRegions(myFixture.editor)
 
-        val start = myFixture.file.text.indexOf(":a | :b")
-        val regions = myFixture.editor.foldingModel.allFoldRegions
+        val start = myFixture.file.text.indexOf(definition)
+        assertTrue("`$definition` is not in the file", start >= 0)
 
-        assertEquals(
-            "`$attribute` regions: " + regions.map { "${it.placeholderText} ${it.startOffset}..${it.endOffset}" },
-            listOf("..."),
-            regions.filter { it.startOffset == start && it.endOffset == start + ":a | :b".length }.map { it.placeholderText }
-        )
+        return myFixture.editor.foldingModel.allFoldRegions
+            .filter { it.startOffset == start && it.endOffset == start + definition.length }
+            .map { it.placeholderText }
     }
 
     fun testReadsWithAndWithoutSpaceAfterAtFoldAsOneGroup() {
@@ -202,3 +225,6 @@ class ModuleAttributeFoldingTest : PlatformTestCase() {
             ?.placeholderText
     }
 }
+
+/** A type definition that spans lines, so it folds. */
+private const val TYPE_DEFINITION = ":a |\n    :b"
