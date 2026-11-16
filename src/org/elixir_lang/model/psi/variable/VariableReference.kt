@@ -28,6 +28,7 @@ class VariableReference(
     companion object {
         @RequiresReadLock
         fun resolveSymbols(element: PsiElement): Collection<VariableSymbol> {
+            if (!VariableSymbol.isOccurrence(element)) return emptyList()
             val name = VariableSymbol.variableName(element) ?: return emptyList()
             val entrances = sequenceOf(
                 (element as? Call) ?: (element as? UnqualifiedBracketOperation) ?: (element.parent as? Call),

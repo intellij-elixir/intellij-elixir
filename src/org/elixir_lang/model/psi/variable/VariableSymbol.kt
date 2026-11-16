@@ -34,6 +34,7 @@ import org.elixir_lang.psi.call.name.Module
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.scope.variable.BindingPattern
 import org.elixir_lang.psi.scope.variable.MultiResolve
+import org.elixir_lang.reference.CaptureNameArity
 import java.util.*
 
 @Suppress("UnstableApiUsage")
@@ -231,11 +232,19 @@ class VariableSymbol(
             return VariableSymbol(element.containingFile, nameElement.textRange, name, kind)
         }
 
+        /**
+         * Whether [element] can be a variable: a bare name, a variable or the receiver of `m[k]`. A bare name piped into,
+         * given a `do` block or captured is a call, `x(v)` or `&x/1`, whatever variable shares its name.
+         */
+        @RequiresReadLock
+        fun isOccurrence(element: PsiElement): Boolean =
+            (element is UnqualifiedNoArgumentsCall<*> && element.resolvedFinalArity() == 0 && CaptureNameArity.of(element) == null) ||
+                element is ElixirVariable ||
+                element is UnqualifiedBracketOperation
+
         @RequiresReadLock
         fun classify(element: PsiElement): Kind? {
-            val occurrence = element is UnqualifiedNoArgumentsCall<*> || element is ElixirVariable ||
-                element is UnqualifiedBracketOperation
-            if (!occurrence) return null
+            if (!isOccurrence(element)) return null
             val name = variableName(element) ?: return null
 
             return when {

@@ -1240,7 +1240,7 @@ internal object ElixirUsageQueries {
             val symbolChainRoot = symbol.chainRootSymbol() ?: return emptyList()
             for (candidate in generateSequence(leaf) { it.parent }.takeWhile { it !is PsiFile }) {
                 ProgressManager.checkCanceled()
-                if (VariableSymbol.variableName(candidate) != symbol.name) continue
+                if (VariableSymbol.variableName(candidate) != symbol.name || !VariableSymbol.isOccurrence(candidate)) continue
                 val nameElement = VariableSymbol.nameIdentifierElement(candidate) ?: continue
                 if (!PsiTreeUtil.isAncestor(nameElement, leaf, false)) continue
                 if (nameElement.containingFile.virtualFile == symbol.file.virtualFile &&

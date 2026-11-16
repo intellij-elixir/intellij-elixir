@@ -9,6 +9,7 @@ import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.Use as DeclarationUse
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 
 object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Callable> {
@@ -49,5 +50,7 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
     @RequiresReadLock
     fun bound(call: Call, incompleteCode: Boolean): Boolean = bound(LegacyWalkSource.variables(call, incompleteCode))
 
-    private fun bound(variables: List<ResolveResult>): Boolean = variables.any { it.isValidResult }
+    /** A stand-in binds nothing, so a bare name after `x = f` still calls `f`. */
+    private fun bound(variables: List<VisitedElementSetResolveResult>): Boolean =
+        variables.any { it.isValidResult && !it.isStandIn }
 }

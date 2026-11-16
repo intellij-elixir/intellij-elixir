@@ -3,8 +3,6 @@ package org.elixir_lang.psi.scope.call_definition_clause
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.RecursionManager
 import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiElementResolveResult
-import com.intellij.psi.ResolveResult
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
@@ -110,10 +108,8 @@ object LegacyWalkSource : CandidateSource {
 
     /** The variables [call] may name. A variable declares nothing, so the step never sees it. */
     @RequiresReadLock
-    internal fun variables(call: Call, incompleteCode: Boolean): List<ResolveResult> =
-        walk(call, Unquote.arity(call), incompleteCode)
-            .filter { it.reached.isEmpty() }
-            .map { PsiElementResolveResult(it.element, it.isValidResult) }
+    internal fun variables(call: Call, incompleteCode: Boolean): List<VisitedElementSetResolveResult> =
+        walk(call, Unquote.arity(call), incompleteCode).filter { it.reached.isEmpty() }
 
     private val WALK =
         Key<CachedValue<ConcurrentMap<Arity, List<VisitedElementSetResolveResult>>>>("${LegacyWalkSource::class.java.name}.WALK")
