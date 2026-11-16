@@ -14,6 +14,7 @@ import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.clauseOrder
+import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.declaration.identity
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.declaration.Form
@@ -227,10 +228,12 @@ object SourceFileDocsHelper {
      */
     @RequiresReadLock
     private fun declaredDocs(declaring: Call, form: Form, remote: Boolean, used: Found?): FetchedDocs? {
-        val index = enclosingModularMacroCall(declaring)?.let(::indexName)
-        val module = index?.let(Module::inspect)
         val listing = listedFunctions(declaring, form, remote, used) ?: return null
         val functions = listing.functions
+        // The module a find is defined in, as its title names it: a `use`'s `quote` defines into the module that calls `use`.
+        val index = functions.firstNotNullOfOrNull { function -> function.firstNotNullOfOrNull { it.found?.declaringModuleName() } }
+            ?: enclosingModularMacroCall(declaring)?.let(::indexName)
+        val module = index?.let(Module::inspect)
 
         val entries = functions.map { function ->
             val maxima = function.map { it.arities.maximum }
@@ -338,7 +341,7 @@ object SourceFileDocsHelper {
                 Documented.inCopyOf(own, candidates).mapNotNull { found ->
                     ProgressManager.checkCanceled()
 
-                    written(found, listed.name, module)
+                    written(found, listed.name, found.declaringModuleName()?.let(Module::inspect))
                 }
             }
             // A bridge until `located` gives a compiled find's clauses: a `.beam`'s finds are

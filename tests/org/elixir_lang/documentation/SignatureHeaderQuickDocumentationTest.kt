@@ -429,6 +429,39 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
     fun testANestedStructPatternAUseInjectsIsNamedByItsLastAliasAtALink() =
         assertInjectedTitle("def f(%__MODULE__.Inner{}), do: :ok", "f(inner)", linked = true)
 
+    /** A function a `use`'s `quote` defines is headed by the module that calls `use`, which it is a function of. */
+    fun testAFunctionAUseInjectsIsHeadedByTheModuleThatUsesIt() {
+        myFixture.configureByText(
+            "module_line.ex",
+            """
+            defmodule U do
+              defmacro __using__(_) do
+                quote do
+                  defstruct [:a]
+
+                  @doc "Injected."
+                  def f(%__MODULE__{}), do: :ok
+                end
+              end
+            end
+
+            defmodule P do
+              use U
+            end
+
+            defmodule C do
+              def calls(x), do: P.<caret>f(x)
+            end
+            """.trimIndent()
+        )
+        val documentation = quickDocumentationAtCaret().orEmpty()
+
+        assertEquals(documentation, listOf("<i>module</i> <b>P</b>", "f(p)"), definition(documentation).map(StringUtil::unescapeXmlEntities).take(2))
+    }
+
+    fun testAFunctionAUseInjectsIsHeadedByTheModuleThatUsesItWithTheExpanderOn() =
+        withTheExpanderOn(::testAFunctionAUseInjectsIsHeadedByTheModuleThatUsesIt)
+
     /**
      * Quick Documentation of `f/1`, which `Injected` gets from [head] in a `use`'s `quote`, at a call of it, or by the
      * link `Injected.f/1` where [linked], heads it first with [title].
