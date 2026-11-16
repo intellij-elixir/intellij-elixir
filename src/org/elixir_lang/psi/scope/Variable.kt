@@ -4,6 +4,7 @@ import com.intellij.openapi.util.Key
 import com.intellij.psi.*
 import com.intellij.psi.scope.PsiScopeProcessor
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.head
@@ -447,6 +448,7 @@ abstract class Variable : PsiScopeProcessor {
             }
 
     /** A `bind_quoted:` key is bound in [quote]'s body, but not in what it unquotes, which runs where the `quote` is. */
+    @RequiresReadLock
     private fun isBoundBy(quote: Call, entrance: PsiElement): Boolean =
             Unquote.isQuotedBy(quote, entrance)
 
