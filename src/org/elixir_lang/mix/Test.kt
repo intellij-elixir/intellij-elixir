@@ -15,10 +15,8 @@ import org.elixir_lang.file.containsFileWithSuffix
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.ElixirLine
 import org.elixir_lang.psi.ElixirList
-import org.elixir_lang.psi.Quotable
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.keywordValue
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.operation.capture.NonNumeric
 
@@ -110,20 +108,19 @@ object Test {
      */
     private fun loadFilterSuffixes(mixExs: ElixirFile): List<String>? {
         val keywords = ProjectKeywords.keywords(mixExs) ?: return null
-        val value = keywords.keywordValue("test_load_filters") ?: return null
+        val list = ProjectKeywords.value(keywords, "test_load_filters") as? ElixirList ?: return null
 
-        return interpretLoadFilters(value)
+        return interpretLoadFilters(list)
     }
 
     /**
-     * Interprets a `:test_load_filters` [value]. Returns the list of suffixes only when every entry is the
+     * Interprets a `:test_load_filters` [list]. Returns the list of suffixes only when every entry is the
      * reliably analyzable `&String.ends_with?(&1, "<suffix>")` capture; any regex, bare function capture, string,
      * or otherwise unrecognized entry collapses the whole list to `null` so the caller falls back to the default.
      *
      * This is something that we might be able to improve in the future.
      */
-    private fun interpretLoadFilters(value: Quotable): List<String>? {
-        val list = value.stripAccessExpression() as? ElixirList ?: return null
+    private fun interpretLoadFilters(list: ElixirList): List<String>? {
         val suffixes = list.children.map { interpretLoadFilter(it.stripAccessExpression()) }
 
         return if (suffixes.isNotEmpty() && suffixes.all { it != null }) suffixes.filterNotNull() else null

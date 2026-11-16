@@ -278,6 +278,158 @@ class ProjectKeywordsTest : PlatformTestCase() {
         assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
     }
 
+    /** Mix keeps a key the project gives twice, and reads the first. */
+    fun testAnAppGivenTwiceIsTheFirst() {
+        assertEquals(ProjectKeywords.Reading.Written("a"), ProjectKeywords.app(keywordsProject("[app: :a, app: :b]")))
+    }
+
+    fun testAConfigPathGivenTwiceIsTheFirst() {
+        assertEquals(
+            ProjectKeywords.Reading.Written("a.exs"),
+            ProjectKeywords.configPath(keywordsProject("[app: :a, config_path: \"a.exs\", config_path: \"b.exs\"]")),
+        )
+    }
+
+    /** `project/0` takes no argument, so its first clause is the one Mix calls, whatever it returns. */
+    fun testAppOfAFirstProjectClauseThatIsNotAListIsUnknown() {
+        val mixExs = mixExs(
+            """
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              def project, do: config()
+
+              def project, do: [app: :my_app]
+
+              defp config, do: [app: :other]
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
+    }
+
+    /** Mix reads the project of the module that `use Mix.Project` pushes, not a helper module's `project/0` before it. */
+    fun testAHelpersProjectBeforeTheMixProjectIsPassedOver() {
+        val mixExs = mixExs(
+            """
+            defmodule Helper do
+              def project, do: []
+            end
+
+            defmodule MyApp.MixProject do
+              use Mix.Project
+
+              def project, do: [app: :my_app, config_path: "a.exs"]
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs))
+        assertEquals(ProjectKeywords.Reading.Written("a.exs"), ProjectKeywords.configPath(mixExs))
+    }
+
+    /** `use Elixir.Mix.Project` names the module `use Mix.Project` does. */
+    fun testAnElixirHeadedMixProjectIsTheProject() {
+        val mixExs = mixExs(
+            """
+            defmodule Helper do
+              def project, do: []
+            end
+
+            defmodule MyApp.MixProject do
+              use Elixir.Mix.Project
+
+              def project, do: [app: :my_app]
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs))
+    }
+
+    fun testAMixProjectUsedThroughAnAliasIsTheProject() {
+        val mixExs = mixExs(
+            """
+            defmodule MyApp.MixProject do
+              alias Mix.Project
+              use Project
+
+              def project, do: [app: :my_app]
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs))
+    }
+
+    fun testAMixProjectUsedThroughAnAliasBesideAHelpersProjectIsTheProject() {
+        val mixExs = mixExs(
+            """
+            defmodule Helper do
+              def project, do: [app: :helper]
+            end
+
+            defmodule MyApp.MixProject do
+              alias Mix.Project
+              use Project
+
+              def project, do: [app: :my_app]
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs))
+    }
+
+    fun testAMixProjectUsedThroughAnAliasWithAsIsTheProject() {
+        val mixExs = mixExs(
+            """
+            defmodule Helper do
+              def project, do: [app: :helper]
+            end
+
+            defmodule MyApp.MixProject do
+              alias Mix.Project, as: MixProject
+              use MixProject
+
+              def project, do: [app: :my_app]
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Written("my_app"), ProjectKeywords.app(mixExs))
+    }
+
+    /** `use` of another module's `Project` through an alias pushes no project, so Mix reads none from the file. */
+    fun testAnAliasOfAnotherModulesProjectIsNotTheProject() {
+        val mixExs = mixExs(
+            """
+            defmodule MyApp.MixProject do
+              alias MyApp.Project
+              use Project
+
+              def project, do: [app: :my_app]
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
+    }
+
+    /** A module that doesn't `use Mix.Project` pushes no project, so Mix reads none from the file. */
+    fun testAProjectOfAModuleThatDoesNotUseMixProjectIsUnknown() {
+        val mixExs = mixExs(
+            """
+            defmodule MyApp.MixProject do
+              def project, do: [app: :my_app]
+            end
+            """
+        )
+
+        assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
+    }
+
     /** A `project/0` that returns [body], or [handled] where its `rescue` block runs. */
     private fun handlerProject(body: String, handled: String): ElixirFile =
         mixExs("defmodule MyApp.MixProject do\n  use Mix.Project\n\n  def project do\n    $body\n  rescue\n    _ -> $handled\n  end\nend\n")

@@ -71,6 +71,28 @@ class MixTestFileDetectionTest : PlatformTestCase() {
         assertFalse(isTestFile("multi/test/foo.exs"))
     }
 
+    /** Mix keeps a key `project/0` gives twice, and reads the first. */
+    fun testLoadFiltersGivenTwiceAreTheFirst() {
+        mixExs(
+            "twice",
+            project = """[
+              |  app: :twice,
+              |  test_load_filters: [&String.ends_with?(&1, "_spec.exs")],
+              |  test_load_filters: [&String.ends_with?(&1, "_check.exs")]
+              |]""".trimMargin()
+        )
+
+        assertTrue(isTestFile("twice/test/foo_spec.exs"))
+        assertFalse(isTestFile("twice/test/foo_check.exs"))
+    }
+
+    fun testParenthesizedLoadFiltersAreRead() {
+        mixExs("parens", project = """[app: :parens, test_load_filters: ([&String.ends_with?(&1, "_spec.exs")])]""")
+
+        assertTrue(isTestFile("parens/test/foo_spec.exs"))
+        assertFalse(isTestFile("parens/test/foo_test.exs"))
+    }
+
     fun testUnanalyzableRegexFiltersFallBackToDefault() {
         mixExs("regex", project = """[app: :regex, test_load_filters: [~r/_test\.exs$/]]""")
 
