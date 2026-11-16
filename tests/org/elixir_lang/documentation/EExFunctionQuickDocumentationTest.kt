@@ -30,7 +30,7 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
     /** The `@doc` above an EEx function is that function's, so the definition after it has none. */
     fun testTheDocAboveAnEExFunctionIsNotTheNextDefinitions() {
         myFixture.copyFileToProject("eex.ex")
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "render.ex",
             """
             defmodule Views do
@@ -45,8 +45,6 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertFalse("Expected no @doc, got: $documentation", "Renders the page." in documentation)
     }
@@ -78,7 +76,7 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
 
     fun testAnEExFunctionFromAFileShowsTheDocWrittenAboveIt() {
         myFixture.copyFileToProject("eex.ex")
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "render.ex",
             """
             defmodule Views do
@@ -92,8 +90,6 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
         assertTrue("Expected the @doc, got: $documentation", "Renders the page from a file." in documentation)
         assertTrue("Expected the signature, got: $documentation", "render(assigns)" in documentation)
     }
@@ -101,7 +97,7 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
     /** `embed_text(:page, ...)` defines `page_text/0`. */
     fun testAnEmbeddedTextShowsTheDocWrittenAboveItWithNoArgument() {
         myFixture.copyFileToProject("mix_generator.ex")
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "page.ex",
             """
             defmodule Views do
@@ -115,8 +111,6 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
         assertTrue("Expected the @doc, got: $documentation", "Embeds the text." in documentation)
         assertTrue("Expected the signature, got: $documentation", "page_text()" in documentation)
     }
@@ -124,7 +118,7 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
     /** The arity comes from a literal list; a list built elsewhere has no known arity, so the head claims none. */
     fun testAnEExFunctionWhoseArgumentsAreNotAListShowsNoArity() {
         myFixture.copyFileToProject("eex.ex")
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "render.ex",
             """
             defmodule Views do
@@ -139,8 +133,6 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected the @doc, got: $documentation", "Renders the page." in documentation)
         assertFalse("Expected no arity, got: $documentation", "render/" in documentation)
@@ -206,7 +198,7 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** A function's docs are its own clauses': a macro call of the same shape beside it, with its own `@doc`, is not one. */
     fun testAFunctionsDocIsNotMergedWithASameShapedMacroCalls() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "cached.ex",
             """
             defmodule Cached do
@@ -220,8 +212,6 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected the function's @doc, got: $documentation", "The function&#39;s." in documentation || "The function's." in documentation)
         assertFalse("Expected no macro @doc, got: $documentation", "The macro" in documentation)
@@ -448,9 +438,8 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
     /** Quick Documentation at the caret in [text], configured as [fileName], with the expander on. */
     private fun documentationWithTheExpanderOn(fileName: String, text: String): String {
         expanderOn()
-        myFixture.configureByText(fileName, text)
 
-        return quickDocumentationAtCaret().orEmpty()
+        return quickDocumentationIn(fileName, text)
     }
 
     /**

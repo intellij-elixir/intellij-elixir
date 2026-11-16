@@ -22,9 +22,10 @@ class DelegationWithDefaultsQuickDocumentationTest : QuickDocumentationTestCase(
             "delegator_opens.ex",
             "defmodule Opens do\n  defdelegate snoc(q, x \\\\ nil), to: Opens.Target\nend\n"
         )
-        myFixture.configureByText("caller_opens.ex", "defmodule CallerOpens do\n  def run(a), do: Opens.sn<caret>oc(a)\nend\n")
+        val documentation =
+            quickDocumentationIn("caller_opens.ex", "defmodule CallerOpens do\n  def run(a), do: Opens.sn<caret>oc(a)\nend\n")
 
-        assertOpensAtTwo(quickDocumentationAtCaret().orEmpty(), myFixture.documentationAnchorAtCaret(project))
+        assertOpensAtTwo(documentation, myFixture.documentationAnchorAtCaret(project))
     }
 
     /** A delegation's default fills in its argument, so the link opens at the target's entry for the arity passed on. */
@@ -57,9 +58,7 @@ class DelegationWithDefaultsQuickDocumentationTest : QuickDocumentationTestCase(
             "defmodule Listed.Target do\n  @doc \"One.\"\n  def f(x), do: x\n\n  @doc \"Two.\"\n  def f(x, y), do: {x, y}\nend\n"
         )
         myFixture.addFileToProject("delegator_listed.ex", "defmodule Listed do\n  defdelegate [f(x, y \\\\ 0)], to: Listed.Target\nend\n")
-        myFixture.configureByText("caller_listed.ex", "defmodule CallerListed do\n  def run(a), do: Listed.<caret>f(a)\nend\n")
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
+        val documentation = quickDocumentationIn("caller_listed.ex", "defmodule CallerListed do\n  def run(a), do: Listed.<caret>f(a)\nend\n")
 
         assertOpensAtTwo(documentation, myFixture.documentationAnchorAtCaret(project))
         assertTrue("Expected the link to the target at arity 2, got: $documentation", "Listed.Target.f/2" in documentation)
@@ -73,9 +72,12 @@ class DelegationWithDefaultsQuickDocumentationTest : QuickDocumentationTestCase(
         )
         myFixture.addFileToProject("listed_middle.ex", "defmodule ListedChain.Middle do\n  defdelegate [f(x, y \\\\ 0)], to: ListedChain.End\nend\n")
         myFixture.addFileToProject("listed_chain.ex", "defmodule ListedChain do\n  defdelegate f(x), to: ListedChain.Middle\nend\n")
-        myFixture.configureByText("listed_chain_caller.ex", "defmodule ListedChainCaller do\n  def run(a), do: ListedChain.<caret>f(a)\nend\n")
+        val documentation = quickDocumentationIn(
+            "listed_chain_caller.ex",
+            "defmodule ListedChainCaller do\n  def run(a), do: ListedChain.<caret>f(a)\nend\n"
+        )
 
-        assertOpensAtTwo(quickDocumentationAtCaret().orEmpty(), myFixture.documentationAnchorAtCaret(project))
+        assertOpensAtTwo(documentation, myFixture.documentationAnchorAtCaret(project))
     }
 
     /** Through a chain of delegations the target is called at the arity the last one passes on, so the card opens at its entry. */

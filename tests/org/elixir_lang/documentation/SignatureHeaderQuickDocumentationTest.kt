@@ -1,8 +1,5 @@
 package org.elixir_lang.documentation
 
-import com.intellij.lang.documentation.DocumentationMarkup
-import com.intellij.openapi.util.text.StringUtil
-
 /**
  * Quick Documentation heads each function with the signature Elixir records for it, then each `@spec`, then each
  * clause's head as written, with its keyword.
@@ -34,7 +31,7 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
         )
 
     fun testNoSpecificationsSectionIsLeft() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "sections.ex",
             """
             defmodule Sections do
@@ -45,8 +42,6 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertFalse("Expected no Specifications section, got: $documentation", "Specifications" in documentation)
     }
@@ -431,7 +426,7 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** A function a `use`'s `quote` defines is headed by the module that calls `use`, which it is a function of. */
     fun testAFunctionAUseInjectsIsHeadedByTheModuleThatUsesIt() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "module_line.ex",
             """
             defmodule U do
@@ -454,9 +449,8 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
-        assertEquals(documentation, listOf("<i>module</i> <b>P</b>", "f(p)"), definition(documentation).map(StringUtil::unescapeXmlEntities).take(2))
+        assertEquals(documentation, listOf("<i>module</i> <b>P</b>", "f(p)"), definition(documentation).take(2))
     }
 
     fun testAFunctionAUseInjectsIsHeadedByTheModuleThatUsesItWithTheExpanderOn() =
@@ -493,9 +487,8 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
 
         val documentation =
             if (linked) myFixture.followedLinkAtCaret(project, "psi_element://Injected.f/1").orEmpty() else quickDocumentationAtCaret().orEmpty()
-        val definition = definition(documentation).map(StringUtil::unescapeXmlEntities)
 
-        assertEquals(documentation, title, definition.first { !it.startsWith("<i>module</i>") })
+        assertEquals(documentation, title, titleOf(documentation))
     }
 
     fun testACompiledModuleGivesTheSignatureThenTheSpecThenTheHead() =
@@ -571,18 +564,10 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
     private fun assertDefinitionAtCaret(vararg lines: String): String {
         val documentation = quickDocumentationAtCaret().orEmpty()
 
-        assertEquals(documentation, lines.toList(), definition(documentation).map(StringUtil::unescapeXmlEntities))
+        assertEquals(documentation, lines.toList(), definition(documentation))
 
         return documentation
     }
-
-    /** The lines of [documentation]'s first definition block, as rendered. */
-    private fun definition(documentation: String): List<String> =
-        documentation
-            .substringAfter(DocumentationMarkup.DEFINITION_START)
-            .substringBefore(DocumentationMarkup.DEFINITION_END)
-            .lines()
-            .filter(String::isNotEmpty)
 
     private companion object {
         /** The modules compiled for the `.beam` methods: `Compiled` is renamed for each build. */

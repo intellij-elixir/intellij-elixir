@@ -281,10 +281,4 @@ class OverriddenFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
                 end
                 """.trimIndent()
         )
-
-    private fun quickDocumentationIn(fileName: String, text: String): String {
-        myFixture.configureByText(fileName, text)
-
-        return quickDocumentationAtCaret().orEmpty()
-    }
 }

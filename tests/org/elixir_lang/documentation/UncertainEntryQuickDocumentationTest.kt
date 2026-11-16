@@ -12,8 +12,7 @@ class UncertainEntryQuickDocumentationTest : QuickDocumentationTestCase() {
         val documentation = documentationOfG("import Foo, only: [Foo, g: 1]")
 
         assertTrue("Expected g's docs, got: $documentation", "Gs." in documentation)
-        assertTrue("Expected the plain line, got: $documentation", PLAIN_LINE in documentation)
-        assertEquals("Expected the plain line once, got: $documentation", 1, StringUtil.getOccurrenceCount(documentation, PLAIN_LINE))
+        assertPlainLineOnce(documentation)
     }
 
     fun testAConfirmedFindCarriesNoLine() {
@@ -116,7 +115,7 @@ class UncertainEntryQuickDocumentationTest : QuickDocumentationTestCase() {
         val documentation = documentationAtTwiceG()
 
         assertTrue("Expected the first copy, got: $documentation", "First copy." in documentation)
-        assertEquals("Expected the plain line once, got: $documentation", 1, StringUtil.getOccurrenceCount(documentation, PLAIN_LINE))
+        assertPlainLineOnce(documentation)
     }
 
     /** Each copy delegates to its own target, so each copy's entry is what its delegation documents. */
@@ -200,27 +199,20 @@ class UncertainEntryQuickDocumentationTest : QuickDocumentationTestCase() {
      */
     private fun documentationInUsing(quote: String, directive: String = "", expander: Boolean = true): String {
         if (expander) expanderOn()
-        myFixture.configureByText(
+        return quickDocumentationIn(
             "u.ex",
             "defmodule U do\n  $directive\n\n  @doc \"Helps.\"\n  def helper(x), do: x\n\n  defmacro __using__(_) do\n    $quote\n  end\nend\n"
         )
-
-        return quickDocumentationAtCaret().orEmpty()
     }
 
     /** Quick Documentation at a call of `Twice.g(1)`. */
-    private fun documentationAtTwiceG(): String {
-        myFixture.configureByText("caller.ex", "defmodule Caller do\n  def f, do: Twice.g<caret>(1)\nend\n")
-
-        return quickDocumentationAtCaret().orEmpty()
-    }
+    private fun documentationAtTwiceG(): String =
+        quickDocumentationIn("caller.ex", "defmodule Caller do\n  def f, do: Twice.g<caret>(1)\nend\n")
 
     /** Quick Documentation at `g(1)` in a module that imports `Foo` through [import]. */
     private fun documentationOfG(import: String): String {
         expanderOn()
         myFixture.addFileToProject("foo.ex", "defmodule Foo do\n  @doc \"Gs.\"\n  def g(x), do: x\nend\n")
-        myFixture.configureByText("bar.ex", "defmodule Bar do\n  $import\n  def h, do: <caret>g(1)\nend\n")
-
-        return quickDocumentationAtCaret().orEmpty()
+        return quickDocumentationIn("bar.ex", "defmodule Bar do\n  $import\n  def h, do: <caret>g(1)\nend\n")
     }
 }

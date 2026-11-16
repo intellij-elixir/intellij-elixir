@@ -4,7 +4,7 @@ package org.elixir_lang.documentation
 class PlacedHeadQuickDocumentationTest : QuickDocumentationTestCase() {
     /** `use Application` defines `stop/1`, whose head its debug info places at the macro's clause, so it gets the stub. */
     fun testAHeadAMacroPlacedIsTitledByTheStubWithTheExpanderOn() = withTheExpanderOn {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "placed.ex",
             """
             defmodule Placed do
@@ -14,8 +14,6 @@ class PlacedHeadQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected the stub, got: $documentation", "stop(arg1)" in documentation)
         assertFalse("Expected nothing of the macro's clause, got: $documentation", "defmacro" in documentation)
@@ -27,7 +25,7 @@ class PlacedHeadQuickDocumentationTest : QuickDocumentationTestCase() {
      */
     fun testAHeadACompiledMacroPlacedIsTitledAtItsOwnArityWithTheExpanderOn() = withTheExpanderOn {
         myFixture.addCompiledLibrary(PLACED_LIB, CompiledBuild("CompiledPlacedQuickDoc"))
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "placed.ex",
             """
             defmodule Placed do
@@ -38,10 +36,7 @@ class PlacedHeadQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
-        assertTrue("Expected f/1's stub, got: $documentation", "f(arg1)" in documentation)
-        assertFalse("Expected nothing of f/2, got: $documentation", "f(arg1, arg2)" in documentation)
+        assertEquals("f(arg1)", titleOf(documentation))
     }
 
     /**
@@ -50,7 +45,7 @@ class PlacedHeadQuickDocumentationTest : QuickDocumentationTestCase() {
      */
     fun testAHeadPlacedAtACompiledMacroOfItsNameIsTitledByTheStubWithTheExpanderOn() = withTheExpanderOn {
         myFixture.addCompiledLibrary(SAME_NAME_MACRO_LIB, CompiledBuild("CompiledSameNameQuickDoc"))
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "placed.ex",
             """
             defmodule Placed do
@@ -62,16 +57,13 @@ class PlacedHeadQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
-        assertTrue("Expected f/1's stub, got: $documentation", "f(arg1)" in documentation)
-        assertFalse("Expected nothing of the macro's clause, got: $documentation", "f(n, o, p)" in documentation)
+        assertEquals("f(arg1)", titleOf(documentation))
     }
 
     /** A source macro of the function's name writes its quote's `def f(x)`, which titles the function. */
     fun testADefASourceMacroOfItsNameQuotesIsTitledByItsHeadWithTheExpanderOn() = withTheExpanderOn {
         myFixture.addFileToProject("same_name.ex", SAME_NAME_MACRO_SOURCE)
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "placed.ex",
             """
             defmodule Placed do
@@ -83,14 +75,12 @@ class PlacedHeadQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
-        assertTrue("Expected the quote's head, got: $documentation", "f(x)" in documentation)
+        assertEquals("f(x)", titleOf(documentation))
     }
 
     /** An unquote fragment's `def`, only its name unquoted, titles the function it defines with its parameters. */
     fun testAnUnquoteFragmentsDefIsTitledByItsHeadWithTheExpanderOn() = withTheExpanderOn {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "fragment.ex",
             """
             defmodule Fragment do
@@ -103,8 +93,6 @@ class PlacedHeadQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
         assertTrue("Expected the fragment's head, got: $documentation", "hello(x)" in documentation)
         assertFalse("Expected no stub, got: $documentation", "hello(arg1)" in documentation)
     }
@@ -114,7 +102,7 @@ class PlacedHeadQuickDocumentationTest : QuickDocumentationTestCase() {
      * parameters Elixir names from both: `f(b)`, as `:x` names none.
      */
     fun testAnUnquoteFragmentsDefAndAWrittenDefAreTitledByBothWithTheExpanderOn() = withTheExpanderOn {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "mixed.ex",
             """
             defmodule Mixed do
@@ -130,14 +118,12 @@ class PlacedHeadQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
-        assertTrue("Expected the title f(b), got: $documentation", documentation.lines().any { it == "f(b)" })
+        assertEquals("f(b)", titleOf(documentation))
     }
 
     /** Where both name the parameter, the unquote fragment's `def`, the older clause, names it, as Elixir's merge does. */
     fun testAnUnquoteFragmentsDefNamesTheParameterBeforeAWrittenDefWithTheExpanderOn() = withTheExpanderOn {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "mixed.ex",
             """
             defmodule Mixed do
@@ -153,9 +139,7 @@ class PlacedHeadQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
-        assertTrue("Expected the title f(a), got: $documentation", documentation.lines().any { it == "f(a)" })
+        assertEquals("f(a)", titleOf(documentation))
     }
 
     /**
@@ -163,7 +147,7 @@ class PlacedHeadQuickDocumentationTest : QuickDocumentationTestCase() {
      * as the override, so it is titled once, with the default, and lists no `f/1` of its own.
      */
     fun testAnUnquoteFragmentsDefaultHeadWhoseFullArityIsOverriddenIsOneFunctionWithTheExpanderOn() = withTheExpanderOn {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "overridden.ex",
             """
             defmodule Overridden do
@@ -181,12 +165,7 @@ class PlacedHeadQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
-        assertTrue(
-            "Expected the title f(a, b \\\\ 1), got: $documentation",
-            documentation.lines().any { it == "f(a, b \\\\ 1)" }
-        )
+        assertEquals("f(a, b \\\\ 1)", titleOf(documentation))
         assertFalse(documentation, "f(arg1)" in documentation)
     }
 
@@ -195,25 +174,18 @@ class PlacedHeadQuickDocumentationTest : QuickDocumentationTestCase() {
      * is titled at its own arity, though the macro's module defines `f/2` with a default.
      */
     fun testAHeadPlacedAtACompiledMacroWhoseNameIsUnquotedIsTitledAtItsOwnArityWithTheExpanderOn() = withTheExpanderOn {
-        val documentation = documentationWithUnquotedNameMacro("build f", "<caret>f(y)")
-
-        assertTrue("Expected the title f(arg1), got: $documentation", documentation.lines().any { it == "f(arg1)" })
-        assertFalse("Expected nothing of f/2, got: $documentation", "f(arg1, arg2)" in documentation)
+        assertEquals("f(arg1)", titleOf(documentationWithUnquotedNameMacro("build f", "<caret>f(y)")))
     }
 
     /** As above: `g/1` is titled by the stub, not by the parameter of the macro's clause, `n`. */
     fun testAHeadPlacedAtACompiledMacroWhoseNameIsUnquotedIsTitledByTheStubWithTheExpanderOn() = withTheExpanderOn {
-        val documentation = documentationWithUnquotedNameMacro("build g", "<caret>g(y)", "1")
-
-        assertTrue("Expected the title g(arg1), got: $documentation", documentation.lines().any { it == "g(arg1)" })
-        assertFalse("Expected nothing of the macro's clause, got: $documentation", "g(n)" in documentation)
+        assertEquals("g(arg1)", titleOf(documentationWithUnquotedNameMacro("build g", "<caret>g(y)", "1")))
     }
 
     /** Quick Documentation at [call] in a module that calls [UNQUOTED_NAME_MACRO_LIB]'s [macro] with [arguments]. */
     private fun documentationWithUnquotedNameMacro(macro: String, call: String, arguments: String = ""): String {
         myFixture.addCompiledLibrary(UNQUOTED_NAME_MACRO_LIB, CompiledBuild("CompiledUnquotedNameQuickDoc"))
-        myFixture.configureByText("placed.ex", unquotedNameMacroCaller("CompiledUnquotedNameQuickDoc", macro, call, arguments))
 
-        return quickDocumentationAtCaret().orEmpty()
+        return quickDocumentationIn("placed.ex", unquotedNameMacroCaller("CompiledUnquotedNameQuickDoc", macro, call, arguments))
     }
 }

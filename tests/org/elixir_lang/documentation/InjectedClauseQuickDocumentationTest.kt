@@ -1,8 +1,5 @@
 package org.elixir_lang.documentation
 
-import com.intellij.lang.documentation.DocumentationMarkup
-import com.intellij.openapi.util.text.StringUtil
-
 /**
  * A function's title is the signature Elixir records from every clause the module defines for it, in the order it
  * defines them, a clause a `use` injects included, and its entries are the functions the module's expansion defines.
@@ -24,7 +21,7 @@ class InjectedClauseQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** A `def` in a branch the module body never runs defines nothing, so it is no entry. */
     fun testADefUnderIfFalseIsNotListedWithTheExpanderOn() = withTheExpanderOn {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "injected.ex",
             """
             defmodule Branching do
@@ -40,7 +37,6 @@ class InjectedClauseQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected f/1, got: $documentation", "f(a)" in documentation)
         assertFalse("Expected no f/2, got: $documentation", "f(a, b)" in documentation)
@@ -49,15 +45,8 @@ class InjectedClauseQuickDocumentationTest : QuickDocumentationTestCase() {
     private fun injected(clause: String, local: String): String = injectedUse(clause, local, call = "Using.<caret>f(x)")
 
     private fun assertTitle(title: String, text: String) {
-        myFixture.configureByText("injected.ex", text)
-        val documentation = quickDocumentationAtCaret().orEmpty()
-        val definition = documentation
-            .substringAfter(DocumentationMarkup.DEFINITION_START)
-            .substringBefore(DocumentationMarkup.DEFINITION_END)
-            .lines()
-            .filter(String::isNotEmpty)
-            .map(StringUtil::unescapeXmlEntities)
+        val documentation = quickDocumentationIn("injected.ex", text)
 
-        assertEquals(documentation, title, definition.first { !it.startsWith("<i>module</i>") })
+        assertEquals(documentation, title, titleOf(documentation))
     }
 }

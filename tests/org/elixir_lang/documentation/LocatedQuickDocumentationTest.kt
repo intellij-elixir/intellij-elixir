@@ -16,8 +16,7 @@ class LocatedQuickDocumentationTest : QuickDocumentationTestCase() {
             "defmodule Compiled do\n  @doc \"Ds.\"\n  @deprecated \"Use e.\"\n  def located_d(a, b \\\\ 1), do: a + b\nend\n",
             CompiledBuild(module, debugInfo = false),
         )
-        myFixture.configureByText("caller.ex", "defmodule Caller do\n  def g(x), do: $module.located_<caret>d(x, 2)\nend\n")
-        val documentation = quickDocumentationAtCaret().orEmpty()
+        val documentation = quickDocumentationIn("caller.ex", "defmodule Caller do\n  def g(x), do: $module.located_<caret>d(x, 2)\nend\n")
 
         assertTrue("Expected the deprecation, got: $documentation", "Use e." in documentation)
     }

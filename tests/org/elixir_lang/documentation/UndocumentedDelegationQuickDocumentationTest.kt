@@ -14,9 +14,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             "linked.ex",
             "defmodule Linked do\n  defdelegate snoc(q, x \\\\ nil), to: Linked.Target\nend\n"
         )
-        myFixture.configureByText("linked_caller.ex", "defmodule LinkedCaller do\n  def calls(a), do: Linked.sn<caret>oc(a, a)\nend\n")
-
-        val shown = quickDocumentationAtCaret().orEmpty()
+        val shown = quickDocumentationIn("linked_caller.ex", "defmodule LinkedCaller do\n  def calls(a), do: Linked.sn<caret>oc(a, a)\nend\n")
 
         assertTrue("Expected the delegation's head, got: $shown", "snoc(q, x \\\\ nil)" in shown)
         assertTrue(
@@ -36,9 +34,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             "operator_target.ex",
             "defmodule Operator.Target do\n  @doc \"Operator docs.\"\n  def left <~> right, do: {left, right}\nend\n"
         )
-        myFixture.configureByText("operator.ex", "defmodule Operator do\n  defdelegate left <~<caret>> right, to: Operator.Target\nend\n")
-
-        val shown = quickDocumentationAtCaret().orEmpty()
+        val shown = quickDocumentationIn("operator.ex", "defmodule Operator do\n  defdelegate left <~<caret>> right, to: Operator.Target\nend\n")
         val followed = myFixture.followedLinkAtCaret(project, "psi_element://Operator.Target.<~>/2")
 
         assertTrue("Expected the escaped link text, got: $shown", "<code>Operator.Target.&lt;~&gt;/2</code>" in shown)
@@ -65,12 +61,10 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             "${module.lowercase()}_target.ex",
             "defmodule $module.Target do\n  @doc \"$module target docs.\"\n  def unquote($atom)(x), do: x\nend\n"
         )
-        myFixture.configureByText(
+        val shown = quickDocumentationIn(
             "${module.lowercase()}.ex",
             "defmodule $module do\n  defdelegate fu<caret>nction(x), to: $module.Target, as: $atom\nend\n"
         )
-
-        val shown = quickDocumentationAtCaret().orEmpty()
         val href = Regex("""Delegates to <a href="([^"]*)"""").find(shown)?.groupValues?.get(1)
 
         assertNotNull("Expected a link to the target, got: $shown", href)
@@ -92,9 +86,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             "arities_delegator.ex",
             "defmodule Arities do\n  defdelegate snoc(q, x), to: Arities.Target\n  defdelegate snoc(q), to: Arities.Target\nend\n"
         )
-        myFixture.configureByText("arities_caller.ex", "defmodule AritiesCaller do\n  def calls(a), do: Arities.sn<caret>oc(a, a)\nend\n")
-
-        val shown = quickDocumentationAtCaret().orEmpty()
+        val shown = quickDocumentationIn("arities_caller.ex", "defmodule AritiesCaller do\n  def calls(a), do: Arities.sn<caret>oc(a, a)\nend\n")
         val links = Regex("psi_element://Arities\\.Target\\.snoc/(\\d)").findAll(shown).map { it.groupValues[1] }.distinct().toList()
 
         assertEquals("Expected a link per delegation, ascending, got: $shown", listOf("1", "2"), links)
@@ -138,9 +130,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
     /** A delegation shows the name Elixir gives it beside its target, as the card of one with no target does. */
     fun testADelegationHeadWrittenWithACombiningMarkShowsTheNameElixirGivesIt() {
         myFixture.addFileToProject("marked_target.ex", "defmodule MarkedTarget do\n  @doc \"Marked target docs.\"\n  def other(q), do: q\nend\n")
-        myFixture.configureByText("marked.ex", "defmodule Marked do\n  defdelegate sn<caret>oc\u0301(q), to: MarkedTarget, as: :other\nend\n")
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
+        val documentation = quickDocumentationIn("marked.ex", "defmodule Marked do\n  defdelegate sn<caret>oc\u0301(q), to: MarkedTarget, as: :other\nend\n")
 
         assertTrue("Expected the target's @doc, got: $documentation", "Marked target docs." in documentation)
         assertTrue("Expected the composed name, got: $documentation", "snoć(q)" in documentation)
@@ -156,9 +146,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             "hidden.ex",
             "defmodule Hidden do\n  @doc false\n  defdelegate snoc(q, x), to: Hidden.Target\nend\n"
         )
-        myFixture.configureByText("hidden_caller.ex", "defmodule HiddenCaller do\n  def calls(a), do: Hidden.sn<caret>oc(a, a)\nend\n")
-
-        val shown = quickDocumentationAtCaret().orEmpty()
+        val shown = quickDocumentationIn("hidden_caller.ex", "defmodule HiddenCaller do\n  def calls(a), do: Hidden.sn<caret>oc(a, a)\nend\n")
 
         assertTrue("Expected the head, got: $shown", "snoc(q, x)" in shown)
         assertFalse("Expected no target docs, got: $shown", "Hidden target docs." in shown)
@@ -175,9 +163,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             "own.ex",
             "defmodule Own do\n  @doc \"The delegation's own docs.\"\n  defdelegate snoc(q, x), to: Own.Target\nend\n"
         )
-        myFixture.configureByText("own_caller.ex", "defmodule OwnCaller do\n  def calls(a), do: Own.sn<caret>oc(a, a)\nend\n")
-
-        val shown = quickDocumentationAtCaret().orEmpty()
+        val shown = quickDocumentationIn("own_caller.ex", "defmodule OwnCaller do\n  def calls(a), do: Own.sn<caret>oc(a, a)\nend\n")
 
         assertTrue("Expected the delegation's docs, got: $shown", "The delegation&#39;s own docs." in shown || "The delegation's own docs." in shown)
         assertFalse("Expected no target docs, got: $shown", "Own target docs." in shown)
@@ -187,9 +173,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
     /** A delegation reached alone, its target not found, shows its module and head, and links nothing. */
     fun testAnUnresolvableDelegationShowsItsHeadAndNoLink() {
         myFixture.addFileToProject("alone.ex", "defmodule Alone do\n  defdelegate snoc(q, x), to: Missing.Target\nend\n")
-        myFixture.configureByText("alone_caller.ex", "defmodule AloneCaller do\n  def calls(a), do: Alone.sn<caret>oc(a, a)\nend\n")
-
-        val shown = quickDocumentationAtCaret().orEmpty()
+        val shown = quickDocumentationIn("alone_caller.ex", "defmodule AloneCaller do\n  def calls(a), do: Alone.sn<caret>oc(a, a)\nend\n")
 
         assertTrue("Expected the module, got: $shown", "Alone" in shown)
         assertTrue("Expected the head, got: $shown", "snoc(q, x)" in shown)
@@ -202,15 +186,11 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             "lone_delegator.ex",
             "defmodule Lone do\n  defdelegate snoc(q), to: Missing.Target\n  defdelegate snoc(q, x), to: Missing.Target\n  defdelegate snoc(q, x, y), to: Missing.Target\nend\n"
         )
-        myFixture.configureByText("lone_caller.ex", "defmodule LoneCaller do\n  def calls(a), do: Lone.sn<caret>oc(a, a)\nend\n")
-
-        val atACall = quickDocumentationAtCaret().orEmpty()
+        val atACall = quickDocumentationIn("lone_caller.ex", "defmodule LoneCaller do\n  def calls(a), do: Lone.sn<caret>oc(a, a)\nend\n")
 
         assertEveryArityHeadIsLinked(atACall)
 
-        myFixture.configureByText("lone_head.ex", "defmodule LoneHead do\n  defdelegate sn<caret>oc(q, x), to: Missing.Target\n  defdelegate snoc(q), to: Missing.Target\n  defdelegate snoc(q, x, y), to: Missing.Target\nend\n")
-
-        assertEveryArityHeadIsLinked(quickDocumentationAtCaret().orEmpty())
+        assertEveryArityHeadIsLinked(quickDocumentationIn("lone_head.ex", "defmodule LoneHead do\n  defdelegate sn<caret>oc(q, x), to: Missing.Target\n  defdelegate snoc(q), to: Missing.Target\n  defdelegate snoc(q, x, y), to: Missing.Target\nend\n"))
     }
 
     private fun assertEveryArityHeadIsLinked(shown: String) {
@@ -225,12 +205,10 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             "spec_target.ex",
             "defmodule Spec.Target do\n  @doc \"Spec target docs.\"\n  def snoc(q, x), do: {q, x}\nend\n"
         )
-        myFixture.configureByText(
+        val shown = quickDocumentationIn(
             "spec.ex",
             "defmodule Spec do\n  @spec sn<caret>oc(term, term) :: term\n  defdelegate snoc(q, x), to: Spec.Target\nend\n"
         )
-
-        val shown = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected a link to the target, got: $shown", "psi_element://Spec.Target.snoc/2" in shown)
         assertTrue("Expected the target's docs, got: $shown", "Spec target docs." in shown)
@@ -246,9 +224,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             "since.ex",
             "defmodule Since do\n  @doc since: \"1.0\"\n  defdelegate snoc(q, x), to: Since.Target\nend\n"
         )
-        myFixture.configureByText("since_caller.ex", "defmodule SinceCaller do\n  def calls(a), do: Since.sn<caret>oc(a, a)\nend\n")
-
-        val shown = quickDocumentationAtCaret().orEmpty()
+        val shown = quickDocumentationIn("since_caller.ex", "defmodule SinceCaller do\n  def calls(a), do: Since.sn<caret>oc(a, a)\nend\n")
 
         assertTrue("Expected a link to the target, got: $shown", "psi_element://Since.Target.snoc/2" in shown)
         assertTrue("Expected the target's docs, got: $shown", "Since target docs." in shown)
@@ -257,9 +233,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
     /** A delegation marked `@doc false` is not listed with the undocumented others of its name from outside its module. */
     fun testAHiddenDelegationIsNotListedBesideAnotherArityForARemoteCall() {
         configureHiddenBesideShown()
-        myFixture.configureByText("remote_caller.ex", "defmodule RemoteCaller do\n  def calls(a), do: Beside.sn<caret>oc(a)\nend\n")
-
-        val shown = quickDocumentationAtCaret().orEmpty()
+        val shown = quickDocumentationIn("remote_caller.ex", "defmodule RemoteCaller do\n  def calls(a), do: Beside.sn<caret>oc(a)\nend\n")
 
         assertTrue("Expected the shown delegation's target, got: $shown", "psi_element://Beside.Target.snoc/1" in shown)
         assertFalse("Expected no hidden delegation, got: $shown", "psi_element://Beside.Target.snoc/2" in shown)
@@ -271,12 +245,10 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             "beside_target.ex",
             "defmodule Beside.Target do\n  def snoc(q), do: q\n  def snoc(q, x), do: {q, x}\nend\n"
         )
-        myFixture.configureByText(
+        val shown = quickDocumentationIn(
             "beside_local.ex",
             "defmodule Beside do\n  defdelegate snoc(q), to: Beside.Target\n\n  @doc false\n  defdelegate snoc(q, x), to: Beside.Target\n\n  def calls(a), do: sn<caret>oc(a)\nend\n"
         )
-
-        val shown = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected the delegation reached to link its target, got: $shown", "psi_element://Beside.Target.snoc/1" in shown)
         assertEquals("Expected a head for each delegation of the module, got: $shown", 2, "<b>Beside</b>".toRegex().findAll(shown).count())
@@ -293,9 +265,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             "sibling.ex",
             "defmodule Sibling do\n  @doc \"First arity own docs.\"\n  defdelegate snoc(q), to: Sibling.Target\n\n  defdelegate snoc(q, x), to: Sibling.Target\nend\n"
         )
-        myFixture.configureByText("sibling_caller.ex", "defmodule SiblingCaller do\n  def calls(a), do: Sibling.sn<caret>oc(a, a)\nend\n")
-
-        val shown = quickDocumentationAtCaret().orEmpty()
+        val shown = quickDocumentationIn("sibling_caller.ex", "defmodule SiblingCaller do\n  def calls(a), do: Sibling.sn<caret>oc(a, a)\nend\n")
 
         assertTrue("Expected the sibling's own docs, got: $shown", "First arity own docs." in shown)
         assertTrue("Expected a link to the target of the delegation reached, got: $shown", "psi_element://Sibling.Target.snoc/2" in shown)
@@ -312,9 +282,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             "defined.ex",
             "defmodule Defined do\n  @doc \"Defined first arity docs.\"\n  def snoc(q), do: q\n\n  defdelegate snoc(q, x), to: Defined.Target\nend\n"
         )
-        myFixture.configureByText("defined_caller.ex", "defmodule DefinedCaller do\n  def calls(a), do: Defined.sn<caret>oc(a, a)\nend\n")
-
-        val shown = quickDocumentationAtCaret().orEmpty()
+        val shown = quickDocumentationIn("defined_caller.ex", "defmodule DefinedCaller do\n  def calls(a), do: Defined.sn<caret>oc(a, a)\nend\n")
 
         assertTrue("Expected the defined arity's docs, got: $shown", "Defined first arity docs." in shown)
         assertTrue("Expected a link to the target of the delegation reached, got: $shown", "psi_element://Defined.Target.snoc/2" in shown)
@@ -335,9 +303,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             "chain.ex",
             "defmodule Chain do\n  defdelegate f(x), to: Chain.Middle\nend\n"
         )
-        myFixture.configureByText("chain_caller.ex", "defmodule ChainCaller do\n  def calls(a), do: Chain.<caret>f(a)\nend\n")
-
-        val shown = quickDocumentationAtCaret().orEmpty()
+        val shown = quickDocumentationIn("chain_caller.ex", "defmodule ChainCaller do\n  def calls(a), do: Chain.<caret>f(a)\nend\n")
 
         assertTrue("Expected the docs of the delegation reached, got: $shown", "Middle docs." in shown)
         assertTrue("Expected the block of the delegation called, got: $shown", "<b>Chain</b>" in shown)
@@ -354,9 +320,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             "twice.ex",
             "defmodule Twice do\n  defdelegate reduce(e, a, f), to: Twice.Target\n\n  @doc \"Twice docs.\"\n  def reduce(enumerable, fun)\n  def reduce([h | t], fun), do: {h, t, fun}\n  def reduce(enumerable, fun), do: {enumerable, fun}\nend\n"
         )
-        myFixture.configureByText("twice_caller.ex", "defmodule TwiceCaller do\n  def calls(a), do: Twice.red<caret>uce(a, a, a)\nend\n")
-
-        val shown = quickDocumentationAtCaret().orEmpty()
+        val shown = quickDocumentationIn("twice_caller.ex", "defmodule TwiceCaller do\n  def calls(a), do: Twice.red<caret>uce(a, a, a)\nend\n")
 
         assertEquals("Expected the repeated head once, got: $shown", 1, StringUtil.getOccurrenceCount(shown, "def reduce(enumerable, fun)"))
         assertEquals("Expected the other head kept, got: $shown", 1, StringUtil.getOccurrenceCount(shown, "def reduce([h | t], fun)"))
@@ -372,9 +336,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             "clauses.ex",
             "defmodule Clauses do\n  defdelegate snoc(q), to: Clauses.Target\n\n  @doc \"Clauses docs.\"\n  def snoc(q, x) when is_list(q), do: [x | q]\n  def snoc(q, x), do: {q, x}\nend\n"
         )
-        myFixture.configureByText("clauses_caller.ex", "defmodule ClausesCaller do\n  def calls(a), do: Clauses.sn<caret>oc(a)\nend\n")
-
-        val shown = quickDocumentationAtCaret().orEmpty()
+        val shown = quickDocumentationIn("clauses_caller.ex", "defmodule ClausesCaller do\n  def calls(a), do: Clauses.sn<caret>oc(a)\nend\n")
 
         assertEquals("Expected one block for each function of the name, got: $shown", 2, "<b>Clauses</b>".toRegex().findAll(shown).count())
         assertEquals("Expected the docs of the clauses once, got: $shown", 1, "Clauses docs.".toRegex().findAll(shown).count())
@@ -391,9 +353,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             "relative.ex",
             "defmodule Relative do\n  @doc \"Own helper docs.\"\n  def helper(x), do: x\n\n  @doc \"Use `helper/1`.\"\n  defdelegate snoc(q), to: Relative.Target\n\n  defdelegate snoc(q, x), to: Relative.Target\nend\n"
         )
-        myFixture.configureByText("relative_caller.ex", "defmodule RelativeCaller do\n  def calls(a), do: Relative.sn<caret>oc(a, a)\nend\n")
-
-        val shown = quickDocumentationAtCaret().orEmpty()
+        val shown = quickDocumentationIn("relative_caller.ex", "defmodule RelativeCaller do\n  def calls(a), do: Relative.sn<caret>oc(a, a)\nend\n")
         val href = Regex("""href="(psi_element://[^"]*helper/1)"""").find(shown)?.groupValues?.get(1)
 
         assertNotNull("Expected the sibling's docs to link helper/1, got: $shown", href)
@@ -414,9 +374,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             "drawn.ex",
             "defmodule Drawn do\n  @doc \"Use `missing/1`.\"\n  defdelegate snoc(q), to: Drawn.Target\n\n  defdelegate snoc(q, x), to: Drawn.Target\nend\n"
         )
-        myFixture.configureByText("drawn_caller.ex", "defmodule DrawnCaller do\n  def calls(a), do: Drawn.sn<caret>oc(a, a)\nend\n")
-
-        val shown = quickDocumentationAtCaret().orEmpty()
+        val shown = quickDocumentationIn("drawn_caller.ex", "defmodule DrawnCaller do\n  def calls(a), do: Drawn.sn<caret>oc(a, a)\nend\n")
 
         assertTrue("Expected the bare link drawn as a link, got: $shown", "psi_element://Drawn.missing/1" in shown)
     }
@@ -438,9 +396,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             "head_target.ex",
             "defmodule Head.Target do\n  @doc \"Head target docs.\"\n  def snoc(q, x), do: {q, x}\nend\n"
         )
-        myFixture.configureByText("head.ex", "defmodule Head do\n  defdelegate sn<caret>oc(q, x), to: Head.Target\nend\n")
-
-        val shown = quickDocumentationAtCaret().orEmpty()
+        val shown = quickDocumentationIn("head.ex", "defmodule Head do\n  defdelegate sn<caret>oc(q, x), to: Head.Target\nend\n")
 
         assertTrue("Expected a link to the target, got: $shown", "psi_element://Head.Target.snoc/2" in shown)
         assertTrue("Expected the target's docs, got: $shown", "Head target docs." in shown)
@@ -472,9 +428,7 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
             end
             """.trimIndent()
         )
-        myFixture.configureByText("attr_caller.ex", "defmodule AttrCaller do\n  def calls(a), do: $use\nend\n")
-
-        val shown = quickDocumentationAtCaret().orEmpty()
+        val shown = quickDocumentationIn("attr_caller.ex", "defmodule AttrCaller do\n  def calls(a), do: $use\nend\n")
 
         assertTrue("Expected the target's docs, got: $shown", "Attr target docs." in shown)
     }

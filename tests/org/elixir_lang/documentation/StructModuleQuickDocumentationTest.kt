@@ -183,11 +183,9 @@ class StructModuleQuickDocumentationTest : QuickDocumentationTestCase() {
     fun testInAQuotesArgumentsTheMacrosModuleWithTheExpanderOn() = withTheExpanderOn(::testInAQuotesArgumentsTheMacrosModule)
 
     private fun assertDocumentsTheModule(text: String) {
-        myFixture.configureByText("struct_module.ex", text.trimIndent())
+        val documentation = quickDocumentationIn("struct_module.ex", text.trimIndent())
 
-        val documentation = quickDocumentationAtCaret()
-
-        assertTrue("Expected Described's @moduledoc, got: $documentation", documentation?.contains("Describes a value.") == true)
+        assertTrue("Expected Described's @moduledoc, got: $documentation", "Describes a value." in documentation)
     }
 
     /** No module at a struct's `__MODULE__` in an `unquote` in a `quote` opened by [quoteDo], which keeps it as code. */

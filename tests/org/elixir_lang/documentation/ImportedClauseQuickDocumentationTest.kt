@@ -19,12 +19,11 @@ class ImportedClauseQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** A local call in a `quote` may not call `U`'s `helper/1`, so its find is marked where the module's is not. */
     fun testAQuotedLocalCallsSpecIsShownOnceWithTheExpanderOn() = withTheExpanderOn {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "u.ex",
             "defmodule U do\n  @doc \"Helps.\"\n  @spec helper(integer) :: integer\n  def helper(x), do: x\n\n" +
                 "  defmacro __using__(_) do\n    quote do\n      def f(y), do: hel<caret>per(y)\n    end\n  end\nend\n"
         )
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected helper's docs, got: $documentation", "Helps." in documentation)
         assertEquals("Expected the spec once, got: $documentation", 1, StringUtil.getOccurrenceCount(documentation, "helper(integer) :: integer"))
@@ -32,8 +31,7 @@ class ImportedClauseQuickDocumentationTest : QuickDocumentationTestCase() {
 
     private fun assertSpecOnce(bar: String) {
         myFixture.addFileToProject("foo.ex", "defmodule Foo do\n  @doc \"Gs.\"\n  @spec g(integer) :: integer\n  def g(x), do: x\nend\n")
-        myFixture.configureByText("bar.ex", bar)
-        val documentation = quickDocumentationAtCaret().orEmpty()
+        val documentation = quickDocumentationIn("bar.ex", bar)
 
         assertTrue("Expected g's docs, got: $documentation", "Gs." in documentation)
         assertEquals("Expected the spec once, got: $documentation", 1, StringUtil.getOccurrenceCount(documentation, "g(integer) :: integer"))
@@ -41,8 +39,7 @@ class ImportedClauseQuickDocumentationTest : QuickDocumentationTestCase() {
 
     private fun assertDeprecated() {
         myFixture.addFileToProject("foo.ex", "defmodule Foo do\n  @deprecated \"Use f/1.\"\n  def g(x), do: x\nend\n")
-        myFixture.configureByText("bar.ex", IMPORTING)
-        val documentation = quickDocumentationAtCaret().orEmpty()
+        val documentation = quickDocumentationIn("bar.ex", IMPORTING)
 
         assertTrue("Expected the deprecation, got: $documentation", "Use f/1." in documentation)
     }

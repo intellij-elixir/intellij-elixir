@@ -102,7 +102,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** Defaults are one function at the arities they cover: one entry, anchored whichever of them is used. */
     fun testDefaultsAreOneEntryAnchoredAtEveryArityTheyCover() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "defaults.ex",
             """
             defmodule Defaults do
@@ -117,7 +117,6 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
         val anchor = myFixture.documentationAnchorAtCaret(project)
 
         assertEquals("Expected an entry per function, got: $documentation", 2, linkedIds(documentation).distinct().size)
@@ -126,7 +125,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** The default arity is as much the defaults' entry as the full one. */
     fun testTheOtherArityTheDefaultsCoverOpensAtTheSameEntry() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "defaults.ex",
             """
             defmodule Defaults do
@@ -141,7 +140,6 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
         val anchor = myFixture.documentationAnchorAtCaret(project)
 
         assertNotNull("Expected an anchor", anchor)
@@ -150,7 +148,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** From outside the module, a private arity is not listed with the others, nor is one marked `@doc false`. */
     fun testAPrivateAndAHiddenArityAreNotListedForARemoteCall() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "visible.ex",
             """
             defmodule Visible do
@@ -172,8 +170,6 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
         assertTrue("Expected the visible arities, got: $documentation", "One." in documentation && "Four." in documentation)
         assertEquals("Expected a link per visible arity, got: $documentation", 2, linkedIds(documentation).distinct().size)
         assertFalse("Expected no entry for push(a, b, c), got: $documentation", "push(a, b, c)" in documentation)
@@ -182,7 +178,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** A function is hidden by the `@doc false` above its first clause, whichever clauses follow, so none of its clauses lists it. */
     fun testAHiddenFunctionWithSeveralClausesIsNotListedForARemoteCall() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "clauses.ex",
             """
             defmodule Clauses do
@@ -200,15 +196,13 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
         assertTrue("Expected the visible arity, got: $documentation", "One." in documentation)
         assertFalse("Expected no entry for push(a, b), got: $documentation", "push(a, b)" in documentation)
     }
 
     /** Inside the module that defines them, a local call can call a private arity and one marked `@doc false`, so both are listed. */
     fun testALocalCallListsThePrivateAndHiddenArities() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "local.ex",
             """
             defmodule Local do
@@ -225,8 +219,6 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
         assertEquals("Expected a link per arity, got: $documentation", 3, linkedIds(documentation).distinct().size)
         assertTrue("Expected push(a, b), got: $documentation", "push(a, b)" in documentation)
         assertTrue("Expected push(a, b, c), got: $documentation", "push(a, b, c)" in documentation)
@@ -234,7 +226,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** A head is inside its module, so it lists every arity of its name whatever their visibility. */
     fun testAPrivateHeadListsEveryArityOfItsName() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "head.ex",
             """
             defmodule Head do
@@ -249,8 +241,6 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
         assertEquals("Expected a link per arity, got: $documentation", 3, linkedIds(documentation).distinct().size)
         assertTrue("Expected push(a), got: $documentation", "One." in documentation)
         assertTrue("Expected push(a, b), got: $documentation", "push(a, b)" in documentation)
@@ -258,7 +248,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** A call is documented where it lands, even on an arity that is private or hidden. */
     fun testACallToAPrivateArityDocumentsThatArity() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "private.ex",
             """
             defmodule Private do
@@ -272,8 +262,6 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected the private arity's doc, got: $documentation", "Private two." in documentation)
     }
@@ -292,7 +280,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "delegator.ex",
             """
             defmodule Delegator do
@@ -302,8 +290,6 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected both arities of the target, got: $documentation", "Target one." in documentation && "Target two." in documentation)
         assertEquals("Expected a link per arity, got: $documentation", 2, linkedIds(documentation).distinct().size)
@@ -328,7 +314,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "importer.ex",
             """
             defmodule Importer do
@@ -339,7 +325,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        assertOnlyTheVisibleArities(quickDocumentationAtCaret().orEmpty())
+        assertOnlyTheVisibleArities(documentation)
     }
 
     /** A local call to a delegation reaches its target, which is another module, so the target's private arities are not listed. */
@@ -361,7 +347,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "delegator.ex",
             """
             defmodule Delegator do
@@ -372,12 +358,12 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        assertOnlyTheVisibleArities(quickDocumentationAtCaret().orEmpty())
+        assertOnlyTheVisibleArities(documentation)
     }
 
     /** The `@doc false` nearest the function hides the arity, whatever keyword `@doc` is written above it. */
     fun testMetadataAboveAHiddenArityDoesNotShowIt() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "metadata.ex",
             """
             defmodule Metadata do
@@ -395,15 +381,13 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
         assertTrue("Expected the visible arity, got: $documentation", "One." in documentation)
         assertFalse("Expected no entry for push(a, b), got: $documentation", "push(a, b)" in documentation)
     }
 
     /** As in Elixir, the `@doc` nearest the function stands: `false` after a text replaces it, and a text after a text does. */
     fun testTheNearestDocIsTheOneShown() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "nearest.ex",
             """
             defmodule Nearest do
@@ -421,8 +405,6 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertTrue("Expected the nearest doc, got: $documentation", "Stands." in documentation)
         assertFalse("Expected no doc replaced by false, got: $documentation", "Replaced by false." in documentation)
@@ -449,7 +431,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** A bodiless head and a clause written alike are one head: the header shows it once under the entry's linked signature. */
     fun testAHeadWrittenTwiceIsListedOnceAmongSeveralArities() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "reducing.ex",
             """
             defmodule Reducing do
@@ -465,8 +447,6 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
         assertEquals("Expected the signature linked once in the header, got: $documentation", 1, """<a href="#arity-2">reduce(enumerable, fun)</a>""".toRegex(RegexOption.LITERAL).findAll(documentation).count())
         assertEquals("Expected the repeated head once, got: $documentation", 1, "def reduce(enumerable, fun)".toRegex(RegexOption.LITERAL).findAll(documentation).count())
         assertEquals("Expected the other head of the entry kept, got: $documentation", 1, "def reduce([h | t], fun)".toRegex(RegexOption.LITERAL).findAll(documentation).count())
@@ -474,7 +454,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** A function of one arity shows a head written twice once. */
     fun testAHeadWrittenTwiceIsShownOnceForASingleArity() {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "reducing_one.ex",
             """
             defmodule ReducingOne do
@@ -487,8 +467,6 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-
-        val documentation = quickDocumentationAtCaret().orEmpty()
 
         assertEquals("Expected the repeated head once, got: $documentation", 1, "def reduce(enumerable, fun)".toRegex(RegexOption.LITERAL).findAll(documentation).count())
         assertEquals("Expected the other head kept, got: $documentation", 1, "def reduce([h | t], fun)".toRegex(RegexOption.LITERAL).findAll(documentation).count())
@@ -518,7 +496,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** With the expander on and no SDK to expand with, a function's later clause is documented at its head as its first is. */
     fun testWithTheExpanderOnAndNoSdkALaterClausesHeadIsDocumented() = withTheExpanderOnAndNoSdk {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "clauses.ex",
             """
             defmodule Clauses do
@@ -529,8 +507,6 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
         assertTrue("Expected the function's @doc, got: $documentation", "Ones." in documentation)
     }
 
@@ -539,7 +515,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
      * a head in such a module is documented with nothing: blank, as nothing is known of it.
      */
     fun testWithTheExpanderOnAndNoSdkAHeadInAModuleWhoseNameIsComputedIsNotDocumented() = withTheExpanderOnAndNoSdk {
-        myFixture.configureByText(
+        val documentation = quickDocumentationIn(
             "shapes.ex",
             """
             for kind <- [Circle, Square] do
@@ -551,7 +527,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        assertEquals("", quickDocumentationAtCaret().orEmpty())
+        assertEquals("", documentation)
     }
 
     /** [test], run with the expander on and the module given no SDK, so the expander has nothing to expand with. */
