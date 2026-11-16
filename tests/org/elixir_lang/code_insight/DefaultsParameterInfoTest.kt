@@ -1,6 +1,10 @@
 package org.elixir_lang.code_insight
 
 import org.elixir_lang.declaration.ExpanderSettingTestCase
+import org.elixir_lang.documentation.CompiledBuild
+import org.elixir_lang.documentation.OV_FULL_GEN
+import org.elixir_lang.documentation.OV_FULL_GEN_LIB
+import org.elixir_lang.documentation.addCompiledLibrary
 
 /**
  * A function with default arguments is one definition, so Parameter Info shows its head as written, once, whichever
@@ -115,6 +119,36 @@ class DefaultsParameterInfoTest : ExpanderSettingTestCase() {
                 """.trimIndent()
             )
         )
+
+    /**
+     * A `def` written at an arity the defaults of an overridden function had generated is a function of its own, as
+     * `Docs` records `o(a)` beside `o(a, b \\ 1)`.
+     */
+    fun testADefWrittenAtAnOverriddenFunctionsDefaultArityIsShownWithTheExpanderOn() = withTheExpanderOn {
+        assertEquals(
+            listOf("a", "a, b \\\\ 1"),
+            shown("$OV_FULL_GEN\n\ndefmodule Caller do\n  def calls(x), do: OvFullGen.o(x<caret>)\nend\n").sorted()
+        )
+    }
+
+    fun testADefWrittenAtACompiledOverriddenFunctionsDefaultArityIsShownWithTheExpanderOn() = withTheExpanderOn {
+        assertEquals(listOf("a", "a, b \\\\ 1"), shownAtCompiledOvFullGen(CompiledBuild("CompiledOvFullGenParameterInfo")))
+    }
+
+    /** As above, with no debug info: the decompiled heads write the defaults the `Docs` chunk records, each once. */
+    fun testADefWrittenAtADocsOnlyCompiledOverriddenFunctionsDefaultArityIsShownWithTheExpanderOn() = withTheExpanderOn {
+        assertEquals(
+            listOf("a", "a, b \\\\ 1"),
+            shownAtCompiledOvFullGen(CompiledBuild("CompiledOvFullGenDocsOnlyParameterInfo", debugInfo = false))
+        )
+    }
+
+    /** [shown], sorted, at `o(x)` called on [OV_FULL_GEN_LIB] compiled as [build]. */
+    private fun shownAtCompiledOvFullGen(build: CompiledBuild): List<String> {
+        myFixture.addCompiledLibrary(OV_FULL_GEN_LIB, build)
+
+        return shown("defmodule Caller do\n  def calls(x), do: ${build.name}.o(x<caret>)\nend\n").sorted()
+    }
 
     private fun shown(text: String): List<String> = myFixture.parameterInfoSignaturesIn("defaults.ex", text)
 

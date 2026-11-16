@@ -81,7 +81,7 @@ internal object DefaultArgumentClause {
      * generates for another definition's defaults: every argument is one it generated, and the call passes more. A
      * user's `super` has named arguments.
      */
-    fun generated(clause: OtpErlangObject): Pair<OtpErlangList, OtpErlangList>? {
+    private fun generated(clause: OtpErlangObject): Pair<OtpErlangList, OtpErlangList>? {
         if (clause !is OtpErlangTuple || clause.arity() != Clause.EXPECTED_ARITY) return null
 
         val arguments = clause.elementAt(1).toOtpErlangList()

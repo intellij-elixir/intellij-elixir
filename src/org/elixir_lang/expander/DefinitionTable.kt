@@ -31,7 +31,8 @@ internal class DefinitionTable(private val level: ElixirLanguageLevel) {
      * @property heads each head stored, in order; a compiled module's entry holds its first only
      * @property clauses the clauses stored, none for a bodiless head
      * @property defaults the most defaults any of its heads gave
-     * @property default whether it was first stored for a default arity of another definition
+     * @property default whether only a default arity of another definition stored it: a written head stored at that
+     * arity makes it a definition of its own
      * @property ordered whether each of its clauses was defined at a statement of the module body
      * @property checksClauses whether its last head is checked for clauses: one with no `unquote` and no `context`
      */
@@ -217,6 +218,7 @@ internal class DefinitionTable(private val level: ElixirLanguageLevel) {
                     heads = stored.heads + heads,
                     clauses = stored.clauses + clauses,
                     defaults = maxOf(stored.defaults, defaults),
+                    default = stored.default && default,
                     ordered = stored.ordered && ordered,
                     checksClauses = checksClauses,
                 )

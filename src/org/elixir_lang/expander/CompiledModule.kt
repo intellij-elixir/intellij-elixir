@@ -10,10 +10,10 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.BeamReader
+import org.elixir_lang.beam.CompiledIdentity
 import org.elixir_lang.beam.MacroNameArity
 import org.elixir_lang.beam.ReadResult
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.V1
-import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.v1.definitions.definition.DefaultArgumentClause
 import org.elixir_lang.expander.DefinitionTable.Entry
 import org.elixir_lang.expander.DefinitionTable.Kind
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -98,7 +98,7 @@ private fun fromDebugInfo(reader: BeamReader, level: ElixirLanguageLevel, deprec
 
         table.put(
             key.toNameArity(),
-            entry(table, Kind.of(key.macro), at, clauses.size, definition.defaults, isDefault(clauses)),
+            entry(table, Kind.of(key.macro), at, clauses.size, definition.defaults, CompiledIdentity.generated(definition)),
         )
 
         bodies[key] = clauses.map { fnClause(it) ?: return null }
@@ -106,12 +106,6 @@ private fun fromDebugInfo(reader: BeamReader, level: ElixirLanguageLevel, deprec
 
     return CompiledModule(module, table, bodies, deprecations)
 }
-
-/**
- * Whether a definition was first stored for a default arity of another: whether the first of its [clauses] is the one
- * `elixir_def` generates for that one's defaults.
- */
-private fun isDefault(clauses: List<OtpErlangTuple>): Boolean = clauses.firstOrNull()?.let(DefaultArgumentClause::generated) != null
 
 /**
  * An entry of [table] as a compiled module holds it: in source order, its clauses already checked by its compile, and

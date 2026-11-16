@@ -4,6 +4,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import org.elixir_lang.NameArity
 import org.elixir_lang.beam.chunk.beam_documentation.Docs
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.V1
+import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.v1.definitions.Definition
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.v1.definitions.definition.DefaultArgumentClause
 
 /** The function a compiled export is one of, as Elixir's definition table keyed it when the module was compiled. */
@@ -38,6 +39,9 @@ internal object CompiledIdentity {
 
         return DefaultArgumentClause.target(own)?.arity?.let { NameArity(name, it) }
     }
+
+    /** Whether `elixir_def` generated [definition] for another's defaults: [DefaultArgumentClause.target] is another. */
+    fun generated(definition: Definition): Boolean = DefaultArgumentClause.target(definition) !== definition
 
     /** `Docs`' kinds of exported definition. */
     private val KINDS = listOf("function", "macro")

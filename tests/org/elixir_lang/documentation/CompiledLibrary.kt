@@ -99,3 +99,19 @@ internal val OV_FULL_LIB = """
       def o(a, b), do: {:override, a, b}
     end
 """.trimIndent()
+
+/** `o/2`'s defaults generate `o/1`, and `def o(a)` is written at that arity once `o/2` is overridable. */
+internal val OV_FULL_GEN = """
+    defmodule OvFullGen do
+      @doc "o original"
+      def o(a, b \\ 1), do: {a, b}
+
+      defoverridable o: 2
+
+      @doc "o written"
+      def o(a), do: {:written, a}
+    end
+""".trimIndent()
+
+/** [OV_FULL_GEN], as `Compiled`. */
+internal val OV_FULL_GEN_LIB = OV_FULL_GEN.replace("defmodule OvFullGen do", "defmodule Compiled do")
