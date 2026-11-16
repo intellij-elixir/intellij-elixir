@@ -8,7 +8,7 @@ alias	nothing	36
 def	matched	22
 def	nothing	498
 declaration	matched	21
-declaration	nothing	28
+declaration	nothing	26
 no use	ref	Kernel	sigil_s	2	80	elixir/code_normalizer/quoted_ast_test.exs:77:57
 no use	ref	Kernel	sigil_r	2	128	elixir/code_normalizer/quoted_ast_test.exs:114:41
 no use	ref	Kernel	sigil_S	2	48	elixir/code_normalizer/quoted_ast_test.exs:114:54
@@ -119,7 +119,6 @@ nothing	declaration	Kernel.QuoteTest.VarHygieneTest.NestedQuote	1	elixir/kernel/
 nothing	declaration	Kernel.RaiseTest.BadFunction.Missing	2	elixir/kernel/raise_test.exs:424
 nothing	declaration	KernelTest.ConditionalImport	1	elixir/kernel/warning_test.exs:817
 nothing	declaration	WithAny.Map	2	elixir/protocol/consolidation_test.exs:18
-nothing	declaration	quote.ModAttrGuard	2	elixir/regex_test.exs:41
 nothing	declaration	ExUnit.CallbacksTest.NamedCallbacksTupleTest	3	ex_unit/ex_unit/callbacks_test.exs:85
 nothing	declaration	ExUnit.CallbacksTest.OnExitErrorTest	1	ex_unit/ex_unit/callbacks_test.exs:174
 nothing	declaration	Logger.TranslatorTest.WeirdFunctionNamesGenServer	3	logger/logger/translator_test.exs:1240

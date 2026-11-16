@@ -8,7 +8,7 @@ alias	nothing	10
 def	matched	72
 def	nothing	529
 declaration	matched	73
-declaration	nothing	16
+declaration	nothing	15
 no use	ref	Map	new	0	1	elixir/agent_test.exs:39:40
 nothing	ref	:proc_lib	translate_initial_call	1	2	elixir/agent_test.exs:44:22
 nothing	ref	:sys	suspend	1	2	elixir/agent_test.exs:73:16
@@ -93,7 +93,6 @@ nothing	def	ExUnit.DoubleCaseTest4	3	ExUnit.DoubleCaseTest4:174
 nothing	def	Inspect.ExUnit.FormatterTest.BadInspect	1	Inspect.ExUnit.FormatterTest.BadInspect:484
 nothing	def	IEx.InteractionTest	29	IEx.InteractionTest:3
 nothing	declaration	GenServerTest.CustomStack	1	elixir/gen_server_test.exs:52
-nothing	declaration	quote.Parent.Child	1	elixir/kernel/alias_test.exs:81
 nothing	declaration	Kernel.ErrorsTest.ClauseWithDefaults5	2	elixir/kernel/defaults_test.exs:85
 nothing	declaration	Atom.Args	1	elixir/kernel/guard_test.exs:103
 nothing	declaration	ModuleTest	8	elixir/module_test.exs:483

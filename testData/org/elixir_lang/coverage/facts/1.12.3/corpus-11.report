@@ -23,7 +23,7 @@ def	defmacro	matched	clause	4
 def	defp	matched	clause	9
 def	defp	nothing	none	9
 declaration	def	matched	clause	13
-declaration	def	nothing	clause	5
+declaration	def	nothing	clause	7
 declaration	defmacro	matched	clause	4
 declaration	defmacro	nothing	clause	4
 declaration	defp	matched	clause	9

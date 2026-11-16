@@ -8,7 +8,7 @@ alias	nothing	50
 def	matched	41
 def	nothing	431
 declaration	matched	50
-declaration	nothing	20
+declaration	nothing	17
 no use	ref	Kernel	sigil_D	2	76	elixir/calendar/date_test.exs:14:12
 no use	ref	Kernel	sigil_s	2	16	elixir/calendar/date_test.exs:21:18
 no use	ref	Kernel	sigil_r	2	57	elixir/calendar/date_test.exs:96:18
@@ -83,9 +83,7 @@ nothing	def	ExUnit.FormatterTest.BadInspect	2	ExUnit.FormatterTest.BadInspect:55
 nothing	def	ExUnit.RegisterTest	5	ExUnit.RegisterTest:7
 nothing	def	ExUnit.SupervisedTest.MyAgent	1	ExUnit.SupervisedTest.MyAgent:11
 nothing	def	Logger.Backends.ConsoleTest	22	Logger.Backends.ConsoleTest:5
-nothing	declaration	quote.Foo	2	elixir/code_normalizer/quoted_ast_test.exs:437
 nothing	declaration	Blaming	6	elixir/exception_test.exs:910
-nothing	declaration	quote.Parent	1	elixir/kernel/alias_test.exs:81
 nothing	declaration	SoftAndLogicUsage	1	elixir/kernel/guard_test.exs:319
 nothing	declaration	ImportUsage	1	elixir/kernel/guard_test.exs:385
 nothing	declaration	Kernel.QuoteTest.Dyn	2	elixir/kernel/quote_test.exs:171

@@ -8,7 +8,7 @@ alias	nothing	30
 def	matched	67
 def	nothing	497
 declaration	matched	68
-declaration	nothing	13
+declaration	nothing	12
 other	alias	MyAgent	1	elixir/agent_test.exs:17:15
 other	alias	CustomAgent	1	elixir/agent_test.exs:26:15
 no use	ref	Map	new	0	1	elixir/agent_test.exs:39:35
@@ -88,7 +88,6 @@ nothing	def	Inspect.ExUnit.FormatterTest.BadInspect	1	Inspect.ExUnit.FormatterTe
 nothing	def	IEx.InteractionTest	26	IEx.InteractionTest:3
 nothing	def	Logger.HandlerTest	14	Logger.HandlerTest:1
 nothing	declaration	GenServerTest.CustomStack	1	elixir/gen_server_test.exs:52
-nothing	declaration	quote.Parent.Child	1	elixir/kernel/alias_test.exs:74
 nothing	declaration	Atom.Args	1	elixir/kernel/guard_test.exs:101
 nothing	declaration	ModuleTest	7	elixir/module_test.exs:442
 nothing	declaration	Derivable.Any	2	elixir/protocol_test.exs:33

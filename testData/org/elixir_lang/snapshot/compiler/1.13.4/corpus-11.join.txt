@@ -9,7 +9,7 @@ alias	nothing	18
 def	matched	28
 def	nothing	428
 declaration	matched	27
-declaration	nothing	9
+declaration	nothing	12
 no use	ref	Kernel	@	1	81	elixir/application_test.exs:9:3
 no use	ref	Kernel	sigil_r	2	8	elixir/application_test.exs:12:33
 no use	alias	ApplicationTest.Unknown	1	elixir/application_test.exs:168:50
@@ -75,6 +75,8 @@ nothing	def	Inspect.ExUnit.DocTestTest.Haiku	1	Inspect.ExUnit.DocTestTest.Haiku:
 nothing	def	IEx.AutocompleteTest.MyStruct	2	IEx.AutocompleteTest.MyStruct:376
 nothing	def	IEx.PryTest	27	IEx.PryTest:3
 nothing	def	IEx.ServerTest	17	IEx.ServerTest:3
+nothing	declaration	?.Foo	2	elixir/code_normalizer/quoted_ast_test.exs:384
+nothing	declaration	?.Parent.Child	1	elixir/kernel/alias_test.exs:74
 nothing	declaration	Kernel.DocsTest.DocAttributes	1	elixir/kernel/docs_test.exs:32
 nothing	declaration	Kernel.ErrorsTest.InvalidStructKey	2	elixir/kernel/errors_test.exs:334
 nothing	declaration	Tuple.Args	1	elixir/kernel/guard_test.exs:107

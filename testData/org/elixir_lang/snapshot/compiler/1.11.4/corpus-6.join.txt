@@ -2,8 +2,8 @@ ref	matched	7322
 ref	no use	587
 ref	other	1
 ref	nothing	177
-alias	matched	1685
-alias	other	43
+alias	matched	1687
+alias	other	41
 alias	nothing	80
 def	matched	50
 def	nothing	414
@@ -66,7 +66,6 @@ no use	ref	Kernel	sigil_R	2	6	elixir/kernel_test.exs:83:22
 nothing	alias	Post	2	elixir/kernel_test.exs:214:52
 other	alias	TooLargeList	1	elixir/kernel_test.exs:430:17
 other	alias	InSample	2	elixir/kernel_test.exs:596:17
-other	alias	InVarCopy	2	elixir/kernel_test.exs:613:21
 nothing	ref	Kernel	__info__	1	5	elixir/kernel_test.exs:761:32
 nothing	ref	KernelTest	dynamic_flatten	1	1	elixir/kernel_test.exs:820:14
 other	alias	StructAccess	1	elixir/kernel_test.exs:876:15

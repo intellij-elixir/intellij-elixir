@@ -5,6 +5,7 @@ import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.Module.NO_VALUE
 import org.elixir_lang.module.RegisterAttribute
 import org.elixir_lang.psi.*
+import org.elixir_lang.psi.__module__.enclosingQuoteOrModular as enclosingQuoteOrModularOf
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil
 import org.elixir_lang.psi.impl.ModuleName
 import org.elixir_lang.psi.impl.PsiNamedElementImpl
@@ -48,6 +49,12 @@ interface SyntacticCall {
 
     fun enclosingMacroCall(): SyntacticCall?
 
+    /**
+     * The innermost `quote` or modular whose body this call runs in, past the `quote` an `unquote` escapes; `null` at
+     * the top level.
+     */
+    fun enclosingQuoteOrModular(): SyntacticCall?
+
     /** The call whose arguments hold this call directly. */
     fun argumentOf(): SyntacticCall?
 
@@ -69,6 +76,12 @@ interface SyntacticCall {
 
     /** The module the first argument names, read without expansion, and [NO_VALUE] for an atom with no value. */
     fun firstPrimaryArgumentModuleName(): ModuleName?
+
+    /** The first argument when it is an `unquote` its `quote` runs; `null` for any other argument. */
+    fun firstPrimaryArgumentUnquote(): Unquoted?
+
+    /** An `unquote` whose expression names the module [name], read without expansion, and runs in [runsIn]. */
+    data class Unquoted(val runsIn: SyntacticCall?, val name: String?)
 
     /** The module the first argument names, read without expansion, with a `__MODULE__` head as written. */
     fun protocolAliasText(): String?
@@ -131,6 +144,8 @@ private class PsiBacked(val call: Call) : SyntacticCall {
 
     override fun enclosingMacroCall(): SyntacticCall? = call.enclosingMacroCall()?.let(::PsiBacked)
 
+    override fun enclosingQuoteOrModular(): SyntacticCall? = enclosingQuoteOrModularOf(call)?.let(::PsiBacked)
+
     override fun argumentOf(): SyntacticCall? =
         (call.parent as? Arguments)?.parent
             ?.let { if (it is ElixirMatchedParenthesesArguments) it.parent else it }
@@ -175,6 +190,14 @@ private class PsiBacked(val call: Call) : SyntacticCall {
         call.primaryArguments()?.firstOrNull()?.let { argument ->
             moduleName(argument) ?: ModuleName(NO_VALUE, absolute = true).takeIf { argument.stripAccessExpression() is ElixirAtom }
         }
+
+    override fun firstPrimaryArgumentUnquote(): SyntacticCall.Unquoted? {
+        val unquote = call.primaryArguments()?.firstOrNull()?.stripAccessExpression() as? Call ?: return null
+        val unquoted = unquote.takeIf { Unquote.`is`(it) }?.let { Unquote.unquotedArgument(it) } ?: return null
+        val quote = Unquote.escaped(unquoted) ?: return null
+
+        return SyntacticCall.Unquoted(PsiBacked(quote).enclosingQuoteOrModular(), moduleName(unquoted)?.name)
+    }
 
     override fun protocolAliasText(): String? = call.finalArguments()?.firstOrNull()?.let { moduleName(it)?.name }
 

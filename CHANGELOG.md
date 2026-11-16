@@ -291,6 +291,8 @@
 
 ### Bug Fixes
 
+- [#4726](https://github.com/intellij-elixir/intellij-elixir/pull/4726) [@sh41](https://github.com/sh41)
+  - **A module defined in a `quote` (such as by a `__using__` macro), in a function body, by `defmodule unquote(__MODULE__.Sub)` or by `Module.create/3` is named as Elixir names it, no longer as if nested in a module called `quote`, in the function or in the module around it, and a line breakpoint in such a module is set in that module; `quote([unquote: false], do: ...)` and `quote([bind_quoted: ...], do: ...)` are read with their options, as `quote unquote: false do ... end` is, so their `bind_quoted:` keys resolve, their `unquote`s stay code, and the structure view shows those options; and with Run the expander on and no SDK, a call in a `fn`, a capture or a template sigil such as `~H` finds its module's private function.** Refs [#4725](https://github.com/intellij-elixir/intellij-elixir/issues/4725), [#4669](https://github.com/intellij-elixir/intellij-elixir/issues/4669), [#4735](https://github.com/intellij-elixir/intellij-elixir/issues/4735).
 - [#4762](https://github.com/intellij-elixir/intellij-elixir/pull/4762) [@sh41](https://github.com/sh41)
   - **The "Elixir references" inspection's hint for an undefined remote function lists the functions the project's Elixir version lists, in its order and spelling.** Refs [#4761](https://github.com/intellij-elixir/intellij-elixir/issues/4761).
 - [#4754](https://github.com/intellij-elixir/intellij-elixir/pull/4754) [@sh41](https://github.com/sh41)

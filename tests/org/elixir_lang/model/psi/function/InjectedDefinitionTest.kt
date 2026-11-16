@@ -130,6 +130,24 @@ class InjectedDefinitionTest : PlatformTestCase() {
         assertEquals(emptyList<String>(), myFixture.psiUsagesAtCaret(project).filterNot { it.declaration }.map { it.file.name })
     }
 
+    /** The module a `quote` defines nests in the module it is injected into, so its function is not the top-level one's. */
+    fun testFunctionOfAModuleAQuoteDefinesIsNotThatOfTheModuleOfItsName() {
+        myFixture.configureByText(
+            "injector.ex",
+            "defmodule Injector do\n" +
+                "  defmacro __using__(_) do\n    quote do\n      defmodule Foo do\n        def bar, do: 1\n      end\n    end\n  end\n" +
+                "end\n\n" +
+                "defmodule Foo do\n  def bar, do: 2\nend\n"
+        )
+        val text = myFixture.file.text
+        val quoted = symbolsAt(text.indexOf("bar"))
+        val topLevel = symbolsAt(text.lastIndexOf("bar"))
+
+        assertEquals(listOf("FunctionSymbol(Foo.bar/0, macro=false)"), topLevel)
+        assertNotEmpty(quoted)
+        assertFalse("$quoted is the top-level module's", quoted == topLevel)
+    }
+
     /**
      * The rename at the caret is refused because a `quote` declares the function, whose calls are in modules not known
      * until the `quote` is used, and no file changes.

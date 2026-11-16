@@ -102,6 +102,7 @@ nothing	def	EExTest	80	EExTest:46
 nothing	def	Logger.FormatterTest	18	Logger.FormatterTest:1
 nothing	def	Logger.TranslatorTest	49	Logger.TranslatorTest:1
 nothing	def	LoggerTest	51	LoggerTest:1
+nothing	declaration	?.CodeTest.Sample	1	elixir/code_test.exs:18
 nothing	declaration	DynamicSupervisorTest.Custom	1	elixir/dynamic_supervisor_test.exs:56
 nothing	declaration	Req	3	elixir/exception_test.exs:458
 nothing	declaration	VarDefaultScope	1	elixir/kernel/defaults_test.exs:46
@@ -112,7 +113,6 @@ nothing	declaration	IsRecord2Usage	1	elixir/kernel/guard_test.exs:317
 nothing	declaration	SpawnUsage	1	elixir/kernel/guard_test.exs:387
 nothing	declaration	ReceiveUsage	1	elixir/kernel/guard_test.exs:393
 nothing	declaration	Kernel.ImplTest.ImplAttributes	5	elixir/kernel/impl_test.exs:78
-nothing	declaration	quote.X	1	elixir/module/types/integration_test.exs:528
 nothing	declaration	ModuleTest.OnDefinition	2	elixir/module_test.exs:178
 nothing	declaration	WithAny.Integer	2	elixir/protocol/consolidation_test.exs:67
 nothing	declaration	SampleWithCallbacks	3	elixir/protocol_test.exs:310

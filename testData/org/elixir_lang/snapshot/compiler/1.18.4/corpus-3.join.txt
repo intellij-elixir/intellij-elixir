@@ -3,14 +3,13 @@ ref	no use	279
 ref	arity	1
 ref	other	26
 ref	nothing	40
-alias	matched	1830
+alias	matched	1843
 alias	no use	6
-alias	other	13
 alias	nothing	55
 def	matched	101
 def	nothing	1380
 declaration	matched	127
-declaration	nothing	19
+declaration	nothing	18
 no use	ref	Kernel	@	1	67	elixir/access_test.exs:10:3
 no use	ref	Access	get	2	27	elixir/access_test.exs:11:16
 no use	ref	Kernel	sigil_r	2	42	elixir/access_test.exs:40:11
@@ -59,23 +58,17 @@ nothing	alias	RawModule	1	elixir/module_test.exs:294:28
 nothing	alias	NonAtomAlias	1	elixir/module_test.exs:304:28
 nothing	alias	ElixirRootAlias	1	elixir/module_test.exs:314:28
 nothing	alias	ModuleCreateSample	2	elixir/module_test.exs:325:33
-other	alias	ModuleCreateSample	2	elixir/module_test.exs:333:57
 other	ref	ModuleCreateSample	world	0	1	elixir/module_test.exs:334:31
 nothing	alias	ModuleTracersSample	2	elixir/module_test.exs:350:33
-other	alias	ModuleTracersSample	2	elixir/module_test.exs:359:58
 other	ref	ModuleTracersSample	world	0	1	elixir/module_test.exs:360:32
 nothing	alias	ModuleHygiene	1	elixir/module_test.exs:363:33
 other	ref	ExUnit.Case	test	1	1	elixir/module_test.exs:370:13
-other	alias	ModuleHygiene	2	elixir/module_test.exs:375:19
 other	ref	ModuleHygiene	test	0	1	elixir/module_test.exs:376:26
 nothing	ref	:beam_lib	chunks	2	4	elixir/module_test.exs:387:17
 nothing	alias	ModuleCreateGenerated	2	elixir/module_test.exs:394:33
-other	alias	ModuleCreateGenerated	2	elixir/module_test.exs:404:21
 other	ref	ModuleCreateGenerated	world	0	1	elixir/module_test.exs:406:34
 nothing	alias	ModuleCreateDebugInfo	1	elixir/module_test.exs:410:15
-other	alias	ModuleCreateDebugInfo	3	elixir/module_test.exs:411:21
 nothing	alias	ModuleCreateNoDebugInfo	1	elixir/module_test.exs:421:15
-other	alias	ModuleCreateNoDebugInfo	2	elixir/module_test.exs:422:21
 nothing	ref	:erlang	binary_to_term	1	1	elixir/module_test.exs:432:47
 nothing	alias	MakeOverridable	1	elixir/module_test.exs:527:11
 no use	ref	StreamTest	inbox_stream	2	1	elixir/stream_test.exs:311:32
@@ -117,7 +110,6 @@ nothing	def	ExUnit.FormatterTest.BadMessage	3	ExUnit.FormatterTest.BadMessage:55
 nothing	def	Inspect.ExUnit.DiffTest.Opaque	1	Inspect.ExUnit.DiffTest.Opaque:24
 nothing	def	EEx.SmartEngineTest	9	EEx.SmartEngineTest:3
 nothing	def	Logger.TranslatorTest.MyGenServer	4	Logger.TranslatorTest.MyGenServer:5
-nothing	declaration	quote.CodeTest.Sample	1	elixir/code_test.exs:18
 nothing	declaration	ExceptionTest.BadException	1	elixir/exception_test.exs:14
 nothing	declaration	?	1	elixir/exception_test.exs:610
 nothing	declaration	Inspect.OthersTest.V	1	elixir/inspect_test.exs:800
