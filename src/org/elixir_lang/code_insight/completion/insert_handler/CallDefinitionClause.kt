@@ -12,6 +12,7 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.psi.ResolveState
 import org.elixir_lang.Arity
 import org.elixir_lang.beam.decompiler.ParameterText
+import org.elixir_lang.beam.decompiler.generatedArguments
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.code_insight.Signature
 import org.elixir_lang.declaration.Form
@@ -92,7 +93,7 @@ class CallDefinitionClause private constructor(private val arity: Arity?) : Inse
      * same as a target already known to take none.
      */
     private fun parameters(item: LookupElement): List<String>? =
-        item.getUserData(PLACED) ?: when (val psiElement = item.psiElement) {
+        item.getUserData(PLACED)?.let(::placedAtArity) ?: when (val psiElement = item.psiElement) {
             is BeamCallDefinition -> Signature.parametersAt(psiElement)
             is Call -> callParameters(psiElement, item.lookupString)
             else -> null
@@ -116,6 +117,16 @@ class CallDefinitionClause private constructor(private val arity: Arity?) : Inse
     }
 
     /**
+     * A placed head's [parameters] at this handler's arity, without their defaults, where their defaults reach it; else
+     * the stub at it, as a stub's names, which mark no default, say nothing of another arity.
+     */
+    private fun placedAtArity(parameters: List<String>): List<String> {
+        val target = arity ?: parameters.size
+
+        return ParameterText.covered(parameters, target) ?: generatedArguments(target)
+    }
+
+    /**
      * The `@callback`/`@macrocallback` spec head's own arguments, stripped of a `name :: type`
      * annotation down to `name` - the developer is about to write a value where the spec wrote a type.
      */
@@ -128,7 +139,10 @@ class CallDefinitionClause private constructor(private val arity: Arity?) : Inse
     companion object {
         val WHOLE_HEAD = CallDefinitionClause(null)
 
-        /** The stub's parameters of a lookup for a placed head, whose element is the macro's clause, not its head. */
+        /**
+         * The parameters of a placed head's signature at its function's full arity, for a lookup whose element writes no
+         * head naming it.
+         */
         val PLACED: Key<List<String>> = Key.create("org.elixir_lang.code_insight.completion.insert_handler.PLACED")
 
         fun at(arity: Arity?): CallDefinitionClause = arity?.let(::CallDefinitionClause) ?: WHOLE_HEAD

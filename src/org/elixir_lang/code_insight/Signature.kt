@@ -33,7 +33,7 @@ data class Signature(
         get() = nameArityInterval.arityInterval.defaults()
 
     companion object {
-        /** `null` for a declaration that is no definition to show, as a `@callback`. A placed head has the stub's. */
+        /** `null` for a declaration that is no definition to show, as a `@callback`. A placed head has its placed signature's. */
         @RequiresReadLock
         fun of(found: Found): Signature? {
             val declaration = found.candidate.declaration

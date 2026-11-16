@@ -26,6 +26,8 @@ import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.clauseOrder
 import org.elixir_lang.declaration.declaringModuleName
+import org.elixir_lang.declaration.fullArity
+import org.elixir_lang.declaration.nameUnquotedHead
 import org.elixir_lang.documentation.moduleAttributeValue
 import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
@@ -40,6 +42,7 @@ import org.elixir_lang.psi.ElixirStructOperation
 import org.elixir_lang.psi.isDefaultArgument
 import org.elixir_lang.psi.Exception as ElixirException
 import org.elixir_lang.psi.Quotable
+import org.elixir_lang.psi.Unquote
 import org.elixir_lang.psi.call.CanonicallyNamed
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
@@ -110,26 +113,63 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
         /**
          * The signature Elixir records for the one definition [found] are finds of, at its [full] arity, in the module that
          * declares it, from each of its source clauses where that module defines it; `null` where a clause's head or place
-         * is not known, as without them the merge's names are not. Where every head is placed, none is known, and it is
-         * the [stub].
+         * is not known, as without them the merge's names are not. Where every head is placed, it is the [placed] signature,
+         * or the [stub] where a place is not known; a placed head among written ones is a clause of the merge where it is
+         * written with only its name unquoted, as [placed] reads it.
          */
         @RequiresReadLock
         fun of(found: List<Found>, full: Int): RecordedSignature? {
             val first = found.firstOrNull() ?: return null
-            if (found.all { it.head.placed }) return stub(first.candidate.declaration.name, full)
+            val name = first.candidate.declaration.name
+            val module = first.declaringModuleName()
+            if (found.all { it.head.placed }) {
+                val elements = found
+                    .map { one -> (one.clauseOrder() ?: return stub(name, full)) to one.element }
+                    .sortedBy { it.first }
+                    .map { it.second }
+
+                return placed(module, name, full, elements)
+            }
             // A head with defaults is a find at each arity they add, but one clause of the function.
             val clauses = found.mapNotNull { one ->
                 val form = (one.candidate.declaration.declared as? Declared.Source)?.form ?: return@mapNotNull null
-                val head = one.head.written ?: return null
+                val order = one.clauseOrder() ?: return null
 
-                Clause(form, head, one.clauseOrder() ?: return null)
+                one.head.written?.let { Clause(form, it, order) } ?: nameUnquoted(one.element, full, order) ?: return null
             }.distinct()
 
-            return of(first.declaringModuleName(), first.candidate.declaration.name, ArityInterval(full, full), clauses)
+            return of(first.declaringModuleName(), name, ArityInterval(full, full), clauses)
+        }
+
+        /**
+         * The signature of [name] at the full [arity] in [module], a head placed at [elements], in the order the module
+         * defines them, with nothing written declaring it: Elixir's over the `def`-family clauses there written with
+         * only their name unquoted, as a macro's `quote` or an unquote fragment writes them, else the [stub], as an
+         * `unquote` among a clause's parameters leaves them unknown.
+         */
+        @RequiresReadLock
+        fun placed(module: String?, name: String, arity: Int, elements: List<PsiElement>): RecordedSignature {
+            val clauses = elements.distinct().mapIndexed { i, element ->
+                nameUnquoted(element, arity, ClauseOrder(i, i)) ?: return stub(name, arity)
+            }
+
+            return of(module, name, ArityInterval(arity, arity), clauses) ?: stub(name, arity)
+        }
+
+        /** [element] as a `def`-family clause written with only its name unquoted, at [arity] parameters, defined at [order]. */
+        @RequiresReadLock
+        private fun nameUnquoted(element: PsiElement, arity: Int, order: ClauseOrder): Clause? {
+            val head = nameUnquotedHead(element)?.takeIf { fullArity(it) == arity } ?: return null
+            val parameters = (CallDefinitionHead.strip(head) as? Call)?.let(CallDefinitionHead::parameters) ?: return null
+            val unquotes = parameters.any { parameter ->
+                !PsiTreeUtil.processElements(parameter, Call::class.java) { Unquote.unquotedArgument(it) == null }
+            }
+
+            return Clause(Form.CLAUSE, head, order).takeUnless { unquotes }
         }
 
         /** [name] at [arity] with the names `Macro.generate_arguments/2` gives, as a decompiled stub has them. */
-        fun stub(name: String, arity: Int): RecordedSignature {
+        private fun stub(name: String, arity: Int): RecordedSignature {
             val parameters = generatedArguments(arity).map { Variable(it, true) }
 
             return RecordedSignature(parameters.map(Parameter::text), printed(name, parameters))

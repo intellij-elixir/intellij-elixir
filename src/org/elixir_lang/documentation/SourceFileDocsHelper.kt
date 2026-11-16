@@ -140,11 +140,29 @@ object SourceFileDocsHelper {
         }
         // The form the use found the function declared with: a source that knows the macro's module gives it where
         // resolving the call can't, as for the SDK's `EEx` read from its `.beam`.
-        else -> when (val form = (used?.candidate?.declaration?.declared as? Declared.Source)?.form ?: functionForm(call)) {
-            Form.CLAUSE, Form.DELEGATION, Form.EXCEPTION -> declaredDocs(call, form, remote, used)
-            Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> templateDocs(call, form, remote, used)
-            Form.CALLBACK, null -> null
+        else -> {
+            val form = (used?.candidate?.declaration?.declared as? Declared.Source)?.form ?: functionForm(call)
+            val documented = used ?: form?.takeIf { declaredFunction(call, it) == null }?.let { placedFrom(call) }
+
+            when (form) {
+                Form.CLAUSE, Form.DELEGATION, Form.EXCEPTION -> declaredDocs(call, form, remote, documented)
+                Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> templateDocs(call, form, remote, documented)
+                Form.CALLBACK, null -> null
+            }
         }
+    }
+
+    /**
+     * The head a macro's output places from [declaring], a call whose shape names a function that its form, read from
+     * what it defines, does not: a user's macro shaped like `EEx.function_from_string` that quotes a `def`.
+     */
+    @RequiresReadLock
+    private fun placedFrom(declaring: Call): Found? {
+        val name = DeclaringForm.shapedForm(declaring)?.let { declaredFunction(declaring, it) }?.declaration?.name ?: return null
+        val modular = enclosingModularMacroCall(declaring) ?: return null
+
+        return Resolved.candidates(Use.link(modular, modular, name, 0), incompleteCode = true, feature = Feature.DOCUMENTATION)
+            .firstOrNull { it.head.placed && it.head.placedBy == declaring }
     }
 
     /** The form the documentation's source declares [call] with, where it declares a function: a `def*` clause, a `defdelegate`, a `defexception`, an EEx function or an embed. */
@@ -504,7 +522,9 @@ object SourceFileDocsHelper {
      */
     @RequiresReadLock
     private fun templateDocs(call: Call, form: Form, remote: Boolean, used: Found?): FetchedDocs? =
-        templateHead(call, form)?.let { head -> ownDocs(call, head)?.let { own -> declaredDocs(call, form, remote, used) ?: own } }
+        // A name the call computes is not written, but the use found the function it names.
+        (templateHead(call, form) ?: used?.candidate?.declaration?.let { templateHead(it.name, it.arity.arityInterval()) })
+            ?.let { head -> ownDocs(call, head)?.let { own -> declaredDocs(call, form, remote, used) ?: own } }
 
     /** The `@doc` written on an EEx function or an embed, shown with [head], or `null` when it has none. */
     @RequiresReadLock

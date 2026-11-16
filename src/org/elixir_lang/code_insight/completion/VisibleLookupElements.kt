@@ -27,8 +27,10 @@ import org.elixir_lang.declaration.CompletionPosition
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Form
+import org.elixir_lang.declaration.Head
 import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.admits
+import org.elixir_lang.declaration.identity
 import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.model.psi.ElixirUsageQueries
 import org.elixir_lang.psi.call.Call
@@ -88,8 +90,9 @@ fun qualifiedLookupElements(position: CompletionPosition, insertHandler: Qualifi
 
 private fun builder(visible: Visible, element: PsiElement): LookupElementBuilder? {
     val name = visible.lookupName
+    val head = visible.head
     // A placed head's element writes no head naming it, so no form's renderer reads it.
-    if (visible.head?.placed == true) return placed(visible, element)
+    if (head?.placed == true) return placed(visible, head, element)
     val form = when (val declared = visible.declaration?.declared) {
         is Declared.Compiled -> Form.CLAUSE
         is Declared.Source -> declared.form
@@ -120,10 +123,15 @@ private fun renderer(form: Form, visible: Visible): LookupElementRenderer<Lookup
     }
 }
 
-/** [visible], a placed head, shown and inserted with the stub's parameters, where its arity is known. */
-private fun placed(visible: Visible, element: PsiElement): LookupElementBuilder {
+/**
+ * [visible], a placed [head], shown and inserted with the parameters of its placed signature at the full arity of the
+ * function it is one of, where that is known.
+ */
+private fun placed(visible: Visible, head: Head, element: PsiElement): LookupElementBuilder {
     val name = visible.lookupName
-    val parameters = arity(visible)?.let { RecordedSignature.stub(name, it).parameters }
+    val parameters = visible.declaration?.let { head.identity(it, element) }?.arity?.let {
+        RecordedSignature.placed(head.module, name, it, listOf(element)).parameters
+    }
 
     return LookupElementBuilder.createWithSmartPointer(name, element)
         .withRenderer(Placed(name, parameters?.joinToString(", ", "(", ")")))
@@ -131,7 +139,7 @@ private fun placed(visible: Visible, element: PsiElement): LookupElementBuilder 
         .also { builder -> parameters?.let { builder.putUserData(CallDefinitionClauseInsertHandler.PLACED, it) } }
 }
 
-/** A head a macro's output placed, by [name] and the stub's parameters as [tail], where its arity is known. */
+/** A placed head, by [name] and its placed signature's parameters as [tail], where its arity is known. */
 private class Placed(private val name: String, private val tail: String?) : LookupElementRenderer<LookupElement>() {
     override fun renderElement(element: LookupElement, presentation: LookupElementPresentation) {
         presentation.itemText = name

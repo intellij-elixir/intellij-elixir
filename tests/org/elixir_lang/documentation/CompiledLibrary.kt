@@ -129,6 +129,49 @@ internal val SAME_NAME_MACRO_LIB = """
     end
 """.trimIndent()
 
+/**
+ * `f/1..2`, and three macros whose names Elixir writes only quoted, so their decompiled clauses unquote them: `build f/0`,
+ * whose quote writes `def f(x)`, `build g/1`, whose quote writes `def g(x)`, and `build m/1`, whose quote writes
+ * `defmacro m(x)`. Compiled, each macro's clause is the place debug info gives the head its quote writes.
+ */
+internal val UNQUOTED_NAME_MACRO_LIB = """
+    defmodule Compiled do
+      def f(a, b \\ 1), do: {a, b}
+
+      defmacro unquote(:"build f")() do
+        quote do
+          def f(x), do: x
+        end
+      end
+
+      defmacro unquote(:"build g")(n) do
+        quote do
+          def g(x), do: {x, unquote(n)}
+        end
+      end
+
+      defmacro unquote(:"build m")(n) do
+        quote do
+          defmacro m(x), do: {x, unquote(n)}
+        end
+      end
+    end
+""".trimIndent()
+
+/**
+ * `Placed`, which calls [UNQUOTED_NAME_MACRO_LIB], compiled as [module], at its [macro] with [arguments], and whose
+ * `calls(y)` is [call].
+ */
+internal fun unquotedNameMacroCaller(module: String, macro: String, call: String, arguments: String = ""): String =
+    """
+    defmodule Placed do
+      require $module
+      $module."$macro"($arguments)
+
+      def calls(y), do: $call
+    end
+    """.trimIndent()
+
 /** [SAME_NAME_MACRO_LIB]'s source, as `SameName`. */
 internal val SAME_NAME_MACRO_SOURCE = SAME_NAME_MACRO_LIB.replace("defmodule Compiled do", "defmodule SameName do")
 

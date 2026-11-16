@@ -16,6 +16,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.qualification.Qualified as QualifiedPsi
 import org.elixir_lang.psi.impl.functionNameAtomValue
+import org.elixir_lang.psi.impl.headAtomValue
 import org.elixir_lang.psi.impl.quotedAtomValue
 import org.elixir_lang.psi.qualifier
 import org.elixir_lang.structure_view.element.CallDefinitionHead
@@ -179,21 +180,44 @@ data class ClauseOrder(val offset: Int, val within: Int) : Comparable<ClauseOrde
 @RequiresReadLock
 fun Found.clauseOrder(): ClauseOrder? = head.placedBy?.let { ClauseOrder(it.textOffset, (head.written ?: element).textOffset) }
 
+/** The function [this] is one definition of, as Elixir keys it: its head's [Head.identity]. */
+@RequiresReadLock
+fun Found.identity(): NameArity? = head.identity(candidate.declaration, element)
+
 /**
- * The function [this] is one definition of, as Elixir keys it: [Declaration.identity], unless the head written for it
- * declares a larger full arity, as a head with defaults does where its find is one of the arities they add. A placed
- * head or a compiled find keeps [Declaration.identity].
+ * The function [this], a head of [declaration] found at [element], is one definition of, as Elixir keys it:
+ * [Declaration.identity], unless the head written for it declares a larger full arity, as a head with defaults does
+ * where its find is one of the arities they add. A placed head is read from [element] where that is a clause whose
+ * name is unquoted ([nameUnquotedHead]); another placed head, or a compiled find, keeps [Declaration.identity].
  */
 @RequiresReadLock
-fun Found.identity(): NameArity? {
-    val declaration = candidate.declaration
-    val identity = declaration.identity(head.placed)
+fun Head.identity(declaration: Declaration, element: PsiElement): NameArity? {
+    val identity = declaration.identity(placed)
     // Only these forms write a head of their own; another's written element is the call of its form.
     (declaration.declared as? Declared.Source)?.form?.takeIf { it == Form.CLAUSE || it == Form.DELEGATION } ?: return identity
-    val full = head.written?.let { CallDefinitionHead.nameArityInterval(it, ResolveState.initial()) }?.arityInterval?.maximum
-        ?: return identity
+    val written = written ?: nameUnquotedHead(element) ?: return identity
+    val full = fullArity(written) ?: return identity
 
     return if (identity != null && full > identity.arity) NameArity(declaration.name, full) else identity
+}
+
+/** The full arity [head], a written head, declares, each default counted; `null` where its arity is not known. */
+@RequiresReadLock
+internal fun fullArity(head: PsiElement): Int? =
+    CallDefinitionHead.nameArityInterval(head, ResolveState.initial())?.arityInterval?.maximum
+
+/**
+ * The head of [element] where it is a `def`-family clause whose name is unquoted, as a macro's `quote` or an unquote
+ * fragment writes it; `null` for any other. A name unquoted from an atom is known, not computed: the decompiler writes
+ * so a compiled macro's name that is no identifier, and that clause, where debug info places a head its quote writes,
+ * is the macro's own.
+ */
+@RequiresReadLock
+internal fun nameUnquotedHead(element: PsiElement): PsiElement? {
+    val clause = (element as? Call)?.takeIf { CallDefinitionClause.`is`(it) } ?: return null
+    val head = CallDefinitionClause.head(clause) ?: return null
+
+    return head.takeIf { (CallDefinitionHead.strip(it) as? Call)?.let(Unquote::`is`) == true && headAtomValue(it) == null }
 }
 
 /** The definition [this] is one of, as Elixir keys it: its [identity] in the module that declares it, else [this] alone. */

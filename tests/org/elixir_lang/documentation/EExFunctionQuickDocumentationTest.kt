@@ -345,6 +345,57 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
         assertFalse("Expected no EEx title, got: $documentation", "mine(a, b)" in documentation)
     }
 
+    /** The name a user's macro shaped like `EEx.function_from_string` writes is titled by the `def` its quote writes, only its name unquoted. */
+    fun testTheNameAMacroShapedLikeEExWritesIsTitledByTheDefItsQuoteWritesWithTheExpanderOn() {
+        val documentation = documentationWithTheExpanderOn("mine.ex", myGenMine().replace(":mine,", ":mi<caret>ne,"))
+
+        assertTrue("Expected the quoted head's title, got: $documentation", "mine(a)" in documentation)
+    }
+
+    /** A use of the function a user's macro shaped like `EEx.function_from_string` defines is titled by the `def` its quote writes. */
+    fun testAUseOfTheFunctionAMacroShapedLikeEExDefinesIsTitledByTheDefItsQuoteWritesWithTheExpanderOn() {
+        val documentation = documentationWithTheExpanderOn("mine.ex", myGenMine().replace("do: mine(a)", "do: mi<caret>ne(a)"))
+
+        assertTrue("Expected the quoted head's title, got: $documentation", "mine(a)" in documentation)
+        assertFalse("Expected no stub, got: $documentation", "mine(arg1)" in documentation)
+    }
+
+    /** A `def unquote(name)(x)` a macro's quote writes titles the function it defines with its parameters. */
+    fun testADefAQuoteWritesWithOnlyItsNameUnquotedIsTitledByItsHeadWithTheExpanderOn() {
+        val documentation = documentationWithTheExpanderOn("named.ex", named("def unquote(name)(x), do: x"))
+
+        assertTrue("Expected the quoted head's title, got: $documentation", "hello(x)" in documentation)
+        assertFalse("Expected no stub, got: $documentation", "hello(arg1)" in documentation)
+    }
+
+    /** A `def` a macro's quote writes with an `unquote` among its parameters has no head known, so it is titled by the stub. */
+    fun testADefAQuoteWritesWithAnUnquotedParameterIsTitledByTheStubWithTheExpanderOn() {
+        val documentation = documentationWithTheExpanderOn("named.ex", named("def unquote(name)(unquote(Macro.var(:x, nil))), do: :ok"))
+
+        assertTrue("Expected the stub, got: $documentation", "hello(arg1)" in documentation)
+    }
+
+    /** With the expander, a call of the SDK's `EEx.function_from_string` whose name is computed documents the function it defines. */
+    fun testACallOfAnSdkEExFunctionWithAComputedNameShowsItsDocWithTheExpanderOn() {
+        val documentation = documentationWithTheExpanderOn(
+            "pages.ex",
+            """
+            defmodule Pages do
+              require EEx
+
+              name = :page
+
+              @doc "Renders."
+              EEx.function_from_string(:def, name, "<%= a %>", [:a])
+
+              def calls(x), do: pa<caret>ge(x)
+            end
+            """.trimIndent()
+        )
+
+        assertTrue("Expected the @doc, got: $documentation", "Renders." in documentation)
+    }
+
     /** A user's macro shaped like `EEx.function_from_string` that injects a `def` keeps the `@doc` above its call from the next definition. */
     fun testTheDocAboveAMacroShapedLikeEExThatInjectsADefIsNotTheNextDefinitionsWithTheExpanderOn() {
         val documentation = documentationWithTheExpanderOn("mine.ex", myGenMine().replace("do: other(a)", "do: oth<caret>er(a)"))
@@ -457,6 +508,26 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
 
           def calls(a), do: mine(a)
           def calls_other(a), do: other(a)
+        end
+        """.trimIndent()
+
+    /** `Gen`, whose `named/1` macro quotes [clause], then `Named`, which calls `Gen.named(:hello)` and uses `hello/1`. */
+    private fun named(clause: String): String =
+        """
+        defmodule Gen do
+          defmacro named(name) do
+            quote do
+              $clause
+            end
+          end
+        end
+
+        defmodule Named do
+          require Gen
+
+          Gen.named(:hello)
+
+          def calls(y), do: hel<caret>lo(y)
         end
         """.trimIndent()
 
