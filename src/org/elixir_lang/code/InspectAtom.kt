@@ -2,15 +2,13 @@ package org.elixir_lang.code
 
 import org.elixir_lang.annotator.unicode_security.IdentifierTable
 import org.elixir_lang.annotator.unicode_security.UnicodeSecurityCheck
+import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import java.text.Normalizer
 
 /**
  * Writes an atom as Elixir source the way Elixir 1.20.4's `Macro.inspect_atom/3` does, in each of its modes, plus the
  * plugin's own rule for a definition head or local call, for which Elixir has no mode.
- *
- * It follows 1.20.4 whatever the project's Elixir, so a few names it writes bare do not parse on older versions: an
- * identifier mixing scripts across `_` on 1.14–1.17, `:**` before 1.13 and `:..//` before 1.12.
  */
 object InspectAtom {
     /** `Macro.inner_classify/1`. */
@@ -48,6 +46,22 @@ object InspectAtom {
                 else -> ":$atom"
             }
         }
+
+    /**
+     * [literal] as [level]'s `inspect/1` writes [atom]: `null` where that release writes it otherwise, as before a change
+     * to how it writes non-ASCII atoms or an operator set.
+     */
+    fun literal(atom: String, level: ElixirLanguageLevel): String? {
+        val changed = when {
+            atom.any { it.code > 127 } -> ElixirLanguageFeature.UNICODE_17_ATOMS_INSPECTED
+            atom == "..//" -> ElixirLanguageFeature.STEP_ATOM
+            atom == "**" -> ElixirLanguageFeature.POWER_OPERATOR
+            atom in DEPRECATED_OPERATORS -> ElixirLanguageFeature.DEPRECATED_OPERATORS_INSPECTED_QUOTED
+            else -> null
+        }
+
+        return if (changed?.isSufficient(level) == false) null else literal(atom)
+    }
 
     /** `Macro.inspect_atom(:key, atom)`, a keyword key with its colon. */
     fun key(atom: String): String =
@@ -182,7 +196,10 @@ object InspectAtom {
 
     private val ALIAS = Regex("Elixir(?:\\.[A-Z][A-Za-z0-9_]*)*")
     private val NOT_CALLABLE = setOf("%", "%{}", "{}", "<<>>", "...", "..", ".", "..//", "->")
-    private val QUOTED_OPERATORS = setOf("::", "^^^", "~~~", "<|>")
+
+    /** The operators `inspect/1` quotes from [ElixirLanguageFeature.DEPRECATED_OPERATORS_INSPECTED_QUOTED]. */
+    private val DEPRECATED_OPERATORS = setOf("^^^", "~~~", "<|>")
+    private val QUOTED_OPERATORS = DEPRECATED_OPERATORS + "::"
     private val UNARY_OPERATORS = setOf("&", "...", "!", "^", "not", "+", "-", "~~~", "@")
     private val BINARY_OPERATORS = setOf(
         "<-", "\\\\", "when", "::", "|", "=", "||", "|||", "or", "&&", "&&&", "and", "==", "!=", "=~", "===", "!==", "<",

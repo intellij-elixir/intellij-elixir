@@ -18,6 +18,7 @@ import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
+import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.admits
 import org.elixir_lang.expander.Annotation
@@ -51,6 +52,7 @@ import org.elixir_lang.expander.specialFormArity
 import org.elixir_lang.expander.write
 import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTES_EXPANDED_LAZILY
+import org.elixir_lang.language_level.ElixirLanguageFeature.BINARY_COPY_CHECKS_WHOLE_BYTES_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.BINARY_PART_REJECTS_BITSTRINGS
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.CONFIG_READ_CONFIG
@@ -598,15 +600,19 @@ internal class Natives(private val evaluation: Evaluation) {
             ?: decline("enumerates %s", enumerable)
 
     /**
-     * `Module.__info__(:attributes)` (`elixir_erl.erl:364-366`) of a module that has `__info__/1`, from the attributes its
-     * `.beam` persists, declining where they can't be read; `null`, as its clauses answer, for any other key or module.
+     * `Module.__info__(:module)`, and `(:attributes)` (`elixir_erl.erl:364-366`) from the attributes its `.beam` persists,
+     * of a module that has `__info__/1`, declining where they can't be read; `null`, as its clauses answer, for any other
+     * key or module.
      */
     private fun info(module: String, key: OtpErlangObject): OtpErlangObject? {
-        if (seen(key) != atom("attributes")) return null
+        val known = seen(key)
+
+        if (known != atom("attributes") && known != atom("module")) return null
 
         val exports = evaluation.run.exports.of(module) as? ModuleExports.Present ?: return null
 
         if (!exports.hasInfo) return null
+        if (known == atom("module")) return atom(module)
 
         return when (val attributes = exports.attributes) {
             is ModuleAttributes.Known -> attributes.keyword
@@ -832,6 +838,13 @@ internal class Natives(private val evaluation: Evaluation) {
                     Encoding.UTF8 -> binary(text)
                     null -> badarg()
                 }
+            }
+            "integer_to_list/1" -> {
+                val text = (seen(args[0]) as? OtpErlangLong ?: badarg()).bigIntegerValue().toString()
+
+                if (text.length > COPY_NODES) decline("integer_to_list/1 of %s, past $COPY_NODES digits", args[0])
+
+                list(text.map { integer(it.code.toLong()) })
             }
             "integer_to_binary/1", "integer_to_binary/2" -> {
                 val integer = seen(args[0]) as? OtpErlangLong ?: badarg()
@@ -2889,15 +2902,19 @@ internal class Natives(private val evaluation: Evaluation) {
         when (key) {
             "elem/2" -> erlang("element/2", listOf(erlang("+/2", listOf(args[1], integer(1)))!!, args[0]))
             "put_elem/3" -> erlang("setelement/3", listOf(erlang("+/2", listOf(args[1], integer(1)))!!, args[0], args[2]))
-            "inspect/1" -> UnknownBinary
+            "inspect/1" -> (args[0] as? OtpErlangAtom)?.let(::inspectAtom) ?: UnknownBinary
             "inspect/2" -> inspect(args[1], args)
             else -> null
         }
 
+    /** `inspect/1` of [atom], as [InspectAtom.literal] writes it on the leg, declining where it can't. */
+    private fun inspectAtom(atom: OtpErlangAtom): OtpErlangObject =
+        binary(InspectAtom.literal(atom.atomValue(), level) ?: decline("inspect/1 of %s, which this release writes otherwise", atom))
+
     /**
      * `Kernel.inspect/2`, `when is_list(opts)`: with no options, or `:charlists` with a value that only chooses how a list
-     * reads, a binary whose bytes aren't known, as `inspect/1` gives. `:as_charlists` and other options decline: which of
-     * them raise is `Inspect.Opts`' and `Inspect.Algebra`'s to say, and those aren't read.
+     * reads, a binary whose bytes aren't known. `:as_charlists` and other options decline: which of them raise is
+     * `Inspect.Opts`' and `Inspect.Algebra`'s to say, and those aren't read.
      */
     private fun inspect(options: OtpErlangObject, args: List<OtpErlangObject>): OtpErlangObject =
         when {
@@ -3075,6 +3092,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "at/2" -> byteAt(args[0], args[1])
             "compile_pattern/1" -> compilePattern(args[0])
             "last/1" -> lastByte(args[0])
+            "copy/2" -> binaryCopy(args)
             "split/2", "split/3" -> binarySplit("binary:$key", args)
             "match/2" -> binaryMatches("binary:$key", args, global = false).firstOrNull()?.let(::part) ?: atom("nomatch")
             "matches/2" -> list(binaryMatches("binary:$key", args, global = true).map(::part))
@@ -3499,6 +3517,41 @@ internal class Natives(private val evaluation: Evaluation) {
         val bytes = binaryBytes(subject)?.takeIf { it.isNotEmpty() } ?: badargOf("binary", "last", listOf(subject))
 
         return integer(bytes.last().toLong() and 0xFF)
+    }
+
+    /**
+     * `binary:copy/2`: [args]' bitstring of whole bytes, its count times. A count of 0, or an empty bitstring, gives
+     * `<<>>`, and before [BINARY_COPY_CHECKS_WHOLE_BYTES_FIRST] a count of 0 does so before the bitstring is checked. A
+     * count is a non-negative integer of at most 64 bits.
+     */
+    private fun binaryCopy(args: List<OtpErlangObject>): OtpErlangObject {
+        val badarg = { badargOf("binary", "copy", args) }
+        val subject = seen(args[0]) as? OtpErlangBitstr ?: badarg()
+        val count = (seen(args[1]) as? OtpErlangLong)?.takeIf { it.isULong }?.bigIntegerValue() ?: badarg()
+
+        if (count.signum() == 0 && !BINARY_COPY_CHECKS_WHOLE_BYTES_FIRST.isSufficient(level)) return binary("")
+        if (!isBinary(subject)) badarg()
+
+        val bytes = subject.binaryValue()
+        val bits = count.multiply(BigInteger.valueOf(bytes.size * 8L))
+
+        reserveBits(0, if (bits.bitLength() < Long.SIZE_BITS) bits.toLong() else Long.MAX_VALUE)
+
+        val copied = ByteArray(bits.toInt() / 8)
+
+        if (copied.isEmpty()) return OtpErlangBinary(copied)
+
+        // Doubles what is filled, so a count of millions takes a few dozen copies.
+        bytes.copyInto(copied)
+        var filled = bytes.size
+
+        while (filled < copied.size) {
+            val n = minOf(filled, copied.size - filled)
+            copied.copyInto(copied, filled, 0, n)
+            filled += n
+        }
+
+        return OtpErlangBinary(copied)
     }
 
     /** The bytes of the binary [term], `null` where it isn't one. */

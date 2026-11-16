@@ -146,9 +146,9 @@ class HygieneExpanderTest : ExpanderTestCase() {
 
     /** `Macro.expand/2` leaves an imported function's call as it is, once it has traced it. */
     fun testVarBangsContextThatIsAnImportedFunctionCallIsNotAnAtom() {
-        assertEvery("var!(x, inspect(:a)) = 1", "error var_bang_context_not_atom `var!(x, inspect(:a))`; counted 0")
+        assertEvery("var!(x, inspect(12)) = 1", "error var_bang_context_not_atom `var!(x, inspect(12))`; counted 0")
         assertDispatches(
-            "var!(x, inspect(:a)) = 1",
+            "var!(x, inspect(12)) = 1",
             "imported_macro Elixir.Kernel.var!/2, imported_function Elixir.Kernel.inspect/1",
         )
     }

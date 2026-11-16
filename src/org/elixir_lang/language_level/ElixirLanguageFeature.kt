@@ -447,6 +447,23 @@ enum class ElixirLanguageFeature(
     POWER_OPERATOR(sinceElixir = "1.13.0-rc.0"),
 
     /**
+     * `inspect/1` quotes `:^^^`, `:~~~` and `:<|>`, which it wrote bare before.
+     *
+     * `elixir-lang/elixir@c4527b3ff` ("Add Macro.classify_atom/1 and Macro.inspect_atom/2", #11446) and
+     * `elixir-lang/elixir@1a9e59cd4` ("Deprecate use Bitwise and ~~~"), first released in v1.14.0-rc.0.
+     */
+    DEPRECATED_OPERATORS_INSPECTED_QUOTED(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * `inspect/1` writes an atom with a code point above 127 as [org.elixir_lang.code.InspectAtom] does, by Unicode
+     * 17.0's tables. Before it, the Unicode tables, the identifier checks and the escapes in a quoted atom changed on
+     * many releases.
+     *
+     * `elixir-lang/elixir@fd9dbf849` ("Update Unicode to version 17.0.0", #14760), first released in v1.19.0-rc.1.
+     */
+    UNICODE_17_ATOMS_INSPECTED(sinceElixir = "1.19.0-rc.1"),
+
+    /**
      * `.:` is a keyword key.
      *
      * `elixir-lang/elixir@1d56b11f0`, first released in v1.13.0-rc.0.
@@ -2913,7 +2930,15 @@ enum class ElixirLanguageFeature(
      * `erlang/otp@77d3f52aed` ("erts: Make term_to_binary encode atoms as UTF-8 by default"), first released in
      * OTP 26.0-rc2.
      */
-    TERM_TO_BINARY_UTF8_ATOMS(sinceOtp = "26.0-rc2");
+    TERM_TO_BINARY_UTF8_ATOMS(sinceOtp = "26.0-rc2"),
+
+    /**
+     * `binary:copy/2` raises `badarg` for a bitstring not of whole bytes before it reads its count, and `system_limit`
+     * for a copy past the largest size. Before it, a count of 0 gives `<<>>` whatever the bitstring.
+     *
+     * `erlang/otp@0eb56f4fe8` ("binary module: Always reject bitstrings"), first released in OTP 27.0-rc1.
+     */
+    BINARY_COPY_CHECKS_WHOLE_BYTES_FIRST(sinceOtp = "27.0-rc1");
 
 
     /** The first Elixir release with this behaviour, or `null` when every supported release has it. */

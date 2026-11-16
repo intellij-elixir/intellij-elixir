@@ -504,7 +504,7 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
         assertEquals(
             "Elixir.A Compiled, Elixir.B Stopped",
             expanding(
-                "defmacro m, do: (t = []; ${"t = [t, t]; ".repeat(SHARED)} Macro.escape(%{1 => inspect(:a), 1.0 => t}))",
+                "defmacro m, do: (t = []; ${"t = [t, t]; ".repeat(SHARED)} Macro.escape(%{1 => inspect(12), 1.0 => t}))",
                 "A.m()",
                 "1.20.4",
             )(),
@@ -515,7 +515,7 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
         assertEquals(
             "Elixir.A Compiled, Elixir.B Stopped",
             expanding(
-                "defmacro m, do: (t = []; ${"t = [t, t]; ".repeat(SHARED)} Macro.escape(%{1.0 => t, 1 => inspect(:a)}))",
+                "defmacro m, do: (t = []; ${"t = [t, t]; ".repeat(SHARED)} Macro.escape(%{1.0 => t, 1 => inspect(12)}))",
                 "A.m()",
                 "1.20.4",
             )(),
@@ -529,7 +529,7 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
         assertEquals(
             "Elixir.A Compiled, Elixir.B Stopped",
             expanding(
-                "defmacro m, do: (t = []; ${"t = [t, t]; ".repeat(SHARED)} Macro.escape([inspect(:a), t]))",
+                "defmacro m, do: (t = []; ${"t = [t, t]; ".repeat(SHARED)} Macro.escape([inspect(12), t]))",
                 "A.m()",
                 "1.20.4",
             )(),
@@ -544,7 +544,7 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
             "Elixir.A Compiled, Elixir.B Stopped",
             expanding(
                 "defmacro m, do: (t = []; ${"t = [t, t]; ".repeat(SHARED)} " +
-                    "{:def, [], [{:f, [], nil}, [do: {:__block__, [], [{:unquote, [], [:ok]}, {1, 2, t, inspect(:a)}]}]]})",
+                    "{:def, [], [{:f, [], nil}, [do: {:__block__, [], [{:unquote, [], [:ok]}, {1, 2, t, inspect(12)}]}]]})",
                 "A.m()",
                 "1.20.4",
             )(),

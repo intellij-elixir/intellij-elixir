@@ -13,6 +13,7 @@ import com.intellij.openapi.util.io.FileUtil
 import com.intellij.util.system.OS
 import org.elixir_lang.coverage.ExpanderProgress
 import org.elixir_lang.coverage.macroName
+import org.elixir_lang.expander.interpreter.isUnknown
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
 import org.elixir_lang.lowering.ElixirAst
@@ -324,8 +325,9 @@ class EctoFixtureTest : HeavyTestCase() {
             .map { block -> block.lines().map(String::trim).filter(String::isNotEmpty) }
             .filter { it.firstOrNull()?.startsWith(WARNING) == true }
             .map { it.joinToString("\n").removePrefix(WARNING) }
-            // It names the schema through `inspect/1`, whose text isn't known, so `IO.warn/2` declines.
-            .filterNot { it.startsWith(MISSING_ON) }
+            // Where Ecto sets `@after_compile Ecto.Schema`, Queries stops earlier at the schemas' unknown `__schema__/1`,
+            // which might have changed the working directory, so the file its join warning names, relative to it, is unknown.
+            .map { if (compiled.afterCompile && it.startsWith(MISSING_ON)) it.replace("\nlib/queries.ex:", "\n$UNKNOWN_FILE:") else it }
             .sorted()
         val actual = File(compiled.project, "lib").listFiles()!!.sortedBy { it.name }.asSequence()
             .flatMap { ProjectModules.results(expansion(holder, corpus.psi(compiled.project, "lib/${it.name}"))).toList() }
@@ -383,6 +385,7 @@ class EctoFixtureTest : HeavyTestCase() {
         const val UNEXPANDED = "unexpanded"
         const val MISSING_ON = "missing `:on` in join"
         const val WARNING = "warning: "
+        const val UNKNOWN_FILE = "?"
         const val FILE = "{file}"
 
         /**
@@ -434,8 +437,10 @@ class EctoFixtureTest : HeavyTestCase() {
             val keyword = (location as OtpErlangList).elements().associate {
                 ((it as OtpErlangTuple).elementAt(0) as OtpErlangAtom).atomValue() to it.elementAt(1)
             }
-            val file = when (val charlist = keyword.getValue("file")) {
-                is OtpErlangString -> charlist.stringValue()
+            val charlist = keyword.getValue("file")
+            val file = when {
+                isUnknown(charlist) -> UNKNOWN_FILE
+                charlist is OtpErlangString -> charlist.stringValue()
                 else -> (charlist as OtpErlangList).elements().joinToString("") { Character.toString((it as OtpErlangLong).intValue()) }
             }
             val name = (module as OtpErlangAtom).atomValue().let { if (it.startsWith("Elixir.")) it.removePrefix("Elixir.") else ":$it" }

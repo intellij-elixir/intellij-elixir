@@ -24,6 +24,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINER_REFUSED_IN_M
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_ESCAPES_STRUCT
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEPRECATED_OPERATORS_INSPECTED_QUOTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.DUPLICATE_MATCH_UNPACKED_ONCE
 import org.elixir_lang.language_level.ElixirLanguageFeature.ELLIPSIS_NULLARY_CALL
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_QUOTED_APART
@@ -56,6 +57,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.OVERRIDABLE_GUARDS_M
 import org.elixir_lang.language_level.ElixirLanguageFeature.PID_IN_FUNCTION_RAISES_MATCH_ERROR
 import org.elixir_lang.language_level.ElixirLanguageFeature.PINNED_BINARY_SEGMENT_INFERS_SIZE
 import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CHECKS_TYPED
+import org.elixir_lang.language_level.ElixirLanguageFeature.POWER_OPERATOR
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_IMPORTS_EVERY_ARITY
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_KEEPS_IMPORTS_META
 import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_ESCAPED_IN_FIXED_FIELD_ORDER
@@ -64,6 +66,8 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUED_ERROR_MESSAG
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_EXCEPTION_KEY_PRESENT
 import org.elixir_lang.language_level.ElixirLanguageFeature.SPLICE_EMPTY_BEFORE_TAIL_RAISES
 import org.elixir_lang.language_level.ElixirLanguageFeature.STATIC_OPTIONS_IN_PERSISTENT_TERM
+import org.elixir_lang.language_level.ElixirLanguageFeature.STEP_ATOM
+import org.elixir_lang.language_level.ElixirLanguageFeature.UNICODE_17_ATOMS_INSPECTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNREQUIRED_MACRO_CALLED_AS_FUNCTION
 import org.elixir_lang.language_level.ElixirLanguageFeature.WITH_OPTIONS_BEFORE_LAST_ARGUMENT
@@ -811,7 +815,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         val actual = mutableListOf<String>()
 
         for ((id, statements, answers) in rows.map { (id, code, answer) -> Triple(id, code, answer to answer) } + read) {
-            for ((binary, answer) in listOf("\":x\"" to answers.first, "Kernel.inspect(:x)" to answers.second)) {
+            for ((binary, answer) in listOf("\":x\"" to answers.first, "Kernel.inspect(12)" to answers.second)) {
                 expected += "$id $binary: $answer"
                 actual += "$id $binary: ${ended(file(code(id, statements.first, statements.second, binary), tables = true))}"
             }
@@ -6245,6 +6249,97 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro("native:term-to-binary-unknown", "defmacro m, do: :erlang.term_to_binary([1, :erlang.whereis(:init)])", pins = DECLINED),
             macro("native:term-to-binary-options", "defmacro m, do: :erlang.term_to_binary(1, [])", pins = DECLINED),
 
+            // The natives: `integer_to_list/1`, `binary:copy/2`, `inspect/1` of an atom, `__info__(:module)`
+            macro(
+                "native:integer-to-list",
+                """
+                defmacro m do
+                  [
+                    :erlang.integer_to_list(0),
+                    :erlang.integer_to_list(-12),
+                    :erlang.integer_to_list(18_446_744_073_709_551_616),
+                    :erlang.integer_to_list(-:erlang.bsl(1, 200)),
+                    Integer.to_charlist(255)
+                  ]
+                end
+                """,
+            ),
+            macro("native:integer-to-list-badarg", "defmacro m, do: :erlang.integer_to_list(1.0)"),
+            macro("native:integer-to-list-base", "defmacro m, do: :erlang.integer_to_list(255, 16)", pins = DECLINED),
+            macro(
+                "native:binary-copy",
+                """
+                defmacro m do
+                  [
+                    :binary.copy("ab", 3),
+                    :binary.copy("ab", 0),
+                    :binary.copy("", 5),
+                    :binary.copy("", 18_446_744_073_709_551_615),
+                    String.duplicate("ab", 2)
+                  ]
+                end
+                """,
+            ),
+            // A count of 0 gives `<<>>` before the subject is checked for whole bytes, until OTP 27.
+            macro("native:binary-copy-bitstring-zero", "defmacro m, do: :binary.copy(<<1::3>>, 0)"),
+            macro("native:binary-copy-bitstring", "defmacro m, do: :binary.copy(<<1::3>>, 2)"),
+            macro("native:binary-copy-negative", "defmacro m, do: :binary.copy(\"a\", -1)"),
+            macro("native:binary-copy-past-64-bits", "defmacro m, do: :binary.copy(\"\", 18_446_744_073_709_551_616)"),
+            macro("native:binary-copy-not-a-binary", "defmacro m, do: :binary.copy(:a, 1)"),
+            macro("native:binary-copy-not-an-integer", "defmacro m, do: :binary.copy(\"a\", 1.0)"),
+            // A binary the evaluator won't build.
+            macro("native:binary-copy-large", "defmacro m, do: byte_size(:binary.copy(\"a\", 20_000_000))", pins = DECLINED),
+            macro(
+                "native:inspect-atom",
+                """
+                defmacro m do
+                  [
+                    inspect(:ok),
+                    inspect(nil),
+                    inspect(true),
+                    inspect(Foo.Bar),
+                    inspect(:Elixir),
+                    inspect(:"foo bar"),
+                    inspect(:+),
+                    inspect(:"a@b"),
+                    inspect(:"9a"),
+                    inspect(:"a\"b"),
+                    inspect(:foo?),
+                    inspect(:"Foo.bar")
+                  ]
+                end
+                """,
+            ),
+            // Each operator set whose atoms `inspect/1` writes differently on older releases.
+            macro(
+                "native:inspect-atom-step",
+                "defmacro m, do: inspect(:\"..//\")",
+                pins = { _, level -> OPAQUE.takeUnless { STEP_ATOM.isSufficient(level) } },
+            ),
+            macro(
+                "native:inspect-atom-power",
+                "defmacro m, do: inspect(:\"**\")",
+                pins = { _, level -> OPAQUE.takeUnless { POWER_OPERATOR.isSufficient(level) } },
+            ),
+            macro(
+                "native:inspect-atom-deprecated-operators",
+                "defmacro m, do: [inspect(:\"^^^\"), inspect(:\"~~~\"), inspect(:\"<|>\")]",
+                pins = { _, level -> OPAQUE.takeUnless { DEPRECATED_OPERATORS_INSPECTED_QUOTED.isSufficient(level) } },
+            ),
+            // Unicode's tables and the identifier checks changed on many releases before 1.19.
+            macro(
+                "native:inspect-atom-unicode",
+                "defmacro m, do: [inspect(:\"é\"), inspect(:\"日本\"), inspect(:\"Ꟁ\"), inspect(:\"é b\")]",
+                pins = { _, level -> OPAQUE.takeUnless { UNICODE_17_ATOMS_INSPECTED.isSufficient(level) } },
+            ),
+            // A value not known, a pid in Elixir, is a binary of unknown bytes, as any other term's is.
+            macro(
+                "native:inspect-atom-unknown",
+                "defmacro m, do: inspect(:erlang.whereis(:init))",
+                pins = { _, _ -> inspect(UNKNOWN_BINARY) },
+            ),
+            macro("native:info-module", "defmacro m, do: [Enum.__info__(:module), Kernel.__info__(:module)]"),
+
             // The natives: loading
             macro("native:ensure-loaded-loaded", "defmacro m, do: Macro.escape(:code.ensure_loaded(Enum))"),
             // The quoter's release runs in embedded mode, which answers `{:error, :embedded}`; a Mix compile is interactive.
@@ -6780,7 +6875,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro("native:unzip", "defmacro m, do: Macro.escape([:lists.unzip([{1, :a}, {2, :b}]), :lists.unzip([])])"),
             macro("native:unzip-non-pair", "defmacro m, do: :lists.unzip([{1, :a}, {1, 2, 3}])"),
             // `unzip/3` stops at the first element that isn't a pair, never reading the binary past it.
-            macro("native:unzip-non-pair-before-unknown", "defmacro m, do: :lists.unzip([:bad, Kernel.inspect(:x)])"),
+            macro("native:unzip-non-pair-before-unknown", "defmacro m, do: :lists.unzip([:bad, Kernel.inspect(12)])"),
             macro("native:unzip-improper", "defmacro m, do: :lists.unzip([{1, :a} | :b])"),
             macro("native:unzip-non-list", "defmacro m, do: :lists.unzip(:a)"),
             macro("native:duplicate", "defmacro m, do: Macro.escape([:lists.duplicate(3, :a), :lists.duplicate(0, :a), List.duplicate(\"x\", 2)])"),
@@ -6973,10 +7068,11 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro("pure:concat-leading-dot", """defmacro m, do: Module.concat(["Foo", ".Bar"])"""),
             macro("pure:concat-invalid-utf8", """defmacro m, do: Module.concat(["\\xFF"])"""),
             macro("pure:to-string", "defmacro m, do: [String.Chars.to_string(:a), String.Chars.to_string(1)]"),
-            // `inspect`'s output is `Inspect`'s implementations', which aren't read, so each is a binary of unknown bytes.
+            // `inspect`'s output of a term other than an atom, and with options, is `Inspect`'s implementations', which aren't
+            // read, so each is a binary of unknown bytes.
             macro(
                 "pure:inspect",
-                """defmacro m, do: [Kernel.inspect(:a), Kernel.inspect([1, "b"]), Kernel.inspect(:c, [])]""",
+                """defmacro m, do: [Kernel.inspect(1), Kernel.inspect([1, "b"]), Kernel.inspect(:c, [])]""",
                 pins = { _, _ -> List(3) { inspect(UNKNOWN_BINARY) }.joinToString(", ", "[", "]") },
             ),
             // `inspect/2`'s options must be a list, and a list of them declines, as `Inspect.Opts` isn't read.
@@ -6986,14 +7082,14 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 "defmacro m, do: :erlang.element(2, {Kernel.inspect(:a, pretty: 1), :ok})",
                 pins = DECLINED,
             ),
-            macro("pure:inspect-compared", "defmacro m, do: :erlang.==(Kernel.inspect(:a), Kernel.inspect(:b))", pins = DECLINED),
+            macro("pure:inspect-compared", "defmacro m, do: :erlang.==(Kernel.inspect(12), Kernel.inspect(13))", pins = DECLINED),
             // A segment with no size takes any binary whole, whatever its bytes; with a unit past a byte, its bytes decide.
             macro(
                 "form:bitstring-unknown-binary",
                 """
                 defmacro m do
-                  _ = <<Kernel.inspect(:a)::binary, "!">>
-                  _ = <<Kernel.inspect(:a)::bitstring, 1::1>>
+                  _ = <<Kernel.inspect(12)::binary, "!">>
+                  _ = <<Kernel.inspect(12)::bitstring, 1::1>>
                   :ok
                 end
                 """,
@@ -7002,7 +7098,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 "form:bitstring-unknown-binary-unit",
                 """
                 defmacro m do
-                  _ = <<Kernel.inspect(:a)::binary-unit(16)>>
+                  _ = <<Kernel.inspect(12)::binary-unit(16)>>
                   :ok
                 end
                 """,
@@ -7013,8 +7109,8 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 "quote:unquote-unknown-binary",
                 """
                 defmacro m do
-                  _ = quote(do: unquote(Kernel.inspect(:a)))
-                  _ = quote(do: [unquote_splicing([Kernel.inspect(:a)])])
+                  _ = quote(do: unquote(Kernel.inspect(12)))
+                  _ = quote(do: [unquote_splicing([Kernel.inspect(12)])])
                   :ok
                 end
                 """,
@@ -7024,7 +7120,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 "pure:type-tests-unknown-binary",
                 """
                 defmacro m do
-                  x = Kernel.inspect(:a)
+                  x = Kernel.inspect(12)
                   raised = fn f ->
                     try do
                       f.()
