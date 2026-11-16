@@ -6,13 +6,13 @@ import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
-import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.util.system.OS
 import org.elixir_lang.coverage.ExpanderProgress
 import org.elixir_lang.coverage.macroName
+import org.elixir_lang.expander.interpreter.charlistText
 import org.elixir_lang.expander.interpreter.isUnknown
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
@@ -438,11 +438,7 @@ class EctoFixtureTest : HeavyTestCase() {
                 ((it as OtpErlangTuple).elementAt(0) as OtpErlangAtom).atomValue() to it.elementAt(1)
             }
             val charlist = keyword.getValue("file")
-            val file = when {
-                isUnknown(charlist) -> UNKNOWN_FILE
-                charlist is OtpErlangString -> charlist.stringValue()
-                else -> (charlist as OtpErlangList).elements().joinToString("") { Character.toString((it as OtpErlangLong).intValue()) }
-            }
+            val file = if (isUnknown(charlist)) UNKNOWN_FILE else charlistText(charlist)!!
             val name = (module as OtpErlangAtom).atomValue().let { if (it.startsWith("Elixir.")) it.removePrefix("Elixir.") else ":$it" }
 
             return "$file:${keyword.getValue("line")}: $name.${(function as OtpErlangAtom).atomValue()}/$arity"

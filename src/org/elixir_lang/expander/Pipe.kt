@@ -5,6 +5,7 @@ import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
+import org.elixir_lang.expander.interpreter.cons
 import org.elixir_lang.language_level.ElixirLanguageFeature.ELLIPSIS_NULLARY_CALL
 import org.elixir_lang.language_level.ElixirLanguageFeature.FROM_BRACKETS_ON_BRACKETED_EXPRESSION
 import org.elixir_lang.language_level.ElixirLanguageFeature.PIPE_ONE_OPERAND
@@ -63,9 +64,7 @@ private fun pipeValue(expr: ElixirAst, value: ElixirAst.Value): Summary.Output {
     val tuple = (value.term as? OtpErlangTuple)?.takeIf { it.arity() == 3 } ?: return Summary.Output.Raised("pipe_bad_target")
     val piped = when (val args = tuple.elementAt(2)) {
         is OtpErlangAtom -> OtpErlangList(expr.toOtp())
-        is OtpErlangList -> OtpErlangList(arrayOf(expr.toOtp(), *args.elements()), args.lastTail)
-        // A list of bytes.
-        is OtpErlangString -> OtpErlangList(arrayOf(expr.toOtp(), *OtpErlangList(args.stringValue()).elements()))
+        is OtpErlangList, is OtpErlangString -> cons(listOf(expr.toOtp()), args)
         else -> return Summary.Output.Raised("pipe_bad_target")
     }
 

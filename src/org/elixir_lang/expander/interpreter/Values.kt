@@ -643,7 +643,7 @@ private fun listed(
     ProgressManager.checkCanceled()
 
     val listed = when (term) {
-        is OtpErlangString -> OtpErlangList(term.stringValue())
+        is OtpErlangString -> charlist(term.stringValue())
         is OtpErlangTuple -> {
             val elements = term.elements().map { listed(it, seen) }
 
@@ -861,7 +861,7 @@ internal fun otpOf(value: Term, seen: (String) -> Unit = {}): OtpErlangObject {
 internal fun cells(term: OtpErlangObject): Pair<List<OtpErlangObject>, OtpErlangObject?>? =
     when (term) {
         is OtpErlangList -> term.elements().asList() to term.lastTail
-        is OtpErlangString -> term.stringValue().codePoints().toArray().map { integer(it.toLong()) } to null
+        is OtpErlangString -> codePoints(term.stringValue()) to null
         is UnknownValue -> unknown(term)
         else -> null
     }

@@ -707,7 +707,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "monotonic_time/1", "system_time/1", "time_offset/1" -> readGiven(args[0], ::isTimeUnit, badarg)
             "unique_integer/1" -> readGiven(args[0], { isListOf(it, UNIQUE_MODIFIERS) }, badarg)
             "nodes/1" -> readGiven(args[0], { isOneOf(it, NODE_TYPES) || isListOf(it, NODE_TYPES) }, badarg)
-            "make_ref/0" -> OtpErlangRef(LOCAL_NODE, newRefIds(), 0)
+            "make_ref/0" -> newRef()
             "</2" -> forAnyTerm { bool(compare(args[0], args[1], level) < 0) }
             ">/2" -> forAnyTerm { bool(compare(args[0], args[1], level) > 0) }
             "=</2" -> forAnyTerm { bool(compare(args[0], args[1], level) <= 0) }
@@ -844,7 +844,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
                 if (text.length > COPY_NODES) decline("integer_to_list/1 of %s, past $COPY_NODES digits", args[0])
 
-                list(text.map { integer(it.code.toLong()) })
+                charlist(text)
             }
             "integer_to_binary/1", "integer_to_binary/2" -> {
                 val integer = seen(args[0]) as? OtpErlangLong ?: badarg()
@@ -871,7 +871,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 OtpErlangDouble(text.replace(',', '.').toDouble().takeUnless { it.isInfinite() } ?: badarg())
             }
             "atom_to_list/1" ->
-                list((seen(args[0]) as? OtpErlangAtom ?: badarg()).atomValue().codePoints().toArray().map { integer(it.toLong()) })
+                charlist((seen(args[0]) as? OtpErlangAtom ?: badarg()).atomValue())
             "md5/1" -> OtpErlangBinary(MessageDigest.getInstance("MD5").digest(iodataBytes(args[0], badarg)))
             "term_to_binary/1" -> termToBinary(args[0])
             "binary_to_atom/1", "binary_to_atom/2" -> {
@@ -2339,7 +2339,7 @@ internal class Natives(private val evaluation: Evaluation) {
         val relative = evaluation.run.relativeToCwd(file, os)
         val location = list(
             listOf(
-                tuple(atom("file"), relative?.let { list(it.codePoints().toArray().map { point -> integer(point.toLong()) }) } ?: Unknown),
+                tuple(atom("file"), relative?.let(::charlist) ?: Unknown),
                 tuple(atom("line"), macroEnvField(env, "line")),
             ),
         )
@@ -3494,7 +3494,7 @@ internal class Natives(private val evaluation: Evaluation) {
         val file = evaluation.run.file() ?: decline("file:get_cwd/0 of a file with no path")
         val directory = evaluation.run.workingDirectory(file) ?: decline("file:get_cwd/0 where the compile directory isn't known")
 
-        return tuple(atom("ok"), list(directory.codePoints().toArray().map { integer(it.toLong()) }))
+        return tuple(atom("ok"), charlist(directory))
     }
 
     /**
@@ -3658,7 +3658,7 @@ internal class Natives(private val evaluation: Evaluation) {
                     decline("characters_to_list/1 of %s, past $COPY_NODES code points", args[0])
                 }
 
-                list(text.codePoints().mapToObj { integer(it.toLong()) }.toList())
+                charlist(text)
             }
             else -> null
         }
