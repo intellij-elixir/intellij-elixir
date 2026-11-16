@@ -27,10 +27,6 @@ data class Signature(
     val parameters: List<String>,
     val binding: List<String> = parameters
 ) {
-    /** What names a definition: its name and the arities it covers, by the largest, or by the least where open. */
-    internal val definition: Pair<String, Pair<Int, Boolean>>
-        get() = nameArityInterval.name to nameArityInterval.arityInterval.definition()
-
     /** How many default arguments it declares. */
     internal val defaults: Int
         get() = nameArityInterval.arityInterval.defaults()

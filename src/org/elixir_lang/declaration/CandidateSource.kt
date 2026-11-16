@@ -1,9 +1,11 @@
 package org.elixir_lang.declaration
 
 import com.intellij.psi.PsiElement
+import com.intellij.psi.ResolveState
 import com.intellij.psi.xml.XmlTag
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.NameArity
 import org.elixir_lang.model.psi.atom.mfaReferenceDecision
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
@@ -16,6 +18,7 @@ import org.elixir_lang.psi.qualification.Qualified as QualifiedPsi
 import org.elixir_lang.psi.impl.functionNameAtomValue
 import org.elixir_lang.psi.impl.quotedAtomValue
 import org.elixir_lang.psi.qualifier
+import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.CallDefinitionSpecification
 
 /** What a use can reach, and what is visible at a position: the one place features ask. */
@@ -122,6 +125,12 @@ data class Found(
     val imported: Set<Int>? = null,
 ) {
     val certain: Boolean get() = uncertain == null
+
+    /**
+     * The definition a find is one of: its [identity] in the [module] that declares it, else, where its identity is not
+     * known, the find [alone], which groups with no other.
+     */
+    data class Definition(val identity: NameArity?, val module: String?, val alone: Found?)
 }
 
 /**
@@ -167,6 +176,28 @@ fun Found.clauseOrder(): ClauseOrder? {
 
     return head.placedBy?.let { ClauseOrder(it.textOffset, written.textOffset) }
 }
+
+/**
+ * The function [this] is one definition of, as Elixir keys it: [Declaration.identity], unless the head written for it
+ * declares a larger full arity, as a head with defaults does where its find is one of the arities they add. A placed
+ * head or a compiled find keeps [Declaration.identity].
+ */
+@RequiresReadLock
+fun Found.identity(): NameArity? {
+    val declaration = candidate.declaration
+    val identity = declaration.identity
+    // Only these forms write a head of their own; another's written element is the call of its form.
+    (declaration.declared as? Declared.Source)?.form?.takeIf { it == Form.CLAUSE || it == Form.DELEGATION } ?: return identity
+    val full = head.written?.let { CallDefinitionHead.nameArityInterval(it, ResolveState.initial()) }?.arityInterval?.maximum
+        ?: return identity
+
+    return if (identity != null && full > identity.arity) NameArity(declaration.name, full) else identity
+}
+
+/** The definition [this] is one of, as Elixir keys it: its [identity] in the module that declares it, else [this] alone. */
+@RequiresReadLock
+fun Found.definition(): Found.Definition =
+    identity().let { identity -> Found.Definition(identity, declaringModuleName(), takeIf { identity == null }) }
 
 /**
  * What completion offers as [lookupName] at a position. [name] and [declaration] are `null` exactly when the name has

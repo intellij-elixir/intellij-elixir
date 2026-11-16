@@ -32,7 +32,6 @@ import org.elixir_lang.model.psi.module_attribute.ModuleAttributeReference
 import org.elixir_lang.model.psi.module_attribute.accumulates
 import org.elixir_lang.module.RegisterAttribute
 import org.elixir_lang.psi.ArityInterval
-import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.AtOperation
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
@@ -108,23 +107,22 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
         }
 
         /**
-         * The signature Elixir records for the one definition [found] are finds of, in the module that declares it, from
-         * each of its source clauses where that module defines it; `null` where a clause's head or place is not known,
-         * as without them the merge's names are not.
+         * The signature Elixir records for the one definition [found] are finds of, at its [full] arity, in the module that
+         * declares it, from each of its source clauses where that module defines it; `null` where a clause's head or place
+         * is not known, as without them the merge's names are not.
          */
         @RequiresReadLock
-        fun of(found: List<Found>): RecordedSignature? {
+        fun of(found: List<Found>, full: Int): RecordedSignature? {
             val first = found.firstOrNull() ?: return null
-            val declaration = first.candidate.declaration
-            val arities = declaration.arity.arityInterval() ?: return null
+            // A head with defaults is a find at each arity they add, but one clause of the function.
             val clauses = found.mapNotNull { one ->
                 val form = (one.candidate.declaration.declared as? Declared.Source)?.form ?: return@mapNotNull null
                 val head = one.head.written ?: return null
 
                 Clause(form, head, one.clauseOrder() ?: return null)
-            }
+            }.distinct()
 
-            return of(first.declaringModuleName(), declaration.name, arities, clauses)
+            return of(first.declaringModuleName(), first.candidate.declaration.name, ArityInterval(full, full), clauses)
         }
 
         /**

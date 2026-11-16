@@ -14,6 +14,7 @@ import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.clauseOrder
+import org.elixir_lang.declaration.identity
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Reach
@@ -178,29 +179,27 @@ object SourceFileDocsHelper {
     internal fun keyworded(declaring: Call, written: String): String? = declaring.functionName()?.let { "$it $written" }
 
     /**
-     * The signature Elixir records for each function [function]'s declarations define in the module that declares them,
-     * [index] for a decompiled module's, ascending by arity: one for each full arity, from every clause of it where the
-     * module defines it.
+     * The signature Elixir records for [function], the declarations of one function, in the module that declares it,
+     * from every clause of it where the module defines it; for a decompiled module's, [index], one for each full arity.
      */
     @RequiresReadLock
-    internal fun titles(index: String?, function: List<Written>): List<String> =
-        function
+    internal fun titles(index: String?, function: List<Written>): List<String> {
+        val found = function.mapNotNull(Written::found)
+
+        if (found.size == function.size) return listOfNotNull(function.first().identity?.let { RecordedSignature.of(found, it.arity) }?.text)
+
+        // The bridge's decompiled clauses, in the order they are written.
+        return function
             .groupBy { it.arities.definition() }
             .entries
             .sortedBy { it.key.first }
             .mapNotNull { (_, declarations) ->
-                val found = declarations.mapNotNull(Written::found)
+                val first = declarations.first()
+                val clauses = declarations.map { RecordedSignature.Clause(it.form, it.head) }
 
-                if (found.size == declarations.size) {
-                    RecordedSignature.of(found)?.text
-                } else {
-                    // The bridge's decompiled clauses, in the order they are written.
-                    val first = declarations.first()
-                    val clauses = declarations.map { RecordedSignature.Clause(it.form, it.head) }
-
-                    RecordedSignature.of(index, first.declaration.name, first.arities, clauses)?.text
-                }
+                RecordedSignature.of(index, first.declaration.name, first.arities, clauses)?.text
             }
+    }
 
     /**
      * The docs of every function [declaring] shares a name with in its module that the use can reach, ascending by
@@ -246,7 +245,7 @@ object SourceFileDocsHelper {
     internal class Listing(val functions: List<List<Written>>, private val kept: Map<NameArity?, Kept>) {
         /** What Elixir keeps of the docs written by the definitions [function] replaced: their doc and its metadata. */
         fun replacedDocs(function: List<Written>): FetchedDocs.FunctionOrMacroDocumentation? =
-            kept[function.first().declaration.identity]?.documentation
+            kept[function.first().identity]?.documentation
                 ?.let { FetchedDocs.FunctionOrMacroDocumentation(it.module, it.deprecated, it.doc, emptyList(), emptyList(), emptyList()) }
 
         /** [function]'s docs as Elixir keeps them: those its [written] declarations write, over the definitions it replaced. */
@@ -296,13 +295,13 @@ object SourceFileDocsHelper {
 
         return sourceFor(Feature.DOCUMENTATION).replaced(modular, name)
             .mapNotNull { written(it, name, module) }
-            .groupBy { it.declaration.identity }
+            .groupBy(Written::identity)
             .filterKeys { it != null }
             .mapValues { (_, written) -> written.fold(Kept.NONE) { kept, next -> kept.then(listOf(next), next.documentation) } }
     }
 
     /** What Elixir keeps of the definitions [function] replaced, by its identity. */
-    private fun Map<NameArity?, Kept>.of(function: List<Written>): Kept = this[function.first().declaration.identity] ?: Kept.NONE
+    private fun Map<NameArity?, Kept>.of(function: List<Written>): Kept = this[function.first().identity] ?: Kept.NONE
 
     /**
      * The functions of the name [used], else the one function [declaring] declares with [declaringForm], that its use
@@ -319,7 +318,8 @@ object SourceFileDocsHelper {
         // A compiled find is the `.beam`'s, not the source [declaring] is in.
         val sourceUsed = used?.takeIf { it.candidate.declaration.declared is Declared.Source }
         val defined = defined(sourceUsed?.let(Documented::copy) ?: modular, listed).orEmpty()
-        val written = finds(declaring, declaringForm, listed, sourceUsed, defined)
+        val finds = finds(declaring, declaringForm, listed, sourceUsed, defined)
+        val written = finds
             ?.let { (own, candidates) ->
                 Documented.inCopyOf(own, candidates).mapNotNull { found ->
                     ProgressManager.checkCanceled()
@@ -332,12 +332,12 @@ object SourceFileDocsHelper {
             ?: decompiledClauses(declaring, declaringForm, listed, modular, module)
                 .takeIf { sourceUsed == null && (used != null || defined.any { it.candidate.declaration.declared is Declared.Compiled }) }
             ?: return null
-        val usedIdentity = listed.identity
+        val usedIdentity = finds?.first?.identity() ?: listed.identity
         // One function per identity, as Elixir keys its definitions. A `def` replaces what `defexception` defines
         // rather than joining it, so that, like a declaration of no known identity, is one function alone. They are
         // ascending by the full arity that keys each, and each's clauses are in the order the module defines them.
         val functions = written.sortedWith(compareBy<Written> { it.arities.minimum }.thenBy(Written::order))
-            .groupBy { one -> one.declaration.identity?.takeUnless { one.generated } ?: one }
+            .groupBy { one -> one.identity?.takeUnless { one.generated } ?: one }
             .values
             .sortedBy { function -> function.maxOf { it.arities.maximum ?: Int.MAX_VALUE } }
         val kept = kept(functions, module)
@@ -350,7 +350,7 @@ object SourceFileDocsHelper {
                     hidden = kept.of(function).hides(function),
                     // Where a `def` of its arity replaced what `defexception` defines, the use found the `def`.
                     used = function.any {
-                        val identity = it.declaration.identity
+                        val identity = it.identity
 
                         if (it.generated || identity == null || usedIdentity == null) it.call == declaring else identity == usedIdentity
                     },
@@ -471,6 +471,9 @@ object SourceFileDocsHelper {
         /** Where the module defines it. */
         @get:RequiresReadLock
         val order: ClauseOrder get() = found?.clauseOrder() ?: ClauseOrder.at(head)
+
+        /** The function it is one definition of, as Elixir keys it. */
+        val identity: NameArity? get() = found?.identity() ?: declaration.identity
     }
 
     /** The head an EEx function or an embed [call] declares with [form] shows its docs under, `name/arity`. */

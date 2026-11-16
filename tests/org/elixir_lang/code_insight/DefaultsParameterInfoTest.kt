@@ -4,6 +4,7 @@ import org.elixir_lang.declaration.ExpanderSettingTestCase
 import org.elixir_lang.documentation.CompiledBuild
 import org.elixir_lang.documentation.OV_FULL_GEN
 import org.elixir_lang.documentation.OV_FULL_GEN_LIB
+import org.elixir_lang.documentation.OV_FULL_LIB
 import org.elixir_lang.documentation.addCompiledLibrary
 
 /**
@@ -142,6 +143,22 @@ class DefaultsParameterInfoTest : ExpanderSettingTestCase() {
             shownAtCompiledOvFullGen(CompiledBuild("CompiledOvFullGenDocsOnlyParameterInfo", debugInfo = false))
         )
     }
+
+    /**
+     * An override of the arity a compiled head's defaults key is one function with the head, as `Docs` records only
+     * `o(a, b \\ 1)`, though the debug info keeps the generated `o/1` as a definition of its own.
+     */
+    fun testAnOverrideOfACompiledDefaultHeadsFullArityIsOneFunction() {
+        myFixture.addCompiledLibrary(OV_FULL_LIB, CompiledBuild("CompiledOvFullParameterInfo"))
+
+        assertEquals(
+            listOf("a, b \\\\ 1"),
+            shown("defmodule Caller do\n  def calls(x), do: CompiledOvFullParameterInfo.o(x<caret>)\nend\n")
+        )
+    }
+
+    fun testAnOverrideOfACompiledDefaultHeadsFullArityIsOneFunctionWithTheExpanderOn() =
+        withTheExpanderOn(::testAnOverrideOfACompiledDefaultHeadsFullArityIsOneFunction)
 
     /** [shown], sorted, at `o(x)` called on [OV_FULL_GEN_LIB] compiled as [build]. */
     private fun shownAtCompiledOvFullGen(build: CompiledBuild): List<String> {

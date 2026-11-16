@@ -18,6 +18,13 @@ class FormsParameterInfoTest : ExpanderSettingTestCase() {
     fun testAnEExFunctionWithAnOpenTailShowsTheArgumentNamesBeforeIt() =
         assertEquals(listOf("a"), shownFromEEx("[:a | @rest]"))
 
+    /**
+     * Two functions of one name, each with an open tail, may be of different arities, so each is its own function, as
+     * Quick Documentation lists them.
+     */
+    fun testEExFunctionsOfOneNameWithOpenTailsAreEachTheirOwnFunction() =
+        assertEquals(listOf("a", "b"), shownFromEEx("[:a | @rest]", "[:b | @other]"))
+
     fun testAnEExFunctionWithoutArgumentsShowsNoParameters() =
         assertEquals(listOf("<no parameters>"), shownFromEEx("[]"))
 
@@ -148,7 +155,10 @@ class FormsParameterInfoTest : ExpanderSettingTestCase() {
         assertEquals(listOf("name, greeting \\\\ \"hello   there\""), myFixture.parameterInfoSignaturesAtCaret())
     }
 
-    private fun shownFromEEx(arguments: String): List<String> {
+    /** Parameter Info at a call of `sample`, which `EEx.function_from_string` defines with each of [argumentLists]. */
+    private fun shownFromEEx(vararg argumentLists: String): List<String> {
+        val functions = argumentLists.joinToString("\n") { "  EEx.function_from_string(:def, :sample, \"<%= a %><%= b %>\", $it)" }
+
         myFixture.configureByText(
             "eex.ex",
             """
@@ -163,12 +173,7 @@ class FormsParameterInfoTest : ExpanderSettingTestCase() {
 
             defmodule Templates do
               require EEx
-
-              EEx.function_from_string(:def, :sample, "<%= a %><%= b %>", $arguments)
-
-              def run, do: sample(<caret>)
-            end
-            """.trimIndent()
+            """.trimIndent() + "\n$functions\n\n  def run, do: sample(<caret>)\nend\n"
         )
 
         return myFixture.parameterInfoSignaturesAtCaret()

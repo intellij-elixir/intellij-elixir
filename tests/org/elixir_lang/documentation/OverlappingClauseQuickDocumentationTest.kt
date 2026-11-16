@@ -47,6 +47,49 @@ class OverlappingClauseQuickDocumentationTest : QuickDocumentationTestCase() {
     fun testEachFunctionOfADocsOnlyCompiledOverriddenFunctionIsTitledByItsOwnSignatureWithTheExpanderOn() =
         withTheExpanderOn(::testEachFunctionOfADocsOnlyCompiledOverriddenFunctionIsTitledByItsOwnSignature)
 
+    /**
+     * An override of the arity a head's defaults key leaves the arity they add to the head, and the two are one function,
+     * as `Docs` records only `f(a, b \\ 1)`.
+     */
+    fun testAnOverrideOfADefaultHeadsFullArityIsOneFunctionWithTheExpanderOn() = withTheExpanderOn {
+        val documentation = quickDocumentationAtCaret(
+            """
+            defmodule Overridden do
+              def f(a, b \\ 1), do: {a, b}
+
+              defoverridable f: 2
+
+              def f(a, b), do: {b, a}
+            end
+
+            defmodule Caller do
+              def calls(y), do: Overridden.<caret>f(y)
+            end
+            """.trimIndent()
+        )
+        val titles = Regex("""^(?:<a [^>]*>)?(f\([^)]*\))""", RegexOption.MULTILINE).findAll(documentation)
+            .map { it.groupValues[1] }
+            .toList()
+
+        assertEquals("Expected one function, got: $documentation", listOf("""f(a, b \\ 1)"""), titles)
+    }
+
+    /** As above, compiled: the debug info keeps the generated `o/1` as a definition of its own, but `Docs` does not. */
+    fun testAnOverrideOfACompiledDefaultHeadsFullArityIsOneFunction() {
+        myFixture.addCompiledLibrary(OV_FULL_LIB, CompiledBuild("CompiledOvFullQuickDoc"))
+
+        val documentation =
+            quickDocumentationAtCaret("defmodule Caller do\n  def calls(x), do: CompiledOvFullQuickDoc.<caret>o(x)\nend\n")
+        val titles = Regex("""^(?:<a [^>]*>)?(o\([^)]*\))""", RegexOption.MULTILINE).findAll(documentation)
+            .map { it.groupValues[1] }
+            .toList()
+
+        assertEquals("Expected one function, got: $documentation", listOf("""o(a, b \\ 1)"""), titles)
+    }
+
+    fun testAnOverrideOfACompiledDefaultHeadsFullArityIsOneFunctionWithTheExpanderOn() =
+        withTheExpanderOn(::testAnOverrideOfACompiledDefaultHeadsFullArityIsOneFunction)
+
     private fun assertTheWrittenDef(documentation: String) {
         assertTrue("Expected the written def's @doc, got: $documentation", "o written" in documentation)
         assertTrue("Expected the written def's head, got: $documentation", "def o(a)" in documentation)
