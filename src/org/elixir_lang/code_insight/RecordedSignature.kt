@@ -19,6 +19,7 @@ import org.elixir_lang.Macro
 import org.elixir_lang.Module
 import org.elixir_lang.beam.decompiler.ParameterText
 import org.elixir_lang.beam.decompiler.generatedArguments
+import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.code.Identifier
 import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.debugger.stack_frame.value.Presentation
@@ -29,14 +30,15 @@ import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.clauseOrder
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.declaration.fullArity
+import org.elixir_lang.declaration.mirroredIn
 import org.elixir_lang.declaration.nameUnquotedHead
 import org.elixir_lang.documentation.moduleAttributeValue
+import org.elixir_lang.expander.NameIndex
 import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.model.psi.module_attribute.ModuleAttributeReference
 import org.elixir_lang.model.psi.module_attribute.accumulates
 import org.elixir_lang.module.RegisterAttribute
-import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.AtOperation
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
@@ -71,18 +73,19 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
 
     companion object {
         /**
-         * The signature Elixir records for [name] at the full arity of [arities] in [module], a module's index name
+         * The signature Elixir records for [name] at the full [arity] in [module], a module's index name
          * (`Module.indexName`), from [clauses] taken in the order the module defines them, or `null` where it records
-         * none or the arity is open: `Module.build_signature/2` over each clause's head, merged as `compile_doc` merges
-         * them, and printed as `elixir_erl:signature_to_binary/3` prints it.
+         * none: `Module.build_signature/2` over each clause's head, merged as `compile_doc` merges them, and printed as
+         * `elixir_erl:signature_to_binary/3` prints it.
          */
         @RequiresReadLock
-        fun of(module: String?, name: String, arities: ArityInterval, clauses: List<Clause>): RecordedSignature? {
+        fun of(module: String?, name: String, arity: Int, clauses: List<Clause>): RecordedSignature? =
+            of(module, name, arity, clauses, defaults = emptyList())
+
+        /** [of], the merge's parameters given the [defaults] at their positions, `null` where a parameter takes none. */
+        @RequiresReadLock
+        private fun of(module: String?, name: String, arity: Int, clauses: List<Clause>, defaults: List<String?>): RecordedSignature? {
             ThreadingAssertions.assertReadAccess()
-
-            val (arity, open) = arities.definition()
-
-            if (open) return null
 
             if (name == "__struct__" && arity == 0) {
                 return module?.let { RecordedSignature(emptyList(), "%${Module.inspect(it)}{}") }
@@ -96,6 +99,7 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
                 .filterIsInstance<Built.Recorded>()
                 .map(Built.Recorded::parameters)
                 .reduceOrNull { older, newer -> older.zip(newer).mapIndexed { i, (o, n) -> merged(o, n, i + 1) } }
+                ?.mapIndexed { i, parameter -> defaults.getOrNull(i)?.let { Defaulted(parameter, it) } ?: parameter }
                 ?: return null
 
             val text = when (name) {
@@ -141,8 +145,26 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
 
                 one.head.written?.let { Clause(form, it, order) } ?: nameUnquoted(one.element, full, order) ?: return null
             }.distinct()
+            val compiled = compiledHead(first, name, full)
+                ?: return of(module, name, full, clauses)
+            val written = clauses.filter { clause -> fullArity(clause.head) == full }
+            val defaults = compiled.map(ParameterText::default)
 
-            return of(first.declaringModuleName(), name, ArityInterval(full, full), clauses)
+            return of(module, name, full, written, defaults)
+        }
+
+        /**
+         * The head the `.beam` whose decompiled mirror writes [found] keeps for [name] at the [full] arity, with its
+         * defaults; `null` where [found] is written in no mirror, or the `.beam` keeps no head for it.
+         */
+        @RequiresReadLock
+        private fun compiledHead(found: Found, name: String, full: Int): List<String>? {
+            val file = found.candidate.declaration.mirroredIn() ?: return null
+            val module = BeamFileImpl.moduleOf(found.element.project, file) ?: return null
+
+            return NameIndex.of(module).named(name).firstNotNullOfOrNull { definition ->
+                definition.head.takeIf { it.isNotEmpty() && it.size == full }
+            }
         }
 
         /**
@@ -157,7 +179,7 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
                 nameUnquoted(element, arity, ClauseOrder(i, i)) ?: return stub(name, arity)
             }
 
-            return of(module, name, ArityInterval(arity, arity), clauses) ?: stub(name, arity)
+            return of(module, name, arity, clauses) ?: stub(name, arity)
         }
 
         /** [element] as a `def`-family clause written with only its name unquoted, at [arity] parameters, defined at [order]. */

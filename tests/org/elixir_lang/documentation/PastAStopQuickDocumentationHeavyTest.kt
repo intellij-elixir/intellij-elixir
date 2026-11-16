@@ -1,18 +1,72 @@
 package org.elixir_lang.documentation
 
+import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.util.text.StringUtil
+import com.intellij.psi.PsiFile
+import com.intellij.testFramework.IndexingTestUtil
+import org.elixir_lang.code_insight.parameterInfoSignaturesAtCaret
+import org.elixir_lang.expander.ExpanderSource
+import org.elixir_lang.expander.ExpanderSourceRows.candidates
 import org.elixir_lang.expander.ExpanderSourceRows.withExpanderSwitch
 import org.elixir_lang.expander.LegSdkFixtureTestCase
 import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.model.psi.config.caret
+import org.elixir_lang.sdk.elixir.ElixirSdkPathConfigurator
 import kotlin.time.Duration.Companion.seconds
 
-/** Past a stop in a module body, the expander answers from the name index. */
+/**
+ * Past a stop in a module body, the expander answers from the name index. An `import` it didn't see may bring in any
+ * module's function, so a local call finds each in the index, a compiled module's at its `.beam`. Quick Documentation
+ * reads such a find at the heads the source its library or SDK attaches writes.
+ */
 class PastAStopQuickDocumentationHeavyTest : LegSdkFixtureTestCase() {
     override fun setUp() {
         // Before the platform counts the threads a test leaves, so the quoter's connection is already open.
         Quoter.compile(":ok", 60.seconds)
         super.setUp()
+    }
+
+    override fun setUpSdk(sdk: Sdk) {
+        WriteAction.runAndWait<Throwable> {
+            sdk.sdkModificator.apply {
+                ElixirSdkPathConfigurator.addSourcePaths(this)
+                commitChanges()
+            }
+        }
+        IndexingTestUtil.waitUntilIndexesAreReady(project)
+    }
+
+    fun testPastAStopAnSdkFunctionIsDocumentedAtTheHeadsItsSourceWrites() {
+        val file = pastAStop("import String\n  def f(s), do: pad_leading(s, 3)")
+        val documentation = documentation("pad_<caret>leading(s, 3)")
+
+        // The candidates are read only on failure, as reading them resolves again.
+        if ("def pad_leading(string, count, padding \\\\ [\" \"])" !in documentation) {
+            fail("Expected string.ex's head, got: $documentation\nfound: ${withExpanderSwitch { candidates(file, "pad_leading(s, 3)") }}")
+        }
+    }
+
+    /** A head with defaults, found at its source past a stop, is the one clause the use's find is: its `@spec` shows once. */
+    fun testPastAStopADefaultsHeadsSpecIsListedOnce() {
+        pastAStop("import String\n  def f(s), do: pad_leading(s, 3)")
+        val documentation = documentation("pad_<caret>leading(s, 3)")
+
+        assertOnce(documentation, "@spec pad_leading(")
+    }
+
+    /** A deprecated head with defaults, found at its library's source past a stop, keeps its deprecation. */
+    fun testPastAStopADeprecatedDefaultsHeadKeepsItsDeprecation() {
+        myFixture.addCompiledLibrary(
+            "defmodule Compiled do\n  @doc \"Ds.\"\n  @deprecated \"Use e.\"\n  @spec located_d(integer, integer) :: integer\n  def located_d(a, b \\\\ 1), do: a + b\nend\n",
+            CompiledBuild("LocatedDeprecated"),
+            sources = true,
+        )
+        pastAStop("import LocatedDeprecated\n  def f(x), do: located_d(x)")
+        val documentation = documentation("located_<caret>d(x)")
+
+        assertTrue(documentation, "Use e." in documentation)
+        assertOnce(documentation, "@spec located_d(")
     }
 
     /** Past a stop, a later clause's head is documented as its first is: the module's definitions are one per head. */
@@ -114,15 +168,62 @@ class PastAStopQuickDocumentationHeavyTest : LegSdkFixtureTestCase() {
         assertOnce(documentation, "def one(a)")
     }
 
+    /** A module named by an atom, not an alias, is found at its source as an alias is. */
+    fun testPastAStopAnAtomNamedLibraryModuleIsDocumentedFromItsSource() {
+        myFixture.addCompiledLibrary(
+            "defmodule Compiled do\n  @doc \"Written.\"\n  def located_f(written), do: written\nend\n",
+            CompiledBuild(":located_atom", debugInfo = false, docs = false),
+            sources = true,
+        )
+        val file = pastAStop("import :located_atom\n  def f(x), do: located_f(x)")
+        val documentation = documentation("located_<caret>f(x)")
+
+        if ("Written." !in documentation || "def located_f(written)" !in documentation) {
+            fail("Expected the source's docs, got: $documentation\nfound: ${withExpanderSwitch { candidates(file, "located_f(x)") }}")
+        }
+    }
+
+    /** A remote call past a stop finds the module's definitions at its source already, and still documents them there. */
+    fun testPastAStopARemoteCallIsDocumentedAtTheHeadsItsSourceWrites() {
+        pastAStop("def f(s), do: String.split(s, \",\")")
+
+        assertTrue("def split(string, pattern, options \\\\ [])" in documentation("String.sp<caret>lit(s, \",\")"))
+    }
+
+    /**
+     * A head in a `quote` past a stop is its own module's, so documenting it locates none of the definitions of its name
+     * other modules hold, which the name index finds for a call of it.
+     */
+    fun testPastAStopAQuotedHeadLocatesNoOtherModulesDefinitionsOfItsName() {
+        pastAStop("defmacro __using__(_) do\n    quote do\n      def split(s), do: s\n    end\n  end")
+        ExpanderSource.Probe.reset()
+        val documentation = ExpanderSource.Probe.counting { documentation("def sp<caret>lit(s)") }
+
+        assertTrue("Expected the head's title, got: $documentation", documentation.startsWith("split(s)\n  def split(s)"))
+        assertEquals(
+            "Expected no `.beam` find located, documenting: $documentation",
+            0L,
+            ExpanderSource.Probe.snapshot().getValue(ExpanderSource.Probe.Counter.LOCATED)
+        )
+    }
+
+    /** Parameter Info reads no location: past a stop it shows what the `.beam` records, as it did. */
+    fun testPastAStopParameterInfoShowsTheBeamsSignatures() {
+        pastAStop("import String\n  def f(s), do: pad_leading(s, 3)")
+        myFixture.caret(CALLER, "pad_leading(<caret>s, 3)")
+
+        assertEquals(listOf("string, count, padding \\\\ [\" \"]"), withExpanderSwitch { myFixture.parameterInfoSignaturesAtCaret() })
+    }
+
     /**
      * [definitions] in a module whose body stops before them, after [before], at a macro that expands to what the expander
      * can't follow.
      */
-    private fun pastAStop(definitions: String, before: String? = null) {
+    private fun pastAStop(definitions: String, before: String? = null): PsiFile {
         myFixture.addFileToProject("lib/m.ex", "defmodule M do\n  defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))\nend\n")
         val written = before?.let { "  $it\n" }.orEmpty()
 
-        caller("defmodule Caller do\n  require M\n$written  M.m()\n  $definitions\nend")
+        return caller("defmodule Caller do\n  require M\n$written  M.m()\n  $definitions\nend")
     }
 
     private fun assertOnce(documentation: String, text: String) {

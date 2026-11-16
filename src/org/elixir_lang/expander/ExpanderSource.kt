@@ -5,10 +5,8 @@ import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiCompiledElement
-import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
-import com.intellij.psi.PsiManager
 import com.intellij.psi.ResolveState
 import com.intellij.psi.StubBasedPsiElement
 import com.intellij.psi.stubs.StubIndex
@@ -20,6 +18,7 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.beam.psi.CallDefinition
 import org.elixir_lang.beam.psi.stubs.ModuleStub
 import org.elixir_lang.call.Visibility
@@ -44,6 +43,9 @@ import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.WrittenName
 import org.elixir_lang.declaration.importedArities
 import org.elixir_lang.declaration.admits
+import org.elixir_lang.declaration.declaresEntry
+import org.elixir_lang.declaration.writesExport
+import org.elixir_lang.declaration.atHeadsWriting
 import org.elixir_lang.Module
 import org.elixir_lang.NameArity
 import org.elixir_lang.lowering.ElixirAst
@@ -94,37 +96,51 @@ internal object ExpanderSource : CandidateSource {
     override fun answer(use: Use, incompleteCode: Boolean): Answer {
         ThreadingAssertions.assertReadAccess()
 
+        val readAt = readAt(use)
+
         return when (use) {
-            is Use.OfCall ->
-                inputs(use.entrance)?.let { answerWith(use, it) } ?: Answer(indexFound(use), Uncertain.NO_EXPANSION)
-            is Use.Specified -> answerAt(use, use.head) { at -> specified(at, use) }
-            is Use.Remote -> answerAt(use, use.atom) { at -> qualified(at, use.module, use.name, use.arity) }
+            is Use.OfCall -> answerAt(use, readAt, withoutInputs = { indexFound(use) }) { at -> called(at, use) }
+            is Use.Specified -> answerAt(use, readAt) { at -> specified(at, use) }
+            is Use.Remote -> answerAt(use, readAt) { at -> qualified(at, use.module, use.name, use.arity) }
             is Use.Link ->
-                readAt(use).let { readAt ->
-                    inputs(readAt)?.let { inputs -> answerAt(use, readAt, inputs, readsEnv = false) { at -> linked(at, use) } }
-                        ?: Answer(indexFound(use, readAt), Uncertain.NO_EXPANSION)
-                }
+                answerAt(use, readAt, readsEnv = false, withoutInputs = { indexFound(use, readAt) }) { at -> linked(at, use) }
             is Use.Tag -> Answer(emptyList(), Uncertain.NO_EXPANSION)
         }
     }
 
     /**
-     * Where [link] is read: where the module it names is written in source, else where it is written. A link in a
-     * `.beam`'s docs is read in the `.beam`'s decompiled source.
+     * Where [use] is read: where it is written, but a link where the module it names is written in source, else where
+     * the link is written; a link in a `.beam`'s docs is read in the `.beam`'s decompiled source.
      */
-    private fun readAt(link: Use.Link): PsiElement =
-        link.entrance.takeIf { it.containingFile is ElixirFile }
-            ?: (link.context as? PsiCompiledElement)?.mirror
-            ?: link.context
+    private fun readAt(use: Use): PsiElement =
+        when (use) {
+            is Use.OfCall -> use.entrance
+            is Use.Specified -> use.head
+            is Use.Remote -> use.atom
+            is Use.Link ->
+                use.entrance.takeIf { it.containingFile is ElixirFile }
+                    ?: (use.context as? PsiCompiledElement)?.mirror
+                    ?: use.context
+            is Use.Tag -> use.tag
+        }
 
     /**
      * [use]'s answer: what [reach] reaches where [element] is, its file expanded with its SDK's inputs; marked by the env
-     * there only where the use [readsEnv].
+     * there only where the use [readsEnv]. With no inputs, what [withoutInputs] finds.
      */
-    private fun answerAt(use: Use, element: PsiElement, readsEnv: Boolean = true, reach: (At) -> List<Reached>): Answer =
-        inputs(element)?.let { answerAt(use, element, it, readsEnv, reach) } ?: Answer(emptyList(), Uncertain.NO_EXPANSION)
+    private fun answerAt(
+        use: Use,
+        element: PsiElement,
+        readsEnv: Boolean = true,
+        withoutInputs: () -> List<Found> = { emptyList() },
+        reach: (At) -> List<Reached>,
+    ): Answer =
+        inputs(element)?.let { answerAt(use, element, it, readsEnv, reach) } ?: Answer(withoutInputs(), Uncertain.NO_EXPANSION)
 
-    /** [use]'s answer: what [reach] reaches where [element] is, its file expanded with [inputs]. */
+    /**
+     * [use]'s answer: what [reach] reaches where [element] is, its file expanded with [inputs]; marked by the env there
+     * only where the use [readsEnv].
+     */
     private fun answerAt(
         use: Use,
         element: PsiElement,
@@ -198,15 +214,11 @@ internal object ExpanderSource : CandidateSource {
                     // `behaviour_info(:callbacks)` lists a macro callback as its `MACRO-` export.
                     val macro = ModuleExports.macroOf(listed)
 
-                    declaresEntry(head.declaration, macro ?: listed, macro != null)
+                    head.declaration.declaresEntry(macro ?: listed, macro != null)
                 }
             }
             .map { head -> Defined(head.declaration, head.call, head.call, indexName, null) }
     }
-
-    /** Whether the head [declaration] declares [entry] of a `.beam`'s, a macro's where [macro], by kind, name and arity. */
-    private fun declaresEntry(declaration: Declaration, entry: NameArity, macro: Boolean): Boolean =
-        declaration.capabilities.compileTime == macro && declaration.name == entry.name && declaration.arity.admits(entry.arity)
 
     /**
      * The `@callback`s and `@macrocallback`s of [name] in [located]'s bag when its body ends. Each is declared where its
@@ -303,11 +315,8 @@ internal object ExpanderSource : CandidateSource {
     internal fun answer(use: Use.OfCall, inputs: ProjectModules.Inputs): Answer {
         ThreadingAssertions.assertReadAccess()
 
-        return answerWith(use, inputs)
+        return answerAt(use, use.entrance, inputs) { at -> called(at, use) }
     }
-
-    private fun answerWith(use: Use.OfCall, inputs: ProjectModules.Inputs): Answer =
-        answerAt(use, use.entrance, inputs) { at -> called(at, use) }
 
     /** What a call [use] reaches at [at]: the module its qualifier names, else its own module, imports and special forms. */
     private fun called(at: At, use: Use.OfCall): List<Reached> {
@@ -1153,11 +1162,7 @@ internal object ExpanderSource : CandidateSource {
      */
     private fun compiled(at: At, located: ProjectModules.Located.Compiled, name: String?): List<Defined> {
         val exports = located.exports as? ModuleExports.Present ?: return at.gap(Uncertain.MODULE)
-        val module = (PsiManager.getInstance(at.file.project).findFile(located.beam) as? PsiCompiledFile)
-            ?.children
-            ?.filterIsInstance<BeamModule>()
-            ?.singleOrNull()
-            ?: return at.gap(Uncertain.MODULE)
+        val module = BeamFileImpl.moduleOf(at.file.project, located.beam) ?: return at.gap(Uncertain.MODULE)
         val indexName = indexName(module) ?: return at.gap(Uncertain.MODULE)
         // Each is read only when needed: the decompiled definitions for an export no written head declares, and the
         // source's heads once an export is named, so a name the module doesn't export parses no source.
@@ -1183,10 +1188,7 @@ internal object ExpanderSource : CandidateSource {
 
         return exported.named(name).flatMap { nameArity ->
             val macro = nameArity in exports.macros
-            // Only a public head of the export's kind can write it.
-            val written = heads?.named(nameArity.name).orEmpty().filter { head ->
-                head.declaration.capabilities.public && declaresEntry(head.declaration, nameArity, macro)
-            }
+            val written = heads?.named(nameArity.name).orEmpty().filter { it.declaration.writesExport(nameArity, macro) }
 
             if (written.isEmpty()) {
                 listOfNotNull(decompiled(nameArity))
@@ -1196,6 +1198,35 @@ internal object ExpanderSource : CandidateSource {
                 written.map { Defined(exportedAt(it.declaration, arities, nameArity.arity), it.call, it.written, indexName, null) }
             }
         }.distinctBy { it.declaredAt }
+    }
+
+    /**
+     * [found] where it is written: an index find of a `.beam`'s definition at the heads the source its library or SDK
+     * attaches writes for it, else as every source reads it.
+     */
+    @RequiresReadLock
+    override fun located(use: Use, found: Found): List<Found> = atAttachedSource(use, found) ?: super.located(use, found)
+
+    /**
+     * [found], an index find of a `.beam`'s definition, at each head the one source its library or SDK attaches writes
+     * for it, declared as that head declares it; `null` where it is no such find, or no one source is attached or writes
+     * it. A find past where the env is known is the index's, so is never mapped where the expander found it.
+     */
+    @RequiresReadLock
+    private fun atAttachedSource(use: Use, found: Found): List<Found>? {
+        if (found.candidate.reach != Reach.INDEXED) return null
+        val declaration = found.candidate.declaration
+        val origin = (declaration.declared as? Declared.Compiled)?.origin ?: return null
+        val definition = found.element as? CallDefinition ?: return null
+        val indexName = indexName(definition.parent) ?: return null
+        val atom = Module.atom(indexName) ?: return null
+        Probe.count(Probe.Counter.LOCATED, 1)
+        val asker = readAt(use).containingFile ?: return null
+        val modules = ProjectModules.getInstance(asker.project)
+        val source = modules.sourceOf(asker, atom, origin.file) ?: return null
+        val heads = modules.read(source)?.let { NameIndex.of(it, indexName) } ?: return null
+
+        return found.atHeadsWriting(heads.named(declaration.name))
     }
 
     /**
@@ -1357,6 +1388,9 @@ internal object ExpanderSource : CandidateSource {
 
             /** Queries of the name index. */
             INDEX_QUERIES,
+
+            /** Index finds of a `.beam`'s definition looked up at the source attached for it. */
+            LOCATED,
         }
 
         @Volatile

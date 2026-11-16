@@ -62,7 +62,13 @@ object ParameterText {
     }
 
     /** [parameter] before its top-level `\\`, or `null` when it has no default. */
-    fun withoutDefault(parameter: String): String? {
+    fun withoutDefault(parameter: String): String? = defaultOperator(parameter)?.let { parameter.substring(0, it.first).trim() }
+
+    /** [parameter]'s default, after its top-level `\\`, or `null` when it has none. */
+    fun default(parameter: String): String? = defaultOperator(parameter)?.let { parameter.substring(it.last + 1).trim() }
+
+    /** Where [parameter]'s top-level `\\` is written, or `null` when it has none. */
+    private fun defaultOperator(parameter: String): IntRange? {
         val lexer = ElixirLexer()
         lexer.start(parameter)
 
@@ -74,7 +80,7 @@ object ParameterText {
                 in CLOSERS -> depth--
                 ElixirTypes.IN_MATCH_OPERATOR ->
                     if (depth == 0 && lexer.tokenText == "\\\\") {
-                        return parameter.substring(0, lexer.tokenStart).trim()
+                        return lexer.tokenStart until lexer.tokenEnd
                     }
             }
 

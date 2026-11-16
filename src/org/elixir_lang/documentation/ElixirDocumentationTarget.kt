@@ -13,6 +13,7 @@ import com.intellij.platform.backend.presentation.TargetPresentation
 import com.intellij.pom.Navigatable
 import com.intellij.psi.ElementDescriptionUtil
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileSystemItem
 import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.createSmartPointer
@@ -53,11 +54,14 @@ internal class ElixirDocumentationTarget private constructor(
         }
     }
 
+    /** The file [targetElement] is in: for a clause of a `.beam`'s decompiled source, the `.beam`. */
+    private val file: PsiFile? get() = targetElement.containingFile?.originalFile
+
     override fun computePresentation(): TargetPresentation {
         val project = targetElement.project
-        val file = targetElement.containingFile?.virtualFile
+        val virtualFile = file?.virtualFile
         val itemPresentation = (targetElement as? NavigationItem)?.presentation
-        val location = file?.let { fileLocation(project, it) }
+        val location = virtualFile?.let { fileLocation(project, it) }
 
         return TargetPresentation
             .builder(
@@ -66,9 +70,9 @@ internal class ElixirDocumentationTarget private constructor(
                     ?: targetElement.text
                     ?: targetElement.toString()
             )
-            .backgroundColor(file?.let { VfsPresentationUtil.getFileBackgroundColor(project, it) })
+            .backgroundColor(virtualFile?.let { VfsPresentationUtil.getFileBackgroundColor(project, it) })
             .icon(targetElement.getIcon(Iconable.ICON_FLAG_VISIBILITY or Iconable.ICON_FLAG_READ_STATUS))
-            .containerText(itemPresentation?.locationString, file?.let { fileStatusAttributes(project, it) })
+            .containerText(itemPresentation?.locationString, virtualFile?.let { fileStatusAttributes(project, it) })
             .locationText(location?.text, location?.icon)
             .presentation()
     }
@@ -94,7 +98,6 @@ internal class ElixirDocumentationTarget private constructor(
 
         if (name.isNotEmpty()) {
             val type = ElementDescriptionUtil.getElementDescription(element, UsageViewTypeLocation.INSTANCE)
-            val file = element.containingFile
 
             return buildString {
                 if (type.isNotEmpty()) {
@@ -103,9 +106,7 @@ internal class ElixirDocumentationTarget private constructor(
 
                 append('"').append(name).append('"')
 
-                if (file != null && file.isPhysical) {
-                    append(" [").append(file.name).append(']')
-                }
+                file?.takeIf(PsiFile::isPhysical)?.let { append(" [").append(it.name).append(']') }
             }
         }
 

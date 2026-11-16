@@ -133,7 +133,13 @@ internal class NameIndex<T> private constructor(byName: Map<String, List<T>>) {
                 .singleOrNull() as? Call
                 ?: return emptyList()
 
-            return CallDefinitionClause.modularChildCalls(modular).flatMap { call ->
+            return writtenHeads(modular)
+        }
+
+        /** The heads [modular]'s body writes, in the order it writes them, as the walk declares them. */
+        @RequiresReadLock
+        fun writtenHeads(modular: Call): List<WrittenHead> =
+            CallDefinitionClause.modularChildCalls(modular).flatMap { call ->
                 ProgressManager.checkCanceled()
                 val form = DeclaringForm.shapedForm(call) ?: return@flatMap emptyList()
 
@@ -141,7 +147,6 @@ internal class NameIndex<T> private constructor(byName: Map<String, List<T>>) {
                     spelled.declaration?.let { WrittenHead(it, call, DeclaringForm.head(call, form, it.name, it.arity)) }
                 }
             }
-        }
 
         private fun <T> of(items: Collection<T>, name: (T) -> String): NameIndex<T> {
             Probe.count(Probe.Counter.INDEXED, items.size)

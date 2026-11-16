@@ -34,7 +34,7 @@ class CompiledIdentityTest : PlatformTestCase() {
     fun testAnExportNeitherChunkPlacesIsAFunctionOfItsOwn() {
         val origin = CompiledOrigin(beam(OTHER_LANGUAGE), OTHER_LANGUAGE.name, "o", 1)
 
-        assertEquals(NameArity("o", 1), Declaration("o", ArityKnowledge.Exact(1), Definer.DEF.capabilities, Declared.Compiled(origin)).identity(placed = false))
+        assertEquals(NameArity("o", 1), Declaration("o", ArityKnowledge.Exact(1), Definer.DEF.capabilities, Declared.Compiled(origin)).identity())
     }
 
     fun testWithBothChunksTheDefaultsAreTheDebugInfos() =

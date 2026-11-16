@@ -10,6 +10,7 @@ import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.CodeInsightTestFixture
 import junit.framework.TestCase.assertEquals
+import org.elixir_lang.Module
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.expander.elixirString
 import org.elixir_lang.intellij_elixir.Quoter
@@ -30,10 +31,11 @@ internal class CompiledBuild(
 
 /**
  * Compiles [source] with the leg's Elixir once for each of [builds], its module `Compiled` (and any module named under
- * it) renamed to the build's name, and adds the built modules' `.beam`s to the project as one library, whose directory
- * it returns.
+ * it) renamed to the build's name, an alias or an atom such as `:compiled`, and adds the built modules' `.beam`s to the
+ * project as one library, whose directory it returns, with each build's renamed [source] as the library's source where
+ * [sources].
  */
-internal fun CodeInsightTestFixture.addCompiledLibrary(source: String, vararg builds: CompiledBuild): VirtualFile {
+internal fun CodeInsightTestFixture.addCompiledLibrary(source: String, vararg builds: CompiledBuild, sources: Boolean = false): VirtualFile {
     val compiled = Quoter.compile(
         """
         compile = fn name, debug_info, docs, docs_language ->
@@ -41,7 +43,7 @@ internal fun CodeInsightTestFixture.addCompiledLibrary(source: String, vararg bu
             ${elixirString(source)}
             |> String.replace("Compiled", name)
             |> Code.compile_string()
-            |> Enum.filter(fn {module, _} -> module == Module.concat([name]) end)
+            |> Enum.filter(fn {module, _} -> inspect(module) == name end)
 
           :code.delete(module)
           :code.purge(module)
@@ -77,10 +79,24 @@ internal fun CodeInsightTestFixture.addCompiledLibrary(source: String, vararg bu
     val directory = FileUtil.createTempDirectory("compiled_library", null)
     val binaries = (compiled.messages.single() as OtpErlangList).elements().map { (it as OtpErlangBinary).binaryValue() }
 
-    builds.zip(binaries).forEach { (build, bytes) -> File(directory, "Elixir.${build.name}.beam").writeBytes(bytes) }
-    VfsRootAccess.allowRootAccess(testRootDisposable, directory.path)
-    val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!
-    BeamLibraryFixture.addLibrary(project, module, "compiled-library", listOf(root))
+    builds.zip(binaries).forEach { (build, bytes) -> File(directory, "${Module.atom(build.name)!!}.beam").writeBytes(bytes) }
+
+    fun vfsRoot(ioDirectory: File): VirtualFile {
+        VfsRootAccess.allowRootAccess(testRootDisposable, ioDirectory.path)
+
+        return LocalFileSystem.getInstance().refreshAndFindFileByIoFile(ioDirectory)!!
+    }
+
+    val root = vfsRoot(directory)
+    val sourceRoots = if (sources) {
+        val sourceDirectory = FileUtil.createTempDirectory("compiled_library_source", null)
+        builds.forEach { File(sourceDirectory, "${Module.atom(it.name)!!}.ex").writeText(source.replace("Compiled", it.name)) }
+
+        listOf(vfsRoot(sourceDirectory))
+    } else {
+        emptyList()
+    }
+    BeamLibraryFixture.addLibrary(project, module, "compiled-library", listOf(root), sourceRoots)
     // Let the library's roots change and refresh finish before a gesture's background read waits on them.
     PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
 

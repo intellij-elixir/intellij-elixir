@@ -49,8 +49,7 @@ internal object DelegationBlock {
      */
     @RequiresReadLock
     fun of(reached: Reached): List<Entry> {
-        val index = reached.index
-        val module = index?.let(Module::inspect)
+        val module = reached.index?.let(Module::inspect)
         val delegation = reached.delegation
 
         val listing = SourceFileDocsHelper.listedGroups(delegation, remote = !reached.inside)
@@ -61,7 +60,7 @@ internal object DelegationBlock {
                 val (written, linked) = function.partition { it.form != Form.DELEGATION || writesDoc(it.call) }
                 val documentation = if (written.isEmpty()) listing.replacedDocs(function) else listing.documentation(function, written)
 
-                entry(reached, module, function.map { it.documentation }, linked.map { it.head }, SourceFileDocsHelper.titles(index, function), documentation)
+                entry(reached, module, function.map { it.documentation }, linked.map { it.head }, SourceFileDocsHelper.titles(function), documentation)
             }
             .ifEmpty {
                 val documentation = FetchedDocs.FunctionOrMacroDocumentation.fromCallDefinitionClauseCall(module, delegation, headOf(delegation, reached.head))

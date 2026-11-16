@@ -5,7 +5,6 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.documentation.SourceFileDocsHelper
-import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
@@ -39,5 +38,5 @@ internal fun recordedIn(file: PsiFile, module: String, nameArity: String): Strin
             }.orEmpty()
         }
 
-        RecordedSignature.of(SourceFileDocsHelper.indexName(modular), name, ArityInterval(arity, arity), clauses)?.text
+        RecordedSignature.of(SourceFileDocsHelper.indexName(modular), name, arity, clauses)?.text
     }).executeSynchronously()

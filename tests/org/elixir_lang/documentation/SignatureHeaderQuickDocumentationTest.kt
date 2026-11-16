@@ -536,11 +536,27 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
         )
 
     /**
+     * With no `Docs` chunk its debug info decompiles each arity a default covers as a head of its own; they are one
+     * function, titled once with the defaults its debug info keeps.
+     */
+    fun testACompiledModuleWithoutADocsChunkKeepsTheDefaultsItsDebugInfoRecords() =
+        assertCompiledHeader(
+            "CompiledHeaderDebugInfoOnly",
+            "split",
+            "<i>module</i> <b>CompiledHeaderDebugInfoOnly</b>",
+            """split(string, pattern \\ " ", options \\ [])""",
+            "  def split(string)",
+            "  def split(string, pattern)",
+            "  def split(string, pattern, options)"
+        )
+
+    /**
      * Quick Documentation at a call of [function] in [module], compiled by the leg's Elixir from [COMPILED], has its
      * first definition block's lines, unescaped, as [lines].
      */
     private fun assertCompiledHeader(module: String, function: String, vararg lines: String) {
-        myFixture.addCompiledLibrary(COMPILED, CompiledBuild("CompiledHeader"), CompiledBuild("CompiledHeaderDocsOnly", debugInfo = false))
+        myFixture.addCompiledLibrary(COMPILED, CompiledBuild("CompiledHeader"), CompiledBuild("CompiledHeaderDocsOnly", debugInfo = false),
+            CompiledBuild("CompiledHeaderDebugInfoOnly", docs = false))
         myFixture.configureByText("caller.ex", "defmodule Caller do\n  def calls(a), do: $module.<caret>$function(a)\nend\n")
         assertDefinitionAtCaret(*lines)
     }

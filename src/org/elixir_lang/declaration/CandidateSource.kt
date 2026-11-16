@@ -1,18 +1,26 @@
 package org.elixir_lang.declaration
 
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.psi.xml.XmlTag
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.NameArity
+import org.elixir_lang.beam.CompiledIdentity
+import org.elixir_lang.beam.FileType as BeamFileType
+import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
+import org.elixir_lang.expander.NameIndex
+import org.elixir_lang.expander.WrittenHead
 import org.elixir_lang.model.psi.atom.mfaReferenceDecision
+import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.Unquote
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.call.CanonicallyNamed
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.qualification.Qualified as QualifiedPsi
 import org.elixir_lang.psi.impl.functionNameAtomValue
@@ -60,7 +68,67 @@ interface CandidateSource {
      */
     @RequiresReadLock
     fun replaced(modular: PsiElement, name: String): List<Found> = emptyList()
+
+    /**
+     * [found], one of [use]'s candidates, where it is written, as a feature that reads that sees it
+     * ([Feature.readsLocation]): the one site that decides a `.beam` definition's clauses. A `.beam`'s definition is each
+     * clause of its export the `.beam`'s decompiled source writes; any other find is itself.
+     */
+    @RequiresReadLock
+    fun located(use: Use, found: Found): List<Found> = decompiledClauses(found) ?: listOf(found)
 }
+
+/** Whether [this], a head, declares the `.beam` entry [entry], a macro where [macro], by kind, name and arity. */
+internal fun Declaration.declaresEntry(entry: NameArity, macro: Boolean): Boolean =
+    capabilities.compileTime == macro && name == entry.name && arity.admits(entry.arity)
+
+/**
+ * Whether [this], a head, writes the `.beam` export [entry], a macro where [macro]: only a public head of its kind can,
+ * and a contract, as a `@callback` is, writes none.
+ */
+internal fun Declaration.writesExport(entry: NameArity, macro: Boolean): Boolean =
+    capabilities.public && !isContract(this) && declaresEntry(entry, macro)
+
+/**
+ * [this], a `.beam`'s definition, at each of [heads] that writes an export of it, in [module], declared as that head
+ * declares it; `null` where none does.
+ */
+internal fun Found.atHeadsWriting(heads: Iterable<WrittenHead>, module: String? = head.module): List<Found>? {
+    val compiled = candidate.declaration
+    val arities = compiled.arity.arityInterval() ?: return null
+
+    return heads
+        .filter { written ->
+            arities.closed().any { written.declaration.writesExport(NameArity(compiled.name, it), compiled.capabilities.compileTime) }
+        }
+        .map { written -> writtenAt(written, module) }
+        .ifEmpty { null }
+}
+
+/**
+ * [found], a `.beam`'s definition, at each clause of its export the `.beam`'s decompiled source writes, declared as that
+ * clause declares it; `null` where it is no `.beam`'s definition, or the decompiled source writes no clause of it.
+ */
+@RequiresReadLock
+private fun decompiledClauses(found: Found): List<Found>? {
+    val declaration = found.candidate.declaration
+    if (declaration.declared !is Declared.Compiled) return null
+    val modular = ((found.element as? BeamCallDefinition)?.navigationElement as? Call)
+        ?.let(CallDefinitionClause::enclosingModularMacroCall)
+        ?: return null
+    // The index name of the decompiled `defmodule` the clauses are written in.
+    val module = (modular as? CanonicallyNamed)?.canonicalName() ?: found.head.module
+
+    return found.atHeadsWriting(NameIndex.writtenHeads(modular), module)
+}
+
+/** [this] at [written], a head its call writes in [module], declared and headed as that head declares it. */
+private fun Found.writtenAt(written: WrittenHead, module: String?): Found =
+    copy(
+        candidate = candidate.copy(declaration = written.declaration),
+        element = written.call,
+        head = Head(written.written, module, written.call, written.declaration.name, written.declaration.arity)
+    )
 
 /**
  * A name [element] a declaring call writes, how it presents, and why it may not be a name Elixir defines, [uncertain],
@@ -180,6 +248,10 @@ data class ClauseOrder(val offset: Int, val within: Int) : Comparable<ClauseOrde
 @RequiresReadLock
 fun Found.clauseOrder(): ClauseOrder? = head.placedBy?.let { ClauseOrder(it.textOffset, (head.written ?: element).textOffset) }
 
+/** The `.beam` whose decompiled mirror [this] is written in; `null` for a declaration written in source, or compiled. */
+internal fun Declaration.mirroredIn(): VirtualFile? =
+    (declared as? Declared.Source)?.origin?.file?.takeIf { it.fileType is BeamFileType }
+
 /** The function [this] is one definition of, as Elixir keys it: its head's [Head.identity]. */
 @RequiresReadLock
 fun Found.identity(): NameArity? = head.identity(candidate.declaration, element)
@@ -187,15 +259,20 @@ fun Found.identity(): NameArity? = head.identity(candidate.declaration, element)
 /**
  * The function [this], a head of [declaration] found at [element], is one definition of, as Elixir keys it:
  * [Declaration.identity], unless the head written for it declares a larger full arity, as a head with defaults does
- * where its find is one of the arities they add. A placed head is read from [element] where that is a clause whose
- * name is unquoted ([nameUnquotedHead]); another placed head, or a compiled find, keeps [Declaration.identity].
+ * where its find is one of the arities they add. A head written in a `.beam`'s decompiled mirror, which writes each
+ * arity a default generates as a head of its own, is the `.beam`'s export, read as compiled. A placed head is read from
+ * [element] where that is a clause whose name is unquoted ([nameUnquotedHead]); another placed head, or a compiled find,
+ * keeps [Declaration.identity].
  */
 @RequiresReadLock
 fun Head.identity(declaration: Declaration, element: PsiElement): NameArity? {
-    val identity = declaration.identity(placed)
-    // Only these forms write a head of their own; another's written element is the call of its form.
-    (declaration.declared as? Declared.Source)?.form?.takeIf { it == Form.CLAUSE || it == Form.DELEGATION } ?: return identity
+    val identity = declaration.identity()
+    val declared = declaration.declared as? Declared.Source ?: return identity
     val written = written ?: nameUnquotedHead(element) ?: return identity
+    val beam = declaration.mirroredIn()
+    if (beam != null) return identity?.let { CompiledIdentity.of(beam, it.name, it.arity) }
+    // Only these forms write a head of their own; another's written element is the call of its form.
+    if (declared.form != Form.CLAUSE && declared.form != Form.DELEGATION) return identity
     val full = fullArity(written) ?: return identity
 
     return if (identity != null && full > identity.arity) NameArity(declaration.name, full) else identity

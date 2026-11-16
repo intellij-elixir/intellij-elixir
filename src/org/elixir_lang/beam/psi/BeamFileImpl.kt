@@ -29,6 +29,8 @@ import com.intellij.reference.SoftReference
 import com.intellij.util.ArrayUtil
 import com.intellij.util.IncorrectOperationException
 import com.intellij.util.concurrency.ThreadingAssertions
+import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.beam.*
 import org.elixir_lang.beam.chunk.Atoms
@@ -547,6 +549,12 @@ class BeamFileImpl private constructor(
         private const val BANNER = "# Source code recreated from a .beam file by IntelliJ Elixir\n" +
                 "# Function clause bodies is not available\n"
         private val MODULE_DOCUMENT_LINK_KEY = Key.create<Document>("module.document.link")
+
+        /** The module [beam], a `.beam` file, compiles, as [project] reads it; `null` where it reads no `.beam` there. */
+        @RequiresReadLock
+        @RequiresBackgroundThread(generateAssertion = false)
+        fun moduleOf(project: Project, beam: VirtualFile): Module? =
+            (PsiManager.getInstance(project).findFile(beam) as? BeamFileImpl)?.children?.singleOrNull() as? Module
 
         @JvmStatic
         fun buildFileStub(bytes: ByteArray?, path: String): Stub? =
