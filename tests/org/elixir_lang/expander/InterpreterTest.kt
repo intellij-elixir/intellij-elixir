@@ -2260,7 +2260,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         val level = legLevel()
 
         return Expander
-            .expandFile(lowered(code, level), Env.empty(level, legKernel), level, appExports, legStructs, legAppEnv(), clauses = sdk)
+            .expandFile(lowered(code, level), Env.empty(level, legKernel), level, appExports, legStructs, LEG_APP_ENV, clauses = sdk)
             .modules
             .single()
     }
@@ -2490,7 +2490,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             level,
             run.exports ?: appExports,
             legStructs,
-            legAppEnv(),
+            LEG_APP_ENV,
             clauses = run.clauses ?: sdk,
             file = { run.path },
             directories = run.directories,
@@ -2716,7 +2716,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                     level,
                     appExports,
                     legStructs,
-                    legAppEnv(),
+                    LEG_APP_ENV,
                     observer,
                     file = { FILE },
                     directories = DIRECTORIES,
@@ -2744,7 +2744,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 ExpansionObserver.NONE,
                 exports,
                 legStructs,
-                legAppEnv(),
+                LEG_APP_ENV,
                 file = { FILE },
                 directories = DIRECTORIES,
                 clauses = clauses,

@@ -79,7 +79,7 @@ class EctoFixtureTest : HeavyTestCase() {
                 ExpansionObserver.NONE,
                 { holder.exports(queries, it, legInputs) },
                 { holder.struct(queries, it, legInputs) },
-                legAppEnv(),
+                LEG_APP_ENV,
                 file = { queries.virtualFile.path },
                 // The project's root as the file system gives it, as it gives `file`.
                 directories = { queries.virtualFile.parent.parent.path },
@@ -161,7 +161,7 @@ class EctoFixtureTest : HeavyTestCase() {
                 ExpansionObserver.NONE,
                 { holder.exports(asker, it, legInputs) },
                 { holder.struct(asker, it, legInputs) },
-                legAppEnv(),
+                LEG_APP_ENV,
                 clauses = { holder.clauses(asker, it, legInputs) },
             )
 
@@ -353,7 +353,7 @@ class EctoFixtureTest : HeavyTestCase() {
                 ExpansionObserver.NONE,
                 { holder.exports(asker, it, legInputs) },
                 { holder.struct(asker, it, legInputs) },
-                legAppEnv(),
+                LEG_APP_ENV,
                 clauses = { holder.clauses(asker, it, legInputs) },
             )
 

@@ -71,7 +71,7 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
                 ExpansionObserver.NONE,
                 { holder.exports(asker, it, legInputs) },
                 { holder.struct(asker, it, legInputs) },
-                legAppEnv(),
+                LEG_APP_ENV,
                 clauses = { holder.clauses(asker, it, legInputs) },
             )
 
