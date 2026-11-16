@@ -6,7 +6,12 @@ import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.V1
 import org.elixir_lang.psi.call.name.Function.DEF
 import org.elixir_lang.psi.call.name.Function.DEFMACRO
 
-/** How many of the arities below its own each definition of a compiled module answers to through default arguments. */
+/**
+ * The defaults Elixir's definition table stored for each definition of a compiled module: how many of the arities below
+ * its own it answers to. An override of a `defoverridable` function stores none, while `Docs` merges the overridden
+ * one's defaults into the entry IEx shows, so which function an export is one of is
+ * [org.elixir_lang.beam.CompiledIdentity]'s question.
+ */
 internal object CompiledDefaults {
     /**
      * From the debug info's definitions, or from `Docs` for a module compiled without them; null for a module with
