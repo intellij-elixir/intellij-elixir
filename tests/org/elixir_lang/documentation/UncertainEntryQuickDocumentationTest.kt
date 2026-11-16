@@ -23,6 +23,71 @@ class UncertainEntryQuickDocumentationTest : QuickDocumentationTestCase() {
         assertFalse("Expected no plain line, got: $documentation", PLAIN_LINE in documentation)
     }
 
+    /** A local call in a `quote` runs in the module the quote's code is injected into, which may define the name itself. */
+    fun testALocalCallInAQuoteCarriesThePlainLine() {
+        val documentation = documentationInUsing("quote do\n      def f(y), do: hel<caret>per(y)\n    end")
+
+        assertTrue("Expected helper's docs, got: $documentation", "Helps." in documentation)
+        assertPlainLineOnce(documentation)
+    }
+
+    /** A `quote` records the import a call in it reaches where it is written, so the call reaches it wherever it is injected. */
+    fun testAnImportedCallInAQuoteCarriesNoLine() {
+        myFixture.addFileToProject("foo.ex", "defmodule Foo do\n  @doc \"Gs.\"\n  def g(x), do: x\nend\n")
+        val documentation = documentationInUsing("quote do\n      def f(y), do: <caret>g(y)\n    end", "import Foo")
+
+        assertTrue("Expected g's docs, got: $documentation", "Gs." in documentation)
+        assertFalse("Expected no plain line, got: $documentation", PLAIN_LINE in documentation)
+    }
+
+    /** What a `quote` unquotes runs in the macro, in the module the `quote` is written in. */
+    fun testALocalCallAQuoteUnquotesCarriesNoLine() {
+        val documentation = documentationInUsing("quote do\n      unquote(hel<caret>per(1))\n    end")
+
+        assertTrue("Expected helper's docs, got: $documentation", "Helps." in documentation)
+        assertFalse("Expected no plain line, got: $documentation", PLAIN_LINE in documentation)
+    }
+
+    /** `unquote: false` keeps `unquote` as code, so the call in it runs in the module the code is injected into. */
+    fun testALocalCallInAnUnquoteAQuoteKeepsAsCodeCarriesThePlainLine() {
+        val documentation = documentationInUsing("quote unquote: false do\n      unquote(hel<caret>per(1))\n    end")
+
+        assertTrue("Expected helper's docs, got: $documentation", "Helps." in documentation)
+        assertPlainLineOnce(documentation)
+    }
+
+    /**
+     * The walk documents a function the `quote` defines at a local call of it in the quote, where the expander, which
+     * reads no quote's definitions, documents nothing.
+     */
+    fun testALocalCallOfAFunctionTheQuoteDefinesIsDocumentedOnlyByTheWalk() {
+        val quote = "quote do\n      @doc \"Ks.\"\n      def k(x), do: x\n      def f(y), do: <caret>k(y)\n    end"
+        val walked = documentationInUsing(quote, expander = false)
+
+        assertTrue("Expected k's docs, got: $walked", "Ks." in walked)
+
+        val expanded = documentationInUsing(quote)
+
+        assertEquals("Expected no docs, got: $expanded", "", expanded)
+    }
+
+    /** `__MODULE__` in a `quote` is the module the code is injected into, which may define the name itself. */
+    fun testACallOnTheQuotesModuleCarriesThePlainLine() {
+        val documentation = documentationInUsing("quote do\n      def f(y), do: __MODULE__.hel<caret>per(y)\n    end")
+
+        assertTrue("Expected helper's docs, got: $documentation", "Helps." in documentation)
+        assertPlainLineOnce(documentation)
+    }
+
+    /** A module under `__MODULE__` in a `quote` is under the module the code is injected into. */
+    fun testACallOnAModuleUnderTheQuotesModuleCarriesThePlainLine() {
+        myFixture.addFileToProject("sub.ex", "defmodule U.Sub do\n  @doc \"Subs.\"\n  def f(x), do: x\nend\n")
+        val documentation = documentationInUsing("quote do\n      def g(y), do: __MODULE__.Sub.<caret>f(y)\n    end")
+
+        assertTrue("Expected f's docs, got: $documentation", "Subs." in documentation)
+        assertPlainLineOnce(documentation)
+    }
+
     fun testEachCopyOfAModuleIsItsOwnEntry() {
         expanderOn()
         configureTwice()
@@ -109,6 +174,9 @@ class UncertainEntryQuickDocumentationTest : QuickDocumentationTestCase() {
         assertFalse("Expected no plain line, got: $documentation", PLAIN_LINE in documentation)
     }
 
+    private fun assertPlainLineOnce(documentation: String) =
+        assertEquals("Expected the plain line once, got: $documentation", 1, StringUtil.getOccurrenceCount(documentation, PLAIN_LINE))
+
     /** `Twice`, making `g` with `EEx` from the bindings in `@args`, documented as [doc]. */
     private fun eexTwice(doc: String): String =
         "defmodule Twice do\n  require EEx\n  @args [:a]\n  @doc \"$doc\"\n  EEx.function_from_string(:def, :g, \"x\", @args)\nend\n"
@@ -116,6 +184,20 @@ class UncertainEntryQuickDocumentationTest : QuickDocumentationTestCase() {
     private fun configureTwice() {
         myFixture.addFileToProject("first.ex", "defmodule Twice do\n  @doc \"First copy.\"\n  def g(a), do: a\nend\n")
         myFixture.addFileToProject("second.ex", "defmodule Twice do\n  @doc \"Second copy.\"\n  def g(a), do: a\nend\n")
+    }
+
+    /**
+     * Quick Documentation at the caret in [quote], which `U.__using__/1` returns, below [directive] in `U`, with the
+     * expander on where [expander].
+     */
+    private fun documentationInUsing(quote: String, directive: String = "", expander: Boolean = true): String {
+        if (expander) expanderOn()
+        myFixture.configureByText(
+            "u.ex",
+            "defmodule U do\n  $directive\n\n  @doc \"Helps.\"\n  def helper(x), do: x\n\n  defmacro __using__(_) do\n    $quote\n  end\nend\n"
+        )
+
+        return quickDocumentationAtCaret().orEmpty()
     }
 
     /** Quick Documentation at a call of `Twice.g(1)`. */

@@ -16,6 +16,7 @@ import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
+import com.intellij.psi.util.parentsOfType
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
@@ -54,12 +55,16 @@ import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.QualifiableAlias
+import org.elixir_lang.psi.QualifiedAlias
 import org.elixir_lang.psi.QuoteMacro
+import org.elixir_lang.psi.Unquote
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
+import org.elixir_lang.psi.call.name.Function.__MODULE__
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.definition
+import org.elixir_lang.psi.qualifier
 import org.elixir_lang.psi.impl.indexName
 import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
@@ -310,15 +315,20 @@ internal object ExpanderSource : CandidateSource {
         val call = use.entrance
         val name = (use as? Use.Named)?.name
 
+        // What the call reaches in the module its qualifier names, or its own: where a `quote` returns it, unconfirmed.
+        val unconfirmedWhereQuoted = { reached: List<Reached> ->
+            if (reached.isNotEmpty() && isQuoted(call)) reached.map { it.marked(Uncertain.OPAQUE) } else reached
+        }
+
         return if (call is Qualified) {
-            qualified(at, call.qualifier(), name, use.arity)
+            unconfirmedWhereQuoted(qualified(at, call.qualifier(), name, use.arity))
         } else {
             val isOwn = isOwn(at)
             val reached = buildList {
                 val defined = ownDefined(at, name)
                 // This lookup is the use's first, so a MODULE gap is one it met: what its module defines isn't known.
                 val ownUnknown = Uncertain.MODULE in at.gaps
-                addAll(defined.flatMap { held(at, it, name, use.arity, remote = false, emptySet()) })
+                addAll(unconfirmedWhereQuoted(defined.flatMap { held(at, it, name, use.arity, remote = false, emptySet()) }))
                 addAll(imported(at, at.file, at.env, name, use.arity, emptySet()))
                 addAll(specialForms(at, name, use.arity))
                 // Past where the env is known, what the code after it brings in may be any definition of the name; on
@@ -337,6 +347,21 @@ internal object ExpanderSource : CandidateSource {
             ownFirst(reached, isOwn)
         }
     }
+
+    /**
+     * Whether [call], a local call or one on `__MODULE__` or a module under it, is code a `quote` returns: it then runs
+     * in, or under, the module that code is injected into, which may define its name itself.
+     */
+    private fun isQuoted(call: Call): Boolean =
+        (call !is Qualified || isModuleRelative(call.qualifier())) &&
+            call.parentsOfType<Call>(withSelf = false).any { QuoteMacro.`is`(it) && Unquote.isQuotedBy(it, call) }
+
+    /** Whether [qualifier]'s leftmost segment is `__MODULE__`: `__MODULE__` itself, or `__MODULE__.Sub`. */
+    private fun isModuleRelative(qualifier: PsiElement): Boolean =
+        (generateSequence(qualifier.stripAccessExpressionAndParentheses()) {
+            (it as? QualifiedAlias)?.qualifier()?.stripAccessExpressionAndParentheses()
+        }.last() as? Call)
+            ?.let { it !is Qualified && it.functionName() == __MODULE__ && it.resolvedFinalArity() == 0 } == true
 
     /** [reached], what the module [isOwn] takes defines first, as a local call of an arity it defines calls its own. */
     private fun ownFirst(reached: List<Reached>, isOwn: (String) -> Boolean): List<Reached> =
@@ -689,7 +714,7 @@ internal object ExpanderSource : CandidateSource {
      * @property remote whether a remote call reaches it, which a private definition refuses
      * @property arities the arities of [defined] that the `import` crossed brings in, `null` where none was crossed
      */
-    private class Reached(
+    private data class Reached(
         val defined: Defined,
         val reach: Reach,
         val paths: List<Call>,
@@ -701,7 +726,10 @@ internal object ExpanderSource : CandidateSource {
         val imported: Boolean,
         val remote: Boolean,
         val arities: Set<Int>? = null,
-    )
+    ) {
+        /** A copy with its definition marked [uncertain] unless it already is. */
+        fun marked(uncertain: Uncertain): Reached = copy(defined = defined.marked(uncertain))
+    }
 
     /** [heldOnly], and what it reaches when it delegates. */
     private fun held(at: At, defined: Defined, name: String?, arity: Int?, remote: Boolean, crossed: Set<Head>): List<Reached> =
