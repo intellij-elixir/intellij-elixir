@@ -33,7 +33,7 @@ internal object CompiledDefaults {
 
     /** Each exported definition `Docs` has an entry for, with its `def` or `defmacro` and its defaults. */
     fun documented(reader: BeamReader): Map<NameArity, Pair<String, Int>>? {
-        val docs = reader.documentationResult.valueOrNull?.takeIf { it.beamLanguage == "elixir" }?.docs ?: return null
+        val docs = reader.documentationResult.valueOrNull?.elixirDocs ?: return null
         val exports = reader.exportsResult.valueOrNull?.macroNameAritySortedSetByMacro() ?: return null
 
         return KINDS.flatMap { (macro, kind) ->
