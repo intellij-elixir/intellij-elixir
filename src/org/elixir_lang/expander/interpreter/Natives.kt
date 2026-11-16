@@ -1225,7 +1225,7 @@ internal class Natives(private val evaluation: Evaluation) {
      * list OTP's own sort gives in a different order before and after its stability fix.
      */
     private fun keysort(args: List<OtpErlangObject>): OtpErlangObject {
-        val position = (seen(args[0]) as? OtpErlangLong)?.takeIf { it.signum() > 0 } ?: functionClause("lists", "keysort", args)
+        val position = positiveInteger(args[0]) ?: functionClause("lists", "keysort", args)
         val (elements, tail) = cells(args[1]) ?: evaluation.error(tuple(atom("case_clause"), args[1]))
 
         if (tail != null) {
@@ -1235,7 +1235,7 @@ internal class Natives(private val evaluation: Evaluation) {
         }
         if (elements.size < 2) return args[1]
 
-        val index = position.bigIntegerValue().min(Int.MAX_VALUE.toBigInteger()).toInt()
+        val index = position.min(Int.MAX_VALUE.toBigInteger()).toInt()
         val keyed = elements.map { element ->
             val key = (seen(element) as? OtpErlangTuple)?.takeIf { index <= it.arity() }?.elementAt(index - 1) ?: badargOf("lists", "keysort", args)
 
@@ -1482,7 +1482,7 @@ internal class Natives(private val evaluation: Evaluation) {
         }
     }
 
-    /** [term] where it is an integer above 0: `lists:keydelete/3`'s and `keytake/3`'s `N`, or a `counters` size. */
+    /** [term] where it is an integer above 0: `lists:keydelete/3`'s, `keytake/3`'s and `keysort/2`'s `N`, or a `counters` size. */
     private fun positiveInteger(term: OtpErlangObject): BigInteger? =
         (seen(term) as? OtpErlangLong)?.bigIntegerValue()?.takeIf { it.signum() > 0 }
 
