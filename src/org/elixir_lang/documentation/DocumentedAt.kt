@@ -7,7 +7,6 @@ import com.intellij.psi.PsiReference
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.impl.source.tree.LeafPsiElement
 import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.psi.util.parentsOfType
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Use
@@ -19,8 +18,7 @@ import org.elixir_lang.psi.ElixirRelativeIdentifier
 import org.elixir_lang.psi.ElixirStructOperation
 import org.elixir_lang.psi.ElixirVariable
 import org.elixir_lang.psi.QualifiableAlias
-import org.elixir_lang.psi.Unquote
-import org.elixir_lang.psi.__module__.isInBody
+import org.elixir_lang.psi.__module__.currentModularAt
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.__MODULE__
 import org.elixir_lang.psi.impl.declaringModuleCall
@@ -49,7 +47,7 @@ internal object DocumentedAt {
         atomAt(original)?.let { return moduleOf(it) }
         aliasAt(original)?.let { return moduleOf(it) }
 
-        return structModuleAt(original)?.let(::moduleOf)
+        return structModuleAt(original)?.let(::currentModularAt)
     }
 
     /**
@@ -139,20 +137,6 @@ internal object DocumentedAt {
     private fun structModuleAt(element: PsiElement): ElixirVariable? =
         PsiTreeUtil.getParentOfType(element, ElixirVariable::class.java, false)
             ?.takeIf { it.name == __MODULE__ && it.parent is ElixirStructOperation }
-
-    /**
-     * The module [variable], a struct's `__MODULE__`, names, as Elixir expands it: the module whose body it is written
-     * in. None in a `quote`'s body, whose module is its caller's; in what a `quote` unquotes, the `quote`'s module.
-     */
-    private fun moduleOf(variable: ElixirVariable): PsiElement? {
-        val runs = Unquote.escaped(variable) ?: variable
-        val quote = Unquote.quoting(runs)
-
-        return runs.parentsOfType<Call>(withSelf = false)
-            .filter { isInBody(it, runs) }
-            .takeWhile { it != quote }
-            .firstOrNull(::isModular)
-    }
 
     /** The modular [alias] declares, else the one modular its reference resolves to. */
     private fun moduleOf(alias: QualifiableAlias): PsiElement? =
