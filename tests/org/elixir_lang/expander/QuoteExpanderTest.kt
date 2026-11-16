@@ -440,18 +440,6 @@ class QuoteExpanderTest : ExpanderTestCase() {
         }
     }
 
-    fun testTheLineOffsetShiftsSourceLinesOnly() {
-        val level = ElixirLanguageLevel.of("1.20.4")
-
-        assertEquals(
-            "{:__block__, [], [{:=, [], [{:b, [line: 41], T}, 1]}, {:b, [], T}]} " +
-                "{:foo, [line: 7], [{:v, [line: 7], T}]}",
-            listOf("quote(bind_quoted: [b: 1], do: b)", "quote(line: 7, do: foo(v))").joinToString(" ") {
-                value(it, level, lineOffset = 40)
-            },
-        )
-    }
-
     // Helpers
 
     private fun assertValue(code: String, expected: String) = assertLevelValues(code, LEVELS) { expected }
@@ -500,7 +488,6 @@ class QuoteExpanderTest : ExpanderTestCase() {
     private fun value(
         code: String,
         level: ElixirLanguageLevel,
-        lineOffset: Int = 0,
         run: Run = Run(level, ExpansionObserver.NONE, exports, structs, NO_APP_ENV),
     ): String {
         val ast = lower(code, level)
@@ -514,7 +501,7 @@ class QuoteExpanderTest : ExpanderTestCase() {
             env = expansion.env
         }
 
-        val escaped = Quote.escaped(statements.last() as ElixirAst.Call, state, env, run, lineOffset)
+        val escaped = Quote.escaped(statements.last() as ElixirAst.Call, state, env, run)
             ?: return "no escaped expression"
 
         return quotedValue(escaped)?.let(QuotedTerms::inspect) ?: "no value"

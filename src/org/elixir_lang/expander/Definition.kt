@@ -85,7 +85,7 @@ internal fun define(
     env: Env,
     run: Run,
 ): Expansion {
-    val view = AstEscapeView(Synthetic(node.meta), ParsedMeta(columns = false))
+    val view = AstEscapeView(Synthetic(node.meta), ParsedMeta.LINES)
     val hasUnquotes = HasUnquotes(view, run.level)
     // `Kernel.define/4` reads the head, then the body.
     val headUnquotes: Boolean
@@ -1273,7 +1273,7 @@ private const val ALIASES = "__aliases__"
 
 /** Whether [pair], a two-element tuple, splices, so that `do_quote/2` quotes it as `{:{}, [], [Left, Right]}`. */
 private fun isSplicingPair(pair: ElixirAst.Tuple): Boolean {
-    val view = AstEscapeView(Synthetic(pair.meta), ParsedMeta(columns = false))
+    val view = AstEscapeView(Synthetic(pair.meta), ParsedMeta.LINES)
 
     return isSplicingPair(view, AstTerm.Node(pair.elements[0]), AstTerm.Node(pair.elements[1]))
 }
