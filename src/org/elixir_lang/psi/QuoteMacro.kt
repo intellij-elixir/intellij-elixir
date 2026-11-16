@@ -10,10 +10,10 @@ import org.elixir_lang.psi.call.name.Function.QUOTE
 import org.elixir_lang.psi.call.name.Function.TRY
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.call.finalArguments
+import org.elixir_lang.psi.impl.call.keywordList
 import org.elixir_lang.psi.impl.call.macroChildCallSequence
 import org.elixir_lang.psi.impl.call.whileInStabBodyChildExpressions
 import org.elixir_lang.psi.impl.keywordValue
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.scope.Recording
 import org.elixir_lang.psi.scope.WhileIn.whileIn
 
@@ -108,12 +108,8 @@ object QuoteMacro {
     fun option(quote: Call, key: String): PsiElement? =
         quote.finalArguments()
             ?.firstOrNull()
-            ?.let(::keywords)
+            ?.keywordList()
             ?.keywordValue(key)
-
-    private fun keywords(element: PsiElement): QuotableKeywordList? =
-        element as? QuotableKeywordList
-            ?: (element.stripAccessExpression() as? ElixirList)?.children?.singleOrNull() as? QuotableKeywordList
 
     @JvmStatic
     fun `is`(call: Call): Boolean = `is`(SyntacticCall.of(call))

@@ -196,45 +196,14 @@ fun Call.body(): PsiElement? =
 fun Call.blockKeywordPairs(): List<QuotableKeywordPair> =
     keywordArguments()?.quotableKeywordPairList()?.filter { it.selfOrEnclosingMacroCall() == this }.orEmpty()
 
-/**
- * The keyword arguments for `call`.
- * @receiver the call to search for keyword arguments.
- * @return the final element of the [finalArguments] if they are a
- * [QuotableKeywordList]; otherwise, `null`.
- */
 @RequiresReadLock
-fun Call.keywordArguments(): QuotableKeywordList? {
-    val finalArguments = this.finalArguments()
-    var keywordArguments: QuotableKeywordList? = null
+fun Call.keywordArguments(): QuotableKeywordList? = finalArguments()?.lastOrNull()?.keywordList()
 
-    if (finalArguments != null) {
-        val finalArgumentCount = finalArguments.size
-
-        if (finalArgumentCount > 0) {
-            val potentialKeywords = finalArguments[finalArgumentCount - 1]
-
-            if (potentialKeywords is QuotableKeywordList) {
-                keywordArguments = potentialKeywords
-            } else if (potentialKeywords is ElixirAccessExpression) {
-                val accessExpressionChild = potentialKeywords.stripAccessExpression()
-
-                if (accessExpressionChild is ElixirList) {
-                    val listChildren = accessExpressionChild.children
-
-                    if (listChildren.size == 1) {
-                        val listChild = listChildren[0]
-
-                        if (listChild is QuotableKeywordList) {
-                            keywordArguments = listChild
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    return keywordArguments
-}
+/** This element as a keyword list, written bare as `k: v` or in brackets as `[k: v]`; `null` for anything else. */
+@RequiresReadLock
+fun PsiElement.keywordList(): QuotableKeywordList? =
+    this as? QuotableKeywordList
+        ?: (stripAccessExpression() as? ElixirList)?.children?.singleOrNull() as? QuotableKeywordList
 
 @RequiresReadLock
 fun Call.macroChildCalls(): Array<Call> {
