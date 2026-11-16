@@ -97,29 +97,13 @@ abstract class Variable : PsiScopeProcessor {
 
     protected fun isInDeclaringScope(call: Call, state: ResolveState): Boolean =
             state.get(DECLARING_SCOPE)
-                    ?: PsiTreeUtil
-                            .getContextOfType(
-                                    call,
-                                    false,
-                                    ElixirStabOperation::class.java,
-                                    InMatch::class.java
-                            )
-                            ?.let { maybeDeclaringScopeContext ->
-                                if (maybeDeclaringScopeContext is ElixirStabOperation) {
-                                    val signature: PsiElement? = maybeDeclaringScopeContext.leftOperand()
-                                    if (PsiTreeUtil.isAncestor(signature, call, false)) {
-                                        isDeclaringScope(maybeDeclaringScopeContext)
-                                    } else {
-                                        false
-                                    }
-                                } else if (maybeDeclaringScopeContext is InMatch) {
-                                    PsiTreeUtil.isAncestor(maybeDeclaringScopeContext.leftOperand(), call, false)
-                                } else {
-                                    false
-                                }
-                            }
-                    ?: false
-
+                    ?: when (val context =
+                            PsiTreeUtil.getContextOfType(call, false, ElixirStabOperation::class.java, InMatch::class.java)) {
+                        is ElixirStabOperation ->
+                            PsiTreeUtil.isAncestor(context.leftOperand(), call, false) && isDeclaringScope(context)
+                        is InMatch -> PsiTreeUtil.isAncestor(context.leftOperand(), call, false)
+                        else -> false
+                    }
 
     private fun execute(match: Call, state: ResolveState): Boolean =
             when {
