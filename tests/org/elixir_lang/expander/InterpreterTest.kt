@@ -6340,6 +6340,46 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             ),
             macro("native:info-module", "defmacro m, do: [Enum.__info__(:module), Kernel.__info__(:module)]"),
 
+            // Equality of a partly unknown term: false where the known parts already differ, else unknown.
+            macro("pure:equal-unknown-known-leaves-differ", "defmacro m, do: (u = :erlang.whereis(:init); {1, u} == {2, u})"),
+            macro("pure:equal-unknown-list-lengths-differ", "defmacro m, do: (u = :erlang.whereis(:init); [u] == [u, 1])"),
+            macro("pure:equal-unknown-map-sizes-differ", "defmacro m, do: (u = :erlang.whereis(:init); %{a: u} == %{a: u, b: 1})"),
+            macro(
+                "pure:equal-unknown-differ",
+                """
+                defmacro m do
+                  u = :erlang.whereis(:init)
+
+                  [
+                    {1, u} === {1.0, u},
+                    {u} == {u, 1},
+                    {u} == [u],
+                    {u, 1} != {u, 2},
+                    {u, 1} !== {u, 1.0},
+                    [u | 1] == [u | 2],
+                    [u, 1] == [u | 2],
+                    {[u, 1]} == {[u]},
+                    {u, "a"} == {u, ~c"a"},
+                    {u, [?a]} == {u, ~c"b"},
+                    {make_ref(), u} == {make_ref(), u},
+                    :lists.member({2, u}, [{1, u}, {3, u}])
+                  ]
+                end
+                """,
+            ),
+            // Under `==` an integer and a float of one value are no difference.
+            macro("pure:equal-unknown-integer-and-float", "defmacro m, do: (u = :erlang.whereis(:init); {1, u} == {1.0, u})", pins = DECLINED),
+            macro("pure:equal-unknown-alike", "defmacro m, do: (u = :erlang.whereis(:init); {u} == {u})", pins = DECLINED),
+            // Two closures, which only the VM orders, and maps of one size are taken as no sure difference.
+            macro(
+                "pure:equal-unknown-closures",
+                "defmacro m, do: (u = :erlang.whereis(:init); {fn -> 1 end, u} == {fn -> 2 end, u})",
+                pins = DECLINED,
+            ),
+            macro("pure:equal-unknown-map-keys", "defmacro m, do: (u = :erlang.whereis(:init); %{a: u} == %{b: u})", pins = DECLINED),
+            // A list longer than another whose tail isn't known.
+            macro("pure:equal-unknown-improper-tail", "defmacro m, do: (u = :erlang.whereis(:init); [u, 1] == [u | u])", pins = DECLINED),
+
             // The natives: loading
             macro("native:ensure-loaded-loaded", "defmacro m, do: Macro.escape(:code.ensure_loaded(Enum))"),
             // The quoter's release runs in embedded mode, which answers `{:error, :embedded}`; a Mix compile is interactive.

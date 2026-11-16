@@ -897,9 +897,64 @@ internal fun isNumber(term: OtpErlangObject) = term is OtpErlangLong || term is 
 /** [bitstring]'s length in bits, Erlang's `bit_size/1`. */
 internal fun bitSize(bitstring: OtpErlangBitstr) = bitstring.binaryValue().size * 8 - bitstring.pad_bits()
 
-/** Erlang's `==` where [exact] is false, else `=:=` ([termsEqual]); declines on terms whose order only the VM knows. */
+/**
+ * Erlang's `==` where [exact] is false, else `=:=` ([termsEqual]); declines on terms whose order only the VM knows, and on
+ * a term not known unless the two [surelyDiffer].
+ */
 internal fun equal(left: OtpErlangObject, right: OtpErlangObject, exact: Boolean, level: ElixirLanguageLevel): Boolean =
-    ordered(left, right, true) { termsEqual(left, right, exact, level) }
+    try {
+        ordered(left, right, true) { termsEqual(left, right, exact, level) }
+    } catch (declined: Declined) {
+        if (declined.onValue && surelyDiffer(left, right, exact, level)) false else throw declined
+    }
+
+/**
+ * Whether [left] and [right] are unequal whatever their unknown parts are: at one place they differ in a tuple's size, a
+ * map's size, a proper list's length or the kind of term, or hold two known terms that aren't [equal]. Two closures,
+ * which only the VM orders, aren't taken to differ.
+ */
+private fun surelyDiffer(left: OtpErlangObject, right: OtpErlangObject, exact: Boolean, level: ElixirLanguageLevel): Boolean {
+    val looked = Pairs<Boolean>(root = left)
+
+    fun differ(left: OtpErlangObject, right: OtpErlangObject): Boolean {
+        ProgressManager.checkCanceled()
+
+        if (isUnknown(left) || isUnknown(right)) return false
+
+        looked[left, right]?.let { return it }
+
+        return when (left) {
+            is OtpErlangTuple if right is OtpErlangTuple ->
+                left.arity() != right.arity() || (0 until left.arity()).any { differ(left.elementAt(it), right.elementAt(it)) }
+            is OtpErlangMap if right is OtpErlangMap -> left.arity() != right.arity()
+            else -> {
+                val leftCells = cells(left)
+                val rightCells = leftCells?.let { cells(right) }
+
+                when {
+                    leftCells != null && rightCells != null -> {
+                        val (leftElements, leftTail) = leftCells
+                        val (rightElements, rightTail) = rightCells
+
+                        leftElements.asSequence().zip(rightElements.asSequence()).any { (a, b) -> differ(a, b) } ||
+                            if (leftElements.size == rightElements.size) {
+                                (leftTail != null || rightTail != null) && differ(leftTail ?: EMPTY, rightTail ?: EMPTY)
+                            } else {
+                                val tail = if (leftElements.size < rightElements.size) leftTail else rightTail
+
+                                // Where the longer list goes on, the shorter has `[]` or a term that isn't a list.
+                                tail == null || !isUnknown(tail) && cells(tail) == null
+                            }
+                    }
+                    isContainer(left) || isContainer(right) -> true
+                    else -> orOnDecline(false) { !equal(left, right, exact, level) }
+                }
+            }
+        }.also { looked[left, right] = it }
+    }
+
+    return differ(left, right)
+}
 
 internal fun compare(
     left: OtpErlangObject,
