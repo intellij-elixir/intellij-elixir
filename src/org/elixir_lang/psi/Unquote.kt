@@ -6,6 +6,8 @@ import com.intellij.psi.ResolveResult
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.lowering.AtomName
+import org.elixir_lang.psi.__module__.isInBody
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.UNQUOTE
 import org.elixir_lang.psi.call.name.Function.UNQUOTE_SPLICING
@@ -13,8 +15,10 @@ import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.call.CallImpl
 import org.elixir_lang.psi.impl.call.finalArguments
+import org.elixir_lang.psi.impl.call.keywordArgument
 import org.elixir_lang.psi.impl.childExpressions
 import org.elixir_lang.psi.impl.stripAccessExpression
+import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.operation.Match
 import org.elixir_lang.psi.scope.Recording
 import org.elixir_lang.psi.scope.WhileIn.whileIn
@@ -49,10 +53,13 @@ object Unquote {
     /**
      * Whether [entrance], written under [quote], is in the expression an `unquote` of [quote] unquotes, which runs where
      * the `quote` is: the receiver and the arguments of `Left.unquote(x)(y)` stay quoted. One inside a nested `quote`
-     * belongs to that.
+     * belongs to that. A `quote` unquotes as a literal `unquote:` option says, else unless it has `bind_quoted:`
+     * (`elixir_expand.erl:255-266`).
      */
     @RequiresReadLock
     fun isUnquotedIn(quote: Call, entrance: PsiElement): Boolean {
+        if (!unquotes(quote)) return false
+
         val enclosing = generateSequence(entrance) { it.parent }.takeWhile { it != quote }.toList()
 
         return enclosing
@@ -61,6 +68,17 @@ object Unquote {
                     call is Call && unquotedArgument(call)?.let { PsiTreeUtil.isAncestor(it, entrance, false) } == true
                 }
     }
+
+    /** Whether [entrance] is code [quote] returns: in its body, and not in what it unquotes. */
+    @RequiresReadLock
+    fun isQuotedBy(quote: Call, entrance: PsiElement): Boolean = isInBody(quote, entrance) && !isUnquotedIn(quote, entrance)
+
+    private fun unquotes(quote: Call): Boolean =
+            when (quote.keywordArgument("unquote")?.let { AtomName.of(it.stripAccessExpressionAndParentheses()) }) {
+                "true" -> true
+                "false" -> false
+                else -> quote.keywordArgument("bind_quoted") == null
+            }
 
     @RequiresReadLock
     fun isQualified(qualified: Qualified): Boolean =

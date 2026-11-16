@@ -49,6 +49,10 @@ class BindQuotedVariableTest : PlatformTestCase() {
     fun testReadInAnEnabledUnquoteResolvesToTheEarlierAssignment() =
         assertEarlierAssignment("a = 1\n    quote bind_quoted: [a: 2], unquote: true do\n      unquote(<caret>a)\n    end")
 
+    /** `(true)` is `true`: parentheses around one expression leave no node in the quoted form. */
+    fun testReadInAnUnquoteEnabledInParenthesesResolvesToTheEarlierAssignment() =
+        assertEarlierAssignment("a = 1\n    quote bind_quoted: [a: 2], unquote: (true) do\n      unquote(<caret>a)\n    end")
+
     fun testReadInAnEnabledUnquoteSplicingResolvesToTheEarlierAssignment() =
         assertEarlierAssignment("a = [1]\n    quote bind_quoted: [a: [2]], unquote: true do\n      [unquote_splicing(<caret>a)]\n    end")
 
@@ -82,6 +86,9 @@ class BindQuotedVariableTest : PlatformTestCase() {
     /** `bind_quoted:` disables `unquote` unless it is asked for, so there the call is quoted code like any other. */
     fun testReadInADisabledUnquoteResolvesToTheKey() =
         assertDeclaration("quote bind_quoted: [a: 1] do\n      unquote(<caret>a)\n    end", "a")
+
+    fun testReadInAnUnquoteTurnedOffResolvesToTheKey() =
+        assertDeclaration("quote bind_quoted: [a: 1], unquote: false do\n      unquote(<caret>a)\n    end", "a")
 
     fun testReadOutsideAnUnquoteInAnUnquotingQuoteResolvesToTheKey() =
         assertDeclaration("quote bind_quoted: [a: 1], unquote: true do\n      <caret>a\n    end", "a")

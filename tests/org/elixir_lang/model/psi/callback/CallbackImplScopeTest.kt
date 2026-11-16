@@ -145,6 +145,41 @@ class CallbackImplScopeTest : PlatformTestCase() {
     fun testFindUsagesOnACallbackListsADefaultImplementationInASplicedQuote() =
         assertImplementationListed("@callback spliced_default", "spliced_default", "def spliced_default,", listed = true)
 
+    /** `unquote: false` keeps the `unquote` as code, so the quote in it is never spliced in. */
+    fun testDefaultImplementationInAQuoteThatDoesNotUnquoteGetsNoCallbackReference() {
+        configure()
+        caretOn("def not_unquoted_default,", "not_unquoted_default")
+        assertEquals(emptyList<PsiSymbolReference>(), callbackImplReferencesAtCaret())
+    }
+
+    fun testFindUsagesOnACallbackDoesNotListADefaultImplementationInAQuoteThatDoesNotUnquote() =
+        assertImplementationListed(
+            "@callback not_unquoted_default", "not_unquoted_default", "def not_unquoted_default,", listed = false
+        )
+
+    /** `bind_quoted:` turns `unquote` off, so the quote in it is never spliced in. */
+    fun testDefaultImplementationInABindQuotedQuoteGetsNoCallbackReference() {
+        configure()
+        caretOn("def bound_default,", "bound_default")
+        assertEquals(emptyList<PsiSymbolReference>(), callbackImplReferencesAtCaret())
+    }
+
+    fun testFindUsagesOnACallbackDoesNotListADefaultImplementationInABindQuotedQuote() =
+        assertImplementationListed("@callback bound_default", "bound_default", "def bound_default,", listed = false)
+
+    /** `unquote: true` turns `unquote` back on beside `bind_quoted:`, so the quote in it is spliced in. */
+    fun testDefaultImplementationInABindQuotedQuoteThatUnquotesGoesToItsCallback() {
+        configure()
+        caretOn("def bound_unquoted_default,", "bound_unquoted_default")
+        myFixture.assertGotoDeclarationChosenAtCaret()
+        assertEquals(listOf("bound_unquoted_default"), callbacksAtCaret().map { it.name })
+    }
+
+    fun testFindUsagesOnACallbackListsADefaultImplementationInABindQuotedQuoteThatUnquotes() =
+        assertImplementationListed(
+            "@callback bound_unquoted_default", "bound_unquoted_default", "def bound_unquoted_default,", listed = true
+        )
+
     /** A function in a quote nested in the quote is data the `__using__` returns, not something the quote defines. */
     fun testFunctionInAQuoteNestedInTheUsingQuoteGetsNoCallbackReference() {
         configure()
@@ -413,6 +448,48 @@ class CallbackImplScopeTest : PlatformTestCase() {
                   unquote(
                     quote do
                       def spliced_default, do: :ok
+                    end
+                  )
+                end
+              end
+            end
+
+            defmodule NotUnquoted do
+              @callback not_unquoted_default() :: any
+
+              defmacro __using__(_) do
+                quote unquote: false do
+                  unquote(
+                    quote do
+                      def not_unquoted_default, do: :ok
+                    end
+                  )
+                end
+              end
+            end
+
+            defmodule Bound do
+              @callback bound_default() :: any
+
+              defmacro __using__(_) do
+                quote bind_quoted: [b: 1] do
+                  unquote(
+                    quote do
+                      def bound_default, do: :ok
+                    end
+                  )
+                end
+              end
+            end
+
+            defmodule BoundUnquoted do
+              @callback bound_unquoted_default() :: any
+
+              defmacro __using__(_) do
+                quote bind_quoted: [b: 1], unquote: true do
+                  unquote(
+                    quote do
+                      def bound_unquoted_default, do: :ok
                     end
                   )
                 end
