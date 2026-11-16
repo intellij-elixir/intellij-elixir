@@ -85,16 +85,13 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }
 
-    /** It pins that such a module is left unknown, not wrong, until the expander evaluates `~H`. */
-    fun testAModuleWithASigilBeforeItsBeforeCompileStopsAtTheSigil() {
+    fun testAModuleWithASigilBeforeItsBeforeCompileCompiles() {
         val compiled = compiled ?: return
         val holder = ProjectModules(project)
         val result = expansion(holder, corpus!!.psi(compiled.project, "lib/with_sigil.ex")).modules.single()
-        val ended = result.ended as ExpansionResult.Ended.Stopped
-        val stop = (result.units.map { it.expansion } + result.opaque).filterIsInstance<Expansion.Opaque>().first { it.at === ended.at }
 
-        assertEquals("Phoenix.Component.sigil_H/2", macroName(stop.dispatch))
-        assertFalse(result.table.entries.keys.any { it.name == "__components__" })
+        assertEquals("compiled", ending(result))
+        assertTrue(result.table.entries.keys.any { it.name == "__components__" })
     }
 
     /**
@@ -114,8 +111,8 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
             val raised = outcome.get(OtpErlangAtom("raised"))
 
             "$form " + when {
-                // Left unknown, not wrong, until the expander evaluates the `~H` of the module they import.
-                form == "html" || form == "liveview" -> "stopped import/1"
+                // Left unknown, not wrong, until the expander lists files: `Phoenix.LiveView.Renderer.__before_compile__/1` looks for the LiveView's template with `Path.wildcard/1`.
+                form == "liveview" -> "stopped Phoenix.LiveView.Renderer.__before_compile__/1"
                 raised == OtpErlangAtom("nil") ->
                     "compiled ${exported(outcome)}; routes: ${routes(outcome.get(OtpErlangAtom("routes")))}"
                 else -> "raised ${(raised as OtpErlangAtom).atomValue()}"
@@ -148,11 +145,11 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
 
     private companion object {
         val FIXTURE: File = File("testData/org/elixir_lang/expander/phoenix_component").absoluteFile
-        val MODULES = listOf("Remote", "Forms", "Globals").map { "Elixir.PhoenixComponentFixture.$it" }
+        val MODULES = listOf("Remote", "Forms", "Globals", "WithSigil").map { "Elixir.PhoenixComponentFixture.$it" }
         const val PROBE = "Elixir.PhoenixComponentFixture.Probe"
 
-        /** Not lib/probe.ex or lib/forms.ex, whose own modules are compiling, so not loaded, while it asks. */
-        const val ASKER = "lib/with_sigil.ex"
+        /** Not lib/probe.ex or a file of [MODULES], whose own modules are compiling, so not loaded, while it asks. */
+        const val ASKER = "lib/phoenix_component_fixture_web/endpoint.ex"
 
         /**
          * Compiled once for the class, since compiling LiveView takes most of a minute, and a failure kept, not compiled
