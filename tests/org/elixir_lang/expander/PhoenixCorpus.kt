@@ -23,6 +23,7 @@ import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.expanderSwitchOn
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.junit.logs.GuardedLoggedErrorProcessor
+import org.elixir_lang.model.psi.config.disableMixDepsCheck
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.call.Call
 import java.io.File
@@ -36,6 +37,7 @@ internal class PhoenixCorpus(private val project: Project, disposable: Disposabl
 
     init {
         VfsRootAccess.allowRootAccess(disposable, dir.path, LegManifest.environment("ELIXIR_LANG_ELIXIR_PATH"))
+        disableMixDepsCheck(disposable)
     }
 
     /** A file asked about, with its uses, and the uses the costlier measures ask: all of an app file's, every tenth of a dep file's. */
