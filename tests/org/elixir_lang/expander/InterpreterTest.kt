@@ -2615,16 +2615,11 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         actual: MutableList<String>,
     ) {
         for (batch in rows.indices.filter { expansions[it].ended == Ended.Compiled }.chunked(TABLES_BATCH)) {
-            val origin = expansions[batch.first()].origin
             val together = probes.expandAll(
                 batch.map { expansions[it].origin.body },
-                if (source == Source.SOURCE) preamble(rows, TOKEN, only = batch) else "",
-                origin.exports,
-                hook = origin.hook,
-                clauses = origin.clauses,
-                file = origin.file,
-                directories = origin.directories,
-                os = origin.os,
+                expansions[batch.first()].origin.inputs.copy(
+                    preamble = if (source == Source.SOURCE) preamble(rows, TOKEN, only = batch) else "",
+                ),
             )
             val attempt = harness.attempt(together.layout)
 
