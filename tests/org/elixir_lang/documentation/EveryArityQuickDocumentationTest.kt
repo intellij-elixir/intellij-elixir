@@ -447,7 +447,7 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
             end
             """.trimIndent()
         )
-        assertEquals("Expected the signature linked once in the header, got: $documentation", 1, """<a href="#arity-2">reduce(enumerable, fun)</a>""".toRegex(RegexOption.LITERAL).findAll(documentation).count())
+        assertEquals("Expected the signature linked once in the header, got: $documentation", 1, linkedHeads(documentation, "reduce").count { it == ("2" to "enumerable, fun") })
         assertEquals("Expected the repeated head once, got: $documentation", 1, "def reduce(enumerable, fun)".toRegex(RegexOption.LITERAL).findAll(documentation).count())
         assertEquals("Expected the other head of the entry kept, got: $documentation", 1, "def reduce([h | t], fun)".toRegex(RegexOption.LITERAL).findAll(documentation).count())
     }

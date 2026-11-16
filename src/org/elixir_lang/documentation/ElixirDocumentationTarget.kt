@@ -82,7 +82,7 @@ internal class ElixirDocumentationTarget private constructor(
     /** Describes the element, unless the caret is on it. */
     override fun computeDocumentationHint(): @NlsSafe String? =
         if (targetElement !== sourceElement && targetElement !== sourceElement?.parent) {
-            hint(targetElement)
+            hint()
         } else {
             null
         }
@@ -93,11 +93,11 @@ internal class ElixirDocumentationTarget private constructor(
             .render(targetElement, sourceElement, followed)
             ?.let { DocumentationResult.documentation(it.html).anchor(anchor ?: it.anchor) }
 
-    private fun hint(element: PsiElement): String? {
-        val name = ElementDescriptionUtil.getElementDescription(element, UsageViewShortNameLocation.INSTANCE)
+    private fun hint(): String? {
+        val name = ElementDescriptionUtil.getElementDescription(targetElement, UsageViewShortNameLocation.INSTANCE)
 
         if (name.isNotEmpty()) {
-            val type = ElementDescriptionUtil.getElementDescription(element, UsageViewTypeLocation.INSTANCE)
+            val type = ElementDescriptionUtil.getElementDescription(targetElement, UsageViewTypeLocation.INSTANCE)
 
             return buildString {
                 if (type.isNotEmpty()) {
@@ -110,7 +110,7 @@ internal class ElixirDocumentationTarget private constructor(
             }
         }
 
-        return (element as? NavigationItem)?.presentation?.presentableText
+        return (targetElement as? NavigationItem)?.presentation?.presentableText
     }
 
     companion object {

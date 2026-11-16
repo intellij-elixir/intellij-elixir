@@ -194,9 +194,11 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
     }
 
     private fun assertEveryArityHeadIsLinked(shown: String) {
-        val heads = Regex("""<a href="#arity-(\d)">snoc\(([^)]*)\)</a>""").findAll(shown).map { it.groupValues[1] to it.groupValues[2] }.toList()
-
-        assertEquals("Expected a link per arity, ascending, got: $shown", listOf("1" to "q", "2" to "q, x", "3" to "q, x, y"), heads)
+        assertEquals(
+            "Expected a link per arity, ascending, got: $shown",
+            listOf("1" to "q", "2" to "q, x", "3" to "q, x, y"),
+            linkedHeads(shown, "snoc")
+        )
     }
 
     /** The name at the head of a `@spec` over a delegation shows what the delegation does, as the delegation's own head does. */
