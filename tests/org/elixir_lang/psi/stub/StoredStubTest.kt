@@ -497,6 +497,49 @@ class StoredStubTest : PlatformTestCase() {
         "- Bar Module.create/3 - [Bar] -",
     )
 
+    /** `Module.create/3` names its module with an atom, which Elixir does not nest in the module around it. */
+    fun testModuleCreateInAModule() = assertStored(
+        "defmodule U do\n  Module.create(Foo, quote(do: nil), Macro.Env.location(__ENV__))\nend\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "- Foo Module.create/3 - [Foo] -",
+    )
+
+    fun testModuleCreateInAFunctionBody() = assertStored(
+        "defmodule U do\n  def f do\n    Module.create(Foo, quote(do: nil), Macro.Env.location(__ENV__))\n  end\nend\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_FUNCTION f Kernel.def/2 do [f] -",
+        "- Foo Module.create/3 - [Foo] -",
+    )
+
+    fun testModuleCreateOfAModuleAliasInAModule() = assertStored(
+        "defmodule U do\n  Module.create(__MODULE__.Foo, quote(do: nil), Macro.Env.location(__ENV__))\nend\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "- __MODULE__.Foo Module.create/3 - [U.Foo] -",
+    )
+
+    fun testModuleCreateInAQuote() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote do\n" +
+            "      Module.create(Foo, quote(do: nil), Macro.Env.location(__ENV__))\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "- Foo Module.create/3 - [Foo] -",
+    )
+
+    fun testCanonicalNameOfModuleCreateInAModule() = assertCanonicalNames(
+        "defmodule U do\n" +
+            "  Module.create(Foo, quote(do: nil), Macro.Env.location(__ENV__))\n" +
+            "  Module.create(__MODULE__.Bar, quote(do: nil), Macro.Env.location(__ENV__))\n" +
+            "end\n",
+        "U",
+        "Foo",
+        "U.Bar",
+    )
+
     fun testDefinitions() = assertStored(
         "defmodule D do\n" +
             "  defdelegate f(a), to: M\n" +

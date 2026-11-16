@@ -30,8 +30,8 @@ object CanonicallyNamedImpl {
                 val canonicalNameSuffix = moduleName?.name ?: NO_VALUE
 
                 when {
-                    moduleName?.absolute == true -> moduleName.name
                     isModuleRelative(canonicalNameSuffix) -> expandModule(canonicalNameSuffix, call) ?: NO_VALUE
+                    moduleName?.absolute == true -> moduleName.name
                     else -> enclosingModuleName(call)?.let { nest(it, canonicalNameSuffix) } ?: canonicalNameSuffix
                 }
             }
@@ -53,8 +53,8 @@ object CanonicallyNamedImpl {
                 val canonicalNameSuffix = moduleName?.name ?: NO_VALUE
 
                 when {
-                    moduleName?.absolute == true -> setOf(moduleName.name)
                     isModuleRelative(canonicalNameSuffix) -> setOf(expandModule(canonicalNameSuffix, call) ?: NO_VALUE)
+                    moduleName?.absolute == true -> setOf(moduleName.name)
                     else -> enclosingModuleOrQuote(call)
                         ?.let(::namesOf)
                         ?.mapTo(mutableSetOf()) { nest(it, canonicalNameSuffix) }
