@@ -422,14 +422,7 @@ internal class CodeFollow(private val evaluation: Evaluation) {
     private fun moduleOf(term: OtpErlangObject): String? =
         (term as? OtpErlangAtom ?: decline("a Macro.Env's module %s", term)).takeUnless { it == NIL }?.atomValue()
 
-    private fun functionOf(term: OtpErlangObject): NameArity? {
-        if (term == NIL) return null
-        val pair = (term as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elements()?.map(::seen)
-        val name = pair?.get(0) as? OtpErlangAtom
-        val arity = pair?.get(1)?.let(::smallInt)
-
-        return if (name != null && arity != null) NameArity(name.atomValue(), arity) else decline("a Macro.Env's function %s", term)
-    }
+    private fun functionOf(term: OtpErlangObject): NameArity? = envFunction(term) { decline("a Macro.Env's function %s", term) }
 
     /** Whether [node] holds code that didn't parse. */
     private fun holdsBroken(node: ElixirAst): Boolean {
