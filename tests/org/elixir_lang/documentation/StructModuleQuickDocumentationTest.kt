@@ -117,6 +117,28 @@ class StructModuleQuickDocumentationTest : QuickDocumentationTestCase() {
     fun testInAnUnquoteInABindQuotedQuoteThatUnquotesTheMacrosModule() =
         assertDocumentsTheModule(described("quote bind_quoted: [b: 1], unquote: true do"))
 
+    /** The outer `quote` quotes a nested `quote`'s options as its own code, so it unquotes the struct there. */
+    fun testInAnUnquoteInANestedQuotesOptionsTheMacrosModule() =
+        assertDocumentsTheModule(
+            """
+            defmodule Described do
+              @moduledoc "Describes a value."
+              defstruct [:a]
+
+              defmacro default do
+                quote do
+                  quote bind_quoted: [s: unquote(Macro.escape(%__MOD<caret>ULE__{a: 1}))] do
+                    s
+                  end
+                end
+              end
+            end
+            """
+        )
+
+    fun testInAnUnquoteInANestedQuotesOptionsTheMacrosModuleWithTheExpanderOn() =
+        withTheExpanderOn(::testInAnUnquoteInANestedQuotesOptionsTheMacrosModule)
+
     fun testInAnUnquoteInAQuoteTheMacrosModuleWithTheExpanderOn() = withTheExpanderOn(::testInAnUnquoteInAQuoteTheMacrosModule)
 
     fun testInAnUnquoteInAQuoteThatDoesNotUnquoteNotTheMacrosModuleWithTheExpanderOn() =

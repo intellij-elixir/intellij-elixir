@@ -52,7 +52,7 @@ object Unquote {
 
     /**
      * Whether [entrance], written under [quote], is in the expression an `unquote` of [quote] unquotes, which runs where
-     * the `quote` is: the receiver and the arguments of `Left.unquote(x)(y)` stay quoted. One inside a nested `quote`
+     * the `quote` is: the receiver and the arguments of `Left.unquote(x)(y)` stay quoted. One in a nested `quote`'s body
      * belongs to that. A `quote` unquotes as a literal `unquote:` option says, else unless it has `bind_quoted:`
      * (`elixir_expand.erl:255-266`).
      */
@@ -63,7 +63,7 @@ object Unquote {
         val enclosing = generateSequence(entrance) { it.parent }.takeWhile { it != quote }.toList()
 
         return enclosing
-                .drop(enclosing.indexOfLast { it is Call && QuoteMacro.`is`(it) } + 1)
+                .drop(enclosing.indexOfLast { it is Call && QuoteMacro.`is`(it) && isInBody(it, entrance) } + 1)
                 .any { call ->
                     call is Call && unquotedArgument(call)?.let { PsiTreeUtil.isAncestor(it, entrance, false) } == true
                 }

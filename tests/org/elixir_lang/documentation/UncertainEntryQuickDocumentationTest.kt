@@ -56,6 +56,14 @@ class UncertainEntryQuickDocumentationTest : QuickDocumentationTestCase() {
         assertPlainLineOnce(documentation)
     }
 
+    /** The outer `quote` quotes a nested `quote`'s options as its own code, so it unquotes the call there. */
+    fun testALocalCallANestedQuotesOptionsUnquoteCarriesNoLine() {
+        val documentation = documentationInUsing("quote do\n      quote bind_quoted: [s: unquote(hel<caret>per(1))] do\n        s\n      end\n    end")
+
+        assertTrue("Expected helper's docs, got: $documentation", "Helps." in documentation)
+        assertFalse("Expected no plain line, got: $documentation", PLAIN_LINE in documentation)
+    }
+
     /**
      * The walk documents a function the `quote` defines at a local call of it in the quote, where the expander, which
      * reads no quote's definitions, documents nothing.
