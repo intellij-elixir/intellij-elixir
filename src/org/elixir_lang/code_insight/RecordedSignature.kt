@@ -9,7 +9,9 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.psi.PsiElement
+import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.util.parentsOfType
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.IOLib
@@ -43,8 +45,10 @@ import org.elixir_lang.psi.isDefaultArgument
 import org.elixir_lang.psi.Exception as ElixirException
 import org.elixir_lang.psi.Quotable
 import org.elixir_lang.psi.Unquote
+import org.elixir_lang.psi.Use
 import org.elixir_lang.psi.call.CanonicallyNamed
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.moduleAttributeAtom
 import org.elixir_lang.psi.impl.quotedAtomValue
@@ -367,15 +371,40 @@ private fun attributeValue(use: PsiElement): PsiElement? {
     }
 }
 
-/** Whether the module's nearest `Module.register_attribute/3` call for the attribute [name] before [use] may accumulate it. */
-private fun registeredToAccumulate(name: String, use: PsiElement): Boolean =
-    generateSequence(PsiTreeUtil.getParentOfType(use, Call::class.java)) { PsiTreeUtil.getParentOfType(it, Call::class.java) }
+/**
+ * Whether a `Module.register_attribute/3` call for the attribute [name] before [use], written in its module or injected
+ * by a `use` written there, may accumulate it: once one does, a later one that does not leaves it accumulating.
+ */
+private fun registeredToAccumulate(name: String, use: PsiElement): Boolean {
+    val attribute = "@$name"
+    val offset = use.textOffset
+
+    return use.parentsOfType<Call>(withSelf = false)
         .firstNotNullOfOrNull { CallDefinitionClause.enclosingModularMacroCall(it) }
         ?.let { CallDefinitionClause.modularChildCalls(it) }
-        ?.lastOrNull { call ->
-            call.textOffset < use.textOffset && RegisterAttribute.`is`(call) && RegisterAttribute.name(call) == "@$name"
+        ?.any { call -> call.textOffset < offset && registers(call, use, attribute) } == true
+}
+
+/**
+ * Whether a `Module.register_attribute/3` call [call] makes in its module, itself or one its `use` injects, walked from
+ * [entrance], registers [attribute] so it may accumulate.
+ */
+private fun registers(call: Call, entrance: PsiElement, attribute: String): Boolean {
+    fun registersToAccumulate(registration: Call): Boolean =
+        RegisterAttribute.`is`(registration) && RegisterAttribute.name(registration) == attribute && mayAccumulate(registration)
+
+    return if (Use.`is`(call)) {
+        // Not the walk's answer: an applied module's copies are all walked, and the last answers.
+        var matched = false
+        Use.treeWalkUp(call, ResolveState.initial().put(ENTRANCE, entrance)) { element, _ ->
+            if (element is Call && registersToAccumulate(element)) matched = true
+            !matched
         }
-        ?.let(::mayAccumulate) == true
+        matched
+    } else {
+        registersToAccumulate(call)
+    }
+}
 
 /**
  * Whether [registration], a `Module.register_attribute/3` call, may accumulate its attribute: its options are not a
