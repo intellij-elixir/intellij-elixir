@@ -1,8 +1,10 @@
 package org.elixir_lang.annotator;
 
+import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.psi.NavigatablePsiElement;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.util.concurrency.annotations.RequiresReadLock;
 import org.elixir_lang.declaration.Capabilities;
 import org.elixir_lang.psi.*;
 import org.elixir_lang.psi.call.Call;
@@ -10,6 +12,8 @@ import org.elixir_lang.structure_view.element.Delegation;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import static org.elixir_lang.psi.impl.call.CallImplKt.blockKeywordPairs;
 
 public class Parameter {
     public enum Type {
@@ -73,11 +77,16 @@ public class Parameter {
 
     @Contract(pure = true)
     @NotNull
+    @RequiresReadLock
     private static Parameter putParameterized(@NotNull final Parameter parameter, final @NotNull Call ancestor) {
         Parameter parameterizedParameter;
         Type nameType = nameType(ancestor);
 
-        if (nameType != null) {
+        // a block keyword's value, as `do:` or `else:`, is a body, as a `do` block is, so nothing in it is a parameter;
+        // in a head, as `defmacro unless(condition, do: block)`, it is a pattern
+        if (isInBlockKeywordValue(ancestor, parameter.entrance) && !isInHead(ancestor)) {
+            parameterizedParameter = new Parameter(parameter.entrance);
+        } else if (nameType != null) {
             parameterizedParameter = new Parameter(
                     parameter.defaultValue,
                     parameter.entrance,
@@ -109,6 +118,35 @@ public class Parameter {
         }
 
         return parameterizedParameter;
+    }
+
+    @RequiresReadLock
+    private static boolean isInBlockKeywordValue(@NotNull Call call, @NotNull PsiElement element) {
+        for (QuotableKeywordPair pair : blockKeywordPairs(call)) {
+            ProgressManager.checkCanceled();
+
+            if (PsiTreeUtil.isAncestor(pair.getKeywordValue(), element, false)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Whether {@code call} is in the head of the definition nearest it. */
+    @RequiresReadLock
+    private static boolean isInHead(@NotNull Call call) {
+        for (Call enclosing = PsiTreeUtil.getParentOfType(call, Call.class);
+             enclosing != null;
+             enclosing = PsiTreeUtil.getParentOfType(enclosing, Call.class)) {
+            ProgressManager.checkCanceled();
+
+            if (CallDefinitionClause.is(enclosing)) {
+                return PsiTreeUtil.isAncestor(CallDefinitionClause.head(enclosing), call, false);
+            }
+        }
+
+        return false;
     }
 
     @Contract(pure = true)

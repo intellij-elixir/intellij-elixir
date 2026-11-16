@@ -209,6 +209,20 @@ class ModuleSpecialFormQuickDocumentationTest : QuickDocumentationTestCase() {
             """
         )
 
+    /** A one-line `do:` body is a body, as a `do` block is, so its `__MODULE__` in a `quote` is the caller's. */
+    fun testGoToDeclarationInAOneLineFunctionBodyInAQuoteReachesTheSpecialForm() =
+        assertSpecialFormReached(
+            """
+            defmodule OneLineQuoted do
+              defmacro name do
+                quote do
+                  def name, do: __MOD<caret>ULE__
+                end
+              end
+            end
+            """
+        )
+
     fun testGoToDeclarationUnquotedUnderBindQuotedWithUnquoteTrueReachesTheEnclosingModule() =
         assertEnclosingModuleReached(
             "UnquoteTrue",

@@ -119,4 +119,47 @@ class FunctionGotoDeclarationTest : PlatformTestCase() {
         myFixture.configureByFiles("goto_declaration_erlang_qualified_call.ex")
         myFixture.assertNoNavigationAtCaret()
     }
+
+    /** A one-line `do:` body is the function's body, as a `do` block is, not part of its head. */
+    fun testGoToDeclarationFromABareCallInAOneLineBodyLandsOnItsDef() =
+        assertLandsOn("def foo", "defmodule M do\n  def foo, do: 1\n  def name, do: fo<caret>o\nend\n")
+
+    fun testGoToDeclarationFromABareCallInAOneLineBodyOfAHeadWithParametersLandsOnItsDef() =
+        assertLandsOn("def foo", "defmodule M do\n  def foo, do: 1\n  def name(x), do: fo<caret>o\nend\n")
+
+    fun testGoToDeclarationFromABareCallInAOneLineIfLandsOnItsDef() =
+        assertLandsOn("def foo", "defmodule M do\n  def foo, do: 1\n\n  def name(x) do\n    if x, do: fo<caret>o\n  end\nend\n")
+
+    fun testGoToDeclarationFromABareCallInAOneLineElseLandsOnItsDef() =
+        assertLandsOn("def foo", "defmodule M do\n  def foo, do: 1\n\n  def name(x) do\n    if x, do: 1, else: fo<caret>o\n  end\nend\n")
+
+    /** The head's parameters are still parameters, so a use of one in the body lands on it. */
+    fun testGoToDeclarationFromAParameterInAOneLineBodyLandsOnTheParameter() =
+        assertLandsOn("name(x", "defmodule M do\n  def name(x), do: <caret>x\nend\n", "name(".length)
+
+    /** A head is a pattern, so a `do:` keyword in it binds a parameter, as in a DSL's `defmacro`. */
+    fun testGoToDeclarationFromABlockKeywordParameterLandsOnTheParameter() =
+        assertLandsOn(
+            "do: block",
+            "defmodule M do\n  defmacro unless(condition, do: block) do\n    bl<caret>ock\n  end\nend\n",
+            "do: ".length
+        )
+
+    fun testGoToDeclarationFromABlockKeywordParameterOfAGuardedHeadLandsOnTheParameter() =
+        assertLandsOn(
+            "do: block",
+            "defmodule M do\n  defmacro unless(condition, do: block) when is_atom(condition) do\n    bl<caret>ock\n  end\nend\n",
+            "do: ".length
+        )
+
+    /** [anchor] is text just before the expected destination, which starts [shift] characters into it. */
+    private fun assertLandsOn(anchor: String, text: String, shift: Int = "def ".length) {
+        myFixture.configureByText("m.ex", text)
+        val expected = myFixture.file.text.indexOf(anchor) + shift
+
+        assertEquals(
+            listOf("m.ex" to expected),
+            myFixture.gotoDeclarationTargetsAtCaret()?.map { it.destination?.containingFile?.name to it.destination?.textOffset }
+        )
+    }
 }

@@ -67,22 +67,27 @@ forms.ex:3:15  symbol  ModuleReference  `Generator`  ->  mix_generator.ex:1:11 M
 forms.ex:5:3  definition  Forms  public_function/1  clause  public function runtime
 forms.ex:5:23  psi  Callable  `a`  ->  forms.ex:5:23 `a`
 forms.ex:5:31  psi  Callable  `a`  ->  forms.ex:5:23 `a`
+forms.ex:5:31  symbol  FunctionCallReference  `a`  ->  nothing
 forms.ex:5:31  symbol  VariableReference  `a`  ->  forms.ex:5:23 VariableSymbol(a, PARAMETER, (80,81))
 forms.ex:6:3  definition  Forms  private_function/1..2  clause  private function runtime
 forms.ex:6:25  psi  Callable  `a`  ->  forms.ex:6:25 `a`
 forms.ex:6:28  psi  Callable  `b`  ->  forms.ex:6:28 `b`
 forms.ex:6:30  symbol  FunctionCallReference  `\\`  ->  nothing
 forms.ex:6:42  psi  Callable  `a`  ->  forms.ex:6:25 `a`
+forms.ex:6:42  symbol  FunctionCallReference  `a`  ->  nothing
 forms.ex:6:42  symbol  VariableReference  `a`  ->  forms.ex:6:25 VariableSymbol(a, PARAMETER, (114,115))
 forms.ex:6:45  psi  Callable  `b`  ->  forms.ex:6:28 `b`
+forms.ex:6:45  symbol  FunctionCallReference  `b`  ->  nothing
 forms.ex:6:45  symbol  VariableReference  `b`  ->  forms.ex:6:28 VariableSymbol(b, PARAMETER, (117,118))
 forms.ex:7:3  definition  Forms  public_macro/1  clause  public macro compile-time
 forms.ex:7:25  psi  Callable  `a`  ->  forms.ex:7:25 `a`
 forms.ex:7:33  psi  Callable  `a`  ->  forms.ex:7:25 `a`
+forms.ex:7:33  symbol  FunctionCallReference  `a`  ->  nothing
 forms.ex:7:33  symbol  VariableReference  `a`  ->  forms.ex:7:25 VariableSymbol(a, PARAMETER, (161,162))
 forms.ex:8:3  definition  Forms  private_macro/1  clause  private macro compile-time
 forms.ex:8:27  psi  Callable  `a`  ->  forms.ex:8:27 `a`
 forms.ex:8:35  psi  Callable  `a`  ->  forms.ex:8:27 `a`
+forms.ex:8:35  symbol  FunctionCallReference  `a`  ->  nothing
 forms.ex:8:35  symbol  VariableReference  `a`  ->  forms.ex:8:27 VariableSymbol(a, PARAMETER, (197,198))
 forms.ex:9:3  definition  Forms  is_small/1  clause  public guard compile-time
 forms.ex:9:21  psi  Callable  `a`  ->  forms.ex:9:21 `a`
@@ -190,8 +195,10 @@ import_only.ex:3:11  psi  Callable  `a`  ->  import_only.ex:3:11 `a`
 import_only.ex:3:14  psi  Callable  `b`  ->  import_only.ex:3:14 `b`
 import_only.ex:3:16  symbol  FunctionCallReference  `\\`  ->  nothing
 import_only.ex:3:28  psi  Callable  `a`  ->  import_only.ex:3:11 `a`
+import_only.ex:3:28  symbol  FunctionCallReference  `a`  ->  nothing
 import_only.ex:3:28  symbol  VariableReference  `a`  ->  import_only.ex:3:11 VariableSymbol(a, PARAMETER, (56,57))
 import_only.ex:3:31  psi  Callable  `b`  ->  import_only.ex:3:14 `b`
+import_only.ex:3:31  symbol  FunctionCallReference  `b`  ->  nothing
 import_only.ex:3:31  symbol  VariableReference  `b`  ->  import_only.ex:3:14 VariableSymbol(b, PARAMETER, (59,60))
 import_only.ex:6:1  module  OnlyUser
 import_only.ex:6:1  psi  Callable  `defmodule`  ->  nothing
@@ -225,6 +232,7 @@ in_def.ex:3:15  symbol  ModuleReference  `Generator`  ->  mix_generator.ex:1:11 
 in_def.ex:5:3  definition  InDef  clause/1  clause  public function runtime
 in_def.ex:5:14  psi  Callable  `a`  ->  in_def.ex:5:14 `a`
 in_def.ex:5:22  psi  Callable  `a`  ->  in_def.ex:5:14 `a`
+in_def.ex:5:22  symbol  FunctionCallReference  `a`  ->  nothing
 in_def.ex:5:22  symbol  VariableReference  `a`  ->  in_def.ex:5:14 VariableSymbol(a, PARAMETER, (71,72))
 in_def.ex:6:3  psi  Callable  `defdelegate`  ->  nothing
 in_def.ex:6:25  psi  Callable  `a`  ->  in_def.ex:6:25 `a`
@@ -366,14 +374,17 @@ quoted_names.ex:20:1  psi  Callable  `defmodule`  ->  nothing
 quoted_names.ex:21:3  definition  QuotedNamesTarget  size/1  clause  public function runtime
 quoted_names.ex:21:12  psi  Callable  `x`  ->  quoted_names.ex:21:12 `x`
 quoted_names.ex:21:20  psi  Callable  `x`  ->  quoted_names.ex:21:12 `x`
+quoted_names.ex:21:20  symbol  FunctionCallReference  `x`  ->  nothing
 quoted_names.ex:21:20  symbol  VariableReference  `x`  ->  quoted_names.ex:21:12 VariableSymbol(x, PARAMETER, (486,487))
 quoted_names.ex:22:3  definition  QuotedNamesTarget  count/1  clause  public function runtime
 quoted_names.ex:22:13  psi  Callable  `x`  ->  quoted_names.ex:22:13 `x`
 quoted_names.ex:22:21  psi  Callable  `x`  ->  quoted_names.ex:22:13 `x`
+quoted_names.ex:22:21  symbol  FunctionCallReference  `x`  ->  nothing
 quoted_names.ex:22:21  symbol  VariableReference  `x`  ->  quoted_names.ex:22:13 VariableSymbol(x, PARAMETER, (508,509))
 quoted_names.ex:23:3  definition  QuotedNamesTarget  dynamic_count/1  clause  public function runtime
 quoted_names.ex:23:21  psi  Callable  `x`  ->  quoted_names.ex:23:21 `x`
 quoted_names.ex:23:29  psi  Callable  `x`  ->  quoted_names.ex:23:21 `x`
+quoted_names.ex:23:29  symbol  FunctionCallReference  `x`  ->  nothing
 quoted_names.ex:23:29  symbol  VariableReference  `x`  ->  quoted_names.ex:23:21 VariableSymbol(x, PARAMETER, (538,539))
 spec_targets.ex:1:1  module  SpecTargets
 spec_targets.ex:1:1  psi  Callable  `defmodule`  ->  nothing
@@ -420,10 +431,12 @@ through_import.ex:3:15  symbol  ModuleReference  `Generator`  ->  mix_generator.
 through_import.ex:5:3  definition  Views  plain/1  clause  public function runtime
 through_import.ex:5:13  psi  Callable  `x`  ->  through_import.ex:5:13 `x`
 through_import.ex:5:21  psi  Callable  `x`  ->  through_import.ex:5:13 `x`
+through_import.ex:5:21  symbol  FunctionCallReference  `x`  ->  nothing
 through_import.ex:5:21  symbol  VariableReference  `x`  ->  through_import.ex:5:13 VariableSymbol(x, PARAMETER, (70,71))
 through_import.ex:6:3  definition  Views  secret/1  clause  private function runtime
 through_import.ex:6:15  psi  Callable  `x`  ->  through_import.ex:6:15 `x`
 through_import.ex:6:23  psi  Callable  `x`  ->  through_import.ex:6:15 `x`
+through_import.ex:6:23  symbol  FunctionCallReference  `x`  ->  nothing
 through_import.ex:6:23  symbol  VariableReference  `x`  ->  through_import.ex:6:15 VariableSymbol(x, PARAMETER, (94,95))
 through_import.ex:7:3  psi  Module  `EEx`  ->  eex.ex:1:1 `defmodule EEx do`
 through_import.ex:7:3  symbol  ModuleReference  `EEx`  ->  eex.ex:1:11 ModuleSymbol(EEx)
@@ -488,6 +501,7 @@ through_use.ex:5:19  psi  Module  `Generator`  ->  mix_generator.ex:1:1 `defmodu
 through_use.ex:5:19  symbol  ModuleReference  `Generator`  ->  mix_generator.ex:1:11 ModuleSymbol(Mix.Generator)
 through_use.ex:7:18  psi  Callable  `a`  ->  through_use.ex:7:18 `a`
 through_use.ex:7:26  psi  Callable  `a`  ->  through_use.ex:7:18 `a`
+through_use.ex:7:26  symbol  FunctionCallReference  `a`  ->  nothing
 through_use.ex:7:26  symbol  VariableReference  `a`  ->  through_use.ex:7:18 VariableSymbol(a, PARAMETER, (123,124))
 through_use.ex:8:7  psi  Callable  `defdelegate`  ->  nothing
 through_use.ex:8:29  psi  Callable  `a`  ->  nothing

@@ -24,12 +24,14 @@ callback_impl.ex:8:3  definition  CallbackImpl  run/1  clause  public function r
 callback_impl.ex:8:7  symbol  CallbackImplReference  `run`  ->  callback_impl.ex:2:13 Callback(CallbackImpl.Behaviour.run/1, macro=false)
 callback_impl.ex:8:11  psi  Callable  `x`  ->  callback_impl.ex:8:11 `x`
 callback_impl.ex:8:19  psi  Callable  `x`  ->  callback_impl.ex:8:11 `x`
+callback_impl.ex:8:19  symbol  FunctionCallReference  `x`  ->  nothing
 callback_impl.ex:8:19  symbol  VariableReference  `x`  ->  callback_impl.ex:8:11 VariableSymbol(x, PARAMETER, (144,145))
 capture.ex:1:1  module  Capture
 capture.ex:1:1  psi  Callable  `defmodule`  ->  nothing
 capture.ex:2:3  definition  Capture  run/1  clause  public function runtime
 capture.ex:2:11  psi  Callable  `x`  ->  capture.ex:2:11 `x`
 capture.ex:2:19  psi  Callable  `x`  ->  capture.ex:2:11 `x`
+capture.ex:2:19  symbol  FunctionCallReference  `x`  ->  nothing
 capture.ex:2:19  symbol  VariableReference  `x`  ->  capture.ex:2:11 VariableSymbol(x, PARAMETER, (31,32))
 capture.ex:3:3  definition  Capture  captures/0  clause  public function runtime
 capture.ex:3:22  symbol  FunctionCallReference  `&`  ->  nothing
@@ -51,6 +53,7 @@ definitions.ex:1:1  psi  Callable  `defmodule`  ->  nothing
 definitions.ex:2:3  definition  Definitions  exact/1  clause  public function runtime
 definitions.ex:2:13  psi  Callable  `a`  ->  definitions.ex:2:13 `a`
 definitions.ex:2:21  psi  Callable  `a`  ->  definitions.ex:2:13 `a`
+definitions.ex:2:21  symbol  FunctionCallReference  `a`  ->  nothing
 definitions.ex:2:21  symbol  VariableReference  `a`  ->  definitions.ex:2:13 VariableSymbol(a, PARAMETER, (37,38))
 definitions.ex:3:3  definition  Definitions  defaults/1..3  clause  public function runtime
 definitions.ex:3:16  psi  Callable  `a`  ->  definitions.ex:3:16 `a`
@@ -59,16 +62,20 @@ definitions.ex:3:21  symbol  FunctionCallReference  `\\`  ->  nothing
 definitions.ex:3:27  psi  Callable  `c`  ->  definitions.ex:3:27 `c`
 definitions.ex:3:29  symbol  FunctionCallReference  `\\`  ->  nothing
 definitions.ex:3:41  psi  Callable  `a`  ->  definitions.ex:3:16 `a`
+definitions.ex:3:41  symbol  FunctionCallReference  `a`  ->  nothing
 definitions.ex:3:41  symbol  VariableReference  `a`  ->  definitions.ex:3:16 VariableSymbol(a, PARAMETER, (62,63))
 definitions.ex:3:44  psi  Callable  `b`  ->  definitions.ex:3:19 `b`
+definitions.ex:3:44  symbol  FunctionCallReference  `b`  ->  nothing
 definitions.ex:3:44  symbol  VariableReference  `b`  ->  definitions.ex:3:19 VariableSymbol(b, PARAMETER, (65,66))
 definitions.ex:3:47  psi  Callable  `c`  ->  definitions.ex:3:27 `c`
+definitions.ex:3:47  symbol  FunctionCallReference  `c`  ->  nothing
 definitions.ex:3:47  symbol  VariableReference  `c`  ->  definitions.ex:3:27 VariableSymbol(c, PARAMETER, (73,74))
 definitions.ex:4:3  definition  Definitions  multi/1  clause  public function runtime
 definitions.ex:4:21  psi  GeneralAtomReference  `:zero`  ->  nothing
 definitions.ex:5:3  definition  Definitions  multi/1  clause  public function runtime
 definitions.ex:5:13  psi  Callable  `n`  ->  definitions.ex:5:13 `n`
 definitions.ex:5:21  psi  Callable  `n`  ->  definitions.ex:5:13 `n`
+definitions.ex:5:21  symbol  FunctionCallReference  `n`  ->  nothing
 definitions.ex:5:21  symbol  VariableReference  `n`  ->  definitions.ex:5:13 VariableSymbol(n, PARAMETER, (134,135))
 definitions.ex:6:3  definition  Definitions  headed/1..2  clause  public function runtime
 definitions.ex:6:14  psi  Callable  `a`  ->  definitions.ex:6:14 `a`
@@ -78,8 +85,10 @@ definitions.ex:7:3  definition  Definitions  headed/2  clause  public function r
 definitions.ex:7:14  psi  Callable  `a`  ->  definitions.ex:7:14 `a`
 definitions.ex:7:17  psi  Callable  `b`  ->  definitions.ex:7:17 `b`
 definitions.ex:7:26  psi  Callable  `a`  ->  definitions.ex:7:14 `a`
+definitions.ex:7:26  symbol  FunctionCallReference  `a`  ->  nothing
 definitions.ex:7:26  symbol  VariableReference  `a`  ->  definitions.ex:7:14 VariableSymbol(a, PARAMETER, (181,182))
 definitions.ex:7:29  psi  Callable  `b`  ->  definitions.ex:7:17 `b`
+definitions.ex:7:29  symbol  FunctionCallReference  `b`  ->  nothing
 definitions.ex:7:29  symbol  VariableReference  `b`  ->  definitions.ex:7:17 VariableSymbol(b, PARAMETER, (184,185))
 definitions.ex:9:3  psi  Callable  `args`  ->  definitions.ex:9:3 `args`
 definitions.ex:9:8  symbol  FunctionCallReference  `=`  ->  nothing
@@ -99,6 +108,7 @@ definitions.ex:11:24  psi  Callable  `unquote_splicing`  ->  nothing
 definitions.ex:11:24  symbol  FunctionCallReference  `unquote_splicing`  ->  nothing
 definitions.ex:11:41  psi  Callable  `args`  ->  definitions.ex:11:41 `args`
 definitions.ex:11:53  psi  Callable  `a`  ->  definitions.ex:11:21 `a`
+definitions.ex:11:53  symbol  FunctionCallReference  `a`  ->  nothing
 definitions.ex:11:53  symbol  VariableReference  `a`  ->  definitions.ex:11:21 VariableSymbol(a, PARAMETER, (316,317))
 definitions.ex:13:3  psi  Callable  `name`  ->  definitions.ex:13:3 `name`
 definitions.ex:13:8  symbol  FunctionCallReference  `=`  ->  nothing
@@ -107,12 +117,14 @@ definitions.ex:14:3  definition  Definitions  unquote(name)/1  clause  public fu
 definitions.ex:14:15  psi  Callable  `name`  ->  definitions.ex:13:3 `name`
 definitions.ex:14:21  psi  Callable  `a`  ->  definitions.ex:14:21 `a`
 definitions.ex:14:29  psi  Callable  `a`  ->  definitions.ex:14:21 `a`
+definitions.ex:14:29  symbol  FunctionCallReference  `a`  ->  nothing
 definitions.ex:14:29  symbol  VariableReference  `a`  ->  definitions.ex:14:21 VariableSymbol(a, PARAMETER, (387,388))
 definitions.ex:16:3  psi  Callable  `if`  ->  nothing
 definitions.ex:16:3  symbol  FunctionCallReference  `if`  ->  nothing
 definitions.ex:17:5  definition  Definitions  conditional/1  clause  public function runtime
 definitions.ex:17:21  psi  Callable  `a`  ->  definitions.ex:17:21 `a`
 definitions.ex:17:29  psi  Callable  `a`  ->  definitions.ex:17:21 `a`
+definitions.ex:17:29  symbol  FunctionCallReference  `a`  ->  nothing
 definitions.ex:17:29  symbol  VariableReference  `a`  ->  definitions.ex:17:21 VariableSymbol(a, PARAMETER, (431,432))
 definitions.ex:20:3  module  Definitions.Nested
 definitions.ex:20:3  psi  Callable  `defmodule`  ->  nothing
@@ -141,6 +153,7 @@ gen_server_request.ex:2:22  symbol  ModuleReference  `GenServer`  ->  nothing
 gen_server_request.ex:2:32  psi  Callable  `call`  ->  nothing
 gen_server_request.ex:2:32  symbol  FunctionCallReference  `call`  ->  nothing
 gen_server_request.ex:2:37  psi  Callable  `pid`  ->  gen_server_request.ex:2:12 `pid`
+gen_server_request.ex:2:37  symbol  FunctionCallReference  `pid`  ->  nothing
 gen_server_request.ex:2:37  symbol  VariableReference  `pid`  ->  gen_server_request.ex:2:12 VariableSymbol(pid, PARAMETER, (41,44))
 gen_server_request.ex:2:42  psi  GeneralAtomReference  `:ping`  ->  nothing
 gen_server_request.ex:2:43  symbol  GenServerRequestReference  `ping`  ->  gen_server_request.ex:4:7 GenServerHandlerTarget(def handle_call(:ping, _from, state))
@@ -151,6 +164,7 @@ gen_server_request.ex:3:22  symbol  ModuleReference  `GenServer`  ->  nothing
 gen_server_request.ex:3:32  psi  Callable  `cast`  ->  nothing
 gen_server_request.ex:3:32  symbol  FunctionCallReference  `cast`  ->  nothing
 gen_server_request.ex:3:37  psi  Callable  `pid`  ->  gen_server_request.ex:3:12 `pid`
+gen_server_request.ex:3:37  symbol  FunctionCallReference  `pid`  ->  nothing
 gen_server_request.ex:3:37  symbol  VariableReference  `pid`  ->  gen_server_request.ex:3:12 VariableSymbol(pid, PARAMETER, (89,92))
 gen_server_request.ex:3:42  psi  GeneralAtomReference  `:poke`  ->  nothing
 gen_server_request.ex:3:43  symbol  GenServerRequestReference  `poke`  ->  gen_server_request.ex:5:7 GenServerHandlerTarget(def handle_cast(:poke, state))
@@ -161,18 +175,21 @@ gen_server_request.ex:4:33  psi  Callable  `state`  ->  gen_server_request.ex:4:
 gen_server_request.ex:4:46  psi  GeneralAtomReference  `:reply`  ->  nothing
 gen_server_request.ex:4:54  psi  GeneralAtomReference  `:pong`  ->  nothing
 gen_server_request.ex:4:61  psi  Callable  `state`  ->  gen_server_request.ex:4:33 `state`
+gen_server_request.ex:4:61  symbol  FunctionCallReference  `state`  ->  nothing
 gen_server_request.ex:4:61  symbol  VariableReference  `state`  ->  gen_server_request.ex:4:33 VariableSymbol(state, PARAMETER, (158,163))
 gen_server_request.ex:5:3  definition  GenServerRequest  handle_cast/2  clause  public function runtime
 gen_server_request.ex:5:19  psi  GeneralAtomReference  `:poke`  ->  nothing
 gen_server_request.ex:5:26  psi  Callable  `state`  ->  gen_server_request.ex:5:26 `state`
 gen_server_request.ex:5:39  psi  GeneralAtomReference  `:noreply`  ->  nothing
 gen_server_request.ex:5:49  psi  Callable  `state`  ->  gen_server_request.ex:5:26 `state`
+gen_server_request.ex:5:49  symbol  FunctionCallReference  `state`  ->  nothing
 gen_server_request.ex:5:49  symbol  VariableReference  `state`  ->  gen_server_request.ex:5:26 VariableSymbol(state, PARAMETER, (218,223))
 heex_component.ex:1:1  module  HeexComponent
 heex_component.ex:1:1  psi  Callable  `defmodule`  ->  nothing
 heex_component.ex:2:3  definition  HeexComponent  button/1  clause  public function runtime
 heex_component.ex:2:14  psi  Callable  `assigns`  ->  heex_component.ex:2:14 `assigns`
 heex_component.ex:2:28  psi  Callable  `assigns`  ->  heex_component.ex:2:14 `assigns`
+heex_component.ex:2:28  symbol  FunctionCallReference  `assigns`  ->  nothing
 heex_component.ex:2:28  symbol  VariableReference  `assigns`  ->  heex_component.ex:2:14 VariableSymbol(assigns, PARAMETER, (40,47))
 heex_component.html.heex:1:2  psi  TagNameReference  `.button`  ->  heex_component.ex:2:7 `button`
 heex_component.html.heex:1:2  symbol  HeexComponentSymbolReference  `.button`  ->  heex_component.ex:2:7 FunctionSymbol(HeexComponent.button/1, macro=false)
@@ -192,6 +209,7 @@ leex_assign.ex:2:46  psi  GeneralAtomReference  `:ok`  ->  nothing
 leex_assign.ex:2:51  psi  Callable  `assign`  ->  nothing
 leex_assign.ex:2:51  symbol  FunctionCallReference  `assign`  ->  nothing
 leex_assign.ex:2:58  psi  Callable  `socket`  ->  leex_assign.ex:2:32 `socket`
+leex_assign.ex:2:58  symbol  FunctionCallReference  `socket`  ->  nothing
 leex_assign.ex:2:58  symbol  VariableReference  `socket`  ->  leex_assign.ex:2:32 VariableSymbol(socket, PARAMETER, (55,61))
 leex_assign.ex:2:66  psi  GeneralAtomReference  `:count`  ->  nothing
 leex_assign.html.leex:1:5  psi  Assign  `@count`  ->  nothing
@@ -200,6 +218,7 @@ mfa_atom.ex:1:1  psi  Callable  `defmodule`  ->  nothing
 mfa_atom.ex:2:3  definition  MfaAtom  run/1  clause  public function runtime
 mfa_atom.ex:2:11  psi  Callable  `x`  ->  mfa_atom.ex:2:11 `x`
 mfa_atom.ex:2:19  psi  Callable  `x`  ->  mfa_atom.ex:2:11 `x`
+mfa_atom.ex:2:19  symbol  FunctionCallReference  `x`  ->  nothing
 mfa_atom.ex:2:19  symbol  VariableReference  `x`  ->  mfa_atom.ex:2:11 VariableSymbol(x, PARAMETER, (31,32))
 mfa_atom.ex:3:3  definition  MfaAtom  mfas/0  clause  public function runtime
 mfa_atom.ex:3:19  psi  Module  `MfaAtom`  ->  mfa_atom.ex:1:1 `defmodule MfaAtom do`
@@ -235,4 +254,5 @@ protocol_impl.ex:6:3  definition  ProtocolImpl.Atom  convert/1  clause  public f
 protocol_impl.ex:6:7  symbol  ProtocolImplReference  `convert`  ->  protocol_impl.ex:2:7 ProtocolFunction(ProtocolImpl.convert/1, macro=false)
 protocol_impl.ex:6:15  psi  Callable  `x`  ->  protocol_impl.ex:6:15 `x`
 protocol_impl.ex:6:23  psi  Callable  `x`  ->  protocol_impl.ex:6:15 `x`
+protocol_impl.ex:6:23  symbol  FunctionCallReference  `x`  ->  nothing
 protocol_impl.ex:6:23  symbol  VariableReference  `x`  ->  protocol_impl.ex:6:15 VariableSymbol(x, PARAMETER, (99,100))
