@@ -7,6 +7,7 @@ import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInsight.template.Template
 import com.intellij.codeInsight.template.TemplateManager
 import com.intellij.codeInsight.template.impl.TextExpression
+import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.ResolveState
 import org.elixir_lang.Arity
@@ -91,7 +92,7 @@ class CallDefinitionClause private constructor(private val arity: Arity?) : Inse
      * same as a target already known to take none.
      */
     private fun parameters(item: LookupElement): List<String>? =
-        when (val psiElement = item.psiElement) {
+        item.getUserData(PLACED) ?: when (val psiElement = item.psiElement) {
             is BeamCallDefinition -> Signature.parametersAt(psiElement)
             is Call -> callParameters(psiElement, item.lookupString)
             else -> null
@@ -126,6 +127,9 @@ class CallDefinitionClause private constructor(private val arity: Arity?) : Inse
 
     companion object {
         val WHOLE_HEAD = CallDefinitionClause(null)
+
+        /** The stub's parameters of a lookup for a placed head, whose element is the macro's clause, not its head. */
+        val PLACED: Key<List<String>> = Key.create("org.elixir_lang.code_insight.completion.insert_handler.PLACED")
 
         fun at(arity: Arity?): CallDefinitionClause = arity?.let(::CallDefinitionClause) ?: WHOLE_HEAD
     }

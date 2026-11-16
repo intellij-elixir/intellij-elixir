@@ -134,6 +134,7 @@ internal object Documented {
      * The copy of its module [found] is in: the `defmodule` that holds the call placing it there, a `use` for what the
      * `use` injects, else its file.
      */
+    @RequiresReadLock
     fun copy(found: Found): PsiElement? =
         (found.head.placedBy ?: found.element as? Call)?.let(::enclosingModularMacroCall) ?: found.element.containingFile
 

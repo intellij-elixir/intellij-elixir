@@ -115,3 +115,35 @@ internal val OV_FULL_GEN = """
 
 /** [OV_FULL_GEN], as `Compiled`. */
 internal val OV_FULL_GEN_LIB = OV_FULL_GEN.replace("defmodule OvFullGen do", "defmodule Compiled do")
+
+/** `f/1..2`, and a macro `f/3` whose quote writes `def f(x)`: compiled, its clause is the place debug info gives that head. */
+internal val SAME_NAME_MACRO_LIB = """
+    defmodule Compiled do
+      def f(a, b \\ 1), do: {a, b}
+
+      defmacro f(n, o, p) do
+        quote do
+          def f(x), do: {x, unquote(n), unquote(o), unquote(p)}
+        end
+      end
+    end
+""".trimIndent()
+
+/** [SAME_NAME_MACRO_LIB]'s source, as `SameName`. */
+internal val SAME_NAME_MACRO_SOURCE = SAME_NAME_MACRO_LIB.replace("defmodule Compiled do", "defmodule SameName do")
+
+/**
+ * `f/2`, whose default adds `f/1`, and a `__using__` whose quote defines `f/1` in the module that uses it: compiled, a
+ * module that does `use Compiled` defines `f/1` at a head the macro's clause places.
+ */
+internal val PLACED_LIB = """
+    defmodule Compiled do
+      def f(a, b \\ 1), do: {a, b}
+
+      defmacro __using__(_) do
+        quote do
+          def f(x), do: x
+        end
+      end
+    end
+""".trimIndent()

@@ -141,7 +141,13 @@ data class Found(
  * that injected it. [placedBy] is the clause itself where it is written in [module]'s own body, else the call in
  * [module]'s file whose output injected it; it is `null` for a compiled definition, or where no such call is found.
  */
-data class Head(val written: PsiElement?, val module: String?, val placedBy: Call?, val name: String, val arity: ArityKnowledge)
+data class Head(val written: PsiElement?, val module: String?, val placedBy: Call?, val name: String, val arity: ArityKnowledge) {
+    /**
+     * Whether nothing written names it, as where a macro's output places it: its element is the macro's clause, the
+     * call that injected it, or a clause written with its name unquoted, none of which writes its head.
+     */
+    val placed: Boolean get() = written == null
+}
 
 /**
  * A use's [found], and why their holding nothing Elixir reaches may not prove the use reaches nothing, [absence],
@@ -168,14 +174,10 @@ data class ClauseOrder(val offset: Int, val within: Int) : Comparable<ClauseOrde
 
 /**
  * Where [this]'s clause is defined in the module that declares it: at the call [Head.placedBy] that places its head
- * there, then at its head. `null` where its head is not written, or no call places it.
+ * there, then at its head, or at its element where nothing writes the head. `null` where no call places it.
  */
 @RequiresReadLock
-fun Found.clauseOrder(): ClauseOrder? {
-    val written = head.written ?: return null
-
-    return head.placedBy?.let { ClauseOrder(it.textOffset, written.textOffset) }
-}
+fun Found.clauseOrder(): ClauseOrder? = head.placedBy?.let { ClauseOrder(it.textOffset, (head.written ?: element).textOffset) }
 
 /**
  * The function [this] is one definition of, as Elixir keys it: [Declaration.identity], unless the head written for it
@@ -185,7 +187,7 @@ fun Found.clauseOrder(): ClauseOrder? {
 @RequiresReadLock
 fun Found.identity(): NameArity? {
     val declaration = candidate.declaration
-    val identity = declaration.identity
+    val identity = declaration.identity(head.placed)
     // Only these forms write a head of their own; another's written element is the call of its form.
     (declaration.declared as? Declared.Source)?.form?.takeIf { it == Form.CLAUSE || it == Form.DELEGATION } ?: return identity
     val full = head.written?.let { CallDefinitionHead.nameArityInterval(it, ResolveState.initial()) }?.arityInterval?.maximum
@@ -203,7 +205,8 @@ fun Found.definition(): Found.Definition =
  * What completion offers as [lookupName] at a position. [name] and [declaration] are `null` exactly when the name has
  * no atom value. [importedArities] are the arities of [declaration]'s closed interval that the `import` it was reached
  * through brings in, `null` when no `import` reached it, that `import` brings in every arity of the interval, or the
- * interval is not closed; [declaration]'s arity stays the whole interval.
+ * interval is not closed; [declaration]'s arity stays the whole interval. [head] is the head that declares it, where the
+ * source gives one: the walk places no head, so gives none.
  */
 data class Visible(
     val lookupName: String,
@@ -211,6 +214,7 @@ data class Visible(
     val declaration: Declaration?,
     val element: PsiElement,
     val importedArities: Set<Int>?,
+    val head: Head? = null,
 )
 
 /** A use of a callable. */

@@ -5,6 +5,7 @@ import org.elixir_lang.documentation.CompiledBuild
 import org.elixir_lang.documentation.OV_FULL_GEN
 import org.elixir_lang.documentation.OV_FULL_GEN_LIB
 import org.elixir_lang.documentation.OV_FULL_LIB
+import org.elixir_lang.documentation.PLACED_LIB
 import org.elixir_lang.documentation.addCompiledLibrary
 
 /**
@@ -159,6 +160,16 @@ class DefaultsParameterInfoTest : ExpanderSettingTestCase() {
 
     fun testAnOverrideOfACompiledDefaultHeadsFullArityIsOneFunctionWithTheExpanderOn() =
         withTheExpanderOn(::testAnOverrideOfACompiledDefaultHeadsFullArityIsOneFunction)
+
+    /** A head a compiled macro places at an arity a default of the macro module's own `f` adds is a function of its own. */
+    fun testAHeadACompiledMacroPlacedIsShownAtItsOwnArityWithTheExpanderOn() = withTheExpanderOn {
+        myFixture.addCompiledLibrary(PLACED_LIB, CompiledBuild("CompiledPlacedParameterInfo"))
+
+        assertEquals(
+            listOf("arg1"),
+            shown("defmodule Placed do\n  use CompiledPlacedParameterInfo\n\n  def calls(y), do: f(y<caret>)\nend\n")
+        )
+    }
 
     /** [shown], sorted, at `o(x)` called on [OV_FULL_GEN_LIB] compiled as [build]. */
     private fun shownAtCompiledOvFullGen(build: CompiledBuild): List<String> {

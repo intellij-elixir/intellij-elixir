@@ -402,9 +402,14 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         // the cached inline docs from decompilation, headed by what the `.beam` itself records.
         return if (element.containingFile?.originalFile is BeamFileImpl) {
             val sourceElement = (element as? PsiCompiledElement)?.mirror ?: element.navigationElement
+            val decompiled = SourceFileDocsHelper.fetchDocs(sourceElement, remote, found)
 
-            SourceFileDocsHelper.fetchDocs(sourceElement, remote, found)?.let { BeamDocsHelper.headed(element, it) }
-                ?: BeamDocsHelper.fetchDocs(element)
+            // A placed head's element is the macro's clause, which is what the `.beam` records there.
+            if (found?.head?.placed == true) {
+                decompiled
+            } else {
+                decompiled?.let { BeamDocsHelper.headed(element, it) } ?: BeamDocsHelper.fetchDocs(element)
+            }
         } else {
             SourceFileDocsHelper.fetchDocs(element, remote, found)
         }

@@ -474,7 +474,7 @@ internal object ExpanderSource : CandidateSource {
     /** `null` for a definition that may not be Elixir's, which completion doesn't offer. */
     private fun visible(defined: Defined, importedArities: Set<Int>?): Visible? =
         if (defined.uncertain == null) {
-            Visible(defined.declaration.name, defined.declaration.name, defined.declaration, defined.element, importedArities)
+            Visible(defined.declaration.name, defined.declaration.name, defined.declaration, defined.element, importedArities, defined.head)
         } else {
             null
         }
@@ -487,7 +487,9 @@ internal object ExpanderSource : CandidateSource {
     private fun eachNameOnce(defined: List<Defined>): List<Defined> {
         val (source, compiled) = defined.partition { it.declaration.declared is Declared.Source }
         val (delegations, clauses) = source.partition { (it.declaration.declared as Declared.Source).form == Form.DELEGATION }
-        val (own, placed) = clauses.partition { declares(it.element, it.declaration.name) }
+        val (own, placed) = clauses.partition {
+            declaringDefiner(it.element, it.declaration.name, it.declaration.arity, it.declaration.capabilities.compileTime) != null
+        }
         val byElement = own.associateBy { it.element }
         val calls = own.map { it.element as Call }
 
@@ -1069,7 +1071,7 @@ internal object ExpanderSource : CandidateSource {
         // `super` saves an overridden public definition as a private one, with the head it was written with, so
         // the table gives the visibility and the written head the rest. A head placed at its macro's clause
         // has only the table's.
-        val definer = CallDefinitionClause.definer(call)?.takeIf { declares(call, nameArity.name) }
+        val definer = declaringDefiner(call, nameArity.name, arity, stored.compileTime)
         val capabilities = (definer?.capabilities ?: stored).copy(visibility = stored.visibility)
         val form = placement.form ?: Form.CLAUSE
         val declared = Declared.Source(form, CallDefinitionClause.sourceOrigin(call))
@@ -1233,12 +1235,16 @@ internal object ExpanderSource : CandidateSource {
         Applicability.of(reached.defined.declaration, reached.searched ?: name, reached.named, arity, reached.heads)
 
     /**
-     * Whether [element] is a `def*` call of [name]: not the macro clause that debug info, which places nothing more
-     * finely, places an injected head at.
+     * [element]'s `def*` where it is a call of [name] at [arity], a macro where [macro] is: not the macro clause that
+     * debug info, which places nothing more finely, places an injected head at, though it has the name the head does.
      */
-    private fun declares(element: PsiElement, name: String): Boolean =
-        element is Call && CallDefinitionClause.`is`(element) &&
-            CallDefinitionClause.nameArityInterval(element, ResolveState.initial())?.name == name
+    private fun declaringDefiner(element: PsiElement, name: String, arity: ArityKnowledge, macro: Boolean): Definer? {
+        val call = element as? Call ?: return null
+        val definer = CallDefinitionClause.definer(call)?.takeIf { it.capabilities.compileTime == macro } ?: return null
+        val (written, interval) = CallDefinitionClause.nameArityInterval(call, ResolveState.initial()) ?: return null
+
+        return definer.takeIf { written == name && arity.arityInterval()?.let(interval::overlaps) == true }
+    }
 
     private fun definer(kind: DefinitionTable.Kind): Definer =
         when (kind) {

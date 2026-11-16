@@ -195,7 +195,7 @@ object SourceFileDocsHelper {
             .sortedBy { it.key.first }
             .mapNotNull { (_, declarations) ->
                 val first = declarations.first()
-                val clauses = declarations.map { RecordedSignature.Clause(it.form, it.head) }
+                val clauses = declarations.mapNotNull { written -> written.head?.let { RecordedSignature.Clause(written.form, it) } }
 
                 RecordedSignature.of(index, first.declaration.name, first.arities, clauses)?.text
             }
@@ -245,8 +245,7 @@ object SourceFileDocsHelper {
     internal class Listing(val functions: List<List<Written>>, private val kept: Map<NameArity?, Kept>) {
         /** What Elixir keeps of the docs written by the definitions [function] replaced: their doc and its metadata. */
         fun replacedDocs(function: List<Written>): FetchedDocs.FunctionOrMacroDocumentation? =
-            kept[function.first().identity]?.documentation
-                ?.let { FetchedDocs.FunctionOrMacroDocumentation(it.module, it.deprecated, it.doc, emptyList(), emptyList(), emptyList()) }
+            kept[function.first().identity]?.documentation?.let { undocumented(it.module).replacing(it) }
 
         /** [function]'s docs as Elixir keeps them: those its [written] declarations write, over the definitions it replaced. */
         fun documentation(function: List<Written>, written: List<Written> = function): FetchedDocs.FunctionOrMacroDocumentation =
@@ -275,10 +274,7 @@ object SourceFileDocsHelper {
 
         companion object {
             /** What Elixir keeps where nothing was replaced. */
-            val NONE = Kept(
-                FetchedDocs.FunctionOrMacroDocumentation(null, null, null, emptyList(), emptyList(), emptyList()),
-                hidden = false
-            )
+            val NONE = Kept(undocumented(null), hidden = false)
         }
     }
 
@@ -332,7 +328,7 @@ object SourceFileDocsHelper {
             ?: decompiledClauses(declaring, declaringForm, listed, modular, module)
                 .takeIf { sourceUsed == null && (used != null || defined.any { it.candidate.declaration.declared is Declared.Compiled }) }
             ?: return null
-        val usedIdentity = finds?.first?.identity() ?: listed.identity
+        val usedIdentity = finds?.first?.identity() ?: listed.identity(placed = false)
         // One function per identity, as Elixir keys its definitions. A `def` replaces what `defexception` defines
         // rather than joining it, so that, like a declaration of no known identity, is one function alone. They are
         // ascending by the full arity that keys each, and each's clauses are in the order the module defines them.
@@ -440,7 +436,9 @@ object SourceFileDocsHelper {
         val declaration = found.candidate.declaration.takeIf { it.name == name } ?: return null
         val form = (declaration.declared as? Declared.Source)?.form?.takeUnless { it == Form.CALLBACK } ?: return null
         val arities = declaration.arity.arityInterval() ?: return null
-        val head = found.head.written ?: DeclaringForm.head(call, form, name, declaration.arity) ?: return null
+        // A placed head's call writes no head naming it, and may be the macro's clause or the call that injected it, whose docs are not its own.
+        if (found.head.placed) return Written(found, call, form, null, declaration, arities, undocumented(module), hidden = false)
+        val head = found.head.written ?: return null
 
         return Written(found, call, form, head, declaration, arities, documentation(call, form, head, name, module), hidesDoc(call))
     }
@@ -449,17 +447,24 @@ object SourceFileDocsHelper {
     @RequiresReadLock
     private fun documentation(call: Call, form: Form, head: PsiElement, name: String, module: String?): FetchedDocs.FunctionOrMacroDocumentation =
         if (form == Form.EXCEPTION) {
-            FetchedDocs.FunctionOrMacroDocumentation(module, null, null, emptyList(), emptyList(), emptyList())
+            undocumented(module)
         } else {
             FetchedDocs.FunctionOrMacroDocumentation.fromCallDefinitionClauseCall(module, call, shownHead(call, form, head, name))
         }
 
-    /** One `def`, `defmacro`, other clause, `defdelegate` or `defexception` function of a name, the [head] it writes, and the arities it covers. */
+    /** No docs, no head and no spec, in [module]. */
+    private fun undocumented(module: String?): FetchedDocs.FunctionOrMacroDocumentation =
+        FetchedDocs.FunctionOrMacroDocumentation(module, null, null, emptyList(), emptyList(), emptyList())
+
+    /**
+     * One `def`, `defmacro`, other clause, `defdelegate` or `defexception` function of a name, the [head] it writes, and
+     * the arities it covers; a placed head writes none.
+     */
     internal class Written(
         val found: Found?,
         val call: Call,
         val form: Form,
-        val head: PsiElement,
+        val head: PsiElement?,
         val declaration: Declaration,
         val arities: ArityInterval,
         val documentation: FetchedDocs.FunctionOrMacroDocumentation,
@@ -468,12 +473,12 @@ object SourceFileDocsHelper {
         /** Whether `defexception` defines it, not a declaration written in the module. */
         val generated: Boolean get() = form == Form.EXCEPTION
 
-        /** Where the module defines it. */
+        /** Where the module defines it: a placed head, where the call that placed it is. */
         @get:RequiresReadLock
-        val order: ClauseOrder get() = found?.clauseOrder() ?: ClauseOrder.at(head)
+        val order: ClauseOrder get() = found?.clauseOrder() ?: ClauseOrder.at(head ?: found?.head?.placedBy ?: call)
 
         /** The function it is one definition of, as Elixir keys it. */
-        val identity: NameArity? get() = found?.identity() ?: declaration.identity
+        val identity: NameArity? get() = found?.identity() ?: declaration.identity(placed = false)
     }
 
     /** The head an EEx function or an embed [call] declares with [form] shows its docs under, `name/arity`. */

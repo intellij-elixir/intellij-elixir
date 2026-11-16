@@ -159,14 +159,14 @@ class ExpanderSourceUseTest : PlatformTestCase() {
 
     /**
      * A head debug info places at its macro's clause borrows nothing from that clause: not the Symbol of the function
-     * the clause's module would define there, nor the clause's parameters.
+     * the clause's module would define there, nor the clause's parameters, so its signature is the stub.
      */
     fun testADebugInfoMacrosDefinitionBorrowsNothingFromItsMacrosClause() {
         val file = add("a.ex", "defmodule A do\n  use Application\n  def g, do: stop(1)\nend\n")
         val found = found(file, "stop(1)").single()
 
         assertEmpty(UseSymbols.symbols(found, 1))
-        assertNull(Signature.of(found))
+        assertEquals(listOf("arg1"), Signature.of(found)?.parameters)
     }
 
     /**

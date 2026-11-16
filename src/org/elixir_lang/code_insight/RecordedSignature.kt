@@ -16,6 +16,7 @@ import org.elixir_lang.IOLib
 import org.elixir_lang.Macro
 import org.elixir_lang.Module
 import org.elixir_lang.beam.decompiler.ParameterText
+import org.elixir_lang.beam.decompiler.generatedArguments
 import org.elixir_lang.code.Identifier
 import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.debugger.stack_frame.value.Presentation
@@ -109,11 +110,13 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
         /**
          * The signature Elixir records for the one definition [found] are finds of, at its [full] arity, in the module that
          * declares it, from each of its source clauses where that module defines it; `null` where a clause's head or place
-         * is not known, as without them the merge's names are not.
+         * is not known, as without them the merge's names are not. Where every head is placed, none is known, and it is
+         * the [stub].
          */
         @RequiresReadLock
         fun of(found: List<Found>, full: Int): RecordedSignature? {
             val first = found.firstOrNull() ?: return null
+            if (found.all { it.head.placed }) return stub(first.candidate.declaration.name, full)
             // A head with defaults is a find at each arity they add, but one clause of the function.
             val clauses = found.mapNotNull { one ->
                 val form = (one.candidate.declaration.declared as? Declared.Source)?.form ?: return@mapNotNull null
@@ -123,6 +126,13 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
             }.distinct()
 
             return of(first.declaringModuleName(), first.candidate.declaration.name, ArityInterval(full, full), clauses)
+        }
+
+        /** [name] at [arity] with the names `Macro.generate_arguments/2` gives, as a decompiled stub has them. */
+        fun stub(name: String, arity: Int): RecordedSignature {
+            val parameters = generatedArguments(arity).map { Variable(it, true) }
+
+            return RecordedSignature(parameters.map(Parameter::text), printed(name, parameters))
         }
 
         /**
