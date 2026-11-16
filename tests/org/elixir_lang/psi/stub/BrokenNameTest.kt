@@ -10,7 +10,7 @@ import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.getModuleName
+import org.elixir_lang.psi.impl.getModuleNames
 import org.elixir_lang.psi.stub.type.File
 
 /** Naming broken code answers without throwing, or stub building and indexing would fail for the whole file. */
@@ -39,7 +39,7 @@ class BrokenNameTest : PlatformTestCase() {
         for (call in PsiTreeUtil.findChildrenOfType(file, Call::class.java)) {
             (call as? PsiNamedElement)?.name
             if (CallDefinitionClause.`is`(call)) CallDefinitionClause.nameArityInterval(call, ResolveState.initial())
-            call.getModuleName()
+            call.getModuleNames()
         }
     }
 

@@ -20,8 +20,8 @@ import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirUnmatchedAtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.Modular.callDefinitionClauseCallWhile
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.impl.call.macroChildCallSequence
-import org.elixir_lang.psi.impl.getModuleName
 import org.elixir_lang.psi.putInitialVisitedElement
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Type
@@ -117,7 +117,7 @@ class ModuleImpl<T : ModuleStub<*>?>(private val stub: T) : ModuleElementImpl(),
     }
 
     private fun moduleName(element: TreeElement): String {
-        return element.psi.let { it as? Call }?.getModuleName() ?: "<unknown module>"
+        return (element.psi as? Call)?.let { SyntacticCall.of(it).canonicalName() } ?: "<unknown module>"
     }
 
     override fun callDefinitions(): Array<CallDefinitionImpl<*>> =

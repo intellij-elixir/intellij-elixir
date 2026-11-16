@@ -13,13 +13,15 @@ import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.findParentInFile
 import com.intellij.psi.util.siblings
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.Module.NO_VALUE
 import org.elixir_lang.psi.*
+import org.elixir_lang.psi.__module__.enclosingQuoteOrModular
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.name.Function.ALIAS
 import org.elixir_lang.psi.call.name.Function.CREATE
-import org.elixir_lang.Module.nest
 import org.elixir_lang.psi.call.name.Module.KERNEL
+import org.elixir_lang.psi.impl.call.CanonicallyNamedImpl
 import org.elixir_lang.psi.impl.call.maybeModularNameToModulars
 import org.elixir_lang.psi.operation.Infix
 import org.elixir_lang.psi.operation.Match
@@ -126,36 +128,16 @@ tailrec fun PsiElement.selfOrEnclosingMacroCall(): Call? =
 @Contract(pure = true)
 fun PsiElement.enclosingMacroCall(): Call? = parent.selfOrEnclosingMacroCall()
 
-private val isModuleName = { c: PsiElement -> c is MaybeModuleName && c.isModuleName }
+fun PsiElement.isInsideModule(): Boolean =
+    findParentInFile(withSelf = true) { e -> e.children.any { it is MaybeModuleName && it.isModuleName } } != null
 
 /**
- * Returns `true` if this element is inside a `defmodule` (or similar module definition).
- * Unlike [getModuleName], this does not assemble the full module name string - it is a
- * cheap boolean check suitable for hot paths like breakpoint availability.
+ * The canonical names of the module this element runs in, one for each module a `defimpl` defines: [NO_VALUE] inside a
+ * `quote`, which leaves it to the module the `quote` is injected into, and empty at the top level.
  */
-fun PsiElement.isInsideModule(): Boolean =
-    findParentInFile(withSelf = true) { e -> e.children.any(isModuleName) } != null
-
 @RequiresReadLock
-fun PsiElement.getModuleName(): String? {
-    // findParentInFile stops at PsiFile boundary, never touches PsiDirectory - avoids DiskQueryRelay VFS I/O
-    return findParentInFile(withSelf = true) { e ->
-        e.children.any(isModuleName)
-    }?.let { moduleDefinition ->
-        moduleDefinition.children.firstOrNull(isModuleName)?.let { nameElement ->
-            val name = (moduleDefinition as? Call)?.let { Module.moduleName(SyntacticCall.of(it)) }
-
-            if (name?.absolute == true) {
-                name.name
-            } else {
-                val relative = name?.name ?: nameElement.text
-
-                moduleDefinition.parent.getModuleName()?.let { parentModuleName -> nest(parentModuleName, relative) }
-                    ?: relative
-            }
-        }
-    }
-}
+fun PsiElement.getModuleNames(): Set<String> =
+    enclosingQuoteOrModular(this)?.let { CanonicallyNamedImpl.namesOf(SyntacticCall.of(it)) }.orEmpty()
 
 fun <R> PsiElement.foldChildrenWhile(
     initial: R,
