@@ -49,6 +49,15 @@ object BeamBytes {
         return spans
     }
 
+    /** [content] without its chunk [chunkId]. */
+    fun withoutChunk(content: ByteArray, chunkId: String): ByteArray =
+        beam(
+            *chunks(content)
+                .filter { it.id != chunkId }
+                .map { it.id to content.copyOfRange(it.data, it.data + it.size) }
+                .toTypedArray()
+        )
+
     /** Rewrites the [fieldIndex]th unsigned int of chunk [chunkId]'s data. */
     fun withChunkField(content: ByteArray, chunkId: String, fieldIndex: Int, value: Int): ByteArray {
         val span = chunks(content).firstOrNull { it.id == chunkId }

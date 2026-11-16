@@ -57,7 +57,7 @@ data class Signature(
         /** [declaration] as [call] writes it, at the head [call] declares it under. */
         @RequiresReadLock
         fun declaredBy(call: Call, declaration: Declaration): Signature? =
-            DeclaringForm.writtenHead(call, declaration, module = null).written?.let { of(declaration, it) }
+            DeclaringForm.written(call, declaration)?.let { of(declaration, it) }
 
         private fun sourceSignature(declaration: Declaration, form: Form, head: PsiElement): Signature? {
             val nameArityInterval = declaration.arity.arityInterval()?.let { NameArityInterval(declaration.name, it) }

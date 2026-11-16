@@ -164,7 +164,7 @@ class CompilerJoin(
     private fun found(position: Position): List<Found>? {
         val (file, offset) = offset(position) ?: return null
         val call = ancestors(file, offset).filterIsInstance<Call>().firstOrNull { offset in starts(it) } ?: return null
-        if (call is NonNumeric || capturedName(call)) return null
+        if (call is NonNumeric || CaptureNameArity.of(call) != null) return null
         val use = Use.of(call) ?: return null
 
         return preferred(use, sourceFor(Feature.SYMBOL_REFERENCES).candidates(use, false), false).map { it.found }
@@ -175,10 +175,6 @@ class CompilerJoin(
             call.functionNameElement()?.textOffset,
             PsiTreeUtil.getChildOfType(call, ElixirDotInfixOperator::class.java)?.textOffset
         )
-
-    /** Whether [call] is the name of a `&name/arity` capture, which no use reads. */
-    private fun capturedName(call: Call): Boolean =
-        (PsiTreeUtil.getParentOfType(call, NonNumeric::class.java)?.reference as? CaptureNameArity)?.nameElement == call
 
     private fun outcome(
         fact: Fact.Ref,

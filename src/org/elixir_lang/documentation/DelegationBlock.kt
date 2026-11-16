@@ -3,13 +3,16 @@ package org.elixir_lang.documentation
 import com.intellij.codeInsight.documentation.DocumentationManagerProtocol.PSI_ELEMENT_PROTOCOL
 import com.intellij.lang.documentation.DocumentationMarkup
 import com.intellij.openapi.util.text.StringUtil
+import com.intellij.psi.PsiElement
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Module
 import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.declaration.Form
+import org.elixir_lang.declaration.Preferred
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.structure_view.element.Delegation
 
 /**
@@ -25,34 +28,48 @@ internal object DelegationBlock {
      */
     class Entry(val module: String?, val heading: FetchedDocs.Heading, val targets: List<String>, val own: FetchedDocs.FunctionOrMacroDocumentation?)
 
-    /** One declaration of a function: a `def`, a clause or a `defdelegate`. */
-    private class Part(val call: Call, val form: Form, val documentation: FetchedDocs.FunctionOrMacroDocumentation)
+    /**
+     * The [head] of [delegation] a use reached, and what the step prefers at it, read once for the block and the arity;
+     * [index] is the index name of the module that holds it when it is known, and [inside] whether the use is in that
+     * module.
+     */
+    class Reached(val delegation: Call, val head: PsiElement?, val index: String?, val inside: Boolean) {
+        val preferred: Preferred? by lazy(LazyThreadSafetyMode.NONE) { Documented.headed(head) }
+
+        /** What the step prefers at [other], a head of a function the block lists. */
+        @RequiresReadLock
+        fun preferredAt(other: PsiElement?): Preferred? = if (other == head) preferred else Documented.headed(other)
+    }
+
+    /** One declaration of a function, a `def`, a clause or a `defdelegate`, by its [head]. */
+    private class Part(val call: Call, val form: Form, val head: PsiElement?, val documentation: FetchedDocs.FunctionOrMacroDocumentation)
 
     /**
-     * The delegation reached through [delegation] and the other functions of its name in its module, ascending by arity,
-     * as many as the arities card lists, each as the card groups its declarations: from outside the module ([remote]) not
-     * one marked `@doc false` or `@doc nil`. [index] is the index name of the module that holds them, which a delegation
-     * a `use` injects does not write in its `quote`.
+     * The delegation [reached] and the other functions of its name in its module, ascending by arity,
+     * as many as the arities card lists, each as the card groups its declarations: from outside the module (not
+     * [Reached.inside]) not one marked `@doc false` or `@doc nil`. [Reached.index] names the module that holds them,
+     * which a delegation a `use` injects does not write in its `quote`.
      */
     @RequiresReadLock
-    fun of(delegation: Call, index: String?, remote: Boolean): List<Entry> {
+    fun of(reached: Reached): List<Entry> {
+        val index = reached.index
         val module = index?.let(Module::inspect)
+        val delegation = reached.delegation
 
-        return SourceFileDocsHelper.listedGroups(delegation, remote)
+        return SourceFileDocsHelper.listedGroups(delegation, remote = !reached.inside)
             .map { function ->
-                entry(module, function.map { Part(it.call, it.form, it.documentation) }, SourceFileDocsHelper.titles(index, function))
+                entry(reached, module, function.map { Part(it.call, it.form, it.head, it.documentation) }, SourceFileDocsHelper.titles(index, function))
             }
             .ifEmpty {
-                val documentation = FetchedDocs.FunctionOrMacroDocumentation.fromCallDefinitionClauseCall(module, delegation, headOf(delegation))
+                val documentation = FetchedDocs.FunctionOrMacroDocumentation.fromCallDefinitionClauseCall(module, delegation, headOf(delegation, reached.head))
 
-                listOf(entry(module, listOf(Part(delegation, Form.DELEGATION, documentation)), titles = emptyList()))
+                listOf(entry(reached, module, listOf(Part(delegation, Form.DELEGATION, reached.head, documentation)), titles = emptyList()))
             }
     }
 
-    /** The head a delegation written alone shows, after its keyword and with the name Elixir gives it. */
+    /** The [head] a delegation written alone shows, after its keyword and with the name Elixir gives it. */
     @RequiresReadLock
-    private fun headOf(delegation: Call): String? {
-        val head = Delegation.head(delegation)
+    private fun headOf(delegation: Call, head: PsiElement?): String? {
         val headName = UseSymbols.headUse(head)?.second?.name
         val written = if (head != null && headName != null) SourceFileDocsHelper.spelled(head, headName) else head?.text.orEmpty()
 
@@ -61,28 +78,51 @@ internal object DelegationBlock {
 
     /** What a function of the block shows: the docs of its declarations, or for a delegation that writes none the functions it delegates to. */
     @RequiresReadLock
-    private fun entry(module: String?, parts: List<Part>, titles: List<String>): Entry {
+    private fun entry(reached: Reached, module: String?, parts: List<Part>, titles: List<String>): Entry {
         val (written, linked) = parts.partition { it.form != Form.DELEGATION || writesDoc(it.call) }
         val documentation = parts.map(Part::documentation)
 
         return Entry(
             module,
             FetchedDocs.Heading(titles, documentation.flatMap { it.specs }, FetchedDocs.FunctionOrMacroDocumentation.headsOf(documentation)),
-            linked.flatMap { targets(it.call) }.distinct(),
+            linked.flatMap { targets(it.head, reached.preferredAt(it.head)) }.distinct(),
             written.takeIf { it.isNotEmpty() }?.let { SourceFileDocsHelper.merged(it.map(Part::documentation)) }
         )
     }
 
-    /** The arity [delegation]'s head calls its targets at, which fills in the defaults of a call written at a lower one. */
+    /**
+     * The arity [element], which [reached] reaches, is called at: the arity the delegation nearest it on the way passes
+     * on, at its head that reaches [element], which fills in the defaults of a call written at a lower one.
+     */
     @RequiresReadLock
-    fun passed(delegation: Call): Int? =
-        UseSymbols.headUse(Delegation.head(delegation))?.let { (_, use) -> Documented.atItsHead(delegation)?.let { UseSymbols.passed(it, use) } }
+    fun passedTo(reached: Reached, element: PsiElement): Int? {
+        val delegation = reached.delegation
+        val head = reached.head
+        val preferred = reached.preferred ?: return null
+        val nearest = preferred.admittedDelegatedTo
+            .firstOrNull { it.element == element }
+            ?.via
+            ?.lastOrNull { Delegation.`is`(it) }
+            ?.takeUnless { it == delegation }
+            ?: return passed(head, preferred)
 
+        return DeclaringForm.heads(nearest, Form.DELEGATION).firstNotNullOfOrNull { nearestHead ->
+            Documented.headed(nearestHead)
+                ?.takeIf { Documented.reaches(it, element) }
+                ?.let { passed(nearestHead, it) }
+        }
+    }
+
+    /** The arity a delegation's [head] calls its targets at, [preferred] being what the step prefers at that head. */
     @RequiresReadLock
-    private fun targets(delegation: Call): List<String> {
-        val (_, use) = UseSymbols.headUse(Delegation.head(delegation)) ?: return emptyList()
-        val preferred = Documented.atItsHead(delegation) ?: return emptyList()
-        val passed = UseSymbols.passed(preferred, use)
+    private fun passed(head: PsiElement?, preferred: Preferred): Int? =
+        UseSymbols.headUse(head)?.let { (_, use) -> UseSymbols.passed(preferred, use) }
+
+    /** The `Target.name/arity` of each function a delegation's [head] delegates to, [preferred] being what the step prefers at it. */
+    @RequiresReadLock
+    private fun targets(head: PsiElement?, preferred: Preferred?): List<String> {
+        preferred ?: return emptyList()
+        val passed = passed(head, preferred) ?: return emptyList()
 
         return preferred.directlyDelegatedTo.mapNotNull { target ->
             target.declaringModuleName()?.let { "$it.${InspectAtom.remoteCall(target.candidate.declaration.name)}/$passed" }

@@ -10,6 +10,8 @@ import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Doc
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByLanguage
 import org.elixir_lang.beam.term.inspect
 import org.elixir_lang.code_insight.definition
+import org.elixir_lang.declaration.Feature
+import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
@@ -17,7 +19,6 @@ import org.elixir_lang.psi.QuotableKeywordList
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.impl.prevSiblingSequence
-import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 
 /** What the documentation of one declaration holds; [module] is `null` where the module is not known, as in a `quote`. */
 sealed class FetchedDocs(open val module: String?) {
@@ -70,7 +71,7 @@ sealed class FetchedDocs(open val module: String?) {
                 val callDefinitionAttributeListByName = callDefinitionAttributeListByName(call)
                 val deprecated = callDefinitionAttributeListByName[DEPRECATED]?.joinModuleAttributeQuoteText()
                     ?.let { OtpErlangBinary(it.toByteArray()) }
-                val doc = docAbove(call)?.moduleAttributeValue()?.documentationMarkdownText()
+                val doc = docAbove(callDefinitionAttributeListByName)?.moduleAttributeValue()?.documentationMarkdownText()
                     ?.let { MarkdownByLanguage.english(it) }
                 val impls = callDefinitionAttributeListByName[IMPL].moduleAttributeValueTextList()
                 val specs = callDefinitionAttributeListByName[SPEC].moduleAttributeValueTextList()
@@ -101,9 +102,10 @@ sealed class FetchedDocs(open val module: String?) {
 
     /** Every function of one name in a module, ascending by arity: an [Entry] each, as default arguments cover several arities of one. */
     data class Arities(override val module: String?, val entries: List<Entry>) : FetchedDocs(module) {
-        data class Entry(val arities: ArityInterval, val documentation: FunctionOrMacroDocumentation) {
+        /** One function's documentation, from the module's [otherCopy]th other copy where the module has several. */
+        data class Entry(val arities: ArityInterval, val documentation: FunctionOrMacroDocumentation, val otherCopy: Int = 0) {
             /** Names this entry in a link to it. */
-            val id: String get() = "arity-${arities.definition().first}"
+            val id: String get() = "arity-${arities.definition().first}" + if (otherCopy == 0) "" else "-copy-$otherCopy"
         }
 
         /** Whether there are several entries, so each is linked to its own anchor. */
@@ -115,10 +117,10 @@ sealed class FetchedDocs(open val module: String?) {
         companion object {
             /**
              * Whether a function is listed: every one from [inside] its module, else those [exported] and not [hidden], and
-             * always the one [used].
+             * always the one [used]. One [generated], as `defexception`'s functions are, is listed only where it is used.
              */
-            fun listed(inside: Boolean, exported: Boolean, hidden: Boolean, used: Boolean): Boolean =
-                inside || (exported && !hidden) || used
+            fun listed(inside: Boolean, exported: Boolean, hidden: Boolean, used: Boolean, generated: Boolean = false): Boolean =
+                used || (!generated && (inside || (exported && !hidden)))
         }
     }
 
@@ -176,18 +178,23 @@ internal fun hidesDoc(call: Call): Boolean =
         ?.let { AtomName.of(it) in SourceFileDocsHelper.HIDDEN_DOCUMENTATION } == true
 
 /** The `@doc` above [call] that stands, the nearest one: a keyword list only sets metadata beside the doc and replaces nothing. */
-private fun docAbove(call: Call): AtUnqualifiedNoParenthesesCall<*>? =
-    callDefinitionAttributeListByName(call)[DOC]?.firstOrNull { it.moduleAttributeValue() !is QuotableKeywordList }
+private fun docAbove(call: Call): AtUnqualifiedNoParenthesesCall<*>? = docAbove(callDefinitionAttributeListByName(call))
 
-private fun callDefinitionAttributeListByName(callDefinitionCall: Call): Map<String, List<AtUnqualifiedNoParenthesesCall<*>>> =
-    callDefinitionCall
+private fun docAbove(attributeListByName: Map<String, List<AtUnqualifiedNoParenthesesCall<*>>>): AtUnqualifiedNoParenthesesCall<*>? =
+    attributeListByName[DOC]?.firstOrNull { it.moduleAttributeValue() !is QuotableKeywordList }
+
+private fun callDefinitionAttributeListByName(callDefinitionCall: Call): Map<String, List<AtUnqualifiedNoParenthesesCall<*>>> {
+    val source = sourceFor(Feature.DOCUMENTATION)
+
+    return callDefinitionCall
         .prevSiblingSequence()
         .drop(1)
         // Every declaration takes the attributes written above it, so the run ends at the previous one.
-        .takeWhile { it !is Call || DeclaringForm.declaredBy(it) == null }
+        .takeWhile { it !is Call || source.declaredForm(it) == null }
         .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
         .filter { CALL_DEFINITION_ATTRIBUTE_NAME_SET.contains(it.atIdentifier.identifierName()) }
         .groupBy { it.atIdentifier.identifierName() }
+}
 
 private fun List<AtUnqualifiedNoParenthesesCall<*>>.joinModuleAttributeQuoteText(): String? =
     this

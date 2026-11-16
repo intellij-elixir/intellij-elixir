@@ -13,8 +13,8 @@ import org.elixir_lang.psi.Import.Term
  * @property definitions what each definition took from the attributes, keyed as [DefinitionTable] keys it
  * @property unnamed what each definition whose name isn't known took, in order
  * @property accumulating the attributes that accumulate when the module body ends
- * @property callbacks the name and arity of each `@callback` in its bag when the module body ends, oldest first, or
- *   `null` where one of them isn't known
+ * @property callbacks the head of each `@callback` in its bag when the module body ends, oldest first, or `null` where
+ *   one of them isn't known
  * @property macrocallbacks the same for `@macrocallback`
  */
 internal data class AttributeLog(
@@ -24,8 +24,8 @@ internal data class AttributeLog(
     val definitions: Map<NameArity, DefinitionAttributes>,
     val unnamed: List<DefinitionAttributes>,
     val accumulating: Set<String>,
-    val callbacks: List<NameArity>?,
-    val macrocallbacks: List<NameArity>?,
+    val callbacks: List<TypespecHead>?,
+    val macrocallbacks: List<TypespecHead>?,
 ) {
     /** The module's `@behaviour` when its body ends, newest first. */
     val behaviours: AttributeValue?

@@ -11,6 +11,7 @@ import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.scope.call_definition_clause.Declarations
+import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 import java.util.concurrent.Callable
 
 /**
@@ -24,7 +25,7 @@ internal fun recordedIn(file: PsiFile, module: String, nameArity: String): Strin
         val name = nameArity.substringBeforeLast('/')
         val arity = nameArity.substringAfterLast('/').toInt()
         val clauses = CallDefinitionClause.modularChildCalls(modular).flatMap { call ->
-            DeclaringForm.declaredBy(call)?.let { form ->
+            LegacyWalkSource.declaredForm(call)?.let { form ->
                 Declarations.of(form, call, ResolveState.initial())
                     .mapNotNull { it.declaration }
                     .filter { declaration ->

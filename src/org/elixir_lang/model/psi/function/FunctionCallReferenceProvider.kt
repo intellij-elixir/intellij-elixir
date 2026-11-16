@@ -13,7 +13,6 @@ import org.elixir_lang.model.psi.variable.VariableSymbol
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.isModuleAttributeNameElement
-import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.reference.Callable
 import org.elixir_lang.reference.CaptureNameArity
@@ -71,10 +70,5 @@ internal class FunctionCallReferenceProvider : PsiSymbolReferenceProvider {
 
     /** True when [call] is the captured name (`name` / `Mod.name`) of an enclosing `&name/arity`. */
     @RequiresReadLock
-    private fun isCaptureName(call: Call): Boolean =
-        generateSequence(call.parent) { it.parent }
-            .takeWhile { it !is PsiFile }
-            .filterIsInstance<NonNumeric>()
-            .firstOrNull()
-            ?.let { capture -> (capture.reference as? CaptureNameArity)?.nameElement === call } == true
+    private fun isCaptureName(call: Call): Boolean = CaptureNameArity.of(call) != null
 }

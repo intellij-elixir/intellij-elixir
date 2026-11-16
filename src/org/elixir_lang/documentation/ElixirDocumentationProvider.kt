@@ -9,32 +9,28 @@ import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.*
-import com.intellij.psi.impl.source.tree.LeafPsiElement
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Hidden
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByLanguage
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.None
 import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Form
+import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Reach
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.model.psi.function.UseSymbols
-import org.elixir_lang.psi.*
+import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
+import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.ModuleAttribute.isDocumentationName
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.childExpressions
-import org.elixir_lang.psi.impl.declaringModuleCall
 import org.elixir_lang.psi.impl.identifierName
-import org.elixir_lang.psi.impl.isInterpolatedWithin
-import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
-import org.elixir_lang.psi.stub.type.call.Stub.isModular
-import org.elixir_lang.reference.resolver.Callable
-import org.elixir_lang.reference.CaptureNameArity
-import org.elixir_lang.reference.Resolver
+import org.elixir_lang.structure_view.element.Delegation
 import org.intellij.markdown.html.HtmlGenerator
 import org.intellij.markdown.parser.MarkdownParser
 import java.util.function.Consumer
@@ -42,24 +38,50 @@ import java.util.function.Consumer
 
 private val LOG = logger<ElixirDocumentationProvider>()
 
+/** The line above a definition the expander could not confirm is the one a use reaches. */
+private const val UNCONFIRMED = "The expander could not confirm that this is the definition used here."
+
 internal class ElixirDocumentationProvider : DocumentationProvider {
-    /** Rendered documentation, and the anchor it opens at: the entry of the arity the original element uses, or the arity a followed link gave. */
+    /** Rendered documentation, and the anchor it opens at. */
     class Rendered(val html: String, val anchor: String?)
 
-    fun render(element: PsiElement, originalElement: PsiElement?, linkedArity: Int? = null): Rendered? {
+    @RequiresReadLock
+    fun render(element: PsiElement, originalElement: PsiElement?, followed: DocumentationLink.Followed? = null): Rendered? {
         val head = headAt(originalElement)
-        val choice = choiceAt(originalElement)?.takeIf { it.element == element }
+        val used = DocumentedAt.useAt(originalElement)
+        val choice = (followed?.opened() ?: used?.choice())?.takeIf { it.element == element }
 
-        // Where no use is known, as for a link followed, the function is seen from outside its module. Its signature is
-        // made in the module the use found it declared in, as Parameter Info's is.
-        return fetchDocs(element, remote = !isInside(element, head, choice), choice?.found?.declaringModuleName())?.let { fetched ->
-            val reaching = reachedThrough(head, choice)?.takeIf { it.delegation != element }
-            val delegations = reaching?.let { DelegationBlock.of(it.delegation, it.index, remote = !it.inside) }.orEmpty()
+        // Where no use is known, the function is seen from outside its module, as from a link followed. Its signature is
+        // made in the module the use or link found it declared in, as Parameter Info's is.
+        val remote = !isInside(element, head, choice)
+
+        return fetchDocs(element, remote, choice?.found)?.let { own ->
+            val (fetched, everyCopyShown) = withCopies(own, choice?.copies.orEmpty(), remote)
+            val reached = reachedThrough(head, choice)?.takeIf { it.delegation != element }
+            val delegations = reached?.let(DelegationBlock::of).orEmpty()
             // Through a delegation the target is called at the arity the delegation passes on, not the one written at the use.
-            val opened = linkedArity ?: reaching?.let { DelegationBlock.passed(it.delegation) } ?: calledArity(head, originalElement)
+            val opened = reached?.let { DelegationBlock.passedTo(it, element) } ?: followed?.arity ?: calledArity(head, used?.use)
 
-            Rendered(formatDocs(element, fetched, delegations), anchor(fetched, opened))
+            Rendered(formatDocs(element, fetched, delegations, choice?.unconfirmed(everyCopyShown) == true), anchor(fetched, opened))
         }
+    }
+
+    /**
+     * [fetched], then each of [copies]' entries, as its own entry from its own copy of the module, and whether each copy,
+     * [fetched]'s included, has entries there.
+     */
+    private fun withCopies(fetched: FetchedDocs, copies: List<Found>, remote: Boolean): Pair<FetchedDocs, Boolean> {
+        if (fetched !is FetchedDocs.Arities) return fetched to false
+
+        val entries = copies.mapIndexed { index, copy ->
+            (fetchDocs(copy.element, remote, copy) as? FetchedDocs.Arities)
+                ?.entries
+                ?.map { it.copy(otherCopy = index + 1) }
+                .orEmpty()
+        }
+
+        return fetched.copy(entries = fetched.entries + entries.flatten()) to
+            (fetched.entries.isNotEmpty() && entries.all { it.isNotEmpty() })
     }
 
     /**
@@ -69,16 +91,13 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
     private fun isInside(element: PsiElement, head: Head?, choice: Documented.Choice?): Boolean =
         head?.call == element || choice?.inside == true
 
-    /** A delegation, the index name of the module that holds it when it is known, and whether the use is inside that module. */
-    private class Reaching(val delegation: Call, val index: String?, val inside: Boolean)
-
     /**
      * The delegation the caret reached the documented element through, which has no `@doc` of its own to show instead:
      * the one [head], the declaring call at the caret, is, else the one the use [choice] went through.
      */
-    private fun reachedThrough(head: Head?, choice: Documented.Choice?): Reaching? =
+    private fun reachedThrough(head: Head?, choice: Documented.Choice?): DelegationBlock.Reached? =
         if (head != null) {
-            head.call.takeIf { head.form == Form.DELEGATION }?.let { delegation -> Reaching(delegation, moduleOf(delegation), inside = true) }
+            head.call.takeIf { head.form == Form.DELEGATION }?.let { delegation -> DelegationBlock.Reached(delegation, Delegation.head(delegation), moduleOf(delegation), inside = true) }
         } else {
             val found = choice?.delegation
 
@@ -86,7 +105,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 // What a `use` injects is in the module that holds the `use`, which `quote` does not name.
                 val injectedInto = found.takeIf { it.candidate.reach == Reach.USE }?.declaringModuleName()
 
-                Reaching(delegation, injectedInto ?: moduleOf(delegation), inside = choice.insideDelegation)
+                DelegationBlock.Reached(delegation, found.head.written, injectedInto ?: moduleOf(delegation), inside = choice.insideDelegation)
             }
         }
 
@@ -94,6 +113,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
     private fun moduleOf(delegation: Call): String? =
         enclosingModularMacroCall(delegation)?.let(SourceFileDocsHelper::indexName)
 
+    @RequiresReadLock
     override fun generateDoc(element: PsiElement, originalElement: PsiElement?): String? =
         render(element, originalElement)?.html
 
@@ -103,30 +123,16 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             ?.let { arities -> arity?.let(arities::entryAt)?.id }
 
     /**
-     * The arity used where [original] is written: at a call, a capture, an MFA atom or a declaration's head, [head] where
+     * The arity used at the caret: at a call, a capture or an MFA atom, [use]'s; at a declaration's head, [head]'s where
      * one is there.
      */
-    private fun calledArity(head: Head?, original: PsiElement?): Int? =
-        head?.declaration?.let(UseSymbols::headArity) ?: when (val use = useAt(original)?.use) {
+    private fun calledArity(head: Head?, use: Use?): Int? =
+        head?.declaration?.let(UseSymbols::headArity) ?: when (use) {
             is Use.OfCall -> use.arity
             is Use.Specified -> use.arity
             is Use.Remote -> use.arity
             else -> null
         }
-
-    // As the climb does: a caret in an interpolation belongs to the code there, not to the atom around it.
-    private fun atomAt(element: PsiElement?): ElixirAtom? =
-        PsiTreeUtil.getParentOfType(element, ElixirAtom::class.java, false)?.takeUnless { element?.isInterpolatedWithin(it) == true }
-
-    /** The use written at the caret, and whether a valid variable binds its name: the one read of it. */
-    private class UseAt(val use: Use, val bound: Boolean)
-
-    private fun useAt(original: PsiElement?): UseAt? =
-        atomAt(original)?.let(Use::mfa)?.let { UseAt(it, bound = false) }
-            ?: callAt(original)?.let { call -> useOf(call)?.let { UseAt(it, bound = isBound(call, it)) } }
-
-    private fun choiceAt(original: PsiElement?): Documented.Choice? =
-        useAt(original)?.let { Documented.of(it.use, it.bound) }
 
     /** A declaring call whose name is written where the caret is, and what the call declares, when that is one function. */
     private class Head(val call: Call, val form: Form, val declaration: Declaration?)
@@ -139,12 +145,6 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         original?.let(DeclaringForm::named)?.let { (call, form) ->
             Head(call, form, SourceFileDocsHelper.declaredFunction(call, form)?.declaration)
         }
-
-    private tailrec fun callAt(element: PsiElement?): Call? = when (element) {
-        is LeafPsiElement, is ElixirIdentifier, is ElixirRelativeIdentifier -> callAt(element.parent)
-        is Call -> element
-        else -> null
-    }
 
     override fun generateHoverDoc(element: PsiElement, originalElement: PsiElement?): String? =
         generateDoc(element, originalElement)
@@ -196,6 +196,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         return super.getDocumentationElementForLookupItem(psiManager, `object`, element)
     }
 
+    @RequiresReadLock
     override fun getDocumentationElementForLink(
         psiManager: PsiManager,
         link: String,
@@ -208,98 +209,20 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         contextElement: PsiElement?,
         targetOffset: Int
     ): PsiElement? {
-        return contextElement?.let(::getCustomDocumentationElement)
+        return contextElement?.let(DocumentedAt::of)
     }
 
-    /**
-     * What [call] documents. Inside `&Mod.name/arity` the name carries no reference of its own - it lives on the
-     * enclosing capture operator, which is the only element that also spans the `/arity` - so a captured name is
-     * looked up through that instead.
-     */
-    private fun documentedChoice(call: Call): Documented.Choice? =
-        useOf(call)?.let { use -> Documented.of(use, isBound(call, use)) }
-
-    /** Whether a valid variable binds [call]'s name, which a use of it then names; a captured name is no such use. */
-    private fun isBound(call: Call, use: Use): Boolean = use is Use.OfCall && captureOf(call) == null && Callable.bound(call, false)
-
-    private fun captureOf(call: Call): CaptureNameArity? =
-        PsiTreeUtil.getParentOfType(call, NonNumeric::class.java)
-            ?.reference
-            ?.let { it as? CaptureNameArity }
-            ?.takeIf { it.nameElement == call }
-
-    /** The use [call] is, read from its reference's kind; `null` where it has no reference to document through. */
-    private fun useOf(call: Call): Use? {
-        val capture = captureOf(call)
-
-        return if (capture != null) {
-            Use.capture(call, capture.arity)
-        } else {
-            when (val reference = call.reference) {
-                is org.elixir_lang.reference.Callable,
-                is org.elixir_lang.psi.__module__.Reference -> Use.of(call)
-
-                is org.elixir_lang.reference.CallDefinitionClause ->
-                    Use.specification(call, reference.moduleAttribute)
-
-                else -> null
-            }
-        }
-    }
-
-    private tailrec fun getCustomDocumentationElement(contextElement: PsiElement): PsiElement? = when (contextElement) {
-        is LeafPsiElement, is ElixirIdentifier, is ElixirRelativeIdentifier ->
-            getCustomDocumentationElement(contextElement.parent)
-
-        is ElixirAtom -> when (val use = Use.mfa(contextElement)) {
-            null ->
-                contextElement.reference
-                    ?.let { it as? PsiPolyVariantReference }
-                    ?.multiResolve(false)
-                    ?.filter(ResolveResult::isValidResult)
-                    ?.mapNotNull(ResolveResult::getElement)
-                    ?.filterIsInstance<PsiNamedElement>()
-                    ?.let { Resolver.preferSource(it) }
-                    ?.firstOrNull()
-
-            else -> Documented.of(use).element
-        }
-
-        is Call -> documentedChoice(contextElement)?.element
-
-        is QualifiableAlias if declaringModuleCall(contextElement) != null ->
-            declaringModuleCall(contextElement)
-
-        is QualifiableAlias if contextElement.reference != null ->
-            contextElement.reference!!
-                .let { it as PsiPolyVariantReference }
-                .multiResolve(false)
-                .filter(ResolveResult::isValidResult)
-                .mapNotNull(ResolveResult::getElement)
-                .filterIsInstance<Call>()
-                .singleOrNull { isModular(it) }
-
-        is QualifiableAlias -> getCustomDocumentationElement(contextElement.parent)
-
-        else -> {
-            val quotedAtom = enclosingQuotedAtom(contextElement)
-
-            if (quotedAtom != null) getCustomDocumentationElement(quotedAtom) else null
-        }
-    }
-
-    /** The atom whose quoted name holds [element], unless [element] is inside an interpolation in that name. */
-    private fun enclosingQuotedAtom(element: PsiElement): ElixirAtom? =
-        PsiTreeUtil.getParentOfType(element, ElixirLine::class.java, false)
-            ?.takeUnless { element.isInterpolatedWithin(it) }
-            ?.parent as? ElixirAtom
-
+    /** [fetchedDocs] rendered, with [delegations]' entries, under the line that the expander could not confirm it where [unconfirmed]. */
     private fun formatDocs(
         element: PsiElement,
         fetchedDocs: FetchedDocs,
-        delegations: List<DelegationBlock.Entry>
+        delegations: List<DelegationBlock.Entry>,
+        unconfirmed: Boolean,
     ): String {
         val documentationHtml = StringBuilder()
+        val linkables = HashMap<String, Boolean>()
+
+        if (unconfirmed) documentationHtml.append("<p>").append(UNCONFIRMED).append("</p>")
 
         documentationHtml.append(DocumentationMarkup.DEFINITION_START)
 
@@ -325,14 +248,14 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         }
 
         documentationHtml.append(DocumentationMarkup.DEFINITION_END)
-        DelegationBlock.appendTo(documentationHtml, delegations) { own, writtenIn -> appendFunctionContent(documentationHtml, element, own, writtenIn) }
+        DelegationBlock.appendTo(documentationHtml, delegations) { own, writtenIn -> appendFunctionContent(documentationHtml, element, own, linkables, writtenIn) }
 
         when (fetchedDocs) {
             is FetchedDocs.CallbackDocumentation -> {
                 fetchedDocs.doc.let { doc ->
                     documentationHtml
                         .append(DocumentationMarkup.CONTENT_START)
-                        .append(html(element, doc))
+                        .append(html(element, doc, linkables = linkables))
                         .append(DocumentationMarkup.CONTENT_END)
                 }
             }
@@ -341,12 +264,12 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 fetchedDocs.moduledoc.let { moduledoc ->
                     documentationHtml
                         .append(DocumentationMarkup.CONTENT_START)
-                        .append(html(element, moduledoc))
+                        .append(html(element, moduledoc, linkables = linkables))
                         .append(DocumentationMarkup.CONTENT_END)
                 }
             }
 
-            is FetchedDocs.FunctionOrMacroDocumentation -> appendFunctionContent(documentationHtml, element, fetchedDocs)
+            is FetchedDocs.FunctionOrMacroDocumentation -> appendFunctionContent(documentationHtml, element, fetchedDocs, linkables)
 
             is FetchedDocs.Arities -> {
                 for (entry in fetchedDocs.entries) {
@@ -356,7 +279,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                         documentationHtml.append(DocumentationMarkup.CONTENT_END)
                     }
 
-                    appendFunctionContent(documentationHtml, element, entry.documentation)
+                    // Another copy's doc is written in that copy, so a link of no module there is to that copy's function.
+                    appendFunctionContent(documentationHtml, element, entry.documentation, linkables, entry.documentation.module.takeIf { entry.otherCopy != 0 })
                 }
             }
 
@@ -364,7 +288,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 fetchedDocs.typedoc.let { typedoc ->
                     documentationHtml
                         .append(DocumentationMarkup.CONTENT_START)
-                        .append(html(element, typedoc))
+                        .append(html(element, typedoc, linkables = linkables))
                         .append(DocumentationMarkup.CONTENT_END)
                 }
             }
@@ -378,6 +302,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         documentationHtml: StringBuilder,
         element: PsiElement,
         function: FetchedDocs.FunctionOrMacroDocumentation,
+        linkables: MutableMap<String, Boolean>,
         writtenIn: String? = null
     ) {
         function.doc?.let { doc ->
@@ -393,7 +318,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                     doc.formattedByLanguage.values.map { formatted ->
                         documentationHtml
                             .append(DocumentationMarkup.CONTENT_START)
-                            .append(html(element, formatted, writtenIn))
+                            .append(html(element, formatted, writtenIn, linkables))
                             .append(DocumentationMarkup.CONTENT_END)
                     }
             }
@@ -411,7 +336,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                     .append(DocumentationMarkup.SECTION_HEADER_START)
                     .append("Deprecated")
                     .append(DocumentationMarkup.SECTION_SEPARATOR)
-                    .append(html(element, deprecated, writtenIn))
+                    .append(html(element, deprecated, writtenIn, linkables))
                     .append(DocumentationMarkup.SECTION_END)
             }
 
@@ -436,16 +361,20 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
             documentationHtml.append(DocumentationMarkup.SECTIONS_END)
         }
-    
     }
 
-    private fun html(element: PsiElement, otpErlangObject: OtpErlangObject, writtenIn: String?): String =
+    private fun html(
+        element: PsiElement,
+        otpErlangObject: OtpErlangObject,
+        writtenIn: String?,
+        linkables: MutableMap<String, Boolean>,
+    ): String =
         when (otpErlangObject) {
             is OtpErlangBinary ->
                 otpErlangObject
                     .binaryValue()
                     .let { String(it, Charsets.UTF_8) }
-                    .let { html(element, it, writtenIn) }
+                    .let { html(element, it, writtenIn, linkables) }
 
             else -> {
                 LOG.warn("Don't know how to render deprecated metadata: $otpErlangObject")
@@ -454,23 +383,33 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             }
         }
 
-    private fun html(element: PsiElement, markdownText: String, writtenIn: String? = null): String {
-        val flavour = MarkdownFlavourDescriptor(element, writtenIn)
+    private fun html(
+        element: PsiElement,
+        markdownText: String,
+        writtenIn: String? = null,
+        linkables: MutableMap<String, Boolean> = HashMap(),
+    ): String {
+        val flavour = MarkdownFlavourDescriptor(element, writtenIn, linkables)
         val parsedTree = MarkdownParser(flavour).buildMarkdownTreeFromString(markdownText)
 
         return HtmlGenerator(markdownText, parsedTree, flavour, false)
             .generateHtml()
     }
 
-    private fun fetchDocs(element: PsiElement, remote: Boolean, declaringModule: String?): FetchedDocs? =
-    // For compiled Beam elements, prefer docs from the decompiled source mirror so hover uses
+    /** [element]'s docs, read as [found], the find of the use or link that documents it, declares it. */
+    private fun fetchDocs(element: PsiElement, remote: Boolean, found: Found?): FetchedDocs? {
+        val declaringModule = found?.declaringModuleName()
+        val used = found?.candidate?.declaration
+
+        // For compiled Beam elements, prefer docs from the decompiled source mirror so hover uses
         // the cached inline docs from decompilation, headed by what the `.beam` itself records.
-        if (element.containingFile?.originalFile is BeamFileImpl) {
+        return if (element.containingFile?.originalFile is BeamFileImpl) {
             val sourceElement = (element as? PsiCompiledElement)?.mirror ?: element.navigationElement
 
-            SourceFileDocsHelper.fetchDocs(sourceElement, remote, declaringModule)?.let { BeamDocsHelper.headed(element, it) }
+            SourceFileDocsHelper.fetchDocs(sourceElement, remote, declaringModule, used)?.let { BeamDocsHelper.headed(element, it) }
                 ?: BeamDocsHelper.fetchDocs(element)
         } else {
-            SourceFileDocsHelper.fetchDocs(element, remote, declaringModule)
+            SourceFileDocsHelper.fetchDocs(element, remote, declaringModule, used)
         }
+    }
 }

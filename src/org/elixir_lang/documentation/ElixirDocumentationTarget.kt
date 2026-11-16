@@ -18,32 +18,36 @@ import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.createSmartPointer
 import com.intellij.usageView.UsageViewShortNameLocation
 import com.intellij.usageView.UsageViewTypeLocation
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.ElixirLanguage
 
 /**
- * What Quick Documentation, Ctrl+hover and a followed link show for [targetElement], used at [sourceElement]; the
- * documentation opens at [anchor] when it has one, else at the entry for [linkedArity], the arity of the link followed.
+ * What Quick Documentation, Ctrl+hover and a followed link show for [targetElement], used at [sourceElement] or opened by
+ * [followed]; the documentation opens at [anchor] when it has one.
  */
 @Suppress("UnstableApiUsage")
 internal class ElixirDocumentationTarget private constructor(
     val targetElement: PsiElement,
     private val sourceElement: PsiElement?,
     private val anchor: String?,
-    private val linkedArity: Int?
+    private val followed: DocumentationLink.Followed?
 ) : DocumentationTarget {
     override fun createPointer(): Pointer<out DocumentationTarget> {
         val target = targetElement.createSmartPointer()
         val source = sourceElement?.createSmartPointer()
         // Read here: inside the lambda `anchor` would capture this target, and its PSI with it.
         val anchor = anchor
-        val linkedArity = linkedArity
+        val link = followed?.link
+        val context = followed?.context?.createSmartPointer()
 
         return Pointer<ElixirDocumentationTarget> {
             target.element?.let { targetElement ->
+                val followed = link?.let { link -> context?.element?.let { DocumentationLink.Followed(link, it) } ?: return@Pointer null }
+
                 if (source == null) {
-                    ElixirDocumentationTarget(targetElement, null, anchor, linkedArity)
+                    ElixirDocumentationTarget(targetElement, null, anchor, followed)
                 } else {
-                    source.element?.let { ElixirDocumentationTarget(targetElement, it, anchor, linkedArity) }
+                    source.element?.let { ElixirDocumentationTarget(targetElement, it, anchor, followed) }
                 }
             }
         }
@@ -79,9 +83,10 @@ internal class ElixirDocumentationTarget private constructor(
             null
         }
 
+    @RequiresReadLock
     override fun computeDocumentation(): DocumentationResult? =
         ElixirDocumentationProvider()
-            .render(targetElement, sourceElement, linkedArity)
+            .render(targetElement, sourceElement, followed)
             ?.let { DocumentationResult.documentation(it.html).anchor(anchor ?: it.anchor) }
 
     private fun hint(element: PsiElement): String? {
@@ -112,9 +117,14 @@ internal class ElixirDocumentationTarget private constructor(
          * The target for [element], or `null` for a file or folder, whose documentation the platform's target
          * completes with the file's details, and for anything not written in Elixir.
          */
-        fun of(element: PsiElement, sourceElement: PsiElement?, anchor: String? = null, linkedArity: Int? = null): ElixirDocumentationTarget? =
+        fun of(
+            element: PsiElement,
+            sourceElement: PsiElement?,
+            anchor: String? = null,
+            followed: DocumentationLink.Followed? = null
+        ): ElixirDocumentationTarget? =
             if (element !is PsiFileSystemItem && element.language.isKindOf(ElixirLanguage)) {
-                ElixirDocumentationTarget(element, sourceElement, anchor, linkedArity)
+                ElixirDocumentationTarget(element, sourceElement, anchor, followed)
             } else {
                 null
             }

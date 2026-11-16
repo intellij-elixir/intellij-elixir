@@ -218,6 +218,119 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
         )
     }
 
+    fun testAnExceptionWithAMessageIsHeadedByTheSignatureOfExceptionAlone() =
+        assertException("[:message]", "Oops.excep<caret>tion(m)", "exception(msg)")
+
+    fun testAnExceptionWithAMessageIsHeadedByTheSignatureOfMessageAlone() =
+        assertException("[:message]", "Oops.mess<caret>age(m)", "message(exception)")
+
+    fun testAnExceptionWithoutAMessageIsHeadedByTheSignatureOfExceptionAlone() =
+        assertException("[:reason]", "Oops.excep<caret>tion(m)", "exception(args)")
+
+    /** `defexception [:message]` makes `message/1` overridable, so the user's `def message/1` replaces it and heads it alone. */
+    fun testAnOverriddenMessageIsHeadedByTheUsersDefAlone() =
+        assertHeader(
+            """
+            defmodule Oops do
+              defexception [:message]
+
+              @impl true
+              def message(user), do: user.message
+            end
+
+            defmodule Caller do
+              def calls(m), do: Oops.mess<caret>age(m)
+            end
+            """,
+            "<i>module</i> <b>Oops</b>",
+            "message(user)",
+            "  def message(user)"
+        )
+
+    fun testAnOverriddenMessageIsHeadedByTheUsersDefAloneWithTheExpanderOn() =
+        withTheExpanderOn(::testAnOverriddenMessageIsHeadedByTheUsersDefAlone)
+
+    /** Inside `Oops`, a use of the user's `message/2` lists it alone: not the `message/1` that `defexception` defines beside it. */
+    fun testAMessageOfAnotherArityInsideTheExceptionIsListedAlone() =
+        assertHeader(
+            """
+            defmodule Oops do
+              defexception [:message]
+
+              def message(e, extra), do: {e, extra}
+
+              def calls(e), do: mess<caret>age(e, :extra)
+            end
+            """,
+            "<i>module</i> <b>Oops</b>",
+            "message(e, extra)",
+            "  def message(e, extra)"
+        )
+
+    fun testAMessageOfAnotherArityInsideTheExceptionIsListedAloneWithTheExpanderOn() =
+        withTheExpanderOn(::testAMessageOfAnotherArityInsideTheExceptionIsListedAlone)
+
+    /** A `defdelegate` of a list of heads delegates each, so a use of one is headed by its own head. */
+    fun testADelegationOfAListOfHeadsIsHeadedByTheHeadTheUseNamesWithTheExpanderOn() {
+        expanderOn()
+        assertHeader(
+            """
+            defmodule Target do
+              def eff(a, b), do: {a, b}
+              def gee(c), do: c
+            end
+
+            defmodule Delegates do
+              @doc "Delegates."
+              defdelegate [eff(a, b), gee(c)], to: Target
+            end
+
+            defmodule Caller do
+              def calls(m), do: Delegates.ef<caret>f(m, 2)
+            end
+            """,
+            "<i>module</i> <b>Delegates</b>",
+            "eff(a, b)",
+            "  defdelegate eff(a, b)"
+        )
+    }
+
+    /** Elixir defines `message/1` only for an exception with a `:message` field. */
+    fun testAnExceptionWithoutAMessageDocumentsNoMessage() {
+        myFixture.configureByText(
+            "exception.ex",
+            """
+            defmodule Oops do
+              defexception [:reason]
+            end
+
+            defmodule Caller do
+              def calls(e), do: Oops.mess<caret>age(e)
+            end
+            """.trimIndent()
+        )
+
+        val documentation = quickDocumentationAtCaret()
+
+        assertTrue("Expected no documentation, got: $documentation", documentation.isNullOrEmpty())
+    }
+
+    /** Quick Documentation at [use] of a function `defexception [fields]` defines in `Oops` is headed by [signature] alone. */
+    private fun assertException(fields: String, use: String, signature: String) =
+        assertHeader(
+            """
+            defmodule Oops do
+              defexception $fields
+            end
+
+            defmodule Caller do
+              def calls(m), do: $use
+            end
+            """,
+            "<i>module</i> <b>Oops</b>",
+            signature
+        )
+
     fun testACallbackKeepsItsAttributeAsItsHead() {
         myFixture.configureByText(
             "callbacks.ex",
@@ -303,15 +416,15 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
     fun testAStructPatternAUseInjectsIsNamedByItsVariable() =
         assertInjectedTitle("def f(%__MODULE__{} = s), do: s", "f(s)")
 
-    /**
-     * A link names no use, so the module that calls `use` is not known, and with it the signature Elixir records, which
-     * names the struct by that module: the head stands alone.
-     */
-    fun testAStructPatternAUseInjectsHasNoSignatureAtALink() =
-        assertInjectedTitle("def f(%__MODULE__{}), do: :ok", "def f(%__MODULE__{})", linked = true)
+    /** A link to a function a `use` injects finds it in the module that calls `use`, which names its struct. */
+    fun testAStructPatternAUseInjectsIsNamedByTheModuleThatUsesItAtALink() =
+        assertInjectedTitle("def f(%__MODULE__{}), do: :ok", "f(injected)", linked = true)
 
-    fun testANestedStructPatternAUseInjectsHasNoSignatureAtALink() =
-        assertInjectedTitle("def f(%__MODULE__.Inner{}), do: :ok", "def f(%__MODULE__.Inner{})", linked = true)
+    fun testAStructPatternAUseInjectsIsNamedByTheModuleThatUsesItAtALinkWithTheExpanderOn() =
+        withTheExpanderOn(::testAStructPatternAUseInjectsIsNamedByTheModuleThatUsesItAtALink)
+
+    fun testANestedStructPatternAUseInjectsIsNamedByItsLastAliasAtALink() =
+        assertInjectedTitle("def f(%__MODULE__.Inner{}), do: :ok", "f(inner)", linked = true)
 
     /**
      * Quick Documentation of `f/1`, which `Injected` gets from [head] in a `use`'s `quote`, at a call of it, or by the

@@ -10,7 +10,6 @@ import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Form
-import org.elixir_lang.declaration.Head
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirList
@@ -23,6 +22,7 @@ import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.writtenAtom
 import org.elixir_lang.psi.mix.Generator
 import org.elixir_lang.psi.scope.WalkProbe
+import org.elixir_lang.resolvesToModularName
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Callback
 import org.elixir_lang.structure_view.element.Delegation
@@ -56,12 +56,35 @@ object DeclaringForm {
         ThreadingAssertions.assertReadAccess()
         WalkProbe.count(WalkProbe.Counter.CLASSIFY)
 
-        return when {
-            EEx.isFunctionFrom(call, state) -> Form.EEX_FUNCTION_FROM
-            Generator.isEmbed(call, state) -> Form.GENERATOR_EMBED
+        return macroForm(call, state)
+    }
+
+    /** The form among those with a [macroModule] that [call] is shaped like, where it resolves to that module's macro. */
+    fun macroForm(call: Call, state: ResolveState): Form? =
+        macroShapedForm(SyntacticCall.of(call))?.takeIf { resolvesToMacroOf(call, state, it) }
+
+    /** The form [call] is shaped like among those with a [macroModule], before resolving whether it is that module's. */
+    private fun macroShapedForm(call: SyntacticCall): Form? =
+        when {
+            EEx.isFunctionFromShaped(call) -> Form.EEX_FUNCTION_FROM
+            Generator.isEmbedShaped(call) -> Form.GENERATOR_EMBED
             else -> null
         }
-    }
+
+    /**
+     * The module whose macro declares with [form], where a call's shape alone doesn't say: `EEx`'s `function_from_*`
+     * and `Mix.Generator`'s embeds.
+     */
+    fun macroModule(form: Form): String? =
+        when (form) {
+            Form.EEX_FUNCTION_FROM -> "EEx"
+            Form.GENERATOR_EMBED -> "Mix.Generator"
+            Form.CLAUSE, Form.CALLBACK, Form.DELEGATION, Form.EXCEPTION -> null
+        }
+
+    /** Whether [call] resolves to the macro of [form]'s [macroModule]. */
+    private fun resolvesToMacroOf(call: Call, state: ResolveState, form: Form): Boolean =
+        macroModule(form)?.let { resolvesToModularName(call, state, it) } == true
 
     /**
      * [syntacticForm], or the shape of a [resolvingForm] without resolving whose call it is. A head a clause or
@@ -74,11 +97,7 @@ object DeclaringForm {
     fun shapedForm(call: SyntacticCall): Form? =
         when {
             isWrittenHead(call) -> null
-            else -> syntacticForm(call) ?: when {
-                EEx.isFunctionFromShaped(call) -> Form.EEX_FUNCTION_FROM
-                Generator.isEmbedShaped(call) -> Form.GENERATOR_EMBED
-                else -> null
-            }
+            else -> syntacticForm(call) ?: macroShapedForm(call)
         }
 
     private fun isWrittenHead(call: SyntacticCall): Boolean =
@@ -107,7 +126,7 @@ object DeclaringForm {
 
     /** The form [call] itself declares with, or `null` when it declares nothing. */
     @RequiresReadLock
-    fun declaredBy(call: Call): Form? = shapedForm(call)?.let { Declaring(call, it) }?.takeIf(::declares)?.form
+    internal fun declaredBy(call: Call): Form? = shapedForm(call)?.let { Declaring(call, it) }?.takeIf(::declares)?.form
 
     /** Whether [element] is a declaring call or a name one declares, as what a reference resolves to can be. */
     @RequiresReadLock
@@ -120,13 +139,9 @@ object DeclaringForm {
             .filterIsInstance<Call>()
             .mapNotNull { call -> shapedForm(call)?.let { Declaring(call, it) } }
 
-    /** Whether [declaring] declares: a call shaped like a [resolvingForm] only when it is that form's macro. */
+    /** Whether [declaring] declares: a call shaped like a form with a [macroModule] only when it is that module's macro. */
     private fun declares(declaring: Declaring): Boolean =
-        when (declaring.form) {
-            Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED ->
-                resolvingForm(declaring.call, ResolveState.initial()) == declaring.form
-            Form.CLAUSE, Form.CALLBACK, Form.DELEGATION, Form.EXCEPTION -> true
-        }
+        macroModule(declaring.form) == null || resolvesToMacroOf(declaring.call, ResolveState.initial(), declaring.form)
 
     /** The names [call] writes the functions it declares with [form] under: in `def unquote(:name)(...)`, the atom. */
     @RequiresReadLock
@@ -154,23 +169,20 @@ object DeclaringForm {
         namedHeads(call, form).flatMap(CallDefinitionHead::nameElements)
 
     /**
-     * The [Head] [element] writes [declaration] under, in [module]: a clause's or a delegation's head, the one of a list
-     * of `defdelegate` heads with its name and arity, the call of a form that writes no head, or a compiled definition.
+     * The head [element] writes [declaration] under: a clause's or a delegation's head, the one of a list of
+     * `defdelegate` heads with its name and arity, the call of a form that writes no head, or a compiled definition.
      */
     @RequiresReadLock
-    fun writtenHead(element: PsiElement, declaration: Declaration, module: String?): Head {
-        val written = when (val declared = declaration.declared) {
+    fun written(element: PsiElement, declaration: Declaration): PsiElement? =
+        when (val declared = declaration.declared) {
             is Declared.Compiled -> element
             is Declared.Source -> (element as? Call)?.let { head(it, declared.form, declaration.name, declaration.arity) }
         }
 
-        return Head(written, module, declaration.name, declaration.arity)
-    }
-
-    /** The [writtenHead] a caret on [element]'s name names [declaration] at: none at a head [names] leaves out. */
+    /** The head [written] a caret on [element]'s name names [declaration] at: none at a head [names] leaves out. */
     @RequiresReadLock
     fun namedHead(element: PsiElement, declaration: Declaration): PsiElement? =
-        writtenHead(element, declaration, module = null).written?.takeUnless { head ->
+        written(element, declaration)?.takeUnless { head ->
             (element as? Call)?.let { call ->
                 (declaration.declared as? Declared.Source)?.form?.let { form -> head in heads(call, form) && head !in namedHeads(call, form) }
             } == true

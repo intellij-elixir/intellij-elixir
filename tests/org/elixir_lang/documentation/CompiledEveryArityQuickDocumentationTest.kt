@@ -29,7 +29,7 @@ class CompiledEveryArityQuickDocumentationTest : BeamLibraryTestCase() {
         assertEquals("Expected a link per head, got: $documentation", 3, linkedIds(documentation).distinct().size)
         assertTrue(
             "Expected the entry anchored to be the called arity's, got: $documentation",
-            documentation.substringAfter("""id="$anchor"""").substringBefore("id=\"").contains("<b>push(a)</b>")
+            "<b>push(a)</b>" in anchoredEntry(documentation, anchor)
         )
     }
 
@@ -40,7 +40,7 @@ class CompiledEveryArityQuickDocumentationTest : BeamLibraryTestCase() {
         assertEquals("Expected a link per function, got: $documentation", 2, linkedIds(documentation).distinct().size)
         assertTrue(
             "Expected the entry anchored to hold the defaults' doc, got: $documentation",
-            documentation.substringAfter("""id="$anchor"""").substringBefore("id=\"").contains("One or two.")
+            "One or two." in anchoredEntry(documentation, anchor)
         )
     }
 
@@ -91,9 +91,6 @@ class CompiledEveryArityQuickDocumentationTest : BeamLibraryTestCase() {
             assertTrue("Expected an entry with id $id, got: $documentation", """id="$id"""" in documentation)
         }
     }
-
-    private fun linkedIds(documentation: String): List<String> =
-        Regex("""href="#([^"]+)"""").findAll(documentation).map { it.groupValues[1] }.toList()
 
     /** The documentation and anchor for a call of the module's `push/1`. */
     private fun documentationAndAnchor(module: String): Pair<String, String?> {

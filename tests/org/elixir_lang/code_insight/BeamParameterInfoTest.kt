@@ -8,6 +8,7 @@ import com.intellij.testFramework.utils.parameterInfo.MockParameterInfoUIContext
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.beam.psi.BeamFileImpl
+import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.documentation.CompiledBuild
 import org.elixir_lang.documentation.addCompiledLibrary
 import java.io.File
@@ -17,6 +18,12 @@ import java.io.File
  * `Docs` chunk records; without them, the ones the decompiler shows for the first clause.
  */
 class BeamParameterInfoTest : BeamLibraryTestCase() {
+    /** Run the expander off, whatever the run's default: this class pins the walk's answers. */
+    override fun setUp() {
+        super.setUp()
+        disableExpander(testRootDisposable)
+    }
+
     override fun getTestDataPath(): String = "testData/org/elixir_lang/code_insight/parameter_info/beam"
 
     fun testACompiledFunctionIsHintedByTheSignatureItsDocsChunkRecords() =
@@ -159,30 +166,24 @@ class BeamParameterInfoTest : BeamLibraryTestCase() {
     /** The `.beam`s `GeneratedArgumentsTest` describes by their debug info, their `Docs`, or neither. */
     private fun shownFromGenerated(call: String): List<String> {
         addGeneratedArgumentsLibrary()
-        myFixture.configureByText(
-            "generated.ex",
-            "defmodule Caller do\n  def run(q), do: $call\nend\n"
-        )
 
-        return myFixture.parameterInfoSignaturesAtCaret()
+        return myFixture.parameterInfoSignaturesIn("generated.ex", "defmodule Caller do\n  def run(q), do: $call\nend\n")
     }
 
     /** [call], a call of `ParameterHint`, compiled by the leg's Elixir from [COMPILED] as [build]. */
     private fun shownFromCompiled(call: String, build: CompiledBuild = CompiledBuild("ParameterHint")): List<String> {
         myFixture.addCompiledLibrary(COMPILED, build)
-        myFixture.configureByText("compiled.ex", "defmodule Caller do\n  def run(socket), do: ParameterHint.$call\nend\n")
 
-        return myFixture.parameterInfoSignaturesAtCaret()
+        return myFixture.parameterInfoSignaturesIn("compiled.ex", "defmodule Caller do\n  def run(socket), do: ParameterHint.$call\nend\n")
     }
 
     private fun shownFromGeneratedImport(module: String): List<String> {
         addGeneratedArgumentsLibrary()
-        myFixture.configureByText(
+
+        return myFixture.parameterInfoSignaturesIn(
             "generated_import.ex",
             "defmodule Caller do\n  import $module, only: [snoc: 1]\n\n  defmacro run(q), do: snoc(q<caret>)\nend\n"
         )
-
-        return myFixture.parameterInfoSignaturesAtCaret()
     }
 
     private fun addGeneratedArgumentsLibrary() {

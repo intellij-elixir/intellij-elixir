@@ -95,6 +95,14 @@ private fun pointerTo(target: DocumentationTarget): Pointer<out DocumentationTar
 fun CodeInsightTestFixture.documentationAnchorAtCaret(project: Project): String? =
     documentationTargetAtCaret(project)?.let { computeDocumentationBlocking(pointerTo(it))?.anchor }
 
+/** The entry of rendered [documentation] that [anchor] opens at: from its `id` to the next one, empty where it has no such `id`. */
+fun anchoredEntry(documentation: String, anchor: String?): String =
+    documentation.substringAfter("""id="$anchor"""", missingDelimiterValue = "").substringBefore("id=\"")
+
+/** The anchors rendered [documentation]'s links point at, in order. */
+fun linkedIds(documentation: String): List<String> =
+    Regex("""href="#([^"]+)"""").findAll(documentation).map { it.groupValues[1] }.toList()
+
 /** The target the platform offers first at the caret. */
 @Suppress("UnstableApiUsage")
 fun CodeInsightTestFixture.documentationTargetAtCaret(project: Project): DocumentationTarget? =

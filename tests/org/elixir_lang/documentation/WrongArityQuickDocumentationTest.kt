@@ -121,4 +121,83 @@ class WrongArityQuickDocumentationTest : QuickDocumentationTestCase() {
 
         assertEquals("", documentation)
     }
+
+    /** Past where the expansion stops, a local call at an arity its function doesn't take documents the function. */
+    fun testALocalCallAtTheWrongArityPastAStopDocumentsTheFunctionWithTheExpanderOn() {
+        stoppedExpanderOn()
+        myFixture.configureByText(
+            "local.ex",
+            """
+            defmodule Local do
+              import Foo, only: [Foo, g: 1]
+
+              def run(a), do: st<caret>ack(a, a, a)
+
+              @doc "Stacks."
+              def stack(a), do: a
+            end
+            """.trimIndent()
+        )
+
+        val documentation = quickDocumentationAtCaret().orEmpty()
+
+        assertTrue("Expected the function, got: $documentation", "Stacks." in documentation)
+    }
+
+    /** Past where the expansion stops, a local call documents its own module's function, not another module's of the name. */
+    fun testALocalCallPastAStopDocumentsItsOwnModulesFunctionWithTheExpanderOn() {
+        stoppedExpanderOn()
+        myFixture.addFileToProject("other.ex", "defmodule Other do\n  @doc \"Adds elsewhere.\"\n  def add(left, right), do: left + right\nend\n")
+        myFixture.configureByText(
+            "adder.ex",
+            """
+            defmodule Adder do
+              import Foo, only: [Foo, g: 1]
+
+              def run, do: ad<caret>d(1, 2)
+
+              @doc "Adds here."
+              def add(augend, addend), do: augend + addend
+            end
+            """.trimIndent()
+        )
+
+        val documentation = quickDocumentationAtCaret().orEmpty()
+
+        assertTrue("Expected the module's own function, got: $documentation", "Adds here." in documentation)
+        assertFalse("Expected no other module's function, got: $documentation", "Adds elsewhere." in documentation)
+    }
+
+    /** Run the expander on, with `Foo`, so that `import Foo, only: [Foo, g: 1]` raises, as `only:` takes a keyword list, and the expansion stops there. */
+    private fun stoppedExpanderOn() {
+        expanderOn()
+        myFixture.addFileToProject("foo.ex", "defmodule Foo do\n  def g(x), do: x\nend\n")
+    }
+
+    /** At an arity an `import` a `use` injects leaves out, the function is documented as a near miss. */
+    fun testAnArityAUsesImportLeavesOutIsANearMissWithTheExpanderOn() {
+        expanderOn()
+        myFixture.addFileToProject(
+            "pad.ex",
+            """
+            defmodule Pad do
+              @doc "Pads."
+              def pad(a, b \\ 1, c \\ 2), do: {a, b, c}
+            end
+
+            defmodule U do
+              defmacro __using__(_) do
+                quote do
+                  import Pad, only: [pad: 1, pad: 3]
+                end
+              end
+            end
+            """.trimIndent()
+        )
+        myFixture.configureByText("p.ex", "defmodule P do\n  use U\n  def one, do: pad(1)\n  def two, do: pa<caret>d(1, 2)\nend\n")
+
+        val documentation = quickDocumentationAtCaret().orEmpty()
+
+        assertTrue("Expected the near miss's docs, got: $documentation", "Pads." in documentation)
+    }
 }

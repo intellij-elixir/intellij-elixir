@@ -606,20 +606,24 @@ private fun queueEffect(
     }
 
     when (change) {
-        is ModuleEffects.Change.Attributes ->
+        is ModuleEffects.Change.Attributes -> {
+            val injectedBy = run.injecting?.takeIf { builtBy(at, it) }
+
             run.pending += if (evaluates) {
                 Pending.Attribute(
                     change.effect,
                     at,
                     statement,
                     raises = { bindings -> (arguments(bindings) as? ArgumentValues.Raised)?.expansion },
+                    injectedBy = injectedBy,
                     resolve = { _, bindings ->
                         (evaluated(bindings) as? ModuleEffects.Change.Attributes)?.effect ?: Effect.UnknownEffect
                     },
                 )
             } else {
-                Pending.Attribute(change.effect, at, statement)
+                Pending.Attribute(change.effect, at, statement, injectedBy = injectedBy)
             }
+        }
         is ModuleEffects.Change.Definitions ->
             run.pending += Pending.Effect(node, statement) { compiling, ordered, bindings ->
                 val resolved = if (evaluates && ordered) arguments(bindings) else null

@@ -1,7 +1,6 @@
 package org.elixir_lang.annotator
 
 import com.intellij.openapi.editor.colors.TextAttributesKey
-import com.intellij.openapi.util.Disposer
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.FUNCTION_CALL
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.FUNCTION_DECLARATION
@@ -26,8 +25,7 @@ class DeclarationHighlightingTest : PlatformTestCase() {
 
     override fun setUp() {
         super.setUp()
-        LegSdk.setUp(module, testRootDisposable)
-        Disposer.register(testRootDisposable) { LegSdk.tearDown(module) }
+        LegSdk.heldUntil(module, testRootDisposable)
         scheme = DistinctKeyScheme(testRootDisposable)
     }
 

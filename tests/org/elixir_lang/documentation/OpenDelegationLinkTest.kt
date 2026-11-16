@@ -10,10 +10,17 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
+import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.psi.call.Call
 
 class OpenDelegationLinkTest : HeavyTestCase() {
+    /** Run the expander off, whatever the run's default: this class pins the walk's answers. */
+    override fun setUp() {
+        super.setUp()
+        disableExpander(testRootDisposable)
+    }
+
     fun testALinkThroughAnOpenDelegationOpensTheTargetInTheLinkingModule() {
         val context = contextOf(
             """
@@ -24,7 +31,8 @@ class OpenDelegationLinkTest : HeavyTestCase() {
         assertEquals("def open(a, b), do: {a, b}", DocumentationLink.element("OpenDelegator.open/4", context)?.text)
     }
 
-    fun testALinkThroughAnOpenDelegationToSeveralTargetsOpensNothing() {
+    /** With no one target, the link opens the delegation. */
+    fun testALinkThroughAnOpenDelegationToSeveralTargetsOpensTheDelegation() {
         val context = contextOf(
             """
             def open(a, b), do: {a, b}
@@ -33,7 +41,10 @@ class OpenDelegationLinkTest : HeavyTestCase() {
             """.trimIndent()
         )
 
-        assertNull(DocumentationLink.element("OpenDelegator.open/4", context))
+        assertEquals(
+            "defdelegate open(a, unquote_splicing(rest)), to: OpenTarget",
+            DocumentationLink.element("OpenDelegator.open/4", context)?.text
+        )
     }
 
     /** The module `Reader`, which links `OpenDelegator.open/4`, over a delegator in an IDE module that depends on it. */

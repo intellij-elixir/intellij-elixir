@@ -17,6 +17,12 @@ import org.elixir_lang.psi.impl.call.body
 import org.elixir_lang.psi.stub.index.AllName
 import org.elixir_lang.psi.stub.type.call.Stub
 
+/**
+ * Whether [element] is in [enclosing]'s body. A module's or `quote`'s own arguments are evaluated outside it, so
+ * `__MODULE__` there is not it.
+ */
+fun isInBody(enclosing: Call, element: PsiElement): Boolean = PsiTreeUtil.isAncestor(enclosing.body(), element, false)
+
 class PsiScopeProcessor(val call: Call, val useCall: Call?) : PsiScopeProcessor {
     val resolveResults: Array<ResolveResult>
         get() = resolveResultList.toTypedArray()
@@ -30,7 +36,7 @@ class PsiScopeProcessor(val call: Call, val useCall: Call?) : PsiScopeProcessor 
     private fun execute(call: Call, state: ResolveState): Boolean =
         if (call != this.call) {
             when {
-                QuoteMacro.`is`(call) && isInBody(call) -> {
+                QuoteMacro.`is`(call) && isInBody(call, this.call) -> {
                     if (useCall != null) {
                         for (modular in Use.modulars(useCall)) {
                             resolveResultList.add(PsiElementResolveResult(modular))
@@ -73,7 +79,7 @@ class PsiScopeProcessor(val call: Call, val useCall: Call?) : PsiScopeProcessor 
 
                     false
                 }
-                Stub.isModular(call) && isInBody(call) -> {
+                Stub.isModular(call) && isInBody(call, this.call) -> {
                     PsiElementResolveResult(call).let {
                         resolveResultList.add(it)
                     }
@@ -85,9 +91,6 @@ class PsiScopeProcessor(val call: Call, val useCall: Call?) : PsiScopeProcessor 
         } else {
             true
         }
-
-    /** A module's or `quote`'s own arguments are evaluated outside it, so `__MODULE__` there is not it. */
-    private fun isInBody(enclosing: Call): Boolean = PsiTreeUtil.isAncestor(enclosing.body(), call, false)
 
     override fun <T> getHint(hintKey: Key<T>): T? = null
     override fun handleEvent(event: PsiScopeProcessor.Event, associated: Any?) {}

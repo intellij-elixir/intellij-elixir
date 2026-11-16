@@ -30,10 +30,13 @@ enum class Applicability {
 
         /**
          * How [declaration] applies at a use of [arity] arguments that reached it as [reachedAs] through the
-         * `defdelegate` heads of arities [crossed], from the use outward. [named] is whether everything but the arity
-         * fits: the names along the way, and each `import` crossed bringing in what it reaches.
+         * `defdelegate` heads of arities [crossed], from the use outward; a `null` [arity] is any arity ([ofAnyArity])
+         * of the name [reachedAs]. [named] is whether everything but the arity fits: the names along the way, and each
+         * `import` crossed bringing in what it reaches.
          */
-        fun of(declaration: Declaration, reachedAs: String, named: Boolean, arity: Int, crossed: List<ArityKnowledge>): Applicability? {
+        fun of(declaration: Declaration, reachedAs: String, named: Boolean, arity: Int?, crossed: List<ArityKnowledge>): Applicability? {
+            if (arity == null) return ofAnyArity(declaration, named, crossed)
+
             val fits = fits(declaration, arity, crossed)
 
             return if (named && fits == null) OPAQUE else of(declaration, reachedAs, named && fits == true)
@@ -62,7 +65,7 @@ enum class Applicability {
          * of arities [crossed], from the use outward. The use is undecided, so none is valid, but behind a delegation
          * only what the head passes on fits.
          */
-        fun ofAnyArity(declaration: Declaration, named: Boolean, crossed: List<ArityKnowledge>): Applicability? {
+        private fun ofAnyArity(declaration: Declaration, named: Boolean, crossed: List<ArityKnowledge>): Applicability? {
             if (!named) return null
 
             val passed = crossed.firstOrNull()?.passed() ?: return OPAQUE

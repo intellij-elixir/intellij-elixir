@@ -22,6 +22,35 @@ class ModuleNameQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
+    fun testQuickDocOnAQualifyingAliasShowsTheModulesModuledoc() =
+        assertShowsModuledoc(
+            """
+            defmodule Documented do
+              @moduledoc "Describes a value."
+
+              @doc "Calls f."
+              def f, do: :ok
+            end
+
+            defmodule Caller do
+              def call, do: Docu<caret>mented.f()
+            end
+            """.trimIndent()
+        )
+
+    fun testQuickDocOnDefprotocolNameShowsModuledocWithTheExpanderOn() = withTheExpanderOn(::testQuickDocOnDefprotocolNameShowsModuledoc)
+
+    fun testQuickDocOnQualifiedDefprotocolNameShowsModuledocWithTheExpanderOn() =
+        withTheExpanderOn(::testQuickDocOnQualifiedDefprotocolNameShowsModuledoc)
+
+    fun testQuickDocOnDefimplProtocolAliasShowsModuledocWithTheExpanderOn() =
+        withTheExpanderOn(::testQuickDocOnDefimplProtocolAliasShowsModuledoc)
+
+    fun testQuickDocOnDefmoduleNameShowsModuledocWithTheExpanderOn() = withTheExpanderOn(::testQuickDocOnDefmoduleNameShowsModuledoc)
+
+    fun testQuickDocOnAQualifyingAliasShowsTheModulesModuledocWithTheExpanderOn() =
+        withTheExpanderOn(::testQuickDocOnAQualifyingAliasShowsTheModulesModuledoc)
+
     private fun protocol(
         defprotocolLine: String,
         defimplLine: String = "defimpl Describable, for: Tuple do"

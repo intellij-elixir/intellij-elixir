@@ -4,6 +4,7 @@ import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.util.IdempotenceChecker
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.documentation.ElixirDocumentationProvider
 import org.elixir_lang.documentation.quickDocumentationAtCaret
 import org.elixir_lang.psi.scope.CallableTable
@@ -40,6 +41,7 @@ class CombiningMarkTest : PlatformTestCase() {
     fun testAppliedAtom() = assertResolves("apply_caller.ex", ":src_\u00b5", "micro.ex:4:3")
 
     fun testDocumentationLink() {
+        disableExpander(testRootDisposable)
         val file = myFixture.configureFromTempProjectFile("caller.ex")
         val element = ElixirDocumentationProvider()
             .getDocumentationElementForLink(psiManager, "Src.Def.W4.src_def_w4_snoc\u0301/2", file)

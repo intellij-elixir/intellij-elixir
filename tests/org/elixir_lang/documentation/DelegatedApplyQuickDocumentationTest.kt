@@ -117,7 +117,7 @@ class DelegatedApplyQuickDocumentationTest : QuickDocumentationTestCase() {
         assertNotNull("Expected an anchor", anchor)
         assertTrue(
             "Expected the anchor ($anchor) on the entry for push/2, got: $documentation",
-            documentation.substringAfter("""id="$anchor"""").substringBefore("id=\"").contains("Two.")
+            "Two." in anchoredEntry(documentation, anchor)
         )
     }
 

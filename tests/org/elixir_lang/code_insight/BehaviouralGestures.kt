@@ -48,7 +48,6 @@ import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertNull
 import junit.framework.TestCase.assertTrue
 import org.elixir_lang.junit.onPooledThread
-import org.elixir_lang.psi.Arguments
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.Callable
 
@@ -597,6 +596,13 @@ data class ParameterInfoPopup(val signatures: List<String>, val currentParameter
  * which signatures, not whether the IDE shows a popup (see [parameterInfoPopupAfterTyping]).
  */
 fun CodeInsightTestFixture.parameterInfoSignaturesAtCaret(): List<String> = parameterInfoSignatures(editor, file)
+
+/** [parameterInfoSignaturesAtCaret] in [text], opened as [fileName]. */
+fun CodeInsightTestFixture.parameterInfoSignaturesIn(fileName: String, text: String): List<String> {
+    configureByText(fileName, text)
+
+    return parameterInfoSignaturesAtCaret()
+}
 
 /** [parameterInfoSignaturesAtCaret] for an [editor] on [file] that no fixture opened. */
 fun parameterInfoSignatures(editor: Editor, file: PsiFile): List<String> {

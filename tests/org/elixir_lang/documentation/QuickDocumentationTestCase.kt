@@ -1,7 +1,9 @@
 package org.elixir_lang.documentation
 
-import com.intellij.lang.documentation.ide.IdeDocumentationTargetProvider
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ExpanderSettingTestCase
+
+/** The line Quick Documentation shows above an entry the expander could not confirm, as users read it. */
+internal const val PLAIN_LINE = "The expander could not confirm that this is the definition used here."
 
 /**
  * Base class for Quick Documentation (Ctrl+Q) tests that drive the IDE's real documentation
@@ -9,15 +11,14 @@ import org.elixir_lang.PlatformTestCase
  * through the platform's target-selection chain and rendering it with the registered
  * documentation provider - rather than hand-resolving a [com.intellij.psi.PsiReference] in the test.
  *
- * [IdeDocumentationTargetProvider.documentationTargets] runs the exact offset-based chain Ctrl+Q
+ * `IdeDocumentationTargetProvider.documentationTargets` runs the exact offset-based chain Ctrl+Q
  * uses (custom documentation element -> `TargetElementUtil` -> reference at offset, bridged to a
  * [com.intellij.platform.backend.documentation.DocumentationTarget]). Because the test never
  * resolves references itself, it keeps guarding the *user-visible* behaviour across resolution
  * refactors (e.g. relocating or replacing the classic call reference) as long as the user still
  * sees the correct documentation - it locks behaviour, not implementation.
  */
-@Suppress("UnstableApiUsage")
-abstract class QuickDocumentationTestCase : PlatformTestCase() {
+abstract class QuickDocumentationTestCase : ExpanderSettingTestCase() {
     /** @see quickDocumentationAtCaret */
     protected fun quickDocumentationAtCaret(): String? = myFixture.quickDocumentationAtCaret(project)
 
@@ -25,10 +26,6 @@ abstract class QuickDocumentationTestCase : PlatformTestCase() {
     protected fun assertBothArities(documentation: String) {
         assertTrue("Expected the EEx function's @doc, got: $documentation", "Renders with one." in documentation)
         assertTrue("Expected the def's @doc, got: $documentation", "Renders with two." in documentation)
-        assertEquals(
-            "Expected a link per arity, got: $documentation",
-            2,
-            Regex("""href="#([^"]+)"""").findAll(documentation).map { it.groupValues[1] }.distinct().count()
-        )
+        assertEquals("Expected a link per arity, got: $documentation", 2, linkedIds(documentation).distinct().size)
     }
 }

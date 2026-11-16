@@ -7,6 +7,8 @@ import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReferenceBase
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.impl.source.resolve.ResolveCache
+import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
 import org.elixir_lang.code_insight.completion.qualifiedLookupElements
 import org.elixir_lang.code_insight.completion.unqualifiedLookupElements
@@ -69,5 +71,17 @@ class CaptureNameArity(element: NonNumeric, val nameElement: Call, val arity: Ar
         return ResolveCache
             .getInstance(project)
             .resolveWithCaching(captureNameArity, Resolver, false, incompleteCode)
+    }
+
+    companion object {
+        /**
+         * The reference of the capture whose name [element] is, `name` in `&name/arity` or `Mod.name` in
+         * `&Mod.name/arity`, else `null`. The name carries no reference of its own: it lives on the capture operator,
+         * which alone spans the `/arity`.
+         */
+        @RequiresReadLock
+        fun of(element: PsiElement): CaptureNameArity? =
+            (PsiTreeUtil.getParentOfType(element, NonNumeric::class.java)?.reference as? CaptureNameArity)
+                ?.takeIf { it.nameElement == element }
     }
 }

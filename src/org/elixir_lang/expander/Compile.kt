@@ -3,6 +3,7 @@ package org.elixir_lang.expander
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
+import org.elixir_lang.expander.DefinitionTable.Injected
 import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.expander.ExpansionResult.Owner
 import org.elixir_lang.expander.interpreter.Binding
@@ -1080,12 +1081,14 @@ internal sealed interface Pending {
      * @property resolve the effect from the attributes as they are where the walk reaches it, where [effect] depends on
      *   them; [effect] is what the call leaves when they aren't known
      * @property raises the error the call's arguments raise where the walk reaches it, if they do
+     * @property injectedBy the call whose evaluated output wrote [at], as [Definition.injectedBy] is
      */
     class Attribute(
         val effect: org.elixir_lang.expander.Effect,
         val at: ElixirAst,
         val statement: Boolean,
         val raises: ((HashMap<Binding, OtpErlangObject>) -> Expansion?)? = null,
+        val injectedBy: ElixirAst.Call? = null,
         val resolve: ((AttributeTable, HashMap<Binding, OtpErlangObject>) -> org.elixir_lang.expander.Effect)? = null,
     ) : Pending
 
@@ -1175,7 +1178,7 @@ internal fun Pending.asStatement(): Pending =
         is Pending.Definition ->
             Pending.Definition(kind, node, head, body, fragments, env, true, checksClauses, delegatesTo, injectedBy, followed)
         is Pending.Effect -> Pending.Effect(node, true, queued, apply)
-        is Pending.Attribute -> Pending.Attribute(effect, at, true, raises, resolve)
+        is Pending.Attribute -> Pending.Attribute(effect, at, true, raises, injectedBy, resolve)
         is Pending.Check -> Pending.Check(node, true, check)
         is Pending.Match -> Pending.Match(node, state, env, true, inner)
         is Pending.Statement -> Pending.Statement(node, state, env, true, inner)
@@ -1819,7 +1822,9 @@ private fun compile(
                     val effect =
                         pending.resolve?.takeIf { pending.statement }?.invoke(compiling.attributes, bindings) ?: pending.effect
 
-                    when (val outcome = compiling.write(effect, pending.at, pending.statement, run)) {
+                    val injected = pending.injectedBy?.let { Injected(it, run.placedAt[pending.at]) }
+
+                    when (val outcome = compiling.write(effect, pending.at, pending.statement, run, injected)) {
                         is EffectOutcome.Raises -> Expansion.Error(outcome.kind, pending.at)
                         // Whether Elixir raises there isn't known, so nothing after it can be compared.
                         EffectOutcome.Unchecked -> Expansion.Unported(pending.at)
@@ -2009,12 +2014,13 @@ private fun nameError(name: String, isAtom: Boolean, run: Run): String? {
 
 /**
  * [effect], of a call at [at] in this module's body that is a [statement] or not, logged and [applied]: a call the walk
- * runs as its own unit, or one the evaluator reaches in code the body runs.
+ * runs as its own unit, or one the evaluator reaches in code the body runs. [injected] is how a macro's output injected
+ * [at], when one did.
  */
-internal fun Compiling.write(effect: Effect, at: ElixirAst, statement: Boolean, run: Run): EffectOutcome {
+internal fun Compiling.write(effect: Effect, at: ElixirAst, statement: Boolean, run: Run, injected: Injected? = null): EffectOutcome {
     effects += AttributeLog.Logged(effect, at, statement)
 
-    return applied(effect, statement, this, run)
+    return applied(effect, statement, at, injected, this, run)
 }
 
 /**
@@ -2023,12 +2029,13 @@ internal fun Compiling.write(effect: Effect, at: ElixirAst, statement: Boolean, 
  * body wherever the expander does: the first outcome that isn't [EffectOutcome.Stored], if any is. A named module not
  * being compiled here may be compiling in another file's process, or not at all, where Elixir raises.
  */
-private fun applied(effect: Effect, statement: Boolean, compiling: Compiling, run: Run): EffectOutcome {
-    val own = compiling.attributes.apply(effect, statement)
+private fun applied(effect: Effect, statement: Boolean, at: ElixirAst, injected: Injected?, compiling: Compiling, run: Run): EffectOutcome {
+    val own = compiling.attributes.apply(effect, statement, at, injected)
     val other = effect as? Effect.OtherModule ?: return own
     val others = run.compilingNamed(other.module).filter { it !== compiling }
-    val outcomes = listOf(own) +
-        others.map { it?.attributes?.apply(other.effect, statement && compiling.values.known) ?: EffectOutcome.Unchecked }
+    val outcomes = listOf(own) + others.map { module ->
+        module?.attributes?.apply(other.effect, statement && compiling.values.known, at, injected) ?: EffectOutcome.Unchecked
+    }
 
     // Which module a write names isn't known, so neither is whether Elixir refuses it.
     if (other.module == null) return EffectOutcome.Unchecked

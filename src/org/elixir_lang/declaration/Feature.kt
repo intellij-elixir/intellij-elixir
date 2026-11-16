@@ -20,11 +20,11 @@ enum class Feature {
     /** Whether the feature's rule takes a definition that may not be Elixir's; one that states no rule takes none. */
     val takesUncertain: Boolean
         get() = when (this) {
-            // A colour is a hint, so a suggestion is worth more than none.
-            HIGHLIGHTING -> true
-            SYMBOL_REFERENCES,
+            // A colour, a documentation entry or a parameter hint is a suggestion, so one is worth more than none.
+            HIGHLIGHTING,
             DOCUMENTATION,
-            PARAMETER_INFO,
+            PARAMETER_INFO -> true
+            SYMBOL_REFERENCES,
             REFERENCES_INSPECTION,
             COMPLETION,
             FIND_USAGES_AND_RENAME,
@@ -54,10 +54,10 @@ fun sourceFor(feature: Feature): CandidateSource =
         ExpanderSource
     } else {
         when (feature) {
-            Feature.HIGHLIGHTING -> if (expanderFlagOn()) ExpanderSource else LegacyWalkSource
-            Feature.SYMBOL_REFERENCES,
+            Feature.HIGHLIGHTING,
             Feature.DOCUMENTATION,
-            Feature.PARAMETER_INFO,
+            Feature.PARAMETER_INFO -> if (expanderFlagOn()) ExpanderSource else LegacyWalkSource
+            Feature.SYMBOL_REFERENCES,
             Feature.REFERENCES_INSPECTION,
             Feature.COMPLETION,
             Feature.FIND_USAGES_AND_RENAME,

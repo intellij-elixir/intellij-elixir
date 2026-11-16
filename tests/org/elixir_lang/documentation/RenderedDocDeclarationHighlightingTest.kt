@@ -53,9 +53,7 @@ class RenderedDocDeclarationHighlightingTest : PlatformTestCase() {
      * block, names none of its written names; a clause's own word stays a declaration.
      */
     fun testWithOnlyAModuleSdkOnlyAClausesOwnWordHighlightsAsADeclarationWithTheExpanderOn() {
-        LegSdk.setUp(module, testRootDisposable)
-        Disposer.register(testRootDisposable) { LegSdk.tearDown(module) }
-        enableExpander(testRootDisposable)
+        enableExpander(module, testRootDisposable)
 
         assertEquals(expected(emptySet()), declarationKeys())
     }
@@ -71,11 +69,11 @@ class RenderedDocDeclarationHighlightingTest : PlatformTestCase() {
 
     /** The leg's SDK as the project's, which a code block, in no module, is expanded with. */
     private fun projectSdk() {
-        val sdk = LegSdk.setUp(module, testRootDisposable)
+        val sdk = LegSdk.heldUntil(module, testRootDisposable)
         WriteAction.runAndWait<Throwable> { ProjectRootManager.getInstance(project).projectSdk = sdk }
+        // Disposed before the held SDK's teardown, which was registered first.
         Disposer.register(testRootDisposable) {
             WriteAction.runAndWait<Throwable> { ProjectRootManager.getInstance(project).projectSdk = null }
-            LegSdk.tearDown(module)
         }
     }
 

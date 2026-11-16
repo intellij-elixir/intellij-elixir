@@ -41,9 +41,9 @@ class ReachTest {
     }
 
     @Test
-    fun remotelyReachesWhatItExportsAndTheTargetsOfItsDelegations() {
+    fun remotelyReachesWhatItExportsTheTargetsOfItsDelegationsAndTheIndexsFinds() {
         assertEquals(
-            cross(setOf(OWN, USE, DELEGATION_TARGET), PUBLIC),
+            cross(setOf(OWN, USE, DELEGATION_TARGET, INDEXED), PUBLIC),
             admitted { reach, capabilities -> reach.remotelyReaches(capabilities) }
         )
     }
@@ -51,7 +51,7 @@ class ReachTest {
     @Test
     fun remotelyReachesAtRuntimeOnlyPublicFunctions() {
         assertEquals(
-            cross(setOf(OWN, USE, DELEGATION_TARGET), PUBLIC_FUNCTIONS),
+            cross(setOf(OWN, USE, DELEGATION_TARGET, INDEXED), PUBLIC_FUNCTIONS),
             admitted { reach, capabilities -> reach.remotelyReaches(capabilities, runtime = true) }
         )
     }
@@ -61,7 +61,7 @@ class ReachTest {
         assertEquals(setOf(OWN, USE), Reach.entries.filter { it.exports(UNDECIDED_FUNCTION) }.toSet())
         assertEquals(setOf(OWN, USE), Reach.entries.filter { it.exports(UNDECIDED_FUNCTION, runtime = true) }.toSet())
         assertEquals(
-            setOf(OWN, USE, DELEGATION_TARGET),
+            setOf(OWN, USE, DELEGATION_TARGET, INDEXED),
             Reach.entries.filter { it.remotelyReaches(UNDECIDED_FUNCTION, runtime = true) }.toSet()
         )
     }
@@ -90,7 +90,7 @@ class ReachTest {
     private companion object {
         val PUBLIC_FUNCTIONS = setOf(Definer.DEF, Definer.DEFMEMO)
         val PUBLIC = PUBLIC_FUNCTIONS + setOf(Definer.DEFMACRO, Definer.DEFGUARD)
-        val UNDECIDED_FUNCTION = Capabilities(false, false, false, Visibility.UNDECIDED)
-        val UNDECIDED_MACRO = Capabilities(true, true, false, Visibility.UNDECIDED)
+        val UNDECIDED_FUNCTION = Capabilities(quotesArguments = false, compileTime = false, usableInGuards = false, Visibility.UNDECIDED)
+        val UNDECIDED_MACRO = Capabilities(quotesArguments = true, compileTime = true, usableInGuards = false, Visibility.UNDECIDED)
     }
 }

@@ -3,6 +3,7 @@ package org.elixir_lang.documentation
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.testFramework.PlatformTestUtil
 import org.elixir_lang.beam.BeamLibraryTestCase
+import org.elixir_lang.declaration.disableExpander
 
 /**
  * A dependency compiled with docs but no debug info: its decompiled source writes each lower arity of a function with
@@ -12,9 +13,11 @@ import org.elixir_lang.beam.BeamLibraryTestCase
 class DocsOnlyDefaultsQuickDocumentationTest : BeamLibraryTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/beam/docs_only_defaults"
 
+    /** Run the expander off, whatever the run's default: this class pins the walk's answers. */
     override fun setUp() {
         super.setUp()
         HeadlessDataManager.fallbackToProductionDataManager(testRootDisposable)
+        disableExpander(testRootDisposable)
     }
 
     fun testQuickDocsAtALowerArityShowTheFunctionsDoc() {

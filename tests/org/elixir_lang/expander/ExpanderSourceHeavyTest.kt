@@ -17,13 +17,19 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
+import org.elixir_lang.beam.BeamBytes
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.Signature
+import org.elixir_lang.code_insight.signatures
 import org.elixir_lang.declaration.Answer
+import org.elixir_lang.documentation.MarkdownFlavourDescriptor
 import org.elixir_lang.declaration.CandidateSource
+import org.elixir_lang.declaration.Declared
+import org.elixir_lang.declaration.EXPANDER_FEATURES
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Preferred
+import org.elixir_lang.declaration.RejectedCall
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.Uncertain
 import org.elixir_lang.declaration.Use
@@ -33,16 +39,21 @@ import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.declaration.preferred
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.expander.ExpanderSourceRows.arity
+import org.elixir_lang.expander.ExpanderSourceRows.callbacks
+import org.elixir_lang.expander.ExpanderSourceRows.modulars
 import org.elixir_lang.expander.ExpanderSourceRows.read
 import org.elixir_lang.expander.ExpanderSourceRows.render
 import org.elixir_lang.expander.ExpanderSourceRows.renderVisible
+import org.elixir_lang.expander.ExpanderSourceRows.rows
 import org.elixir_lang.expander.ExpanderSourceRows.use
 import org.elixir_lang.expander.ExpanderSourceRows.withBeamLibrary
 import org.elixir_lang.expander.ExpanderSourceRows.withExpanderSwitch
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
+import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
+import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.WalkTestSupport
@@ -560,6 +571,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
                 "Stopped.target/1 OWN VALID via [] line 7",
                 listOf(
                     "Stopped.target/1 OWN VALID via [] line 7 OPAQUE",
+                    "Mix.target/0 INDEXED WRONG_ARITY via [] INDEX",
                     "Mix.target/1 INDEXED VALID via [] INDEX",
                     "Raised.target/1 INDEXED VALID via [] line 14 INDEX",
                     "Tainted.target/1 INDEXED VALID via [] line 2 INDEX",
@@ -567,6 +579,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
                 "Raised.target/1 OWN VALID via [] line 14",
                 listOf(
                     "Raised.target/1 OWN VALID via [] line 14 STOP",
+                    "Mix.target/0 INDEXED WRONG_ARITY via [] INDEX",
                     "Mix.target/1 INDEXED VALID via [] INDEX",
                     "Stopped.target/1 INDEXED VALID via [] line 7 INDEX",
                     "Tainted.target/1 INDEXED VALID via [] line 2 INDEX",
@@ -879,6 +892,88 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals("Views.greet/1 IMPORT VALID via [import Views]", render(greet).substringBefore(" line "))
     }
 
+    /**
+     * A function the SDK's `EEx` or `Mix.Generator` makes is declared at the call that makes it, with that call's form,
+     * as the walk declares one, not at the clause of the macro that writes its `def`.
+     */
+    fun testALibraryMacrosFunctionIsDeclaredAtTheCallThatMakesIt() {
+        val template = File(createTempDir("template"), "page.eex").apply { writeText("<%= a %>") }
+        val file = file(
+            """
+            defmodule Templates do
+              require EEx
+              require Mix.Generator
+
+              EEx.function_from_string(:def, :from_string, "<%= a %>", [:a])
+              EEx.function_from_file(:def, :from_file, "${template.path}", [:a])
+              Mix.Generator.embed_template(:page, "<%= @a %>")
+
+              def calls(a), do: {from_string(a), from_file(a), page_template(a)}
+            end
+
+            defmodule Imported do
+              import EEx
+
+              function_from_string(:def, :imported, "<%= a %>", [:a])
+
+              def calls(a), do: imported(a)
+            end
+
+            defmodule Caller do
+              def calls(a), do: Templates.from_string(a)
+            end
+            """
+        )
+
+        assertEquals(
+            listOf(
+                "Templates.from_string/1 EEX_FUNCTION_FROM EEx.function_from_string(:def, :from_string, \"<%= a %>\", [:a])",
+                "Templates.from_file/1 EEX_FUNCTION_FROM EEx.function_from_file(:def, :from_file, \"${template.path}\", [:a])",
+                "Templates.page_template/1 GENERATOR_EMBED Mix.Generator.embed_template(:page, \"<%= @a %>\")",
+                "Imported.imported/1 EEX_FUNCTION_FROM function_from_string(:def, :imported, \"<%= a %>\", [:a])",
+                "Templates.from_string/1 EEX_FUNCTION_FROM EEx.function_from_string(:def, :from_string, \"<%= a %>\", [:a])",
+            ),
+            listOf(
+                "{from_string(a), from_file(a), page_template(a)}" to "from_string(a)",
+                "{from_string(a), from_file(a), page_template(a)}" to "from_file(a)",
+                "{from_string(a), from_file(a), page_template(a)}" to "page_template(a)",
+                "do: imported(a)" to "imported(a)",
+                "Templates.from_string(a)" to "Templates.from_string(a)",
+            ).flatMap { (context, call) -> declaredAt(file, context, call) },
+        )
+    }
+
+    /**
+     * A macro of the project's own named and called as `EEx`'s is not `EEx`'s: the function it writes is declared at its
+     * `def`, not at the call.
+     */
+    fun testAMacroShapedLikeALibrarysIsNotTakenForIt() {
+        val file = file(
+            """
+            defmodule MyGen do
+              defmacro function_from_string(kind, name, template, args, options) do
+                quote do
+                  def unquote(name)(a), do: {unquote(kind), unquote(template), unquote(args), unquote(options), a}
+                end
+              end
+            end
+
+            defmodule Mine do
+              require MyGen
+
+              MyGen.function_from_string(:def, :mine, "x", [:a], [])
+
+              def calls(a), do: mine(a)
+            end
+            """
+        )
+
+        assertEquals(
+            listOf("Mine.mine/1 CLAUSE def unquote(name)(a), do: {unquote(kind), unquote(template), unquote(args), unquote(options), a}"),
+            declaredAt(file, "do: mine(a)", "mine(a)"),
+        )
+    }
+
     fun testAnOuterImportIsSeenFromANestedModule() {
         val file = file(
             """
@@ -1101,7 +1196,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(
             listOf(
                 "Outer.target/1 OWN VALID via [] line 6",
-                "Outer.target/1 OWN VALID via [] line 6 STOP\nMix.target/1 INDEXED VALID via [] INDEX",
+                "Outer.target/1 OWN VALID via [] line 6 STOP\nMix.target/0 INDEXED WRONG_ARITY via [] INDEX\nMix.target/1 INDEXED VALID via [] INDEX",
             ),
             listOf(candidates(file, "target(1)", "target(1)"), candidates(file, "target(2)", "target(2)")),
         )
@@ -1141,7 +1236,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(
             listOf(
                 "Outer.target/1 OWN VALID via [] line 7",
-                "Outer.target/1 OWN VALID via [] line 7 STOP\nMix.target/1 INDEXED VALID via [] INDEX",
+                "Outer.target/1 OWN VALID via [] line 7 STOP\nMix.target/0 INDEXED WRONG_ARITY via [] INDEX\nMix.target/1 INDEXED VALID via [] INDEX",
             ),
             listOf(candidates(file, "target(1)", "target(1)"), candidates(file, "target(2)", "target(2)")),
         )
@@ -1172,7 +1267,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(
             listOf(
                 "Opaquer.target/1 OWN VALID via [] line 7",
-                "Opaquer.target/1 OWN VALID via [] line 7 OPAQUE\nMix.target/1 INDEXED VALID via [] INDEX",
+                "Opaquer.target/1 OWN VALID via [] line 7 OPAQUE\nMix.target/0 INDEXED WRONG_ARITY via [] INDEX\nMix.target/1 INDEXED VALID via [] INDEX",
             ),
             listOf(candidates(file, "target(1)", "target(1)"), candidates(file, "target(2)", "target(2)")),
         )
@@ -1217,7 +1312,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
 
         assertEquals(
-            "Outer.target/1 OWN VALID via [] line 2 STOP\nMix.target/1 INDEXED VALID via [] INDEX",
+            "Outer.target/1 OWN VALID via [] line 2 STOP\nMix.target/0 INDEXED WRONG_ARITY via [] INDEX\nMix.target/1 INDEXED VALID via [] INDEX",
             candidates(file, "target(1)", "target(1)"),
         )
     }
@@ -1358,6 +1453,42 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             "Pad.pad/1..2 IMPORT WRONG_ARITY via [import Pad, only: [pad: 1]] line 2",
             candidates(file, "do: pad(1, 2)", "pad(1, 2)"),
         )
+    }
+
+    /**
+     * A call at an arity an `import` a `use` injects leaves out is a near miss for the arities that `import`'s `only:`
+     * brings in, as for one written in the module.
+     */
+    fun testANearMissThroughAUseNamesTheAritiesItsImportBringsIn() {
+        val file = file(
+            """
+            defmodule Pad do
+              def pad(a, b \\ 1, c \\ 2), do: {a, b, c}
+            end
+
+            defmodule U do
+              defmacro __using__(_) do
+                quote do
+                  import Pad, only: [pad: 1, pad: 3]
+                end
+              end
+            end
+
+            defmodule P do
+              use U
+              def one, do: pad(1)
+              def two, do: pad(1, 2)
+            end
+            """
+        )
+        val use = use(file, "do: pad(1, 2)", "pad(1, 2)")
+
+        val named = read {
+            RejectedCall.named(ExpanderSource.candidates(use, false), Found::candidate, false, UseSymbols::admits)
+                ?.map { "${name(it.candidate)} ${it.arities}" }
+        }
+
+        assertEquals(listOf("Pad.pad/1..3 [1, 3]"), named)
     }
 
     fun testVisibleGivesAnOnlyImportsArities() {
@@ -1926,7 +2057,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
     fun testAnAbsenceInABeamWithNoExportsIsUncertain() {
         val ebin = FileUtil.createTempDirectory("no_exports_ebin", null, true)
         val beam = File("testData/org/elixir_lang/expander/injecting_use", "Elixir.InjectingUse.beam").readBytes()
-        File(ebin, "Elixir.InjectingUse.beam").writeBytes(withoutChunk(beam, "ExpT"))
+        File(ebin, "Elixir.InjectingUse.beam").writeBytes(BeamBytes.withoutChunk(beam, "ExpT"))
         val file = file("defmodule Asker do\n  def f, do: InjectingUse.missing(1)\nend")
 
         val absence = WalkTestSupport.withLibrary(project, module, testRootDisposable, "no_exports", ebin) {
@@ -1950,7 +2081,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals("STOP", absence(file, "missing(3)", "missing(3)"))
     }
 
-    /** With no expansion to read, nothing is known: with no SDK, while the IDE indexes, and at a use the expander doesn't answer. */
+    /** With no expansion to read, nothing is known: while the IDE indexes, and with no SDK, at a call and at a `@spec` head. */
     fun testAnAbsenceWithNoExpansionIsUncertain() {
         val file = file(
             """
@@ -1960,19 +2091,17 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             end
             """
         )
-        val specified = read {
-            val attribute = PsiTreeUtil.findChildrenOfType(file, AtUnqualifiedNoParenthesesCall::class.java).single()
-            val head = PsiTreeUtil.findChildrenOfType(attribute, Call::class.java).first { it.text == "f(integer)" }
-
-            Use.specification(head, attribute)!!
-        }
+        val specified = specification(file)
         val dumb = DumbModeTestUtils.computeInDumbModeSynchronously(project) { absence(file, "missing(x)", "missing(x)") }
-        val specifiedAbsence = read { ExpanderSource.answer(specified, false) }.absence?.name ?: "certain"
         ModuleRootModificationUtil.setModuleSdk(module, null)
 
         assertEquals(
             listOf("NO_EXPANSION", "NO_EXPANSION", "NO_EXPANSION"),
-            listOf(dumb, specifiedAbsence, absence(file, "missing(x)", "missing(x)")),
+            listOf(
+                dumb,
+                absence(file, "missing(x)", "missing(x)"),
+                absence(specified),
+            ),
         )
     }
 
@@ -2039,10 +2168,10 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
     }
 
     /**
-     * Highlighting, whose rule takes an uncertain answer, gets each of a module's several copies; a feature whose rule
-     * takes none gets none of them, though the expander finds each.
+     * Highlighting, Quick Documentation and Parameter Info, whose rules take an uncertain answer, get each of a module's
+     * several copies; a feature whose rule takes none gets none of them, though the expander finds each.
      */
-    fun testOnlyHighlightingGetsSeveralCopies() {
+    fun testOnlyTheFeaturesTakingUncertainAnswersGetSeveralCopies() {
         file("defmodule Twice do\n  def g(a), do: a\nend\n")
         file("defmodule Twice do\n  def g(a), do: a\nend\n")
         val caller = file("defmodule Caller do\n  def f, do: Twice.g(1)\nend\n")
@@ -2056,14 +2185,14 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         }
 
         assertEquals(listOf(Uncertain.SEVERAL, Uncertain.SEVERAL), found)
-        assertEquals(Feature.entries.associateWith { if (it == Feature.HIGHLIGHTING) 2 else 0 }, stepped)
+        assertEquals(Feature.entries.associateWith { if (it in EXPANDER_FEATURES) 2 else 0 }, stepped)
     }
 
     /**
-     * A delegation in several copies may not be the one Elixir loads, so neither is the target it reaches: only
-     * highlighting gets the copies.
+     * A delegation in several copies may not be the one Elixir loads, so neither is the target it reaches: only the
+     * features taking uncertain answers get the copies.
      */
-    fun testOnlyHighlightingGetsADelegationInSeveralCopies() {
+    fun testOnlyTheFeaturesTakingUncertainAnswersGetADelegationInSeveralCopies() {
         file("defmodule Twice do\n  defdelegate g(a), to: Target\nend\n")
         file("defmodule Twice do\n  defdelegate g(a), to: Target\nend\n")
         file("defmodule Target do\n  def g(a), do: a\nend\n")
@@ -2081,7 +2210,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             listOf("OWN SEVERAL", "DELEGATION_TARGET SEVERAL", "OWN SEVERAL", "DELEGATION_TARGET SEVERAL"),
             found,
         )
-        assertEquals(Feature.entries.associateWith { if (it == Feature.HIGHLIGHTING) 2 else 0 }, stepped)
+        assertEquals(Feature.entries.associateWith { if (it in EXPANDER_FEATURES) 2 else 0 }, stepped)
     }
 
     /** Past a stop every feature keeps the env's find, marked STOP. */
@@ -2210,10 +2339,10 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
     }
 
     /**
-     * A written name the table holds reaches every feature; one the index holds past a stop, marked INDEX, only
-     * highlighting, whose rule takes an uncertain answer.
+     * A written name the table holds reaches every feature; one the index holds past a stop, marked INDEX, only the
+     * features whose rules take an uncertain answer.
      */
-    fun testOnlyHighlightingGetsAWrittenNameTheIndexHolds() {
+    fun testOnlyTheFeaturesTakingUncertainAnswersGetAWrittenNameTheIndexHolds() {
         val file = file(STOPPED)
         val calls = STOPPED_CALLS.take(2).map { ExpanderSourceRows.call(file, it, it) }
 
@@ -2228,21 +2357,24 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(
             listOf(
                 Feature.entries.associateWith { 1 },
-                Feature.entries.associateWith { if (it == Feature.HIGHLIGHTING) 1 else 0 },
+                Feature.entries.associateWith { if (it in EXPANDER_FEATURES) 1 else 0 },
             ),
             taken,
         )
     }
 
-    /** With the setting alone only highlighting asks the expander, so every other feature gets the walk's none. */
-    fun testWithTheSettingOnlyHighlightingGetsAWrittenNameWithTheExpanderOn() {
+    /**
+     * With the setting alone only highlighting, Quick Documentation and Parameter Info ask the expander, so every other
+     * feature gets the walk's none.
+     */
+    fun testWithTheSettingOnlyTheExpandersFeaturesGetAWrittenNameWithTheExpanderOn() {
         enableExpander(testRootDisposable)
         val file = file(STOPPED)
         val before = STOPPED_CALLS.first().let { ExpanderSourceRows.call(file, it, it) }
 
         val taken = read { Feature.entries.associateWith { Resolved.writtenNames(before, it).size } }
 
-        assertEquals(Feature.entries.associateWith { if (it == Feature.HIGHLIGHTING) 1 else 0 }, taken)
+        assertEquals(Feature.entries.associateWith { if (it in EXPANDER_FEATURES) 1 else 0 }, taken)
     }
 
     /** A `.beam`'s definition is declared by its module as the module index names it, without `inspect`'s quotes. */
@@ -2318,6 +2450,34 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
     }
 
+    /** Past a stop the index gives a function at every arity, local or remote, so a call at an arity it doesn't take has it as a near miss. */
+    fun testPastAStopTheIndexGivesAFunctionAtEveryArity() {
+        val file = file(
+            """
+            defmodule Some.Processor do
+              def process(item, opts), do: {item, opts}
+            end
+
+            defmodule User do
+              1.f()
+              alias Some.Processor
+
+              def go(a), do: heap(a, a, a)
+              def again(x), do: Processor.process(x, x, x)
+              def heap(a), do: a
+            end
+            """
+        )
+
+        assertEquals(
+            listOf(
+                "User.heap/1 INDEXED WRONG_ARITY via [] line 11 INDEX",
+                "Some.Processor.process/2 INDEXED WRONG_ARITY via [] line 2 INDEX",
+            ),
+            listOf(candidates(file, "heap(a, a, a)", "heap(a, a, a)"), candidates(file, "Processor.process(x, x, x)", "Processor.process(x, x, x)")),
+        )
+    }
+
     /** A `def` in a `quote` defines nothing in the module the `quote` is in, so the index gives none. */
     fun testPastAStopTheIndexGivesNoDefinitionInAQuote() {
         val file = file(
@@ -2325,19 +2485,103 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             defmodule Q do
               defmacro make do
                 quote do
-                  def quoted(a), do: a
+                  def quoted_here(a), do: a
                 end
               end
             end
 
             defmodule User do
               1.f()
-              def go, do: quoted(1)
+              def go, do: quoted_here(1)
             end
             """
         )
 
-        assertEquals("", candidates(file, "quoted(1)", "quoted(1)"))
+        assertEquals("", candidates(file, "quoted_here(1)", "quoted_here(1)"))
+    }
+
+    /**
+     * A `defdelegate` a module-level `case`, `for`, `unless`, `if` or `else` writes delegates as one in the module's
+     * body does, so a use of it reaches its target, as the walk does.
+     */
+    fun testADelegationUnderAModuleLevelBranchReachesItsTarget() {
+        val answers = BRANCHES.flatMap { (branch, opening) ->
+            val file = file(
+                buildList {
+                    addAll(listOf("defmodule Target$branch do", "  def snoc(q, x), do: {q, x}", "end", "", "defmodule Delegating$branch do"))
+                    opening.mapTo(this) { "  $it" }
+                    addAll(listOf("    defdelegate snoc(q, x), to: Target$branch", "  end", "", "  def local(a, b), do: snoc(a, b)", "end", ""))
+                    addAll(listOf("defmodule Caller$branch do", "  def remote(a, b), do: Delegating$branch.snoc(a, b)", "end"))
+                }.joinToString("\n")
+            )
+
+            listOf("do: snoc(a, b)" to "snoc(a, b)", "Delegating$branch.snoc(a, b)" to "Delegating$branch.snoc(a, b)").map { (context, call) ->
+                val use = use(file, context, call)
+                val render = { source: CandidateSource -> renderPreferred(read { preferred(use, source.candidates(use, false), false) }) }
+
+                Triple("$branch $call", render(LegacyWalkSource), render(ExpanderSource))
+            }
+        }
+
+        answers.forEach { (at, walk, _) -> assertTrue("$at: the walk reaches the target:\n$walk", "  Target" in walk) }
+        assertEquals(answers.joinToString("\n") { (at, walk, _) -> "$at\n$walk" }, answers.joinToString("\n") { (at, _, expander) -> "$at\n$expander" })
+    }
+
+    /**
+     * A module-level `for` defines a delegation clause for each iteration, so each clause delegates to that iteration's
+     * target.
+     */
+    fun testEachIterationOfAModuleLevelForDelegatesToItsOwnTarget() {
+        val file = file(
+            """
+            defmodule First do
+              def snoc(q, x), do: {q, x}
+            end
+
+            defmodule Second do
+              def snoc(q, x), do: {x, q}
+            end
+
+            defmodule Delegating do
+              for target <- [First, Second] do
+                defdelegate snoc(q, x), to: target
+              end
+            end
+
+            defmodule Caller do
+              def go(a, b), do: Delegating.snoc(a, b)
+            end
+            """
+        )
+        val use = use(file, "Delegating.snoc(a, b)", "Delegating.snoc(a, b)")
+
+        assertEquals(
+            listOf("First.snoc/2", "Second.snoc/2"),
+            read { preferred(use, ExpanderSource.candidates(use, false), false) }.flatMap { it.delegatedTo }.map(::name).distinct(),
+        )
+    }
+
+    /** A `def` and a `defstruct` under a module-level branch define in the module, as Elixir does. */
+    fun testADefinitionAndAStructUnderAModuleLevelBranchAreDefined() {
+        val answers = BRANCHES.map { (branch, opening) ->
+            val file = file(
+                buildList {
+                    add("defmodule Defining$branch do")
+                    opening.mapTo(this) { "  $it" }
+                    addAll(listOf("    defstruct [:a]", "    def f(x), do: x", "  end", "end", ""))
+                    addAll(listOf("defmodule Caller$branch do", "  def go, do: {Defining$branch.f(1), Defining$branch.__struct__()}", "end"))
+                }.joinToString("\n")
+            )
+
+            listOf("Defining$branch.f(1)", "Defining$branch.__struct__()").joinToString("\n") { call ->
+                candidates(file, call, call).substringBefore(" via")
+            }
+        }
+
+        assertEquals(
+            BRANCHES.keys.map { branch -> "Defining$branch.f/1 OWN VALID\nDefining$branch.__struct__/0 OWN VALID" },
+            answers,
+        )
     }
 
     /** A `defimpl` for several modules defines its functions in each, so the index gives one for each. */
@@ -2367,6 +2611,42 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             """.trimIndent(),
             candidates(file, "p_measure(1)", "p_measure(1)"),
         )
+    }
+
+    /**
+     * A `defimpl` for several modules writes its clauses in each, so Parameter Info names each module's function by
+     * the signature Elixir records from its clauses, from within the `defimpl` and from outside it, as the walk does.
+     */
+    fun testParameterInfoNamesTheParametersOfADefimplForSeveralModules() {
+        val file = file(
+            """
+            defprotocol Placed do
+              def f(x)
+            end
+
+            defimpl Placed, for: [Atom, Integer] do
+              def f([]), do: []
+              def f(list), do: list
+              def run(x), do: f(x)
+            end
+
+            defmodule Caller do
+              def go, do: Placed.Integer.f(1)
+            end
+            """
+        )
+
+        val calls = listOf("do: f(x)" to "f(x)", "Placed.Integer.f(1)" to "Placed.Integer.f(1)")
+        val parameters = { use: Use ->
+            read { signatures(Resolved.step(use, true, feature = Feature.PARAMETER_INFO)).map(Signature::parameters) }
+        }
+        val answers = calls.associate { (context, call) ->
+            val use = use(file, context, call)
+
+            call to (parameters(use) to withExpanderSwitch { parameters(use) })
+        }
+
+        assertEquals(calls.associate { (_, call) -> call to (listOf(listOf("list")) to listOf(listOf("list"))) }, answers)
     }
 
     /** A library's source and its `.beam` define one function, so the index gives it once. */
@@ -2510,6 +2790,44 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             listOf(
                 candidates(file, "Target.later(1)", "Target.later(1)"),
                 candidates(file, "Delegator.later(1)", "Delegator.later(1)"),
+            ),
+        )
+    }
+
+    /**
+     * A link into a module whose definitions aren't known to its end, finding nothing there, gets the index's
+     * definitions of the name in that module, as a call does: from another module, as a qualified call; from the
+     * module itself, as a local one.
+     */
+    fun testALinkIntoAModuleNotKnownToItsEndGetsItsIndexedDefinitions() {
+        val file = file(
+            """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Target do
+              @moduledoc "See `later/1`."
+              require M
+              M.m()
+              def later(a), do: a
+            end
+
+            defmodule Linker do
+              @moduledoc "See `Target.later/1`."
+            end
+            """
+        )
+        val (target, linker) = modulars(file, "defmodule Target", "defmodule Linker")
+
+        assertEquals(
+            rows(
+                "remote" to "Target.later/1 INDEXED VALID via [] line 9 INDEX",
+                "own" to "Target.later/1 INDEXED VALID via [] line 9 INDEX",
+            ),
+            rows(
+                "remote" to ExpanderSourceRows.candidates(read { Use.link(linker, target, "later", 1) }),
+                "own" to ExpanderSourceRows.candidates(read { Use.link(target, target, "later", 1) }),
             ),
         )
     }
@@ -2666,29 +2984,294 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
     }
 
-    /** Why [ExpanderSource]'s answer to the use [call] in [context] may be missing what it reaches, or `certain`. */
-    private fun absence(file: PsiFile, context: String, call: String): String {
-        val use = use(file, context, call)
+    /**
+     * Past a stop, an MFA whose arity isn't a literal names each arity the name index holds of the function, as Elixir
+     * has one function of each arity.
+     */
+    fun testPastAStopAnMfaOfAnyArityNamesEachArityTheIndexHolds() {
+        val file = file(
+            """
+            defmodule Foo do
+              def g(x), do: x
+            end
 
-        return read { ExpanderSource.answer(use, false) }.absence?.name ?: "certain"
+            defmodule Some.Processor do
+              def process(item), do: item
+              def process(item, opts), do: {item, opts}
+            end
+
+            defmodule Caller do
+              import Foo, only: [Foo, g: 1]
+              alias Some.Processor
+
+              def calls(n), do: {Processor, :process, n}
+            end
+            """
+        )
+
+        assertEquals(
+            "Some.Processor.process/1 INDEXED OPAQUE via [] line 6 INDEX\n" +
+                "Some.Processor.process/2 INDEXED OPAQUE via [] line 7 INDEX",
+            ExpanderSourceRows.candidates(mfa(file, "{Processor, :process, n}")),
+        )
     }
 
-    /** [beam], an IFF `FOR1`/`BEAM` file, with its chunk [id] dropped. */
-    private fun withoutChunk(beam: ByteArray, id: String): ByteArray {
-        val input = java.nio.ByteBuffer.wrap(beam)
-        val out = java.io.ByteArrayOutputStream()
-        out.write(beam, 8, 4) // "BEAM"
-        var at = 12
-        while (at < beam.size) {
-            val size = input.getInt(at + 4)
-            val padded = (size + 3) and 3.inv()
-            if (String(beam, at, 4, Charsets.US_ASCII) != id) out.write(beam, at, 8 + padded)
-            at += 8 + padded
+    /** A `@spec` head names what its own module defines of its name. */
+    fun testASpecHeadNamesItsModulesDefinitions() {
+        val file = file(
+            """
+            defmodule Specced do
+              @spec f(integer) :: integer
+              def f(x), do: x
+              def f(x, y), do: x + y
+            end
+            """
+        )
+        val use = specification(file)
+
+        assertAnswersAsTheWalk(
+            use,
+            """
+            Specced.f/1 OWN VALID via [] line 3
+            Specced.f/2 OWN WRONG_ARITY via [] line 4
+            """,
+        )
+    }
+
+    /** A `@spec` head in a module whose definitions aren't known to its end gets the index's definitions of its name there. */
+    fun testASpecHeadInAModuleNotKnownToItsEndGetsItsIndexedDefinitions() {
+        val file = file(
+            """
+            defmodule M do
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
+            end
+
+            defmodule Specced do
+              require M
+              M.m()
+              @spec f(integer) :: integer
+              def f(x), do: x
+            end
+            """
+        )
+
+        assertEquals("Specced.f/1 INDEXED VALID via [] line 9 INDEX", ExpanderSourceRows.candidates(specification(file)))
+    }
+
+    /** An MFA names what its module defines of its name: at a literal arity as a call of it; at any other, undecided. */
+    fun testAnMfaNamesItsModulesDefinitions() {
+        val file = file(
+            """
+            defmodule Target do
+              def t(a), do: a
+            end
+
+            defmodule Caller do
+              def literal, do: {Target, :t, 1}
+              def any(n), do: {Target, :t, n}
+              def applied, do: apply(Target, :u, [1])
+            end
+            """
+        )
+
+        assertEquals(
+            listOf("Target.t/1 OWN VALID via [] line 2", "Target.t/1 OWN OPAQUE via [] line 2", ""),
+            listOf("{Target, :t, 1}", "{Target, :t, n}", "apply(Target, :u, [1])").map { context ->
+                val use = mfa(file, context)
+                val expander = ExpanderSourceRows.candidates(use)
+
+                assertEquals(context, ExpanderSourceRows.candidates(use, LegacyWalkSource), expander)
+
+                expander
+            },
+        )
+    }
+
+    /** A link names what is reached from its entrance: the module it names, or its own module. */
+    fun testALinkNamesWhatItsEntranceReaches() {
+        val file = file(
+            """
+            defmodule Target do
+              def t(a), do: a
+            end
+
+            defmodule Linker do
+              @moduledoc "See `Target.t/1` and `own/1`."
+              def own(a), do: a
+            end
+            """
+        )
+        val (target, linker) = modulars(file, "defmodule Target", "defmodule Linker")
+
+        assertAnswersAsTheWalk(read { Use.link(linker, target, "t", 1) }, "Target.t/1 OWN VALID via [] line 2")
+        assertAnswersAsTheWalk(read { Use.link(linker, linker, "own", 1) }, "Linker.own/1 OWN VALID via [] line 7")
+    }
+
+    /** A link names the callbacks its module writes. */
+    fun testALinkNamesTheCallbacksItsModuleWrites() {
+        val file = file(
+            """
+            defmodule Basics do
+              @callback only_callback(integer) :: term
+            end
+
+            defmodule Linker do
+              @moduledoc "See `c:Basics.only_callback/1`."
+            end
+            """
+        )
+        val (basics, linker) = modulars(file, "defmodule Basics", "defmodule Linker")
+
+        assertAnswersAsTheWalk(read { Use.link(linker, basics, "only_callback", 1) }, "Basics.only_callback/1 OWN VALID via [] line 2")
+    }
+
+    /** A link names the callbacks of each copy of a module written more than once, each marked SEVERAL. */
+    fun testALinkNamesTheCallbacksOfEachCopyOfAModule() {
+        file("defmodule Basics do\n  @callback only_callback(integer) :: term\nend\n")
+        file("defmodule Basics do\n  @callback only_callback(integer) :: term\nend\n")
+        val linking = file("defmodule Linker do\n  @moduledoc \"See `c:Basics.only_callback/1`.\"\nend\n")
+        val (linker) = modulars(linking, "defmodule Linker")
+        val uses = read {
+            MarkdownFlavourDescriptor.modulars(linker, "Basics").map { entrance -> Use.link(linker, entrance, "only_callback", 1) }
         }
-        val body = out.toByteArray()
 
-        return java.nio.ByteBuffer.allocate(8 + body.size).put("FOR1".toByteArray()).putInt(body.size).put(body).array()
+        assertEquals(
+            rows(
+                "expander" to "only_callback SEVERAL\nonly_callback SEVERAL",
+                "walk" to "only_callback null",
+            ),
+            rows(
+                "expander" to callbacksFound(uses.first(), ExpanderSource),
+                "walk" to callbacksFound(uses.first(), LegacyWalkSource),
+            ),
+        )
     }
+
+    /**
+     * A compiled module with no source attached has its callbacks unread, so a link to one finds nothing and says so: the
+     * module's definitions aren't known.
+     */
+    fun testALinkToACallbackOfACompiledModuleIsAnAbsenceMarkedModule() {
+        val linking = file("defmodule Linker do\n  @moduledoc \"See `c:GenServer.init/1`.\"\nend\n")
+        val (linker) = modulars(linking, "defmodule Linker")
+        val use = read { Use.link(linker, MarkdownFlavourDescriptor.modulars(linker, "GenServer").first(), "init", 1) }
+
+        assertEquals(
+            rows("expander" to "MODULE", "walk" to ""),
+            rows(
+                "expander" to absence(use),
+                "walk" to callbacksFound(use, LegacyWalkSource),
+            ),
+        )
+    }
+
+    /** The callbacks [source] finds at [use], `<name> <uncertain>` one per line. */
+    private fun callbacksFound(use: Use, source: CandidateSource): String =
+        callbacks(use, source) { "${it.candidate.declaration.name} ${it.uncertain}" }
+
+    /**
+     * A link to a name that is both a function and a callback names the function first, so a plain link opens it, as
+     * ExDoc reads one, and a `c:` link the callback. The walk names them in the order they are written.
+     */
+    fun testALinkToAFunctionThatIsAlsoACallbackNamesTheFunctionFirst() {
+        val file = file(
+            """
+            defmodule Basics do
+              @callback both(integer) :: term
+
+              def both(a), do: a
+            end
+
+            defmodule Linker do
+              @moduledoc "See `Basics.both/1`."
+            end
+            """
+        )
+        val (basics, linker) = modulars(file, "defmodule Basics", "defmodule Linker")
+        val use = read { Use.link(linker, basics, "both", 1) }
+
+        assertEquals(
+            rows(
+                "expander" to "Basics.both/1 OWN VALID via [] line 4\nBasics.both/1 OWN VALID via [] line 2",
+                "walk" to "Basics.both/1 OWN VALID via [] line 2\nBasics.both/1 OWN VALID via [] line 4",
+            ),
+            rows(
+                "expander" to ExpanderSourceRows.candidates(use),
+                "walk" to ExpanderSourceRows.candidates(use, LegacyWalkSource),
+            ),
+        )
+    }
+
+    /** A link names a callback a `use` injects, declared at the `@callback` its macro's `quote` writes. */
+    fun testALinkNamesACallbackAUseInjects() {
+        val file = file(
+            """
+            defmodule Behaviour do
+              defmacro __using__(_) do
+                quote do
+                  @callback injected(integer) :: term
+                end
+              end
+            end
+
+            defmodule Basics do
+              use Behaviour
+            end
+
+            defmodule Linker do
+              @moduledoc "See `c:Basics.injected/1`."
+            end
+            """
+        )
+        val (basics, linker) = modulars(file, "defmodule Basics", "defmodule Linker")
+
+        assertAnswersAsTheWalk(read { Use.link(linker, basics, "injected", 1) }, "Basics.injected/1 USE VALID via [use Behaviour] line 4")
+    }
+
+    /** A call never names a callback: a callback is a contract, not a function a call runs. */
+    fun testACallOfANameOnlyACallbackWritesFindsNothing() {
+        val file = file(
+            """
+            defmodule Basics do
+              @callback foo(integer) :: term
+
+              def run, do: foo(1)
+            end
+            """
+        )
+
+        assertEquals("", candidates(file, "foo(1)", "foo(1)"))
+    }
+
+    /** The use of the head `f(integer)` written in [file]'s only `@spec`. */
+    private fun specification(file: PsiFile): Use.Specified =
+        read {
+            val attribute = PsiTreeUtil.findChildrenOfType(file, AtUnqualifiedNoParenthesesCall::class.java).single()
+
+            Use.specification(PsiTreeUtil.findChildrenOfType(attribute, Call::class.java).first { it.text == "f(integer)" }, attribute)!!
+        }
+
+    /** The use of the first atom written in [context]. */
+    private fun mfa(file: PsiFile, context: String): Use.Remote =
+        read {
+            val offset = file.text.indexOf(context) + context.indexOf(':')
+
+            Use.mfa(PsiTreeUtil.getParentOfType(file.findElementAt(offset), ElixirAtom::class.java, false)!!)!!
+        }
+
+    /** [ExpanderSource] and the walk both give [use] the candidates [expected], rendered one per line. */
+    private fun assertAnswersAsTheWalk(use: Use, expected: String) {
+        val expander = ExpanderSourceRows.candidates(use)
+
+        assertEquals(expected.trimIndent(), expander)
+        assertEquals(ExpanderSourceRows.candidates(use, LegacyWalkSource), expander)
+    }
+
+    /** Why [ExpanderSource]'s answer to the use [call] in [context] may be missing what it reaches, or `certain`. */
+    private fun absence(file: PsiFile, context: String, call: String): String = absence(use(file, context, call))
+
+    /** Why [ExpanderSource]'s answer to [use] may be missing what it reaches, or `certain`. */
+    private fun absence(use: Use): String = read { ExpanderSource.answer(use, false) }.absence?.name ?: "certain"
 
     /** How each module [file] defines at its top ended, by name. */
     private fun ended(file: PsiFile): Map<String, String> =
@@ -2729,10 +3312,17 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         last: Boolean = false,
         source: CandidateSource = ExpanderSource,
         incompleteCode: Boolean = false,
-    ): String {
-        val use = use(file, context, call, last)
+    ): String = ExpanderSourceRows.candidates(use(file, context, call, last), source, incompleteCode)
 
-        return render(read { source.candidates(use, incompleteCode) })
+    /** Where [ExpanderSource] declares each find at the use [call] in [context]: `<module>.<name>/<arity> <form> <element's first line>`. */
+    private fun declaredAt(file: PsiFile, context: String, call: String): List<String> {
+        val use = use(file, context, call)
+
+        return read {
+            ExpanderSource.candidates(use, false).map { found ->
+                "${name(found)} ${(found.candidate.declaration.declared as? Declared.Source)?.form} ${found.element.text.lines().first()}"
+            }
+        }
     }
 
     /** [preferred], each candidate then the targets it delegates to, indented, one per line. */
@@ -2762,7 +3352,16 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
     }
 
     companion object {
-        private val WRITER = """
+        /** The module-level branches by name, each as the lines that open it, closed by an `end`. */
+        private val BRANCHES = mapOf(
+            "Case" to listOf("case Code.ensure_loaded?(Kernel) do", "  _ ->"),
+            "For" to listOf("for _ <- [1] do"),
+            "Unless" to listOf("unless false do"),
+            "If" to listOf("if true do"),
+            "Else" to listOf("if false do", "  :ok", "else"),
+        )
+
+        private const val WRITER = """
             defmodule Target do
               def t(a), do: a
               def first(a), do: a
@@ -2795,7 +3394,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             "Mix.Generator.embed_text(:banner, \"Banner\")",
         )
 
-        private val STOPPED = """
+        private const val STOPPED = """
             defmodule M do
               defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
             end

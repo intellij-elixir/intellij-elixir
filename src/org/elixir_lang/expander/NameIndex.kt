@@ -15,7 +15,7 @@ import com.intellij.util.containers.CollectionFactory
 import org.elixir_lang.NameArity
 import org.elixir_lang.beam.psi.CallDefinition
 import org.elixir_lang.declaration.Declaration
-import org.elixir_lang.declaration.Form
+import org.elixir_lang.declaration.isContract
 import org.elixir_lang.expander.ExpanderSource.Probe
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirFile
@@ -62,13 +62,16 @@ internal class NameIndex<T> private constructor(byName: Map<String, List<T>>) {
         private fun examined(items: List<T>) = Probe.count(Probe.Counter.EXAMINED, items.size)
     }
 
+    /** What a source file writes for a module: the [heads] it defines, and apart from them its [callbacks]. */
+    private class Written(val heads: NameIndex<WrittenHead>, val callbacks: NameIndex<WrittenHead>)
+
     companion object {
         private val tables =
             CollectionFactory.createConcurrentWeakIdentityMap<DefinitionTable, NameIndex<Map.Entry<NameArity, DefinitionTable.Entry>>>()
         private val imports = CollectionFactory.createConcurrentWeakIdentityMap<Env.Imports, NameIndex<NameArity>>()
         private val exports = CollectionFactory.createConcurrentWeakIdentityMap<ModuleExports.Present, NameIndex<NameArity>>()
         private val definitions = Key.create<CachedValue<NameIndex<CallDefinition>>>("org.elixir_lang.expander.NameIndex.definitions")
-        private val heads = Key.create<CachedValue<ConcurrentHashMap<String, NameIndex<WrittenHead>>>>("org.elixir_lang.expander.NameIndex.heads")
+        private val heads = Key.create<CachedValue<ConcurrentHashMap<String, Written>>>("org.elixir_lang.expander.NameIndex.heads")
 
         /**
          * [table]'s named definitions, leaving out an entry a definition's defaults added while a definition of its name
@@ -106,12 +109,23 @@ internal class NameIndex<T> private constructor(byName: Map<String, List<T>>) {
          * once; none otherwise. Held on [file] until it changes.
          */
         @RequiresReadLock
-        fun of(file: ElixirFile, module: String): NameIndex<WrittenHead> {
+        fun of(file: ElixirFile, module: String): NameIndex<WrittenHead> = written(file, module).heads
+
+        /** The `@callback`s and `@macrocallback`s [file] writes for [module], as [of] gives the heads. */
+        @RequiresReadLock
+        fun callbacks(file: ElixirFile, module: String): NameIndex<WrittenHead> = written(file, module).callbacks
+
+        private fun written(file: ElixirFile, module: String): Written {
             val byModule = CachedValuesManager.getCachedValue(file, heads) {
-                CachedValueProvider.Result.create(ConcurrentHashMap<String, NameIndex<WrittenHead>>(), file)
+                CachedValueProvider.Result.create(ConcurrentHashMap<String, Written>(), file)
             }
 
-            return byModule.getOrPut(module) { of(writtenHeads(file, module)) { it.declaration.name } }
+            return byModule.getOrPut(module) {
+                // A `@callback` declares nothing a module defines, so the callbacks are indexed apart.
+                val (callbacks, defined) = writtenHeads(file, module).partition { isContract(it.declaration) }
+
+                Written(of(defined) { it.declaration.name }, of(callbacks) { it.declaration.name })
+            }
         }
 
         private fun writtenHeads(file: ElixirFile, module: String): List<WrittenHead> {
@@ -121,8 +135,7 @@ internal class NameIndex<T> private constructor(byName: Map<String, List<T>>) {
 
             return CallDefinitionClause.modularChildCalls(modular).flatMap { call ->
                 ProgressManager.checkCanceled()
-                // A `@callback` declares nothing a module defines.
-                val form = DeclaringForm.shapedForm(call)?.takeUnless { it == Form.CALLBACK } ?: return@flatMap emptyList()
+                val form = DeclaringForm.shapedForm(call) ?: return@flatMap emptyList()
 
                 Declarations.of(form, call, ResolveState.initial()).mapNotNull { spelled ->
                     spelled.declaration?.let { WrittenHead(it, call, DeclaringForm.head(call, form, it.name, it.arity)) }

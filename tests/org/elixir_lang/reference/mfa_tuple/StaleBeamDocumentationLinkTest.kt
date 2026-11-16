@@ -2,6 +2,7 @@ package org.elixir_lang.reference.mfa_tuple
 
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.beam.BeamLibraryTestCase
+import org.elixir_lang.declaration.disableExpander
 import org.elixir_lang.documentation.ElixirDocumentationProvider
 import org.elixir_lang.documentation.quickDocumentationAtCaret
 import org.elixir_lang.psi.call.Call
@@ -18,8 +19,10 @@ class StaleBeamDocumentationLinkTest : BeamLibraryTestCase() {
     override val ebinDirectory: File
         get() = File(testDataPath, "ebin").absoluteFile
 
+    /** Run the expander off, whatever the run's default: this class pins the walk's answers. */
     override fun setUp() {
         super.setUp()
+        disableExpander(testRootDisposable)
 
         myFixture.addFileToProject(
             "lib/mod.ex",

@@ -120,7 +120,7 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
                         .orEmpty()
                 Form.EXCEPTION -> return exception(name, clause.head as? Call)?.let(Built::Recorded) ?: Built.None
                 Form.EEX_FUNCTION_FROM ->
-                    (clause.head as? Call)?.let { eexFunctionFrom(Simplifier(module, it), it) }.orEmpty()
+                    (clause.head as? Call)?.let { eexFunctionFrom(Simplifier(module, it), it) } ?: return Built.Unknown
                 Form.GENERATOR_EMBED -> embed(clause.head as? Call)
                 Form.CALLBACK -> return Built.None
             }
@@ -153,13 +153,15 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
             return ((written as? Quotable)?.quote() as? OtpErlangList)?.elements()
         }
 
-        /** The macro's own `[:a, :b]` argument-name list, which no PSI head spells, each name read as a variable. */
-        private fun eexFunctionFrom(simplifier: Simplifier, call: Call): List<Simplified> =
+        /**
+         * The macro's own `[:a, :b]` argument-name list, which no PSI head spells, each name read as a variable; `null`
+         * where the bindings aren't a list.
+         */
+        private fun eexFunctionFrom(simplifier: Simplifier, call: Call): List<Simplified>? =
             call.finalArguments()
                 ?.let(Declarations::eexBindings)
                 ?.first
                 ?.map(simplifier::variableNamed)
-                .orEmpty()
 
         /** `embed_template` defines a function of `assigns`, `embed_text` one of nothing. */
         private fun embed(call: Call?): List<Simplified> =

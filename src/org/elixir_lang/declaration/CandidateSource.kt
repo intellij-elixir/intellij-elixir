@@ -11,7 +11,6 @@ import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.Unquote
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.qualification.Qualified as QualifiedPsi
 import org.elixir_lang.psi.impl.functionNameAtomValue
@@ -44,6 +43,10 @@ interface CandidateSource {
     /** The names the declaring [call] writes beyond a clause's own head word. */
     @RequiresReadLock
     fun writtenNames(call: Call): List<WrittenName>
+
+    /** The form [call] declares with, or `null` where it declares nothing. */
+    @RequiresReadLock
+    fun declaredForm(call: Call): Form?
 }
 
 /**
@@ -95,8 +98,10 @@ sealed class CompletionPosition {
 /**
  * A [candidate] at a use, the PSI [element] that declares it, [via], the `import` and `use` calls and then the
  * `defdelegate` calls it was reached through, the [head] that declares it, and for a delegation target the head of the
- * delegation the use reached it through, [delegatedThrough], as that delegation's own [head] is, and why it may not
- * be what Elixir reaches, [uncertain], `null` where it is.
+ * delegation the use reached it through, [delegatedThrough], as that delegation's own [head] is, why it may not be
+ * what Elixir reaches, [uncertain], `null` where it is, and the arities of it the `import` it was reached through
+ * brings in, [imported], where its source records them; `null` where it records none, and the `import` calls in [via]
+ * say.
  */
 data class Found(
     val candidate: Candidate,
@@ -105,17 +110,20 @@ data class Found(
     val head: Head,
     val delegatedThrough: Head?,
     val uncertain: Uncertain? = null,
+    val imported: Set<Int>? = null,
 ) {
     val certain: Boolean get() = uncertain == null
 }
 
 /**
  * One head of a definition: the PSI [written] that writes it, the [module] that declares it, as the source that found
- * it knows it, and its [name] and [arity]. [written] is a clause's or a delegation's head, one of a list of
- * `defdelegate` heads, the call of a form that writes no head, or a compiled definition; it is `null` where nothing
- * written declares the head, as where debug info places it at the macro clause that injected it.
+ * it knows it, the call [placedBy] that places it in [module], and its [name] and [arity]. [written] is a clause's or a
+ * delegation's head, one of a list of `defdelegate` heads, the call of a form that writes no head, or a compiled
+ * definition; it is `null` where nothing written declares the head, as where debug info places it at the macro clause
+ * that injected it. [placedBy] is the clause itself where it is written in [module]'s own body, else the call in
+ * [module]'s file whose output injected it; it is `null` for a compiled definition, or where no such call is found.
  */
-data class Head(val written: PsiElement?, val module: String?, val name: String, val arity: ArityKnowledge)
+data class Head(val written: PsiElement?, val module: String?, val placedBy: Call?, val name: String, val arity: ArityKnowledge)
 
 /**
  * A use's [found], and why their holding nothing Elixir reaches may not prove the use reaches nothing, [absence],
@@ -128,8 +136,8 @@ fun Found.declaringModuleName(): String? = head.module
 
 /**
  * Where a clause is defined in its module, as Elixir defines the module's clauses in order: [offset] in the module's
- * file, of the clause's head or of the call that injects it, then [within], the head's offset in its own file, which
- * orders the clauses one call injects.
+ * file, of the clause or of the call that injects it, then [within], the head's offset in its own file, which orders
+ * the heads one call writes or injects.
  */
 data class ClauseOrder(val offset: Int, val within: Int) : Comparable<ClauseOrder> {
     override fun compareTo(other: ClauseOrder): Int = compareValuesBy(this, other, ClauseOrder::offset, ClauseOrder::within)
@@ -141,22 +149,14 @@ data class ClauseOrder(val offset: Int, val within: Int) : Comparable<ClauseOrde
 }
 
 /**
- * Where [this]'s clause is defined in the module that declares it: at its head where the head is written in that
- * module, else at the first call [via] crossed in that module. `null` where its head is not written, or no call it
- * crossed is in that module.
+ * Where [this]'s clause is defined in the module that declares it: at the call [Head.placedBy] that places its head
+ * there, then at its head. `null` where its head is not written, or no call places it.
  */
 @RequiresReadLock
 fun Found.clauseOrder(): ClauseOrder? {
     val written = head.written ?: return null
-    val inModule = { call: Call ->
-        CallDefinitionClause.enclosingModularMacroCall(call)?.let { SyntacticCall.of(it).canonicalName() } == head.module
-    }
 
-    return if ((element as? Call)?.let(inModule) == true) {
-        ClauseOrder.at(written)
-    } else {
-        via.firstOrNull(inModule)?.let { ClauseOrder(it.textOffset, written.textOffset) }
-    }
+    return head.placedBy?.let { ClauseOrder(it.textOffset, written.textOffset) }
 }
 
 /**

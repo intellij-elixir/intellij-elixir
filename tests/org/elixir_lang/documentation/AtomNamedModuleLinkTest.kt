@@ -1,9 +1,7 @@
 package org.elixir_lang.documentation
 
-import org.elixir_lang.PlatformTestCase
-
 /** A documentation link naming a module by an atom reaches the module that atom names, however it is written. */
-class AtomNamedModuleLinkTest : PlatformTestCase() {
+class AtomNamedModuleLinkTest : QuickDocumentationTestCase() {
     fun testQuotedAtomLinkReachesModule() = assertLinkReaches(":\"a.b\"", "defmodule :\"a.b\" do")
 
     fun testQuotedAtomLinkReachesModuleWrittenUnquoted() =

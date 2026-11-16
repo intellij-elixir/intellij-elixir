@@ -44,6 +44,32 @@ class OtherArityLinkTest : QuickDocumentationTestCase() {
         assertTrue("Expected foo/2's doc, got: $opened", opened?.contains("Two arguments.") == true)
     }
 
+    /** A `c:` link names only a callback, so a `def` at the linked arity leaves it opening the callback at another. */
+    fun testACallbackLinkOpensTheCallbackAtAnotherArityBesideAFunctionAtTheLinkedArity() {
+        myFixture.configureByText(
+            "docs.ex",
+            """
+            defmodule Do<caret>cs do
+              @moduledoc "Documented."
+
+              @doc "Two arguments."
+              @callback foo(integer, integer) :: term
+
+              @doc "One argument."
+              def foo(a), do: a
+            end
+            """.trimIndent()
+        )
+
+        val opened = myFixture.followedLinkAtCaret(project, "psi_element://c:Docs.foo/1").orEmpty()
+
+        assertTrue("Expected the callback's doc, got: $opened", "Two arguments." in opened)
+        assertFalse("Expected no def's doc, got: $opened", "One argument." in opened)
+    }
+
+    fun testACallbackLinkOpensTheCallbackAtAnotherArityBesideAFunctionAtTheLinkedArityWithTheExpanderOn() =
+        withTheExpanderOn(::testACallbackLinkOpensTheCallbackAtAnotherArityBesideAFunctionAtTheLinkedArity)
+
     fun testACallbackLinkToANameAtAnotherArityOpensItNotALongerName() {
         myFixture.configureByText(
             "docs.ex",
@@ -64,4 +90,7 @@ class OtherArityLinkTest : QuickDocumentationTestCase() {
 
         assertTrue("Expected foo/2's doc, got: $opened", opened?.contains("Two arguments.") == true)
     }
+
+    fun testACallbackLinkToANameAtAnotherArityOpensItNotALongerNameWithTheExpanderOn() =
+        withTheExpanderOn(::testACallbackLinkToANameAtAnotherArityOpensItNotALongerName)
 }

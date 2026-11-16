@@ -3,14 +3,13 @@ package org.elixir_lang.code_insight;
 import com.intellij.lang.parameterInfo.CreateParameterInfoContext;
 import com.intellij.testFramework.utils.parameterInfo.MockCreateParameterInfoContext;
 import com.intellij.testFramework.utils.parameterInfo.MockParameterInfoUIContext;
-import org.elixir_lang.PlatformTestCase;
+import org.elixir_lang.declaration.ExpanderSettingTestCase;
 import org.elixir_lang.psi.Arguments;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class ParameterInfoTest extends PlatformTestCase {
-
+public class ParameterInfoTest extends ExpanderSettingTestCase {
     public void testBareHeadPreferredOverImplementationClauses() {
         myFixture.configureByFiles("bare_head_usage.ex", "bare_head_declaration.ex");
 
