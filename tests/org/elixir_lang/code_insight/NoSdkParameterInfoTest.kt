@@ -46,6 +46,46 @@ class NoSdkParameterInfoTest : PlatformTestCase() {
             )
         )
 
+    /** What a `quote` unquotes runs in the macro, in the module the `quote` is written in, whose private functions it calls. */
+    fun testACallAQuoteUnquotesShowsItsModulesPrivateFunction() =
+        assertEquals(
+            listOf("x"),
+            shown(
+                """
+                defmodule Macros do
+                  defp helper(x), do: x
+
+                  defmacro m do
+                    quote do
+                      unquote(helper(1<caret>))
+                    end
+                  end
+                end
+                """.trimIndent()
+            )
+        )
+
+    /** What an `unquote` escapes runs where the `quote` is, not in a module the `quote` writes around it. */
+    fun testACallAQuoteUnquotesInAModuleItWritesShowsTheMacrosPrivateFunction() =
+        assertEquals(
+            listOf("x"),
+            shown(
+                """
+                defmodule Macros do
+                  defp helper(x), do: x
+
+                  defmacro m do
+                    quote do
+                      defmodule Inner do
+                        def owner, do: unquote(helper(1<caret>))
+                      end
+                    end
+                  end
+                end
+                """.trimIndent()
+            )
+        )
+
     private fun shown(text: String): List<String> = myFixture.parameterInfoSignaturesIn("no_sdk.ex", text)
 
     private companion object {

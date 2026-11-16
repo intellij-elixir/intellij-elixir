@@ -16,7 +16,7 @@ import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
-import com.intellij.psi.util.parentsOfType
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
@@ -56,7 +56,6 @@ import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.QualifiedAlias
-import org.elixir_lang.psi.QuoteMacro
 import org.elixir_lang.psi.Unquote
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
@@ -353,8 +352,7 @@ internal object ExpanderSource : CandidateSource {
      * in, or under, the module that code is injected into, which may define its name itself.
      */
     private fun isQuoted(call: Call): Boolean =
-        (call !is Qualified || isModuleRelative(call.qualifier())) &&
-            call.parentsOfType<Call>(withSelf = false).any { QuoteMacro.`is`(it) && Unquote.isQuotedBy(it, call) }
+        (call !is Qualified || isModuleRelative(call.qualifier())) && Unquote.quoting(call) != null
 
     /** Whether [qualifier]'s leftmost segment is `__MODULE__`: `__MODULE__` itself, or `__MODULE__.Sub`. */
     private fun isModuleRelative(qualifier: PsiElement): Boolean =
@@ -1021,11 +1019,18 @@ internal object ExpanderSource : CandidateSource {
     private fun indexNames(modular: Call): Collection<String> =
         Named.modularNames(definition(modular)) { SyntacticCall.of(modular).canonicalNameSet() }
 
-    /** The `defmodule`, `defimpl` or `defprotocol` [call] is written in, past any clause; none inside a `quote`. */
-    private fun ownModular(call: Call): Call? =
-        generateSequence(CallDefinitionClause.enclosingModularMacroCall(call), CallDefinitionClause::enclosingModularMacroCall)
-            .takeWhile { !QuoteMacro.`is`(it) }
+    /**
+     * The `defmodule`, `defimpl` or `defprotocol` [call] runs in, past any clause: where it is written, or where the
+     * `quote` it is unquoted from is ([Unquote.escaped]); none outside the `quote` that returns it.
+     */
+    private fun ownModular(call: Call): Call? {
+        val runs = Unquote.escaped(call) ?: call
+        val quote = Unquote.quoting(runs)
+
+        return generateSequence(CallDefinitionClause.enclosingModularMacroCall(runs), CallDefinitionClause::enclosingModularMacroCall)
+            .takeWhile { quote == null || PsiTreeUtil.isAncestor(quote, it, true) }
             .firstOrNull { definition(it)?.type == Definition.Type.MODULAR }
+    }
 
     /**
      * [indexed]'s definitions that [found] doesn't answer already, each [Reach.INDEXED], reached by a [remote] call or a

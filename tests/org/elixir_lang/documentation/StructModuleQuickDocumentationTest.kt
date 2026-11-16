@@ -136,6 +136,28 @@ class StructModuleQuickDocumentationTest : QuickDocumentationTestCase() {
             """
         )
 
+    /** What an `unquote` escapes runs where the `quote` is, not in a module the `quote` writes around it. */
+    fun testInAnUnquoteInAModuleAQuoteWritesTheMacrosModule() =
+        assertDocumentsTheModule(
+            """
+            defmodule Described do
+              @moduledoc "Describes a value."
+              defstruct [:a]
+
+              defmacro __using__(_) do
+                quote do
+                  defmodule Inner do
+                    def owner, do: unquote(Macro.escape(%__MOD<caret>ULE__{a: 1}))
+                  end
+                end
+              end
+            end
+            """
+        )
+
+    fun testInAnUnquoteInAModuleAQuoteWritesTheMacrosModuleWithTheExpanderOn() =
+        withTheExpanderOn(::testInAnUnquoteInAModuleAQuoteWritesTheMacrosModule)
+
     fun testInAnUnquoteInANestedQuotesOptionsTheMacrosModuleWithTheExpanderOn() =
         withTheExpanderOn(::testInAnUnquoteInANestedQuotesOptionsTheMacrosModule)
 

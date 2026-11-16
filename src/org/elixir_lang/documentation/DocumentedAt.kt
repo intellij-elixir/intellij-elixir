@@ -19,7 +19,6 @@ import org.elixir_lang.psi.ElixirRelativeIdentifier
 import org.elixir_lang.psi.ElixirStructOperation
 import org.elixir_lang.psi.ElixirVariable
 import org.elixir_lang.psi.QualifiableAlias
-import org.elixir_lang.psi.QuoteMacro
 import org.elixir_lang.psi.Unquote
 import org.elixir_lang.psi.__module__.isInBody
 import org.elixir_lang.psi.call.Call
@@ -143,13 +142,17 @@ internal object DocumentedAt {
 
     /**
      * The module [variable], a struct's `__MODULE__`, names, as Elixir expands it: the module whose body it is written
-     * in. None in a `quote`'s body, whose module is its caller's, unless the `quote` unquotes it.
+     * in. None in a `quote`'s body, whose module is its caller's; in what a `quote` unquotes, the `quote`'s module.
      */
-    private fun moduleOf(variable: ElixirVariable): PsiElement? =
-        variable.parentsOfType<Call>(withSelf = false)
-            .filter { isInBody(it, variable) }
-            .takeWhile { !QuoteMacro.`is`(it) || Unquote.isUnquotedIn(it, variable) }
+    private fun moduleOf(variable: ElixirVariable): PsiElement? {
+        val runs = Unquote.escaped(variable) ?: variable
+        val quote = Unquote.quoting(runs)
+
+        return runs.parentsOfType<Call>(withSelf = false)
+            .filter { isInBody(it, runs) }
+            .takeWhile { it != quote }
             .firstOrNull(::isModular)
+    }
 
     /** The modular [alias] declares, else the one modular its reference resolves to. */
     private fun moduleOf(alias: QualifiableAlias): PsiElement? =

@@ -28,7 +28,7 @@ import org.elixir_lang.psi.scope.call_definition_clause.Declarations
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
-import org.elixir_lang.psi.QuoteMacro
+import org.elixir_lang.psi.Unquote
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.CanonicallyNamed
 import org.elixir_lang.psi.impl.identifierName
@@ -433,7 +433,7 @@ object SourceFileDocsHelper {
     private fun atHead(declaring: Call, form: Form, listed: Declaration): List<Found>? {
         val head = DeclaringForm.head(declaring, form, listed.name, listed.arity)?.let(CallDefinitionHead::strip)
         val use = (head as? Call)?.let(Use::of) as? Use.Named ?: return null
-        val source = if (enclosingModularMacroCall(declaring)?.let { QuoteMacro.`is`(it) } == true) LegacyWalkSource else sourceFor(Feature.DOCUMENTATION)
+        val source = if (Unquote.quoting(declaring) != null) LegacyWalkSource else sourceFor(Feature.DOCUMENTATION)
 
         return Resolved.candidates(use, incompleteCode = true, feature = Feature.DOCUMENTATION, source = source)
     }

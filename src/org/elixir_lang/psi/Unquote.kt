@@ -5,6 +5,7 @@ import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.util.parentsOfType
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.__module__.isInBody
@@ -72,6 +73,23 @@ object Unquote {
     /** Whether [entrance] is code [quote] returns: in its body, and not in what it unquotes. */
     @RequiresReadLock
     fun isQuotedBy(quote: Call, entrance: PsiElement): Boolean = isInBody(quote, entrance) && !isUnquotedIn(quote, entrance)
+
+    /** The `quote` that returns [entrance] as code: the innermost enclosing one that [isQuotedBy] it. */
+    @RequiresReadLock
+    fun quoting(entrance: PsiElement): Call? = bodyQuotes(entrance).firstOrNull { !isUnquotedIn(it, entrance) }
+
+    /**
+     * The `quote` where [entrance] runs, as code in an `unquote` that escapes it ([isUnquotedIn]), past any module
+     * written between them, and past the `quote` that one escapes in turn; `null` where [entrance] escapes none.
+     */
+    @RequiresReadLock
+    fun escaped(entrance: PsiElement): Call? = generateSequence(escapedOnce(entrance), ::escapedOnce).lastOrNull()
+
+    private fun escapedOnce(entrance: PsiElement): Call? = bodyQuotes(entrance).firstOrNull()?.takeIf { isUnquotedIn(it, entrance) }
+
+    /** The `quote` calls whose bodies hold [entrance], innermost first. */
+    private fun bodyQuotes(entrance: PsiElement): Sequence<Call> =
+            entrance.parentsOfType<Call>(withSelf = false).filter { QuoteMacro.`is`(it) && isInBody(it, entrance) }
 
     private fun unquotes(quote: Call): Boolean =
             when (quote.keywordArgument("unquote")?.let { AtomName.of(it.stripAccessExpressionAndParentheses()) }) {
