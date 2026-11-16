@@ -460,11 +460,7 @@ internal class Run(
         if (mayNotRun) throw Declined("$what in code that may not run").apply { if (ends) end(null) }
     }
 
-    /**
-     * Whether code the expander doesn't follow ran, which may have changed the directory the compile runs in
-     * ([workingDirectory]), created modules with `Module.create/3` ([maybeCreated]) and required files with
-     * `Code.require_file/1,2`; once set it stays.
-     */
+    /** Whether code the expander doesn't follow ran; once set it stays. */
     private var unfollowedRan = false
 
     /** Whether code the expander doesn't follow ran in the run ([unfollowedRan]), or in the run `Code` followed it from. */

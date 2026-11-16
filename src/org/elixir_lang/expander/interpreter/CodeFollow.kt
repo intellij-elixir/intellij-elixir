@@ -10,6 +10,7 @@ import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.Expansion
 import org.elixir_lang.expander.Followed
+import org.elixir_lang.expander.Parsed
 import org.elixir_lang.expander.Require
 import org.elixir_lang.expander.TermEscapeView
 import org.elixir_lang.expander.VARIABLE_ORDER
@@ -19,22 +20,31 @@ import org.elixir_lang.expander.children
 import org.elixir_lang.expander.escaped
 import org.elixir_lang.expander.interpreter.Evaluation.EvalEnv
 import org.elixir_lang.expander.isSignedNumber
+import org.elixir_lang.language_level.ElixirLanguageFeature.CODE_INDENTATION_STARTS_LATER_LINES
+import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILER_PARSES_COLUMNS
 import org.elixir_lang.language_level.ElixirLanguageFeature.EVAL_ATOM_GIVES_ITS_BINDING
 import org.elixir_lang.language_level.ElixirLanguageFeature.EVAL_BINDING_DESCENDS
 import org.elixir_lang.language_level.ElixirLanguageFeature.EVAL_NUMBER_GIVES_ITS_BINDING
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.ParserOptions
+import org.elixir_lang.mix.ProjectKeywords.Reading
 import org.elixir_lang.psi.Import.Term
+
+/** The functions of `Code` that [CodeFollow.call] answers by only reading: they parse, or read a compiler option. */
+internal val CODE_READS = setOf("string_to_quoted!", "get_compiler_option")
 
 /**
  * `Code.require_file/1,2`, `eval_file/1,2`, `compile_file/1,2`, `eval_string/1,2,3` and `eval_quoted/1,2,3`: the one
- * site that runs the code those forms run, and what `ensure_compiled/1,!` reach of it. A form that isn't one of those,
- * or an argument whose error Elixir's clauses give, returns `null`, so `Code`'s clauses run.
+ * site that runs the code those forms run, and what `ensure_compiled/1,!` reach of it; `string_to_quoted!/1,2`, which
+ * parses as `eval_string` does; and `get_compiler_option(:parser_options)`. A form that isn't one of those, or an
+ * argument whose error Elixir's clauses give, returns `null`, so `Code`'s clauses run.
  */
 internal class CodeFollow(private val evaluation: Evaluation) {
     private val run get() = evaluation.run
 
     private val level get() = run.level
 
+    /** [key]'s form of `Code` answered. Each that only reads, writing nothing later code reads, is in [CODE_READS]. */
     fun call(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
         when (key) {
             "require_file/1", "require_file/2" -> path(args)?.let(::requireFile)
@@ -42,6 +52,12 @@ internal class CodeFollow(private val evaluation: Evaluation) {
             "eval_file/1", "eval_file/2" -> path(args)?.let(::evalFile)
             "eval_string/1", "eval_string/2", "eval_string/3" -> evalString(args)
             "eval_quoted/1", "eval_quoted/2", "eval_quoted/3" -> evalQuoted(args)
+            "string_to_quoted!/1", "string_to_quoted!/2" -> stringToQuoted(args)
+            "get_compiler_option/1" -> compilerOption(args[0])
+            "put_compiler_option/2", "compiler_options/1" -> {
+                run.shared.compilerOptionsWritten = true
+                null
+            }
             "ensure_compiled/1", "ensure_compiled!/1" -> {
                 reachFollowsOf(args[0])
                 null
@@ -136,23 +152,115 @@ internal class CodeFollow(private val evaluation: Evaluation) {
 
     /** `eval_string/3`: the string parsed at the env's line, then evaluated as [evaluate] does. A string that doesn't parse raises. */
     private fun evalString(args: List<OtpErlangObject>): OtpErlangObject? {
-        val text = when (val string = seen(args[0])) {
-            is OtpErlangBinary -> evaluation.natives.utf8(string) ?: return null
-            is OtpErlangString -> string.stringValue()
-            else -> return null
-        }
+        val text = textOf(args[0]) ?: return null
         val binding = EvalBinding.of(args.getOrNull(1)) ?: return null
         val env = evalEnv(args.getOrNull(2)) ?: return null
-        val line = env.line ?: 1
-        if (line.toLong() + text.count { it == '\n' } > Int.MAX_VALUE) decline("eval_string/3, past the last line counted")
-        val forms = run.files.parsed(text, line) ?: decline("eval_string/3, with no project to parse in")
+
+        return evaluate(parsed(text, env.line ?: 1, 1, 0, "eval_string/3"), binding, env)
+    }
+
+    /**
+     * `string_to_quoted!/1,2`: the string parsed as [evalString] parses it, from the options' `line:`, `column:` and
+     * `indentation:`, and quoted with columns where `columns: true`. `file:`, `emit_warnings:`, `warnings:` and
+     * `token_metadata: false` change nothing it gives; any other option declines, as does text holding a shape the
+     * lowering doesn't lower, whose AST isn't known. `null`, so `Code`'s clauses run, where the string isn't a binary or
+     * a list of code points, or the options aren't a list.
+     */
+    private fun stringToQuoted(args: List<OtpErlangObject>): OtpErlangObject? {
+        val text = textOf(args[0]) ?: return null
+        val options = properElements(seen(args.getOrElse(1) { EMPTY })) ?: return null
+        // As `Keyword.get/3` and `lists:keyfind/3` read them, the first of a key; the tokenizer folds every `indentation:`.
+        val read = LinkedHashMap<String, OtpErlangObject>()
+        val indentations = mutableListOf<OtpErlangObject>()
+
+        for (option in options) {
+            val (key, value) = keywordPair(option) ?: decline("string_to_quoted! given the option %s", option)
+
+            if (key == "indentation") indentations += value else read.putIfAbsent(key, value)
+        }
+
+        for ((key, value) in read) {
+            val ported = when (key) {
+                "line", "column", "columns", "file", "emit_warnings", "warnings" -> true
+                "token_metadata" -> seen(value) != TRUE
+                else -> false
+            }
+
+            if (!ported) decline("string_to_quoted! given the option %s", tuple(atom(key), value))
+        }
+
+        val line = read["line"]?.let { smallInt(seen(it))?.takeIf { n -> n >= 0 } ?: decline("string_to_quoted! from the line %s", it) } ?: 1
+        val column = read["column"]?.let { smallInt(seen(it))?.takeIf { n -> n >= 1 } ?: decline("string_to_quoted! from the column %s", it) } ?: 1
+        read["file"]?.let { if (seen(it) !is OtpErlangBinary) decline("string_to_quoted! in the file %s", it) }
+        // From when it starts the lines after the first, each in turn: one at least 0 is the indentation, a negative one
+        // is passed over, and Elixir adds 1 to any other term at least 0, which raises or isn't a column. Before, none is read.
+        val indentation = if (CODE_INDENTATION_STARTS_LATER_LINES.isSufficient(level)) {
+            indentations.fold(0) { indentation, term ->
+                val n = smallInt(seen(term)) ?: decline("string_to_quoted! given the indentation %s", term)
+
+                if (n >= 0) n else indentation
+            }
+        } else {
+            0
+        }
+
+        val parserOptions = ParserOptions(columns = read["columns"]?.let(::seen) == TRUE)
+
+        return parsed(text, line, column, indentation, "string_to_quoted!").toOtp(parserOptions) { node, _ ->
+            if (node is ElixirAst.Placeholder && node.stopsExpansion) decline("string_to_quoted! of a shape with no lowering")
+        }
+    }
+
+    /** The text of [term], a UTF-8 binary or a proper list of code points; `null` where it is neither. */
+    private fun textOf(term: OtpErlangObject): String? =
+        when (val known = seen(term)) {
+            is OtpErlangBinary -> evaluation.natives.utf8(known)
+            is OtpErlangString -> known.stringValue()
+            else -> properElements(known)?.let { elements ->
+                val points = elements.map { smallInt(seen(it))?.takeIf(Character::isValidCodePoint) ?: return null }
+
+                String(points.toIntArray(), 0, points.size)
+            }
+        }
+
+    /**
+     * [text] parsed, for [caller], as if it began on [line] at [column], with `Code`'s [indentation]: text that doesn't
+     * parse raises, as Elixir's parser does, its exception not known.
+     */
+    private fun parsed(text: String, line: Int, column: Int, indentation: Int, caller: String): ElixirAst {
+        if (line.toLong() + text.count { it == '\n' } > Int.MAX_VALUE) decline("$caller, past the last line counted")
+        if (maxOf(column.toLong(), indentation + 1L) + text.length > Int.MAX_VALUE) decline("$caller, past the last column counted")
+        val forms = when (val parsed = run.files.parsed(text, line, column, indentation)) {
+            is Parsed.Forms -> parsed.forms
+            Parsed.NoProject -> decline("$caller, with no project to parse in")
+            is Parsed.UnplacedHeredoc -> decline("$caller of a heredoc, its later lines from the column ${parsed.laterColumn}")
+        }
 
         if (holdsBroken(forms)) {
             evaluation.mayRaise()
             evaluation.raiseAs("error", Unknown)
         }
 
-        return evaluate(forms, binding, env)
+        return forms
+    }
+
+    /**
+     * `get_compiler_option/1` of `:parser_options`: what the project's `elixirc_options` give the compile
+     * ([parserOptions][org.elixir_lang.expander.RunFiles.parserOptions]), where they give none from
+     * [COMPILER_PARSES_COLUMNS] `[columns: true]`, before `[]`, and not known once a write of the options was reached or
+     * code the expander doesn't follow may have run, which may have written them
+     * ([mayHaveRunUnfollowed][org.elixir_lang.expander.Run.mayHaveRunUnfollowed]). `null` for any other option, which
+     * varies with how Elixir runs.
+     */
+    private fun compilerOption(key: OtpErlangObject): OtpErlangObject? {
+        if (seen(key) != atom("parser_options")) return null
+        if (run.shared.compilerOptionsWritten || run.mayHaveRunUnfollowed) return Unknown
+
+        return when (val project = run.files.parserOptions()) {
+            is Reading.Written -> project.value
+            Reading.Unknown -> Unknown
+            Reading.Absent -> if (COMPILER_PARSES_COLUMNS.isSufficient(level)) list(listOf(tuple(atom("columns"), TRUE))) else EMPTY
+        }
     }
 
     /** `eval_quoted/3`: the quoted code, evaluated as [evaluate] does. */

@@ -31,6 +31,8 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             NEWLINE_COUNTED_IN_CHARACTER to ("1.19.0-rc.0" to "1.19.0-rc.1"),
             IN_OF_NOT_IN_ON_ITS_OWN_LINE to ("1.19.0-rc.0" to "1.19.0-rc.1"),
             LINE_METADATA_ON_BLOCK to ("1.19.5" to "1.20.0-rc.0"),
+            CODE_COLUMN_STARTS_EVERY_LINE to ("1.16.0-rc.1" to "1.16.0"),
+            CODE_INDENTATION_STARTS_LATER_LINES to ("1.18.4" to "1.19.0-rc.0"),
             ESCAPED_NEWLINE_AS_SPACE to ("1.19.5" to "1.20.0-rc.0"),
             HEREDOC_TERMINATOR_AFTER_CONTENT_IS_CONTENT to ("1.11.4" to "1.12.0-rc.0"),
             RESERVED_WORD_BEFORE_TYPE_OPERATOR to ("1.11.4" to "1.12.0-rc.0"),

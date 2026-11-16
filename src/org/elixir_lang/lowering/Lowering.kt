@@ -23,7 +23,13 @@ class Lowering private constructor(
     private val lines: Lines,
     /** The line the text starts on, as `Code`'s `line:` option places the text it parses. */
     private val firstLine: Int = 1,
+    /** The column the text's first line starts at, as `Code`'s `column:` option places it. */
+    private val firstColumn: Int = 1,
+    /** `Code`'s `indentation:` option, which may start the lines after the first ([laterColumn]). */
+    indentation: Int = 0,
 ) {
+    private val laterColumn = laterColumn(languageLevel, firstColumn, indentation)
+
     /**
      * A shape with its own `quote()` belongs to a family, even when only its parent reaches it, as a digit or an
      * operator token does; [BY_PARENT] is for a shape its parent's lowering consumes whole, whether or not it has a
@@ -73,23 +79,52 @@ class Lowering private constructor(
     companion object {
         val classifier = ShapeTable.column(Bucket.UNKNOWN) { it.lowering }
 
-        /** [file] lowered for [languageLevel], which the caller resolves once for the file, starting on [firstLine]. */
+        /**
+         * [file] lowered for [languageLevel], which the caller resolves once for the file, starting on [firstLine] at
+         * [firstColumn], with `Code`'s [indentation].
+         */
         @JvmOverloads
         @RequiresReadLock
-        fun lower(file: ElixirFile, languageLevel: ElixirLanguageLevel, firstLine: Int = 1): ElixirAst {
+        fun lower(
+            file: ElixirFile,
+            languageLevel: ElixirLanguageLevel,
+            firstLine: Int = 1,
+            firstColumn: Int = 1,
+            indentation: Int = 0,
+        ): ElixirAst {
             ThreadingAssertions.assertReadAccess()
 
-            return of(file, languageLevel, firstLine).lower(file)
+            return of(file, languageLevel, firstLine, firstColumn, indentation).lower(file)
         }
 
         @RequiresReadLock
-        internal fun of(file: ElixirFile, languageLevel: ElixirLanguageLevel, firstLine: Int = 1): Lowering {
+        internal fun of(
+            file: ElixirFile,
+            languageLevel: ElixirLanguageLevel,
+            firstLine: Int = 1,
+            firstColumn: Int = 1,
+            indentation: Int = 0,
+        ): Lowering {
             ThreadingAssertions.assertReadAccess()
 
             val text = file.text
 
-            return Lowering(languageLevel, text, Tokenization.lines(file, text, languageLevel), firstLine)
+            return Lowering(languageLevel, text, Tokenization.lines(file, text, languageLevel), firstLine, firstColumn, indentation)
         }
+
+        /**
+         * The column each line after the first starts at, past its own whitespace, where `Code`'s `column:` starts the
+         * first at [firstColumn] and its `indentation:` is [indentation]: one past [indentation] from
+         * [ElixirLanguageFeature.CODE_INDENTATION_STARTS_LATER_LINES], [firstColumn] from
+         * [ElixirLanguageFeature.CODE_COLUMN_STARTS_EVERY_LINE] until then, and 1 before. A line inside a heredoc starts
+         * at 1 even then, which this doesn't count.
+         */
+        fun laterColumn(languageLevel: ElixirLanguageLevel, firstColumn: Int, indentation: Int): Int =
+            when {
+                ElixirLanguageFeature.CODE_INDENTATION_STARTS_LATER_LINES.isSufficient(languageLevel) -> indentation + 1
+                ElixirLanguageFeature.CODE_COLUMN_STARTS_EVERY_LINE.isSufficient(languageLevel) -> firstColumn
+                else -> 1
+            }
 
         /** A lowering over [text] whose positions come from [lines], which the caller has built. */
         internal fun of(text: CharSequence, lines: Lines, languageLevel: ElixirLanguageLevel): Lowering =
@@ -134,7 +169,13 @@ class Lowering private constructor(
 
     /** Elixir's line and column for [offset]. */
     internal fun position(offset: Int): Meta.Position =
-        lines.position(offset).let { if (firstLine == 1) it else Meta.Position(it.line + firstLine - 1, it.column) }
+        lines.position(offset).let {
+            if (firstLine == 1 && firstColumn == 1 && laterColumn == 1) {
+                it
+            } else {
+                Meta.Position(it.line + firstLine - 1, it.column + (if (it.line == 1) firstColumn else laterColumn) - 1)
+            }
+        }
 
     internal fun meta(element: PsiElement, vararg keys: Meta.Key?): Meta = meta(element.textRange, *keys)
 

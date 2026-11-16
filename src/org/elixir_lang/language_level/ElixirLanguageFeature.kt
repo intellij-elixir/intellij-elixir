@@ -1291,6 +1291,23 @@ enum class ElixirLanguageFeature(
     COMPILER_PARSES_COLUMNS(sinceElixir = "1.16.0-rc.0"),
 
     /**
+     * `Code.string_to_quoted/2`'s `column:` starts every line, not only the first: a line after it starts at that
+     * column, past its own whitespace, except a line inside a heredoc, which starts at 1.
+     *
+     * `elixir-lang/elixir@dfafea092` ("Consider column in snippets", #13199), first released in v1.16.0.
+     */
+    CODE_COLUMN_STARTS_EVERY_LINE(sinceElixir = "1.16.0"),
+
+    /**
+     * `Code.string_to_quoted/2`'s `column:` starts the first line only again, and `indentation:` starts the lines after
+     * it. From [CODE_COLUMN_STARTS_EVERY_LINE] until it, `column:` starts them.
+     *
+     * `elixir-lang/elixir@468228a23` ("Add :indentation to Code.string_to_quoted/2", #14406), first released in
+     * v1.19.0-rc.0.
+     */
+    CODE_INDENTATION_STARTS_LATER_LINES(sinceElixir = "1.19.0-rc.0"),
+
+    /**
      * A quoted `Left.unquote(Expr)` call keeps its metadata as it is. Before it, the metadata is quoted ahead of the
      * call's other parts, so a variable in it, such as the line a `quote`'s prelude binds, is quoted as a variable.
      *

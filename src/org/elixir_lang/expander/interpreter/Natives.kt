@@ -366,7 +366,7 @@ internal class Natives(private val evaluation: Evaluation) {
             },
             "Elixir.Application" to reading(Natives::application),
             // A followed file's code may write anything.
-            "Elixir.Code" to writing { key, args ->
+            "Elixir.Code" to Row({ function, _ -> function !in CODE_READS }) { key, args, _ ->
                 if (key == "can_await_module_compilation?/0") canAwaitModuleCompilation() else follow.call(key, args)
             },
             "Elixir.Atom" to reading { key, args -> if (key == "to_string/1") erlang("atom_to_binary/1", args) else null },

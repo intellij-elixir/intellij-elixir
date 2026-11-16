@@ -139,6 +139,7 @@ internal class ExpansionProbes(
         val file: String?,
         val directories: CompileDirectories,
         val os: OS?,
+        val files: RunFiles,
         val layout: ProbeHarness.Layout,
         val index: Int,
     )
@@ -190,8 +191,8 @@ internal class ExpansionProbes(
      * standing for the compile's token, [exports] and [structs] for the modules Elixir loads, [appEnv] for the
      * application environment and [standIns] for the preamble's macros. [hook] adds that hook to each case module,
      * [top] the top-level probe to the end of the file, and [values] sends each case's `q` after its last statement.
-     * [clauses], [file], [directories] and [os] are the expander's inputs of those names. [tap] sees the nodes entered
-     * and the calls dispatched, as the expander reports them.
+     * [clauses], [file], [directories], [os] and [files] are the expander's inputs of those names. [tap] sees the nodes
+     * entered and the calls dispatched, as the expander reports them.
      */
     fun expandAll(
         bodies: List<String>,
@@ -208,6 +209,7 @@ internal class ExpansionProbes(
         directories: CompileDirectories = CompileDirectories.UNKNOWN,
         os: OS? = null,
         tap: ExpansionObserver? = null,
+        files: RunFiles = RunFiles.NONE,
     ): Expansions {
         val level = legLevel()
         val token = harness.token()
@@ -251,6 +253,7 @@ internal class ExpansionProbes(
                 directories,
                 clauses,
                 os = os,
+                files = files,
             )
         val cases = recorders.mapIndexed { index, recorder ->
             val module = layout.caseModule(index)
@@ -275,6 +278,7 @@ internal class ExpansionProbes(
                     file,
                     directories,
                     os,
+                    files,
                     layout,
                     index,
                 ),
@@ -926,7 +930,7 @@ internal class ExpansionProbes(
         cases.keys
             .groupBy { name ->
                 cases.getValue(name).origin.let {
-                    listOf(it.preamble, it.exports, it.structs, it.hook, it.standIns, it.clauses, it.file, it.directories, it.os)
+                    listOf(it.preamble, it.exports, it.structs, it.hook, it.standIns, it.clauses, it.file, it.directories, it.os, it.files)
                 }
             }
             .values
@@ -964,6 +968,7 @@ internal class ExpansionProbes(
                     file = origin.file,
                     directories = origin.directories,
                     os = origin.os,
+                    files = origin.files,
                 )
             }
 
@@ -985,6 +990,7 @@ internal class ExpansionProbes(
                 file = origin.file,
                 directories = origin.directories,
                 os = origin.os,
+                files = origin.files,
             ).cases.single()
         }
 

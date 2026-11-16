@@ -19,6 +19,8 @@ import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.expander.interpreter.UnknownBinary
 import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
+import org.elixir_lang.language_level.ElixirLanguageFeature.CODE_COLUMN_STARTS_EVERY_LINE
+import org.elixir_lang.language_level.ElixirLanguageFeature.CODE_INDENTATION_STARTS_LATER_LINES
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINER_REFUSED_IN_MATCH_OR_GUARD
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER
@@ -474,11 +476,10 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
     /** A macro whose code declined may have changed the directory a later module reads. */
     fun testTheWorkingDirectoryAfterAMacroThatDeclinedIsUnknown() {
-        val code = "defmodule M do\n  defmacro cd, do: (:file.set_cwd(\"/other\"); quote(do: :ok))\nend\n" +
-            "defmodule A do\n  require M\n  M.cd()\nend\n" + CWD_MODULE
+        val code = DECLINING_MACRO + CWD_MODULE
 
         assertEquals(
-            "top expanded\nmodule Elixir.M compiled [cd/0 defmacro]\nmodule Elixir.A stopped `M.cd()` []\nmodule Elixir.B stopped `$CWD_NAME` []",
+            "top expanded\n$DECLINING_MACRO_ENDED\nmodule Elixir.B stopped `$CWD_NAME` []",
             file(code, tables = true, run = RunInputs(OS.Linux, FILE, directories = { "/proj" })),
         )
     }
@@ -513,6 +514,26 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             file(code, tables = true, run = RunInputs(OS.Linux, FILE, directories = { "/proj" })),
         )
     }
+
+    /** `get_compiler_option(:parser_options)` is known in a run where nothing has run that the expander doesn't follow. */
+    fun testTheParserOptionsAreKnown() =
+        assertFile(PARSER_OPTIONS_MODULE, "top expanded\nmodule Elixir.B compiled [listed/0 def]", tables = true)
+
+    /** A call that declined may have set the compiler's options, so the `parser_options` after it are not known. */
+    fun testTheParserOptionsAfterADeclinedCallAreUnknown() =
+        assertFile(
+            "defmodule A do\n  :file.set_cwd(\"/other\")\nend\n$PARSER_OPTIONS_MODULE",
+            "top expanded\nmodule Elixir.A compiled []\nmodule Elixir.B stopped `$PARSER_OPTIONS_NAME` []",
+            tables = true,
+        )
+
+    /** A macro whose code declined may have set the options a later module reads. */
+    fun testTheParserOptionsAfterAMacroThatDeclinedAreUnknown() =
+        assertFile(
+            "$DECLINING_MACRO$PARSER_OPTIONS_MODULE",
+            "top expanded\n$DECLINING_MACRO_ENDED\nmodule Elixir.B stopped `$PARSER_OPTIONS_NAME` []",
+            tables = true,
+        )
 
     /** `:file.get_cwd/0` answers a Windows drive lowercased, as OTP gives it, whatever the case the directory has. */
     fun testTheWorkingDirectoryOnWindowsHasALowercaseDrive() {
@@ -2516,6 +2537,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         val exports = Exports { module -> copies[module]?.exports ?: appExports.of(module) }
         val hook = ProbeHarness.Hook()
         val clauses = ModuleClauses.Lookup { module -> copies[module]?.clauses ?: sdk.of(module) }
+        val files = parsing(level)
         val tokens = mutableListOf(token)
         val ownEnds = mutableMapOf<Int, String>()
         // A raise ends its file, so each row has a file of its own, with only its own modules: Elixir takes longer
@@ -2530,6 +2552,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 file = FILE,
                 directories = DIRECTORIES,
                 os = OS.CURRENT,
+                files = files,
             )
 
             tokens += expansion.layout.token
@@ -2657,6 +2680,13 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             Ended.Tainted -> "tainted"
         }
 
+    /** `Code`'s string parses, made in the fixture's project, as a project's runs make them. */
+    private fun parsing(level: ElixirLanguageLevel) =
+        object : RunFiles by RunFiles.NONE {
+            override fun parsed(text: String, line: Int, column: Int, indentation: Int) =
+                RunFiles.parse(project, level, text, line, column, indentation)
+        }
+
     /**
      * Each of [rows]' calls expanded once as `Macro.expand_once/2` expands it, in a `{token}.Case` that requires the
      * row's modules, with those modules as [source] holds them: compiled from the preamble, each row's in a file of its
@@ -2724,6 +2754,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 directories = DIRECTORIES,
                 clauses = clauses,
                 os = OS.CURRENT,
+                files = parsing(level),
             )
             val call = lowered(row.call(index, token), level)
 
@@ -2969,6 +3000,20 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
         /** A module that names a function by the directory its compile runs in. */
         const val CWD_MODULE = "defmodule B do\n  {:ok, cwd} = :file.get_cwd()\n  def $CWD_NAME(), do: 1\nend"
+
+        /** A macro whose code declines, and a module that calls it. */
+        const val DECLINING_MACRO = "defmodule M do\n  defmacro cd, do: (:file.set_cwd(\"/other\"); quote(do: :ok))\nend\n" +
+            "defmodule A do\n  require M\n  M.cd()\nend\n"
+
+        /** How [DECLINING_MACRO]'s modules end. */
+        const val DECLINING_MACRO_ENDED = "module Elixir.M compiled [cd/0 defmacro]\nmodule Elixir.A stopped `M.cd()` []"
+
+        /** The name of a function made from whether the compiler's `parser_options` are a list, as they always are. */
+        const val PARSER_OPTIONS_NAME = "unquote(if is_list(options), do: :listed, else: :other)"
+
+        /** A module that names a function by the `parser_options` its compile reads. */
+        const val PARSER_OPTIONS_MODULE =
+            "defmodule B do\n  options = Code.get_compiler_option(:parser_options)\n  def $PARSER_OPTIONS_NAME(), do: 1\nend"
         const val RECV_B = "(receive do after 0 -> :b end)"
 
         const val TOKEN = "{token}"
@@ -3061,6 +3106,21 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
          */
         val DECLINED_WHERE_AN_ENV_IS_TAKEN_WHOLE: (Source, ElixirLanguageLevel) -> String? = { _, level ->
             OPAQUE.takeIf { IO_WARN_TAKES_AN_ENV_OR_OPTIONS.isSufficient(level) && !IO_WARN_READS_THE_MESSAGE_FIRST.isSufficient(level) }
+        }
+
+        /** [DECLINED] where `Code.string_to_quoted/2`'s `column:` moves the lines after the first, but not a heredoc's. */
+        val DECLINED_WHERE_THE_COLUMN_MOVES_EVERY_LINE: (Source, ElixirLanguageLevel) -> String? = { _, level ->
+            OPAQUE.takeIf { CODE_COLUMN_STARTS_EVERY_LINE.isSufficient(level) && !CODE_INDENTATION_STARTS_LATER_LINES.isSufficient(level) }
+        }
+
+        /** [DECLINED] where `indentation:` starts the lines after the first. */
+        val DECLINED_WHERE_INDENTATION_STARTS_LATER_LINES: (Source, ElixirLanguageLevel) -> String? = { _, level ->
+            OPAQUE.takeIf { CODE_INDENTATION_STARTS_LATER_LINES.isSufficient(level) }
+        }
+
+        /** [DECLINED] where `...` before `-` is a unary operator, which the lowering doesn't lower, not a variable. */
+        val DECLINED_WHERE_ELLIPSIS_IS_UNARY: (Source, ElixirLanguageLevel) -> String? = { _, level ->
+            OPAQUE.takeIf { ELLIPSIS_NULLARY_CALL.isSufficient(level) }
         }
 
         /** From source the expander declines where [OPAQUE] says; `Dbgi` holds what Elixir compiled. */
@@ -6379,6 +6439,171 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro("pure:equal-unknown-map-keys", "defmacro m, do: (u = :erlang.whereis(:init); %{a: u} == %{b: u})", pins = DECLINED),
             // A list longer than another whose tail isn't known.
             macro("pure:equal-unknown-improper-tail", "defmacro m, do: (u = :erlang.whereis(:init); [u, 1] == [u | u])", pins = DECLINED),
+
+            // `Code.string_to_quoted!/1,2`, parsed as `eval_string/3` parses, and `get_compiler_option(:parser_options)`
+            macro(
+                "native:string-to-quoted",
+                """
+                defmacro m do
+                  Macro.escape([
+                    Code.string_to_quoted!("foo(1, :a) + bar"),
+                    Code.string_to_quoted!("a\nb"),
+                    Code.string_to_quoted!(""),
+                    Code.string_to_quoted!(~c"x = [1, 2]"),
+                    Code.string_to_quoted!("%{a: 1}", file: "a.ex", emit_warnings: false),
+                    Code.string_to_quoted!("a", columns: :yes, token_metadata: false)
+                  ])
+                end
+                """,
+            ),
+            // A column moves the first line, and from 1.16 until 1.19 the lines after it too, past their own whitespace, a
+            // string's included. The first of a repeated option is read.
+            macro(
+                "native:string-to-quoted-line-column",
+                """
+                defmacro m do
+                  q = String.duplicate(~s("), 3)
+
+                  Macro.escape([
+                    Code.string_to_quoted!("f(x)\ng(y)", line: 10),
+                    Code.string_to_quoted!("f(x)\n  g(y)", columns: true),
+                    Code.string_to_quoted!("f(x)\n  g(y)", line: 3, column: 7, columns: true),
+                    Code.string_to_quoted!("f(x)\ng(y)", column: 7, columns: true),
+                    Code.string_to_quoted!("x = \"a\nb\" <> c\n\n  y", column: 4, columns: true),
+                    Code.string_to_quoted!("a.\n  b", column: 3, columns: true),
+                    Code.string_to_quoted!("f(" <> q <> "\n  a\#{x}\n  " <> q <> ")\ng(y)", line: 2, columns: true),
+                    Code.string_to_quoted!("f(x)", line: 3, line: 9)
+                  ])
+                end
+                """,
+            ),
+            // Where the column moves the lines after the first, a heredoc's lines still start at 1.
+            macro(
+                "native:string-to-quoted-column-heredoc",
+                """
+                defmacro m do
+                  q = String.duplicate(~s("), 3)
+                  Macro.escape(Code.string_to_quoted!("f(" <> q <> "\n  a\#{x}\n  " <> q <> ")\ng(y)", column: 7, columns: true))
+                end
+                """,
+                pins = DECLINED_WHERE_THE_COLUMN_MOVES_EVERY_LINE,
+            ),
+            macro(
+                "native:string-to-quoted-column-charlist-heredoc",
+                """
+                defmacro m do
+                  q = String.duplicate("'", 3)
+                  Macro.escape(Code.string_to_quoted!("f(" <> q <> "\n  a\n  " <> q <> ")\ng(y)", column: 7, columns: true))
+                end
+                """,
+                pins = DECLINED_WHERE_THE_COLUMN_MOVES_EVERY_LINE,
+            ),
+            // From 1.19 an indentation starts the lines after the first, past their own whitespace, whatever the column;
+            // the tokenizer folds each in turn, so the last wins and a negative one is passed over. Before, no option.
+            macro("native:string-to-quoted-indentation", "defmacro m, do: Macro.escape(Code.string_to_quoted!(\"a\", indentation: 0))"),
+            macro("native:string-to-quoted-indentation-other", "defmacro m, do: Macro.escape(Code.string_to_quoted!(\"a\", indentation: 2))"),
+            macro(
+                "native:string-to-quoted-indentation-last",
+                "defmacro m, do: Macro.escape(Code.string_to_quoted!(\"a\", indentation: 2, indentation: 0))",
+            ),
+            macro(
+                "native:string-to-quoted-indentation-last-other",
+                "defmacro m, do: Macro.escape(Code.string_to_quoted!(\"f(x)\n  g(y)\", indentation: 0, indentation: 2, columns: true))",
+            ),
+            macro(
+                "native:string-to-quoted-indentation-later",
+                """
+                defmacro m do
+                  Macro.escape([
+                    Code.string_to_quoted!("f(\n  x)", indentation: 4, columns: true),
+                    Code.string_to_quoted!("f(\n  x)", indentation: 4, column: 3, columns: true),
+                    Code.string_to_quoted!("f(\n  x)", column: 3, indentation: 4, columns: true),
+                    Code.string_to_quoted!("f(\n  x)", indentation: 4, indentation: -1, columns: true),
+                    Code.string_to_quoted!("f(\n  x)", indentation: -1, columns: true)
+                  ])
+                end
+                """,
+            ),
+            // From 1.19 the fold adds 1 to any term at least 0, so a term that isn't a number raises `ArithmeticError`.
+            macro(
+                "native:string-to-quoted-indentation-not-an-integer",
+                "defmacro m, do: Macro.escape(Code.string_to_quoted!(\"a\", indentation: :x, indentation: 0))",
+                pins = DECLINED_WHERE_INDENTATION_STARTS_LATER_LINES,
+            ),
+            // Where the indentation starts the lines after the first, a heredoc's lines still start at 1.
+            macro(
+                "native:string-to-quoted-indentation-heredoc",
+                """
+                defmacro m do
+                  q = String.duplicate(~s("), 3)
+                  Macro.escape(Code.string_to_quoted!("x = " <> q <> "\n  a\n  " <> q <> "\ny", indentation: 4, columns: true))
+                end
+                """,
+                pins = DECLINED_WHERE_INDENTATION_STARTS_LATER_LINES,
+            ),
+            // Three quotes that open no heredoc, in a comment or a sigil, leave the lines where the start puts them.
+            macro(
+                "native:string-to-quoted-quotes-not-a-heredoc",
+                """
+                defmacro m do
+                  q = String.duplicate(~s("), 3)
+
+                  Macro.escape([
+                    Code.string_to_quoted!("f(x) # " <> q <> "\n  g(y)", indentation: 4, columns: true),
+                    Code.string_to_quoted!("f(~s(" <> q <> "))\n  g(y)", indentation: 4, columns: true),
+                    Code.string_to_quoted!("f(x) # " <> q <> "\n  g(y)", column: 7, columns: true)
+                  ])
+                end
+                """,
+            ),
+            // 1.15 reads `warnings:` where the others read `emit_warnings:`; neither changes what it gives.
+            macro("native:string-to-quoted-warnings", "defmacro m, do: Macro.escape(Code.string_to_quoted!(\"a\", warnings: false))"),
+            macro(
+                "native:string-to-quoted-token-metadata",
+                "defmacro m, do: Macro.escape(Code.string_to_quoted!(\"f(x)\", token_metadata: true))",
+                pins = DECLINED,
+            ),
+            // The parse raises as `eval_string/3`'s does, its exception not known, so the run stops there, and a `try` may
+            // catch it.
+            macro("native:string-to-quoted-raise", "defmacro m, do: Code.string_to_quoted!(\"1 +\")", pins = DECLINED),
+            macro("native:string-to-quoted-raise-mismatched", "defmacro m, do: Code.string_to_quoted!(\"(]\")", pins = DECLINED),
+            macro(
+                "native:string-to-quoted-raise-caught",
+                "defmacro m, do: (try do Code.string_to_quoted!(\"1 +\") catch kind, _ -> kind end)",
+                pins = DECLINED,
+            ),
+            macro("native:string-to-quoted-line-not-an-integer", "defmacro m, do: Macro.escape(Code.string_to_quoted!(\"a\", line: :x))", pins = DECLINED),
+            macro("native:string-to-quoted-not-a-string", "defmacro m, do: Macro.escape(Code.string_to_quoted!(:a))", pins = DECLINED),
+            // Text holding a shape the lowering doesn't lower yet has no known AST.
+            macro("native:string-to-quoted-unlowered", "defmacro m, do: Macro.escape(Code.string_to_quoted!(\"... - 1\"))", pins = DECLINED_WHERE_ELLIPSIS_IS_UNARY),
+            macro("native:parser-options", "defmacro m, do: Code.get_compiler_option(:parser_options)"),
+            // The option is the VM's, so the row puts back what it read.
+            macro(
+                "native:parser-options-put",
+                """
+                defmacro m do
+                  Code.put_compiler_option(:parser_options, Code.get_compiler_option(:parser_options))
+                  Code.get_compiler_option(:parser_options)
+                end
+                """,
+                pins = DECLINED,
+            ),
+            // A write reached leaves the options not known after it, though this one raises before it writes.
+            macro(
+                "native:parser-options-after-put",
+                """
+                defmacro m do
+                  try do
+                    Code.put_compiler_option(:parser_options, :x)
+                  rescue
+                    _ -> :ok
+                  end
+
+                  Code.get_compiler_option(:parser_options)
+                end
+                """,
+                pins = DECLINED,
+            ),
 
             // The natives: loading
             macro("native:ensure-loaded-loaded", "defmacro m, do: Macro.escape(:code.ensure_loaded(Enum))"),
@@ -11250,9 +11475,8 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             eex("eex:enum-each", "Enum.each([:p, :q], fn n -> EEx.function_from_string(:def, n, \"x\") end)"),
             eex("eex:import", "import EEx\nfunction_from_string(:def, :u, \"x\")"),
             eex("eex:file", "EEx.function_from_file(:def, :t, \"$TEMPLATE\", [:assigns])"),
-            // Elixir raises `CaseClauseError`, but the declined `EEx.compile_string/2` before it leaves whether it is
-            // reached unknown.
-            eex("eex:defmacro", "EEx.function_from_string(:defmacro, :m, \"x\")", ends = { "stopped at `use {row}`" }),
+            // Elixir's `case kind` has no `:defmacro` clause.
+            eex("eex:defmacro", "EEx.function_from_string(:defmacro, :m, \"x\")", ends = { "raised Elixir.CaseClauseError" }),
             // Elixir defines `call/0` and `k/0`: the kind isn't known, so neither branch's definition is certain.
             eex(
                 "eex:kind-unknown",

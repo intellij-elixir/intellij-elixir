@@ -57,6 +57,25 @@ object ProjectKeywords {
         }
 
     /**
+     * What the project's `elixirc_options:` give [option], the last that names it, as `Code.compiler_options/1` puts each
+     * in turn: [Reading.Absent] where the list `project/0` returns has no `elixirc_options:`, or a literal list of keywords
+     * without [option]; [Reading.Unknown] where the options are any other value, or the list isn't all `project/0` can
+     * return.
+     */
+    @RequiresReadLock
+    fun elixircOption(mixExs: ElixirFile, option: String): Reading<PsiElement> =
+        keyword(mixExs, "elixirc_options", Reading.Absent, NeedsWhole.EVERY_ANSWER) { value ->
+            val list = value as? ElixirList
+            val written = list?.keywords?.keywordValue(option)?.stripAccessExpressionAndParentheses()
+
+            when {
+                written != null -> Reading.Written(written)
+                list?.children?.all { it is QuotableKeywordList } == true -> Reading.Absent
+                else -> null
+            }
+        }
+
+    /**
      * What the list `project/0` returns says of [name]: [absent] where the list is `[]` or keywords without it, the
      * [read] of its first value, parentheses and access expressions stripped, where it has one, and [Reading.Unknown]
      * where [read] gives none or the list is not a literal one of keywords. [needsWhole] says which answers need the list

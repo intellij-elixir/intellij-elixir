@@ -430,6 +430,32 @@ class ProjectKeywordsTest : PlatformTestCase() {
         assertEquals(ProjectKeywords.Reading.Unknown, ProjectKeywords.app(mixExs))
     }
 
+    /** A tuple before the keywords may name `elixirc_options` first, so the keywords' aren't known to be the compile's. */
+    fun testElixircOptionsAfterATupleAreUnknown() {
+        assertEquals(
+            ProjectKeywords.Reading.Unknown,
+            ProjectKeywords.elixircOption(
+                keywordsProject("[{:app, :a}, elixirc_options: [parser_options: [token_metadata: true]]]"),
+                "parser_options",
+            ),
+        )
+    }
+
+    /** A handler block may return other `elixirc_options:`, so the body's aren't known to be the compile's. */
+    fun testAProjectWithAHandlerBlockHasNoKnownElixircOption() {
+        assertEquals(
+            ProjectKeywords.Reading.Unknown,
+            ProjectKeywords.elixircOption(handlerProject("[app: :a, elixirc_options: [parser_options: []]]", "[app: :a]"), "parser_options"),
+        )
+    }
+
+    fun testAProjectWithAHandlerBlockAndNoElixircOptionsIsNotAbsentOfOne() {
+        assertEquals(
+            ProjectKeywords.Reading.Unknown,
+            ProjectKeywords.elixircOption(handlerProject("[app: :a]", "[app: :a]"), "parser_options"),
+        )
+    }
+
     /** A `project/0` that returns [body], or [handled] where its `rescue` block runs. */
     private fun handlerProject(body: String, handled: String): ElixirFile =
         mixExs("defmodule MyApp.MixProject do\n  use Mix.Project\n\n  def project do\n    $body\n  rescue\n    _ -> $handled\n  end\nend\n")

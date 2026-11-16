@@ -6,7 +6,12 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.SyntaxTraverser
+import com.intellij.psi.util.PsiUtilCore
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.expander.interpreter.CounterArray
 import org.elixir_lang.expander.interpreter.EMPTY
 import org.elixir_lang.expander.interpreter.Unknown
@@ -27,6 +32,10 @@ import org.elixir_lang.expander.interpreter.unknownOf
 import org.elixir_lang.language_level.ElixirLanguageFeature.CONFIG_VALIDATES_EVERY_ENTRY
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Lowering
+import org.elixir_lang.mix.ProjectKeywords.Reading
+import org.elixir_lang.psi.ElementFactory
+import org.elixir_lang.psi.ElixirTypes
 
 /**
  * `Config`'s state for one read of a project's config, as `Config.__eval__!/3` keeps it in the process dictionary: the
@@ -316,6 +325,9 @@ internal class RunShared {
     /** The paths `Code.require_file/1,2` required. */
     val required = HashSet<String>()
 
+    /** Whether a write of `Code`'s compiler options was reached, after which none is known. */
+    var compilerOptionsWritten = false
+
     /** The arrays `counters:new/2` made, by the reference each is named by; not hygiene's [Run.counters]. */
     val counterArrays = HashMap<OtpErlangRef, CounterArray>()
 
@@ -354,8 +366,18 @@ internal interface RunFiles {
     /** The file at [path] lowered, for `Code` to follow, `null` where it can't be read. */
     fun followed(path: String): FollowedFile? = null
 
-    /** [text] parsed and lowered as if it began on [line], for `Code` to evaluate, `null` where there is no project to parse it in. */
-    fun parsed(text: String, line: Int): ElixirAst? = null
+    /**
+     * [text] parsed and lowered as if it began on [line] at [column], with `Code`'s [indentation], for `Code` to evaluate
+     * or quote: [Parsed.NoProject] where there is no project to parse it in.
+     */
+    fun parsed(text: String, line: Int, column: Int, indentation: Int): Parsed = Parsed.NoProject
+
+    /**
+     * The `parser_options` the compile of the run's file is given by its project's `elixirc_options`, the term written
+     * there; [Reading.Absent] where it is left the leg's, as it is for a file with no Mix project and for a config read,
+     * which runs before the compile sets them.
+     */
+    fun parserOptions(): Reading<OtpErlangObject> = Reading.Absent
 
     /**
      * Whether the config read the run's build follows required [path] with `Code.require_file/1,2`, `null` where it
@@ -382,7 +404,36 @@ internal interface RunFiles {
             override fun imported(path: String, read: ConfigRead): FileExpansion? = null
             override fun wildcard(pattern: String): List<String>? = null
         }
+
+        /**
+         * [text] parsed in [project] and lowered for [level] as if it began on [line] at [column], with `Code`'s
+         * [indentation]: what [parsed] gives. A heredoc's lines start at 1, so where the others start at another
+         * [Lowering.laterColumn] it is [Parsed.UnplacedHeredoc].
+         */
+        @RequiresReadLock
+        fun parse(project: Project, level: ElixirLanguageLevel, text: String, line: Int, column: Int, indentation: Int): Parsed {
+            val file = ElementFactory.createFile(project, text)
+            val laterColumn = Lowering.laterColumn(level, column, indentation)
+            val heredoc = laterColumn != 1 && SyntaxTraverser.psiTraverser(file).traverse().any {
+                ProgressManager.checkCanceled()
+                PsiUtilCore.getElementType(it) == ElixirTypes.HEREDOC_PROMOTER
+            }
+
+            return if (heredoc) Parsed.UnplacedHeredoc(laterColumn) else Parsed.Forms(Lowering.lower(file, level, line, column, indentation))
+        }
     }
+}
+
+/** What [RunFiles.parsed] gives. */
+internal sealed interface Parsed {
+    /** The text's [forms], lowered. */
+    class Forms(val forms: ElixirAst) : Parsed
+
+    /** There is no project to parse the text in. */
+    data object NoProject : Parsed
+
+    /** The text holds a heredoc, whose lines after the first start at 1, where the others start at [laterColumn]. */
+    class UnplacedHeredoc(val laterColumn: Int) : Parsed
 }
 
 /** A file `Code` follows: its [forms], lowered, and the [virtualFile] they were read from. */

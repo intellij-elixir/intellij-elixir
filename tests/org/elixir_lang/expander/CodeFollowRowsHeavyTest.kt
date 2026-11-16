@@ -347,6 +347,8 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("i34", ":mine", elixir = ":mine"),
             // A string evaluated after code that declined doesn't know whether that code required the file.
             Row("i35", "unknown", elixir = "true"),
+            // Nor whether that code set the compiler's options.
+            Row("i35b", "unknown", elixir = "true"),
             // Each evaluation's `make_ref/0` makes a reference no other has made.
             Row("i36", "{false, false}", elixir = "{false, false}"),
             // A string evaluated after the body wrote an app's env reads it as the body does.
