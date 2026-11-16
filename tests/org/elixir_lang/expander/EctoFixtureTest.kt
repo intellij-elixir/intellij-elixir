@@ -6,13 +6,14 @@ import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
-import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.util.system.OS
 import org.elixir_lang.coverage.ExpanderProgress
 import org.elixir_lang.coverage.macroName
+import org.elixir_lang.expander.interpreter.charlistText
+import org.elixir_lang.expander.interpreter.isUnknown
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
 import org.elixir_lang.lowering.ElixirAst
@@ -78,7 +79,7 @@ class EctoFixtureTest : HeavyTestCase() {
                 ExpansionObserver.NONE,
                 { holder.exports(queries, it, legInputs) },
                 { holder.struct(queries, it, legInputs) },
-                legAppEnv(),
+                LEG_APP_ENV,
                 file = { queries.virtualFile.path },
                 // The project's root as the file system gives it, as it gives `file`.
                 directories = { queries.virtualFile.parent.parent.path },
@@ -160,7 +161,7 @@ class EctoFixtureTest : HeavyTestCase() {
                 ExpansionObserver.NONE,
                 { holder.exports(asker, it, legInputs) },
                 { holder.struct(asker, it, legInputs) },
-                legAppEnv(),
+                LEG_APP_ENV,
                 clauses = { holder.clauses(asker, it, legInputs) },
             )
 
@@ -324,8 +325,9 @@ class EctoFixtureTest : HeavyTestCase() {
             .map { block -> block.lines().map(String::trim).filter(String::isNotEmpty) }
             .filter { it.firstOrNull()?.startsWith(WARNING) == true }
             .map { it.joinToString("\n").removePrefix(WARNING) }
-            // It names the schema through `inspect/1`, whose text isn't known, so `IO.warn/2` declines.
-            .filterNot { it.startsWith(MISSING_ON) }
+            // Where Ecto sets `@after_compile Ecto.Schema`, Queries stops earlier at the schemas' unknown `__schema__/1`,
+            // which might have changed the working directory, so the file its join warning names, relative to it, is unknown.
+            .map { if (compiled.afterCompile && it.startsWith(MISSING_ON)) it.replace("\nlib/queries.ex:", "\n$UNKNOWN_FILE:") else it }
             .sorted()
         val actual = File(compiled.project, "lib").listFiles()!!.sortedBy { it.name }.asSequence()
             .flatMap { ProjectModules.results(expansion(holder, corpus.psi(compiled.project, "lib/${it.name}"))).toList() }
@@ -351,7 +353,7 @@ class EctoFixtureTest : HeavyTestCase() {
                 ExpansionObserver.NONE,
                 { holder.exports(asker, it, legInputs) },
                 { holder.struct(asker, it, legInputs) },
-                legAppEnv(),
+                LEG_APP_ENV,
                 clauses = { holder.clauses(asker, it, legInputs) },
             )
 
@@ -383,6 +385,7 @@ class EctoFixtureTest : HeavyTestCase() {
         const val UNEXPANDED = "unexpanded"
         const val MISSING_ON = "missing `:on` in join"
         const val WARNING = "warning: "
+        const val UNKNOWN_FILE = "?"
         const val FILE = "{file}"
 
         /**
@@ -434,10 +437,8 @@ class EctoFixtureTest : HeavyTestCase() {
             val keyword = (location as OtpErlangList).elements().associate {
                 ((it as OtpErlangTuple).elementAt(0) as OtpErlangAtom).atomValue() to it.elementAt(1)
             }
-            val file = when (val charlist = keyword.getValue("file")) {
-                is OtpErlangString -> charlist.stringValue()
-                else -> (charlist as OtpErlangList).elements().joinToString("") { Character.toString((it as OtpErlangLong).intValue()) }
-            }
+            val charlist = keyword.getValue("file")
+            val file = if (isUnknown(charlist)) UNKNOWN_FILE else charlistText(charlist)!!
             val name = (module as OtpErlangAtom).atomValue().let { if (it.startsWith("Elixir.")) it.removePrefix("Elixir.") else ":$it" }
 
             return "$file:${keyword.getValue("line")}: $name.${(function as OtpErlangAtom).atomValue()}/$arity"

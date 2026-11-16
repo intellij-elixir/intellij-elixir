@@ -314,6 +314,8 @@ class DepsWatcherTest : PlatformTestCase() {
             "mix.exs",
             """
             defmodule Sample.MixProject do
+              use Mix.Project
+
               def project do
                 [
                   deps: [

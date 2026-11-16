@@ -17,7 +17,6 @@ import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.blockKeyword
-import org.elixir_lang.psi.impl.keywordValue
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.stripAccessExpressions
 import org.elixir_lang.psi.operation.Match
@@ -42,29 +41,18 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
         assert(ApplicationManager.getApplication().isReadAccessAllowed) {
             "DepGatherer.visitFile must be called under a read lock"
         }
-        if (file is ElixirFile) {
-            file.acceptChildren(this)
-        }
+        if (file is ElixirFile) gather(file)
     }
 
-    override fun visitElement(element: PsiElement) {
-        if (element is Call && Module.`is`(element)) {
-            val childCalls = modularChildCalls(element).toTypedArray()
+    @RequiresReadLock
+    private fun gather(mixExs: ElixirFile) {
+        val keywords = ProjectKeywords.keywords(mixExs) ?: return
 
-            val keywordLists = childCalls.projectKeywordLists().toList()
+        (ProjectKeywords.value(keywords, "deps_path") as? ElixirLine)?.body?.text?.let { depsPath = it }
 
-            keywordLists.firstOrNull()?.depsPath()?.let { depsPath = it }
-
-            keywordLists
-                .firstNotNullOfOrNull { calledFunction(it.keywordValue("deps") as? Call) }
-                ?.let { depsNameArity ->
-                    childCalls
-                        .asSequence()
-                        .onEach { ProgressManager.checkCanceled() }
-                        .filter { isDefining(it, depsNameArity) }
-                        .flatMapTo(depSet) { it.deps(isDependency) }
-                }
-        }
+        val deps = ProjectKeywords.value(keywords, "deps") as? Call ?: return
+        val nameArity = calledFunction(deps) ?: return
+        definers(mixExs, deps, nameArity).flatMapTo(depSet) { it.deps(isDependency) }
     }
 
     companion object {
@@ -90,10 +78,7 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
         private fun names(mixExs: ElixirFile, deps: PsiElement): Set<String>? {
             val nameArity = calledFunction((deps as? Call)?.takeUnless { it is Qualified }) ?: return null
 
-            return mixExs.modulars()
-                .filter { PsiTreeUtil.isAncestor(it, deps, true) }
-                .flatMap { modularChildCalls(it) }
-                .filter { isDefining(it, nameArity) }
+            return definers(mixExs, deps, nameArity)
                 .ifEmpty { return null }
                 .flatMapTo(mutableSetOf()) { definer ->
                     val list = ProjectKeywords.returnedList(definer)?.takeIf { ProjectKeywords.returnsOnlyItsBody(definer) } ?: return null
@@ -109,16 +94,14 @@ class DepGatherer(private val isDependency: Boolean = false) : DepGatherer() {
 
 private fun Call.deps(isDependency: Boolean): List<Dep> = ProjectKeywords.returnedList(this)?.deps(isDependency) ?: emptyList()
 
-/** The keywords of each list a `project/0` definition returns, in order. */
+/** The definitions of [nameArity] in the module of [mixExs] that holds [element]. */
 @RequiresReadLock
-private fun Array<Call>.projectKeywordLists(): Sequence<QuotableKeywordList> =
-    asSequence()
+private fun definers(mixExs: ElixirFile, element: PsiElement, nameArity: NameArity): List<Call> =
+    mixExs.modulars()
+        .filter { PsiTreeUtil.isAncestor(it, element, true) }
+        .flatMap { modularChildCalls(it) }
         .onEach { ProgressManager.checkCanceled() }
-        .filter(ProjectKeywords::isProject)
-        .mapNotNull { ProjectKeywords.returnedList(it)?.keywords }
-
-private fun QuotableKeywordList.depsPath(): String? =
-    (keywordValue("deps_path")?.stripAccessExpression() as? ElixirLine)?.body?.text
+        .filter { isDefining(it, nameArity) }
 
 private fun isDefining(call: Call, nameArity: NameArity): Boolean =
     capabilities(call)?.runtimeFunction == true &&

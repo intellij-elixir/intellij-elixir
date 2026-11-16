@@ -22,6 +22,8 @@ class DepsTest : PlatformTestCase() {
             "mix.exs",
             """
             defmodule Sample.MixProject do
+              use Mix.Project
+
               def project do
                 [deps: deps()]
               end
@@ -62,19 +64,18 @@ class DepsTest : PlatformTestCase() {
 
     /** A `deps` function written `defp deps, do: [...]` returns its list as a `do:` value, as one with a `do` block does. */
     fun testADepsFunctionWrittenWithADoKeywordHasItsDeps() {
-        val gatherer = gathered(
-            """
-            defmodule Sample.MixProject do
-              def project do
-                [deps: deps()]
-              end
+        assertEquals(
+            setOf("foo"),
+            gatheredApps(
+                """
+                def project do
+                  [deps: deps()]
+                end
 
-              defp deps, do: [{:foo, "~> 1.0"}]
-            end
-            """.trimIndent()
+                defp deps, do: [{:foo, "~> 1.0"}]
+                """.trimIndent()
+            ),
         )
-
-        assertEquals(setOf("foo"), gatherer.depSet.map { it.application }.toSet())
     }
 
     /** A `project/0` written `def project, do: [...]` returns its list as a `do:` value, as one with a `do` block does. */
@@ -82,6 +83,8 @@ class DepsTest : PlatformTestCase() {
         val gatherer = gathered(
             """
             defmodule Sample.MixProject do
+              use Mix.Project
+
               def project, do: [deps_path: "../../deps", deps: deps()]
 
               defp deps do
@@ -91,13 +94,125 @@ class DepsTest : PlatformTestCase() {
             """.trimIndent()
         )
 
-        assertEquals(setOf("foo"), gatherer.depSet.map { it.application }.toSet())
+        assertEquals(setOf("foo"), gatherer.apps)
         assertEquals("../../deps", gatherer.depsPath)
+    }
+
+    /** Mix keeps a key `project/0` gives twice, and reads the first. */
+    fun testDepsGivenTwiceAreTheFirst() {
+        assertEquals(
+            setOf("foo"),
+            gatheredApps(
+                """
+                def project, do: [deps: deps(), deps: other()]
+
+                defp deps, do: [{:foo, "~> 1.0"}]
+
+                defp other, do: [{:bar, "~> 1.0"}]
+                """.trimIndent()
+            ),
+        )
+    }
+
+    fun testADepsPathGivenTwiceIsTheFirst() {
+        assertEquals("../first", gathered(inModule("def project, do: [deps_path: \"../first\", deps_path: \"../second\"]")).depsPath)
+    }
+
+    /** Elixir reads `(deps())` as `deps()`. */
+    fun testParenthesizedDepsAreGathered() {
+        assertEquals(
+            setOf("foo"),
+            gatheredApps("def project, do: [app: :sample, deps: (deps())]\n\ndefp deps, do: [{:foo, \"~> 1.0\"}]"),
+        )
+    }
+
+    /** Mix reads the project of the module that `use Mix.Project` pushes, not a helper module's `project/0` before it. */
+    fun testAHelpersProjectBeforeTheMixProjectIsPassedOver() {
+        val gatherer = gathered(
+            """
+            defmodule Helper do
+              def project, do: []
+            end
+
+            defmodule Sample.MixProject do
+              use Mix.Project
+
+              def project, do: [deps_path: "../deps", deps: deps()]
+
+              defp deps, do: [{:foo, "~> 1.0"}]
+            end
+            """.trimIndent()
+        )
+
+        assertEquals(setOf("foo"), gatherer.apps)
+        assertEquals("../deps", gatherer.depsPath)
+    }
+
+    fun testAMixProjectUsedThroughAnAliasIsGathered() {
+        val gatherer = gathered(
+            """
+            defmodule Sample.MixProject do
+              alias Mix.Project
+              use Project
+
+              def project, do: [deps_path: "../deps", deps: deps()]
+
+              defp deps, do: [{:foo, "~> 1.0"}]
+            end
+            """.trimIndent()
+        )
+
+        assertEquals(setOf("foo"), gatherer.apps)
+        assertEquals("../deps", gatherer.depsPath)
+    }
+
+    fun testAMixProjectUsedThroughAnAliasBesideAHelpersProjectIsGathered() {
+        val gatherer = gathered(
+            """
+            defmodule Helper do
+              def project, do: []
+            end
+
+            defmodule Sample.MixProject do
+              alias Mix.Project
+              use Project
+
+              def project, do: [deps_path: "../deps", deps: deps()]
+
+              defp deps, do: [{:foo, "~> 1.0"}]
+            end
+            """.trimIndent()
+        )
+
+        assertEquals(setOf("foo"), gatherer.apps)
+        assertEquals("../deps", gatherer.depsPath)
+    }
+
+    fun testAParenthesizedDepsPathIsRead() {
+        assertEquals("../deps", gathered(inModule("def project, do: [deps_path: (\"../deps\")]")).depsPath)
+    }
+
+    /** `project/0` takes no argument, so its first clause is the one Mix calls. */
+    fun testASecondProjectClauseIsNeverRead() {
+        val gatherer = gathered(
+            inModule(
+                """
+                def project, do: [app: :sample]
+
+                def project, do: [app: :sample, deps_path: "../other", deps: deps()]
+
+                defp deps, do: [{:foo, "~> 1.0"}]
+                """.trimIndent()
+            )
+        )
+
+        assertEmpty(gatherer.depSet)
+        assertNull(gatherer.depsPath)
     }
 
     fun testAProjectFunctionReturningAnEmptyListHasNoDeps() {
         listOf("def project, do: []", "def project do\n  []\nend").forEach { project ->
-            val gatherer = gathered("defmodule Sample.MixProject do\n${project.prependIndent("  ")}\nend\n")
+            val gatherer = gathered(inModule(project))
 
             assertEmpty(project, gatherer.depSet)
             assertNull(project, gatherer.depsPath)
@@ -132,6 +247,19 @@ class DepsTest : PlatformTestCase() {
                 {:bandit, "~> 1.5"}
               ]
             end
+            """,
+        )
+    }
+
+    fun testDepsGivenTwiceDeclareTheFirstList() {
+        assertDeclared(
+            setOf("foo"),
+            """
+            def project, do: [app: :a, deps: deps(), deps: other()]
+
+            defp deps, do: [{:foo, "~> 1.0"}]
+
+            defp other, do: [{:bar, "~> 1.0"}]
             """,
         )
     }
@@ -187,6 +315,8 @@ class DepsTest : PlatformTestCase() {
             declaredIn(
                 """
                 defmodule Sample.MixProject do
+                  use Mix.Project
+
                   def project, do: [deps: deps()]
 
                   defp deps, do: []
@@ -332,10 +462,13 @@ class DepsTest : PlatformTestCase() {
     private fun projectKeyword(handler: String) =
         "def project, do: [app: :a, deps: deps()], $handler: (_ -> [app: :b, deps: [{:foo, \"~> 1.0\"}]])\n\ndefp deps, do: []"
 
-    private fun inModule(body: String) = "defmodule Sample.MixProject do\n${body.prependIndent("  ")}\nend\n"
+    private fun inModule(body: String) = "defmodule Sample.MixProject do\n  use Mix.Project\n${body.prependIndent("  ")}\nend\n"
 
     /** The apps the watcher gathers from a `project/0` and `deps/0` of [body]. */
-    private fun gatheredApps(body: String): Set<String> = gathered(inModule(body)).depSet.map { it.application }.toSet()
+    private fun gatheredApps(body: String): Set<String> = gathered(inModule(body)).apps
+
+    /** The apps of the deps [this] gathered. */
+    private val DepGatherer.apps: Set<String> get() = depSet.map { it.application }.toSet()
 
     /** A [DepGatherer] that visited a `mix.exs` of [text]. */
     private fun gathered(text: String): DepGatherer {
@@ -350,7 +483,7 @@ class DepsTest : PlatformTestCase() {
     private fun assertUnread(body: String) = assertEquals(ProjectKeywords.Reading.Unknown, declared(body))
 
     private fun declared(body: String): ProjectKeywords.Reading<Set<String>> =
-        declaredIn("defmodule Sample.MixProject do\n  use Mix.Project\n\n" + body.trimIndent().prependIndent("  ") + "\nend\n")
+        declaredIn(inModule("\n" + body.trimIndent()))
 
     private fun declaredIn(text: String): ProjectKeywords.Reading<Set<String>> {
         val mixExs = myFixture.configureByText("mix.exs", text) as ElixirFile

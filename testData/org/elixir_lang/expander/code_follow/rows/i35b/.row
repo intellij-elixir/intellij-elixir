@@ -1,0 +1,4 @@
+kind: exs
+run: elixir -r script.exs -e 'IO.inspect(R.r(), label: "ANSWER")'
+probe: script.exs:R.v
+judge: value

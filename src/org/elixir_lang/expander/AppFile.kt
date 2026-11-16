@@ -10,10 +10,12 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
+import org.elixir_lang.expander.interpreter.cons
 import org.elixir_lang.expander.interpreter.keyValue
 import org.elixir_lang.expander.interpreter.makeFunArity
 import org.elixir_lang.expander.interpreter.mapOf
 import org.elixir_lang.expander.interpreter.orOnDecline
+import org.elixir_lang.expander.interpreter.properElements
 import org.elixir_lang.language_level.ElixirLanguageFeature.ADJACENT_STRINGS_NEED_WHITE_SPACE
 import org.elixir_lang.language_level.ElixirLanguageFeature.APP_ENV_PARAMETERS_CHECKED
 import org.elixir_lang.language_level.ElixirLanguageFeature.CARET_NOTATION_CHECKED
@@ -38,11 +40,11 @@ internal class AppFile(val name: String, val env: Map<OtpErlangObject, OtpErlang
             }
             val (tag, name, opts) = (term as? OtpErlangTuple)?.takeIf { it.arity() == 3 }?.elements() ?: return null
             if (tag != APPLICATION || name !is OtpErlangAtom) return null
-            val options = proper(opts)?.toList() ?: return null
+            val options = properElements(opts) ?: return null
             if (!startSpec(option(options, "mod"))) return null
             val entries = when (val env = option(options, "env")) {
                 null -> emptyList()
-                else -> proper(env)?.toList() ?: return null
+                else -> properElements(env) ?: return null
             }
             val pairs = entries.map { entry ->
                 val (key, value) = (entry as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elements() ?: return null
@@ -67,13 +69,6 @@ internal class AppFile(val name: String, val env: Map<OtpErlangObject, OtpErlang
             mod == null ||
                 mod is OtpErlangList && mod.arity() == 0 && mod.lastTail == null ||
                 mod is OtpErlangTuple && mod.arity() == 2 && mod.elementAt(0) is OtpErlangAtom
-
-        private fun proper(term: OtpErlangObject): Array<OtpErlangObject>? =
-            when (term) {
-                is OtpErlangList -> term.elements().takeIf { term.lastTail == null }
-                is OtpErlangString -> term.stringValue().codePoints().toArray().map { OtpErlangLong(it.toLong()) }.toTypedArray()
-                else -> null
-            }
 
         private val APPLICATION = OtpErlangAtom("application")
     }
@@ -169,17 +164,7 @@ private class Terms(private val text: CharSequence, private val level: ElixirLan
                     blank()
                     expect(']')
 
-                    return when (tail) {
-                        is OtpErlangList ->
-                            if (tail.lastTail == null) {
-                                OtpErlangList((heads + tail.elements()).toTypedArray())
-                            } else {
-                                OtpErlangList((heads + tail.elements()).toTypedArray(), tail.lastTail)
-                            }
-                        is OtpErlangString ->
-                            OtpErlangList((heads + tail.stringValue().codePoints().toArray().map { OtpErlangLong(it.toLong()) }).toTypedArray())
-                        else -> OtpErlangList(heads.toTypedArray(), tail)
-                    }
+                    return cons(heads, tail)
                 }
                 else -> {
                     expect(',')

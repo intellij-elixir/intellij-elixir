@@ -343,7 +343,7 @@ class ExpansionErrorProbeTest : ProbeTestCase() {
             Case("var!(x, String.to_atom(\"a\"))"),
             Case("var!(x, foo())"),
             Case("var!(x, Nope.f())"),
-            Case("var!(x, inspect(:a))"),
+            Case("var!(x, inspect(12))"),
             Case("^var!(nope) = 1"),
             Case("_ = alias!(1)"),
         )

@@ -19,7 +19,9 @@ import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.interpreter.COPY_NODES
 import org.elixir_lang.expander.interpreter.UnknownBinary
+import org.elixir_lang.expander.interpreter.charlist
 import org.elixir_lang.expander.interpreter.codeOf
+import org.elixir_lang.expander.interpreter.codePoints
 import org.elixir_lang.expander.interpreter.shifted
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_BINARY_SPEC_IS_A_NAME
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_QUOTED_APART
@@ -1083,7 +1085,7 @@ internal object TermEscapeView : EscapeView<OtpErlangObject> {
             is OtpErlangLong -> Shape.Integer(input.bigIntegerValue())
             is OtpErlangDouble -> Shape.Float(input.doubleValue())
             is OtpErlangBitstr -> Shape.Bitstring(input.binaryValue(), input.pad_bits())
-            is OtpErlangString -> Shape.List(input.stringValue().codePoints().toArray().map { OtpErlangLong(it.toLong()) })
+            is OtpErlangString -> Shape.List(codePoints(input.stringValue()))
             is OtpErlangList -> Shape.List(input.elements().asList(), input.lastTail)
             is OtpErlangTuple -> Shape.Tuple(input.elements().asList())
             is OtpErlangMap -> Shape.Map(input.keys().zip(input.values()) { key, value -> MapEntry(key, value, key, value) })
@@ -1102,18 +1104,15 @@ internal sealed interface AstTerm {
     class Value(val value: Meta.Value) : AstTerm
 }
 
-/**
- * Metadata as `Code.compile_string` parses it: each line offset by [lineOffset], with [columns] each column, and no
- * token metadata.
- */
-internal class ParsedMeta(private val columns: Boolean, private val lineOffset: Int = 0) {
+/** Metadata as `Code.compile_string` parses it: each line, with [columns] each column, and no token metadata. */
+internal class ParsedMeta private constructor(private val columns: Boolean) {
     fun pairs(keys: List<Meta.Key>): List<Pair<String, Meta.Value>> {
         ProgressManager.checkCanceled()
 
         return keys.flatMap { key ->
             when (key) {
                 is Meta.Key.Location -> listOfNotNull(
-                    "line" to Meta.Value.Integer((key.position.line + lineOffset).toLong()),
+                    "line" to Meta.Value.Integer(key.position.line.toLong()),
                     ("column" to Meta.Value.Integer(key.position.column.toLong())).takeIf { columns },
                 )
                 is Meta.Key.Entry -> if (key.tokenMetadata) emptyList() else listOf(key.name to key.value)
@@ -1160,6 +1159,16 @@ internal class ParsedMeta(private val columns: Boolean, private val lineOffset: 
             is Meta.Value.List -> Shape.List(value.elements.map(AstTerm::Value))
             is Meta.Value.Tuple -> Shape.Tuple(value.elements.map(AstTerm::Value))
         }
+
+    companion object {
+        /** Each line, and no column. */
+        val LINES = ParsedMeta(columns = false)
+
+        private val COLUMNS = ParsedMeta(columns = true)
+
+        /** With [columns] each column as well as each line. */
+        fun of(columns: Boolean): ParsedMeta = if (columns) COLUMNS else LINES
+    }
 }
 
 /**
@@ -1308,7 +1317,7 @@ internal object TermEscapeBuilder : EscapeBuilder<OtpErlangObject> {
         val call = (value as? OtpErlangTuple)?.takeIf { it.arity() == 3 } ?: return value
         val meta = when (val meta = call.elementAt(1)) {
             is OtpErlangList -> meta
-            is OtpErlangString -> OtpErlangList(meta.stringValue())
+            is OtpErlangString -> charlist(meta.stringValue())
             else -> return value
         }
 

@@ -43,6 +43,7 @@ import org.elixir_lang.mix.Project.MIX_EXS
 import org.elixir_lang.mix.Project.depFolder
 import org.elixir_lang.mix.Project.isDepsOfAMixProject
 import org.elixir_lang.mix.ProjectKeywords
+import org.elixir_lang.mix.ProjectKeywords.Reading
 import org.elixir_lang.mix.buildEnv
 import org.elixir_lang.mix.defaultBuildEnv
 import org.elixir_lang.mix.library.Kind as MixLibraryKind
@@ -51,7 +52,6 @@ import org.elixir_lang.mix.sync.scopedLibraryNameToken
 import org.elixir_lang.model.psi.config.ConfigFiles
 import org.elixir_lang.model.psi.config.ConfigSettings
 import org.elixir_lang.navigation.isDecompiled
-import org.elixir_lang.psi.ElementFactory
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.Import.Term
 import org.elixir_lang.reference.Resolver
@@ -862,8 +862,7 @@ internal class ProjectModules(private val project: Project) {
     ): BuildRead? {
         // A `mix.exs` created or deleted above the file moves which project's config it reads.
         stamps.track(names.above(file.path))
-        val (mixExs, configPath) = generateSequence(file.parent) { it.parent }
-            .mapNotNull { it.findChild(MIX_EXS) }
+        val (mixExs, configPath) = mixExsAbove(file)
             .firstNotNullOfOrNull { mixExs -> ConfigFiles.configPath(project, mixExs)?.let { mixExs to it } }
             ?: return null
 
@@ -872,7 +871,7 @@ internal class ProjectModules(private val project: Project) {
 
     private fun buildRead(
         mixExs: VirtualFile,
-        configPath: ProjectKeywords.Reading<String>,
+        configPath: Reading<String>,
         env: String,
         target: String,
         inputs: Inputs,
@@ -983,6 +982,32 @@ internal class ProjectModules(private val project: Project) {
      */
     private class BuildRead(val table: ConfigTable, val source: ReadSource? = null, val clauses: Map<String, ModuleClauses>? = null)
 
+    /**
+     * The `parser_options` the innermost `mix.exs` above [file] gives its compile, a dependency's its own: the term its
+     * `elixirc_options` write, where that is a literal; [Reading.Absent] where they write none or there is no `mix.exs`.
+     * Mix gives those options only to the files it compiles: an `.exs` runs with the leg's, or from 1.14 a test with
+     * `test_elixirc_options`, so it is [Reading.Absent] only where `mix.exs` is known to leave that out.
+     */
+    private fun parserOptionsOf(file: VirtualFile, inputs: Inputs, stamps: Stamps): Reading<OtpErlangObject> {
+        // A `mix.exs` created or deleted above the file moves which project compiles it.
+        stamps.track(names.above(file.path))
+        val mixExs = innermostMixExs(file) ?: return Reading.Absent
+        stamps.source(mixExs)
+        val psi = read(mixExs) ?: return Reading.Unknown
+
+        if (file.extension == "exs") {
+            return ProjectKeywords.keyword(psi, "test_elixirc_options", Reading.Absent, ProjectKeywords.NeedsWhole.EVERY_ANSWER) { Reading.Unknown }
+        }
+
+        return when (val written = ProjectKeywords.elixircOption(psi, "parser_options")) {
+            is Reading.Written ->
+                literalTerm(Lowering.of(psi, inputs.level).lower(written.value))?.let { Reading.Written(it) }
+                    ?: Reading.Unknown
+            Reading.Absent -> Reading.Absent
+            Reading.Unknown -> Reading.Unknown
+        }
+    }
+
     /** What the config read of [build], the build [file] is in, left, for a file outside a read. An unknown env has no read. */
     private fun readOf(file: VirtualFile?, build: BuildTarget?, inputs: Inputs, stamps: Stamps, transient: (Transient) -> Unit): BuildRead? {
         val env = build?.configEnv ?: return null
@@ -1024,6 +1049,9 @@ internal class ProjectModules(private val project: Project) {
         // Which copy the asker's index holds of each module the run or any it followed asked about, chosen once.
         val choices = HashMap<String, Choice>()
         fun choiceOf(module: String): Choice? = asker?.let { choices.getOrPut(module) { chosen(it, module, stamps, transient) } }
+        val parserOptions by lazy(LazyThreadSafetyMode.NONE) {
+            from?.takeUnless { reading }?.let { parserOptionsOf(it, inputs, stamps) } ?: Reading.Absent
+        }
 
         return object : RunFiles {
             override fun exists(path: String): Boolean? {
@@ -1050,17 +1078,16 @@ internal class ProjectModules(private val project: Project) {
                 return FollowedFile(Lowering.lower(psi, inputs.level), target)
             }
 
-            override fun parsed(text: String, line: Int): ElixirAst {
-                val psi = ElementFactory.createFile(project, text)
-
-                return Lowering.lower(psi, inputs.level, firstLine = line)
-            }
+            override fun parsed(text: String, line: Int, column: Int, indentation: Int): Parsed =
+                RunFiles.parse(project, inputs.level, text, line, column, indentation)
 
             // A read that declined may have required any path.
             override fun requiredByRead(path: String): Require? =
                 buildRead()?.table?.let { table ->
                     if (path in table.required) Require.REQUIRED else Require.MAYBE.takeIf { table.declined }
                 }
+
+            override fun parserOptions(): Reading<OtpErlangObject> = parserOptions
 
             override fun copyOf(module: String): Boolean? = choiceOf(module)?.let(::indexCopy)
 
@@ -1224,12 +1251,18 @@ internal class ProjectModules(private val project: Project) {
                 }
             }
 
+    /** The directory Elixir compiled [file] in: its [innermostMixExs]' project's. */
+    private fun compileDirectory(file: VirtualFile): String? = innermostMixExs(file)?.parent?.path
+
     /**
-     * The directory Elixir compiled [file] in: the innermost Mix project's holding it, as Mix compiles a dependency and
-     * each umbrella app in its own.
+     * The `mix.exs` of the innermost Mix project holding [file], as Mix compiles a dependency and each umbrella app in
+     * its own.
      */
-    private fun compileDirectory(file: VirtualFile): String? =
-        generateSequence(file.parent) { it.parent }.firstOrNull { it.findChild(MIX_EXS) != null }?.path
+    private fun innermostMixExs(file: VirtualFile): VirtualFile? = mixExsAbove(file).firstOrNull()
+
+    /** Each `mix.exs` in the directories above [file], innermost first. */
+    private fun mixExsAbove(file: VirtualFile): Sequence<VirtualFile> =
+        generateSequence(file.parent) { it.parent }.mapNotNull { it.findChild(MIX_EXS) }
 
     /**
      * A [Copy] as held: its file, whether it is a `.beam`, and for a `.beam`, the source its library or SDK attaches
@@ -1524,3 +1557,17 @@ internal class ProjectModules(private val project: Project) {
         ): Answer? = inProgress.getValue(file)[atom]
     }
 }
+
+/**
+ * The term [node] quotes, where it is a literal, which quotes as itself; `null` where it holds code. An alias holds code
+ * here: nothing expands it, so it is its `__aliases__` node, not the atom Mix's evaluation gives.
+ */
+private fun literalTerm(node: ElixirAst): OtpErlangObject? = node.takeIf(::isQuotedLiteral)?.toOtp()
+
+private fun isQuotedLiteral(node: ElixirAst): Boolean =
+    !node.hasMetadata() &&
+        when (node) {
+            is ElixirAst.Tuple -> node.elements.all(::isQuotedLiteral)
+            is ElixirAst.ListNode -> node.elements.all(::isQuotedLiteral)
+            else -> true
+        }

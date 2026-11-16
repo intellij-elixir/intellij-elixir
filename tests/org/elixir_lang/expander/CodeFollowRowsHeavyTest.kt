@@ -347,6 +347,8 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("i34", ":mine", elixir = ":mine"),
             // A string evaluated after code that declined doesn't know whether that code required the file.
             Row("i35", "unknown", elixir = "true"),
+            // Nor whether that code set the compiler's options.
+            Row("i35b", "unknown", elixir = "true"),
             // Each evaluation's `make_ref/0` makes a reference no other has made.
             Row("i36", "{false, false}", elixir = "{false, false}"),
             // A string evaluated after the body wrote an app's env reads it as the body does.
@@ -361,6 +363,10 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("i40", "unknown", elixir = ":first"),
             // A string a body evaluates reads the module the body compiles, which its run doesn't see.
             Row("i41", "unknown", elixir = "1"),
+            // A `counters` array a string made is the caller's to write, and its closure reads what the caller wrote.
+            Row("i42", "7", elixir = "7"),
+            // Code that declined in the caller may have written it, so the string's closure no longer knows its cell.
+            Row("i43", "unknown", elixir = "0"),
             // A follow of a path not known writes what it may: the read declines.
             Row("w1", "{unknown, nil, unknown}", elixir = "{:computed, nil, :computed}"),
             // A follow in code that may not run declines: what it writes and loads would join nothing.

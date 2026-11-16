@@ -33,7 +33,7 @@ internal object Quote {
      * escaped block is recorded for [written].
      */
     fun expand(call: ElixirAst.Call, state: ExState, env: Env, run: Run, written: ElixirAst.Call = call): Expansion =
-        when (val built = build(call, state, env, run, 0)) {
+        when (val built = build(call, state, env, run)) {
             is Built.Stopped -> built.expansion
             is Built.Escaped -> {
                 if (built.known) {
@@ -59,9 +59,9 @@ internal object Quote {
     /**
      * The escaped expression [call], a `quote` of either form, builds from [state] and [env], with its `bind_quoted`
      * bindings: `null` where building it raises or reaches what isn't ported, or where a run-time option's prelude
-     * comes first. [lineOffset] is added to each line read from a node's metadata.
+     * comes first.
      */
-    fun escaped(call: ElixirAst.Call, state: ExState, env: Env, run: Run, lineOffset: Int = 0): ElixirAst? {
+    fun escaped(call: ElixirAst.Call, state: ExState, env: Env, run: Run): ElixirAst? {
         val arguments = call.arguments ?: return null
         val body = when (arguments.size) {
             1 if arguments.single() is ElixirAst.ListNode -> withDoArgument(call) ?: return null
@@ -69,7 +69,7 @@ internal object Quote {
             else -> return null
         }
 
-        return (build(body, state, env, run, lineOffset) as? Built.Escaped)?.takeIf { it.known && it.bindings.isEmpty() }?.block
+        return (build(body, state, env, run) as? Built.Escaped)?.takeIf { it.known && it.bindings.isEmpty() }?.block
     }
 
     /**
@@ -97,7 +97,7 @@ internal object Quote {
      */
     fun escape(node: ElixirAst, at: Meta, run: Run): Escaped {
         val s = Synthetic(at)
-        val view = AstEscapeView(s, ParsedMeta(COMPILER_PARSES_COLUMNS.isSufficient(run.level)))
+        val view = AstEscapeView(s, ParsedMeta.of(COMPILER_PARSES_COLUMNS.isSufficient(run.level)))
         val escape = QuoteEscape(view, AstEscapeBuilder(s), view::inserted, run.level, run.exports, unquote = true)
 
         return when (val escaped = escape.escape(AstTerm.Node(node))) {
@@ -147,14 +147,14 @@ internal object Quote {
     /** Thrown where building stops: an error Elixir raises, or a node that isn't ported. */
     private class Stop(val expansion: Expansion) : RuntimeException(null, null, false, false)
 
-    private fun build(call: ElixirAst.Call, state: ExState, env: Env, run: Run, lineOffset: Int): Built =
+    private fun build(call: ElixirAst.Call, state: ExState, env: Env, run: Run): Built =
         try {
-            buildOrStop(call, state, env, run, lineOffset)
+            buildOrStop(call, state, env, run)
         } catch (stop: Stop) {
             Built.Stopped(stop.expansion)
         }
 
-    private fun buildOrStop(call: ElixirAst.Call, state: ExState, env: Env, run: Run, lineOffset: Int): Built.Escaped {
+    private fun buildOrStop(call: ElixirAst.Call, state: ExState, env: Env, run: Run): Built.Escaped {
         val (opts, doList) = call.arguments!!
         val level = run.level
         val exprs = (doList as ElixirAst.ListNode).elements.firstOrNull { keyOf(it) == "do" }
@@ -252,7 +252,6 @@ internal object Quote {
             env = expandedOpts.env,
             level = level,
             synthetic = Synthetic(call.meta),
-            lineOffset = lineOffset,
             observer = run.observer,
             exports = run.exports,
         )
@@ -561,7 +560,7 @@ internal object Quote {
     /** `elixir_quote:has_unquotes/1` over [exprs], `quote`'s body, raising where it raises. */
     private fun hasUnquotes(exprs: ElixirAst, call: ElixirAst.Call, level: ElixirLanguageLevel): Boolean =
         try {
-            HasUnquotes(AstEscapeView(Synthetic(call.meta), ParsedMeta(columns = false)), level).has(AstTerm.Node(exprs))
+            HasUnquotes(AstEscapeView(Synthetic(call.meta), ParsedMeta.LINES), level).has(AstTerm.Node(exprs))
         } catch (_: ImproperList) {
             throw Stop(Expansion.Error("Elixir.FunctionClauseError", call))
         }
@@ -582,7 +581,6 @@ internal object Quote {
         val env: Env,
         val level: ElixirLanguageLevel,
         val synthetic: Synthetic,
-        val lineOffset: Int,
         val observer: ExpansionObserver,
         val exports: Exports,
     ) : QuoteOp<AstTerm, ElixirAst> {
@@ -591,7 +589,7 @@ internal object Quote {
         /** The metadata `annotate_def/2` gave a node ahead of its own quoting. */
         private val annotated = IdentityHashMap<ElixirAst, Keywords<ElixirAst>>()
 
-        private val view = AstEscapeView(s, ParsedMeta(columns = false, lineOffset))
+        private val view = AstEscapeView(s, ParsedMeta.LINES)
 
         /** `do_quote/2` of [node]. */
         fun doQuote(node: ElixirAst): ElixirAst =
@@ -608,9 +606,9 @@ internal object Quote {
                 is Option.Dynamic -> s.variable("context")
             }
 
-        /** [meta]'s keys as `Code.compile_string` parses them at [level], with [lineOffset] added to each line. */
+        /** [meta]'s keys as `Code.compile_string` parses them at [level]. */
         fun sourceMeta(meta: Meta, dropColumn: Boolean = false): Keywords<ElixirAst> {
-            val parsed = ParsedMeta(COMPILER_PARSES_COLUMNS.isSufficient(level) && !dropColumn, lineOffset)
+            val parsed = ParsedMeta.of(COMPILER_PARSES_COLUMNS.isSufficient(level) && !dropColumn)
 
             return parsed.pairs(meta.keys).map { (key, value) -> key to parsed.code(s, value) }
         }
@@ -675,7 +673,7 @@ internal object Quote {
             if (imports.isNotEmpty()) {
                 val key = importKey(level, imports)
 
-                return keystore(keystore(meta, "context", contextNode()), key.name, ParsedMeta(columns = false, lineOffset).code(s, key.value))
+                return keystore(keystore(meta, "context", contextNode()), key.name, ParsedMeta.LINES.code(s, key.value))
             }
 
             val ambiguousOp = meta.firstOrNull { it.first == "ambiguous_op" }?.second
@@ -775,7 +773,7 @@ internal object Quote {
 
     /** The node of a `def` [head] that `annotate_def/2` marks with `context:`, as [definitionHead] names it. */
     fun annotatedDefinitionHead(head: ElixirAst, level: ElixirLanguageLevel): ElixirAst? {
-        val view = AstEscapeView(Synthetic(head.meta), ParsedMeta(columns = false))
+        val view = AstEscapeView(Synthetic(head.meta), ParsedMeta.LINES)
 
         return definitionHead(view, AstTerm.Node(head), level)?.let { (it as AstTerm.Node).node }
     }

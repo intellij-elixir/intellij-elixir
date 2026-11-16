@@ -16,6 +16,7 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.ericsson.otp.erlang.OtpOutputStream
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
+import org.elixir_lang.NameArity
 import org.elixir_lang.expander.Run
 import org.elixir_lang.expander.differInSign
 import org.elixir_lang.expander.UnorderedTerms
@@ -25,6 +26,7 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.fitsAnAtom
 import org.elixir_lang.psi.Import.Term
+import org.elixir_lang.unicode_util.isScalarValue
 import java.math.BigInteger
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -535,6 +537,24 @@ internal fun tuple(vararg elements: OtpErlangObject) = OtpErlangTuple(arrayOf(*e
 
 internal fun list(elements: List<OtpErlangObject>) = OtpErlangList(elements.toTypedArray())
 
+/** [text]'s code points, each an integer. */
+internal fun codePoints(text: String): List<OtpErlangObject> = charlist(text).elements().asList()
+
+/** [text] as a list of its code points. */
+internal fun charlist(text: String): OtpErlangList = OtpErlangList(text)
+
+/** [term] where it is a Unicode code point, which a surrogate isn't, `null` where it is something else. */
+internal fun codePoint(term: OtpErlangObject): Int? = smallInt(term)?.takeIf { isScalarValue(it.toLong()) }
+
+/** The text of [term], a proper list of code points; `null` where it is not one. */
+internal fun charlistText(term: OtpErlangObject): String? =
+    when (val known = seen(term)) {
+        is OtpErlangString -> known.stringValue()
+        else -> properElements(known)?.let { elements ->
+            String(IntArray(elements.size) { codePoint(seen(elements[it])) ?: return null }, 0, elements.size)
+        }
+    }
+
 /**
  * `[heads | tail]`, unknown where [tail] is: how many cells follow, and whether the list is proper, aren't known, but it
  * holds [heads].
@@ -623,7 +643,7 @@ private fun listed(
     ProgressManager.checkCanceled()
 
     val listed = when (term) {
-        is OtpErlangString -> OtpErlangList(term.stringValue())
+        is OtpErlangString -> charlist(term.stringValue())
         is OtpErlangTuple -> {
             val elements = term.elements().map { listed(it, seen) }
 
@@ -841,7 +861,7 @@ internal fun otpOf(value: Term, seen: (String) -> Unit = {}): OtpErlangObject {
 internal fun cells(term: OtpErlangObject): Pair<List<OtpErlangObject>, OtpErlangObject?>? =
     when (term) {
         is OtpErlangList -> term.elements().asList() to term.lastTail
-        is OtpErlangString -> term.stringValue().codePoints().toArray().map { integer(it.toLong()) } to null
+        is OtpErlangString -> codePoints(term.stringValue()) to null
         is UnknownValue -> unknown(term)
         else -> null
     }
@@ -858,21 +878,38 @@ internal fun isKeyword(term: OtpErlangObject): Boolean =
 internal fun pairKey(term: OtpErlangObject): OtpErlangObject? =
     (term as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elementAt(0)
 
-/** `lists:keyfind/3`'s walk: the first tuple of [elements], each read by [read], whose element [n] [matches]. */
+/** The atom key's name and the value of [term] where it is a keyword list's `{key, value}`, else `null`. */
+internal fun keywordPair(term: OtpErlangObject): Pair<String, OtpErlangObject>? =
+    (seen(term) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.let { pair ->
+        (seen(pair.elementAt(0)) as? OtpErlangAtom)?.let { it.atomValue() to pair.elementAt(1) }
+    }
+
+/**
+ * `lists:keyfind/3`'s walk: the index of the first tuple of [elements], each read by [read], whose element [n] [matches],
+ * or -1. A tuple too short is passed over, as the guard `element(N, H) == Key` fails.
+ */
+internal inline fun keyIndex(
+    elements: List<OtpErlangObject>,
+    n: Long,
+    read: (OtpErlangObject) -> OtpErlangObject,
+    matches: (OtpErlangObject) -> Boolean,
+): Int {
+    elements.forEachIndexed { index, element ->
+        val tuple = read(element) as? OtpErlangTuple
+
+        if (tuple != null && tuple.arity() >= n && matches(tuple.elementAt(n.toInt() - 1))) return index
+    }
+
+    return -1
+}
+
+/** The tuple [keyIndex] finds. */
 internal inline fun keyFound(
     elements: List<OtpErlangObject>,
     n: Long,
     read: (OtpErlangObject) -> OtpErlangObject,
     matches: (OtpErlangObject) -> Boolean,
-): OtpErlangTuple? {
-    for (element in elements) {
-        val tuple = read(element) as? OtpErlangTuple ?: continue
-
-        if (tuple.arity() >= n && matches(tuple.elementAt(n.toInt() - 1))) return tuple
-    }
-
-    return null
-}
+): OtpErlangTuple? = keyIndex(elements, n, read, matches).takeIf { it >= 0 }?.let { read(elements[it]) as OtpErlangTuple }
 
 /** The value of the tuple [keyFound] finds, where it is a `{key, Value}` pair; `null` where none is or it isn't one. */
 internal inline fun keyValue(
@@ -886,9 +923,64 @@ internal fun isNumber(term: OtpErlangObject) = term is OtpErlangLong || term is 
 /** [bitstring]'s length in bits, Erlang's `bit_size/1`. */
 internal fun bitSize(bitstring: OtpErlangBitstr) = bitstring.binaryValue().size * 8 - bitstring.pad_bits()
 
-/** Erlang's `==` where [exact] is false, else `=:=` ([termsEqual]); declines on terms whose order only the VM knows. */
+/**
+ * Erlang's `==` where [exact] is false, else `=:=` ([termsEqual]); declines on terms whose order only the VM knows, and on
+ * a term not known unless the two [surelyDiffer].
+ */
 internal fun equal(left: OtpErlangObject, right: OtpErlangObject, exact: Boolean, level: ElixirLanguageLevel): Boolean =
-    ordered(left, right, true) { termsEqual(left, right, exact, level) }
+    try {
+        ordered(left, right, true) { termsEqual(left, right, exact, level) }
+    } catch (declined: Declined) {
+        if (declined.onValue && surelyDiffer(left, right, exact, level)) false else throw declined
+    }
+
+/**
+ * Whether [left] and [right] are unequal whatever their unknown parts are: at one place they differ in a tuple's size, a
+ * map's size, a proper list's length or the kind of term, or hold two known terms that aren't [equal]. Two closures,
+ * which only the VM orders, aren't taken to differ.
+ */
+private fun surelyDiffer(left: OtpErlangObject, right: OtpErlangObject, exact: Boolean, level: ElixirLanguageLevel): Boolean {
+    val looked = Pairs<Boolean>(root = left)
+
+    fun differ(left: OtpErlangObject, right: OtpErlangObject): Boolean {
+        ProgressManager.checkCanceled()
+
+        if (isUnknown(left) || isUnknown(right)) return false
+
+        looked[left, right]?.let { return it }
+
+        return when (left) {
+            is OtpErlangTuple if right is OtpErlangTuple ->
+                left.arity() != right.arity() || (0 until left.arity()).any { differ(left.elementAt(it), right.elementAt(it)) }
+            is OtpErlangMap if right is OtpErlangMap -> left.arity() != right.arity()
+            else -> {
+                val leftCells = cells(left)
+                val rightCells = leftCells?.let { cells(right) }
+
+                when {
+                    leftCells != null && rightCells != null -> {
+                        val (leftElements, leftTail) = leftCells
+                        val (rightElements, rightTail) = rightCells
+
+                        leftElements.asSequence().zip(rightElements.asSequence()).any { (a, b) -> differ(a, b) } ||
+                            if (leftElements.size == rightElements.size) {
+                                (leftTail != null || rightTail != null) && differ(leftTail ?: EMPTY, rightTail ?: EMPTY)
+                            } else {
+                                val tail = if (leftElements.size < rightElements.size) leftTail else rightTail
+
+                                // Where the longer list goes on, the shorter has `[]` or a term that isn't a list.
+                                tail == null || !isUnknown(tail) && cells(tail) == null
+                            }
+                    }
+                    isContainer(left) || isContainer(right) -> true
+                    else -> orOnDecline(false) { !equal(left, right, exact, level) }
+                }
+            }
+        }.also { looked[left, right] = it }
+    }
+
+    return differ(left, right)
+}
 
 internal fun compare(
     left: OtpErlangObject,
@@ -928,6 +1020,20 @@ internal fun macroEnvField(env: OtpErlangMap, name: String): OtpErlangObject = s
 /** The field [name] of [env], a `%Macro.Env{}`, known or not, declining where it lacks it. */
 internal fun macroEnvEntry(env: OtpErlangMap, name: String): OtpErlangObject =
     env.get(atom(name)) ?: decline("a Macro.Env without %s", atom(name))
+
+/**
+ * A `Macro.Env`'s `:function`, [term]: `null` for `nil`, a `{name, arity}` whose arity is at least 0 as its [NameArity],
+ * and [otherwise] for any other term.
+ */
+internal inline fun envFunction(term: OtpErlangObject, otherwise: () -> Nothing): NameArity? {
+    val known = seen(term)
+
+    if (known == NIL) return null
+
+    val (name, arity) = keywordPair(known) ?: otherwise()
+
+    return NameArity(name, smallInt(seen(arity))?.takeIf { it >= 0 } ?: otherwise())
+}
 
 /** [term] as an `Int`, where it is an integer that fits one, `null` where it is something else. */
 internal fun smallInt(term: OtpErlangObject): Int? =
@@ -1032,6 +1138,11 @@ internal const val COPY_NODES = 1 shl 20
 internal fun tupleTerm(elements: List<Term>): Term =
     if (elements.size == 2) Term.Pair(elements[0], elements[1]) else Term.Tuple(elements)
 
-/** An `{M, F, ArgsOrArity, []}` stacktrace entry. */
-internal fun frame(module: String, function: String, argsOrArity: OtpErlangObject): OtpErlangTuple =
-    tuple(atom(module), atom(function), argsOrArity, EMPTY)
+/** An `{M, F, ArgsOrArity, Location}` stacktrace entry, its location `[]` unless given. */
+internal fun frame(
+    module: String,
+    function: String,
+    argsOrArity: OtpErlangObject,
+    location: OtpErlangObject = EMPTY,
+): OtpErlangTuple =
+    tuple(atom(module), atom(function), argsOrArity, location)

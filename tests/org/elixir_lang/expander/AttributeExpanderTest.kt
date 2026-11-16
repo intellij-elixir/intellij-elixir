@@ -392,6 +392,20 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
         )
 
+    /** A `counters` write given a value not known declines, and past it the cell isn't known. */
+    fun testACounterAWriteGivenAnUnknownValueMayHaveWrittenIsNotKnown() =
+        assertEvery(counterRead("_ = :counters.add(c, 1, case(:erlang.whereis(:init), do: (nil -> 2; _ -> 1)))"), COUNTER_NOT_KNOWN)
+
+    fun testACounterAWriteAtAnUnknownIndexMayHaveWrittenIsNotKnown() =
+        assertEvery(counterRead("_ = :counters.add(c, case(:erlang.whereis(:init), do: (nil -> 2; _ -> 1)), 1)", size = 2), COUNTER_NOT_KNOWN)
+
+    fun testACounterAWriteToAnUnknownArrayMayHaveWrittenIsNotKnown() =
+        assertEvery(counterRead("_ = :counters.add(case(:erlang.whereis(:init), do: (nil -> :counters.new(1, []); _ -> c)), 1, 1)"), COUNTER_NOT_KNOWN)
+
+    /** A declined call given the array, `counters:sub/3` unanswered, may have written its cells. */
+    fun testACounterADeclinedCallGivenTheArrayMayHaveWrittenIsNotKnown() =
+        assertEvery(counterRead(":counters.sub(c, 1, 1)"), COUNTER_NOT_KNOWN)
+
     /** The walk goes on past a match or an attribute value whose call declines, after which what it may have written isn't known. */
     fun testTheWalkGoesOnPastADeclineInAMatchOrAnAttributeValue() =
         assertEvery(
@@ -2711,5 +2725,26 @@ class AttributeExpanderTest : ExpanderTestCase() {
 
     private companion object {
         const val AT = "imported_macro Elixir.Kernel.@/1"
+
+        /** What [counterRead] gives where the cell may have been written by code that declined. */
+        val COUNTER_NOT_KNOWN =
+            """
+            top expanded {} next 0
+            module Elixir.U compiled
+              write v node `@v :counters.get(c, 1)`
+              read v in def v/0: unexpanded
+              final v: unknown
+            """.trimIndent()
+
+        /** A module that makes a `counters` array of [size] cells, runs [statement], then stores cell 1 in `@v`. */
+        fun counterRead(statement: String, size: Int = 1): String =
+            """
+            defmodule U do
+              c = :counters.new($size, [])
+              $statement
+              @v :counters.get(c, 1)
+              def v, do: @v
+            end
+            """.trimIndent()
     }
 }

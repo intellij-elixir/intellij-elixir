@@ -40,6 +40,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
+import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILER_PARSES_COLUMNS
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPE_HEADS_NEED_LIST_META
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAILED_COMPILE_PURGES_MODULE
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED_AS_MACRO
@@ -2260,17 +2261,16 @@ class ProjectModulesTest : PlatformTestCase() {
         assertFresh("the compiled EEx read", a, expansion(holder, a))
     }
 
-    /**
-     * Options that hold the module give the declined `EEx.compile_string/2` the module, so it loads unreadable, and
-     * the `@before_compile` it may have written stops the module at its end, a known divergence: Elixir compiles it.
-     */
-    fun testCompiledEexGivenTheModuleIsUnreadable() {
+    /** Options that hold the module give `EEx.compile_string/2` the module, and the module compiles as without them. */
+    fun testCompiledEexGivenTheModuleCompiles() {
         addCompiledEex()
         val a = add("a.ex", "defmodule A do\n  require EEx\n  EEx.function_from_string(:def, :f, \"x\", [], m: __MODULE__)\nend\n")
         val expansion = expansion(holder, a)
 
         assertEquals(
-            "top expanded\nElixir.A stopped `defmodule A do` unported defmodule errors[] loads Unreadable",
+            "top expanded\n" +
+                "Elixir.A compiled errors[] loads Present(functions=[NameArity(name=f, arity=0)], macros=[], " +
+                "hasInfo=true, behaviour=None, deprecated=Known(reasons={}), attributes=Unreadable)",
             render(a, expansion),
         )
         assertEquals(setOf(NameArity("f", 0)), expansion.modules.single().table.entries.keys)
@@ -2329,6 +2329,84 @@ class ProjectModulesTest : PlatformTestCase() {
         val a = add("env_file.ex", named("EnvFile", "Path.basename(__ENV__.file, \".ex\")"))
 
         assertEquals("compiled [env_file/0]", defines(a))
+    }
+
+    /** Mix gives the compiler the project's `elixirc_options`, so `parser_options:` there is what the compile reads. */
+    fun testAProjectsParserOptionsAreTheCompilersOptions() {
+        addLegElixir()
+        add("mix.exs", mixProject("elixirc_options: [parser_options: [token_metadata: true]]"))
+        val a = add("lib/a.ex", parserOptionsNamed("A"))
+
+        assertEquals("compiled [token_metadata/0]", defines(a))
+    }
+
+    /** A project whose `elixirc_options` leave out `parser_options:`, or that has no Mix project, compiles with the leg's. */
+    fun testAProjectWithoutParserOptionsCompilesWithTheLegs() {
+        addLegElixir()
+        add("mix.exs", mixProject("elixirc_options: [debug_info: true]"))
+        val a = add("lib/a.ex", parserOptionsNamed("A"))
+        val b = add("elsewhere/b.ex", parserOptionsNamed("B"))
+
+        assertEquals(compiledWithTheLegsParserOptions(), defines(a))
+        assertEquals(compiledWithTheLegsParserOptions(), defines(b))
+    }
+
+    /** `elixirc_options` that aren't a literal list may hold any `parser_options:`, and one that isn't literal may be any. */
+    fun testAProjectWhoseElixircOptionsArentLiteralHasNoKnownParserOptions() {
+        addLegElixir()
+        add("mix.exs", "defmodule MixProject do\n  use Mix.Project\n  def project, do: [app: :a, elixirc_options: options()]\n  defp options, do: []\nend\n")
+        add("b/mix.exs", "defmodule MixProject do\n  use Mix.Project\n  def project, do: [app: :b, elixirc_options: [parser_options: options()]]\n  defp options, do: []\nend\n")
+        val a = add("lib/a.ex", parserOptionsNamed("A"))
+        val b = add("b/lib/b.ex", parserOptionsNamed("B"))
+
+        assertEquals("stopped []", defines(a))
+        assertEquals("stopped []", defines(b))
+    }
+
+    /** Mix reads the first `elixirc_options:` the project gives. */
+    fun testElixircOptionsGivenTwiceAreTheFirst() {
+        addLegElixir()
+        add("mix.exs", mixProject("elixirc_options: [parser_options: [token_metadata: true]], elixirc_options: []"))
+        val a = add("lib/a.ex", parserOptionsNamed("A"))
+
+        assertEquals("compiled [token_metadata/0]", defines(a))
+    }
+
+    /** Mix gives `elixirc_options` only to the files it compiles, so a script runs with the leg's options. */
+    fun testAScriptCompilesWithTheLegsParserOptions() {
+        addLegElixir()
+        add("mix.exs", mixProject("elixirc_options: [parser_options: [token_metadata: true]]"))
+        val a = add("test/a_test.exs", parserOptionsNamed("A"))
+
+        assertEquals(compiledWithTheLegsParserOptions(), defines(a))
+    }
+
+    /** A test file runs with `test_elixirc_options`, which may name any `parser_options:`. */
+    fun testAScriptInAProjectWithTestElixircOptionsHasNoKnownParserOptions() {
+        addLegElixir()
+        add("mix.exs", mixProject("elixirc_options: [], test_elixirc_options: [parser_options: [token_metadata: true]]"))
+        val a = add("test/a_test.exs", parserOptionsNamed("A"))
+
+        assertEquals("stopped []", defines(a))
+    }
+
+    /** A project list that isn't literal may hold `test_elixirc_options:`. */
+    fun testAScriptInAProjectNotReadHasNoKnownParserOptions() {
+        addLegElixir()
+        add("mix.exs", "defmodule MixProject do\n  use Mix.Project\n  def project, do: [app: :a] ++ more()\n  defp more, do: []\nend\n")
+        val a = add("test/a_test.exs", parserOptionsNamed("A"))
+
+        assertEquals("stopped []", defines(a))
+    }
+
+    /** A dependency compiles with its own `elixirc_options`, not the project's. */
+    fun testADependencyCompilesWithItsOwnParserOptions() {
+        addLegElixir()
+        add("mix.exs", mixProject("elixirc_options: []"))
+        add("deps/dep/mix.exs", mixProject("elixirc_options: [parser_options: [token_metadata: true]]"))
+        val d = add("deps/dep/lib/d.ex", parserOptionsNamed("D"))
+
+        assertEquals("compiled [token_metadata/0]", defines(d))
     }
 
     /** `__DIR__` is the directory of `__ENV__.file`, as `Path.dirname/1` gives it. */
@@ -2518,6 +2596,26 @@ class ProjectModulesTest : PlatformTestCase() {
     /** `module`, defining the one function [name] gives. */
     private fun named(module: String, name: String) =
         "defmodule $module do\n  name = String.to_atom($name)\n  def unquote(name)(), do: 1\nend\n"
+
+    /** [module], defining a function named for the `parser_options` it compiles with. */
+    private fun parserOptionsNamed(module: String) =
+        "defmodule $module do\n" +
+            "  name =\n" +
+            "    case Code.get_compiler_option(:parser_options) do\n" +
+            "      [token_metadata: true] -> :token_metadata\n" +
+            "      [columns: true] -> :columns\n" +
+            "      [] -> :none\n" +
+            "    end\n\n" +
+            "  def unquote(name)(), do: 1\n" +
+            "end\n"
+
+    /** What [parserOptionsNamed] defines with the leg's `parser_options`. */
+    private fun compiledWithTheLegsParserOptions() =
+        "compiled [${if (COMPILER_PARSES_COLUMNS.isSufficient(legLevel())) "columns" else "none"}/0]"
+
+    /** A `mix.exs` whose project has [keywords] after its `app:`. */
+    private fun mixProject(keywords: String) =
+        "defmodule MixProject do\n  use Mix.Project\n  def project, do: [app: :a, $keywords]\nend\n"
 
     private fun defines(file: PsiFile): String = defines(holder, file)
 

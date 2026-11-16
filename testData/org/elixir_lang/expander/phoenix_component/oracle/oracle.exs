@@ -3,7 +3,12 @@
 # and how each module of routes/ compiles.
 out = System.fetch_env!("PHOENIX_COMPONENT_ORACLE")
 
-modules = [PhoenixComponentFixture.Remote, PhoenixComponentFixture.Forms, PhoenixComponentFixture.Globals]
+modules = [
+  PhoenixComponentFixture.Remote,
+  PhoenixComponentFixture.Forms,
+  PhoenixComponentFixture.Globals,
+  PhoenixComponentFixture.WithSigil
+]
 
 info =
   for module <- modules, into: %{} do

@@ -37,6 +37,13 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
         assertEquals("[{app,[{k,1}]}] [config/config.exs]", read(absent))
     }
 
+    /** `Code.eval_string/1` reads a list of code points as it reads a string. */
+    fun testAnEvaluatedListOfCodePointsIsItsText() {
+        val root = project(CONFIG to "import Config\n\nconfig :app, k: elem(Code.eval_string([?1, ?\\s, ?+, ?\\s, ?2]), 0), s: elem(Code.eval_string(\"1 + 2\"), 0)\n")
+
+        assertEquals("[{app,[{k,3},{s,3}]}] [config/config.exs]", read(root))
+    }
+
     /** Past no guard, the missing file's `File.Error` ends the read, and so the build. */
     fun testAnUnguardedImportOfAMissingFileLeavesEveryKeyUnknown() {
         val root = project(CONFIG to "import Config\n\nconfig :app, k: 1\nimport_config \"#{Mix.env()}.exs\"\n")

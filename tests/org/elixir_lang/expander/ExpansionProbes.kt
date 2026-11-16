@@ -124,11 +124,16 @@ internal class ExpansionProbes(
     }
 
     /**
-     * What a case was expanded from: [body] and [preamble] before their `{token}` was replaced, and where, as
-     * [layout]'s case [index].
+     * What a case was expanded from: [body] before its `{token}` was replaced, the [inputs] it was expanded with, and
+     * where, as [layout]'s case [index].
      */
-    class Origin(
-        val body: String,
+    class Origin(val body: String, val inputs: CaseInputs, val layout: ProbeHarness.Layout, val index: Int)
+
+    /**
+     * The inputs [expandAll] expands a case with, besides its body: [preamble] before its `{token}` was replaced, and the
+     * rest as [expandAll] names them. Cases with equal inputs expand again together.
+     */
+    data class CaseInputs(
         val preamble: String,
         val exports: Exports,
         val structs: Structs,
@@ -139,8 +144,7 @@ internal class ExpansionProbes(
         val file: String?,
         val directories: CompileDirectories,
         val os: OS?,
-        val layout: ProbeHarness.Layout,
-        val index: Int,
+        val files: RunFiles,
     )
 
     /**
@@ -180,7 +184,7 @@ internal class ExpansionProbes(
         preamble: String = "",
         exports: Exports = legExports,
         structs: Structs = legStructs,
-        appEnv: AppEnv = legAppEnv(),
+        appEnv: AppEnv = LEG_APP_ENV,
         standIns: List<StandIn> = emptyList(),
         hook: ProbeHarness.Hook? = null,
     ): CaseExpansion = expandAll(listOf(body), preamble, exports, structs, appEnv, hook, standIns = standIns).cases.single()
@@ -190,15 +194,15 @@ internal class ExpansionProbes(
      * standing for the compile's token, [exports] and [structs] for the modules Elixir loads, [appEnv] for the
      * application environment and [standIns] for the preamble's macros. [hook] adds that hook to each case module,
      * [top] the top-level probe to the end of the file, and [values] sends each case's `q` after its last statement.
-     * [clauses], [file], [directories] and [os] are the expander's inputs of those names. [tap] sees the nodes entered
-     * and the calls dispatched, as the expander reports them.
+     * [clauses], [file], [directories], [os] and [files] are the expander's inputs of those names. [tap] sees the nodes
+     * entered and the calls dispatched, as the expander reports them.
      */
     fun expandAll(
         bodies: List<String>,
         preamble: String = "",
         exports: Exports = legExports,
         structs: Structs = legStructs,
-        appEnv: AppEnv = legAppEnv(),
+        appEnv: AppEnv = LEG_APP_ENV,
         hook: ProbeHarness.Hook? = null,
         top: Boolean = false,
         values: Boolean = false,
@@ -208,6 +212,7 @@ internal class ExpansionProbes(
         directories: CompileDirectories = CompileDirectories.UNKNOWN,
         os: OS? = null,
         tap: ExpansionObserver? = null,
+        files: RunFiles = RunFiles.NONE,
     ): Expansions {
         val level = legLevel()
         val token = harness.token()
@@ -251,6 +256,7 @@ internal class ExpansionProbes(
                 directories,
                 clauses,
                 os = os,
+                files = files,
             )
         val cases = recorders.mapIndexed { index, recorder ->
             val module = layout.caseModule(index)
@@ -265,16 +271,7 @@ internal class ExpansionProbes(
                 observer.leftAt,
                 Origin(
                     bodies[index],
-                    preamble,
-                    exports,
-                    structs,
-                    appEnv,
-                    hook,
-                    standIns,
-                    clauses,
-                    file,
-                    directories,
-                    os,
+                    CaseInputs(preamble, exports, structs, appEnv, hook, standIns, clauses, file, directories, os, files),
                     layout,
                     index,
                 ),
@@ -559,7 +556,7 @@ internal class ExpansionProbes(
      * [DefinitionTables.compare] has something to compare.
      */
     private fun tables(expansion: CaseExpansion, attempt: ProbeHarness.Attempt, index: Int): Pair<String, String>? {
-        if (!definitions || expansion.origin.hook == null) return null
+        if (!definitions || expansion.origin.inputs.hook == null) return null
 
         val rows = DefinitionTables.compare(
             attempt.batch.caseModule(index),
@@ -924,11 +921,7 @@ internal class ExpansionProbes(
      */
     private fun batches(cases: Map<String, CaseExpansion>): List<Pair<List<String>, Expansions>> =
         cases.keys
-            .groupBy { name ->
-                cases.getValue(name).origin.let {
-                    listOf(it.preamble, it.exports, it.structs, it.hook, it.standIns, it.clauses, it.file, it.directories, it.os)
-                }
-            }
+            .groupBy { name -> cases.getValue(name).origin.inputs }
             .values
             .flatMap { names ->
                 val chunks = mutableListOf<MutableList<String>>()
@@ -948,24 +941,7 @@ internal class ExpansionProbes(
 
                 chunks
             }
-            .map { names ->
-                val origin = cases.getValue(names.first()).origin
-                val bodies = names.map { cases.getValue(it).origin.body }
-
-                names to expandAll(
-                    bodies,
-                    origin.preamble,
-                    origin.exports,
-                    origin.structs,
-                    origin.appEnv,
-                    origin.hook,
-                    standIns = origin.standIns,
-                    clauses = origin.clauses,
-                    file = origin.file,
-                    directories = origin.directories,
-                    os = origin.os,
-                )
-            }
+            .map { names -> names to expandAll(names.map { cases.getValue(it).origin.body }, cases.getValue(names.first()).origin.inputs) }
 
     /** [expansion]'s case expanded and compiled in a file of its own. */
     private fun alone(expansion: CaseExpansion): Pair<CaseExpansion, ProbeHarness.Attempt> {
@@ -973,23 +949,30 @@ internal class ExpansionProbes(
         val alone = if (origin.layout.cases.size == 1) {
             expansion
         } else {
-            expandAll(
-                listOf(origin.body),
-                origin.preamble,
-                origin.exports,
-                origin.structs,
-                origin.appEnv,
-                origin.hook,
-                standIns = origin.standIns,
-                clauses = origin.clauses,
-                file = origin.file,
-                directories = origin.directories,
-                os = origin.os,
-            ).cases.single()
+            expandAll(listOf(origin.body), origin.inputs).cases.single()
         }
 
         return alone to harness.attempt(alone.origin.layout)
     }
+
+    /** Each of [bodies] expanded as [expandAll] does, with [inputs]. */
+    fun expandAll(bodies: List<String>, inputs: CaseInputs): Expansions =
+        with(inputs) {
+            expandAll(
+                bodies,
+                preamble,
+                exports,
+                structs,
+                appEnv,
+                hook,
+                standIns = standIns,
+                clauses = clauses,
+                file = file,
+                directories = directories,
+                os = os,
+                files = files,
+            )
+        }
 
     /**
      * [node], lowered from [file], with each call one of [standIns] is for replaced by its output, which [standing]

@@ -654,12 +654,13 @@ internal class Evaluation(
 
     /**
      * `Macro.expand/2`, or with [once] `Macro.expand_once/2`, of [ast] in [env], expanded where the call is: in
-     * `__CALLER__`, in `__CALLER__` with only its `:function` changed, or in `Macro.Env.to_match/1` of `__CALLER__`.
+     * `__CALLER__`, in `__CALLER__` with only its `:function` or `:line` changed, or in `Macro.Env.to_match/1` of
+     * `__CALLER__`.
      * Any other env declines.
      */
     fun macroExpand(ast: OtpErlangObject, env: OtpErlangObject, once: Boolean): OtpErlangObject {
-        val (given, expandState) = expansionEnv(env) ?: decline("Macro.expand/2 in an env other than __CALLER__")
-        val expanding = givenAt(given, lineAt(given), run.level)
+        val (given, expandState, line) = expansionEnv(env) ?: decline("Macro.expand/2 in an env other than __CALLER__")
+        val expanding = givenAt(given, line, run.level)
         val node = rebuilt(ast, call.meta.origin, run, built = false, known = nodes::get)
             ?: decline("Macro.expand/2 of a term it can't read or copy")
         val expanded =
@@ -674,34 +675,27 @@ internal class Evaluation(
     }
 
     /**
-     * The env [given] stands for where it is `__CALLER__` on every key but `:function`, which is `{name, arity}` or
-     * `nil`: the call's, in that function. `null` where it is any other term.
+     * The env [given] stands for, and its line, where it is `__CALLER__` on every key but `:function`, which is
+     * `{name, arity}` or `nil`, and `:line`. `null` where it is any other term.
      */
-    private fun withFunction(given: OtpErlangObject): Env? {
+    private fun changedCaller(given: OtpErlangObject): Pair<Env, Int>? {
         val map = seen(given) as? OtpErlangMap ?: return null
         val caller = caller as? OtpErlangMap ?: return null
-        val key = atom("function")
+        val functionKey = atom("function")
+        val lineKey = atom("line")
 
         if (map.arity() != caller.arity()) return null
 
         for ((field, value) in entries(caller)) {
             val held = map.get(field) ?: return null
 
-            if (field != key && held !== value && !equal(held, value, true, run.level)) return null
+            if (field != functionKey && field != lineKey && held !== value && !equal(held, value, true, run.level)) return null
         }
 
-        val function = when (val value = seen(map.get(key)!!)) {
-            NIL -> null
-            is OtpErlangTuple -> {
-                val name = (value.elementAt(0) as? OtpErlangAtom)?.takeIf { value.arity() == 2 } ?: return null
-                val arity = smallInt(seen(value.elementAt(1)))?.takeIf { it >= 0 } ?: return null
+        val line = smallInt(seen(map.get(lineKey)!!))?.takeIf { it >= 0 } ?: return null
+        val function = envFunction(map.get(functionKey)!!) { return null }
 
-                NameArity(name.atomValue(), arity)
-            }
-            else -> return null
-        }
-
-        return env.copy(function = function)
+        return env.copy(function = function) to line
     }
 
     /** `run_on_definition_callbacks/8`'s call of `module:function/6` (`elixir_def.erl:255–262`). */
@@ -1258,19 +1252,20 @@ internal class Evaluation(
     private fun lineAt(env: Env): Int = env.line ?: lineOf(call.meta)
 
     /**
-     * The env and state [term] is: `__CALLER__`'s, `__CALLER__`'s with only its `:function` changed ([withFunction]), or
-     * the caller's in a match, as `Macro.Env.to_match/1` gives it, with the variables read before the match those it can
-     * read now.
+     * The env, state and line [term] is: `__CALLER__`'s, `__CALLER__`'s with only its `:function` or `:line` changed
+     * ([changedCaller]), or the caller's in a match, as `Macro.Env.to_match/1` gives it, with the variables read before
+     * the match those it can read now.
      */
-    private fun expansionEnv(term: OtpErlangObject): Pair<Env, ExState>? {
-        if (term === caller) return env to state
-        withFunction(term)?.let { return it to state }
+    private fun expansionEnv(term: OtpErlangObject): Triple<Env, ExState, Int>? {
+        if (term === caller) return Triple(env, state, lineAt(env))
+        changedCaller(term)?.let { (changed, line) -> return Triple(changed, state, line) }
 
         val matchEnv = env.copy(context = Env.Context.MATCH)
         val matchState = state.copy(prematch = ExState.Prematch.InMatch(state.read, state.version, emptyMap(), emptyList()))
-        val match = macroEnv(matchEnv, matchState, lineAt(matchEnv), false, run)
+        val line = lineAt(matchEnv)
+        val match = macroEnv(matchEnv, matchState, line, false, run)
 
-        return (matchEnv to matchState).takeIf { term == match }
+        return Triple(matchEnv, matchState, line).takeIf { term == match }
     }
 
     /**

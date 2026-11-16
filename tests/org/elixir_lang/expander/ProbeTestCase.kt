@@ -62,7 +62,7 @@ abstract class SdkProbeTestCase(
 
     /** A run at [level] with the leg's modules and [sdk], reporting to [observer]. */
     internal fun legRun(level: ElixirLanguageLevel, observer: ExpansionObserver): Run =
-        Run(level, observer, legExports, legStructs, legAppEnv(), clauses = sdk, newEnv = Env.empty(level, legKernel))
+        Run(level, observer, legExports, legStructs, LEG_APP_ENV, clauses = sdk, newEnv = Env.empty(level, legKernel))
 
     /** The one module of [code], as [expandedFileOnAStack] expands it. */
     internal fun expandedOnAStack(code: String, stackSize: Long): ExpansionResult = expandedFileOnAStack(code, stackSize).modules.single()
@@ -74,7 +74,7 @@ abstract class SdkProbeTestCase(
 
         return onAStack(stackSize) {
             Expander.expandFile(
-                forms, Env.empty(level, legKernel), level, appExports, legStructs, legAppEnv(),
+                forms, Env.empty(level, legKernel), level, appExports, legStructs, LEG_APP_ENV,
                 clauses = sdk, file = { "/s.ex" }, os = os,
             )
         }!!.getOrThrow()

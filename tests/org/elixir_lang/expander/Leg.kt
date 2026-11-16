@@ -78,6 +78,9 @@ internal fun legAppEnv(
     }
 }
 
+/** The env a default build sees ([legAppEnv]), one for the leg, so that cases expanded with it share it. */
+internal val LEG_APP_ENV: AppEnv by lazy { legAppEnv() }
+
 private val legEbins: List<File> by lazy { appEbins("ELIXIR_LANG_ELIXIR_PATH") + appEbins("ERLANG_SDK_HOME") }
 
 /** Each app's `ebin` under the `lib` of the install the leg's [variable] names. */

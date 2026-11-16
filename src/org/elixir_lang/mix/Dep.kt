@@ -76,7 +76,8 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
 
                     val options = if (stripped.size > 1) {
                         keywords(stripped.last())?.keywordPairList?.let { keywordPairList ->
-                            keywordPairList.fold(initial) { acc, keywordPair ->
+                            // Mix reads each option with `opts[:key]`, the first pair naming it.
+                            keywordPairList.distinctBy { it.keywordAtom() ?: it }.fold(initial) { acc, keywordPair ->
                                 when (keywordPair.keywordAtom()) {
                                     "allow_pre", "app", "branch", "commit", "compile", "env", "hex",
                                     "manager", "organization", "override", "ref", "repo", "runtime",

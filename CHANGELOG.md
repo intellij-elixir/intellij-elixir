@@ -22,6 +22,9 @@
 
 ### Enhancements
 
+- [#4710](https://github.com/intellij-elixir/intellij-elixir/pull/4710) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, a module that uses `Phoenix.Component` and writes its markup in `~H` compiles in the expander, so the functions and components it defines are known, and a module that imports it, such as one that uses a Phoenix app's `:html`, compiles too; and where a `mix.exs` gives a key twice, in `project/0` or in a dependency's options, or defines `project/0` twice or in a module beside the one that uses `Mix.Project`, dependency sync, test file detection and the expander read the one Mix reads.** Refs [#4704](https://github.com/intellij-elixir/intellij-elixir/issues/4704).
+
 - [#4698](https://github.com/intellij-elixir/intellij-elixir/pull/4698) [@sh41](https://github.com/sh41)
   - **Quick Documentation shows on a function name written quoted or escaped in a remote call or a capture, such as `Q."hello"("b")`, on `%__MODULE__{}`, and on a call of a function a `defexception` in your project defines, and a function link in documentation opens what a call of that name documents, such as your own `message/1` over the one `defexception` writes; with "Run the expander" on, Quick Documentation and Parameter Info answer from what the macro expander finds, and Quick Documentation says when it could not confirm a definition.** Refs [#4682](https://github.com/intellij-elixir/intellij-elixir/issues/4682).
 

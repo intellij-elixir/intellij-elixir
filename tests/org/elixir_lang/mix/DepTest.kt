@@ -102,6 +102,39 @@ class DepTest : PlatformTestCase() {
         assertEquals("../my_dep", deps.single()?.path)
     }
 
+    /** Mix reads a dep's option with `opts[:key]`, the first pair naming it. */
+    fun testAPathGivenTwiceIsTheFirst() {
+        val (deps, _) = depsFrom("{:my_dep, path: \"../first\", path: \"../second\"}")
+
+        assertEquals("../first", deps.single()?.path)
+    }
+
+    fun testASparseGivenTwiceIsTheFirst() {
+        val (deps, _) = depsFrom("{:d, git: \"u\", sparse: \"first\", sparse: \"second\"}")
+
+        assertEquals("deps/d/first", deps.single()?.path)
+    }
+
+    fun testASubdirGivenTwiceIsTheFirst() {
+        val (deps, _) = depsFrom("{:d, git: \"u\", subdir: \"first\", subdir: \"second\"}")
+
+        assertEquals("deps/d/first", deps.single()?.path)
+    }
+
+    fun testAnOnlyGivenTwiceIsTheFirst() {
+        val (kept, _) = depsFrom("{:d, \"~> 1.0\", only: [:prod], only: [:test]}", isDependency = true)
+        val (dropped, _) = depsFrom("{:d, \"~> 1.0\", only: [:test], only: [:prod]}", isDependency = true)
+
+        assertEquals("deps/d", kept.single()?.path)
+        assertNull(dropped.single())
+    }
+
+    fun testAnOptionalGivenTwiceIsTheFirst() {
+        val (deps, _) = depsFrom("{:d, \"~> 1.0\", optional: false, optional: true}", isDependency = true)
+
+        assertEquals("deps/d", deps.single()?.path)
+    }
+
     fun testInUmbrellaOptionUsesUmbrellaApplicationPath() {
         val (deps, errorTitles) = depsFrom("{:my_dep, in_umbrella: true}")
 
@@ -348,6 +381,8 @@ class DepTest : PlatformTestCase() {
                 "mix.exs",
                 """
                 defmodule Sample.MixProject do
+                  use Mix.Project
+
                   def project do
                     [
                       deps: [

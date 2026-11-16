@@ -19,11 +19,14 @@ import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.expander.interpreter.UnknownBinary
 import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
+import org.elixir_lang.language_level.ElixirLanguageFeature.CODE_COLUMN_STARTS_EVERY_LINE
+import org.elixir_lang.language_level.ElixirLanguageFeature.CODE_INDENTATION_STARTS_LATER_LINES
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINER_REFUSED_IN_MATCH_OR_GUARD
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_ESCAPES_STRUCT
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEPRECATED_OPERATORS_INSPECTED_QUOTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.DUPLICATE_MATCH_UNPACKED_ONCE
 import org.elixir_lang.language_level.ElixirLanguageFeature.ELLIPSIS_NULLARY_CALL
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_QUOTED_APART
@@ -56,6 +59,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.OVERRIDABLE_GUARDS_M
 import org.elixir_lang.language_level.ElixirLanguageFeature.PID_IN_FUNCTION_RAISES_MATCH_ERROR
 import org.elixir_lang.language_level.ElixirLanguageFeature.PINNED_BINARY_SEGMENT_INFERS_SIZE
 import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CHECKS_TYPED
+import org.elixir_lang.language_level.ElixirLanguageFeature.POWER_OPERATOR
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_IMPORTS_EVERY_ARITY
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_KEEPS_IMPORTS_META
 import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_ESCAPED_IN_FIXED_FIELD_ORDER
@@ -64,6 +68,8 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUED_ERROR_MESSAG
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_EXCEPTION_KEY_PRESENT
 import org.elixir_lang.language_level.ElixirLanguageFeature.SPLICE_EMPTY_BEFORE_TAIL_RAISES
 import org.elixir_lang.language_level.ElixirLanguageFeature.STATIC_OPTIONS_IN_PERSISTENT_TERM
+import org.elixir_lang.language_level.ElixirLanguageFeature.STEP_ATOM
+import org.elixir_lang.language_level.ElixirLanguageFeature.UNICODE_17_ATOMS_INSPECTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNREQUIRED_MACRO_CALLED_AS_FUNCTION
 import org.elixir_lang.language_level.ElixirLanguageFeature.WITH_OPTIONS_BEFORE_LAST_ARGUMENT
@@ -470,11 +476,10 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
     /** A macro whose code declined may have changed the directory a later module reads. */
     fun testTheWorkingDirectoryAfterAMacroThatDeclinedIsUnknown() {
-        val code = "defmodule M do\n  defmacro cd, do: (:file.set_cwd(\"/other\"); quote(do: :ok))\nend\n" +
-            "defmodule A do\n  require M\n  M.cd()\nend\n" + CWD_MODULE
+        val code = DECLINING_MACRO + CWD_MODULE
 
         assertEquals(
-            "top expanded\nmodule Elixir.M compiled [cd/0 defmacro]\nmodule Elixir.A stopped `M.cd()` []\nmodule Elixir.B stopped `$CWD_NAME` []",
+            "top expanded\n$DECLINING_MACRO_ENDED\nmodule Elixir.B stopped `$CWD_NAME` []",
             file(code, tables = true, run = RunInputs(OS.Linux, FILE, directories = { "/proj" })),
         )
     }
@@ -509,6 +514,26 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             file(code, tables = true, run = RunInputs(OS.Linux, FILE, directories = { "/proj" })),
         )
     }
+
+    /** `get_compiler_option(:parser_options)` is known in a run where nothing has run that the expander doesn't follow. */
+    fun testTheParserOptionsAreKnown() =
+        assertFile(PARSER_OPTIONS_MODULE, "top expanded\nmodule Elixir.B compiled [listed/0 def]", tables = true)
+
+    /** A call that declined may have set the compiler's options, so the `parser_options` after it are not known. */
+    fun testTheParserOptionsAfterADeclinedCallAreUnknown() =
+        assertFile(
+            "defmodule A do\n  :file.set_cwd(\"/other\")\nend\n$PARSER_OPTIONS_MODULE",
+            "top expanded\nmodule Elixir.A compiled []\nmodule Elixir.B stopped `$PARSER_OPTIONS_NAME` []",
+            tables = true,
+        )
+
+    /** A macro whose code declined may have set the options a later module reads. */
+    fun testTheParserOptionsAfterAMacroThatDeclinedAreUnknown() =
+        assertFile(
+            "$DECLINING_MACRO$PARSER_OPTIONS_MODULE",
+            "top expanded\n$DECLINING_MACRO_ENDED\nmodule Elixir.B stopped `$PARSER_OPTIONS_NAME` []",
+            tables = true,
+        )
 
     /** `:file.get_cwd/0` answers a Windows drive lowercased, as OTP gives it, whatever the case the directory has. */
     fun testTheWorkingDirectoryOnWindowsHasALowercaseDrive() {
@@ -811,7 +836,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         val actual = mutableListOf<String>()
 
         for ((id, statements, answers) in rows.map { (id, code, answer) -> Triple(id, code, answer to answer) } + read) {
-            for ((binary, answer) in listOf("\":x\"" to answers.first, "Kernel.inspect(:x)" to answers.second)) {
+            for ((binary, answer) in listOf("\":x\"" to answers.first, "Kernel.inspect(12)" to answers.second)) {
                 expected += "$id $binary: $answer"
                 actual += "$id $binary: ${ended(file(code(id, statements.first, statements.second, binary), tables = true))}"
             }
@@ -2235,7 +2260,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         val level = legLevel()
 
         return Expander
-            .expandFile(lowered(code, level), Env.empty(level, legKernel), level, appExports, legStructs, legAppEnv(), clauses = sdk)
+            .expandFile(lowered(code, level), Env.empty(level, legKernel), level, appExports, legStructs, LEG_APP_ENV, clauses = sdk)
             .modules
             .single()
     }
@@ -2465,7 +2490,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             level,
             run.exports ?: appExports,
             legStructs,
-            legAppEnv(),
+            LEG_APP_ENV,
             clauses = run.clauses ?: sdk,
             file = { run.path },
             directories = run.directories,
@@ -2512,6 +2537,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         val exports = Exports { module -> copies[module]?.exports ?: appExports.of(module) }
         val hook = ProbeHarness.Hook()
         val clauses = ModuleClauses.Lookup { module -> copies[module]?.clauses ?: sdk.of(module) }
+        val files = parsing(level)
         val tokens = mutableListOf(token)
         val ownEnds = mutableMapOf<Int, String>()
         // A raise ends its file, so each row has a file of its own, with only its own modules: Elixir takes longer
@@ -2526,6 +2552,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 file = FILE,
                 directories = DIRECTORIES,
                 os = OS.CURRENT,
+                files = files,
             )
 
             tokens += expansion.layout.token
@@ -2588,16 +2615,11 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         actual: MutableList<String>,
     ) {
         for (batch in rows.indices.filter { expansions[it].ended == Ended.Compiled }.chunked(TABLES_BATCH)) {
-            val origin = expansions[batch.first()].origin
             val together = probes.expandAll(
                 batch.map { expansions[it].origin.body },
-                if (source == Source.SOURCE) preamble(rows, TOKEN, only = batch) else "",
-                origin.exports,
-                hook = origin.hook,
-                clauses = origin.clauses,
-                file = origin.file,
-                directories = origin.directories,
-                os = origin.os,
+                expansions[batch.first()].origin.inputs.copy(
+                    preamble = if (source == Source.SOURCE) preamble(rows, TOKEN, only = batch) else "",
+                ),
             )
             val attempt = harness.attempt(together.layout)
 
@@ -2653,6 +2675,13 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             Ended.Tainted -> "tainted"
         }
 
+    /** `Code`'s string parses, made in the fixture's project, as a project's runs make them. */
+    private fun parsing(level: ElixirLanguageLevel) =
+        object : RunFiles by RunFiles.NONE {
+            override fun parsed(text: String, line: Int, column: Int, indentation: Int) =
+                RunFiles.parse(project, level, text, line, column, indentation)
+        }
+
     /**
      * Each of [rows]' calls expanded once as `Macro.expand_once/2` expands it, in a `{token}.Case` that requires the
      * row's modules, with those modules as [source] holds them: compiled from the preamble, each row's in a file of its
@@ -2687,7 +2716,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                     level,
                     appExports,
                     legStructs,
-                    legAppEnv(),
+                    LEG_APP_ENV,
                     observer,
                     file = { FILE },
                     directories = DIRECTORIES,
@@ -2715,11 +2744,12 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 ExpansionObserver.NONE,
                 exports,
                 legStructs,
-                legAppEnv(),
+                LEG_APP_ENV,
                 file = { FILE },
                 directories = DIRECTORIES,
                 clauses = clauses,
                 os = OS.CURRENT,
+                files = parsing(level),
             )
             val call = lowered(row.call(index, token), level)
 
@@ -2965,6 +2995,20 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
         /** A module that names a function by the directory its compile runs in. */
         const val CWD_MODULE = "defmodule B do\n  {:ok, cwd} = :file.get_cwd()\n  def $CWD_NAME(), do: 1\nend"
+
+        /** A macro whose code declines, and a module that calls it. */
+        const val DECLINING_MACRO = "defmodule M do\n  defmacro cd, do: (:file.set_cwd(\"/other\"); quote(do: :ok))\nend\n" +
+            "defmodule A do\n  require M\n  M.cd()\nend\n"
+
+        /** How [DECLINING_MACRO]'s modules end. */
+        const val DECLINING_MACRO_ENDED = "module Elixir.M compiled [cd/0 defmacro]\nmodule Elixir.A stopped `M.cd()` []"
+
+        /** The name of a function made from whether the compiler's `parser_options` are a list, as they always are. */
+        const val PARSER_OPTIONS_NAME = "unquote(if is_list(options), do: :listed, else: :other)"
+
+        /** A module that names a function by the `parser_options` its compile reads. */
+        const val PARSER_OPTIONS_MODULE =
+            "defmodule B do\n  options = Code.get_compiler_option(:parser_options)\n  def $PARSER_OPTIONS_NAME(), do: 1\nend"
         const val RECV_B = "(receive do after 0 -> :b end)"
 
         const val TOKEN = "{token}"
@@ -3057,6 +3101,21 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
          */
         val DECLINED_WHERE_AN_ENV_IS_TAKEN_WHOLE: (Source, ElixirLanguageLevel) -> String? = { _, level ->
             OPAQUE.takeIf { IO_WARN_TAKES_AN_ENV_OR_OPTIONS.isSufficient(level) && !IO_WARN_READS_THE_MESSAGE_FIRST.isSufficient(level) }
+        }
+
+        /** [DECLINED] where `Code.string_to_quoted/2`'s `column:` moves the lines after the first, but not a heredoc's. */
+        val DECLINED_WHERE_THE_COLUMN_MOVES_EVERY_LINE: (Source, ElixirLanguageLevel) -> String? = { _, level ->
+            OPAQUE.takeIf { CODE_COLUMN_STARTS_EVERY_LINE.isSufficient(level) && !CODE_INDENTATION_STARTS_LATER_LINES.isSufficient(level) }
+        }
+
+        /** [DECLINED] where `indentation:` starts the lines after the first. */
+        val DECLINED_WHERE_INDENTATION_STARTS_LATER_LINES: (Source, ElixirLanguageLevel) -> String? = { _, level ->
+            OPAQUE.takeIf { CODE_INDENTATION_STARTS_LATER_LINES.isSufficient(level) }
+        }
+
+        /** [DECLINED] where `...` before `-` is a unary operator, which the lowering doesn't lower, not a variable. */
+        val DECLINED_WHERE_ELLIPSIS_IS_UNARY: (Source, ElixirLanguageLevel) -> String? = { _, level ->
+            OPAQUE.takeIf { ELLIPSIS_NULLARY_CALL.isSufficient(level) }
         }
 
         /** From source the expander declines where [OPAQUE] says; `Dbgi` holds what Elixir compiled. */
@@ -3181,6 +3240,21 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
 
             return Row(id, defs.trimIndent(), call, body, use, listOf(module), source, legs, UNPINNED, stopsAfter, ends = ends)
         }
+
+        /** A macro `m` giving `{kind, reason}` where [expression] raises, else its value. */
+        fun caught(expression: String) = "defmacro m, do: (try do $expression catch kind, reason -> {kind, reason} end)"
+
+        /** A row of `elixir_tokenizer:tokenize/3` from line 1, as `EEx` calls it, of each of [texts], an Elixir list's items. */
+        fun tokenizes(id: String, texts: String): Row =
+            macro(
+                id,
+                "defp t(e), do: :elixir_tokenizer.tokenize(e, 1, file: \"eex\", check_terminators: false)\n" +
+                    "defmacro m, do: Macro.escape(for e <- [\n${texts.trimIndent()}\n], do: t(e))",
+            )
+
+        /** A row whose `elixir_tokenizer:tokenize/3` of [text] from line 1, as `EEx` calls it, declines. */
+        fun tokenizeDeclines(id: String, text: String): Row =
+            macro(id, "defmacro m, do: Macro.escape(:elixir_tokenizer.tokenize($text, 1, check_terminators: false))", pins = DECLINED)
 
         /** A row whose `use` runs [statements] in the case module once it requires `EEx`. */
         fun eex(id: String, statements: String, ends: (ElixirLanguageLevel) -> String? = { null }): Row =
@@ -5630,6 +5704,32 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 """,
                 pins = DECLINED_FROM_SOURCE,
             ),
+            macro("native:keytake", "defmacro m, do: Macro.escape(:lists.keytake(:b, 1, [{:a, 1}, {:b, 2}, {:b, 3}]))"),
+            macro("native:keytake-none", "defmacro m, do: :lists.keytake(:c, 1, [{:a, 1}])"),
+            macro("native:keytake-empty", "defmacro m, do: :lists.keytake(:c, 1, [])"),
+            macro("native:keytake-int-float", "defmacro m, do: Macro.escape(:lists.keytake(1, 1, [{1.0, :a}]))"),
+            macro(
+                "native:keytake-skips-non-tuples-and-short-tuples",
+                "defmacro m, do: Macro.escape(:lists.keytake(:a, 2, [:a, {:a}, {:x, :a}]))",
+            ),
+            macro("native:keytake-improper-tail-after-match", "defmacro m, do: Macro.escape(:lists.keytake(:a, 1, [{:a, 1} | :t]))"),
+            macro("native:keytake-improper-tail", "defmacro m, do: :lists.keytake(:a, 1, [{:b, 1} | :t])"),
+            macro("native:keytake-zero", "defmacro m, do: :lists.keytake(:a, 0, [{:a, 1}])"),
+            macro("native:keytake-not-an-integer", "defmacro m, do: :lists.keytake(:a, 1.0, [{:a, 1}])"),
+            macro("native:keytake-not-a-list", "defmacro m, do: :lists.keytake(:a, 1, :l)"),
+            macro("native:keytake-position-past-an-int", "defmacro m, do: :lists.keytake(:a, 4_294_967_297, [{:a, 1}])"),
+            macro(
+                "native:keytake-elixir",
+                "defmacro m, do: Macro.escape([List.keytake([a: 1, b: 2], :b, 0), Keyword.pop_first([a: 1, a: 2], :a)])",
+            ),
+            macro(
+                "native:keytake-unknown-element",
+                """
+                @x (receive do after 0 -> {:a, :first} end)
+                defmacro m, do: Macro.escape(:lists.keytake(:a, 1, [@x, {:a, :fallback}]))
+                """,
+                pins = DECLINED_FROM_SOURCE,
+            ),
             macro(
                 "pure:range-member-unknown",
                 """
@@ -5941,6 +6041,713 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro("pure:maps-badmap", "defmacro m, do: :maps.get(:a, 1)"),
             macro("pure:maps-badkey", "defmacro m, do: :maps.get(:b, %{a: 1})"),
             macro("pure:maps-from-list-badarg", "defmacro m, do: :maps.from_list([1])"),
+            macro("native:maps-take", "defmacro m, do: Macro.escape(:maps.take(:a, %{a: 1, b: 2}))"),
+            macro("native:maps-take-missing", "defmacro m, do: :maps.take(:c, %{a: 1})"),
+            // A key is taken where it is exactly equal, so `1.0` misses `1`.
+            macro("native:maps-take-exact", "defmacro m, do: :maps.take(1.0, %{1 => :x})"),
+            macro("native:maps-take-badmap", "defmacro m, do: :maps.take(:a, :b)"),
+            macro(
+                "native:maps-take-elixir",
+                "defmacro m, do: Macro.escape([Map.pop(%{a: 1}, :a), Map.pop(%{a: 1}, :b, 0), Map.pop!(%{a: 1}, :a)])",
+            ),
+
+            // The natives: `counters`
+            macro(
+                "native:counters",
+                """
+                defmacro m do
+                  c = :counters.new(2, [])
+                  :counters.add(c, 1, 5)
+                  :counters.put(c, 2, 7)
+
+                  [:counters.add(c, 2, -10), :counters.get(c, 1), :counters.get(c, 2)]
+                end
+                """,
+            ),
+            macro(
+                "native:counters-options",
+                """
+                defmacro m do
+                  a = :counters.new(1, [:atomics])
+                  w = :counters.new(1, [:write_concurrency])
+                  :counters.add(a, 1, 1)
+                  :counters.put(w, 1, 2)
+
+                  [:counters.get(a, 1), :counters.get(w, 1), elem(a, 0), elem(w, 0)]
+                end
+                """,
+            ),
+            // Signed 64 bits, wrapping, and an increment may be any 64 bits, signed or not.
+            macro(
+                "native:counters-wrap",
+                """
+                defmacro m do
+                  c = :counters.new(2, [])
+                  :counters.put(c, 1, 9_223_372_036_854_775_807)
+                  :counters.add(c, 1, 1)
+                  :counters.add(c, 2, 18_446_744_073_709_551_615)
+
+                  [:counters.get(c, 1), :counters.get(c, 2)]
+                end
+                """,
+            ),
+            macro("native:counters-new-size-zero", caught(":counters.new(0, [])")),
+            macro("native:counters-new-size-negative", caught(":counters.new(-1, [])")),
+            macro("native:counters-new-size-float", caught(":counters.new(1.0, [])")),
+            macro("native:counters-new-system-limit", caught(":counters.new(18_446_744_073_709_551_616, [])")),
+            // The options are read before the size.
+            macro("native:counters-new-badopt-first", caught(":counters.new(0, [:x])")),
+            macro("native:counters-new-two-options", caught(":counters.new(1, [:atomics, :write_concurrency])")),
+            macro("native:counters-new-options-not-a-list", caught(":counters.new(1, :atomics)")),
+            // An array the evaluator won't hold.
+            macro("native:counters-new-large", "defmacro m, do: :counters.get(:counters.new(2_000_000, []), 1)", pins = DECLINED),
+            // The run keeps every array it made, so it holds no more cells in all than it would in one.
+            macro(
+                "native:counters-new-past-the-runs-cells",
+                "defmacro m, do: (_ = :counters.new(600_000, []); :counters.get(:counters.new(600_000, []), 1))",
+                pins = DECLINED,
+            ),
+            macro("native:counters-new-within-the-runs-cells", "defmacro m, do: (_ = :counters.new(500_000, []); :counters.get(:counters.new(500_000, []), 1))"),
+            macro("native:counters-get-index-zero", caught(":counters.get(:counters.new(1, []), 0)")),
+            macro("native:counters-get-index-past-size", caught(":counters.get(:counters.new(1, []), 2)")),
+            macro("native:counters-get-index-not-an-integer", caught(":counters.get(:counters.new(1, []), :a)")),
+            macro("native:counters-get-not-a-counter", caught(":counters.get(:a, 1)")),
+            macro("native:counters-get-tag-not-a-ref", caught(":counters.get({:atomics, :a}, 1)")),
+            macro(
+                "native:counters-get-kind-mismatch",
+                caught("r = elem(:counters.new(1, [:atomics]), 1); :counters.get({:write_concurrency, r}, 1)"),
+            ),
+            macro("native:counters-get-ref-not-made", "defmacro m, do: :counters.get({:atomics, make_ref()}, 1)", pins = DECLINED),
+            macro("native:counters-put-past-64-bits", caught(":counters.put(:counters.new(1, []), 1, 9_223_372_036_854_775_808)")),
+            macro("native:counters-add-past-64-bits", caught(":counters.add(:counters.new(1, []), 1, 18_446_744_073_709_551_616)")),
+            macro("native:counters-add-below-64-bits", caught(":counters.add(:counters.new(1, []), 1, -9_223_372_036_854_775_809)")),
+            macro("native:counters-add-not-an-integer", caught(":counters.add(:counters.new(1, []), 1, 1.0)")),
+            macro("native:counters-put-index-past-size", caught(":counters.put(:counters.new(1, []), 2, 0)")),
+            // The raise carries `error_info`, which a `rescue` hands `erl_erts_errors:format_error/2`, which isn't run, from
+            // `RESCUED_ERROR_MESSAGE_FROM_ERROR_INFO`.
+            macro(
+                "native:counters-error-info",
+                """
+                def top(f) do
+                  try do
+                    f.()
+                  catch
+                    :error, _ ->
+                      [{module, function, args, location} | _] = __STACKTRACE__
+                      {module, function, args, :lists.keyfind(:error_info, 1, location)}
+                  end
+                end
+
+                defmacro m do
+                  Macro.escape([
+                    top(fn -> :counters.new(0, []) end),
+                    top(fn -> :counters.new(1, [:x]) end),
+                    top(fn -> :counters.put(:a, 1, 0) end)
+                  ])
+                end
+                """,
+            ),
+            macro(
+                "native:counters-badarg-message",
+                "defmacro m, do: (try do :counters.get(:counters.new(1, []), 0) rescue e -> Exception.message(e) end)",
+                pins = { _, level -> OPAQUE.takeIf { RESCUED_ERROR_MESSAGE_FROM_ERROR_INFO.isSufficient(level) } },
+            ),
+            macro("native:counters-sub", "defmacro m, do: (c = :counters.new(1, []); :counters.sub(c, 1, 1); :counters.get(c, 1))", pins = DECLINED),
+            // Code that may not run neither reads a cell nor keeps what it writes.
+            macro(
+                "native:counters-arm-one",
+                "defmacro m, do: (c = :counters.new(1, []); if(:erlang.whereis(:init), do: :counters.add(c, 1, 1)); :counters.get(c, 1))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:counters-arm-both",
+                """
+                defmacro m do
+                  c = :counters.new(1, [])
+                  if :erlang.whereis(:init), do: :counters.add(c, 1, 1), else: :counters.add(c, 1, 1)
+                  :counters.get(c, 1)
+                end
+                """,
+                pins = DECLINED,
+            ),
+            macro(
+                "native:counters-arm-read",
+                "defmacro m, do: (c = :counters.new(1, []); if(:erlang.whereis(:init), do: :counters.get(c, 1), else: 0))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:counters-outside-arms",
+                "defmacro m, do: (c = :counters.new(1, []); _ = if(:erlang.whereis(:init), do: :a, else: :b); :counters.add(c, 1, 1); :counters.get(c, 1))",
+            ),
+            macro(
+                "native:counters-put-after-arm",
+                "defmacro m, do: (c = :counters.new(1, []); if(:erlang.whereis(:init), do: :counters.add(c, 1, 1)); :counters.put(c, 1, 7); :counters.get(c, 1))",
+            ),
+            macro(
+                "native:counters-add-after-arm",
+                "defmacro m, do: (c = :counters.new(1, []); if(:erlang.whereis(:init), do: :counters.add(c, 1, 1)); :counters.add(c, 1, 7); :counters.get(c, 1))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:counters-past-raise",
+                """
+                defmacro m do
+                  c = :counters.new(1, [])
+
+                  try do
+                    if :erlang.whereis(:init), do: raise("x")
+                    :counters.add(c, 1, 1)
+                  rescue
+                    RuntimeError -> :ok
+                  end
+
+                  :counters.get(c, 1)
+                end
+                """,
+                pins = DECLINED,
+            ),
+            // A pass reading a cell an earlier pass wrote.
+            macro(
+                "native:counters-for-over-unknown",
+                """
+                defmacro m do
+                  c = :counters.new(2, [])
+
+                  for _ <- if(:erlang.whereis(:init), do: [1, 2], else: []) do
+                    if :counters.get(c, 1) > 0, do: :counters.add(c, 2, 1)
+                    :counters.add(c, 1, 1)
+                  end
+
+                  :counters.get(c, 2)
+                end
+                """,
+                pins = DECLINED,
+            ),
+            // A write given a value not known declines, having made what it may write unknown.
+            macro(
+                "native:counters-add-unknown",
+                "defmacro m, do: (c = :counters.new(1, []); _ = :counters.add(c, 1, if(:erlang.whereis(:init), do: 1, else: 2)); :counters.get(c, 1))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:counters-add-unknown-index",
+                "defmacro m, do: (c = :counters.new(2, []); :counters.put(c, 2, 5); _ = :counters.add(c, if(:erlang.whereis(:init), do: 2, else: 1), 1); :counters.get(c, 2))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:counters-add-unknown-ref",
+                """
+                defmacro m do
+                  a = :counters.new(1, [])
+                  b = :counters.new(1, [])
+                  :counters.put(b, 1, 5)
+                  _ = :counters.add(if(:erlang.whereis(:init), do: b, else: a), 1, 1)
+                  :counters.get(b, 1)
+                end
+                """,
+                pins = DECLINED,
+            ),
+            macro(
+                "native:counters-get-unknown-index",
+                "defmacro m, do: (c = :counters.new(1, []); :counters.put(c, 1, 3); :counters.get(c, if(:erlang.whereis(:init), do: 1, else: 2)))",
+                pins = DECLINED,
+            ),
+
+            // The natives: `term_to_binary/1`
+            macro(
+                "native:term-to-binary",
+                """
+                defmacro m do
+                  :erlang.term_to_binary([
+                    0, 255, 256, -1, 2_147_483_647, 2_147_483_648, -2_147_483_648, -2_147_483_649,
+                    18_446_744_073_709_551_616, -18_446_744_073_709_551_616, 1.5, -2.0e300,
+                    "", "ab", [], [?a, ?b], [1, 256], [1 | 2], [[]], {}, {1, {2}},
+                    %{}, %{2 => :b, 1 => "a"}, %{1.0 => 1, 1 => 2}, %{:a => 1, 1 => 2}
+                  ])
+                end
+                """,
+            ),
+            // Latin-1 before OTP 26 where every character fits, else UTF-8: short, and over 255 bytes.
+            macro(
+                "native:term-to-binary-atoms",
+                "defmacro m, do: :erlang.term_to_binary([:ok, true, :\"é\", :\"日本\", :erlang.binary_to_atom(\"${"é".repeat(200)}\", :utf8), :erlang.binary_to_atom(\"${"日".repeat(100)}\", :utf8)])",
+            ),
+            // Over 255 bytes of magnitude, a large big.
+            macro(
+                "native:term-to-binary-bignums",
+                "defmacro m, do: :erlang.term_to_binary([:erlang.bsl(1, 2039), :erlang.bsl(1, 2040), -:erlang.bsl(1, 2040)])",
+            ),
+            macro(
+                "native:term-to-binary-large-tuple",
+                "defmacro m, do: :erlang.md5(:erlang.term_to_binary([:erlang.list_to_tuple(:lists.duplicate(255, 0)), :erlang.list_to_tuple(:lists.duplicate(256, 0))]))",
+            ),
+            // A list of bytes is a string up to 65535 of them.
+            macro(
+                "native:term-to-binary-long-string",
+                "defmacro m, do: :erlang.md5(:erlang.term_to_binary([:lists.duplicate(65_535, 1), :lists.duplicate(65_536, 1)]))",
+            ),
+            macro(
+                "native:term-to-binary-32-keys",
+                "defmacro m, do: :erlang.md5(:erlang.term_to_binary(:maps.from_list(for i <- 1..32, do: {i, i})))",
+            ),
+            // Past 32 keys a map is a hash trie, whose order is its keys' hashes.
+            macro(
+                "native:term-to-binary-33-keys",
+                "defmacro m, do: :erlang.md5(:erlang.term_to_binary(:maps.from_list(for i <- 1..33, do: {i, i})))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:term-to-binary-atom-keys",
+                "defmacro m, do: :erlang.term_to_binary(%{b: 1, a: 2})",
+                legs = { !MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER.isSufficient(it) },
+            ),
+            // The atoms' order is their index in the VM's atom table.
+            macro(
+                "native:term-to-binary-atom-keys-index-order",
+                "defmacro m, do: :erlang.term_to_binary(%{b: 1, a: 2})",
+                legs = { MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER.isSufficient(it) },
+                pins = DECLINED,
+            ),
+            // The bytes of a fun, pid or reference name the node.
+            macro("native:term-to-binary-fun", "defmacro m, do: :erlang.term_to_binary(fn -> 1 end)", pins = DECLINED),
+            macro("native:term-to-binary-ref", "defmacro m, do: :erlang.term_to_binary(make_ref())", pins = DECLINED),
+            macro("native:term-to-binary-pid", "defmacro m, do: :erlang.term_to_binary(self())", pins = DECLINED),
+            macro("native:term-to-binary-bitstring", "defmacro m, do: :erlang.term_to_binary(<<1::3>>)", pins = DECLINED),
+            macro("native:term-to-binary-unknown", "defmacro m, do: :erlang.term_to_binary([1, :erlang.whereis(:init)])", pins = DECLINED),
+            macro("native:term-to-binary-options", "defmacro m, do: :erlang.term_to_binary(1, [])", pins = DECLINED),
+
+            // The natives: `integer_to_list/1`, `binary:copy/2`, `inspect/1` of an atom, `__info__(:module)`
+            macro(
+                "native:integer-to-list",
+                """
+                defmacro m do
+                  [
+                    :erlang.integer_to_list(0),
+                    :erlang.integer_to_list(-12),
+                    :erlang.integer_to_list(18_446_744_073_709_551_616),
+                    :erlang.integer_to_list(-:erlang.bsl(1, 200)),
+                    Integer.to_charlist(255)
+                  ]
+                end
+                """,
+            ),
+            macro("native:integer-to-list-badarg", "defmacro m, do: :erlang.integer_to_list(1.0)"),
+            macro("native:integer-to-list-base", "defmacro m, do: :erlang.integer_to_list(255, 16)", pins = DECLINED),
+            macro(
+                "native:binary-copy",
+                """
+                defmacro m do
+                  [
+                    :binary.copy("ab", 3),
+                    :binary.copy("ab", 0),
+                    :binary.copy("", 5),
+                    :binary.copy("", 18_446_744_073_709_551_615),
+                    String.duplicate("ab", 2)
+                  ]
+                end
+                """,
+            ),
+            // A count of 0 gives `<<>>` before the subject is checked for whole bytes, until OTP 27.
+            macro("native:binary-copy-bitstring-zero", "defmacro m, do: :binary.copy(<<1::3>>, 0)"),
+            macro("native:binary-copy-bitstring", "defmacro m, do: :binary.copy(<<1::3>>, 2)"),
+            macro("native:binary-copy-negative", "defmacro m, do: :binary.copy(\"a\", -1)"),
+            macro("native:binary-copy-past-64-bits", "defmacro m, do: :binary.copy(\"\", 18_446_744_073_709_551_616)"),
+            macro("native:binary-copy-not-a-binary", "defmacro m, do: :binary.copy(:a, 1)"),
+            macro("native:binary-copy-not-an-integer", "defmacro m, do: :binary.copy(\"a\", 1.0)"),
+            // A binary the evaluator won't build.
+            macro("native:binary-copy-large", "defmacro m, do: byte_size(:binary.copy(\"a\", 20_000_000))", pins = DECLINED),
+            macro(
+                "native:inspect-atom",
+                """
+                defmacro m do
+                  [
+                    inspect(:ok),
+                    inspect(nil),
+                    inspect(true),
+                    inspect(Foo.Bar),
+                    inspect(:Elixir),
+                    inspect(:"foo bar"),
+                    inspect(:+),
+                    inspect(:"a@b"),
+                    inspect(:"9a"),
+                    inspect(:"a\"b"),
+                    inspect(:foo?),
+                    inspect(:"Foo.bar")
+                  ]
+                end
+                """,
+            ),
+            // Each operator set whose atoms `inspect/1` writes differently on older releases.
+            macro(
+                "native:inspect-atom-step",
+                "defmacro m, do: inspect(:\"..//\")",
+                pins = { _, level -> OPAQUE.takeUnless { STEP_ATOM.isSufficient(level) } },
+            ),
+            macro(
+                "native:inspect-atom-power",
+                "defmacro m, do: inspect(:\"**\")",
+                pins = { _, level -> OPAQUE.takeUnless { POWER_OPERATOR.isSufficient(level) } },
+            ),
+            macro(
+                "native:inspect-atom-deprecated-operators",
+                "defmacro m, do: [inspect(:\"^^^\"), inspect(:\"~~~\"), inspect(:\"<|>\")]",
+                pins = { _, level -> OPAQUE.takeUnless { DEPRECATED_OPERATORS_INSPECTED_QUOTED.isSufficient(level) } },
+            ),
+            // Unicode's tables and the identifier checks changed on many releases before 1.19.
+            macro(
+                "native:inspect-atom-unicode",
+                "defmacro m, do: [inspect(:\"é\"), inspect(:\"日本\"), inspect(:\"Ꟁ\"), inspect(:\"é b\")]",
+                pins = { _, level -> OPAQUE.takeUnless { UNICODE_17_ATOMS_INSPECTED.isSufficient(level) } },
+            ),
+            // A value not known, a pid in Elixir, is a binary of unknown bytes, as any other term's is.
+            macro(
+                "native:inspect-atom-unknown",
+                "defmacro m, do: inspect(:erlang.whereis(:init))",
+                pins = { _, _ -> inspect(UNKNOWN_BINARY) },
+            ),
+            macro("native:info-module", "defmacro m, do: [Enum.__info__(:module), Kernel.__info__(:module)]"),
+
+            // Equality of a partly unknown term: false where the known parts already differ, else unknown.
+            macro("pure:equal-unknown-known-leaves-differ", "defmacro m, do: (u = :erlang.whereis(:init); {1, u} == {2, u})"),
+            macro("pure:equal-unknown-list-lengths-differ", "defmacro m, do: (u = :erlang.whereis(:init); [u] == [u, 1])"),
+            macro("pure:equal-unknown-map-sizes-differ", "defmacro m, do: (u = :erlang.whereis(:init); %{a: u} == %{a: u, b: 1})"),
+            macro(
+                "pure:equal-unknown-differ",
+                """
+                defmacro m do
+                  u = :erlang.whereis(:init)
+
+                  [
+                    {1, u} === {1.0, u},
+                    {u} == {u, 1},
+                    {u} == [u],
+                    {u, 1} != {u, 2},
+                    {u, 1} !== {u, 1.0},
+                    [u | 1] == [u | 2],
+                    [u, 1] == [u | 2],
+                    {[u, 1]} == {[u]},
+                    {u, "a"} == {u, ~c"a"},
+                    {u, [?a]} == {u, ~c"b"},
+                    {make_ref(), u} == {make_ref(), u},
+                    :lists.member({2, u}, [{1, u}, {3, u}])
+                  ]
+                end
+                """,
+            ),
+            // Under `==` an integer and a float of one value are no difference.
+            macro("pure:equal-unknown-integer-and-float", "defmacro m, do: (u = :erlang.whereis(:init); {1, u} == {1.0, u})", pins = DECLINED),
+            macro("pure:equal-unknown-alike", "defmacro m, do: (u = :erlang.whereis(:init); {u} == {u})", pins = DECLINED),
+            // Two closures, which only the VM orders, and maps of one size are taken as no sure difference.
+            macro(
+                "pure:equal-unknown-closures",
+                "defmacro m, do: (u = :erlang.whereis(:init); {fn -> 1 end, u} == {fn -> 2 end, u})",
+                pins = DECLINED,
+            ),
+            macro("pure:equal-unknown-map-keys", "defmacro m, do: (u = :erlang.whereis(:init); %{a: u} == %{b: u})", pins = DECLINED),
+            // A list longer than another whose tail isn't known.
+            macro("pure:equal-unknown-improper-tail", "defmacro m, do: (u = :erlang.whereis(:init); [u, 1] == [u | u])", pins = DECLINED),
+
+            // `Code.string_to_quoted!/1,2`, parsed as `eval_string/3` parses, and `get_compiler_option(:parser_options)`
+            macro(
+                "native:string-to-quoted",
+                """
+                defmacro m do
+                  Macro.escape([
+                    Code.string_to_quoted!("foo(1, :a) + bar"),
+                    Code.string_to_quoted!("a\nb"),
+                    Code.string_to_quoted!(""),
+                    Code.string_to_quoted!(~c"x = [1, 2]"),
+                    Code.string_to_quoted!("%{a: 1}", file: "a.ex", emit_warnings: false),
+                    Code.string_to_quoted!("a", columns: :yes, token_metadata: false)
+                  ])
+                end
+                """,
+            ),
+            // A column moves the first line, and from 1.16 until 1.19 the lines after it too, past their own whitespace, a
+            // string's included. The first of a repeated option is read.
+            macro(
+                "native:string-to-quoted-line-column",
+                """
+                defmacro m do
+                  q = String.duplicate(~s("), 3)
+
+                  Macro.escape([
+                    Code.string_to_quoted!("f(x)\ng(y)", line: 10),
+                    Code.string_to_quoted!("f(x)\n  g(y)", columns: true),
+                    Code.string_to_quoted!("f(x)\n  g(y)", line: 3, column: 7, columns: true),
+                    Code.string_to_quoted!("f(x)\ng(y)", column: 7, columns: true),
+                    Code.string_to_quoted!("x = \"a\nb\" <> c\n\n  y", column: 4, columns: true),
+                    Code.string_to_quoted!("a.\n  b", column: 3, columns: true),
+                    Code.string_to_quoted!("f(" <> q <> "\n  a\#{x}\n  " <> q <> ")\ng(y)", line: 2, columns: true),
+                    Code.string_to_quoted!("f(x)", line: 3, line: 9)
+                  ])
+                end
+                """,
+            ),
+            // Where the column moves the lines after the first, a heredoc's lines still start at 1.
+            macro(
+                "native:string-to-quoted-column-heredoc",
+                """
+                defmacro m do
+                  q = String.duplicate(~s("), 3)
+                  Macro.escape(Code.string_to_quoted!("f(" <> q <> "\n  a\#{x}\n  " <> q <> ")\ng(y)", column: 7, columns: true))
+                end
+                """,
+                pins = DECLINED_WHERE_THE_COLUMN_MOVES_EVERY_LINE,
+            ),
+            macro(
+                "native:string-to-quoted-column-charlist-heredoc",
+                """
+                defmacro m do
+                  q = String.duplicate("'", 3)
+                  Macro.escape(Code.string_to_quoted!("f(" <> q <> "\n  a\n  " <> q <> ")\ng(y)", column: 7, columns: true))
+                end
+                """,
+                pins = DECLINED_WHERE_THE_COLUMN_MOVES_EVERY_LINE,
+            ),
+            // From 1.19 an indentation starts the lines after the first, past their own whitespace, whatever the column;
+            // the tokenizer folds each in turn, so the last wins and a negative one is passed over. Before, no option.
+            macro("native:string-to-quoted-indentation", "defmacro m, do: Macro.escape(Code.string_to_quoted!(\"a\", indentation: 0))"),
+            macro("native:string-to-quoted-indentation-other", "defmacro m, do: Macro.escape(Code.string_to_quoted!(\"a\", indentation: 2))"),
+            macro(
+                "native:string-to-quoted-indentation-last",
+                "defmacro m, do: Macro.escape(Code.string_to_quoted!(\"a\", indentation: 2, indentation: 0))",
+            ),
+            macro(
+                "native:string-to-quoted-indentation-last-other",
+                "defmacro m, do: Macro.escape(Code.string_to_quoted!(\"f(x)\n  g(y)\", indentation: 0, indentation: 2, columns: true))",
+            ),
+            macro(
+                "native:string-to-quoted-indentation-later",
+                """
+                defmacro m do
+                  Macro.escape([
+                    Code.string_to_quoted!("f(\n  x)", indentation: 4, columns: true),
+                    Code.string_to_quoted!("f(\n  x)", indentation: 4, column: 3, columns: true),
+                    Code.string_to_quoted!("f(\n  x)", column: 3, indentation: 4, columns: true),
+                    Code.string_to_quoted!("f(\n  x)", indentation: 4, indentation: -1, columns: true),
+                    Code.string_to_quoted!("f(\n  x)", indentation: -1, columns: true)
+                  ])
+                end
+                """,
+            ),
+            // From 1.19 the fold adds 1 to any term at least 0, so a term that isn't a number raises `ArithmeticError`.
+            macro(
+                "native:string-to-quoted-indentation-not-an-integer",
+                "defmacro m, do: Macro.escape(Code.string_to_quoted!(\"a\", indentation: :x, indentation: 0))",
+                pins = DECLINED_WHERE_INDENTATION_STARTS_LATER_LINES,
+            ),
+            // Where the indentation starts the lines after the first, a heredoc's lines still start at 1.
+            macro(
+                "native:string-to-quoted-indentation-heredoc",
+                """
+                defmacro m do
+                  q = String.duplicate(~s("), 3)
+                  Macro.escape(Code.string_to_quoted!("x = " <> q <> "\n  a\n  " <> q <> "\ny", indentation: 4, columns: true))
+                end
+                """,
+                pins = DECLINED_WHERE_INDENTATION_STARTS_LATER_LINES,
+            ),
+            // Three quotes that open no heredoc, in a comment or a sigil, leave the lines where the start puts them.
+            macro(
+                "native:string-to-quoted-quotes-not-a-heredoc",
+                """
+                defmacro m do
+                  q = String.duplicate(~s("), 3)
+
+                  Macro.escape([
+                    Code.string_to_quoted!("f(x) # " <> q <> "\n  g(y)", indentation: 4, columns: true),
+                    Code.string_to_quoted!("f(~s(" <> q <> "))\n  g(y)", indentation: 4, columns: true),
+                    Code.string_to_quoted!("f(x) # " <> q <> "\n  g(y)", column: 7, columns: true)
+                  ])
+                end
+                """,
+            ),
+            // 1.15 reads `warnings:` where the others read `emit_warnings:`; neither changes what it gives.
+            macro("native:string-to-quoted-warnings", "defmacro m, do: Macro.escape(Code.string_to_quoted!(\"a\", warnings: false))"),
+            macro(
+                "native:string-to-quoted-token-metadata",
+                "defmacro m, do: Macro.escape(Code.string_to_quoted!(\"f(x)\", token_metadata: true))",
+                pins = DECLINED,
+            ),
+            // The parse raises as `eval_string/3`'s does, its exception not known, so the run stops there, and a `try` may
+            // catch it.
+            macro("native:string-to-quoted-raise", "defmacro m, do: Code.string_to_quoted!(\"1 +\")", pins = DECLINED),
+            macro("native:string-to-quoted-raise-mismatched", "defmacro m, do: Code.string_to_quoted!(\"(]\")", pins = DECLINED),
+            macro(
+                "native:string-to-quoted-raise-caught",
+                "defmacro m, do: (try do Code.string_to_quoted!(\"1 +\") catch kind, _ -> kind end)",
+                pins = DECLINED,
+            ),
+            macro("native:string-to-quoted-line-not-an-integer", "defmacro m, do: Macro.escape(Code.string_to_quoted!(\"a\", line: :x))", pins = DECLINED),
+            macro("native:string-to-quoted-not-a-string", "defmacro m, do: Macro.escape(Code.string_to_quoted!(:a))", pins = DECLINED),
+            // Text holding a shape the lowering doesn't lower yet has no known AST.
+            macro("native:string-to-quoted-unlowered", "defmacro m, do: Macro.escape(Code.string_to_quoted!(\"... - 1\"))", pins = DECLINED_WHERE_ELLIPSIS_IS_UNARY),
+            macro("native:parser-options", "defmacro m, do: Code.get_compiler_option(:parser_options)"),
+            // The option is the VM's, so the row puts back what it read.
+            macro(
+                "native:parser-options-put",
+                """
+                defmacro m do
+                  Code.put_compiler_option(:parser_options, Code.get_compiler_option(:parser_options))
+                  Code.get_compiler_option(:parser_options)
+                end
+                """,
+                pins = DECLINED,
+            ),
+            // A write reached leaves the options not known after it, though this one raises before it writes.
+            macro(
+                "native:parser-options-after-put",
+                """
+                defmacro m do
+                  try do
+                    Code.put_compiler_option(:parser_options, :x)
+                  rescue
+                    _ -> :ok
+                  end
+
+                  Code.get_compiler_option(:parser_options)
+                end
+                """,
+                pins = DECLINED,
+            ),
+
+            // `elixir_tokenizer:tokenize/3` as `EEx` calls it: `ElixirLexer`'s tokens, named as the leg's tokenizer names them
+            tokenizes(
+                "native:tokenize",
+                """
+                ~c" @label ",
+                ~c" if @current_scope do ",
+                ~c" else ",
+                ~c" end ",
+                ~c" for {css_class, token_style} <- styles do ",
+                ~c" render_slot(@inner_block) ",
+                ~c" render_slot(col, row) ",
+                ~c" gettext(\"Count\") ",
+                ~c" Atom.to_string(token_type) ",
+                ~c" if token_style.color do "
+                """,
+            ),
+            // A name's kind is what follows it: a bracket, a key's colon, or a `do` past whitespace.
+            tokenizes(
+                "native:tokenize-names",
+                """
+                ~c" x[1] ",
+                ~c" @x(1) ",
+                ~c" Foo.Bar.baz(1) ",
+                ~c" x.Foo ",
+                ~c" x? ",
+                ~c" x! do ",
+                ~c" x  do ",
+                ~c" x\tdo ",
+                ~c" x . y ",
+                ~c" @ x ",
+                ~c" f(a: 1, do: 2, else: 3) ",
+                ~c" Foo: 1 ",
+                ~c" x.y: 1 ",
+                ~c" x y do ",
+                ~c" __MODULE__ "
+                """,
+            ),
+            tokenizes(
+                "native:tokenize-keywords",
+                """
+                ~c" fn x -> x end ",
+                ~c" after ",
+                ~c" catch ",
+                ~c" rescue ",
+                ~c" true ",
+                ~c" false ",
+                ~c" nil ",
+                ~c" f() do ",
+                ~c" Foo do ",
+                ~c" \"a\" do ",
+                ~c" x[1] do ",
+                ~c" end end ",
+                ~c" do do ",
+                ~c" true: 1 ",
+                ~c" end) "
+                """,
+            ),
+            tokenizes(
+                "native:tokenize-literals",
+                """
+                ~c" :a ",
+                ~c" :Foo ",
+                ~c" :a? ",
+                ~c" :do ",
+                ~c" 007 ",
+                ~c" 18446744073709551616 ",
+                ~c" \"\" ",
+                ~c"\"\"",
+                ~c"",
+                ~c"\t",
+                ~c" {a, [b]} ",
+                ~c" )( "
+                """,
+            ),
+            // An atom or a key is any name the lexer makes, `@` and a trailing `?` or `!` included.
+            tokenizes(
+                "native:tokenize-atoms",
+                """
+                ~c" :a@b ",
+                ~c" :Foo? ",
+                ~c" :Foo@b ",
+                ~c" :foo@ ",
+                ~c" a@b: 1 "
+                """,
+            ),
+            // The line is the one given, `file:` changes nothing, and the text may be any list of code points.
+            macro(
+                "native:tokenize-line",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :elixir_tokenizer.tokenize(~c"x y", 7, check_terminators: false),
+                    :elixir_tokenizer.tokenize([?x, ?\s, ?y], 0, check_terminators: false, file: "a.eex"),
+                    :elixir_tokenizer.tokenize(String.to_charlist("if x do"), 3, file: "b", check_terminators: false)
+                  ])
+                end
+                """,
+            ),
+            // Text the map can't name exactly declines: a newline, a comment, an operator, a character past ASCII, an escape,
+            // an interpolation, a charlist, `...` (an `ellipsis_op` from 1.17), a keyword after a dot, a quoted key, a name
+            // against a number, or what `elixir_tokenizer` rejects.
+            tokenizeDeclines("native:tokenize-newline", "~c\" a\\n b \""),
+            tokenizeDeclines("native:tokenize-comment", "~C( a # c )"),
+            tokenizeDeclines("native:tokenize-operator", "~c\" a + b \""),
+            tokenizeDeclines("native:tokenize-non-ascii", "~c\" é \""),
+            tokenizeDeclines("native:tokenize-escape", "~C( \"a\\nb\" )"),
+            tokenizeDeclines("native:tokenize-interpolation", "~C( \"a#{b}\" )"),
+            tokenizeDeclines("native:tokenize-charlist", "~C( 'ab' )"),
+            tokenizeDeclines("native:tokenize-ellipsis", "~c\" ... \""),
+            tokenizeDeclines("native:tokenize-keyword-after-dot", "~c\" x.end \""),
+            tokenizeDeclines("native:tokenize-quoted-key", "~C( \"a\": 1 )"),
+            tokenizeDeclines("native:tokenize-adjacent", "~c\" 1x \""),
+            tokenizeDeclines("native:tokenize-error", "~c\" x@y \""),
+            // `EEx` never checks terminators, and the other options change what the tokenizer gives.
+            macro("native:tokenize-terminators", "defmacro m, do: Macro.escape(:elixir_tokenizer.tokenize(~c\"x\", 1, file: \"eex\"))", pins = DECLINED),
+            macro(
+                "native:tokenize-option",
+                "defmacro m, do: Macro.escape(:elixir_tokenizer.tokenize(~c\"x\", 1, check_terminators: false, existing_atoms_only: true))",
+                pins = DECLINED,
+            ),
+            tokenizeDeclines("native:tokenize-binary", "\"x\""),
+            tokenizeDeclines("native:tokenize-do-after-fn", "~c\" fn do \""),
+            tokenizeDeclines("native:tokenize-do-after-comma", "~c\" a, do \""),
+            tokenizeDeclines("native:tokenize-alias-space-paren", "~c\" Foo (1) \""),
+            tokenizeDeclines("native:tokenize-aliases-space-paren", "~c\" Foo.Bar (x) do \""),
+            tokenizeDeclines("native:tokenize-reserved-block", "~c\" __block__ \""),
+            tokenizeDeclines("native:tokenize-reserved-aliases", "~c\" __aliases__(1) \""),
+            // An alias is letters, digits and `_`, and an operator's atom holds no text.
+            tokenizeDeclines("native:tokenize-alias-punctuation", "~c\" Foo! \""),
+            tokenizeDeclines("native:tokenize-operator-atom", "~c\" :+ \""),
+            tokenizeDeclines("native:tokenize-percent", "~c\" %{a: 1} \""),
+            macro(
+                "native:tokenize-terminators-true",
+                "defmacro m, do: Macro.escape(:elixir_tokenizer.tokenize(~c\"x\", 1, check_terminators: false, check_terminators: true))",
+                pins = DECLINED,
+            ),
 
             // The natives: loading
             macro("native:ensure-loaded-loaded", "defmacro m, do: Macro.escape(:code.ensure_loaded(Enum))"),
@@ -6290,7 +7097,37 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 "env:expand-function-other-key",
                 """
                 defmacro f, do: Macro.escape(__CALLER__.function)
+                defmacro m, do: Macro.expand(quote(do: {row}.f()), %{__CALLER__ | file: "other.ex"})
+                """,
+                pins = DECLINED,
+            ),
+            // With only `:line` changed: from 1.17 the macro runs at that line, before at the quoted call's, which has none.
+            macro(
+                "env:expand-line",
+                """
+                defmacro l, do: __CALLER__.line
+                defmacro m, do: Macro.expand(quote(do: {row}.l()), %{__CALLER__ | line: 7})
+                """,
+            ),
+            macro(
+                "env:expand-line-function",
+                """
+                defmacro f, do: Macro.escape(__CALLER__.function)
                 defmacro m, do: Macro.expand(quote(do: {row}.f()), %{__CALLER__ | line: 7})
+                """,
+            ),
+            macro(
+                "env:expand-line-and-function",
+                """
+                defmacro f, do: Macro.escape({__CALLER__.line, __CALLER__.function})
+                defmacro m, do: Macro.expand(quote(do: {row}.f()), %{__CALLER__ | line: 7, function: {:g, 0}})
+                """,
+            ),
+            macro(
+                "env:expand-line-not-an-integer",
+                """
+                defmacro l, do: :ok
+                defmacro m, do: Macro.expand(quote(do: {row}.l()), %{__CALLER__ | line: :x})
                 """,
                 pins = DECLINED,
             ),
@@ -6477,7 +7314,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro("native:unzip", "defmacro m, do: Macro.escape([:lists.unzip([{1, :a}, {2, :b}]), :lists.unzip([])])"),
             macro("native:unzip-non-pair", "defmacro m, do: :lists.unzip([{1, :a}, {1, 2, 3}])"),
             // `unzip/3` stops at the first element that isn't a pair, never reading the binary past it.
-            macro("native:unzip-non-pair-before-unknown", "defmacro m, do: :lists.unzip([:bad, Kernel.inspect(:x)])"),
+            macro("native:unzip-non-pair-before-unknown", "defmacro m, do: :lists.unzip([:bad, Kernel.inspect(12)])"),
             macro("native:unzip-improper", "defmacro m, do: :lists.unzip([{1, :a} | :b])"),
             macro("native:unzip-non-list", "defmacro m, do: :lists.unzip(:a)"),
             macro("native:duplicate", "defmacro m, do: Macro.escape([:lists.duplicate(3, :a), :lists.duplicate(0, :a), List.duplicate(\"x\", 2)])"),
@@ -6670,10 +7507,11 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             macro("pure:concat-leading-dot", """defmacro m, do: Module.concat(["Foo", ".Bar"])"""),
             macro("pure:concat-invalid-utf8", """defmacro m, do: Module.concat(["\\xFF"])"""),
             macro("pure:to-string", "defmacro m, do: [String.Chars.to_string(:a), String.Chars.to_string(1)]"),
-            // `inspect`'s output is `Inspect`'s implementations', which aren't read, so each is a binary of unknown bytes.
+            // `inspect`'s output of a term other than an atom, and with options, is `Inspect`'s implementations', which aren't
+            // read, so each is a binary of unknown bytes.
             macro(
                 "pure:inspect",
-                """defmacro m, do: [Kernel.inspect(:a), Kernel.inspect([1, "b"]), Kernel.inspect(:c, [])]""",
+                """defmacro m, do: [Kernel.inspect(1), Kernel.inspect([1, "b"]), Kernel.inspect(:c, [])]""",
                 pins = { _, _ -> List(3) { inspect(UNKNOWN_BINARY) }.joinToString(", ", "[", "]") },
             ),
             // `inspect/2`'s options must be a list, and a list of them declines, as `Inspect.Opts` isn't read.
@@ -6683,14 +7521,14 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 "defmacro m, do: :erlang.element(2, {Kernel.inspect(:a, pretty: 1), :ok})",
                 pins = DECLINED,
             ),
-            macro("pure:inspect-compared", "defmacro m, do: :erlang.==(Kernel.inspect(:a), Kernel.inspect(:b))", pins = DECLINED),
+            macro("pure:inspect-compared", "defmacro m, do: :erlang.==(Kernel.inspect(12), Kernel.inspect(13))", pins = DECLINED),
             // A segment with no size takes any binary whole, whatever its bytes; with a unit past a byte, its bytes decide.
             macro(
                 "form:bitstring-unknown-binary",
                 """
                 defmacro m do
-                  _ = <<Kernel.inspect(:a)::binary, "!">>
-                  _ = <<Kernel.inspect(:a)::bitstring, 1::1>>
+                  _ = <<Kernel.inspect(12)::binary, "!">>
+                  _ = <<Kernel.inspect(12)::bitstring, 1::1>>
                   :ok
                 end
                 """,
@@ -6699,7 +7537,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 "form:bitstring-unknown-binary-unit",
                 """
                 defmacro m do
-                  _ = <<Kernel.inspect(:a)::binary-unit(16)>>
+                  _ = <<Kernel.inspect(12)::binary-unit(16)>>
                   :ok
                 end
                 """,
@@ -6710,8 +7548,8 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 "quote:unquote-unknown-binary",
                 """
                 defmacro m do
-                  _ = quote(do: unquote(Kernel.inspect(:a)))
-                  _ = quote(do: [unquote_splicing([Kernel.inspect(:a)])])
+                  _ = quote(do: unquote(Kernel.inspect(12)))
+                  _ = quote(do: [unquote_splicing([Kernel.inspect(12)])])
                   :ok
                 end
                 """,
@@ -6721,7 +7559,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 "pure:type-tests-unknown-binary",
                 """
                 defmacro m do
-                  x = Kernel.inspect(:a)
+                  x = Kernel.inspect(12)
                   raised = fn f ->
                     try do
                       f.()
@@ -6935,13 +7773,10 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 "defmacro m(x, y), do: {Macro.expand_once(x, __CALLER__), Macro.expand(y, __CALLER__)}",
                 "m(unless(false, do: :x), __MODULE__)",
             ),
-            // The expanded call is on line 1, so its env is `__CALLER__`; the case's isn't, and an env with another line
-            // declines.
             macro(
                 "form:macro-expand-env",
                 "defmacro m(x), do: Macro.expand(x, %{__CALLER__ | line: 1})",
                 "m(__MODULE__)",
-                ends = { "stopped at `$ROW.m(__MODULE__)`" },
             ),
             // The read's line is the caller's, which differs between Elixir's call and the case's.
             macro(
@@ -10784,9 +11619,8 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             eex("eex:enum-each", "Enum.each([:p, :q], fn n -> EEx.function_from_string(:def, n, \"x\") end)"),
             eex("eex:import", "import EEx\nfunction_from_string(:def, :u, \"x\")"),
             eex("eex:file", "EEx.function_from_file(:def, :t, \"$TEMPLATE\", [:assigns])"),
-            // Elixir raises `CaseClauseError`, but the declined `EEx.compile_string/2` before it leaves whether it is
-            // reached unknown.
-            eex("eex:defmacro", "EEx.function_from_string(:defmacro, :m, \"x\")", ends = { "stopped at `use {row}`" }),
+            // Elixir's `case kind` has no `:defmacro` clause.
+            eex("eex:defmacro", "EEx.function_from_string(:defmacro, :m, \"x\")", ends = { "raised Elixir.CaseClauseError" }),
             // Elixir defines `call/0` and `k/0`: the kind isn't known, so neither branch's definition is certain.
             eex(
                 "eex:kind-unknown",

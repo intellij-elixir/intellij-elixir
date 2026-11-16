@@ -9,13 +9,11 @@ import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.psi.*
+import org.elixir_lang.psi.Alias.aliasNameIntroducedBy
+import org.elixir_lang.psi.Alias.aliasTargetName
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
-import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.call.keywordArgument
 import org.elixir_lang.psi.impl.call.qualification.qualifiedToModulars
-import org.elixir_lang.psi.impl.moduleName
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.reference.module.UnaliasedName
 import org.elixir_lang.reference.resolver.Module as ModuleResolver
 
@@ -193,36 +191,6 @@ class UnresolvableModuleQualifier : LocalInspectionTool() {
 
                 opaqueUseCallsResult = result
                 return result
-            }
-
-            /**
-             * Returns the fully-qualified module name from the first argument of an `alias` call,
-             * e.g. `"IcWeb.Router.Helpers"` for `alias IcWeb.Router.Helpers`.
-             */
-            private fun aliasTargetName(aliasCall: Call): String? {
-                val finalArgs = aliasCall.finalArguments() ?: return null
-                if (finalArgs.isEmpty()) return null
-
-                val firstArg = finalArgs[0].stripAccessExpression()
-                return when (firstArg) {
-                    is QualifiableAlias -> firstArg.fullyQualifiedName()
-                    else -> moduleName(firstArg)?.name
-                }
-            }
-
-            /**
-             * Returns the short name introduced by an alias call -- either the explicit
-             * `as:` name or the last segment of the target module.
-             */
-            private fun aliasNameIntroducedBy(aliasCall: Call): String? {
-                val asValue = aliasCall.keywordArgument("as")?.stripAccessExpression()
-                if (asValue != null) {
-                    return moduleName(asValue)?.name
-                }
-
-                return aliasTargetName(aliasCall)
-                    ?.split(".")
-                    ?.lastOrNull()
             }
         }
     }
