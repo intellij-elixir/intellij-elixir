@@ -131,14 +131,10 @@ internal class Builder : FoldingBuilderEx() {
                                         private fun execute(call: Call): Boolean {
                                             for (resolvedFunctionName in RESOLVED_FUNCTION_NAMES) {
                                                 if (call.isCalling(Module.KERNEL, resolvedFunctionName)) {
-                                                    if (isFirstInGroup(call, Module.KERNEL, resolvedFunctionName)) {
+                                                    if (isFirstInGroup(call, resolvedFunctionName)) {
                                                         call.finalArguments()?.firstOrNull()
                                                             ?.let { firstFinalArgument ->
-                                                                val last = lastInGroup(
-                                                                    call,
-                                                                    Module.KERNEL,
-                                                                    resolvedFunctionName
-                                                                )
+                                                                val last = lastInGroup(call, resolvedFunctionName)
                                                                 val textRange = TextRange(
                                                                     firstFinalArgument.textOffset,
                                                                     last.textRange.endOffset
@@ -182,37 +178,22 @@ internal class Builder : FoldingBuilderEx() {
                                             document.getLineNumber(textRange.startOffset) !=
                                                     document.getLineNumber(textRange.endOffset)
 
-                                        private fun isFirstInGroup(
-                                            call: Call,
-                                            resolvedModuleName: String,
-                                            resolvedFunctionName: String
-                                        ): Boolean {
+                                        private fun isFirstInGroup(call: Call, resolvedFunctionName: String): Boolean {
                                             val previousSiblingExpression =
                                                 ElixirPsiImplUtil.previousSiblingExpression(call)
 
                                             return if (previousSiblingExpression is Call) {
-                                                !previousSiblingExpression.isCalling(
-                                                    resolvedModuleName,
-                                                    resolvedFunctionName
-                                                )
+                                                !previousSiblingExpression.isCalling(Module.KERNEL, resolvedFunctionName)
                                             } else {
                                                 true
                                             }
                                         }
 
-                                        private fun lastInGroup(
-                                            first: Call,
-                                            resolvedModuleName: String,
-                                            resolvedFunctionName: String
-                                        ): Call {
+                                        private fun lastInGroup(first: Call, resolvedFunctionName: String): Call {
                                             var last = first
                                             while (true) {
                                                 val nextSibling = last.siblingExpression(ElixirPsiImplUtil.NEXT_SIBLING)
-                                                if (nextSibling is Call && nextSibling.isCalling(
-                                                        resolvedModuleName,
-                                                        resolvedFunctionName
-                                                    )
-                                                ) {
+                                                if (nextSibling is Call && nextSibling.isCalling(Module.KERNEL, resolvedFunctionName)) {
                                                     last = nextSibling
                                                     continue
                                                 }
@@ -320,8 +301,6 @@ internal class Builder : FoldingBuilderEx() {
             }
         }
     }
-
-    companion object {
-        private val RESOLVED_FUNCTION_NAMES = arrayOf(Function.ALIAS, Function.IMPORT, Function.REQUIRE, Function.USE)
-    }
 }
+
+private val RESOLVED_FUNCTION_NAMES = arrayOf(Function.ALIAS, Function.IMPORT, Function.REQUIRE, Function.USE)
