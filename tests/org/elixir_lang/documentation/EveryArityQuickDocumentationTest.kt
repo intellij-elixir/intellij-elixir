@@ -1,6 +1,8 @@
 package org.elixir_lang.documentation
 
 import com.intellij.codeInsight.documentation.DocumentationManagerProtocol.PSI_ELEMENT_PROTOCOL_REF_SEPARATOR
+import com.intellij.openapi.roots.ModuleRootManager
+import org.elixir_lang.declaration.enableExpander
 
 /** A function's documentation shows every arity of its name, ascending, with a header linking to each, opened at the arity used. */
 class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
@@ -497,5 +499,72 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
         assertEquals("Expected a link per visible arity, got: $documentation", 2, linkedIds(documentation).distinct().size)
         assertFalse("Expected no entry for push(a, b, c), got: $documentation", "push(a, b, c)" in documentation)
         assertFalse("Expected no entry for push(a, b), got: $documentation", "push(a, b)" in documentation)
+    }
+
+    /** With the expander on and no SDK to expand with, the name index answers, so a call still lists every arity. */
+    fun testWithTheExpanderOnAndNoSdkACallListsEveryArity() = withTheExpanderOnAndNoSdk {
+        configure("def calls(a), do: pu<caret>sh(a, a)")
+
+        assertEveryArity(quickDocumentationAtCaret().orEmpty())
+    }
+
+    /** With the expander on and no SDK to expand with, the name index answers, so a head still lists every arity. */
+    fun testWithTheExpanderOnAndNoSdkAHeadListsEveryArity() = withTheExpanderOnAndNoSdk {
+        configure("")
+        myFixture.editor.caretModel.moveToOffset(myFixture.file.text.indexOf("def push(a)") + "def pu".length)
+
+        assertEveryArity(quickDocumentationAtCaret().orEmpty())
+    }
+
+    /** With the expander on and no SDK to expand with, a function's later clause is documented at its head as its first is. */
+    fun testWithTheExpanderOnAndNoSdkALaterClausesHeadIsDocumented() = withTheExpanderOnAndNoSdk {
+        myFixture.configureByText(
+            "clauses.ex",
+            """
+            defmodule Clauses do
+              @doc "Ones."
+              def one(1), do: 1
+              def o<caret>ne(2), do: 2
+            end
+            """.trimIndent()
+        )
+
+        val documentation = quickDocumentationAtCaret().orEmpty()
+
+        assertTrue("Expected the function's @doc, got: $documentation", "Ones." in documentation)
+    }
+
+    /**
+     * With no SDK, the expander's answer is what the name index holds, and it keys no module whose name is computed, so
+     * a head in such a module is documented with nothing: blank, as nothing is known of it.
+     */
+    fun testWithTheExpanderOnAndNoSdkAHeadInAModuleWhoseNameIsComputedIsNotDocumented() = withTheExpanderOnAndNoSdk {
+        myFixture.configureByText(
+            "shapes.ex",
+            """
+            for kind <- [Circle, Square] do
+              defmodule Module.concat(Shape, kind) do
+                @doc "The area."
+                def ar<caret>ea(x), do: x
+              end
+            end
+            """.trimIndent()
+        )
+
+        assertEquals("", quickDocumentationAtCaret().orEmpty())
+    }
+
+    /** [test], run with the expander on and the module given no SDK, so the expander has nothing to expand with. */
+    private fun withTheExpanderOnAndNoSdk(test: () -> Unit) {
+        enableExpander(testRootDisposable)
+        assertNull(ModuleRootManager.getInstance(module).sdk)
+        test()
+    }
+
+    private fun assertEveryArity(documentation: String) {
+        val order = listOf("One.", "Two.", "Three.").map { documentation.indexOf(it) }
+
+        assertTrue("Expected each arity's @doc, got: $documentation", order.all { it >= 0 })
+        assertEquals("Expected a link per arity, got: $documentation", 3, linkedIds(documentation).distinct().size)
     }
 }

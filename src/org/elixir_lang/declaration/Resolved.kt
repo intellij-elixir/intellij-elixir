@@ -24,14 +24,23 @@ object Resolved {
         bound: Boolean = false,
         feature: Feature = Feature.SYMBOL_REFERENCES,
         among: (Found) -> Boolean = { true }
-    ): List<Preferred> =
-        preferred(
-            use,
-            sourceFor(feature).candidates(use, incompleteCode)
-                .filter { reaches(use, it) && takes(feature, it.uncertain, bound) && among(it) },
-            incompleteCode,
-            bound
-        )
+    ): List<Preferred> = preferred(use, candidates(use, incompleteCode, bound, feature, among), incompleteCode, bound)
+
+    /**
+     * What [step] prefers among at [use]: every candidate [source], [feature]'s unless named, gives that the use
+     * [reaches], [feature] takes and [among] keeps.
+     */
+    @RequiresReadLock
+    fun candidates(
+        use: Use,
+        incompleteCode: Boolean,
+        bound: Boolean = false,
+        feature: Feature,
+        among: (Found) -> Boolean = { true },
+        source: CandidateSource = sourceFor(feature)
+    ): List<Found> =
+        source.candidates(use, incompleteCode)
+            .filter { reaches(use, it) && takes(feature, it.uncertain, bound) && among(it) }
 
     /** [sourceFor]([feature])'s written names of [call] that [feature] takes, by [step]'s rule: a name is no variable's use. */
     @RequiresReadLock

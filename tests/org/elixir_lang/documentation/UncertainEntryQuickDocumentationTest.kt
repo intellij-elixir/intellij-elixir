@@ -96,19 +96,17 @@ class UncertainEntryQuickDocumentationTest : QuickDocumentationTestCase() {
         assertFalse("Expected no plain line, got: $documentation", PLAIN_LINE in documentation)
     }
 
-    /**
-     * Each copy makes `g` with `EEx`, from bindings in an attribute, so neither copy's arities are known to list them
-     * as entries: the copy shown carries the plain line, since it may not be the one that loads.
-     */
-    fun testACopyOfAModuleThatCannotBeItsOwnEntryLeavesThePlainLine() {
+    /** Each copy makes `g` with `EEx`, from bindings in an attribute, which the expander reads to know its arity. */
+    fun testEachCopyOfAModuleMadeWithEExIsItsOwnEntry() {
         expanderOn()
         myFixture.addFileToProject("first.ex", eexTwice("First copy."))
         myFixture.addFileToProject("second.ex", eexTwice("Second copy."))
 
         val documentation = documentationAtTwiceG()
 
-        assertTrue("Expected a copy's docs, got: $documentation", "copy." in documentation)
-        assertEquals("Expected the plain line once, got: $documentation", 1, StringUtil.getOccurrenceCount(documentation, PLAIN_LINE))
+        assertTrue("Expected the first copy, got: $documentation", "First copy." in documentation)
+        assertTrue("Expected the second copy, got: $documentation", "Second copy." in documentation)
+        assertFalse("Expected no plain line, got: $documentation", PLAIN_LINE in documentation)
     }
 
     /** `Twice`, making `g` with `EEx` from the bindings in `@args`, documented as [doc]. */

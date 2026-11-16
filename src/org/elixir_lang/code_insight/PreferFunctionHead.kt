@@ -11,7 +11,6 @@ import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Preferred
-import org.elixir_lang.declaration.clauseOrder
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.documentation.BeamDocsHelper
 import org.elixir_lang.psi.CallDefinitionClause
@@ -95,13 +94,13 @@ fun signatures(preferred: List<Preferred>): List<Signature> {
  * the one its `Docs` chunk holds, as Quick Documentation titles it. `null` where no signature is recorded.
  */
 private fun recordedParameters(group: List<Pair<Signature, Found>>, docsOf: (VirtualFile) -> Docs?): List<String>? {
-    val (name, arities) = group.first().first.nameArityInterval
     val first = group.first().second
 
     return when (first.candidate.declaration.declared) {
         // The `Docs` chunk's signature at the definition's full arity, which is what keys it, read without decompiling.
         is Declared.Compiled ->
             (first.head.written as? BeamCallDefinition)?.let { head ->
+                val (name, arities) = group.first().first.nameArityInterval
                 val full = arities.definition().first
 
                 head.containingFile.virtualFile
@@ -111,17 +110,7 @@ private fun recordedParameters(group: List<Pair<Signature, Found>>, docsOf: (Vir
                     // A signature that is no call, as an operator's `left <~> right`, names no parameters to read.
                     ?.takeIf { full in ParameterText.arities(it) }
             }
-        is Declared.Source -> {
-            val clauses = group.mapNotNull { (_, found) ->
-                val form = (found.candidate.declaration.declared as? Declared.Source)?.form ?: return@mapNotNull null
-                val head = found.head.written ?: return null
-
-                // Where a clause is defined decides which names the merge keeps, so without it there are none.
-                RecordedSignature.Clause(form, head, found.clauseOrder() ?: return null)
-            }
-
-            RecordedSignature.of(first.declaringModuleName(), name, arities, clauses)?.parameters
-        }
+        is Declared.Source -> RecordedSignature.of(group.map { it.second })?.parameters
     }
 }
 

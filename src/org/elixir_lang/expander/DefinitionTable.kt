@@ -98,6 +98,24 @@ internal class DefinitionTable(private val level: ElixirLanguageLevel) {
     /** The `{default, Name}` rows of the bag: each arity stored with defaults, and how many. */
     private val defaultRows = mutableMapOf<String, MutableList<Pair<Int, Int>>>()
 
+    /** A head [define] stored at its own arity, as the [kind] with the [defaults] it was stored with. */
+    data class Written(val kind: Kind, val defaults: Int, val head: Head)
+
+    /** Each head [define] stored at its own arity, in order, kept when [remove] takes it. */
+    private val written = mutableMapOf<NameArity, MutableList<Written>>()
+
+    /**
+     * The heads [define] stored for [name] that their entry no longer holds, by name and arity, in the order it stored
+     * them: `defoverridable` or `Module.delete_definition/2` took them and a later definition replaced them. Elixir
+     * keeps the docs row they wrote (`Module.compile_doc/6`).
+     */
+    fun replaced(name: String): Map<NameArity, List<Written>> =
+        written.filterKeys { it.name == name }
+            .mapValues { (nameArity, heads) ->
+                entries[nameArity]?.heads?.let { held -> heads.filter { one -> held.none { it === one.head } } }.orEmpty()
+            }
+            .filterValues(List<*>::isNotEmpty)
+
     /**
      * The node of [head] whose metadata `elixir_def:store_definition/5` keeps: the head under a guard's `when`, as
      * `extract_guards` takes it, from [STORED_HEAD_SKIPS_GUARD]; the whole head before.
@@ -146,8 +164,11 @@ internal class DefinitionTable(private val level: ElixirLanguageLevel) {
 
         val stored = stored(head)
 
-        store(NameArity(name, arity), kind, listOf(Head(at, stored, delegation, injected)), clauses, defaults, default = false, ordered, checksClauses)
-            ?.let { return it }
+        val nameArity = NameArity(name, arity)
+        val defined = Head(at, stored, delegation, injected)
+
+        store(nameArity, kind, listOf(defined), clauses, defaults, default = false, ordered, checksClauses)?.let { return it }
+        written.getOrPut(nameArity) { mutableListOf() } += Written(kind, defaults, defined)
 
         val storedDefault = storedDefault(stored)
 

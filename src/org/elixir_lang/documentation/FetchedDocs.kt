@@ -36,6 +36,13 @@ sealed class FetchedDocs(open val module: String?) {
     ) : FetchedDocs(module) {
         val heading: Heading get() = Heading(titles, specs, heads)
 
+        /**
+         * These docs, written by a definition that replaced [earlier]'s of the same function: Elixir keeps the earlier's
+         * doc where this writes none, and its metadata beneath this one's (`Module.compile_doc/6`).
+         */
+        fun replacing(earlier: FunctionOrMacroDocumentation?): FunctionOrMacroDocumentation =
+            earlier?.let { copy(deprecated = deprecated ?: it.deprecated, doc = doc ?: it.doc) } ?: this
+
         fun merge(other: FunctionOrMacroDocumentation): FunctionOrMacroDocumentation {
             assert(module == other.module)
 

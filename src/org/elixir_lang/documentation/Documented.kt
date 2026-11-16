@@ -121,9 +121,21 @@ internal object Documented {
             }
     }
 
-    /** The copy of its module [found] is in: the `defmodule` that holds it, else its file. */
-    private fun copy(found: Found): PsiElement? =
-        (found.element as? Call)?.let(::enclosingModularMacroCall) ?: found.element.containingFile
+    /** Those of [candidates] declared in [found]'s module, in the copy of it that [found] is in. */
+    @RequiresReadLock
+    fun inCopyOf(found: Found, candidates: List<Found>): List<Found> {
+        val module = found.declaringModuleName()
+        val copy = copy(found)
+
+        return candidates.filter { it.declaringModuleName() == module && copy(it) == copy }
+    }
+
+    /**
+     * The copy of its module [found] is in: the `defmodule` that holds the call placing it there, a `use` for what the
+     * `use` injects, else its file.
+     */
+    fun copy(found: Found): PsiElement? =
+        (found.head.placedBy ?: found.element as? Call)?.let(::enclosingModularMacroCall) ?: found.element.containingFile
 
     /** As `RejectedCall` decides whether a private function is callable: an unqualified use of what the module holds. */
     private fun held(use: Use?, found: Found?): Boolean =

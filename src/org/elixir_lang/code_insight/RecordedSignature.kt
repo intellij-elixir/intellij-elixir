@@ -20,7 +20,11 @@ import org.elixir_lang.code.Identifier
 import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.debugger.stack_frame.value.Presentation
 import org.elixir_lang.declaration.ClauseOrder
+import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Form
+import org.elixir_lang.declaration.Found
+import org.elixir_lang.declaration.clauseOrder
+import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.documentation.moduleAttributeValue
 import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
@@ -28,6 +32,7 @@ import org.elixir_lang.model.psi.module_attribute.ModuleAttributeReference
 import org.elixir_lang.model.psi.module_attribute.accumulates
 import org.elixir_lang.module.RegisterAttribute
 import org.elixir_lang.psi.ArityInterval
+import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.AtOperation
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
@@ -100,6 +105,26 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
             }
 
             return RecordedSignature(parameters.map(Parameter::text), text)
+        }
+
+        /**
+         * The signature Elixir records for the one definition [found] are finds of, in the module that declares it, from
+         * each of its source clauses where that module defines it; `null` where a clause's head or place is not known,
+         * as without them the merge's names are not.
+         */
+        @RequiresReadLock
+        fun of(found: List<Found>): RecordedSignature? {
+            val first = found.firstOrNull() ?: return null
+            val declaration = first.candidate.declaration
+            val arities = declaration.arity.arityInterval() ?: return null
+            val clauses = found.mapNotNull { one ->
+                val form = (one.candidate.declaration.declared as? Declared.Source)?.form ?: return@mapNotNull null
+                val head = one.head.written ?: return null
+
+                Clause(form, head, one.clauseOrder() ?: return null)
+            }
+
+            return of(first.declaringModuleName(), declaration.name, arities, clauses)
         }
 
         /**

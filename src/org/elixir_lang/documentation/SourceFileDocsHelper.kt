@@ -4,10 +4,16 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import org.elixir_lang.Module
+import org.elixir_lang.NameArity
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.ArityKnowledge
+import org.elixir_lang.declaration.ClauseOrder
+import org.elixir_lang.declaration.Found
+import org.elixir_lang.declaration.Resolved
+import org.elixir_lang.declaration.Use
+import org.elixir_lang.declaration.clauseOrder
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Reach
@@ -15,10 +21,12 @@ import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
+import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 import org.elixir_lang.psi.scope.call_definition_clause.Declarations
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
+import org.elixir_lang.psi.QuoteMacro
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.CanonicallyNamed
 import org.elixir_lang.psi.impl.identifierName
@@ -32,14 +40,14 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 object SourceFileDocsHelper {
     /**
      * The documentation of [element]; [remote] is whether the use is outside the module that defines it, as it is where
-     * none is known, [declaringModule] the index name of the module the use found it declared in, where one did, and
-     * [used] the declaration it found, which picks the function where [element] declares several.
+     * none is known, and [used] the find of [element] a use made, where one did, which picks the function where
+     * [element] declares several and the module that declares it.
      */
-    fun fetchDocs(element: PsiElement, remote: Boolean, declaringModule: String? = null, used: Declaration? = null): FetchedDocs? =
+    fun fetchDocs(element: PsiElement, remote: Boolean, used: Found? = null): FetchedDocs? =
         when (element) {
             is AtUnqualifiedNoParenthesesCall<*> -> fetchDocs(element)
-            is Call -> fetchDocs(element, remote, declaringModule, used)
-            else -> documentedCallDefinitionClause(element)?.let { fetchDocs(it, remote, declaringModule, used) }
+            is Call -> fetchDocs(element, remote, used)
+            else -> documentedCallDefinitionClause(element)?.let { fetchDocs(it, remote, used) }
         }
 
     /**
@@ -109,7 +117,7 @@ object SourceFileDocsHelper {
         }
     }
 
-    private fun fetchDocs(call: Call, remote: Boolean, declaringModule: String?, used: Declaration?): FetchedDocs? = when {
+    private fun fetchDocs(call: Call, remote: Boolean, used: Found?): FetchedDocs? = when {
         Stub.isModular(call) -> {
             // As in Elixir, the last `@moduledoc` replaces any before it and `false` or `nil` hides it, while a list is
             // metadata that Elixir merges into the doc. Any other value this cannot render, such as
@@ -131,9 +139,9 @@ object SourceFileDocsHelper {
         }
         // The form the use found the function declared with: a source that knows the macro's module gives it where
         // resolving the call can't, as for the SDK's `EEx` read from its `.beam`.
-        else -> when (val form = (used?.declared as? Declared.Source)?.form ?: functionForm(call)) {
-            Form.CLAUSE, Form.DELEGATION, Form.EXCEPTION -> declaredDocs(call, form, remote, declaringModule, used)
-            Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> templateDocs(call, form, remote, declaringModule)
+        else -> when (val form = (used?.candidate?.declaration?.declared as? Declared.Source)?.form ?: functionForm(call)) {
+            Form.CLAUSE, Form.DELEGATION, Form.EXCEPTION -> declaredDocs(call, form, remote, used)
+            Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> templateDocs(call, form, remote, used)
             Form.CALLBACK, null -> null
         }
     }
@@ -151,13 +159,8 @@ object SourceFileDocsHelper {
 
     /** What [declaring] declares with [form] as one function, spelled as its head names it: the one read of it. */
     @RequiresReadLock
-    internal fun declaredFunction(declaring: Call, form: Form, state: ResolveState = ResolveState.initial()): Declarations.Spelled? =
-        Declarations.of(form, declaring, state).singleOrNull()
-
-    /** What [declaring] declares with [form]: the one function its head names, when the name has an atom value. */
-    @RequiresReadLock
-    private fun declarationOf(declaring: Call, form: Form, state: ResolveState): Declaration? =
-        declaredFunction(declaring, form, state)?.declaration
+    internal fun declaredFunction(declaring: Call, form: Form): Declarations.Spelled? =
+        Declarations.of(form, declaring, ResolveState.initial()).singleOrNull()
 
     /**
      * [head], which [declaring] writes with [form], as its docs show it: after its keyword and with [name]. An EEx
@@ -175,40 +178,48 @@ object SourceFileDocsHelper {
     internal fun keyworded(declaring: Call, written: String): String? = declaring.functionName()?.let { "$it $written" }
 
     /**
-     * The signature Elixir records for each function [function]'s declarations define in the module whose index name is
-     * [module], ascending by arity: one for each full arity, from every clause of it in source order.
+     * The signature Elixir records for each function [function]'s declarations define in the module that declares them,
+     * [index] for a decompiled module's, ascending by arity: one for each full arity, from every clause of it where the
+     * module defines it.
      */
     @RequiresReadLock
-    internal fun titles(module: String?, function: List<Written>): List<String> =
+    internal fun titles(index: String?, function: List<Written>): List<String> =
         function
             .groupBy { it.arities.definition() }
             .entries
             .sortedBy { it.key.first }
             .mapNotNull { (_, declarations) ->
-                val first = declarations.first()
-                val clauses = declarations.map { RecordedSignature.Clause(it.form, it.head) }
+                val found = declarations.mapNotNull(Written::found)
 
-                RecordedSignature.of(module, first.declaration.name, first.arities, clauses)?.text
+                if (found.size == declarations.size) {
+                    RecordedSignature.of(found)?.text
+                } else {
+                    // The bridge's decompiled clauses, in the order they are written.
+                    val first = declarations.first()
+                    val clauses = declarations.map { RecordedSignature.Clause(it.form, it.head) }
+
+                    RecordedSignature.of(index, first.declaration.name, first.arities, clauses)?.text
+                }
             }
 
     /**
      * The docs of every function [declaring] shares a name with in its module that the use can reach, ascending by
      * arity: those [FetchedDocs.Arities.listed] lists, from outside the module where [remote]. The declarations that
      * can be one function, as a bodiless head's defaults and the clauses after it can, are one. Each is titled as
-     * Elixir records it in [declaringModule], where a use found it, since a `use` injects into the module that calls
-     * `use`, else in the module [declaring] is written in.
+     * Elixir records it in the module that declares it, since a `use` injects into the module that calls `use`.
      */
     @RequiresReadLock
-    private fun declaredDocs(declaring: Call, form: Form, remote: Boolean, declaringModule: String?, used: Declaration? = null): FetchedDocs? {
+    private fun declaredDocs(declaring: Call, form: Form, remote: Boolean, used: Found?): FetchedDocs? {
         val index = enclosingModularMacroCall(declaring)?.let(::indexName)
         val module = index?.let(Module::inspect)
-        val functions = listedFunctions(declaring, form, remote, used) ?: return null
+        val listing = listedFunctions(declaring, form, remote, used) ?: return null
+        val functions = listing.functions
 
         val entries = functions.map { function ->
             val maxima = function.map { it.arities.maximum }
-            val documentation = merged(function.map { it.documentation })
+            val documentation = listing.documentation(function)
             // A form that writes no head, with no signature known, is named by its name and the arities it may have.
-            val titles = titles(declaringModule ?: index, function).ifEmpty {
+            val titles = titles(index, function).ifEmpty {
                 val first = function.first()
 
                 if (documentation.heads.isEmpty()) listOf(templateHead(first.declaration.name, first.arities)) else emptyList()
@@ -228,26 +239,150 @@ object SourceFileDocsHelper {
 
     /** The functions [declaredDocs] lists for [declaring], ascending by arity, each the declarations that are one function, which a delegation's block shows. */
     @RequiresReadLock
-    internal fun listedGroups(declaring: Call, remote: Boolean): List<List<Written>> =
-        functionForm(declaring)?.let { listedFunctions(declaring, it, remote) }.orEmpty()
+    internal fun listedGroups(declaring: Call, remote: Boolean): Listing =
+        functionForm(declaring)?.let { listedFunctions(declaring, it, remote) } ?: Listing(emptyList(), emptyMap())
 
-    /** The docs of declarations that are one function, merged. */
-    internal fun merged(documentation: List<FetchedDocs.FunctionOrMacroDocumentation>): FetchedDocs.FunctionOrMacroDocumentation =
-        documentation.reduce { acc, next -> acc.merge(next) }
+    /** The functions a listing shows, each the declarations that are one function. */
+    internal class Listing(val functions: List<List<Written>>, private val kept: Map<NameArity?, Kept>) {
+        /** What Elixir keeps of the docs written by the definitions [function] replaced: their doc and its metadata. */
+        fun replacedDocs(function: List<Written>): FetchedDocs.FunctionOrMacroDocumentation? =
+            kept[function.first().declaration.identity]?.documentation
+                ?.let { FetchedDocs.FunctionOrMacroDocumentation(it.module, it.deprecated, it.doc, emptyList(), emptyList(), emptyList()) }
+
+        /** [function]'s docs as Elixir keeps them: those its [written] declarations write, over the definitions it replaced. */
+        fun documentation(function: List<Written>, written: List<Written> = function): FetchedDocs.FunctionOrMacroDocumentation =
+            kept.of(function).then(written, written.map(Written::documentation).reduce(FetchedDocs.FunctionOrMacroDocumentation::merge)).documentation
+    }
+
+    /**
+     * What Elixir's docs row holds of the definitions a function replaced, taken in definition order: each one's doc,
+     * `@doc false` included, where it writes one, else the earlier's, and its metadata over the earlier's
+     * (`Module.compile_doc/6`).
+     */
+    internal class Kept(val documentation: FetchedDocs.FunctionOrMacroDocumentation, private val hidden: Boolean) {
+        /** These once [function], whose declarations' docs merge to [documentation], is defined over them. */
+        fun then(function: List<Written>, documentation: FetchedDocs.FunctionOrMacroDocumentation): Kept =
+            Kept(
+                documentation.replacing(this.documentation).let { if (function.any(Written::hidden)) it.copy(doc = documentation.doc) else it },
+                hides(function)
+            )
+
+        /**
+         * Whether [function], replacing these, is written `@doc false`, or writes no doc where these are `@doc false`:
+         * only the function's own `@doc` replaces it (`Module.compile_doc/6`).
+         */
+        fun hides(function: List<Written>): Boolean =
+            function.any { it.hidden } || (hidden && function.all { it.documentation.doc == null })
+
+        companion object {
+            /** What Elixir keeps where nothing was replaced. */
+            val NONE = Kept(
+                FetchedDocs.FunctionOrMacroDocumentation(null, null, null, emptyList(), emptyList(), emptyList()),
+                hidden = false
+            )
+        }
+    }
+
+    /**
+     * What Elixir keeps of the definitions that [functions], the functions of one name in one copy of a module,
+     * replaced ([org.elixir_lang.declaration.CandidateSource.replaced]), by the function's identity, documented in
+     * [module].
+     */
+    @RequiresReadLock
+    private fun kept(functions: List<List<Written>>, module: String?): Map<NameArity?, Kept> {
+        val first = functions.firstOrNull()?.firstOrNull() ?: return emptyMap()
+        val modular = first.found?.let(Documented::copy) ?: return emptyMap()
+        val name = first.declaration.name
+
+        return sourceFor(Feature.DOCUMENTATION).replaced(modular, name)
+            .mapNotNull { written(it, name, module) }
+            .groupBy { it.declaration.identity }
+            .filterKeys { it != null }
+            .mapValues { (_, written) -> written.fold(Kept.NONE) { kept, next -> kept.then(listOf(next), next.documentation) } }
+    }
+
+    /** What Elixir keeps of the definitions [function] replaced, by its identity. */
+    private fun Map<NameArity?, Kept>.of(function: List<Written>): Kept = this[function.first().declaration.identity] ?: Kept.NONE
 
     /**
      * The functions of the name [used], else the one function [declaring] declares with [declaringForm], that its use
-     * can reach, ascending by arity, each the declarations that are one function, as [declaredDocs] describes.
+     * can reach, ascending by arity, each the declarations that are one function, as [declaredDocs] describes: those
+     * the documentation source finds the module defines in the copy that declares it, so a clause a `use` injects is
+     * among them and a `def` the module body never runs is not.
      */
     @RequiresReadLock
-    private fun listedFunctions(declaring: Call, declaringForm: Form, remote: Boolean, used: Declaration? = null): List<List<Written>>? {
-        val state = ResolveState.initial()
-        val listed = used ?: declarationOf(declaring, declaringForm, state) ?: return null
+    private fun listedFunctions(declaring: Call, declaringForm: Form, remote: Boolean, used: Found? = null): Listing? {
+        val listed = used?.candidate?.declaration ?: declaredFunction(declaring, declaringForm)?.declaration ?: return null
         if (listed.arity == ArityKnowledge.Unknown) return null
         val modular = enclosingModularMacroCall(declaring) ?: return null
         val module = moduleName(modular)
+        // A compiled find is the `.beam`'s, not the source [declaring] is in.
+        val sourceUsed = used?.takeIf { it.candidate.declaration.declared is Declared.Source }
+        val defined = defined(sourceUsed?.let(Documented::copy) ?: modular, listed).orEmpty()
+        val written = finds(declaring, declaringForm, listed, sourceUsed, defined)
+            ?.let { (own, candidates) ->
+                Documented.inCopyOf(own, candidates).mapNotNull { found ->
+                    ProgressManager.checkCanceled()
 
-        val written = CallDefinitionClause.modularChildCalls(modular)
+                    written(found, listed.name, module)
+                }
+            }
+            // A bridge until `located` gives a compiled find's clauses: a `.beam`'s finds are
+            // one per export, not its decompiled clauses, so those are read from the decompiled module.
+            ?: decompiledClauses(declaring, declaringForm, listed, modular, module)
+                .takeIf { sourceUsed == null && (used != null || defined.any { it.candidate.declaration.declared is Declared.Compiled }) }
+            ?: return null
+        val usedIdentity = listed.identity
+        // One function per identity, as Elixir keys its definitions. A `def` replaces what `defexception` defines
+        // rather than joining it, so that, like a declaration of no known identity, is one function alone. They are
+        // ascending by the full arity that keys each, and each's clauses are in the order the module defines them.
+        val functions = written.sortedWith(compareBy<Written> { it.arities.minimum }.thenBy(Written::order))
+            .groupBy { one -> one.declaration.identity?.takeUnless { one.generated } ?: one }
+            .values
+            .sortedBy { function -> function.maxOf { it.arities.maximum ?: Int.MAX_VALUE } }
+        val kept = kept(functions, module)
+
+        return Listing(
+            functions.filter { function ->
+                FetchedDocs.Arities.listed(
+                    inside = !remote,
+                    exported = function.any { Reach.OWN.exports(it.declaration.capabilities) },
+                    hidden = kept.of(function).hides(function),
+                    // Where a `def` of its arity replaced what `defexception` defines, the use found the `def`.
+                    used = function.any {
+                        val identity = it.declaration.identity
+
+                        if (it.generated || identity == null || usedIdentity == null) it.call == declaring else identity == usedIdentity
+                    },
+                    generated = function.any(Written::generated)
+                )
+            },
+            kept
+        )
+    }
+
+    /**
+     * [declaring]'s find as [listed], [used] where a use made it, with the finds of every arity of its name in the module
+     * that declares it among them: those [defined] holds, what the documentation source finds the module defines, else,
+     * for a head in no module the source knows, as a `quote` is, what its own head names. `null` where neither finds
+     * [declaring].
+     */
+    @RequiresReadLock
+    private fun finds(declaring: Call, form: Form, listed: Declaration, used: Found?, defined: List<Found>): Pair<Found, List<Found>>? {
+        // The use's find of a clause [defined] holds may differ from it in how it was reached, as an import's or one past
+        // a stop does, and is that clause; past a stop the module may define nothing the source knows.
+        if (used != null) return used to if (defined.any { it.element == used.element && it.head == used.head }) defined else defined + used
+
+        return (own(declaring, listed, defined)?.let { it to defined })
+            ?: atHead(declaring, form, listed)?.let { atHead -> own(declaring, listed, atHead)?.let { it to atHead } }
+    }
+
+    /** The declarations of [listed]'s name [modular], a decompiled module, writes, as [listedFunctions] lists them. */
+    @RequiresReadLock
+    private fun decompiledClauses(declaring: Call, declaringForm: Form, listed: Declaration, modular: Call, module: String?): List<Written> {
+        val state = ResolveState.initial()
+
+        return CallDefinitionClause.modularChildCalls(modular)
             .flatMap { sibling ->
                 ProgressManager.checkCanceled()
 
@@ -262,42 +397,66 @@ object SourceFileDocsHelper {
                 named.mapNotNull { declaration ->
                     val arities = declaration.arity.arityInterval() ?: return@mapNotNull null
                     val head = DeclaringForm.head(sibling, form, declaration.name, declaration.arity) ?: return@mapNotNull null
-                    val documentation = if (form == Form.EXCEPTION) {
-                        FetchedDocs.FunctionOrMacroDocumentation(module, null, null, emptyList(), emptyList(), emptyList())
-                    } else {
-                        FetchedDocs.FunctionOrMacroDocumentation.fromCallDefinitionClauseCall(module, sibling, shownHead(sibling, form, head, listed.name))
-                    }
 
-                    Written(sibling, form, head, declaration, arities, documentation, hidden)
+                    Written(null, sibling, form, head, declaration, arities, documentation(sibling, form, head, listed.name, module), hidden)
                 }
             }
-        val usedIdentity = listed.identity
-        // One function per identity, as Elixir keys its definitions. A `def` replaces what `defexception` defines
-        // rather than joining it, so that, like a declaration of no known identity, is one function alone. They are
-        // ascending by the full arity that keys each.
-        val functions = written.sortedBy { it.arities.minimum }
-            .groupBy { one -> one.declaration.identity?.takeUnless { one.generated } ?: one }
-            .values
-            .sortedBy { function -> function.maxOf { it.arities.maximum ?: Int.MAX_VALUE } }
-
-        return functions.filter { function ->
-            FetchedDocs.Arities.listed(
-                inside = !remote,
-                exported = function.any { Reach.OWN.exports(it.declaration.capabilities) },
-                hidden = function.any { it.hidden },
-                // Where a `def` of its arity replaced what `defexception` defines, the use found the `def`.
-                used = function.any {
-                    val identity = it.declaration.identity
-
-                    if (it.generated || identity == null || usedIdentity == null) it.call == declaring else identity == usedIdentity
-                },
-                generated = function.any(Written::generated)
-            )
-        }
     }
+
+    /** [declaring]'s find as [listed] among [candidates]. */
+    private fun own(declaring: Call, listed: Declaration, candidates: List<Found>): Found? =
+        candidates.firstOrNull { it.element == declaring && it.candidate.declaration == listed }
+            ?: candidates.firstOrNull { it.element == declaring }
+
+    /**
+     * What the documentation source finds at [declaring]'s own head, the use it is of [listed]'s name. For a head a
+     * `quote` returns, the walk's finds, as the expander reads no `quote`'s definitions.
+     */
+    @RequiresReadLock
+    private fun atHead(declaring: Call, form: Form, listed: Declaration): List<Found>? {
+        val head = DeclaringForm.head(declaring, form, listed.name, listed.arity)?.let(CallDefinitionHead::strip)
+        val use = (head as? Call)?.let(Use::of) as? Use.Named ?: return null
+        val source = if (enclosingModularMacroCall(declaring)?.let { QuoteMacro.`is`(it) } == true) LegacyWalkSource else sourceFor(Feature.DOCUMENTATION)
+
+        return Resolved.candidates(use, incompleteCode = true, feature = Feature.DOCUMENTATION, source = source)
+    }
+
+    /**
+     * What the documentation source finds [modular], a module, defines of [listed]'s name, at every arity, as a link
+     * written in it would name them; `null` where [listed]'s arity is not known.
+     */
+    @RequiresReadLock
+    private fun defined(modular: PsiElement, listed: Declaration): List<Found>? {
+        val arity = listed.arity.arityInterval()?.minimum ?: return null
+
+        // The source need walk no further than the first arity a use could call, unless the code is incomplete.
+        return Resolved.candidates(Use.link(modular, modular, listed.name, arity), incompleteCode = true, feature = Feature.DOCUMENTATION)
+    }
+
+    /** [found] as one declaration [Written] of the function named [name], documented in [module]; `null` where it is none. */
+    @RequiresReadLock
+    private fun written(found: Found, name: String, module: String?): Written? {
+        val call = found.element as? Call ?: return null
+        val declaration = found.candidate.declaration.takeIf { it.name == name } ?: return null
+        val form = (declaration.declared as? Declared.Source)?.form?.takeUnless { it == Form.CALLBACK } ?: return null
+        val arities = declaration.arity.arityInterval() ?: return null
+        val head = found.head.written ?: DeclaringForm.head(call, form, name, declaration.arity) ?: return null
+
+        return Written(found, call, form, head, declaration, arities, documentation(call, form, head, name, module), hidesDoc(call))
+    }
+
+    /** The docs [call] writes for [head], one of its declarations of [name] with [form], documented in [module]. */
+    @RequiresReadLock
+    private fun documentation(call: Call, form: Form, head: PsiElement, name: String, module: String?): FetchedDocs.FunctionOrMacroDocumentation =
+        if (form == Form.EXCEPTION) {
+            FetchedDocs.FunctionOrMacroDocumentation(module, null, null, emptyList(), emptyList(), emptyList())
+        } else {
+            FetchedDocs.FunctionOrMacroDocumentation.fromCallDefinitionClauseCall(module, call, shownHead(call, form, head, name))
+        }
 
     /** One `def`, `defmacro`, other clause, `defdelegate` or `defexception` function of a name, the [head] it writes, and the arities it covers. */
     internal class Written(
+        val found: Found?,
         val call: Call,
         val form: Form,
         val head: PsiElement,
@@ -308,6 +467,10 @@ object SourceFileDocsHelper {
     ) {
         /** Whether `defexception` defines it, not a declaration written in the module. */
         val generated: Boolean get() = form == Form.EXCEPTION
+
+        /** Where the module defines it. */
+        @get:RequiresReadLock
+        val order: ClauseOrder get() = found?.clauseOrder() ?: ClauseOrder.at(head)
     }
 
     /** The head an EEx function or an embed [call] declares with [form] shows its docs under, `name/arity`. */
@@ -332,8 +495,8 @@ object SourceFileDocsHelper {
      * own `@doc`. One with no `@doc` of its own has none.
      */
     @RequiresReadLock
-    private fun templateDocs(call: Call, form: Form, remote: Boolean, declaringModule: String?): FetchedDocs? =
-        templateHead(call, form)?.let { head -> ownDocs(call, head)?.let { own -> declaredDocs(call, form, remote, declaringModule) ?: own } }
+    private fun templateDocs(call: Call, form: Form, remote: Boolean, used: Found?): FetchedDocs? =
+        templateHead(call, form)?.let { head -> ownDocs(call, head)?.let { own -> declaredDocs(call, form, remote, used) ?: own } }
 
     /** The `@doc` written on an EEx function or an embed, shown with [head], or `null` when it has none. */
     @RequiresReadLock

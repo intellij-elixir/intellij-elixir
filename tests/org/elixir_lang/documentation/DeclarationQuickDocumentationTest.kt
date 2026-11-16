@@ -260,6 +260,22 @@ class DeclarationQuickDocumentationTest : QuickDocumentationTestCase() {
 
     /** A head in a `quote` is in the module that uses it, which is unknown here, and never in a module named for the `quote`. */
     fun testAHeadInsideAQuoteNamesNoModule() {
+        val documentation = quotedHeadDocumentation()
+
+        assertTrue("Expected the doc, got: $documentation", "Injected." in documentation)
+        assertFalse("Expected no module named for the quote, got: $documentation", "quote" in documentation || "<i>module</i>" in documentation)
+    }
+
+    /** The expander reads no `quote`'s definitions, and a head one returns is still titled and documented. */
+    fun testAHeadInsideAQuoteIsDocumentedWithTheExpanderOn() = withTheExpanderOn {
+        val documentation = quotedHeadDocumentation()
+
+        assertTrue("Expected the title and the signature, got: $documentation", "<pre>snoc(q)\n  def snoc(q)\n</pre>" in documentation)
+        assertTrue("Expected the doc, got: $documentation", "Injected." in documentation)
+    }
+
+    /** Quick Documentation at the head of `snoc`, documented "Injected.", in a `__using__`'s `quote`. */
+    private fun quotedHeadDocumentation(): String {
         myFixture.configureByText(
             "injector.ex",
             """
@@ -274,10 +290,7 @@ class DeclarationQuickDocumentationTest : QuickDocumentationTestCase() {
             """.trimIndent()
         )
 
-        val documentation = quickDocumentationAtCaret().orEmpty()
-
-        assertTrue("Expected the doc, got: $documentation", "Injected." in documentation)
-        assertFalse("Expected no module named for the quote, got: $documentation", "quote" in documentation || "<i>module</i>" in documentation)
+        return quickDocumentationAtCaret().orEmpty()
     }
 
     /** The card names a function as Elixir does: an identifier typed with a combining mark reads as its composed spelling. */
