@@ -862,8 +862,7 @@ internal class ProjectModules(private val project: Project) {
     ): BuildRead? {
         // A `mix.exs` created or deleted above the file moves which project's config it reads.
         stamps.track(names.above(file.path))
-        val (mixExs, configPath) = generateSequence(file.parent) { it.parent }
-            .mapNotNull { it.findChild(MIX_EXS) }
+        val (mixExs, configPath) = mixExsAbove(file)
             .firstNotNullOfOrNull { mixExs -> ConfigFiles.configPath(project, mixExs)?.let { mixExs to it } }
             ?: return null
 
