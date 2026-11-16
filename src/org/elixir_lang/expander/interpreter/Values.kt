@@ -16,6 +16,7 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.ericsson.otp.erlang.OtpOutputStream
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
+import org.elixir_lang.NameArity
 import org.elixir_lang.expander.Run
 import org.elixir_lang.expander.differInSign
 import org.elixir_lang.expander.UnorderedTerms
@@ -858,6 +859,12 @@ internal fun isKeyword(term: OtpErlangObject): Boolean =
 internal fun pairKey(term: OtpErlangObject): OtpErlangObject? =
     (term as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elementAt(0)
 
+/** The atom key's name and the value of [term] where it is a keyword list's `{key, value}`, else `null`. */
+internal fun keywordPair(term: OtpErlangObject): Pair<String, OtpErlangObject>? =
+    (seen(term) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.let { pair ->
+        (seen(pair.elementAt(0)) as? OtpErlangAtom)?.let { it.atomValue() to pair.elementAt(1) }
+    }
+
 /**
  * `lists:keyfind/3`'s walk: the index of the first tuple of [elements], each read by [read], whose element [n] [matches],
  * or -1. A tuple too short is passed over, as the guard `element(N, H) == Key` fails.
@@ -994,6 +1001,20 @@ internal fun macroEnvField(env: OtpErlangMap, name: String): OtpErlangObject = s
 /** The field [name] of [env], a `%Macro.Env{}`, known or not, declining where it lacks it. */
 internal fun macroEnvEntry(env: OtpErlangMap, name: String): OtpErlangObject =
     env.get(atom(name)) ?: decline("a Macro.Env without %s", atom(name))
+
+/**
+ * A `Macro.Env`'s `:function`, [term]: `null` for `nil`, a `{name, arity}` whose arity is at least 0 as its [NameArity],
+ * and [otherwise] for any other term.
+ */
+internal inline fun envFunction(term: OtpErlangObject, otherwise: () -> Nothing): NameArity? {
+    val known = seen(term)
+
+    if (known == NIL) return null
+
+    val (name, arity) = keywordPair(known) ?: otherwise()
+
+    return NameArity(name, smallInt(seen(arity))?.takeIf { it >= 0 } ?: otherwise())
+}
 
 /** [term] as an `Int`, where it is an integer that fits one, `null` where it is something else. */
 internal fun smallInt(term: OtpErlangObject): Int? =

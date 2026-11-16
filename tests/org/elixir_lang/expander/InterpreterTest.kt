@@ -6728,7 +6728,37 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 "env:expand-function-other-key",
                 """
                 defmacro f, do: Macro.escape(__CALLER__.function)
+                defmacro m, do: Macro.expand(quote(do: {row}.f()), %{__CALLER__ | file: "other.ex"})
+                """,
+                pins = DECLINED,
+            ),
+            // With only `:line` changed: from 1.17 the macro runs at that line, before at the quoted call's, which has none.
+            macro(
+                "env:expand-line",
+                """
+                defmacro l, do: __CALLER__.line
+                defmacro m, do: Macro.expand(quote(do: {row}.l()), %{__CALLER__ | line: 7})
+                """,
+            ),
+            macro(
+                "env:expand-line-function",
+                """
+                defmacro f, do: Macro.escape(__CALLER__.function)
                 defmacro m, do: Macro.expand(quote(do: {row}.f()), %{__CALLER__ | line: 7})
+                """,
+            ),
+            macro(
+                "env:expand-line-and-function",
+                """
+                defmacro f, do: Macro.escape({__CALLER__.line, __CALLER__.function})
+                defmacro m, do: Macro.expand(quote(do: {row}.f()), %{__CALLER__ | line: 7, function: {:g, 0}})
+                """,
+            ),
+            macro(
+                "env:expand-line-not-an-integer",
+                """
+                defmacro l, do: :ok
+                defmacro m, do: Macro.expand(quote(do: {row}.l()), %{__CALLER__ | line: :x})
                 """,
                 pins = DECLINED,
             ),
@@ -7374,13 +7404,10 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 "defmacro m(x, y), do: {Macro.expand_once(x, __CALLER__), Macro.expand(y, __CALLER__)}",
                 "m(unless(false, do: :x), __MODULE__)",
             ),
-            // The expanded call is on line 1, so its env is `__CALLER__`; the case's isn't, and an env with another line
-            // declines.
             macro(
                 "form:macro-expand-env",
                 "defmacro m(x), do: Macro.expand(x, %{__CALLER__ | line: 1})",
                 "m(__MODULE__)",
-                ends = { "stopped at `$ROW.m(__MODULE__)`" },
             ),
             // The read's line is the caller's, which differs between Elixir's call and the case's.
             macro(
