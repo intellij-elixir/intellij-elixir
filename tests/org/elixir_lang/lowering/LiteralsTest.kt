@@ -1,5 +1,8 @@
 package org.elixir_lang.lowering
 
+import com.intellij.psi.util.PsiTreeUtil
+import org.elixir_lang.psi.Digits
+
 /** Each expected term is `Code.string_to_quoted(code, columns: true, token_metadata: true)` on that version's Elixir. */
 class LiteralsTest : LoweringTestCase() {
     fun testNumbersAndCharactersHaveNoMetadata() =
@@ -188,9 +191,51 @@ class LiteralsTest : LoweringTestCase() {
         """{:sigil_S, [delimiter: "(", line: 1, column: 1], [{:<<>>, [line: 1, column: 1], ["a\\\\\nb"]}, []]}""",
     )
 
-    // Elixir's parser rejects these, so there is no quoted form to compare with.
-    fun testDigitsOutsideTheirBaseLowerToTheConversionThatRaises() = assertLowers(
-        "0b12",
-        "{{:., [line: 1, column: 1], [String, :to_integer]}, [line: 1, column: 1], [\"12\", 2]}",
+    /** Elixir's tokenizer rejects each of these, so there is no quoted form to compare with. */
+    fun testANumberElixirRejectsIsBrokenCode() = assertEachBroken(
+        "0b2", "0o9", "0x1g", "0b12", "0z1", "0B1", "0X1", "123abc", "1e10", "1.2a", "1.0e400", "1.0e+400", "2.0e308",
+        "1__0", "1_", "0b_1", "0b", "0x", "1.0e",
+    )
+
+    fun testDigitGroupsApartByWhitespaceAreBrokenCode() =
+        assertEachBroken("1 2", "1_0 2", "1.0 2", "1.0e1 2", "1 2.0", "1.0 2 3", "1.0 2.0", "[1.0 2]", "1 + 2 3")
+
+    /** A keyword after a number is read as the word it is, so the number is valid. */
+    fun testAKeywordAfterANumberIsTheKeyword() {
+        assertLowers("0b1and 1", "{:and, [line: 1, column: 4], [1, 1]}")
+        assertLowers("0o7and 1", "{:and, [line: 1, column: 4], [7, 1]}")
+        assertLowers("0b1or 1", "{:or, [line: 1, column: 4], [1, 1]}")
+        assertLowers("0b1in [1]", "{:in, [line: 1, column: 4], [1, [1]]}")
+    }
+
+    /** `and`'s `a` is a hexadecimal digit, so Elixir reads `0x1a` and then `nd`. */
+    fun testAKeywordAfterAHexadecimalNumberIsPartOfTheNumber() = assertBroken("0x1and 1")
+
+    fun testANumberElixirAcceptsLowersAsItsValue() {
+        assertLowers("0b1_0", "2")
+        assertLowers("1_000", "1000")
+        assertLowers("1.0e-400", "0.0")
+        assertLowers("1.7976931348623157e308", "1.7976931348623157e308")
+    }
+
+    /**
+     * The lexer reads `0or` as an octal number with the digits `r`. Before 1.12 Elixir reads `0` and then `or`, so
+     * [rejectedNumber] accepts it, but those digits have no value to lower.
+     */
+    fun testDigitsThatAreNoValueAreBrokenCode() = assertEachBroken("0or", "0or 1", "0or:")
+
+    /** The digits of `0b2` are no number of their own: they are asked about their number, never alone. */
+    fun testDigitsOutsideTheirBaseAreBrokenCode() {
+        val lowered = lower("0b2") { PsiTreeUtil.findChildOfType(it, Digits::class.java)!! }
+
+        assertEquals(ERROR, placeholderReasons(lowered))
+    }
+
+    /** Each of [codes] is broken code at the oldest and newest Elixir; a failure lists every pair that is not. */
+    private fun assertEachBroken(vararg codes: String) = assertEquals(
+        emptyList<Pair<String, String>>(),
+        codes
+            .flatMap { code -> listOf(OLDEST, NEWEST).map { code to it } }
+            .filterNot { (code, version) -> isBroken(lower(code, version)) },
     )
 }

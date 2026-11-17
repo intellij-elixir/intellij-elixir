@@ -73,7 +73,7 @@ public class Quote implements ItemPresentation {
         StringBuilder presentableTextBuilder = new StringBuilder(QUOTE);
 
         PsiElement locationValueElement = keywordArgument(call, LOCATION);
-        PsiElement unquoteValueElement = keywordArgument(call, org.elixir_lang.psi.call.name.Quote.KeywordArgument.UNQUOTE);
+        PsiElement unquoteValueElement = keywordArgument(call, UNQUOTE);
 
         if (locationValueElement != null) {
             presentableTextBuilder
@@ -81,15 +81,11 @@ public class Quote implements ItemPresentation {
                     .append(LOCATION)
                     .append(": ")
                     .append(locationValueElement.getText());
-
-            if (unquoteValueElement != null) {
-                presentableTextBuilder.append(",");
-            }
         }
 
         if (unquoteValueElement != null) {
             presentableTextBuilder
-                    .append(", ")
+                    .append(locationValueElement != null ? ", " : " ")
                     .append(UNQUOTE)
                     .append(": ")
                     .append(unquoteValueElement.getText());

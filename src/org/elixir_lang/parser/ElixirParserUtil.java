@@ -698,11 +698,30 @@ public class ElixirParserUtil extends GeneratedParserUtilBase {
             return true;
         }
 
+        return previousRawToken(builder) == ElixirTypes.CAPTURE_OPERATOR;
+    }
+
+    private static final TokenSet DECIMAL_DIGIT_GROUP_ENDS = TokenSet.create(
+            ElixirTypes.INVALID_DECIMAL_DIGITS,
+            ElixirTypes.NUMBER_SEPARATOR,
+            ElixirTypes.VALID_DECIMAL_DIGITS
+    );
+
+    /**
+     * Whether the decimal digits about to be read follow the decimal digits or {@code _} just consumed with nothing
+     * between them, as in {@code 1_0} and unlike {@code 1 0}, which Elixir reads as two tokens.
+     */
+    public static boolean adjacentDecimalDigits(@NotNull PsiBuilder builder, int level) {
+        return DECIMAL_DIGIT_GROUP_ENDS.contains(previousRawToken(builder));
+    }
+
+    /** The token right before the current one, whitespace included. */
+    private static @Nullable IElementType previousRawToken(@NotNull PsiBuilder builder) {
         /* Whitespace is skipped lazily, so the current lexeme may still be the space itself. Asking
            for the token type forces the skip, which is what makes rawLookup(-1) meaningful here. */
         builder.getTokenType();
 
-        return builder.rawLookup(-1) == ElixirTypes.CAPTURE_OPERATOR;
+        return builder.rawLookup(-1);
     }
 
     /** Whether {@code //} is the step operator - see {@link ElixirLanguageFeature#STEP_OPERATOR}. */

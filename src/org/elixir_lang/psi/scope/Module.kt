@@ -11,8 +11,6 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.Named
 import org.elixir_lang.psi.ex_unit.Case
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
-import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.call.keywordArgument
 import org.elixir_lang.psi.impl.call.maybeModularNameToModulars
 import org.elixir_lang.psi.impl.call.whileInStabBodyChildExpressions
 import org.elixir_lang.psi.impl.stripAccessExpression
@@ -78,37 +76,21 @@ abstract class Module : PsiScopeProcessor {
 
     private fun executeOnAliasCall(aliasCall: Named, state: ResolveState): Boolean {
         val aliasCallState = state.putVisitedElement(aliasCall)
-        val asKeywordValue = aliasCall.keywordArgument("as")
 
-        return if (asKeywordValue != null) {
-            asKeywordValue
-                    .stripAccessExpression()
-                    .let { executeOnAs(it, aliasCallState.put(ALIAS_CALL, aliasCall)) }
-        } else {
-            val finalArguments = aliasCall.finalArguments()
-
-            if (finalArguments != null && finalArguments.isNotEmpty()) {
-                executeOnAliasCallArgument(finalArguments[0], aliasCallState)
-            } else {
-                true
-            }
-        }
+        return Alias.asValue(aliasCall)
+                ?.let { executeOnAs(it, aliasCallState.put(ALIAS_CALL, aliasCall)) }
+                ?: executeOnAliasCallArgument(Alias.firstArgument(aliasCall), aliasCallState)
     }
-
-    private fun executeOnAliasCallArgument(accessExpression: ElixirAccessExpression,
-                                           state: ResolveState): Boolean =
-            executeOnAliasCallArgument(accessExpression.children, state)
 
     private fun executeOnAliasCallArgument(multipleAliases: ElixirMultipleAliases,
                                            state: ResolveState): Boolean =
             executeOnMultipleAliasChildren(multipleAliases.children, state)
 
 
-    protected fun executeOnAliasCallArgument(element: PsiElement?, state: ResolveState): Boolean =
+    private fun executeOnAliasCallArgument(element: PsiElement?, state: ResolveState): Boolean =
             when (element) {
                 // __MODULE__
                 is Call -> executeOnAliasCallArgument(element, state)
-                is ElixirAccessExpression -> executeOnAliasCallArgument(element, state)
                 is QualifiableAlias -> executeOnAliasCallArgument(element, state)
                 is QualifiedMultipleAliases -> executeOnAliasCallArgument(element, state)
                 else -> true
@@ -130,20 +112,6 @@ abstract class Module : PsiScopeProcessor {
         } else {
             true
         }
-
-    private fun executeOnAliasCallArgument(children: Array<PsiElement>, state: ResolveState): Boolean {
-        var keepProcessing = true
-
-        for (child in children) {
-            keepProcessing = executeOnAliasCallArgument(child, state)
-
-            if (!keepProcessing) {
-                break
-            }
-        }
-
-        return keepProcessing
-    }
 
     private fun executeOnMultipleAliasChild(child: ElixirAccessExpression, state: ResolveState): Boolean =
         child.children.let { executeOnMultipleAliasChildren(it, state) }
@@ -198,7 +166,7 @@ abstract class Module : PsiScopeProcessor {
     }
 
     private fun executeOnRequireCall(require: Call, state: ResolveState): Boolean =
-        require.keywordArgument("as")?.stripAccessExpression()?.let {
+        Alias.asValue(require)?.let {
             executeOnAs(it, state.putVisitedElement(require).put(REQUIRE_CALL, require))
         } ?: true
 

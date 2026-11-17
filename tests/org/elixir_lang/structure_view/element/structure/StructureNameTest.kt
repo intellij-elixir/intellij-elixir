@@ -3,7 +3,7 @@ package org.elixir_lang.structure_view.element.structure
 import com.intellij.ide.structureView.StructureViewTreeElement
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.psi.ElixirFile
-import org.elixir_lang.structure_view.Model
+import org.elixir_lang.structure_view.structureViewElements
 import org.elixir_lang.structure_view.element.Exception as ExceptionElement
 
 /**
@@ -14,21 +14,7 @@ class StructureNameTest : PlatformTestCase() {
     private fun structure(code: String): StructureViewTreeElement {
         myFixture.configureByText("a_file_whose_name_has_dots.ex", code)
 
-        val found = mutableListOf<StructureViewTreeElement>()
-
-        fun walk(element: StructureViewTreeElement) {
-            if (element is Structure) {
-                found.add(element)
-            }
-
-            for (child in element.children) {
-                if (child is StructureViewTreeElement) {
-                    walk(child)
-                }
-            }
-        }
-
-        walk(Model(myFixture.file as ElixirFile, null).root)
+        val found = structureViewElements<Structure>(myFixture.file as ElixirFile)
         assertEquals("the fixture must build exactly one struct node", 1, found.size)
 
         return found.single()
@@ -76,21 +62,7 @@ class StructureNameTest : PlatformTestCase() {
             "defmodule Foo.Bar do\n  defexception [:message]\nend\n"
         )
 
-        val found = mutableListOf<ExceptionElement>()
-
-        fun walk(element: StructureViewTreeElement) {
-            if (element is ExceptionElement) {
-                found.add(element)
-            }
-
-            for (child in element.children) {
-                if (child is StructureViewTreeElement) {
-                    walk(child)
-                }
-            }
-        }
-
-        walk(Model(myFixture.file as ElixirFile, null).root)
+        val found = structureViewElements<ExceptionElement>(myFixture.file as ElixirFile)
         assertEquals("the fixture must build exactly one exception node", 1, found.size)
 
         assertEquals("Bar", found.single().presentation.presentableText)

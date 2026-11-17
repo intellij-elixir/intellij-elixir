@@ -11,8 +11,6 @@ import org.elixir_lang.Module.split
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Named
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
-import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.scope.Module
 import org.elixir_lang.psi.scope.ResolveResultOrderedSet
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
@@ -48,12 +46,8 @@ class MultiResolve internal constructor(private val name: String, private val in
                 addUnaliasedNamedElementsToResolveResultList(match, namePartList, aliasedNameState.visitedElementSet())
             } else if (aliasCall != null) {
                 // adds `Foo.SSH` and `defmodule Foo.SSH` for `alias Foo.SSH, as FSSH`
-                aliasCall
-                        .finalArguments()!!
-                        .first()
-                        .stripAccessExpression()
-                        .let { it as PsiNamedElement }
-                        .let { first ->
+                (Alias.firstArgument(aliasCall) as? PsiNamedElement)
+                        ?.let { first ->
                             UnaliasedName.unaliasedName(first)?.let { unaliasedName ->
                                 val aliasedNameWithoutAs = split(unaliasedName).last()
                                 executeOnAliasedName(

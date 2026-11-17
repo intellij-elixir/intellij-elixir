@@ -23,8 +23,8 @@ import org.elixir_lang.psi.Use
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.keywordArgument
-import org.elixir_lang.psi.impl.hasKeywordKey
 import org.elixir_lang.psi.impl.keywordValue
+import org.elixir_lang.psi.impl.lastKeywordValue
 import org.elixir_lang.psi.impl.moduleName
 import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 
@@ -66,7 +66,7 @@ object ProjectKeywords {
     fun elixircOption(mixExs: ElixirFile, option: String): Reading<PsiElement> =
         keyword(mixExs, "elixirc_options", Reading.Absent, NeedsWhole.EVERY_ANSWER) { value ->
             val list = value as? ElixirList
-            val written = list?.keywords?.keywordValue(option)?.stripAccessExpressionAndParentheses()
+            val written = list?.keywords?.lastKeywordValue(option)?.stripAccessExpressionAndParentheses()
 
             when {
                 written != null -> Reading.Written(written)
@@ -108,7 +108,7 @@ object ProjectKeywords {
      */
     @RequiresReadLock
     internal fun value(keywords: QuotableKeywordList, name: String): PsiElement? =
-        keywords.quotableKeywordPairList().firstOrNull { it.hasKeywordKey(name) }?.keywordValue?.stripAccessExpressionAndParentheses()
+        keywords.keywordValue(name)?.stripAccessExpressionAndParentheses()
 
     /** Which of [keyword]'s answers need the list `project/0` returns to be all it can return. */
     internal enum class NeedsWhole {

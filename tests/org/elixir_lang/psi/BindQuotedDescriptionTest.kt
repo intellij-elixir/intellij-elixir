@@ -11,10 +11,19 @@ class BindQuotedDescriptionTest : PlatformTestCase() {
 
     fun testQuotedBindQuotedKey() = assertQuoteBoundVariable("quote \"bind_quoted\": [<caret>a: 1], do: a")
 
-    private fun assertQuoteBoundVariable(quote: String) {
+    /** Elixir reads the first `bind_quoted:`, so only its keys are bound. */
+    fun testFirstOfTwoBindQuotedListsBindsItsKey() =
+        assertQuoteBoundVariable("quote bind_quoted: [<caret>a: 1], bind_quoted: [b: 2], do: a")
+
+    fun testSecondOfTwoBindQuotedListsBindsNoKey() =
+        assertDescription("keyword key", "quote bind_quoted: [a: 1], bind_quoted: [<caret>b: 2], do: a")
+
+    private fun assertQuoteBoundVariable(quote: String) = assertDescription("quote bound variable", quote)
+
+    private fun assertDescription(expected: String, quote: String) {
         myFixture.configureByText("bind_quoted.ex", "defmodule M do\n  def f do\n    $quote\n  end\nend\n")
         val key = PsiTreeUtil.getParentOfType(myFixture.file.findElementAt(myFixture.caretOffset), ElixirKeywordKey::class.java)!!
 
-        assertEquals("quote bound variable", ElementDescriptionUtil.getElementDescription(key, UsageViewTypeLocation.INSTANCE))
+        assertEquals(expected, ElementDescriptionUtil.getElementDescription(key, UsageViewTypeLocation.INSTANCE))
     }
 }

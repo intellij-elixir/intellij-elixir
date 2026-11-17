@@ -13,10 +13,7 @@ import org.elixir_lang.beam.psi.TypeDefinition as BeamTypeDefinition
 import org.elixir_lang.code_insight.Signature
 import org.elixir_lang.declaration.Presentation
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.call.name.Function.ALIAS
-import org.elixir_lang.psi.call.name.Module.KERNEL
-import org.elixir_lang.psi.impl.hasKeywordKey
-import org.elixir_lang.psi.impl.keywordAtom
+import org.elixir_lang.psi.impl.givesOption
 import org.elixir_lang.reference.Callable
 import org.elixir_lang.structure_view.element.*
 import org.elixir_lang.structure_view.element.modular.Module
@@ -90,7 +87,7 @@ internal class ElementDescriptionProvider : com.intellij.psi.ElementDescriptionP
             ?.parent?.let { it as ElixirAccessExpression }
             ?.parent?.let { it as? QuotableKeywordPair }
             ?.let { outerKeywordPair ->
-                if (location === UsageViewTypeLocation.INSTANCE && outerKeywordPair.keywordAtom() == "bind_quoted") {
+                if (location === UsageViewTypeLocation.INSTANCE && outerKeywordPair.givesOption("bind_quoted")) {
                     "quote bound variable"
                 } else {
                     null
@@ -244,45 +241,11 @@ internal class ElementDescriptionProvider : com.intellij.psi.ElementDescriptionP
             null
         }
 
-    private fun isAliasCallArgument(element: Call): Boolean = element.isCalling(KERNEL, ALIAS)
+    private fun isAliasCallArgument(element: MaybeModuleName): Boolean =
+        element is QualifiableAlias &&
+            Alias.position(element).let { it is Alias.Position.InFirstArgument || it is Alias.Position.InAsValue }
 
-    private tailrec fun isAliasCallArgument(element: PsiElement): Boolean =
-        when (element) {
-            is Call ->
-                isAliasCallArgument(element)
-            is Arguments,
-            is ElixirAccessExpression,
-            is ElixirMultipleAliases,
-            is QualifiableAlias,
-            is QualifiedMultipleAliases ->
-                isAliasCallArgument(element.parent)
-            is QuotableKeywordPair ->
-                isAliasCallAs(element)
-            else ->
-                false
-        }
-
-    private fun isAliasCallAs(element: QuotableKeywordPair): Boolean =
-        if (element.hasKeywordKey("as")) {
-            val parent = element.parent
-
-            if (parent is QuotableKeywordList) {
-                val grandParent = parent.parent
-
-                isAliasCallArgument(grandParent)
-            } else {
-                false
-            }
-        } else {
-            false
-        }
-
-    private tailrec fun isAliasCallAs(element: PsiElement): Boolean =
-        when (element) {
-            is ElixirAccessExpression, is QualifiableAlias -> isAliasCallAs(element.parent)
-            is QuotableKeywordPair -> isAliasCallAs(element)
-            else -> false
-        }
+    private fun isAliasCallAs(element: QualifiableAlias): Boolean = Alias.position(element) is Alias.Position.InAsValue
 
     companion object {
         const val VARIABLE_USAGE_VIEW_TYPE_LOCATION_ELEMENT_DESCRIPTION = "variable"
