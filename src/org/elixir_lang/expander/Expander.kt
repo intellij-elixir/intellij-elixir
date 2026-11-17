@@ -466,7 +466,7 @@ internal class Run(
      */
     val mayNotRun get() = speculating > 0 || raisedOverUnknown || pastRaise
 
-    /** How many units stepped unordered the code running is in, which [BodyValues.unordered] counts. */
+    /** How many units stepped unordered the code running is in. */
     var unordered = 0
 
     /** Whether the code running is in a unit stepped unordered ([unordered]), which may run any number of times. */

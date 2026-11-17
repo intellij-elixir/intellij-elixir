@@ -999,7 +999,7 @@ internal class Evaluation(
         } else {
             // The `try`s around the call alone. One that ended in the made run, its file's import's among them, is around
             // nothing now; one still around the made run's code is around the import that runs this code too.
-            Carry(made, run.catching, run.mayNotRun, run).pastRaiseOfMade()
+            Carry(made, run.catching, run.mayNotRun, run.unordered, run).pastRaiseOfMade()
         }
 
     /** [value], where Elixir may raise instead ([raiseMayBeCaught]). */
@@ -4146,10 +4146,11 @@ private open class TailCall(val evaluate: () -> OtpErlangObject, val gives: (Dec
 /**
  * How a call of a closure another run [made] runs that run's code, from code of the run [into]: inside the [catching]
  * `try`s around the call, which may catch its raise ([Run.catching]), as code that may not run where [mayNotRun]
- * ([Run.mayNotRun]), and with a raise it may make under them that code's ([Run.raisedOverUnknown]). It is taken where
- * the call is made, so a call made in a tail runs as carried once the code it was made in has ended.
+ * ([Run.mayNotRun]), in the [unordered] units stepped unordered around the call ([Run.unordered]), and with a raise it
+ * may make under them that code's ([Run.raisedOverUnknown]). It is taken where the call is made, so a call made in a
+ * tail runs as carried once the code it was made in has ended.
  */
-private data class Carry(val made: Run, val catching: Int, val mayNotRun: Boolean, val into: Run) {
+private data class Carry(val made: Run, val catching: Int, val mayNotRun: Boolean, val unordered: Int, val into: Run) {
     /**
      * This carry, as code that may not run where the made run's code is past a raise of its own ([Run.raisedOverUnknown]),
      * which [carried] sets aside while the call's body runs: where the call is made, and where the body has returned the
@@ -4171,6 +4172,7 @@ private inline fun carried(carry: Carry?, call: () -> OtpErlangObject): OtpErlan
 
     made.catching = carry.catching
     if (carry.mayNotRun) made.speculating++
+    made.unordered += carry.unordered
     made.raisedOverUnknown = false
     try {
         return when (val value = call()) {
@@ -4185,6 +4187,7 @@ private inline fun carried(carry: Carry?, call: () -> OtpErlangObject): OtpErlan
 
         made.catching = catching
         if (carry.mayNotRun) made.speculating--
+        made.unordered -= carry.unordered
         made.raisedOverUnknown = raised
         if (raisedThere) carry.into.raisedOverUnknown = true
     }

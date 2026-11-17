@@ -282,6 +282,8 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("c45", "unknown", elixir = "false"),
             // Nor does a module that function defines.
             Row("c46", "unknown", elixir = "false"),
+            // A closure another run made, called in a module that function defines, runs as that module's code would.
+            Row("c49", "unknown", elixir = "nil"),
             // An ensure in code that may not run, of a module with no source copy, loads nothing the run must join.
             Row("c52", ":mine", elixir = ":mine"),
             // An ensure in a module that function defines loads nothing the module ensures.
