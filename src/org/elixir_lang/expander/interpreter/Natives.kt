@@ -37,6 +37,7 @@ import org.elixir_lang.expander.EscapeOp
 import org.elixir_lang.expander.EscapeView
 import org.elixir_lang.expander.EscapeResult
 import org.elixir_lang.expander.Expansion
+import org.elixir_lang.expander.FileEntry
 import org.elixir_lang.expander.ModuleAttributes
 import org.elixir_lang.expander.ModuleEffects
 import org.elixir_lang.expander.ModuleExports
@@ -70,6 +71,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_SORT_KEEPS_EQU
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAKE_FUN_ARITY_CHECKED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.RAISE_FRAME_TAKES_A_CAPTURE
+import org.elixir_lang.language_level.ElixirLanguageFeature.READ_FILE_TAKES_OPTIONS
 import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_ESCAPED_IN_FIXED_FIELD_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_ATTRIBUTES_IN
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_GET_LAST_ATTRIBUTE
@@ -402,7 +404,14 @@ internal class Natives(private val evaluation: Evaluation) {
                     else -> null
                 }
             },
-            "file" to reading { key, _ -> if (key == "get_cwd/0") workingDirectory() else null },
+            "file" to reading { key, args ->
+                when (key) {
+                    "get_cwd/0" -> workingDirectory()
+                    "read_file/1" -> readFile(args[0])
+                    "read_file/2" -> if (READ_FILE_TAKES_OPTIONS.isSufficient(level)) readFile(args[0], args[1]) else null
+                    else -> null
+                }
+            },
             "filename" to reading(Natives::filename),
             "elixir_config" to Row({ function, _ -> function == "static" }) { key, args, _ -> config(key, args) },
             "Elixir.Mix" to reading { key, _ -> mix(key) },
@@ -3409,10 +3418,137 @@ internal class Natives(private val evaluation: Evaluation) {
         }
 
     /**
+     * `file:read_file/1` (`file.erl:1075-1076` at OTP-29.0.6): `{ok, Bytes}` of the file [name] names, read through the
+     * run's files ([fileToRead]), else the error the OS gives. A name [fileName] can't take is `badarg`.
+     */
+    private fun readFile(name: OtpErlangObject): OtpErlangObject {
+        val path = fileToRead(name, fileName(name) ?: return fileError("badarg")) { return fileError(it) }
+        val bytes = evaluation.run.files.read(path) ?: decline("file:read_file of %s isn't known", name)
+
+        return tuple(atom("ok"), OtpErlangBinary(bytes))
+    }
+
+    /**
+     * Where the OS takes [name], whose file name is [text] ([locatedFile]), to a file `file:read_file/1` reads, else
+     * [error] of the reason it gives none, by what is there ([entryAt]).
+     */
+    private inline fun fileToRead(name: OtpErlangObject, text: String, error: (String) -> Nothing): String {
+        val path = locatedFile(name, text, error) { error(notFound(it)) }
+
+        return when (entryAt(path)) {
+            FileEntry.File -> path
+            is FileEntry.Directory -> error("eisdir")
+            FileEntry.Missing, FileEntry.Dangling -> error(notFound(path))
+        }
+    }
+
+    /**
+     * `file:read_file/2` (`file.erl:1105-1117` at OTP-29.0.6): the first `{error, Reason}` among [options], as
+     * `check_args/1` gives it, else [readFile], whether they hold `raw` or not, as both read the same file. Options
+     * that aren't a list have no clause, nor has `check_args/1` the tail of a list that isn't proper.
+     */
+    private fun readFile(name: OtpErlangObject, options: OtpErlangObject): OtpErlangObject {
+        val (elements, tail) = cells(seen(options)) ?: functionClause("file", "read_file", listOf(name, options))
+
+        for (element in elements) {
+            val option = seen(element)
+            if (isUnknown(option)) decline("file:read_file/2 of an option that isn't known")
+
+            val tag = pairKey(option)?.let(::seen) ?: continue
+            if (isUnknown(tag)) decline("file:read_file/2 of an option that isn't known")
+            if (tag == atom("error")) return option
+        }
+
+        tail?.let { functionClause("file", "check_args", listOf(it)) }
+
+        return readFile(name)
+    }
+
+    /** `{error, Reason}` of [reason]. */
+    private fun fileError(reason: String): OtpErlangObject = tuple(atom("error"), atom(reason))
+
+    /**
+     * `file:file_name/1` (`file.erl:2975-2994` at OTP-29.0.6): a binary's bytes, else a list's characters, a nested
+     * list's and an atom's in their place, as [flat] walks them, `null` (`badarg`) where a part is anything else. A
+     * character past ASCII declines, as `file:native_name_encoding/0` decides what it names; so do bytes that aren't
+     * UTF-8.
+     */
+    private fun fileName(term: OtpErlangObject): String? {
+        binaryBytes(term)?.let { return decodeUtf8(it) ?: decline("a file name of %s, which isn't UTF-8", term) }
+
+        val flat = flat(term)
+        val characters = flat.takeIf { it.stuck == null }?.let { characters(it.elements) } ?: return null
+        if (!characters.all(::isAscii)) decline("a file name of %s, past ASCII", term)
+
+        return String(characters, 0, characters.size)
+    }
+
+    /**
+     * Where the OS takes the file name [path], which [name] gave: made absolute as Elixir makes it (`Run.absolute`),
+     * then resolved through the run's files ([Filename.resolved]); [stuck] of the prefix past which a `.` or `..`
+     * follows a name that isn't a directory. An empty name is [error] `enoent` and one holding a NUL `badarg`, as
+     * `prim_file` answers them, but a binary on Windows, whose NULs its path check reads, which declines. A name ending
+     * in a separator takes only a directory, as one ending in `/.` does, but on Windows, where `prim_file` takes the
+     * separator off.
+     */
+    private inline fun locatedFile(name: OtpErlangObject, path: String, error: (String) -> Nothing, stuck: (String) -> Nothing): String {
+        if (path.isEmpty()) error("enoent")
+        if ('\u0000' in path) {
+            if (binaryBytes(name) != null && fileNameOs() == OS.Windows) decline("the file name %s, which holds a NUL, on Windows", name)
+
+            error("badarg")
+        }
+
+        val os = fileNameOs()
+        val absolute = evaluation.run.absolute(path) ?: decline("the file name %s, whose absolute path isn't known", name)
+        val directory = os != OS.Windows && Filename.isSeparator(absolute.last().code, os) && Filename.split(absolute, os).size > 1
+
+        return when (val resolved = Filename.resolved(if (directory) "$absolute." else absolute, os) { entryAt(it).physical }) {
+            is Filename.Resolved.At -> resolved.path
+            is Filename.Resolved.NotADirectory -> stuck(resolved.prefix)
+            Filename.Resolved.Unread -> decline("the file name %s, a part of which the OS may take as other than its name", name)
+        }
+    }
+
+    /**
+     * The reason the OS gives for no file at [path], which isn't a directory: `enoent` where the nearest of it and the
+     * names above it that is anything is a directory, `enotdir` where it is a file. Windows, whose answer isn't read,
+     * declines that.
+     */
+    private fun notFound(path: String): String {
+        val os = fileNameOs()
+        var at = path
+
+        while (true) {
+            ProgressManager.checkCanceled()
+
+            when (entryAt(at)) {
+                is FileEntry.Directory -> return "enoent"
+                FileEntry.File -> {
+                    if (os == OS.Windows) decline("a file name past the file $at on Windows")
+
+                    return "enotdir"
+                }
+                FileEntry.Missing, FileEntry.Dangling -> {}
+            }
+
+            val parent = Filename.dirname(at, os)
+            if (parent == at) return "enoent"
+            at = parent
+        }
+    }
+
+    /**
      * Whether [code] is an ASCII character, which every native name encoding reads alike; a name holding one past it
      * declines, as that encoding isn't read.
      */
     private fun isAscii(code: Int): Boolean = code in 0 until 0x80
+
+    /** The OS a file name of the run is taken by, declining where it isn't known. */
+    private fun fileNameOs(): OS = evaluation.run.os ?: decline("a file name of a run whose OS isn't known")
+
+    /** What is at [path] in the run's files, declining where that isn't known. */
+    private fun entryAt(path: String): FileEntry = evaluation.run.files.entry(path) ?: decline("what is at $path isn't known")
 
     /**
      * `File.exists?/1,2`: whether a file or directory is at [path], made absolute as Elixir makes it (`Run.absolute`),

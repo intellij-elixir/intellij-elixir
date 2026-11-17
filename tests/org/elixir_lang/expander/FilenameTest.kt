@@ -6,7 +6,8 @@ import org.elixir_lang.expander.interpreter.Filename
 
 /**
  * `filename` and `binary:split/3` of a binary, by the path syntax of the OS they run as. Every expected answer is the
- * one `filename.erl` gives with `os:type/0` fixed to `{win32, nt}` or `{unix, linux}`, on OTP 24.3.4.6 and 29.0.6.
+ * one `filename.erl` gives with `os:type/0` fixed to `{win32, nt}` or `{unix, linux}`, on OTP 24.3.4.6 and 29.0.6, but
+ * [Filename.resolved]'s on Windows, which are what `GetFullPathNameW` gives.
  */
 class FilenameTest : TestCase() {
     fun testEveryOsAnswersAsDecided() {
@@ -155,6 +156,61 @@ class FilenameTest : TestCase() {
         assertEquals("C", text(Filename.lowercaseDrive(bytes("C"))))
     }
 
+    /** On Windows a `..` at a share's root stays there, as at a drive's. */
+    fun testAWindowsDotDotStopsAtAShare() {
+        assertEquals("//server/share", resolved("//server/share/..", OS.Windows))
+        assertEquals("//server/share", resolved("//server/share/a/../..", OS.Windows))
+        assertEquals("//server/share/b", resolved("//server/share/../b", OS.Windows))
+        assertEquals("c:/", resolved("c:/..", OS.Windows))
+    }
+
+    /**
+     * Windows may trim a part's trailing dots and spaces, takes a device's name as the device in any directory, and a
+     * part holding a `:` as a file's stream, which isn't read, so such a path isn't resolved.
+     */
+    fun testAWindowsPartItMayReadAsOtherThanItsNameIsntResolved() {
+        val paths = listOf(
+            "c:/p/text.txt.", "c:/p/tree./a.ex", "c:/p/a.ex ", "c:/p/a.ex. ", "c:/p/NUL", "c:/p/con.txt", "c:/p/lpt9 .ex/a",
+            "c:/p/COM\u00B9", "c:/p/lpt\u00B3.txt", "c:/p/a.ex::\$DATA", "c:/p/a.ex:s/b",
+        )
+        for (path in paths) {
+            assertEquals(path, "unread", resolved(path, OS.Windows))
+        }
+        assertEquals("c:/p/a.ex", resolved("c:/p/./a.ex", OS.Windows))
+        assertEquals("c:/p/null", resolved("c:/p/null", OS.Windows))
+        assertEquals("/p/text.txt.", resolved("/p/text.txt.", OS.Linux))
+        assertEquals("/p/a.ex ", resolved("/p/a.ex ", OS.Linux))
+        assertEquals("/p/NUL", resolved("/p/NUL", OS.Linux))
+        assertEquals("/p/a.ex::\$DATA", resolved("/p/a.ex::\$DATA", OS.Linux))
+    }
+
+    /** On Windows a `.` or `?` after a leading `//` names a namespace, a device's or a long path's, not a server. */
+    fun testAWindowsNamespacePathIsntResolved() {
+        val paths = listOf(
+            "//./host/share/a.ex", "//?/UNC/host/share/a.ex",
+            "\\\\.\\host\\share\\a.ex", "\\\\?\\UNC\\host\\share\\a.ex",
+        )
+        for (path in paths) {
+            assertEquals(path, "unread", resolved(path, OS.Windows))
+        }
+        assertEquals("//host/share/a.ex", resolved("//host/share/a.ex", OS.Windows))
+        assertEquals("//host/share/a.ex", resolved("//host/./share/a.ex", OS.Windows))
+    }
+
+    /** Windows takes any two separators in front as a share's root, though `filename:split/1` keeps one for a mixed pair. */
+    fun testAWindowsRootOfMixedSeparatorsIsAShare() {
+        assertEquals("//host/share/a.ex", resolved("/\\host/share/a.ex", OS.Windows))
+        assertEquals("//host/share/a.ex", resolved("\\/host/share/../a.ex", OS.Windows))
+        assertEquals("unread", resolved("/\\./host/share/a.ex", OS.Windows))
+    }
+
+    /** Off Windows a `\` is a byte of a name, which the OS reads as one; on Windows it is a separator. */
+    fun testABackslashIsANamesByteOffWindows() {
+        assertEquals("/proj/a\\b.txt", resolved("/proj/a\\b.txt", OS.Linux))
+        assertEquals("/proj/a\\/b.txt", resolved("/proj/a\\/b.txt", OS.macOS))
+        assertEquals("/proj/a/b.txt", resolved("/proj/a\\b.txt", OS.Windows))
+    }
+
     fun testASplitOfABinary() {
         assertEquals(listOf("", "a", "", "b", "c"), split("/a//b/c", listOf("/"), global = true))
         assertEquals(listOf("a", "b/c"), split("a/b/c", listOf("/"), global = false))
@@ -167,6 +223,14 @@ class FilenameTest : TestCase() {
         assertEquals(listOf("", ""), split("ab", listOf("b", "ab"), global = false))
         assertEquals(listOf("a", "b"), split("a/b", listOf("/"), global = true))
     }
+
+    /** Where [os] resolves [path], every name in it a directory at its own path. */
+    private fun resolved(path: String, os: OS): String =
+        when (val resolved = Filename.resolved(path, os) { it }) {
+            is Filename.Resolved.At -> resolved.path
+            is Filename.Resolved.NotADirectory -> "not a directory past ${resolved.prefix}"
+            Filename.Resolved.Unread -> "unread"
+        }
 
     private fun answer(os: OS) = Filename.osType(os)?.let { (family, name) -> "$family $name" }
 

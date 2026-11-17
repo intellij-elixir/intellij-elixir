@@ -62,6 +62,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CH
 import org.elixir_lang.language_level.ElixirLanguageFeature.POWER_OPERATOR
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_IMPORTS_EVERY_ARITY
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_KEEPS_IMPORTS_META
+import org.elixir_lang.language_level.ElixirLanguageFeature.READ_FILE_TAKES_OPTIONS
 import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_ESCAPED_IN_FIXED_FIELD_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED_AS_MACRO
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUED_ERROR_MESSAGE_FROM_ERROR_INFO
@@ -534,6 +535,24 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             "top expanded\n$DECLINING_MACRO_ENDED\nmodule Elixir.B stopped `$PARSER_OPTIONS_NAME` []",
             tables = true,
         )
+
+    /** A relative name is read from the directory the file is compiled in, which is not known without a file. */
+    fun testARelativeNameIsReadFromTheFilesCompileDirectory() {
+        val code = "defmodule A do\n" +
+            "  {:ok, text} = :file.read_file(\"text.txt\")\n" +
+            "  def unquote(:erlang.binary_to_atom(binary_part(text, 0, 4), :utf8))(), do: 1\n" +
+            "end"
+        val files = parsing(legLevel())
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [some/0 def]",
+            file(code, tables = true, run = RunInputs(OS.CURRENT, FILE, directories = { FILES }, files = files)),
+        )
+        assertEquals(
+            "top expanded\nmodule Elixir.A stopped `unquote(:erlang.binary_to_atom(binary_part(text, 0, 4), :utf8))` []",
+            file(code, tables = true, run = RunInputs(OS.CURRENT, null, directories = { FILES }, files = files)),
+        )
+    }
 
     /** `:file.get_cwd/0` answers a Windows drive lowercased, as OTP gives it, whatever the case the directory has. */
     fun testTheWorkingDirectoryOnWindowsHasALowercaseDrive() {
@@ -2479,6 +2498,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         val directories: CompileDirectories = CompileDirectories.UNKNOWN,
         val exports: Exports? = null,
         val clauses: ModuleClauses.Lookup? = null,
+        val files: RunFiles = RunFiles.NONE,
     )
 
     /** How [code]'s file expanded and each module it compiled ended, one per line, with [tables] each one's table. */
@@ -2495,6 +2515,7 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             file = { run.path },
             directories = run.directories,
             os = run.os,
+            files = run.files,
         )
 
         fun source(node: ElixirAst) = node.meta.origin.substring(code)
@@ -2675,11 +2696,25 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             Ended.Tainted -> "tainted"
         }
 
-    /** `Code`'s string parses, made in the fixture's project, as a project's runs make them. */
+    /**
+     * `Code`'s string parses, made in the fixture's project, as a project's runs make them, and the files on disk, which
+     * the node the rows are compared with reads too.
+     */
     private fun parsing(level: ElixirLanguageLevel) =
         object : RunFiles by RunFiles.NONE {
             override fun parsed(text: String, line: Int, column: Int, indentation: Int) =
                 RunFiles.parse(project, level, text, line, column, indentation)
+
+            override fun entry(path: String): FileEntry =
+                File(path).let {
+                    when {
+                        it.isDirectory -> FileEntry.Directory(FileUtil.toSystemIndependentName(it.canonicalPath))
+                        it.exists() -> FileEntry.File
+                        else -> FileEntry.Missing
+                    }
+                }
+
+            override fun read(path: String): ByteArray = File(path).readBytes()
         }
 
     /**
@@ -3033,6 +3068,9 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         /** A template's absolute path: the quoter's node has no working directory a relative one is read from. */
         val TEMPLATE: String = FileUtil.toSystemIndependentName(File("testData/org/elixir_lang/expander/eex/t.eex").absolutePath)
 
+        /** The directory of the files the file natives' rows read and list, absolute as [TEMPLATE] is. */
+        val FILES: String = FileUtil.toSystemIndependentName(File("testData/org/elixir_lang/expander/files").absolutePath)
+
         /** The template of `Makeup.Styles.HTML.Style`'s `render_css/5` in Makeup 1.2.1. */
         val MAKEUP_TEMPLATE = """
             .<%= highlight_class %> .hll {background-color: <%= highlight_color %>}
@@ -3085,6 +3123,9 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         const val ORACLE_BATCH = 100
         val EVERY_LEG: (ElixirLanguageLevel) -> Boolean = { true }
         val UNPINNED: (Source, ElixirLanguageLevel) -> String? = { _, _ -> null }
+
+        /** [DECLINED] on Windows, where the expander doesn't know what the OS answers. */
+        val DECLINED_ON_WINDOWS: (Source, ElixirLanguageLevel) -> String? = { _, _ -> OPAQUE.takeIf { OS.CURRENT == OS.Windows } }
         val DECLINED: (Source, ElixirLanguageLevel) -> String? = { _, _ -> OPAQUE }
 
         /** How an output renders a binary whose bytes the expander doesn't know. */
@@ -3242,7 +3283,10 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         }
 
         /** A macro `m` giving `{kind, reason}` where [expression] raises, else its value. */
-        fun caught(expression: String) = "defmacro m, do: (try do $expression catch kind, reason -> {kind, reason} end)"
+        fun caught(expression: String) = "defmacro m, do: ${caughtIn(expression)}"
+
+        /** [expression] in a `try` that gives what it raises, throws or exits with as `{kind, reason}`. */
+        fun caughtIn(expression: String) = "(try do $expression catch kind, reason -> {kind, reason} end)"
 
         /** A row of `elixir_tokenizer:tokenize/3` from line 1, as `EEx` calls it, of each of [texts], an Elixir list's items. */
         fun tokenizes(id: String, texts: String): Row =
@@ -7499,6 +7543,127 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             // So do a binary's bytes past ASCII, alone or with the next binary's.
             macro("native:filename-rootname-2-binary-past-ascii", "defmacro m, do: :filename.rootname(\"a\", [<<0xC3>>])", pins = DECLINED),
             macro("native:filename-rootname-2-binaries-past-ascii", "defmacro m, do: :filename.rootname(\"a\", [<<0xC3>>, <<0xA9>>])", pins = DECLINED),
+            // The natives: files, read from the files the test's run reads by path, which are the project's.
+            macro(
+                "native:file-read-file",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :file.read_file("$FILES/text.txt"),
+                    :file.read_file("$FILES/bytes.bin"),
+                    :file.read_file("$FILES/missing.txt"),
+                    :file.read_file("$FILES/tree"),
+                    :file.read_file(~c"$FILES/text.txt"),
+                    :file.read_file(:"$FILES/text.txt"),
+                    :file.read_file([~c"$FILES", [~c"/text.txt"]]),
+                    :file.read_file([~c"$FILES" | :"/text.txt"]),
+                    :file.read_file(1),
+                    :file.read_file([~c"$FILES", "/text.txt"]),
+                    File.read("$FILES/text.txt"),
+                    File.read("$FILES/missing.txt"),
+                    File.read!("$FILES/text.txt")
+                  ])
+                end
+                """,
+            ),
+            macro("native:file-read-bang-missing", "defmacro m, do: Macro.escape(${caughtIn("File.read!(\"$FILES/missing.txt\")")})", unordered = true),
+            macro("native:file-read-bang-directory", "defmacro m, do: Macro.escape(${caughtIn("File.read!(\"$FILES/tree\")")})", unordered = true),
+            // The OS resolves the path: on Windows from its text alone; elsewhere a `.` or `..` needs a directory before
+            // it, and a `..` takes the directory's parent.
+            macro(
+                "native:file-read-file-resolved",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :file.read_file("$FILES/missing.txt/x"),
+                    :file.read_file("$FILES/missing.txt/.."),
+                    :file.read_file("$FILES/tree/../text.txt"),
+                    :file.read_file("$FILES/tree/./../text.txt"),
+                    :file.read_file("$FILES//text.txt"),
+                    :file.read_file("$FILES/text.txt/."),
+                    :file.read_file("$FILES/text.txt/.."),
+                    :file.read_file("")
+                  ])
+                end
+                """,
+            ),
+            // Elsewhere than Windows, a name or a separator after a file isn't a directory.
+            macro(
+                "native:file-read-file-not-a-directory",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :file.read_file("$FILES/text.txt/"),
+                    :file.read_file("$FILES/text.txt/x"),
+                    :file.read_file("$FILES/text.txt/x/y"),
+                    :file.read_file("$FILES/missing.txt/"),
+                    :file.read_file("$FILES/tree/")
+                  ])
+                end
+                """,
+                pins = DECLINED_ON_WINDOWS,
+            ),
+            // A trailing separator takes only a directory, but on Windows, which takes it off.
+            macro(
+                "native:file-read-file-trailing-separator",
+                "defmacro m, do: Macro.escape([:file.read_file(\"$FILES/text.txt/\"), :file.read_file(\"$FILES/tree/\")])",
+            ),
+            // A binary name holding a NUL is `badarg` but on Windows, which takes trailing NULs; a charlist's is `badarg` on every OS.
+            macro(
+                "native:file-read-file-nul",
+                "defmacro m, do: Macro.escape([:file.read_file(\"$FILES/text.txt\\0\"), :file.read_file(\"$FILES/te\\0xt.txt\")])",
+                pins = DECLINED_ON_WINDOWS,
+            ),
+            macro("native:file-read-file-nul-charlist", "defmacro m, do: Macro.escape(:file.read_file(~c\"$FILES/text.txt\\0\"))"),
+            // Windows may trim a part's trailing dots and spaces, and takes a device's name as the device, as it resolves a name.
+            macro(
+                "native:file-read-file-unread",
+                """
+                defmacro m do
+                  Macro.escape([:file.read_file("$FILES/text.txt."), :file.read_file("$FILES/tree./a.ex"), :file.read_file("$FILES/text.txt "), :file.read_file("$FILES/nul")])
+                end
+                """,
+                pins = DECLINED_ON_WINDOWS,
+            ),
+            macro(
+                "native:file-read-file-2",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :file.read_file("$FILES/text.txt", []),
+                    :file.read_file("$FILES/text.txt", [:raw]),
+                    :file.read_file("$FILES/missing.txt", [:raw]),
+                    :file.read_file(~c"$FILES/tree", []),
+                    :file.read_file(1, []),
+                    :file.read_file(1, [:raw])
+                  ])
+                end
+                """,
+                legs = READ_FILE_TAKES_OPTIONS::isSufficient,
+            ),
+            macro(
+                "native:file-read-file-2-not-a-list",
+                caught(":file.read_file(\"$FILES/text.txt\", :raw)"),
+                legs = READ_FILE_TAKES_OPTIONS::isSufficient,
+            ),
+            macro(
+                "native:file-read-file-2-other-option",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :file.read_file("$FILES/text.txt", [:binary]),
+                    :file.read_file("$FILES/text.txt", [:binary, {:error, :given}, :raw]),
+                    :file.read_file("$FILES/missing.txt", [{:error, :given}])
+                  ])
+                end
+                """,
+                legs = READ_FILE_TAKES_OPTIONS::isSufficient,
+            ),
+            macro(
+                "native:file-read-file-2-improper",
+                caught(":file.read_file(\"$FILES/text.txt\", [:raw | :binary])"),
+                legs = READ_FILE_TAKES_OPTIONS::isSufficient,
+            ),
             // The natives: Elixir's functions
             macro(
                 "pure:keyword",

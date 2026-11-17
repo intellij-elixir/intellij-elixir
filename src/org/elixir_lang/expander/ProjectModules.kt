@@ -15,6 +15,7 @@ import com.intellij.openapi.roots.impl.libraries.LibraryEx
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.ModificationTracker
 import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.vfs.VFileProperty
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
@@ -35,6 +36,7 @@ import org.elixir_lang.beam.MacroNameArity
 import org.elixir_lang.expander.interpreter.Declined
 import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.equal
+import org.elixir_lang.expander.interpreter.reserveBits
 import org.elixir_lang.facet.FacetModels
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
@@ -1081,15 +1083,38 @@ internal class ProjectModules(private val project: Project) {
             from?.takeUnless { reading }?.let { parserOptionsOf(it, inputs, stamps) } ?: Reading.Absent
         }
 
-        return object : RunFiles {
-            override fun exists(path: String): Boolean? {
-                val fileSystem = pathFileSystem ?: return null
+        // Off Windows a `\` is a byte of a name, which the IDE's file system reads as a separator, so a path holding one
+        // can't be looked up there.
+        fun fileSystemOf(path: String): VirtualFileSystem? =
+            pathFileSystem?.takeUnless { inputs.os != OS.Windows && '\\' in path }
 
-                return stamps.find(fileSystem, path) != null
+        return object : RunFiles {
+            override fun entry(path: String): FileEntry? {
+                val fileSystem = fileSystemOf(path) ?: return null
+                val file = stamps.find(fileSystem, path) ?: return FileEntry.Missing
+
+                val link = file.`is`(VFileProperty.SYMLINK)
+                val canonical = if (link || file.isDirectory) file.canonicalPath else null
+
+                return when {
+                    link && canonical == null -> FileEntry.Dangling
+                    file.isDirectory -> FileEntry.Directory(canonical ?: path)
+                    else -> FileEntry.File
+                }
+            }
+
+            // The saved file, as Elixir's compile reads it: a keystroke doesn't move it.
+            override fun read(path: String): ByteArray? {
+                val file = stamps.find(fileSystemOf(path), path) ?: return null
+                stamps.onDisk(file)
+                reserveBits(0, file.length * 8)
+
+                // A file the IDE hasn't read is read from disk, where it may have grown since the VFS last saw its length.
+                return contents(file)?.also { reserveBits(0, it.size * 8L) }
             }
 
             override fun imported(path: String, read: ConfigRead): FileExpansion? {
-                val target = stamps.find(pathFileSystem, path)?.takeUnless { it in within } ?: return null
+                val target = stamps.find(fileSystemOf(path), path)?.takeUnless { it in within } ?: return null
                 val psi = read(target) ?: return null
                 val child = compute(psi, inputs, within, memo, config = read)
                 stamps.addAll(child.loaded.stamps)
@@ -1099,7 +1124,7 @@ internal class ProjectModules(private val project: Project) {
             }
 
             override fun followed(path: String): FollowedFile? {
-                val target = stamps.find(pathFileSystem, path)?.takeUnless { it.isDirectory } ?: return null
+                val target = stamps.find(fileSystemOf(path), path)?.takeUnless { it.isDirectory } ?: return null
                 val psi = read(target) ?: return null
                 stamps.source(target)
 
@@ -1585,6 +1610,14 @@ internal class ProjectModules(private val project: Project) {
         ): Answer? = inProgress.getValue(file)[atom]
     }
 }
+
+/** [file]'s bytes, or `null` where it can't be read. */
+private fun contents(file: VirtualFile): ByteArray? =
+    try {
+        file.contentsToByteArray()
+    } catch (_: IOException) {
+        null
+    }
 
 /**
  * The term [node] quotes, where it is a literal, which quotes as itself; `null` where it holds code. An alias holds code

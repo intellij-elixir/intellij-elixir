@@ -19,6 +19,10 @@ internal object Filename {
     private val UNIX_SEPARATORS = listOf(byteArrayOf(SLASH))
     private val WINDOWS_SEPARATORS = listOf(byteArrayOf(SLASH), byteArrayOf(BACKSLASH))
 
+    /** The names Windows takes as a device in any directory, a port's number a digit or a superscript 1, 2 or 3. */
+    private val DEVICES = setOf("CON", "PRN", "AUX", "NUL") +
+        ((0..9).map(Int::toString) + listOf("\u00B9", "\u00B2", "\u00B3")).flatMap { listOf("COM$it", "LPT$it") }
+
     /** `os:type/0`: the OS family and name, `null` for an OS no clause of any function here names. */
     fun osType(os: OS): Pair<String, String>? =
         when (os) {
@@ -212,12 +216,156 @@ internal object Filename {
         return found
     }
 
+    /**
+     * `filename:join/2` of binaries: [name2] after [name1] where it is relative, else [name2] alone, joined as `join1b/4`
+     * walks them: one slash between names, a `.` name dropped before a slash, and on Windows a backslash taken as a
+     * slash, a leading pair of them kept and a drive letter lowercased. A trailing slash goes, but a root's.
+     */
+    fun join(name1: ByteArray, name2: ByteArray, os: OS): ByteArray {
+        val windows = os == OS.Windows
+        val joined = Joined()
+
+        val names = when {
+            pathtype(name2, os) != PathType.RELATIVE -> listOf(name2)
+            name2.isEmpty() -> listOf(name1)
+            else -> listOf(name1, name2)
+        }
+
+        for ((index, name) in names.withIndex()) {
+            if (index > 0) {
+                when {
+                    windows && joined.endsWith(COLON) || joined.endsWith(SLASH) -> Unit
+                    joined.endsWith(SLASH, DOT) -> joined.dropLast()
+                    else -> joined.write(SLASH.toInt())
+                }
+            }
+
+            var at = 0
+
+            while (at < name.size) {
+                val next = name.getOrNull(at + 1)
+
+                when {
+                    windows && joined.size() == 0 && isUpper(name[at]) && next == COLON -> {
+                        joined.write(byteArrayOf(lower(name[at]), COLON))
+                        at++
+                    }
+                    windows && joined.size() == 0 && isSlash(name[at]) && next != null && isSlash(next) &&
+                        (name[at] == BACKSLASH || next == SLASH) -> {
+                        joined.write(byteArrayOf(SLASH, SLASH))
+                        at++
+                    }
+                    !isSeparator(name[at].toInt(), os) -> joined.write(name[at].toInt())
+                    joined.endsWith(SLASH, DOT) -> joined.dropLast()
+                    !joined.endsWith(SLASH) -> joined.write(SLASH.toInt())
+                }
+
+                at++
+            }
+        }
+
+        val bytes = joined.toByteArray()
+        val root = bytes.size == 1 || windows && (bytes.size == 2 && bytes[0] == SLASH || bytes.size == 3 && bytes[1] == COLON)
+
+        return if (bytes.lastOrNull() == SLASH && !root) bytes.copyOf(bytes.size - 1) else bytes
+    }
+
+    /** [join] of text. */
+    fun join(name1: String, name2: String, os: OS): String = String(join(name1.toByteArray(), name2.toByteArray(), os))
+
+    /** [dirname] of text. */
+    fun dirname(name: String, os: OS): String = String(dirname(name.toByteArray(), os))
+
+    /** [split] of text. */
+    fun split(name: String, os: OS): List<String> = split(name.toByteArray(), os).map(::String)
+
+    /** [lowercaseDrive] of text, on Windows. */
+    fun lowercaseDrive(name: String, os: OS?): String = if (os == OS.Windows) String(lowercaseDrive(name.toByteArray())) else name
+
+    /** [pathtype] of text. */
+    fun pathtype(name: String, os: OS): PathType = pathtype(name.toByteArray(), os)
+
+    /** Where the OS resolves a path's `.` and `..` names ([resolved]). */
+    sealed interface Resolved {
+        /** At [path], which holds no `.` or `..`. */
+        class At(val path: String) : Resolved
+
+        /** Stopped at [prefix], which a `.` or `..` follows and which isn't a directory. */
+        class NotADirectory(val prefix: String) : Resolved
+
+        /** Not read: a part [isUnread], or on Windows the path names a namespace, `//./` or `//?/`. */
+        data object Unread : Resolved
+    }
+
+    /**
+     * The absolute [path] as the OS resolves it. Windows resolves the text (`GetFullPathNameW`), taking any two
+     * separators in front as a share's root, which `split` keeps one of for a mixed pair: a `.` goes, and a `..` with
+     * the name before it; a `.` or `?` after a leading `//`, which names a namespace, a device's or a long path's, is
+     * [Resolved.Unread], as is any part [isUnread]. Elsewhere the kernel walks it: a `.` or `..` must follow a
+     * directory, which [physical] gives the path of on disk, through any link, `null` where it isn't one, and a `..` goes
+     * to that path's parent.
+     */
+    fun resolved(path: String, os: OS, physical: (String) -> String?): Resolved {
+        val share = os == OS.Windows && path.length >= 2 && isSeparator(path[0].code, os) && isSeparator(path[1].code, os)
+        val parts = split(if (share) "//" + path.substring(2) else path, os)
+        if (share && parts.getOrNull(1).let { it == "." || it == "?" }) {
+            return Resolved.Unread
+        }
+        var resolved = parts.first()
+
+        for (part in parts.drop(1)) {
+            ProgressManager.checkCanceled()
+
+            resolved = when (part) {
+                ".." -> parent(resolved, os, physical) ?: return Resolved.NotADirectory(resolved)
+                "." -> if (os == OS.Windows || physical(resolved) != null) resolved else return Resolved.NotADirectory(resolved)
+                else -> if (isUnread(part, os)) return Resolved.Unread else join(resolved, part, os)
+            }
+        }
+
+        return Resolved.At(resolved)
+    }
+
+    /**
+     * Where the OS takes a `..` after [path], which holds no `.` or `..`: on Windows the parent of its text, a share's
+     * root (`//server/share`) staying where it is, elsewhere the parent of the directory's path on disk ([physical]),
+     * `null` where it isn't a directory.
+     */
+    fun parent(path: String, os: OS, physical: (String) -> String?): String? =
+        when {
+            os != OS.Windows -> physical(path)?.let { dirname(it, os) }
+            isShareRoot(path) -> path
+            else -> dirname(path, os)
+        }
+
+    /**
+     * Whether Windows ([os]) may read [part] as other than the name it is: one ending in a dot or a space, which it may
+     * trim, one naming a device ([isDevice]), or one holding a `:`, which names a stream of a file, as `a.ex::$DATA` does.
+     */
+    private fun isUnread(part: String, os: OS): Boolean =
+        os == OS.Windows && (part.endsWith('.') || part.endsWith(' ') || ':' in part || isDevice(part))
+
+    /** Whether [part] names a device, as `NUL` or `COM1` do with or without an extension. */
+    private fun isDevice(part: String): Boolean = part.substringBefore('.').trimEnd(' ').uppercase() in DEVICES
+
+    /** Whether [path] is a share's root, `//server/share`, which a Windows `..` doesn't leave. */
+    private fun isShareRoot(path: String): Boolean = split(path, OS.Windows).let { it.size == 3 && it[0] == "//" }
+
+    /** A name being joined. */
+    private class Joined : ByteArrayOutputStream() {
+        fun endsWith(vararg bytes: Byte): Boolean = matches(buf, count - bytes.size, bytes)
+
+        fun dropLast() {
+            count--
+        }
+    }
+
     private fun separators(windows: Boolean) = if (windows) WINDOWS_SEPARATORS else UNIX_SEPARATORS
 
     private fun isSlash(byte: Byte) = byte == SLASH || byte == BACKSLASH
 
     /** Whether the character [character] separates names: `/`, and `\` on Windows. */
-    private fun isSeparator(character: Int, os: OS) =
+    fun isSeparator(character: Int, os: OS) =
         character == SLASH.toInt() || os == OS.Windows && character == BACKSLASH.toInt()
 
     private fun isUpper(byte: Byte) = byte in 'A'.code.toByte()..'Z'.code.toByte()

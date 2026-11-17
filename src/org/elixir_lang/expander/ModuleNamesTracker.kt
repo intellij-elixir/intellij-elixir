@@ -216,7 +216,12 @@ internal class ModuleNamesTracker @JvmOverloads constructor(
         val paths = when (event) {
             is VFileCreateEvent, is VFileCopyEvent, is VFileDeleteEvent -> listOf(event.path)
             is VFileMoveEvent -> listOf(event.oldPath, event.newPath)
-            is VFilePropertyChangeEvent -> if (event.isRename) listOf(event.oldPath, event.newPath) else return
+            is VFilePropertyChangeEvent -> when {
+                event.isRename -> listOf(event.oldPath, event.newPath)
+                // A link given another target is another file or directory at its path.
+                event.propertyName == VirtualFile.PROP_SYMLINK_TARGET -> listOf(event.path)
+                else -> return
+            }
             else -> return
         }
         val directory = if (event is VFileCreateEvent) event.isDirectory else event.file?.isDirectory == true

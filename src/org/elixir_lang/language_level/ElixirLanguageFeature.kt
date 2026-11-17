@@ -2982,7 +2982,14 @@ enum class ElixirLanguageFeature(
      *
      * `erlang/otp@0eb56f4fe8` ("binary module: Always reject bitstrings"), first released in OTP 27.0-rc1.
      */
-    BINARY_COPY_CHECKS_WHOLE_BYTES_FIRST(sinceOtp = "27.0-rc1");
+    BINARY_COPY_CHECKS_WHOLE_BYTES_FIRST(sinceOtp = "27.0-rc1"),
+
+    /**
+     * `file:read_file/2` reads a file with options. Before it, there is only `read_file/1`.
+     *
+     * `erlang/otp@b4230bea4d` ("kernel/file: Add read_file/2"), first released in OTP 27.0-rc1.
+     */
+    READ_FILE_TAKES_OPTIONS(sinceOtp = "27.0-rc1");
 
 
     /** The first Elixir release with this behaviour, or `null` when every supported release has it. */

@@ -352,16 +352,25 @@ internal enum class Require {
     MAYBE,
 }
 
-/** What a run reaches of the project's files by path: imported config files and existence checks, each stamped. */
+/** What a run reaches of the project's files by path, each stamped. */
 internal interface RunFiles {
-    /** Whether a file or directory is at [path], `null` where that can't be known. */
-    fun exists(path: String): Boolean?
+    /** What is at [path], stamped by its path, `null` where that can't be known. */
+    fun entry(path: String): FileEntry?
+
+    /** Whether a file or directory is at [path] ([entry]), `null` where that can't be known. */
+    fun exists(path: String): Boolean? = entry(path)?.let { it != FileEntry.Missing }
 
     /** The file at [path] evaluated in the same [read], or `null` where there is no such file. */
     fun imported(path: String, read: ConfigRead): FileExpansion?
 
     /** The files whose paths match the wildcard [pattern] under its fixed prefix directory, `null` where not known. */
     fun wildcard(pattern: String): List<String>?
+
+    /**
+     * The saved bytes of the file at [path], which [entry] finds a file, stamped by them, `null` where they can't be read.
+     * A file larger than the largest bitstring the interpreter builds declines.
+     */
+    fun read(path: String): ByteArray? = null
 
     /** The file at [path] lowered, for `Code` to follow, `null` where it can't be read. */
     fun followed(path: String): FollowedFile? = null
@@ -400,7 +409,7 @@ internal interface RunFiles {
 
     companion object {
         val NONE = object : RunFiles {
-            override fun exists(path: String): Boolean? = null
+            override fun entry(path: String): FileEntry? = null
             override fun imported(path: String, read: ConfigRead): FileExpansion? = null
             override fun wildcard(pattern: String): List<String>? = null
         }
@@ -422,6 +431,24 @@ internal interface RunFiles {
             return if (heredoc) Parsed.UnplacedHeredoc(laterColumn) else Parsed.Forms(Lowering.lower(file, level, line, column, indentation))
         }
     }
+}
+
+/** What [RunFiles.entry] finds at a path. */
+internal sealed interface FileEntry {
+    /** The path on disk of a [Directory], through any link, with `/` separators, `null` for anything else. */
+    val physical: String? get() = null
+
+    /** Nothing. */
+    data object Missing : FileEntry
+
+    /** A link to nothing: nothing to what follows it, a name to what reads the link. */
+    data object Dangling : FileEntry
+
+    /** A file. */
+    data object File : FileEntry
+
+    /** A directory, at [physical] on disk, through any link. */
+    class Directory(override val physical: String) : FileEntry
 }
 
 /** What [RunFiles.parsed] gives. */
