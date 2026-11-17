@@ -67,12 +67,14 @@ internal class CodeFollow(private val evaluation: Evaluation) {
     /**
      * What [module]'s file's own follows loaded comes with it
      * ([loadedWith][org.elixir_lang.expander.RunFiles.loadedWith]): they ran as the file compiled, whether or not the
-     * module then loads. The answer is `Code`'s clauses', through `code:ensure_loaded/1`.
+     * module then loads. The answer is `Code`'s clauses', through `code:ensure_loaded/1`. Where there is any, in code that
+     * may not run, or may run any number of times ([joinsOnly][org.elixir_lang.expander.Run.joinsOnly]), it declines, as
+     * a follow does.
      */
     private fun reachFollowsOf(module: OtpErlangObject) {
         val name = (module as? OtpErlangAtom)?.atomValue() ?: return
 
-        run.files.loadedWith(name).forEach(run::ensuredLoaded)
+        run.files.loadedWith(name) { run.unjoinedOrRepeated("Code.ensure_compiled of %s", module) }.forEach(run::ensuredLoaded)
     }
 
     /** `find_file!/2`: the file's absolute path, or `null` where the file argument isn't a binary, whose error is the clauses'. */

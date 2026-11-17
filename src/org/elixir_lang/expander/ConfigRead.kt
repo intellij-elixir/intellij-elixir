@@ -511,9 +511,9 @@ internal interface RunFiles {
     /**
      * The modules the follows of [module]'s file loaded, with their clauses, where the index holds one source copy of it
      * that isn't still running; none for a config read, which runs no file of the build, or for a file whose follows the
-     * run already reached.
+     * run already reached. Where there are any, [reaching] runs first, and may decline before the run reaches them.
      */
-    fun loadedWith(module: String): List<FollowedLoad> = emptyList()
+    fun loadedWith(module: String, reaching: () -> Unit): List<FollowedLoad> = emptyList()
 
     companion object {
         val NONE = object : RunFiles {

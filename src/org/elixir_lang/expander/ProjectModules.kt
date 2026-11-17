@@ -1150,17 +1150,19 @@ internal class ProjectModules(private val project: Project) {
 
             override fun copyOf(module: String): Boolean? = choiceOf(module)?.let(::indexCopy)
 
-            override fun loadedWith(module: String): List<FollowedLoad> {
+            override fun loadedWith(module: String, reaching: () -> Unit): List<FollowedLoad> {
                 if (reading) return emptyList()
                 val copy = (choiceOf(module) as? Choice.One)?.copy as? Copy.Source ?: return emptyList()
                 // A file still running has followed only part of what it will, and asking it again wouldn't end.
                 if (copy.virtualFile in within) return emptyList()
                 // The file compiled once, so what its follows loaded comes once, not over what the run loaded since.
-                if (!reachedFiles.add(copy.virtualFile)) return emptyList()
+                if (copy.virtualFile in reachedFiles) return emptyList()
                 val run = sourceClauses(copy, inputs, within, memo)
 
                 stamps.addAll(run.loaded.stamps)
                 transient(run.transient)
+                if (run.loaded.followed.isNotEmpty()) reaching()
+                reachedFiles += copy.virtualFile
 
                 return run.loaded.followed.map { FollowedLoad(it, run.modules[it.name]) }
             }
