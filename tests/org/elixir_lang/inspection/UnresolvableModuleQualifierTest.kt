@@ -23,6 +23,12 @@ class UnresolvableModuleQualifierTest : PlatformTestCase() {
         myFixture.checkHighlighting()
     }
 
+    /** Elixir quotes `(Foo.Bar)` as `Foo.Bar`, so the alias is in scope. */
+    fun testResolvedParenthesizedAliasedModuleNotFlagged() {
+        myFixture.configureByFiles("resolved_parenthesized_alias.ex", "referenced.ex")
+        myFixture.checkHighlighting()
+    }
+
     fun testVariableQualifierSkipped() {
         myFixture.configureByFiles("variable_qualifier.ex")
         myFixture.checkHighlighting()

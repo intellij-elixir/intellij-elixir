@@ -6,11 +6,8 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function
-import org.elixir_lang.psi.call.name.Function.ALIAS
 import org.elixir_lang.psi.call.name.Module.KERNEL
-import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.maybeModularNameToModulars
-import org.elixir_lang.psi.impl.hasKeywordKey
 import org.elixir_lang.psi.impl.indexName
 
 object UnaliasedName {
@@ -30,7 +27,7 @@ object UnaliasedName {
                 namedElement.name
             }
 
-    private tailrec fun down(element: PsiElement): String? =
+    private fun down(element: PsiElement): String? =
             when (element) {
                 is Call ->
                     element
@@ -39,14 +36,6 @@ object UnaliasedName {
                         .toSet()
                         .singleOrNull()
 
-                is ElixirAccessExpression -> {
-                    val children = element.children
-
-                    assert(children.isNotEmpty())
-
-                    down(children[0])
-                }
-
                 is ElixirAtom -> element.indexName()
                 is QualifiableAlias -> element.name
                 // Anything else, such as a string, names no module
@@ -54,52 +43,26 @@ object UnaliasedName {
             }
 
     private fun unaliasedName(qualifiableAlias: QualifiableAlias): String? =
-            up(qualifiableAlias.parent, qualifiableAlias)
+            when (val position = Alias.position(qualifiableAlias)) {
+                is Alias.Position.InFirstArgument ->
+                    when {
+                        position.firstArgument === qualifiableAlias -> qualifiableAlias.name
+                        // `Prefix` or `Suffix` of `alias Prefix.{Suffix}`
+                        position.firstArgument is QualifiedMultipleAliases -> qualifiableAlias.fullyQualifiedName()
+                        else -> null
+                    }
 
-    private fun up(call: Call, entrance: QualifiableAlias): String? =
-            if (call.isCalling(KERNEL, ALIAS)) {
-                val finalArguments = call.finalArguments()
+                is Alias.Position.InAsValue ->
+                    if (position.asValue === qualifiableAlias) {
+                        position.firstArgument?.let(::down)
+                    } else {
+                        null
+                    }
 
-                if (finalArguments != null && finalArguments.isNotEmpty()) {
-                    val firstArgument = finalArguments[0]
-
-                    down(firstArgument)
-                } else {
+                is Alias.Position.Elsewhere ->
                     null
-                }
-            } else {
-                entrance.name
+
+                null ->
+                    qualifiableAlias.name
             }
-
-    private fun up(element: QuotableKeywordPair, entrance: QualifiableAlias): String? =
-            if (element.hasKeywordKey("as")) {
-                up(element.parent, entrance)
-            } else {
-                null
-            }
-
-    private tailrec fun up(element: PsiElement?, entrance: QualifiableAlias): String? =
-            when (element) {
-                is Call ->
-                    up(element, entrance)
-
-                is QualifiedMultipleAliases ->
-                    entrance.fullyQualifiedName()
-
-                is ElixirAccessExpression,
-                is ElixirNoParenthesesOneArgument,
-                is QuotableArguments,
-                is QuotableKeywordList ->
-                    up(element.parent, entrance)
-
-                is ElixirMultipleAliases ->
-                    entrance.fullyQualifiedName()
-
-                is QuotableKeywordPair ->
-                    up(element, entrance)
-
-                else ->
-                    null
-            }
-
 }

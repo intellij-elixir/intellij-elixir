@@ -1,7 +1,7 @@
 package org.elixir_lang.psi.impl.qualifiable_alias
 
 import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.psi.ElixirAlias
+import org.elixir_lang.psi.caretAlias
 
 /**
  * Tests for [ItemPresentation].
@@ -9,26 +9,20 @@ import org.elixir_lang.psi.ElixirAlias
 class ItemPresentationTest : PlatformTestCase() {
 
     /**
-     * Regression test for an infinite loop in [org.elixir_lang.reference.module.UnaliasedName.up] when a
+     * Regression test for an infinite loop in the climb from an alias to its call when a
      * [org.elixir_lang.psi.QualifiableAlias] is used as the qualifier in a
      * [org.elixir_lang.psi.QualifiedMultipleAliases] expression (e.g. `alias Prefix.{SubModule}`).
      *
      * The qualifier `Prefix` has parent chain:
      *   `ElixirAlias` -> `ElixirAccessExpression` -> `QualifiedMultipleAliases` -> `alias` Call
      *
-     * Before the fix, `UnaliasedName.up(QualifiedMultipleAliases, entrance)` called itself with the same
-     * `QualifiedMultipleAliases`, causing an infinite tail-recursive loop that froze IntelliJ.
+     * Before the fix, the climb called itself with the same `QualifiedMultipleAliases`, an infinite
+     * tail-recursive loop that froze IntelliJ.
      */
     fun testGetPresentableTextForQualifierInQualifiedMultipleAliases() {
         myFixture.configureByFile("qualifier_in_qualified_multiple_aliases.ex")
 
-        val elementAtCaret = myFixture.file.findElementAt(myFixture.caretOffset)
-        assertNotNull("Expected an element at the caret", elementAtCaret)
-
-        // The token's parent is the ElixirAlias PSI element for `Prefix`
-        val qualifiableAlias = elementAtCaret!!.parent
-        assertInstanceOf(qualifiableAlias, ElixirAlias::class.java)
-        val elixirAlias = qualifiableAlias as ElixirAlias
+        val elixirAlias = myFixture.caretAlias()
 
         // getPresentableText() must terminate (not infinite-loop) and return the alias presentation
         val presentation = elixirAlias.presentation
@@ -43,12 +37,43 @@ class ItemPresentationTest : PlatformTestCase() {
      */
     fun testGetPresentableTextForAliasOfSomethingThatIsNotAModule() {
         myFixture.configureByText("string_alias.ex", "alias \"Foo\", as: A<caret>s\n")
-        val elixirAlias = myFixture.file.findElementAt(myFixture.caretOffset)!!.parent as ElixirAlias
+        val elixirAlias = myFixture.caretAlias()
 
         val (presentableText, errors) = captureLoggedErrors { elixirAlias.presentation.presentableText }
 
         assertEmpty("presenting an alias of a non-module is not an error", errors)
         assertEquals("As", presentableText)
+    }
+
+    /** The name an `as:` gives shows the whole call it is in, whichever way the aliased module is written. */
+    fun testGetPresentableTextForAsOfAnAlias() = assertAsPresentation("alias Target, as: <caret>First", "alias Target, as: First")
+
+    fun testGetPresentableTextForAsOfAQualifiedAlias() = assertAsPresentation("alias Foo.Bar, as: <caret>B", "alias Foo.Bar, as: B")
+
+    fun testGetPresentableTextForAsOfAnAtom() = assertAsPresentation("alias :erlang, as: <caret>E", "alias :erlang, as: E")
+
+    fun testGetPresentableTextForAsOfAParenthesizedAlias() =
+        assertAsPresentation("alias (Target), as: <caret>First", "alias Target, as: First")
+
+    fun testGetPresentableTextForAsOfADoublyParenthesizedQualifiedAlias() =
+        assertAsPresentation("alias ((Foo.Bar)), as: <caret>B", "alias Foo.Bar, as: B")
+
+    fun testGetPresentableTextForAsOfAParenthesizedName() =
+        assertAsPresentation("alias Foo.Bar, as: (<caret>B)", "alias Foo.Bar, as: B")
+
+    /** Elixir quotes `alias (Target)` as `alias Target`, so the module's alias is presented as it is there. */
+    fun testGetPresentableTextForAParenthesizedAliasedModule() =
+        assertAsPresentation("alias (<caret>Target)", "alias Target")
+
+    fun testGetPresentableTextForAsOfAnEnclosingModule() = assertAsPresentation(
+        "defmodule Outer do\n  alias __MODULE__, as: <caret>Me\nend",
+        "alias Outer, as: Me",
+    )
+
+    private fun assertAsPresentation(code: String, expected: String) {
+        myFixture.configureByText("as_presentation.ex", "$code\n")
+
+        assertEquals(expected, myFixture.caretAlias().presentation.presentableText)
     }
 
     override fun getTestDataPath(): String =
