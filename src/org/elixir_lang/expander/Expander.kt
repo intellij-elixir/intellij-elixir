@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangPid
 import com.intellij.openapi.progress.ProgressManager
@@ -19,6 +20,7 @@ import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.expander.interpreter.UnknownBinary
 import org.elixir_lang.expander.interpreter.ValueUse
 import org.elixir_lang.expander.interpreter.atom
+import org.elixir_lang.expander.interpreter.isUnknown
 import org.elixir_lang.expander.interpreter.tuple
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAILED_COMPILE_PURGES_MODULE
@@ -364,8 +366,36 @@ internal class Run(
     /** What the run shares with what it follows: a [config]'s read's, else the outermost run's. */
     val shared: RunShared = config?.shared ?: parent?.shared ?: RunShared()
 
-    /** Records that an evaluation wrote [app]'s env, or, `null`, an app that isn't known. */
-    fun wroteEnv(app: String?) = shared.written.add(app)
+    /**
+     * Records an evaluation's write of [app]'s env: its [key] as [write], or any key where [key] is `null` or isn't
+     * known, and every app's where [app] isn't known. A term that isn't an atom names no app or key a read names. Outside
+     * a [config] read, later reads give the write ([envWritten]); where it may be written any number of times or never
+     * ([joinsOnly]), the key is taken out.
+     */
+    fun wroteEnv(app: OtpErlangObject, key: OtpErlangObject? = null, write: EnvWrite = EnvWrite.Unknown) {
+        val name = when {
+            isUnknown(app) -> null
+            app is OtpErlangAtom -> app.atomValue()
+            else -> return
+        }
+
+        shared.written.add(name)
+
+        if (config != null) return
+
+        when {
+            name == null || key == null || isUnknown(key) -> shared.envWrites.takeOut(name)
+            key is OtpErlangAtom -> shared.envWrites[name, key] = if (joinsOnly) EnvWrite.Unknown else write
+        }
+    }
+
+    /**
+     * What a write made [app]'s [key], which a read gives, `null` where no write reached it. Under a [config] read, and
+     * where the run's writes may have been made any number of times or never ([joinsOnly]), a read doesn't give them: a
+     * key of an app written is [EnvWrite.Unknown] ([wroteEnvOf]).
+     */
+    fun envWritten(app: String, key: OtpErlangAtom): EnvWrite? =
+        if (config == null && !joinsOnly) shared.envWrites[app, key] else EnvWrite.Unknown.takeIf { wroteEnvOf(app) }
 
     /** The run's state as the code run later reads it ([RunState]). */
     fun state() = RunState(config?.snapshot(), shared.written.copy())
@@ -435,6 +465,19 @@ internal class Run(
      */
     val mayNotRun get() = speculating > 0 || raisedOverUnknown || pastRaise
 
+    /** How many units stepped unordered the code running is in, which [BodyValues.unordered] counts. */
+    var unordered = 0
+
+    /** Whether the code running is in a unit stepped unordered ([unordered]), which may run any number of times. */
+    val steppedUnordered get() = unordered > 0
+
+    /**
+     * Whether a value the runs share ([shared]) that the code running writes may be written any number of times, or
+     * never: the code may not run ([mayNotRun]), or is stepped unordered ([steppedUnordered]). Only such a value's join
+     * holds.
+     */
+    val joinsOnly get() = mayNotRun || steppedUnordered
+
     /** The arms that may not be taken the run has run: under a [config], those its read's files have run. */
     private val arms = config?.arms ?: ArmsTaken()
 
@@ -481,12 +524,14 @@ internal class Run(
 
     /**
      * Code declined, and the evaluation or the walk went on past it, so what it ran isn't known, nor the cells of the
-     * [counterArrays][RunShared.counterArrays] it may have written. What that means for a read's table is for the
+     * [counterArrays][RunShared.counterArrays] it may have written, nor the keys of the apps whose env the run wrote
+     * ([envWrites][RunShared.envWrites]). What that means for a read's table is for the
      * unit's recording to say, as only that knows whether the unit is ported.
      */
     fun declinedCodeRan() {
         unfollowedRan = true
         shared.counterArrays.values.forEach { it.cells.fill(null) }
+        shared.envWrites.takeOutWritten()
     }
 
     /**

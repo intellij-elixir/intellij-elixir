@@ -100,17 +100,18 @@ internal class CodeFollow(private val evaluation: Evaluation) {
      * required, else the modules it loaded. Where code that declined may have required it
      * ([mayHaveRunUnfollowed][org.elixir_lang.expander.Run.mayHaveRunUnfollowed]), or in a run beside others
      * ([sequential][org.elixir_lang.expander.Run.sequential]), where which of them requires the path first is a race,
-     * the modules are loaded but what the call gives isn't known.
+     * the modules are loaded but what the call gives isn't known, and the file's run is raced against the env the run
+     * wrote ([EnvWrites.race][org.elixir_lang.expander.EnvWrites.race]).
      */
     private fun requireFile(path: String): OtpErlangObject {
         val earlier = if (path in run.shared.required) Require.REQUIRED else run.files.requiredByRead(path)
         if (earlier == Require.REQUIRED) return NIL
-        val maybe = earlier == Require.MAYBE || run.mayHaveRunUnfollowed
+        val races = earlier == Require.MAYBE || run.mayHaveRunUnfollowed || !run.sequential
 
-        val modules = modules(follow(path, evaluates = false))
+        val modules = if (races) run.shared.envWrites.race { compileFile(path) } else compileFile(path)
         run.shared.required += path
 
-        return if (run.sequential && !maybe) modules else Unknown
+        return if (races) Unknown else modules
     }
 
     private fun compileFile(path: String): OtpErlangObject = modules(follow(path, evaluates = false))

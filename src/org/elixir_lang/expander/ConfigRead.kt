@@ -333,6 +333,114 @@ internal class RunShared {
 
     /** How many cells the [counterArrays] hold in all. */
     var counterCells = 0
+
+    /** The keys of apps' envs an evaluation wrote, as later reads give them, outside a config read. */
+    val envWrites = EnvWrites()
+}
+
+/** What a run wrote an app's key as. */
+internal sealed interface EnvWrite {
+    /** `set_env`'s [term]. */
+    class Value(val term: OtpErlangObject) : EnvWrite
+
+    /** `unset_env`'s. */
+    data object Unset : EnvWrite
+
+    /** A write whose value, or whether it ran, isn't known. */
+    data object Unknown : EnvWrite
+}
+
+/**
+ * The keys of apps' envs a run wrote ([EnvWrite]), which later reads give: a key not written reads as no write made it,
+ * unless a write took out its app's keys, or every app's.
+ */
+internal class EnvWrites {
+    /** Each app written, its keys and whether a write took out the rest. */
+    private class App(val out: Boolean) {
+        val keys = HashMap<OtpErlangAtom, EnvWrite>()
+    }
+
+    private val apps = HashMap<String, App>()
+
+    /** Whether a write took out every app's keys. */
+    private var allOut = false
+
+    /** A race begun ([race]): the writes [before] it, and the keys written in it, `null` for a whole app's. */
+    private class Race(val before: EnvWrites) {
+        val written = HashSet<Pair<String?, OtpErlangAtom?>>()
+    }
+
+    /** Each race begun and not ended, innermost last. */
+    private val races = ArrayList<Race>()
+
+    /** What [app]'s [key] was written as, `null` where no write reached it. */
+    operator fun get(app: String, key: OtpErlangAtom): EnvWrite? {
+        val written = apps[app]
+
+        return written?.keys?.get(key) ?: EnvWrite.Unknown.takeIf { written?.out ?: allOut }
+    }
+
+    /** Records [app]'s [key] written as [write], not known in a race where a write before it reached the key. */
+    operator fun set(app: String, key: OtpErlangAtom, write: EnvWrite) {
+        val race = races.lastOrNull()
+
+        apps.getOrPut(app) { App(allOut) }.keys[key] = if (race?.before?.get(app, key) != null) EnvWrite.Unknown else write
+        race?.written?.add(app to key)
+    }
+
+    /** Takes out every key of [app], or, `null`, of every app, as a write that may have written any. */
+    fun takeOut(app: String?) {
+        races.lastOrNull()?.written?.add(app to null)
+
+        if (app == null) {
+            apps.clear()
+            allOut = true
+        } else {
+            apps[app] = App(out = true)
+        }
+    }
+
+    /** Takes out every key of each app written, as code that ran unseen may have written any. */
+    fun takeOutWritten() {
+        races.lastOrNull()?.written?.addAll(apps.keys.map { it to null })
+        apps.replaceAll { _, _ -> App(out = true) }
+    }
+
+    /**
+     * [block], raced against what was written so far: code Elixir may run before it, or after it, or between its steps,
+     * as a file a run beside others requires. While it runs, every key written before it reads as not known, and so does
+     * one [block] writes that a write before it reached, as either write may be the later ([set]); after it, each key
+     * reads as it did where [block] didn't write it or take out its app.
+     */
+    fun <T> race(block: () -> T): T {
+        val before = EnvWrites().also { copy ->
+            apps.forEach { (name, app) -> copy.apps[name] = App(app.out).apply { keys.putAll(app.keys) } }
+            copy.allOut = allOut
+        }
+
+        apps.values.forEach { app -> app.keys.replaceAll { _, _ -> EnvWrite.Unknown } }
+        races.add(Race(before))
+
+        try {
+            return block()
+        } finally {
+            endRace()
+        }
+    }
+
+    private fun endRace() {
+        val race = races.removeAt(races.lastIndex)
+        val written = race.written
+
+        races.lastOrNull()?.written?.addAll(written)
+        val everyAppOut = null to null in written
+
+        for ((name, app) in apps) {
+            if (everyAppOut || name to null in written) continue
+
+            race.before.apps[name]?.keys?.forEach { (key, write) -> if (name to key !in written) app.keys[key] = write }
+        }
+    }
 }
 
 /** Whether [left] and [right] are one state of a read: the same config ([sameTerm]), shape and files, or no read. */

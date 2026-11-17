@@ -38,6 +38,7 @@ import org.elixir_lang.expander.EscapeOp
 import org.elixir_lang.expander.EscapeView
 import org.elixir_lang.expander.EscapeResult
 import org.elixir_lang.expander.Expansion
+import org.elixir_lang.expander.EnvWrite
 import org.elixir_lang.expander.FileEntry
 import org.elixir_lang.expander.ModuleAttributes
 import org.elixir_lang.expander.ModuleEffects
@@ -2688,15 +2689,28 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun unfetched(app: String?): UnknownValue = if (evaluation.run.wroteEnvOf(app)) ModuleUnknown else Unknown
 
     /**
-     * `fetch_env/2`'s answer for [app]'s [key] in the environment a default build sees, the run's `appEnv`:
-     * `{:ok, value}` where the `.app` declares it, `:error` where nothing sets it, and unknown ([unfetched]) where a
-     * config file may set it, its `.app` can't be read, the run wrote the app's env
-     * ([Run.wroteEnvOf][org.elixir_lang.expander.Run.wroteEnvOf]), or [app] or [key] isn't an atom. Each answer it
-     * knows is an assumption: the environment may change before the read.
+     * `fetch_env/2`'s answer for [app]'s [key]: what the run wrote it as
+     * ([Run.envWritten][org.elixir_lang.expander.Run.envWritten]), else what the environment a default build sees, the
+     * run's `appEnv`, holds: `{:ok, value}` where the `.app` declares it, `:error` where nothing sets it, and unknown
+     * ([unfetched]) where a config file may set it, its `.app` can't be read, or [app] or [key] isn't an atom. Each
+     * answer `appEnv` gives is an assumption: the environment may change before the read. So is what the run wrote,
+     * where it isn't alone ([Run.sequential][org.elixir_lang.expander.Run.sequential]): another module's compile may
+     * write the key between.
      */
     private fun fetched(app: OtpErlangObject, key: OtpErlangObject): OtpErlangObject {
         val name = (app as? OtpErlangAtom)?.atomValue()
-        if (name == null || key !is OtpErlangAtom || evaluation.run.wroteEnvOf(name)) return unfetched(name)
+        if (name == null || key !is OtpErlangAtom) return unfetched(name)
+
+        evaluation.run.envWritten(name, key)?.let { written ->
+            val answer = when (written) {
+                is EnvWrite.Value -> tuple(atom("ok"), written.term)
+                EnvWrite.Unset -> atom("error")
+                EnvWrite.Unknown -> return unfetched(name)
+            }
+            if (!evaluation.run.sequential) evaluation.assume()
+
+            return answer
+        }
 
         val answer = when (val value = evaluation.run.appEnv.of(name, key)) {
             is AppEnvValue.Declared -> tuple(atom("ok"), value.term)
@@ -2710,31 +2724,53 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /**
      * `application:set_env/1,2,3,4` and `unset_env/2,3` (`application.erl:767–894` at OTP 29.0.6, `:324–377` at OTP
-     * 24.3.4.6), which `Application`'s writers call. Each runs its guards, then records on the run the apps it writes
+     * 24.3.4.6), which `Application`'s writers call. Each runs its guards, then records on the run what it writes
      * ([Run.wroteEnv][org.elixir_lang.expander.Run.wroteEnv]), every app where one isn't known, and gives `:ok`.
-     * Whether `set_env/1,2`'s config is one the controller takes isn't known.
+     * Whether `set_env/1,2`'s config is one the controller takes isn't known. `set_env/4` and `unset_env/3` exit before
+     * they write where their timeout ([envTimeout]) isn't one `gen:call/4` takes, and may exit, their key written or not,
+     * where it may run out before the reply ([waitsForTheReply]).
      */
     private fun envWrite(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        val run = evaluation.run
+
         when (key) {
             "set_env/1", "set_env/2" -> {
                 if (args.any { !isUnknown(it) && cells(it) == null }) functionClause("application", "set_env", args)
                 val config = args[0]
                 when (val elements = if (isUnknown(config)) null else properElements(config)) {
-                    null -> evaluation.run.wroteEnv(null)
+                    null -> run.wroteEnv(Unknown)
                     else -> elements.forEach { element ->
-                        (if (isUnknown(element)) element else pairKey(element))?.let(::wroteEnv)
+                        (if (isUnknown(element)) element else pairKey(element))?.let { run.wroteEnv(it) }
                     }
                 }
 
                 decline("whether %s is a config the application controller takes isn't known", config)
             }
-            "set_env/3", "unset_env/2" -> wroteEnv(args[0])
+            "set_env/3", "unset_env/2" -> run.wroteEnv(args[0], args[1], writeOf(key, args))
             "set_env/4", "unset_env/3" -> {
-                clauseGuard(args.last(), key.substringBefore('/'), args, module = "application") { opts ->
-                    opts == atom("infinity") || opts is OtpErlangList || opts is OtpErlangString ||
-                        opts is OtpErlangLong && opts.bigIntegerValue().signum() >= 0
+                val opts = args.last()
+                val function = key.substringBefore('/')
+                clauseGuard(opts, function, args, module = "application") {
+                    isTimeout(it) || it is OtpErlangList || it is OtpErlangString
                 }
-                wroteEnv(args[0])
+                val timeout = if (isTimeout(opts)) opts else envTimeout(opts)
+
+                val write = when {
+                    // `gen:call/4` has no clause for it, which `gen_server:call/3` exits with.
+                    !isUnknown(timeout) && !isTimeout(timeout) -> {
+                        val request = tuple(atom(function), *args.toTypedArray())
+                        val call = list(listOf(atom("application_controller"), request, timeout))
+
+                        evaluation.raiseAs("exit", tuple(tuple(atom("function_clause"), Unknown), tuple(atom("gen_server"), atom("call"), call)))
+                    }
+                    // A timeout that may run out before the controller replies, which it writes once it reaches.
+                    isUnknown(timeout) || !waitsForTheReply(timeout) -> {
+                        evaluation.raiseMayBeCaught()
+                        EnvWrite.Unknown
+                    }
+                    else -> writeOf(key, args)
+                }
+                run.wroteEnv(args[0], args[1], write)
             }
             else -> return null
         }
@@ -2742,13 +2778,47 @@ internal class Natives(private val evaluation: Evaluation) {
         return atom("ok")
     }
 
-    /** Records that [app]'s env was written, every app's where [app] isn't known; another term names no app read. */
-    private fun wroteEnv(app: OtpErlangObject) {
-        when {
-            isUnknown(app) -> evaluation.run.wroteEnv(null)
-            app is OtpErlangAtom -> evaluation.run.wroteEnv(app.atomValue())
+    /** Whether [term] is a timeout `gen:call/4` takes: `infinity` or a non-negative integer. */
+    private fun isTimeout(term: OtpErlangObject): Boolean =
+        term == atom("infinity") || term is OtpErlangLong && term.bigIntegerValue().signum() >= 0
+
+    /**
+     * Whether `gen:call/4` given [timeout], one it takes ([isTimeout]), gets the controller's reply: not for `0`, which
+     * runs out at once, nor past 4294967295, which `receive` raises `timeout_value` for, each once the request is sent.
+     */
+    private fun waitsForTheReply(timeout: OtpErlangObject): Boolean =
+        timeout !is OtpErlangLong || timeout.bigIntegerValue().let { it.signum() > 0 && it <= MAX_RECEIVE_TIMEOUT }
+
+    /**
+     * `proplists:get_value(timeout, Opts, 5000)` of [opts], a list, which `application_controller` calls with: not known
+     * where [opts] isn't, or an element before the first naming `timeout`, or the tail it reaches.
+     */
+    private fun envTimeout(opts: OtpErlangObject): OtpErlangObject {
+        if (isUnknown(opts)) return Unknown
+        val (elements, tail) = cells(opts) ?: return Unknown
+        val timeout = atom("timeout")
+        val default = integer(5000)
+
+        for (element in elements) {
+            if (isUnknown(element)) return Unknown
+            if (element == timeout) return atom("true")
+            if (element !is OtpErlangTuple || element.arity() == 0) continue
+
+            val first = element.elementAt(0)
+            if (isUnknown(first)) return Unknown
+            if (first == timeout) return if (element.arity() == 2) element.elementAt(1) else default
+        }
+
+        return when {
+            tail == null -> default
+            isUnknown(tail) -> Unknown
+            else -> functionClause("proplists", "get_value", listOf(timeout, tail, default))
         }
     }
+
+    /** What `set_env` or `unset_env`, [key], writes with [args]. */
+    private fun writeOf(key: String, args: List<OtpErlangObject>): EnvWrite =
+        if (key.startsWith("set_env/")) EnvWrite.Value(args[2]) else EnvWrite.Unset
 
     /** Whether [term] is an atom, declining where that isn't known. */
     private fun isAtom(term: OtpErlangObject): Boolean = typed(term) is OtpErlangAtom
@@ -4409,6 +4479,9 @@ private val RANGE = atom("Elixir.Range")
 
 /** A binary that stands for [UnknownBinary] in a type test. */
 private val SOME_BINARY = OtpErlangBinary(ByteArray(0))
+
+/** The longest `receive ... after` timeout, in milliseconds: past it, `receive` raises `timeout_value`. */
+private val MAX_RECEIVE_TIMEOUT = BigInteger.valueOf(4294967295L)
 
 private val GLOBAL = atom("global")
 private val TRIM_ALL = atom("trim_all")

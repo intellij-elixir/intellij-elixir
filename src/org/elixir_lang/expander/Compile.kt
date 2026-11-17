@@ -425,14 +425,16 @@ internal class BodyValues(
     // How many runs of units stepped unordered the code running now is in.
     private var unorderedSteps = 0
 
-    /** [block], which steps units unordered: Elixir may run each any number of times, or never. */
-    fun <T> unordered(block: () -> T): T {
+    /** [block], which steps units unordered in [run] ([Run.unordered]): Elixir may run each any number of times, or never. */
+    fun <T> unordered(run: Run, block: () -> T): T {
         unorderedSteps++
+        run.unordered++
 
         try {
             return block()
         } finally {
             unorderedSteps--
+            run.unordered--
         }
     }
 
@@ -1527,7 +1529,7 @@ private fun reaching(
         is Evaluated.Raised, null -> emptyList()
     }
 
-    val ended = values.unordered {
+    val ended = values.unordered(run) {
         unrun.any { unit ->
             !unit.runsOnlyWhereReached && step(unit, values.bindings, stopsAt ?: pending.site).ends
         }

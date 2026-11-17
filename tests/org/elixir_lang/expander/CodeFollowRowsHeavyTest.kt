@@ -160,6 +160,8 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             // A require of a file whose earlier require raised runs it again, where before it waits for the file without end.
             // The first raise is one a `try` may catch, so the plugin declines there.
             Row("b34", "unknown", elixir = ":raised", Before(REQUIRE_FILE_RELEASES_A_RAISED_FILE, elixir = "exit 124")),
+            // A followed file's env write is what its caller's later read gives.
+            Row("b35", ":put", elixir = ":put"),
             Row("c1", "{:value, nil, :from_file}", elixir = "{:value, nil, :from_file}"),
             Row("c2", "{:between, nil}", elixir = "{:between, nil}"),
             Row("c3c", "{:value, nil, :from_file}", elixir = "{:value, nil, :from_file}"),
@@ -201,7 +203,7 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("c29", "{:value, nil, unknown}", elixir = "exit 1 raises CompileError"),
             Row("c30", "{nil, :from_h}", elixir = "{nil, :from_h}"),
             Row("c31", ":from_h", elixir = ":from_h"),
-            Row("c32", "unknown", elixir = ":from_required"),
+            Row("c32", ":from_required", elixir = ":from_required"),
             // The binding an evaluation gives: its variables by name, descending since 1.12, ascending before.
             Row(
                 "c33",
@@ -262,6 +264,20 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("c42", "unknown", elixir = "2147483648"),
             // Each file a read imports makes references none of the others made.
             Row("c43", "false", elixir = "false"),
+            // Which of Elixir's runs requires the file first is a race, so a key written before the require isn't known after it.
+            Row("c44", "unknown", elixir = ":from_required / :mine"),
+            // A take-out in the raced file doesn't make a key it writes after known: either write may be the later.
+            Row("c47", "unknown", elixir = ":from_required / :mine"),
+            Row("c48", "unknown", elixir = ":from_required / :mine"),
+            // Nor does the raced file read its own write of a key written before the require: the caller's may come between.
+            Row("c56", "unknown", elixir = ":from_required / :mine"),
+            // A script runs after the build compiled the module it ensures, so that module's write comes before its own.
+            Row(
+                "c57",
+                ":mine",
+                elixir = ":mine",
+                Before(ENSURE_COMPILED_BANG, "raises Elixir.UndefinedFunctionError", "exit 1 raises UndefinedFunctionError"),
+            ),
             Row("e1", ":ended", elixir = "exit 124"),
             Row("e2", ":ended", elixir = "exit 124"),
             Row("e3", "raises Elixir.Code.LoadError", elixir = "exit 1 raises Code.LoadError"),
@@ -353,8 +369,8 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("i36", "{false, false}", elixir = "{false, false}"),
             // A string evaluated after the body wrote an app's env reads it as the body does.
             Row("i37", "unknown", elixir = ":other"),
-            Row("i37b", "unknown", elixir = ":other"),
-            Row("i37c", "unknown", elixir = ":other"),
+            Row("i37b", ":other", elixir = ":other"),
+            Row("i37c", ":other", elixir = ":other"),
             // A string evaluated inside a `try` runs inside it, which may catch its raise.
             Row("i38", "unknown", elixir = ":rescued"),
             // A second ensure of a module loads nothing its file's follows loaded again.
