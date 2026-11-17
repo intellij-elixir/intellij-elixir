@@ -158,9 +158,11 @@ internal fun rejectedWordAt(
     val range = TextRange(start, end)
 
     if (text.getOrNull(end) == ':') {
-        when (text.getOrNull(end + 1)) {
-            ' ', '\t', '\r', '\n' -> return null
-            null, ':' -> Unit
+        val after = text.getOrNull(end + 1)
+
+        when {
+            after == null || after == ':' -> Unit
+            isElixirSpace(after) -> return null
             else -> return TextRange(start, end + 1) to "keyword argument must be followed by space after: $word:"
         }
     }
