@@ -9,12 +9,8 @@ import com.intellij.psi.TokenType
 import com.intellij.psi.tree.TokenSet
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.parser.isWordCharacter
-import org.elixir_lang.psi.ElixirDecimalFloat
-import org.elixir_lang.psi.ElixirDecimalFloatExponent
-import org.elixir_lang.psi.ElixirDecimalFloatFractional
-import org.elixir_lang.psi.ElixirDecimalFloatIntegral
 import org.elixir_lang.psi.ElixirTypes
-import org.elixir_lang.psi.WholeNumber
+import org.elixir_lang.psi.isNumber
 import org.elixir_lang.psi.letterThatStartsOnlyAnAtom
 import org.elixir_lang.psi.rejectedNumber
 import org.elixir_lang.psi.rejectedWordAt
@@ -88,9 +84,6 @@ internal class InvalidToken : Annotator, DumbAware {
     private fun number(number: PsiElement): Pair<TextRange, String>? =
         rejectedNumber(number, ElixirLanguageLevelResolver.languageLevelFor(number))
 
-    private fun isNumber(element: PsiElement): Boolean =
-        element is ElixirDecimalFloat || (element is WholeNumber && !isInFloat(element))
-
     private fun word(leaf: PsiElement): Pair<TextRange, String>? {
         val text = leaf.containingFile.viewProvider.contents
         val start = leaf.textRange.startOffset
@@ -99,11 +92,6 @@ internal class InvalidToken : Annotator, DumbAware {
 
         return rejectedWordAt(text, start) { ElixirLanguageLevelResolver.languageLevelFor(leaf) }
     }
-
-    private fun isInFloat(wholeNumber: PsiElement): Boolean =
-        wholeNumber.parent.let {
-            it is ElixirDecimalFloatIntegral || it is ElixirDecimalFloatFractional || it is ElixirDecimalFloatExponent
-        }
 }
 
 private val WORDS = TokenSet.create(

@@ -1062,9 +1062,7 @@ internal class Evaluation(
         return when (node) {
             is ElixirAst.Literal.Atom -> atom(node.name).also { atoms += node.name }
             is ElixirAst.Literal.Integer -> integer(node.value)
-            // The lowering reads a float past a double's range, which Elixir's tokenizer refuses, as infinite.
-            is ElixirAst.Literal.Float ->
-                OtpErlangDouble(node.value.takeIf(Double::isFinite) ?: decline("a float past a double's range"))
+            is ElixirAst.Literal.Float -> OtpErlangDouble(node.value)
             is ElixirAst.Literal.Binary -> OtpErlangBinary(node.bytes)
             is ElixirAst.ListNode -> using(use.ofPartsOf(node)) { evalList(node.elements, frame) }
             is ElixirAst.Tuple ->

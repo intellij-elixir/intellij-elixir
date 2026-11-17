@@ -65,7 +65,7 @@ class ObservationTest : PlatformTestCase() {
             "Hello.World.wo<caret>r(1)" to body,
             "Hello.Wo<caret>rld" to body,
             ":fo<caret>o" to body,
-            "x = \"string #{1 + 2<caret>}\"" to interpolation + listOf("+/2@1", ".to_integer/2@0"),
+            "x = \"string #{1 + 2<caret>}\"" to interpolation + "+/2@1",
             "[~s(a)<caret>]" to body + "[]@0",
             "{x}<caret> = {1}" to body,
         )

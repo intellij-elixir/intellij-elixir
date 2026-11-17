@@ -11,10 +11,6 @@ class UnheldValueTest : ExpanderTestCase() {
     override val kernel: KernelImports = legKernel
     override val structs: Structs = legStructs
 
-    /** A float literal past a double's range, which Elixir's tokenizer refuses, ordered as a map key. */
-    fun testAFloatPastADoublesRangeStopsAtTheCall() =
-        assertStopsAtTheCall("defmacro m, do: Macro.escape(%{1.0e999 => 1, 2.0 => 2})")
-
     /** A binary of 250 MB, which the VM builds and the evaluator won't. */
     fun testABinaryPastTheBoundStopsAtTheCall() =
         assertStopsAtTheCall("defmacro m, do: <<0::size(2_000_000_000)>>")

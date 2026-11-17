@@ -2,6 +2,7 @@ package org.elixir_lang.lowering
 
 import com.intellij.lang.ASTNode
 import com.intellij.psi.PsiElement
+import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.language_level.ElixirLanguageFeature.ASSOC_ON_MAP_KEY
 import org.elixir_lang.language_level.ElixirLanguageFeature.DELIMITER_OF_SINGLE_QUOTED_ATOM
 import org.elixir_lang.language_level.ElixirLanguageFeature.DELIMITER_ON_QUOTED_ATOM
@@ -44,9 +45,11 @@ import org.elixir_lang.psi.Sigil
 import org.elixir_lang.psi.SigilHeredocLiteral
 import org.elixir_lang.psi.SigilLine
 import org.elixir_lang.psi.WholeNumber
-import org.elixir_lang.psi.impl.inBase
+import org.elixir_lang.psi.floatValue
+import org.elixir_lang.psi.isNumber
+import org.elixir_lang.psi.rejectedNumber
 import org.elixir_lang.psi.impl.operatorTokenNode
-import org.elixir_lang.psi.impl.textToString
+import org.elixir_lang.psi.impl.toBigInteger
 import java.math.BigInteger
 
 /** Literals and containers: numbers, atoms, aliases, strings, charlists, sigils, heredocs and the containers. */
@@ -85,42 +88,33 @@ internal fun Lowering.literal(element: PsiElement): ElixirAst =
 
 // Numbers
 
-private fun Lowering.digits(digits: Digits): ElixirAst =
-    ElixirAst.Literal.Integer(meta(digits), BigInteger(digits.text, digits.base()))
+/** The `Digits` asks about its number: its `WholeNumber`, or inside a float its `ElixirDecimalFloat`, never a fragment. */
+private fun Lowering.digits(digits: Digits): ElixirAst {
+    val number = PsiTreeUtil.findFirstParent(digits, true, ::isNumber)
 
-private fun Lowering.wholeNumber(wholeNumber: WholeNumber): ElixirAst {
-    val digitsList = wholeNumber.digitsList()
-    val text = digitsList.textToString()
-    val base = wholeNumber.base()
-
-    return if (digitsList.inBase()) {
-        ElixirAst.Literal.Integer(meta(wholeNumber), BigInteger(text, base))
+    // The lexer folds letters into a number, so a number [rejectedNumber] accepts can still hold digits outside its base.
+    return if (number == null || rejects(number) || !digits.inBase()) {
+        broken(digits)
     } else {
-        // Elixir rejects this at parse time; the conversion raises in its place.
-        remoteCall(
-            wholeNumber,
-            "Elixir.String",
-            "to_integer",
-            binary(wholeNumber, text),
-            ElixirAst.Literal.Integer(meta(wholeNumber), base.toBigInteger())
-        )
+        ElixirAst.Literal.Integer(meta(digits), BigInteger(digits.text, digits.base()))
     }
 }
 
-private fun Lowering.decimalFloat(decimalFloat: ElixirDecimalFloat): ElixirAst {
-    val integral = decimalFloat.decimalFloatIntegral.decimalWholeNumber.digitsList()
-    val fractional = decimalFloat.decimalFloatFractional.decimalWholeNumber.digitsList()
-    val exponent = decimalFloat.decimalFloatExponent
-    val exponentDigits = exponent?.decimalWholeNumber?.digitsList()
-    val text = "${integral.textToString()}.${fractional.textToString()}" +
-        if (exponent != null) "e${exponent.decimalFloatExponentSign?.text.orEmpty()}${exponentDigits.orEmpty().textToString()}" else ""
+private fun Lowering.wholeNumber(wholeNumber: WholeNumber): ElixirAst =
+    wholeNumber
+        .takeUnless { rejects(it) }
+        ?.toBigInteger()
+        ?.let { ElixirAst.Literal.Integer(meta(wholeNumber), it) }
+        ?: broken(wholeNumber)
 
-    return if (integral.inBase() && fractional.inBase() && exponentDigits?.inBase() != false) {
-        ElixirAst.Literal.Float(meta(decimalFloat), text.toDouble())
+private fun Lowering.decimalFloat(decimalFloat: ElixirDecimalFloat): ElixirAst =
+    if (rejects(decimalFloat)) {
+        broken(decimalFloat)
     } else {
-        remoteCall(decimalFloat, "Elixir.String", "to_float", binary(decimalFloat, text))
+        ElixirAst.Literal.Float(meta(decimalFloat), floatValue(decimalFloat.text))
     }
-}
+
+private fun Lowering.rejects(number: PsiElement): Boolean = rejectedNumber(number, languageLevel) != null
 
 private fun Lowering.charToken(charToken: ElixirCharToken): ElixirAst {
     val tokenized = charToken.node.getChildren(null).getOrNull(1) ?: return broken(charToken)

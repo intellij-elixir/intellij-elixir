@@ -23,6 +23,16 @@ import org.elixir_lang.parser.isOctalDigit
 import org.elixir_lang.parser.isWordCharacter
 import java.text.Normalizer
 
+/** Whether [element] is a number of its own, which [rejectedNumber] judges: a float, or a whole number outside one. */
+internal fun isNumber(element: PsiElement): Boolean =
+    element is ElixirDecimalFloat || (element is WholeNumber && !isInFloat(element))
+
+/** Whether [wholeNumber] is a part of a decimal float, not a number of its own. */
+private fun isInFloat(wholeNumber: PsiElement): Boolean =
+    wholeNumber.parent.let {
+        it is ElixirDecimalFloatIntegral || it is ElixirDecimalFloatFractional || it is ElixirDecimalFloatExponent
+    }
+
 /**
  * Elixir reads a number's literal and then looks at the next character; the plugin's lexer instead folds letters
  * into the number, and reads `0o9` as octal where Elixir reads `0` followed by `o9`.

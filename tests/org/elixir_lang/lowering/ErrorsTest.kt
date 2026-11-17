@@ -94,17 +94,7 @@ class ErrorsTest : LoweringTestCase() {
 
     // `sigil_` and 250 letters
     fun testASigilNameTooLongForAnAtomIsBroken() = assertBroken("~${"A".repeat(250)}\"x\"")
-
-    private fun assertBroken(code: String, elixirVersion: String = NEWEST) {
-        val reasons = placeholderReasons(lower(code, elixirVersion))
-
-        assertTrue("$code: $reasons", reasons.isNotEmpty() && reasons.all { it == ElixirAst.Placeholder.Reason.Error })
-    }
-
-    private fun placeholderReasons(ast: ElixirAst): List<ElixirAst.Placeholder.Reason> = ast.placeholders().map { it.reason }
 }
-
-private val ERROR = listOf(ElixirAst.Placeholder.Reason.Error)
 
 /** One code point more than an atom may have. */
 private val TOO_LONG = "a".repeat(256)
