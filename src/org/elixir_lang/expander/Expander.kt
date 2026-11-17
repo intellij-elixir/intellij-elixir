@@ -20,6 +20,7 @@ import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.expander.interpreter.UnknownBinary
 import org.elixir_lang.expander.interpreter.ValueUse
 import org.elixir_lang.expander.interpreter.atom
+import org.elixir_lang.expander.interpreter.decline
 import org.elixir_lang.expander.interpreter.isUnknown
 import org.elixir_lang.expander.interpreter.tuple
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
@@ -503,6 +504,14 @@ internal class Run(
         if (mayNotRun) throw Declined("$what in code that may not run").apply { if (ends) end(null) }
     }
 
+    /**
+     * Declines on [what], which writes a run-wide value, where the code running may not run, or may run any number of
+     * times ([joinsOnly]). Each `%s` in [what] names the next of [terms].
+     */
+    fun unjoinedOrRepeated(what: String, vararg terms: OtpErlangObject) {
+        if (joinsOnly) decline("$what in code that may not run, or may run any number of times", *terms)
+    }
+
     /** Whether code the expander doesn't follow ran; once set it stays. */
     private var unfollowedRan = false
 
@@ -841,8 +850,9 @@ internal class Run(
 
     /**
      * [forms], `Code`'s follow of [file] from [env], run in a run of their own, which then merges into this one
-     * ([adopt]). A follow in code that may not run declines, as the modules it loads would join nothing. [observed], a
-     * node of [forms], is the one whose expansion the result keeps.
+     * ([adopt]). A follow in code that may not run, or may run any number of times ([joinsOnly]), declines, as the
+     * modules it loads and the file it marks required would join nothing. [observed], a node of [forms], is the one whose
+     * expansion the result keeps.
      */
     fun follow(
         forms: ElixirAst,
@@ -852,7 +862,7 @@ internal class Run(
         evaluates: Boolean,
         observed: ElixirAst? = null,
     ): Followed {
-        unjoined("Code's follow")
+        unjoinedOrRepeated("Code's follow")
 
         var observedExpansion: Expansion? = null
         val observer =

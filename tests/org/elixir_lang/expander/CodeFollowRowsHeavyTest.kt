@@ -278,6 +278,10 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
                 elixir = ":mine",
                 Before(ENSURE_COMPILED_BANG, "raises Elixir.UndefinedFunctionError", "exit 1 raises UndefinedFunctionError"),
             ),
+            // A require in a function the module body maps over no element loads nothing.
+            Row("c45", "unknown", elixir = "false"),
+            // Nor does a module that function defines.
+            Row("c46", "unknown", elixir = "false"),
             Row("e1", ":ended", elixir = "exit 124"),
             Row("e2", ":ended", elixir = "exit 124"),
             Row("e3", "raises Elixir.Code.LoadError", elixir = "exit 1 raises Code.LoadError"),
