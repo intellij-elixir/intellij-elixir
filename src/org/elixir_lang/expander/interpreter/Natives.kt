@@ -1686,9 +1686,9 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /**
      * `counters`, over the arrays made in the runs that share the run's state
-     * ([counterArrays][org.elixir_lang.expander.RunShared.counterArrays]). Code that may not run
-     * ([mayNotRun][org.elixir_lang.expander.Run.mayNotRun]) reads a cell as not known and leaves one it writes not
-     * known, as nothing joins it, and past code that declined no cell is known
+     * ([counterArrays][org.elixir_lang.expander.RunShared.counterArrays]). Code that may not run, or may run any
+     * number of times ([joinsOnly][org.elixir_lang.expander.Run.joinsOnly]), reads a cell as not known and leaves one it
+     * writes not known, as nothing joins it, and past code that declined no cell is known
      * ([declinedCodeRan][org.elixir_lang.expander.Run.declinedCodeRan]). `sub/3` and `info/1` aren't answered.
      */
     private fun counters(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
@@ -1698,7 +1698,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 val array = counterArray("get", args)
                 val cell = array.cells[counterIndex(array, "get", args)]
 
-                cell?.takeUnless { evaluation.run.mayNotRun }?.let(::integer) ?: Unknown
+                cell?.takeUnless { evaluation.run.joinsOnly }?.let(::integer) ?: Unknown
             }
             // An increment is any 64 bits, signed or not, and wraps.
             "add/3" -> writeCounter("add", args, { it.isLong || it.isULong }) { cell, n -> cell?.plus(n) }
@@ -1764,7 +1764,7 @@ internal class Natives(private val evaluation: Evaluation) {
         val index = counterIndex(array, function, args)
         val n = (seen(args[2]) as? OtpErlangLong)?.takeIf(fits) ?: countersError("badarg", function, args)
 
-        array.cells[index] = if (evaluation.run.mayNotRun) null else write(array.cells[index], n.longValue())
+        array.cells[index] = if (evaluation.run.joinsOnly) null else write(array.cells[index], n.longValue())
 
         return atom("ok")
     }
