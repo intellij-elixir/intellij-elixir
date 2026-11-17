@@ -107,6 +107,19 @@ class ModuleClausesTest : ExpanderTestCase() {
             module Elixir.A from a.ex
               defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/project/a.ex", 3}], A]}
             """,
+            os = OS.Linux,
+        )
+
+    /** Where the SDK's OS isn't known, neither is how `filename:absname/1` reads `@file`, so A stops at it. */
+    fun testAFileWhereTheOsIsntKnownStops() =
+        assertClauses(
+            """
+            defmodule A do
+              @file "/project/a.ex"
+              defmacro m, do: quote(location: :keep, do: v)
+            end
+            """,
+            "",
         )
 
     /** A relative `@file` is made absolute as `filename:absname/1` makes it, against the directory the file compiles in. */
@@ -123,6 +136,7 @@ class ModuleClausesTest : ExpanderTestCase() {
               defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/project/a.ex", 3}], A]}
             """,
             directories = { "/project" },
+            os = OS.Linux,
         )
 
     /** `filename:absname/1` drops an absolute path's `.` names and repeated separators. */
@@ -138,6 +152,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             module Elixir.A from a.ex
               defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/project/a.ex", 3}], A]}
             """,
+            os = OS.Linux,
         )
 
     /** `filename:absname/1` keeps `..`, so a path through it names another file and moves the definition there. */
@@ -153,9 +168,10 @@ class ModuleClausesTest : ExpanderTestCase() {
             module Elixir.A from a.ex
               defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/project/b/../a.ex", 3}], A]}
             """,
+            os = OS.Linux,
         )
 
-    /** A drive-letter path is absolute wherever the plugin runs, as file paths are on Windows. */
+    /** On Windows `filename:absname/1` keeps a drive-letter path, which is absolute. */
     fun testAKeptQuoteUnderADriveLetterFileNamingItsOwnFileKeepsIt() =
         assertClauses(
             """
@@ -169,6 +185,7 @@ class ModuleClausesTest : ExpanderTestCase() {
               defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"C:/project/a.ex", 3}], A]}
             """,
             file = "C:/project/a.ex",
+            os = OS.Windows,
         )
 
     /** On Windows `filename:absname/1` keeps a `//` root, so a file on a network share names itself. */
@@ -185,6 +202,7 @@ class ModuleClausesTest : ExpanderTestCase() {
               defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"//server/share/a.ex", 3}], A]}
             """,
             file = "//server/share/a.ex",
+            os = OS.Windows,
         )
 
     /** On Windows `filename:absname/1` lowercases a drive letter, so either case names the same file. */
@@ -201,6 +219,7 @@ class ModuleClausesTest : ExpanderTestCase() {
               defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"C:/project/a.ex", 3}], A]}
             """,
             file = "C:/project/a.ex",
+            os = OS.Windows,
         )
 
     /** `filename:absname/1` drops a `.` only before a separator, so a path ending in one names another file. */
@@ -216,6 +235,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             module Elixir.A from a.ex
               defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/project/a.ex/.", 3}], A]}
             """,
+            os = OS.Linux,
         )
 
     /** A kept quote in a definition `@file` moved keeps the file it moved to, a relative one made absolute. */
@@ -235,6 +255,7 @@ class ModuleClausesTest : ExpanderTestCase() {
               defmacro n/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/elsewhere/y.ex", 5}], A]}
             """,
             directories = { "/project" },
+            os = OS.Linux,
         )
 
     /**

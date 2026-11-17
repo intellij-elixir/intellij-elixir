@@ -1137,6 +1137,15 @@ class ModuleCreateTest : SdkProbeTestCase() {
             unknown = unknownWhereTheDirectoryIsRead("elsewhere/kept.ex", "stacktrace_is"),
         )
 
+    /** An `@file` is made absolute as the OS joins it, which off Windows takes a leading `//` as `/`. */
+    fun testAnAtFileIsJoinedAsTheOsJoinsIt() =
+        assertFileIsAsElixir(
+            "FileJoined",
+            """quote(do: (@file "//server/share/given.ex"; def file_is, do: __ENV__.file))""",
+            "/elsewhere/given.ex",
+            at = "//server/share/given.ex",
+        )
+
     /**
      * An `@file` that isn't UTF-8 moves a definition to a file not known, not to the text its bytes decode to. Elixir
      * raises compiling the module, as `elixir_erl` takes the file as characters, which the expander doesn't follow.
@@ -1585,9 +1594,9 @@ class ModuleCreateTest : SdkProbeTestCase() {
 
     /**
      * [name]'s `Made`, created from [quoted] with `:file` [file], and the `__ENV__.file` its `file_is/0` gives, as
-     * [name]'s `User` reads it, against Elixir's.
+     * [name]'s `User` reads it, against Elixir's. `file_is/0` is defined [at] a file, [file] unless an `@file` moves it.
      */
-    private fun assertFileIsAsElixir(name: String, quoted: String, file: String) =
+    private fun assertFileIsAsElixir(name: String, quoted: String, file: String, at: String = file) =
         assertAsElixir(
             """
             defmodule Created.$name do
@@ -1606,7 +1615,7 @@ class ModuleCreateTest : SdkProbeTestCase() {
             """,
             name, "$name.Made", "$name.User",
             readers = readersOf("$name.User", "file_is"),
-            unknown = unknownWhereTheDirectoryIsRead(file, "file_is"),
+            unknown = unknownWhereTheDirectoryIsRead(at, "file_is"),
         )
 
     /**

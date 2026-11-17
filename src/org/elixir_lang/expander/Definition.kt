@@ -12,6 +12,7 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.expander.interpreter.Binding
 import org.elixir_lang.expander.interpreter.EMPTY
 import org.elixir_lang.expander.interpreter.Evaluated
+import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.NIL
 import org.elixir_lang.expander.interpreter.Unknown
 import org.elixir_lang.expander.interpreter.codeOf
@@ -929,44 +930,19 @@ private fun movedTo(file: AttributeValue?, head: ElixirAst, env: Env, run: Run):
         is AttributeValue.Known -> fileOf(file.term) ?: return MovedTo(null)
     }
 
-    if (DEFINITION_FILE_ABSOLUTE.isSufficient(run.level)) {
-        val absolute = run.absolute(path)?.let(::absname) ?: return MovedTo(null)
+    val os = run.os ?: return MovedTo(null)
 
-        return MovedTo(absolute).takeIf { absolute != envFile(run, env, ::absname) }
+    if (DEFINITION_FILE_ABSOLUTE.isSufficient(run.level)) {
+        // `filename:absname/1` of a path already absolute is `join/1` of it.
+        val absname = { absolute: String -> Filename.join(absolute, "", os) }
+        val absolute = run.absolute(path)?.let(absname) ?: return MovedTo(null)
+
+        return MovedTo(absolute).takeIf { absolute != envFile(run, env, absname) }
     }
 
-    val os = run.os ?: return MovedTo(null)
     val relative = run.relativeToCwd(path, os) ?: return MovedTo(null)
 
     return MovedTo(relative).takeIf { relative != envFile(run, env) }
-}
-
-/**
- * `filename:absname/1` of [path], already absolute, as `join1b/4` joins it on Windows: a drive letter lowercased, `\`
- * read as `/`, a `//` root kept, and a repeated separator or a `.` before one dropped.
- */
-private fun absname(path: String): String {
-    val slashed = path.replace('\\', '/')
-    val drive = slashed.getOrNull(1) == ':' && slashed[0].lowercaseChar() in 'a'..'z'
-    val root = when {
-        drive -> "${slashed[0].lowercaseChar()}:"
-        slashed.startsWith("//") -> "//"
-        else -> ""
-    }
-    val joined = StringBuilder(root)
-
-    for (char in slashed.substring(root.length)) {
-        when {
-            char != '/' -> joined.append(char)
-            joined.endsWith("/.") -> joined.setLength(joined.length - 1)
-            !joined.endsWith("/") -> joined.append(char)
-        }
-    }
-
-    val name = joined.toString()
-
-    // `maybe_remove_dirsep/2`: a trailing separator is dropped, but not a root's.
-    return if (name.endsWith("/") && name != "$root/" && name != "//") name.dropLast(1) else name
 }
 
 /** `meta_keep/1`: the file of [meta]'s first `keep:`, where that is `{File, Line}` with a binary and an integer. */
