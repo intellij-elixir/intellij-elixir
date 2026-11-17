@@ -110,11 +110,8 @@ class CallDefinitionClause private constructor(private val arity: Arity?) : Inse
      * The head's parameters at this handler's arity, each without its `name \\ default` default: that text inserted
      * verbatim at a call site is a syntax error, as `\\` is only legal in a definition head.
      */
-    private fun atArity(parameters: List<String>): List<String> {
-        val target = arity ?: parameters.size
-
-        return ParameterText.covered(parameters, target) ?: ParameterText.reaching(parameters, target)
-    }
+    private fun atArity(parameters: List<String>): List<String> =
+        ParameterText.reaching(parameters, arity ?: parameters.size)
 
     /**
      * A placed head's [parameters] at this handler's arity, without their defaults, where their defaults reach it; else
