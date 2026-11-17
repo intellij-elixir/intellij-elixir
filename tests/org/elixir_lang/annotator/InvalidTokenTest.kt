@@ -253,6 +253,23 @@ class InvalidTokenTest : LightTestCase() {
         }
     }
 
+    /** Elixir casts a decimal float with `list_to_float`, which refuses one past a double's range, on every version. */
+    fun testAFloatPastADoublesRange() {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
+            for (source in listOf("1.0e400", "1.0e+400", "2.0e308", "1_0.0e400")) {
+                assertErrors(languageLevel, source, source to "invalid float number $source")
+            }
+
+            assertErrors(languageLevel, "x = 2.0e308 + 1", "2.0e308" to "invalid float number 2.0e308")
+        }
+    }
+
+    fun testAFloatWithinADoublesRange() {
+        for (source in listOf("1.0e-400", "1.7976931348623157e308", "1.0e300", "1.0")) {
+            assertNoErrors(elixir("1.20.0"), source)
+        }
+    }
+
     fun testLetterAfterANumberInAWordEndingInPunctuation() {
         assertHasError(elixir("1.11.0"), "1var?", "1var?" to "syntax error before: 'var?'")
         assertHasError(elixir("1.20.0"), "1var?", "1var?" to afterNumber("v", "1"))

@@ -53,10 +53,15 @@ internal fun rejectedNumber(number: PsiElement, languageLevel: ElixirLanguageLev
 
     val end = decimalEnd(text, decimalStart)
     val next = text.getOrNull(end)
+    val decimal = text.substring(decimalStart, end)
+
+    // Elixir casts the float before it looks at what follows, and `list_to_float` refuses one past a double's range.
+    if (decimalStart == start && '.' in decimal && floatValue(decimal).isInfinite()) {
+        return TextRange(start, end) to "invalid float number $decimal"
+    }
 
     if (next != null && (next.isAsciiLetter() || next == '_')) {
         val wordEnd = wordEnd(text, end)
-        val decimal = text.substring(decimalStart, end)
         val range = TextRange(start, wordEnd)
 
         return when {
@@ -75,11 +80,14 @@ internal fun rejectedNumber(number: PsiElement, languageLevel: ElixirLanguageLev
     }
 
     return if (decimalStart != start) {
-        TextRange(start, end) to syntaxErrorBefore("\"${text.substring(decimalStart, end)}\"")
+        TextRange(start, end) to syntaxErrorBefore("\"$decimal\"")
     } else {
         null
     }
 }
+
+/** The double Elixir's `list_to_float` reads from a float literal's text. */
+internal fun floatValue(literal: String): Double = literal.replace("_", "").toDouble()
 
 private fun afterLiteral(
     text: CharSequence,
