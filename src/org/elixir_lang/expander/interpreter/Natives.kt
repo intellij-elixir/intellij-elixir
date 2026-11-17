@@ -3343,7 +3343,7 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun configImport(read: ConfigRead, path: OtpErlangObject): OtpErlangObject {
         if (!isBinary(path)) functionClause("Elixir.Config", "__import__!", listOf(path))
 
-        val text = String(nameBytes("Config.__import__!/1", path), Charsets.UTF_8)
+        val text = nameText("Config.__import__!/1", path)
 
         when (evaluation.run.files.exists(text)) {
             null -> decline("Config.__import__!/1 of %s, whose file isn't known", path)
@@ -3395,7 +3395,7 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun mixConfigImport(path: OtpErlangObject, dir: OtpErlangObject): OtpErlangObject {
         val read = evaluation.run.config ?: decline("Mix.Config.__import__!/2 outside a config read")
         val expanded = evaluation.remote(atom("Elixir.Path"), "expand", listOf(path, dir))
-        val text = String(nameBytes("Mix.Config.__import__!/2", expanded), Charsets.UTF_8)
+        val text = nameText("Mix.Config.__import__!/2", expanded)
         val paths =
             if (text.any { it in ConfigFiles.WILDCARD }) {
                 properElements(seen(evaluation.remote(atom("Elixir.Path"), "wildcard", listOf(expanded))))

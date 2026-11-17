@@ -137,6 +137,16 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
         assertEquals("unknown", read(root))
     }
 
+    /** An import whose name isn't UTF-8 declines, as how the OS takes it isn't read, not the file its text names. */
+    fun testAnImportOfANameThatIsntUtf8Declines() {
+        val root = project(
+            CONFIG to "import Config\nimport_config <<0xFF, \".exs\">>\n",
+            "config/\uFFFD.exs" to "import Config\nconfig :app, k: 1\n",
+        )
+
+        assertEquals("declined", read(root))
+    }
+
     /** Elixir raises `KeyError` for the unknown key, a raise whose fields the read doesn't hold. */
     fun testAnImportedFilesUnknownStructKeyIsDeclined() {
         val root = project(CONFIG to "import Config\nimport_config \"dev.exs\"\n", DEV to "import Config\n%URI{nope: 1}\n")
