@@ -17,6 +17,7 @@ import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.util.system.OS
 import org.elixir_lang.NameArity
 import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.declaration.ArityKnowledge
@@ -105,9 +106,9 @@ private const val BACKTRACE_DEPTH = 8
  * and their predicates a boolean, never the key, as the tests of membership in `lists`, `ordsets` and `Enum` do.
  * `Module`'s attribute reads, and `delete_attribute/2`, return a value of the module their first argument names, or the
  * default they are given; its predicates and other writers a boolean or `:ok`, and its listings names. `IO.warn/1,2`
- * returns `:ok`, as do `application`'s env writers. `binary:split/3` and `filename:basename/2` return parts of their
- * first argument alone. A read of the machine or the run given an argument, such as `System.get_env/1` or a clock given
- * its unit, returns what it read.
+ * returns `:ok`, as do `application`'s env writers. `binary:split/3`, `filename:basename/2` and `rootname/2` return
+ * parts of their first argument alone. A read of the machine or the run given an argument, such as `System.get_env/1`
+ * or a clock given its unit, returns what it read.
  */
 private val RETURNABLE = mapOf(
     Triple("Elixir.Access", "fetch", 2) to listOf(0),
@@ -192,10 +193,11 @@ private val RETURNABLE = mapOf(
     Triple("application", "unset_env", 3) to emptyList(),
     Triple("binary", "split", 3) to listOf(0),
     Triple("filename", "basename", 2) to listOf(0),
+    Triple("filename", "rootname", 2) to listOf(0),
 )
 
 /** The `filename` functions answered here, by name and arity. */
-private val FILENAME_NATIVES = setOf("dirname/1", "basename/1", "basename/2", "split/1")
+private val FILENAME_NATIVES = setOf("dirname/1", "basename/1", "basename/2", "split/1", "extension/1", "rootname/1", "rootname/2")
 
 /**
  * Each native that never returns, whatever it is given, by receiver, name and arity: those `raise`, `throw` and `exit`
@@ -3407,6 +3409,12 @@ internal class Natives(private val evaluation: Evaluation) {
         }
 
     /**
+     * Whether [code] is an ASCII character, which every native name encoding reads alike; a name holding one past it
+     * declines, as that encoding isn't read.
+     */
+    private fun isAscii(code: Int): Boolean = code in 0 until 0x80
+
+    /**
      * `File.exists?/1,2`: whether a file or directory is at [path], made absolute as Elixir makes it (`Run.absolute`),
      * read through the run's files.
      */
@@ -3498,34 +3506,229 @@ internal class Natives(private val evaluation: Evaluation) {
     }
 
     /**
-     * `filename:dirname/1`, `basename/1,2` and `split/1` of binaries, by the syntax of the OS the run's SDK runs as; a
-     * list or atom name declines.
+     * `filename:dirname/1`, `basename/1,2`, `split/1`, `extension/1` and `rootname/1,2`, by the syntax of the OS the
+     * run's SDK runs as. `extension/1` and `rootname/1,2` also walk a list's characters, as `flatten/1` gives them; the
+     * others decline on a list or atom name.
      */
     private fun filename(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
         if (key !in FILENAME_NATIVES) return null
 
         val os = evaluation.run.os ?: decline("filename:$key of a run whose OS isn't known")
-        val name = nameBytes("filename:$key", args[0])
+
+        fun name() = nameBytes("filename:$key", args[0])
 
         return when (key) {
-            "dirname/1" -> OtpErlangBinary(Filename.dirname(name, os))
-            "basename/1" -> OtpErlangBinary(Filename.basename(name, os))
-            "basename/2" -> OtpErlangBinary(Filename.basename(name, extensionBytes(args[1]), os))
-            else -> list(Filename.split(name, os).map(::OtpErlangBinary))
+            "extension/1" -> extension(args[0], os)
+            "rootname/1" -> rootname(args[0], os)
+            "rootname/2" -> rootname(args[0], args[1], os)
+            "dirname/1" -> OtpErlangBinary(Filename.dirname(name(), os))
+            "basename/1" -> OtpErlangBinary(Filename.basename(name(), os))
+            "basename/2" -> OtpErlangBinary(Filename.basename(name(), extensionBytes(args[1]), os))
+            else -> list(Filename.split(name(), os).map(::OtpErlangBinary))
         }
     }
 
-    /**
-     * The extension `filename:basename/2` is given: a binary, or a list of code points, which `filename_string_to_binary/1`
-     * encodes (`filename.erl:1109`). A list holding anything else declines.
-     */
-    private fun extensionBytes(term: OtpErlangObject): ByteArray {
-        val elements = properElements(seen(term)) ?: return nameBytes("filename:basename/2", term)
+    /** `filename:extension/1` of [name]: a binary's bytes, else the characters [flattened] gives. */
+    private fun extension(name: OtpErlangObject, os: OS): OtpErlangObject {
+        binaryBytes(name)?.let { bytes ->
+            val start = Filename.extensionStart(unsigned(bytes), os)
 
-        if (elements.any { small(it) == null }) decline("filename:basename/2 of the extension %s, which is no list of code points", term)
+            return OtpErlangBinary(if (start < 0) ByteArray(0) else bytes.copyOfRange(start, bytes.size))
+        }
 
-        return chardataBytes("characters_to_binary", listOf(term))
+        val elements = flattened(name)
+        val result = { start: Int -> if (start < 0) EMPTY else list(elements.subList(start, elements.size)) }
+        val characters = characters(elements) ?: noClause(elements) { rest, before ->
+            val walked = result(Filename.extensionStart(before, os))
+
+            functionClause("filename", "extension", listOf(rest, walked, osFamily(os)))
+        }
+
+        return result(Filename.extensionStart(characters, os))
     }
+
+    /**
+     * `filename:rootname/1` of [name]: a binary's bytes, as `binary_to_list/1` gives them, else the characters
+     * [flattened] gives.
+     */
+    private fun rootname(name: OtpErlangObject, os: OS): OtpErlangObject {
+        binaryBytes(name)?.let { return OtpErlangBinary(bytes(Filename.rootname(unsigned(it), os).first)) }
+
+        val elements = flattened(name)
+        val characters = characters(elements) ?: noClause(elements) { rest, before ->
+            val (root, extension) = Filename.rootname(before, os)
+            val walked = listOf(charactersList(root.reversedArray()), charactersList(extension.reversedArray()))
+
+            functionClause("filename", "rootname", listOf(rest) + walked + osFamily(os))
+        }
+
+        return charactersList(Filename.rootname(characters, os).first)
+    }
+
+    /**
+     * `filename:rootname/2`: of binaries, by their bytes; where one is a binary, the other is one by
+     * [filenameStringToBinary]; else of the characters [flattened] gives each. A rest of [name] holding something other
+     * than a character is never the extension where it holds none, and declines where both do.
+     */
+    private fun rootname(name: OtpErlangObject, extension: OtpErlangObject, os: OS): OtpErlangObject {
+        val nameBytes = binaryBytes(name)
+        val extensionBytes = binaryBytes(extension)
+
+        if (nameBytes != null || extensionBytes != null) {
+            val root = Filename.rootname(
+                unsigned(nameBytes ?: filenameStringToBinary(name)),
+                unsigned(extensionBytes ?: filenameStringToBinary(extension)),
+                os,
+            )
+
+            return OtpErlangBinary(bytes(root))
+        }
+
+        val elements = flattened(name)
+        val extensionElements = flattened(extension)
+        val extensionCharacters = characters(extensionElements)
+        val characters = characters(elements) ?: noClause(elements) { rest, before ->
+            if (extensionCharacters == null) decline("filename:rootname/2 of a name and an extension that hold other than characters")
+
+            val walked = charactersList(before.reversedArray())
+
+            functionClause("filename", "rootname2", listOf(rest, list(extensionElements), walked, osFamily(os)))
+        }
+
+        return charactersList(extensionCharacters?.let { Filename.rootname(characters, it, os) } ?: characters)
+    }
+
+    /** What [flat] walks: the [elements] it gives, and the part it [stuck] at, `null` where it walked the whole term. */
+    private class Flat(val elements: List<OtpErlangObject>, val stuck: OtpErlangObject?)
+
+    /**
+     * `filename:flatten/1`'s walk, `do_flatten/2` (`filename.erl:1093-1106` at OTP-29.0.6), of a term that isn't a
+     * binary: a list's elements in order, a nested list's and an atom's characters in their place, and an atom tail's
+     * after them. It walks from the end, as `do_flatten/2` flattens a tail first, and stops at a part that is neither a
+     * list nor an atom, with the elements after it. Past [COPY_NODES] elements visited it declines, as a nested list
+     * may be shared many times over.
+     */
+    private fun flat(term: OtpErlangObject): Flat {
+        val reversed = mutableListOf<OtpErlangObject>()
+        var visited = 0
+
+        fun visit() {
+            if (++visited > COPY_NODES) decline("a file name of over $COPY_NODES elements")
+        }
+
+        fun walk(term: OtpErlangObject): OtpErlangObject? {
+            ProgressManager.checkCanceled()
+
+            val known = seen(term)
+
+            if (known is OtpErlangAtom) {
+                for (character in codePoints(known.atomValue()).asReversed()) {
+                    visit()
+                    reversed.add(character)
+                }
+
+                return null
+            }
+
+            val (elements, tail) = cells(known) ?: return term
+
+            tail?.let(::walk)?.let { return it }
+
+            for (element in elements.asReversed()) {
+                visit()
+
+                val head = seen(element)
+
+                if (head is OtpErlangAtom || cells(head) != null) walk(head)?.let { return it } else reversed.add(head)
+            }
+
+            return null
+        }
+
+        val stuck = walk(term)
+
+        return Flat(reversed.asReversed(), stuck)
+    }
+
+    /** `filename:flatten/1` of a term that isn't a binary ([flat]); a part that is neither a list nor an atom has no clause. */
+    private fun flattened(term: OtpErlangObject): List<OtpErlangObject> {
+        val flat = flat(term)
+
+        flat.stuck?.let { functionClause("filename", "do_flatten", listOf(it, list(flat.elements))) }
+
+        return flat.elements
+    }
+
+    /**
+     * The characters [elements] are, where each is an integer, which `filename`'s walks compare with `/`, `\\` and `.`;
+     * `null` where one isn't. An integer too large for an `Int` declines.
+     */
+    private fun characters(elements: List<OtpErlangObject>): IntArray? {
+        val characters = IntArray(elements.size)
+
+        for ((at, element) in elements.withIndex()) {
+            if (element !is OtpErlangLong) return null
+
+            characters[at] = smallInt(element) ?: decline("filename of a name holding %s, which is past an Int", element)
+        }
+
+        return characters
+    }
+
+    /** [raise] given the rest of [elements] from the first that isn't a character, and the characters before it. */
+    private inline fun noClause(elements: List<OtpErlangObject>, raise: (OtpErlangList, IntArray) -> Nothing): Nothing {
+        val at = elements.indexOfFirst { it !is OtpErlangLong }
+
+        raise(list(elements.subList(at, elements.size)), checkNotNull(characters(elements.subList(0, at))))
+    }
+
+    /**
+     * The extension `filename:basename/2` is given: a binary, or a list, which `filename_string_to_binary/1`
+     * encodes. Anything else declines.
+     */
+    private fun extensionBytes(term: OtpErlangObject): ByteArray =
+        if (isList(term)) filenameStringToBinary(term) else nameBytes("filename:basename/2", term)
+
+    /**
+     * `filename_string_to_binary/1` (`filename.erl:1109-1115` at OTP-29.0.6): [term] [flattened], then encoded by
+     * `file:native_name_encoding/0`. A character or a byte past ASCII declines, as that encoding isn't read; an integer
+     * that is no character is `badarg` in every encoding, as is any other term.
+     */
+    private fun filenameStringToBinary(term: OtpErlangObject): ByteArray {
+        val elements = flattened(term)
+        val bytes = Built()
+        var pastAscii = false
+
+        for (element in elements) {
+            when (element) {
+                is OtpErlangLong -> {
+                    val character = codePoint(element) ?: badargOf("filename", "filename_string_to_binary", listOf(term))
+
+                    if (isAscii(character)) bytes.write(character) else pastAscii = true
+                }
+                is OtpErlangBitstr if element.pad_bits() == 0 -> {
+                    val binary = element.binaryValue()
+
+                    if (binary.all { isAscii(it.toInt()) }) bytes.write(binary) else pastAscii = true
+                }
+                else -> badargOf("unicode", "characters_to_binary", listOf(list(elements), atom("unicode"), atom("utf8")))
+            }
+        }
+
+        if (pastAscii) decline("filename_string_to_binary/1 of %s, past ASCII, by a native name encoding that isn't read", term)
+
+        return bytes.toByteArray()
+    }
+
+    /** `os:type/0`'s family, as `filename`'s walks of characters are given it. */
+    private fun osFamily(os: OS): OtpErlangAtom =
+        atom(Filename.osType(os)?.first ?: decline("filename of an OS os:type/0 doesn't name"))
+
+    private fun unsigned(bytes: ByteArray): IntArray = IntArray(bytes.size) { bytes[it].toInt() and 0xFF }
+
+    private fun bytes(characters: IntArray): ByteArray = ByteArray(characters.size) { characters[it].toByte() }
+
+    private fun charactersList(characters: IntArray): OtpErlangList = list(characters.map { integer(it.toLong()) })
 
     /** The bytes of the binary [term], declining where it is not one, as a list or atom name is not. */
     private fun nameBytes(function: String, term: OtpErlangObject): ByteArray =

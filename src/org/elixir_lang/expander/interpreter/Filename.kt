@@ -6,14 +6,15 @@ import java.io.ByteArrayOutputStream
 import java.util.Arrays
 
 /**
- * `filename`'s functions of a binary, ported from OTP's `filename.erl`, which reads `os:type/0` for the syntax a path
- * has: [OS.Windows] is its `win32`, every other OS its unix. Names are bytes, as the binaries they answer are. Also
- * `binary:split/3`, `match/2` and `matches/2`.
+ * `filename`'s functions of a binary, and the walks some of them make of a list's characters, ported from OTP's
+ * `filename.erl`, which reads `os:type/0` for the syntax a path has: [OS.Windows] is its `win32`, every other OS its
+ * unix. A binary's names are bytes, as the binaries they answer are. Also `binary:split/3`, `match/2` and `matches/2`.
  */
 internal object Filename {
     private const val SLASH = '/'.code.toByte()
     private const val BACKSLASH = '\\'.code.toByte()
     private const val COLON = ':'.code.toByte()
+    private const val DOT = '.'.code.toByte()
 
     private val UNIX_SEPARATORS = listOf(byteArrayOf(SLASH))
     private val WINDOWS_SEPARATORS = listOf(byteArrayOf(SLASH), byteArrayOf(BACKSLASH))
@@ -105,6 +106,68 @@ internal object Filename {
         return name.copyOfRange(start, start + length)
     }
 
+    /**
+     * Where `filename:extension/1`'s walk of the characters [name] has its result begin, -1 for `[]`: at a `.` that
+     * neither begins [name] nor follows a separator, while no separator comes after it.
+     */
+    fun extensionStart(name: IntArray, os: OS): Int {
+        var start = -1
+
+        for (at in name.indices) {
+            val character = name[at]
+
+            start = when {
+                character == DOT.toInt() -> if (at == 0 || isSeparator(name[at - 1], os)) -1 else at
+                isSeparator(character, os) -> -1
+                else -> start
+            }
+        }
+
+        return start
+    }
+
+    /**
+     * `filename:rootname/1`'s walk of the characters [name] (`rootname/4`): the root so far, and the extension so far,
+     * which a `.` begins and a separator ends, the root taking it back; both in order. A separator on Windows is kept
+     * as `/`. The root is the answer.
+     */
+    fun rootname(name: IntArray, os: OS): Pair<IntArray, IntArray> {
+        val root = mutableListOf<Int>()
+        val extension = mutableListOf<Int>()
+
+        for (character in name) {
+            when {
+                isSeparator(character, os) -> {
+                    root += extension
+                    root += SLASH.toInt()
+                    extension.clear()
+                }
+                character == DOT.toInt() && extension.isEmpty() && root.lastOrNull() == SLASH.toInt() -> root += character
+                character == DOT.toInt() -> {
+                    root += extension
+                    extension.clear()
+                    extension += character
+                }
+                extension.isEmpty() -> root += character
+                else -> extension += character
+            }
+        }
+
+        return root.toIntArray() to extension.toIntArray()
+    }
+
+    /**
+     * `filename:rootname/2`'s walk of the characters [name] (`rootname2/4`): [name] up to where the rest of it is
+     * [extension], all of it where a separator comes before that or the rest never is.
+     */
+    fun rootname(name: IntArray, extension: IntArray, os: OS): IntArray {
+        val at = name.size - extension.size
+
+        if (at < 0 || !Arrays.equals(name, at, name.size, extension, 0, extension.size)) return name
+
+        return if (at > 0 && isSeparator(name[at - 1], os)) name else name.copyOf(at)
+    }
+
     /** `binary:split/3` of [subject] at [patterns], none of them empty: around each of [binaryMatches]' matches. */
     fun binarySplit(subject: ByteArray, patterns: List<ByteArray>, global: Boolean): List<ByteArray> {
         val parts = mutableListOf<ByteArray>()
@@ -152,6 +215,10 @@ internal object Filename {
     private fun separators(windows: Boolean) = if (windows) WINDOWS_SEPARATORS else UNIX_SEPARATORS
 
     private fun isSlash(byte: Byte) = byte == SLASH || byte == BACKSLASH
+
+    /** Whether the character [character] separates names: `/`, and `\` on Windows. */
+    private fun isSeparator(character: Int, os: OS) =
+        character == SLASH.toInt() || os == OS.Windows && character == BACKSLASH.toInt()
 
     private fun isUpper(byte: Byte) = byte in 'A'.code.toByte()..'Z'.code.toByte()
 

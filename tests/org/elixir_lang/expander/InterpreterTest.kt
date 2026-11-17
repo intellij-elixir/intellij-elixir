@@ -7402,6 +7402,103 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 """,
             ),
             macro("native:filename-split-list", "defmacro m, do: Macro.escape(:filename.split(~c\"/a/b\"))", pins = DECLINED),
+            // `filename:extension/1` and `rootname/1,2` read a binary's bytes or a list's characters, `flatten/1` first
+            // taking a list's nested lists and atoms into it.
+            macro(
+                "native:filename-extension",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :filename.extension("/a/b.ex"),
+                    :filename.extension("a.tar.gz"),
+                    :filename.extension("a"),
+                    :filename.extension(".bashrc"),
+                    :filename.extension("/a.b/c"),
+                    :filename.extension("a."),
+                    :filename.extension(""),
+                    :filename.extension("/a/.ex"),
+                    :filename.extension("a..b"),
+                    :filename.extension(".."),
+                    :filename.extension("a\\b.c"),
+                    :filename.extension(~c"/a/b.ex"),
+                    :filename.extension(~c"/a.b/c"),
+                    :filename.extension(~c".bashrc"),
+                    :filename.extension([~c"/a", [~c"/b"], ~c".ex"]),
+                    :filename.extension([:a, ~c".ex"]),
+                    :filename.extension(:"a.ex"),
+                    :filename.extension([?a | :".b"]),
+                    :filename.extension([0x1F600, ?., 0x1F600]),
+                    :filename.extension([]),
+                    Path.extname("lib/x.html.heex")
+                  ])
+                end
+                """,
+            ),
+            macro("native:filename-extension-binary-in-list", caught(":filename.extension([~c\"a\", \".ex\"])")),
+            macro("native:filename-extension-integer", caught(":filename.extension(1)")),
+            macro("native:filename-extension-improper", caught(":filename.extension([?a | 1])")),
+            // A nest sharing its parts is walked once for each path through it, so past `COPY_NODES` visits it declines.
+            macro(
+                "native:filename-extension-shared-nest",
+                "defmacro m, do: :filename.extension(Enum.reduce(1..21, [], fn _, a -> [a, a] end))",
+                pins = DECLINED,
+            ),
+            macro(
+                "native:filename-rootname",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :filename.rootname("/a/b.ex"),
+                    :filename.rootname("a.tar.gz"),
+                    :filename.rootname("/a.b/c"),
+                    :filename.rootname(".bashrc"),
+                    :filename.rootname("/a/.bashrc"),
+                    :filename.rootname("a."),
+                    :filename.rootname(""),
+                    :filename.rootname("a/b.c/"),
+                    :filename.rootname("a\\b.c"),
+                    :filename.rootname("a.b\\c"),
+                    :filename.rootname(~c"/a/b.ex"),
+                    :filename.rootname([~c"a", :".b"]),
+                    :filename.rootname(:"a.b"),
+                    :filename.rootname([0x1F600, ?., ?b]),
+                    Path.rootname("lib/x.html.heex")
+                  ])
+                end
+                """,
+            ),
+            macro(
+                "native:filename-rootname-2",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :filename.rootname("/a/b.ex", ".ex"),
+                    :filename.rootname("/a/b.exs", ".ex"),
+                    :filename.rootname("/a/.ex", ".ex"),
+                    :filename.rootname(".ex", ".ex"),
+                    :filename.rootname("a.ex", ""),
+                    :filename.rootname("a\\.ex", ".ex"),
+                    :filename.rootname("/a/b.ex", ~c".ex"),
+                    :filename.rootname(~c"/a/b.ex", ".ex"),
+                    :filename.rootname(~c"/a/b.ex", ~c".ex"),
+                    :filename.rootname([~c"/a", ~c"/b.ex"], [:".ex"]),
+                    :filename.rootname(~c"/a/.ex", ~c".ex"),
+                    :filename.rootname(~c"ab", ~c"ab"),
+                    :filename.rootname(:"a.ex", :".ex"),
+                    Path.rootname("lib/x.html.heex", ".heex")
+                  ])
+                end
+                """,
+            ),
+            macro("native:filename-rootname-integer", caught(":filename.rootname(1)")),
+            macro("native:filename-rootname-2-integer-extension", caught(":filename.rootname(\"a\", 1)")),
+            macro("native:filename-rootname-2-binary-in-list", caught(":filename.rootname(~c\"a\", [\".b\"])")),
+            macro("native:filename-rootname-2-list-name-not-a-character", caught(":filename.rootname([0x110000], \".b\")")),
+            // A list's characters past ASCII encode by `file:native_name_encoding/0`, which the expander doesn't read.
+            macro("native:filename-rootname-2-unicode-list", "defmacro m, do: :filename.rootname(\"a.é\", ~c\".é\")", pins = DECLINED),
+            // So do a binary's bytes past ASCII, alone or with the next binary's.
+            macro("native:filename-rootname-2-binary-past-ascii", "defmacro m, do: :filename.rootname(\"a\", [<<0xC3>>])", pins = DECLINED),
+            macro("native:filename-rootname-2-binaries-past-ascii", "defmacro m, do: :filename.rootname(\"a\", [<<0xC3>>, <<0xA9>>])", pins = DECLINED),
             // The natives: Elixir's functions
             macro(
                 "pure:keyword",
