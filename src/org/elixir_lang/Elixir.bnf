@@ -2626,7 +2626,7 @@ unmatchedExpression ::= unmatchedInMatchOperation |
 
 decimalDigits ::= INVALID_DECIMAL_DIGITS | VALID_DECIMAL_DIGITS
                   { implements = "org.elixir_lang.psi.Digits" methods = [base inBase quote validElementType] }
-decimalWholeNumber ::= decimalDigits (NUMBER_SEPARATOR? decimalDigits)*
+decimalWholeNumber ::= decimalDigits (NUMBER_SEPARATOR? <<adjacentDecimalDigits>> decimalDigits)*
                         {
                           implements = "org.elixir_lang.psi.WholeNumber"
                           methods = [

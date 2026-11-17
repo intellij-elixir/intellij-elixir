@@ -1000,7 +1000,7 @@ public class ElixirParser implements PsiParser, LightPsiParser {
   }
 
   /* ********************************************************** */
-  // decimalDigits (NUMBER_SEPARATOR? decimalDigits)*
+  // decimalDigits (NUMBER_SEPARATOR? <<adjacentDecimalDigits>> decimalDigits)*
   public static boolean decimalWholeNumber(PsiBuilder b, int l) {
     if (!recursion_guard_(b, l, "decimalWholeNumber")) return false;
     if (!nextTokenIs(b, "<decimal whole number>", INVALID_DECIMAL_DIGITS, VALID_DECIMAL_DIGITS)) return false;
@@ -1012,7 +1012,7 @@ public class ElixirParser implements PsiParser, LightPsiParser {
     return r;
   }
 
-  // (NUMBER_SEPARATOR? decimalDigits)*
+  // (NUMBER_SEPARATOR? <<adjacentDecimalDigits>> decimalDigits)*
   private static boolean decimalWholeNumber_1(PsiBuilder b, int l) {
     if (!recursion_guard_(b, l, "decimalWholeNumber_1")) return false;
     while (true) {
@@ -1023,12 +1023,13 @@ public class ElixirParser implements PsiParser, LightPsiParser {
     return true;
   }
 
-  // NUMBER_SEPARATOR? decimalDigits
+  // NUMBER_SEPARATOR? <<adjacentDecimalDigits>> decimalDigits
   private static boolean decimalWholeNumber_1_0(PsiBuilder b, int l) {
     if (!recursion_guard_(b, l, "decimalWholeNumber_1_0")) return false;
     boolean r;
     Marker m = enter_section_(b);
     r = decimalWholeNumber_1_0_0(b, l + 1);
+    r = r && adjacentDecimalDigits(b, l + 1);
     r = r && decimalDigits(b, l + 1);
     exit_section_(b, m, null, r);
     return r;
