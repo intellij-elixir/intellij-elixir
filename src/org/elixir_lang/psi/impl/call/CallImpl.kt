@@ -189,7 +189,7 @@ fun Call.keywordArgument(keywordKeyText: String): PsiElement? = keywordArguments
 /** The code that runs inside this call, its `do` block or `do:` value, unlike its other arguments. */
 @RequiresReadLock
 fun Call.body(): PsiElement? =
-    doBlock ?: keywordArguments()?.quotableKeywordPairList()?.lastOrNull { it.blockKeyword() == "do" }?.keywordValue
+    doBlock ?: keywordArgument("do")
 
 /** The keyword pairs that are this call's block bodies, as `do:` and `else:` in `if c, do: a, else: b`, in order. */
 @RequiresReadLock

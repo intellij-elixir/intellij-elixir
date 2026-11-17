@@ -456,6 +456,16 @@ class ProjectKeywordsTest : PlatformTestCase() {
         )
     }
 
+    /** `Code.compiler_options/1` puts each pair in turn, so an option the project gives twice is the last. */
+    fun testAnElixircOptionGivenTwiceIsTheLast() {
+        val reading = ProjectKeywords.elixircOption(
+            keywordsProject("[app: :a, elixirc_options: [parser_options: [columns: false], parser_options: [columns: true]]]"),
+            "parser_options",
+        )
+
+        assertEquals("[columns: true]", (reading as ProjectKeywords.Reading.Written).value.text)
+    }
+
     /** A `project/0` that returns [body], or [handled] where its `rescue` block runs. */
     private fun handlerProject(body: String, handled: String): ElixirFile =
         mixExs("defmodule MyApp.MixProject do\n  use Mix.Project\n\n  def project do\n    $body\n  rescue\n    _ -> $handled\n  end\nend\n")
