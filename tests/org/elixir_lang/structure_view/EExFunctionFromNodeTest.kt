@@ -1,6 +1,5 @@
 package org.elixir_lang.structure_view
 
-import com.intellij.ide.structureView.StructureViewTreeElement
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
@@ -49,21 +48,7 @@ class EExFunctionFromNodeTest : PlatformTestCase() {
 
         assertFalse("the fixture must contain function_from_* calls", calls.isEmpty())
 
-        val built = mutableSetOf<PsiElement>()
-
-        fun walk(element: StructureViewTreeElement) {
-            if (element is EExFunctionFrom) {
-                (element.value as? PsiElement)?.let { built.add(it) }
-            }
-
-            for (child in element.children) {
-                if (child is StructureViewTreeElement) {
-                    walk(child)
-                }
-            }
-        }
-
-        walk(Model(myFixture.file as ElixirFile, null).root)
+        val built = elements().mapNotNull { it.value as? PsiElement }.toSet()
 
         val missing = calls.filterNot { call -> call in built }.map { it.text.lineSequence().first() }
 
@@ -95,21 +80,7 @@ class EExFunctionFromNodeTest : PlatformTestCase() {
         assertEquals("sample/2", elements().single().presentation.presentableText)
     }
 
-    private fun elements(): List<EExFunctionFrom> {
-        val found = mutableListOf<EExFunctionFrom>()
-
-        fun walk(element: StructureViewTreeElement) {
-            if (element is EExFunctionFrom) found.add(element)
-
-            for (child in element.children) {
-                if (child is StructureViewTreeElement) walk(child)
-            }
-        }
-
-        walk(Model(myFixture.file as ElixirFile, null).root)
-
-        return found
-    }
+    private fun elements(): List<EExFunctionFrom> = structureViewElements<EExFunctionFrom>(myFixture.file as ElixirFile)
 
     private companion object {
         const val EEX_DEFINITION =
