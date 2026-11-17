@@ -30,7 +30,7 @@ class RunAbsoluteTest : ProbeTestCase() {
         for ((shape, message) in SHAPES.zip(compiled.messages)) {
             val (pathtype, absname, joined) = (message as OtpErlangTuple).elements()
 
-            assertEquals(shape, (pathtype as OtpErlangAtom).atomValue(), Filename.pathtype(shape.toByteArray(), OS.CURRENT).atom)
+            assertEquals(shape, (pathtype as OtpErlangAtom).atomValue(), Filename.pathtype(shape, OS.CURRENT).atom)
             assertEquals(shape, utf8(absname), utf8(joined))
         }
     }

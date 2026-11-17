@@ -596,7 +596,7 @@ internal class Run(
      * to another drive's directory. Where [os] isn't known, a path absolute on either OS is taken as absolute.
      */
     fun absolute(path: String): String? {
-        val type = os?.let { Filename.pathtype(path.toByteArray(), it) }
+        val type = os?.let { Filename.pathtype(path, it) }
             ?: if (OSAgnosticPathUtil.isAbsolute(path)) Filename.PathType.ABSOLUTE else Filename.PathType.RELATIVE
         if (type == Filename.PathType.ABSOLUTE) return path
 
@@ -604,7 +604,7 @@ internal class Run(
         if (type == Filename.PathType.RELATIVE) return "$directory/$path"
 
         // Only Windows has a path relative to a volume.
-        val volume = String(Filename.split(directory.toByteArray(), OS.Windows).first())
+        val volume = Filename.split(directory, OS.Windows).first()
 
         return when {
             path[0] == '/' || path[0] == '\\' -> volume + path.substring(1)
