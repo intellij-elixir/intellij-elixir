@@ -18,9 +18,10 @@ import org.elixir_lang.psi.Import.Term
 import java.io.File
 
 /**
- * The expander's view of modules that `use Phoenix.Component` as Elixir's compile of the Mix project in [FIXTURE] gives
- * it: each module's functions and macros, and through `lib/probe.ex`'s macros its `__components__/0`, `__global__?/1` and what its wrappers return;
- * and how each module of `routes/`, which Mix doesn't compile, ends on its own.
+ * The expander's view of the modules of the Mix project in [FIXTURE] as Elixir's compile of it gives it: the functions
+ * and macros of each of [MODULES]; for the component modules and calls `lib/probe.ex`'s macros probe, their
+ * `__components__/0`, `__global__?/1` and what their wrappers return; and how each module of `routes/`, which Mix
+ * doesn't compile, ends on its own.
  * The project's dependencies are those of the leg's lock, which `getPhoenixComponentFixtureDeps` fetches; a leg whose
  * Elixir has no lock asserts nothing.
  */
@@ -111,8 +112,6 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
             val raised = outcome.get(OtpErlangAtom("raised"))
 
             "$form " + when {
-                // Left unknown, not wrong, until the expander lists files: `Phoenix.LiveView.Renderer.__before_compile__/1` looks for the LiveView's template with `Path.wildcard/1`.
-                form == "liveview" -> "stopped Phoenix.LiveView.Renderer.__before_compile__/1"
                 raised == OtpErlangAtom("nil") ->
                     "compiled ${exported(outcome)}; routes: ${routes(outcome.get(OtpErlangAtom("routes")))}"
                 else -> "raised ${(raised as OtpErlangAtom).atomValue()}"
@@ -145,7 +144,8 @@ class PhoenixComponentFixtureTest : HeavyTestCase() {
 
     private companion object {
         val FIXTURE: File = File("testData/org/elixir_lang/expander/phoenix_component").absoluteFile
-        val MODULES = listOf("Remote", "Forms", "Globals", "WithSigil").map { "Elixir.PhoenixComponentFixture.$it" }
+        val MODULES = listOf("Remote", "Forms", "Globals", "WithSigil", "Translations").map { "Elixir.PhoenixComponentFixture.$it" } +
+            listOf("Layouts", "ColocatedLive").map { "Elixir.PhoenixComponentFixtureWeb.$it" }
         const val PROBE = "Elixir.PhoenixComponentFixture.Probe"
 
         /** Not lib/probe.ex or a file of [MODULES], whose own modules are compiling, so not loaded, while it asks. */

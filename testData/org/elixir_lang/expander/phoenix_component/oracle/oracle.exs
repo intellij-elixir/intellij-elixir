@@ -10,8 +10,15 @@ modules = [
   PhoenixComponentFixture.WithSigil
 ]
 
+# Modules compiled from files they read by path: templates and catalogues.
+reading = [
+  PhoenixComponentFixture.Translations,
+  PhoenixComponentFixtureWeb.Layouts,
+  PhoenixComponentFixtureWeb.ColocatedLive
+]
+
 info =
-  for module <- modules, into: %{} do
+  for module <- modules ++ reading, into: %{} do
     {module, %{functions: module.__info__(:functions), macros: module.__info__(:macros)}}
   end
 
