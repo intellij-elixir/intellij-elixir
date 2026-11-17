@@ -147,6 +147,33 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
         assertEquals("declined", read(root))
     }
 
+    /**
+     * An import in a module an `fn` defines, which Elixir may call any number of times or never, may have written the
+     * config or not, so the read declines. Elixir gives `[app: [j: 2]]`, as the `fn` isn't called.
+     */
+    fun testAnImportInAModuleAnUncalledFnDefinesDeclines() {
+        val root = project(
+            CONFIG to "import Config\n\n_ = Enum.map([], fn _ -> defmodule B do import_config \"dev.exs\" end end)\nconfig :app, j: 2\n",
+            DEV to "import Config\n\nconfig :app, k: 1\n",
+        )
+
+        assertEquals("declined", read(root))
+    }
+
+    /**
+     * An import in a module an `fn` defines, which Elixir may call any number of times or never, may have imported the
+     * file or not, so a later import of the same file, which Elixir would refuse as imported twice, declines. Elixir gives
+     * `[app: [j: 2]]`, as the `fn` isn't called.
+     */
+    fun testAnImportInAModuleAnUncalledFnDefinesThenAgainDeclines() {
+        val root = project(
+            CONFIG to "import Config\n\n_ = Enum.map([], fn _ -> defmodule B do import_config \"dev.exs\" end end)\nimport_config \"dev.exs\"\nconfig :app, j: 2\n",
+            DEV to "import Config\n",
+        )
+
+        assertEquals("declined", read(root))
+    }
+
     /** Elixir raises `KeyError` for the unknown key, a raise whose fields the read doesn't hold. */
     fun testAnImportedFilesUnknownStructKeyIsDeclined() {
         val root = project(CONFIG to "import Config\nimport_config \"dev.exs\"\n", DEV to "import Config\n%URI{nope: 1}\n")

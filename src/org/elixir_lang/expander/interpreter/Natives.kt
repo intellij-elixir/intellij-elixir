@@ -3396,11 +3396,21 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** [config] merged into [read]'s, returning the config before as code reads it, as `Process.put/2` does. */
     private fun configured(read: ConfigRead, config: OtpErlangObject): OtpErlangObject {
+        writesRead("Config.config")
         val before = read.configAsRead()
 
         read.configured(configMerge(read.config, config), config)
 
         return before
+    }
+
+    /**
+     * Declines [what], which writes the read, in a unit stepped unordered
+     * ([steppedUnordered][org.elixir_lang.expander.Run.steppedUnordered]): Elixir may run it any number of times, or
+     * never, and what it writes to the read isn't joined.
+     */
+    private fun writesRead(what: String) {
+        if (evaluation.run.steppedUnordered) decline("$what in a unit stepped unordered")
     }
 
     /**
@@ -3412,6 +3422,7 @@ internal class Natives(private val evaluation: Evaluation) {
      */
     private fun configImport(read: ConfigRead, path: OtpErlangObject): OtpErlangObject {
         if (!isBinary(path)) functionClause("Elixir.Config", "__import__!", listOf(path))
+        writesRead("Config.__import__!/1")
 
         val text = nameText("Config.__import__!/1", path)
 
