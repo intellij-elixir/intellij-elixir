@@ -286,6 +286,8 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("c52", ":mine", elixir = ":mine"),
             // An ensure in a module that function defines loads nothing the module ensures.
             Row("c50", "unknown", elixir = "false / true"),
+            // Nor does a counter that function's module draws, so the module's later counters aren't known.
+            Row("c51", "unknown", elixir = "{:y, [counter: {A, 4}], A}"),
             Row("e1", ":ended", elixir = "exit 124"),
             Row("e2", ":ended", elixir = "exit 124"),
             Row("e3", "raises Elixir.Code.LoadError", elixir = "exit 1 raises Code.LoadError"),

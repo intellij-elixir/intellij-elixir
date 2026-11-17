@@ -639,7 +639,8 @@ internal class Natives(private val evaluation: Evaluation) {
      * `elixir_module:next_counter/1` (`elixir_module.erl:64-71`), from the [Counters][org.elixir_lang.expander.Counters]
      * the run's expansions take theirs from: `{Module, N}` for a module being compiled, whose table holds its counter, and
      * a unique integer for `nil` or any other term, as Elixir's `catch` gives. Drawing one is an effect
-     * ([reachingAnEffect][Evaluation.reachingAnEffect]): where that declines, Elixir may or may not have drawn it, so the
+     * ([reachingAnEffect][Evaluation.reachingAnEffect]): where that declines, or the code may run any number of times, or
+     * never ([joinsOnly][org.elixir_lang.expander.Run.joinsOnly]), it declines, as Elixir may have drawn any number, so the
      * module's later counters aren't known. Code that declines whole is taken not to draw one.
      */
     private fun elixirModule(key: String, args: List<OtpErlangObject>): OtpErlangObject? =
@@ -651,6 +652,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 if (compiling?.counterLost == true) decline("$name's counter isn't known")
 
                 try {
+                    evaluation.run.unjoinedOrRepeated("$name's counter")
                     evaluation.reachingAnEffect()
                 } catch (declined: Declined) {
                     compiling?.counterLost = true
