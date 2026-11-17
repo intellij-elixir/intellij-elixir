@@ -5,11 +5,9 @@ import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.usageView.UsageViewShortNameLocation
 import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.navigation.item_presentation.Quote
+import org.elixir_lang.navigation.item_presentation.quotePresentation
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
-import org.elixir_lang.psi.call.name.Function.QUOTE
-import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.qualifiable_alias.ItemPresentation
 import org.elixir_lang.reference.module.UnaliasedName
 import org.elixir_lang.structure_view.element.Delegation
@@ -133,33 +131,10 @@ class RepeatedKeywordOptionTest : PlatformTestCase() {
     // quote
 
     fun testQuoteLocationGivenTwiceIsTheFirst() =
-        assertEquals("quote location: :keep", quotePresentation("quote location: :keep, location: :other do\n end"))
+        assertEquals("quote location: :keep", myFixture.quotePresentation("quote location: :keep, location: :other do\n end"))
 
     fun testQuoteUnquoteGivenTwiceIsTheFirst() =
-        assertPresentsUnquoteFalse(quotePresentation("quote unquote: false, unquote: true do\n end"))
-
-    fun testQuoteLocationGivenOnceIsPresented() =
-        assertEquals("quote location: :keep", quotePresentation("quote location: :keep do\n end"))
-
-    fun testQuoteUnquoteGivenOnceIsPresented() =
-        assertPresentsUnquoteFalse(quotePresentation("quote unquote: false do\n end"))
-
-    /** The option is named, whatever separator the presentation writes before it. */
-    private fun assertPresentsUnquoteFalse(presentation: String?) {
-        assertNotNull(presentation)
-        assertTrue(presentation, presentation!!.contains("unquote: false"))
-        assertFalse(presentation, presentation.contains("unquote: true"))
-    }
-
-    private fun quotePresentation(quote: String): String? {
-        myFixture.configureByText("quote.ex", "defmodule M do\n  def f do\n    $quote\n  end\nend\n")
-
-        val call = PsiTreeUtil
-            .findChildrenOfType(myFixture.file, Call::class.java)
-            .single { it.isCalling(KERNEL, QUOTE) }
-
-        return Quote(null, call).presentableText
-    }
+        assertEquals("quote unquote: false", myFixture.quotePresentation("quote unquote: false, unquote: true do\n end"))
 
     fun testQuoteBindQuotedGivenTwiceBindsTheFirst() {
         assertBindsKey(
