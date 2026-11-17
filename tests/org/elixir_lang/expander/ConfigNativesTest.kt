@@ -171,6 +171,21 @@ class ConfigNativesTest : PlatformTestCase() {
         assertEquals("declined", result("import Config\n\n_ = Enum.map([], fn _ -> defmodule B do config :app, k: 1 end end)\nconfig :app, j: 2\n"))
     }
 
+    /** A read's working directory is its project's, where the run's file has a path on the SDK's machine. */
+    fun testTheCwdOfAReadIsItsProjects() {
+        val read = ConfigRead("dev", "host", "/p")
+        run("import Config\n\nconfig :app, root: File.cwd!() == \"/p\"\n", read, path = "/p/config/config.exs")
+
+        assertEquals("[{app,[{root,true}]}]", read.config.toString())
+    }
+
+    /**
+     * Where the run's file has no path on the SDK's machine, a read's working directory isn't known: the read declines.
+     */
+    fun testTheCwdOfAReadWhoseFileHasNoPathDeclines() {
+        assertEquals("declined", result("import Config\n\nconfig :app, root: File.cwd!()\n"))
+    }
+
     /** With no files to read through, as a run without a project has none, `File.exists?` can't answer. */
     fun testFileExistsWithoutTheRunsFilesDeclines() {
         assertEquals("both", declines("File.exists?(\"/nope.exs\")"))

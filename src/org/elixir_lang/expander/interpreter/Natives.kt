@@ -3769,8 +3769,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** `file:get_cwd/0`: `{ok, Directory}`, the run's working directory (`Run.workingDirectory`). */
     private fun workingDirectory(): OtpErlangObject {
-        val file = evaluation.run.file() ?: decline("file:get_cwd/0 of a file with no path")
-        val directory = evaluation.run.workingDirectory(file) ?: decline("file:get_cwd/0 where the compile directory isn't known")
+        val directory = evaluation.run.workingDirectory() ?: decline("file:get_cwd/0 where the compile directory isn't known")
 
         return tuple(atom("ok"), charlist(directory))
     }

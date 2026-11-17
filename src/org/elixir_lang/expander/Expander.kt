@@ -576,17 +576,17 @@ internal class Run(
     }
 
     /**
-     * The directory Elixir compiles [file] in now, a config read's project's in a read, which `file:get_cwd/0`,
-     * `Path.relative_to_cwd/1` and `filename:absname/1` read, `null` where it isn't known: where [directories] doesn't
-     * have it, or code the expander doesn't follow may have changed it ([unfollowedRan]). On Windows its drive
-     * letter is lowercase, as OTP gives it.
+     * The directory Elixir compiles the run's [file] in now, a config read's project's in a read, which `file:get_cwd/0`,
+     * `Path.relative_to_cwd/1` and `filename:absname/1` read, `null` where it isn't known: where the run's [file] has no
+     * path on the SDK's machine, [directories] doesn't have it, or code the expander doesn't follow may have changed it
+     * ([unfollowedRan]). On Windows its drive letter is lowercase, as OTP gives it.
      */
-    fun workingDirectory(file: String): String? {
-        if (unfollowedRan) return null
+    fun workingDirectory(): String? = if (unfollowedRan) null else compileDirectory
 
-        val directory = config?.directory ?: directories.of(file) ?: return null
-
-        return if (os == OS.Windows) String(Filename.lowercaseDrive(directory.toByteArray())) else directory
+    /** The directory [workingDirectory] gives until [unfollowedRan], read once: none of what it reads changes in a run. */
+    private val compileDirectory by lazy(LazyThreadSafetyMode.NONE) {
+        file()?.let { config?.directory ?: directories.of(it) }
+            ?.let { Filename.lowercaseDrive(it, os) }
     }
 
     /**
@@ -600,7 +600,7 @@ internal class Run(
             ?: if (OSAgnosticPathUtil.isAbsolute(path)) Filename.PathType.ABSOLUTE else Filename.PathType.RELATIVE
         if (type == Filename.PathType.ABSOLUTE) return path
 
-        val directory = file()?.let(::workingDirectory) ?: return null
+        val directory = workingDirectory() ?: return null
         if (type == Filename.PathType.RELATIVE) return "$directory/$path"
 
         // Only Windows has a path relative to a volume.
@@ -618,7 +618,7 @@ internal class Run(
      * ([workingDirectory]), which a file a definition moved to needn't be; `null` where [file] is absolute and that
      * isn't known.
      */
-    fun relativeToCwd(file: String, os: OS): String? = relativeTo(file, { file()?.let(::workingDirectory) }, os, level)
+    fun relativeToCwd(file: String, os: OS): String? = relativeTo(file, ::workingDirectory, os, level)
 
     /** How many expansions in progress asked for the expanded AST of every node below them. */
     var asking = 0
@@ -922,7 +922,7 @@ internal class Run(
             appEnv,
             counters,
             { file },
-            { _ -> caller.file()?.let(caller::workingDirectory) },
+            { _ -> caller.workingDirectory() },
             { caller.clausesOf(it) },
             virtualFile,
             os,
