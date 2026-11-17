@@ -97,6 +97,23 @@ class ModuleNamesTrackerTest : PlatformTestCase() {
         assertEquals(before, count())
     }
 
+    /** A name coming or going in a root directory moves the root's listing. */
+    fun testANameInARootMovesItsListing() {
+        val listing = ModuleNamesTracker.getInstance(project).listing("/")
+        val root = generateSequence(myFixture.tempDirFixture.getFile("")!!) { it.parent }.last()
+        assertEquals("/", root.path)
+        // As a wildcard's listing of the root reads it, so its children are known and a name created there is an event.
+        root.children
+        val before = listing.modificationCount
+        val file = WriteAction.computeAndWait<VirtualFile, Throwable> { root.createChildData(this, "rooted.ex") }
+        val created = listing.modificationCount
+
+        WriteAction.runAndWait<Throwable> { file.delete(this) }
+
+        assertTrue("created", created > before)
+        assertTrue("deleted", listing.modificationCount > created)
+    }
+
     fun testAModuleWrittenOnDiskToAFileWithNoPsiMoves() {
         val file = myFixture.addFileToProject("a.ex", "defmodule A do\nend\n").virtualFile
         assertTrue("a.ex has no PSI", psiLetGo(project, file))

@@ -11,6 +11,7 @@ import com.intellij.openapi.util.CompositeModificationTracker
 import com.intellij.openapi.util.ModificationTracker
 import com.intellij.openapi.util.SimpleModificationTracker
 import com.intellij.openapi.util.io.FileUtil
+import com.intellij.openapi.util.io.OSAgnosticPathUtil
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
@@ -170,8 +171,11 @@ internal class ModuleNamesTracker @JvmOverloads constructor(
         }
 
     /** As [path] for [directory], and when an entry comes or goes in it. */
-    fun listing(directory: String): ModificationTracker =
-        listings.computeIfAbsent(normal(directory)) { CompositeModificationTracker(pathOf(it)) }
+    fun listing(directory: String): ModificationTracker {
+        val normal = normal(directory)
+
+        return listings.computeIfAbsent(listingKey(normal)) { CompositeModificationTracker(pathOf(normal)) }
+    }
 
     /** What moves when [file], an asker, moves or goes: its [path]. Never moves for a light asker, which has no file. */
     fun askerPath(file: VirtualFile?): ModificationTracker = file?.let { path(it.path) } ?: NEVER_CHANGED
@@ -232,7 +236,8 @@ internal class ModuleNamesTracker @JvmOverloads constructor(
     private fun cameOrWent(path: String, directory: Boolean) {
         val normal = normal(path)
         selves[normal]?.incrementAndGet()
-        listings[normal.substringBeforeLast('/', "")]?.incModificationCount()
+        // The listing of the directory the name is in, a root's (`/`, `c:/`, `//server/share/`) included.
+        OSAgnosticPathUtil.getParent(normal)?.let { listings[listingKey(it)] }?.incModificationCount()
         if (directory || normal.endsWith(".exs")) exsFiles.incModificationCount()
         if (directory || normal.endsWith(".app")) appFiles.incModificationCount()
     }
@@ -339,6 +344,12 @@ internal class ModuleNamesTracker @JvmOverloads constructor(
                     else -> it
                 }
             }
+
+        /**
+         * The key of [normal]'s listing, without the trailing `/` that [normal] gives a root (`//server/share/`) and
+         * `OSAgnosticPathUtil.getParent` may not.
+         */
+        private fun listingKey(normal: String): String = normal.removeSuffix("/")
 
         /** [normal] and each directory above it. */
         private fun chain(normal: String): Sequence<String> =
