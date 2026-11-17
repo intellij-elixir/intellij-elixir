@@ -112,7 +112,18 @@ class EnvStacktraceTest {
     fun `a Windows file is found below its root whatever the drive's case`() {
         assertEquals(
             stacktrace(atom(MODULE), atom("bar"), 2, "lib/foo.ex"),
-            call(env(file = "c:/project/lib/foo.ex"), CompileDirectories { "C:/project" }, OS.Windows),
+            call(env(file = "c:/project/lib/foo.ex"), CompileDirectories { "C:/project" }, OS.Windows, runFile = "c:/project/lib/foo.ex"),
+        )
+    }
+
+    /** Elixir compiles a file where its run's file compiles, so a file another directory holds is relative to that. */
+    @Test
+    fun `a file is relative to where the run's file compiles, not its own`() {
+        val directories = CompileDirectories { if (it.startsWith("$ROOT/")) ROOT else "/elsewhere" }
+
+        assertEquals(
+            stacktrace(atom(MODULE), atom("bar"), 2, "/elsewhere/foo.ex"),
+            call(env(file = "/elsewhere/foo.ex"), directories),
         )
     }
 
@@ -121,8 +132,12 @@ class EnvStacktraceTest {
         directories: CompileDirectories = CompileDirectories { ROOT },
         os: OS? = OS.Linux,
         unfollowedCodeRan: Boolean = false,
+        runFile: String = "$ROOT/lib/foo.ex",
     ): OtpErlangObject? {
-        val run = Run(level, ExpansionObserver.NONE, { ModuleExports.Absent }, { ModuleStruct.Absent }, NO_APP_ENV, directories = directories, os = os)
+        val run = Run(
+            level, ExpansionObserver.NONE, { ModuleExports.Absent }, { ModuleStruct.Absent }, NO_APP_ENV,
+            file = { runFile }, directories = directories, os = os,
+        )
         if (unfollowedCodeRan) run.unfollowedCodeRan()
         val evaluation = Evaluation(NODE, ExState.empty(level), Env.empty(level, KernelImports(emptyList(), emptyList())), run)
 

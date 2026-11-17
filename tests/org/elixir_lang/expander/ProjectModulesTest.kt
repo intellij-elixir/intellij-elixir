@@ -155,8 +155,8 @@ class ProjectModulesTest : PlatformTestCase() {
 
     /**
      * A definition a macro writes under `location: :keep` is in another file only where its head's `keep:` names one: a
-     * head the caller wrote keeps the caller's file, and a kept quote in a moved definition's body stops. The files are in
-     * a Mix project, so a kept quote's file is known before 1.14.4 too.
+     * head the caller wrote keeps the caller's file, and a kept quote in a moved definition's body keeps the file it moved
+     * to. The files are in a Mix project, so a kept quote's file is known before 1.14.4 too.
      */
     fun testAMacroWrittenDefinitionIsMovedByItsHeadsKeep() {
         addLegElixir()
@@ -178,7 +178,8 @@ class ProjectModulesTest : PlatformTestCase() {
                 "behaviour=None, deprecated=Known(reasons={}), attributes=Unreadable)\n" +
                 "b:\n" +
                 "top expanded\n" +
-                "Elixir.B stopped `quote(location: :keep, do: :v)` unported quote errors[] loads Unreadable",
+                "Elixir.B compiled errors[] loads Present(functions=[], macros=[NameArity(name=k, arity=0)], hasInfo=true, " +
+                "behaviour=None, deprecated=Known(reasons={}), attributes=Unreadable)",
             "a:\n${render(a, expansion(holder, a))}\nb:\n${render(b, expansion(holder, b))}",
         )
     }

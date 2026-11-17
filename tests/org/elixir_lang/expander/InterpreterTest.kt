@@ -24,6 +24,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.CODE_INDENTATION_STA
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINER_REFUSED_IN_MATCH_OR_GUARD
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINITION_ESCAPES_HEAD_AND_BODY_TOGETHER
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINITION_FILE_ABSOLUTE
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_ESCAPES_STRUCT
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEPRECATED_OPERATORS_INSPECTED_QUOTED
@@ -623,8 +624,9 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     }
 
     /**
-     * A relative `@file` is made absolute against the directory the compile runs in now, so a definition that took one
-     * is in the run's file where that directory is known, and moved after code that may have changed it.
+     * A relative `@file` is made absolute against the directory the compile runs in now from 1.14, so a definition that
+     * took one is in the run's file where that directory is known, and isn't known after code that may have changed it.
+     * Before 1.14 it is kept as given, which no directory changes, so the definition moves to it.
      */
     fun testARelativeFileOfADefinitionIsMovedAfterTheDirectoryMayHaveChanged() {
         val run = RunInputs(OS.Linux, "/proj/lib/a.ex", directories = { "/proj" })
@@ -632,13 +634,16 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
             "defmodule A do\n  $cd\n  @file \"lib/a.ex\"\n  defmacro n, do: __ENV__.file\nend\n" +
                 "defmodule B do\n  require A\n  def unquote(:erlang.binary_to_atom(A.n(), :utf8))(), do: 1\nend"
         }
+        val absolute = DEFINITION_FILE_ABSOLUTE.isSufficient(legLevel())
+        val defined = "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B compiled [${if (absolute) "/proj/" else ""}lib/a.ex/0 def]"
 
+        assertEquals(defined, file(code(""), tables = true, run = run))
         assertEquals(
-            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B compiled [/proj/lib/a.ex/0 def]",
-            file(code(""), tables = true, run = run),
-        )
-        assertEquals(
-            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B stopped `unquote(:erlang.binary_to_atom(A.n(), :utf8))` []",
+            if (absolute) {
+                "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B stopped `unquote(:erlang.binary_to_atom(A.n(), :utf8))` []"
+            } else {
+                defined
+            },
             file(code(":file.set_cwd(\"/other\")"), tables = true, run = run),
         )
     }
@@ -679,9 +684,9 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         assertEquals(stopped, file(code, tables = true, run = RunInputs(null, "/proj/lib/a.ex")))
     }
 
-    /** A definition that took an `@file` is compiled as in that file, so its `__ENV__.file` isn't the run's. */
-    fun testTheEnvFileOfAMovedDefinitionIsUnknown() {
-        val run = RunInputs(OS.Linux, "/proj/lib/a.ex")
+    /** A definition that took an `@file` is compiled as in that file, so its `__ENV__.file` is that file, not the run's. */
+    fun testTheEnvFileOfAMovedDefinitionIsTheFileItMovedTo() {
+        val run = RunInputs(OS.Linux, "/proj/lib/a.ex", directories = { "/proj" })
         val code = { macros: String ->
             """
                 defmodule A do
@@ -696,12 +701,129 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         }
 
         assertEquals(
-            "top expanded\nmodule Elixir.A compiled\nmodule Elixir.B stopped `unquote(:erlang.binary_to_atom(A.n(), :utf8))`",
-            file(code("defmacro n, do: __ENV__.file"), run = run),
+            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B compiled [/templates/view.ex/0 def]",
+            file(code("defmacro n, do: __ENV__.file"), tables = true, run = run),
         )
         assertEquals(
-            "top expanded\nmodule Elixir.A compiled\nmodule Elixir.B compiled",
-            file(code("defmacro m, do: 1\n  defmacro n, do: __ENV__.file"), run = run),
+            "top expanded\nmodule Elixir.A compiled [m/0 defmacro, n/0 defmacro]\nmodule Elixir.B compiled [/proj/lib/a.ex/0 def]",
+            file(code("defmacro m, do: 1\n  defmacro n, do: __ENV__.file"), tables = true, run = run),
+        )
+    }
+
+    /**
+     * A definition's file is its own: one stored before a definition that took an `@file` is in the module's file, and
+     * so is `__CALLER__` in the module body after it, given a function.
+     */
+    fun testAMoveIsOnlyItsOwnDefinitions() {
+        val run = RunInputs(OS.Linux, "/proj/lib/a.ex", directories = { "/proj" })
+        val code = """
+            defmodule A do
+              defmacro n, do: __ENV__.file
+              defmacro c, do: Macro.expand_once(quote(do: __DIR__), %{__CALLER__ | function: {:g, 0}})
+              @file "/templates/view.ex"
+              defmacro m, do: 1
+            end
+            defmodule B do
+              require A
+              def unquote(:erlang.binary_to_atom(A.n(), :utf8))(), do: 1
+              @file "/templates/view.ex"
+              def f, do: 1
+              def unquote(:erlang.binary_to_atom(A.c(), :utf8))(), do: 1
+            end
+        """.trimIndent()
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [c/0 defmacro, m/0 defmacro, n/0 defmacro]\n" +
+                "module Elixir.B compiled [/proj/lib/0 def, /proj/lib/a.ex/0 def, f/0 def]",
+            file(code, tables = true, run = run),
+        )
+    }
+
+    /** A move lasts only while its definition is stored, so a `@before_compile` callback's `__CALLER__` given a function is in the module's file. */
+    fun testAMoveEndsWithItsDefinitionsStore() {
+        val code = """
+            defmodule A do
+              defmacro __before_compile__(_) do
+                dir = Macro.expand_once(quote(do: __DIR__), %{__CALLER__ | function: {:g, 0}})
+                if dir != "/proj/lib", do: raise(dir)
+              end
+            end
+            defmodule B do
+              @before_compile A
+              @file "/templates/view.ex"
+              def f, do: 1
+            end
+        """.trimIndent()
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [__before_compile__/1 defmacro]\nmodule Elixir.B compiled [f/0 def]",
+            file(code, tables = true, run = RunInputs(OS.Linux, "/proj/lib/a.ex", directories = { "/proj" })),
+        )
+    }
+
+    /** `__CALLER__` with only its function changed keeps its `file`, so it is still the file the caller's definition moved to. */
+    fun testACallersEnvWithItsFunctionChangedKeepsTheFileItsDefinitionMovedTo() {
+        val code = """
+            defmodule A do
+              defmacro n do
+                dir = Macro.expand_once(quote(do: __DIR__), %{__CALLER__ | function: nil})
+                if dir != "/templates", do: raise(dir)
+              end
+            end
+            defmodule B do
+              require A
+              @file "/templates/view.ex"
+              def f, do: A.n()
+            end
+        """.trimIndent()
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B compiled [f/0 def]",
+            file(code, tables = true, run = RunInputs(OS.Linux, "/proj/lib/a.ex", directories = { "/proj" })),
+        )
+    }
+
+    /** `__CALLER__` given another function, in a definition moved to a file not known, still expands what reads no file. */
+    fun testACallersEnvGivenAFunctionInAnUnknownMoveExpandsWhatReadsNoFile() {
+        val code = """
+            defmodule A do
+              defmacro n do
+                m = Macro.expand_once(quote(do: __MODULE__), %{__CALLER__ | function: {:g, 0}})
+                if m != B, do: raise("module")
+              end
+            end
+            defmodule B do
+              require A
+              @file System.get_env("TEMPLATE_FILE", "/templates/view.ex")
+              def f, do: A.n()
+            end
+        """.trimIndent()
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B compiled [f/0 def]",
+            file(code, tables = true, run = RunInputs(OS.Linux, "/proj/lib/a.ex", directories = { "/proj" })),
+        )
+    }
+
+    /** An eval in the env of a moved definition with another `file` runs in that file, not the one the definition moved to. */
+    fun testAnEvalInAMovedDefinitionsEnvWithAnotherFileRunsInThatFile() {
+        val code = """
+            defmodule A do
+              defmacro n do
+                {file, _} = Code.eval_quoted(quote(do: __ENV__.file), [], %{__CALLER__ | file: "/other.ex"})
+                if file != "/other.ex", do: raise(file)
+              end
+            end
+            defmodule B do
+              require A
+              @file "/templates/view.ex"
+              def f, do: A.n()
+            end
+        """.trimIndent()
+
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [n/0 defmacro]\nmodule Elixir.B compiled [f/0 def]",
+            file(code, tables = true, run = RunInputs(OS.Linux, "/proj/lib/a.ex", directories = { "/proj" })),
         )
     }
 
@@ -803,11 +925,11 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
     }
 
     /**
-     * A definition that took an `@file` is compiled as in that file, so its `__DIR__` is that file's directory, which
-     * isn't known; the module body and a definition after it are in the run's file.
+     * A definition that took an `@file` is compiled as in that file, so its `__DIR__` is that file's directory; the module
+     * body and a definition after it are in the run's file.
      */
-    fun testTheDirOfAMovedDefinitionIsUnknown() {
-        val run = RunInputs(OS.Linux, "/proj/lib/a.ex")
+    fun testTheDirOfAMovedDefinitionIsItsFilesDirectory() {
+        val run = RunInputs(OS.Linux, "/proj/lib/a.ex", directories = { "/proj" })
         val moved = """
             defmodule A do
               @file "/templates/view.ex"
@@ -831,10 +953,13 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         """.trimIndent()
 
         assertEquals(
-            "top expanded\nmodule Elixir.A compiled\nmodule Elixir.B stopped `unquote(:erlang.binary_to_atom(A.m(), :utf8))`",
-            file(moved, run = run),
+            "top expanded\nmodule Elixir.A compiled [m/0 defmacro]\nmodule Elixir.B compiled [/templates/0 def]",
+            file(moved, tables = true, run = run),
         )
-        assertEquals("top expanded\nmodule Elixir.A compiled\nmodule Elixir.B compiled", file(own, run = run))
+        assertEquals(
+            "top expanded\nmodule Elixir.A compiled [m/0 defmacro, n/0 defmacro]\nmodule Elixir.B compiled [/proj/lib/0 def]",
+            file(own, tables = true, run = run),
+        )
     }
 
     /**

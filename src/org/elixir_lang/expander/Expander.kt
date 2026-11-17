@@ -613,8 +613,12 @@ internal class Run(
         }
     }
 
-    /** `Path.relative_to_cwd/1` of [file], its SDK running as [os], where Elixir compiled it ([workingDirectory]); `null` where that isn't known. */
-    fun relativeToCwd(file: String, os: OS): String? = workingDirectory(file)?.let { relativeTo(file, it, os) }
+    /**
+     * `Path.relative_to_cwd/1` of [file], its SDK running as [os], from the directory Elixir compiles the run's file in
+     * ([workingDirectory]), which a file a definition moved to needn't be; `null` where [file] is absolute and that
+     * isn't known.
+     */
+    fun relativeToCwd(file: String, os: OS): String? = relativeTo(file, { file()?.let(::workingDirectory) }, os, level)
 
     /** How many expansions in progress asked for the expanded AST of every node below them. */
     var asking = 0

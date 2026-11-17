@@ -70,6 +70,7 @@ import org.elixir_lang.expander.unfollowed
 import org.elixir_lang.expander.unlessTooDeep
 import org.elixir_lang.expander.unlessTooDeepToRun
 import org.elixir_lang.expander.whenArguments
+import org.elixir_lang.expander.withFunction
 import org.elixir_lang.expander.withOptions
 import org.elixir_lang.language_level.ElixirLanguageFeature.EVAL_ENV_KEEPS_CONTEXT_MODULES
 import org.elixir_lang.language_level.ElixirLanguageFeature.FIELD_OF_NON_MAP_RAISES_BADKEY
@@ -699,7 +700,7 @@ internal class Evaluation(
         val line = smallInt(seen(map.get(lineKey)!!))?.takeIf { it >= 0 } ?: return null
         val function = envFunction(map.get(functionKey)!!) { return null }
 
-        return env.copy(function = function) to line
+        return (withFunction(run, env, function) ?: return null) to line
     }
 
     /** `run_on_definition_callbacks/8`'s call of `module:function/6` (`elixir_def.erl:255–262`). */

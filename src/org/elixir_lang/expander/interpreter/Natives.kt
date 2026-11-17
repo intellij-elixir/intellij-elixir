@@ -2335,8 +2335,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /**
      * `Macro.Env.stacktrace/1` (`env.ex`): [env]'s one frame, the compiler's outside a module and the module body's
-     * outside a function, at its line and its file relative to where Elixir compiled it, which is unknown where that
-     * directory is (`Run.workingDirectory`).
+     * outside a function, at its line and its file relative to where Elixir compiled it (`Run.relativeToCwd`).
      */
     private fun stacktrace(env: OtpErlangMap): OtpErlangObject {
         val file = utf8(macroEnvField(env, "file")) ?: decline("Macro.Env.stacktrace/1 of a file that isn't UTF-8 text")

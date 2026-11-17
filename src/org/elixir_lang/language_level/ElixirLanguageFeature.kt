@@ -2883,6 +2883,34 @@ enum class ElixirLanguageFeature(
     DOCS_SIGNATURE_OF_FN_NAMES_CLAUSES(sinceElixir = "1.13.0-rc.0"),
 
     /**
+     * `@file`, and a `keep:` location, move a definition to the file `filename:absname/1` makes of the path, and the
+     * env's file is that. Before it, they move it to the path relative to the working directory, as
+     * `Path.relative_to_cwd/1` makes it, compared with the env's file as given.
+     *
+     * `elixir-lang/elixir@05a6eb3e1` ("Keep file env consistently as an absolute path, closes #11964"), first released
+     * in v1.14.0-rc.0.
+     */
+    DEFINITION_FILE_ABSOLUTE(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * `Path.relative_to/2` of a path to itself is `"."`. Before it, it is the path.
+     *
+     * `elixir-lang/elixir@952c9c175` ("Fix `Path.relative_to/2` when referencing self", #10601), first released in
+     * v1.12.0-rc.0.
+     */
+    RELATIVE_TO_ITSELF_IS_DOT(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * `Path.relative_to/2` takes each path's `.` and `..` out before it compares them, and gives a path that isn't
+     * absolute back with its own taken out. Before it, the paths are compared as they are split, and a path that isn't
+     * absolute is given back as it is.
+     *
+     * `elixir-lang/elixir@e624c9c25` ("Expand dots in relative_to and deprecate relative cwd", #12632), first released
+     * in v1.16.0-rc.0.
+     */
+    RELATIVE_TO_EXPANDS_DOTS(sinceElixir = "1.16.0-rc.0"),
+
+    /**
      * An `fn` whose clauses match no argument raises `FunctionClauseError`. Before it, OTP 24's compiler raises
      * `CaseClauseError` instead for a fun it inlines where it is applied, which only the compiled code shows.
      *

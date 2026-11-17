@@ -460,8 +460,7 @@ internal object Quote {
 
     /**
      * The file `location: :keep` stores, [run]'s, which before [QUOTE_KEEP_STORES_FULL_PATH] is relative to the
-     * directory it was compiled in. A definition in another file isn't ported. Any other [location] is a `case_clause`
-     * crash.
+     * directory it was compiled in. Any other [location] is a `case_clause` crash.
      */
     private fun keptFile(call: ElixirAst.Call, location: Term?, env: Env, run: Run): Term.Binary {
         val file = fileOf(run, env)

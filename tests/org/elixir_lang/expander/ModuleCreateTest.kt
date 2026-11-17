@@ -6,8 +6,10 @@ import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.util.system.OS
 import org.elixir_lang.FIXED_STACK
+import org.elixir_lang.expander.interpreter.Filename
 import org.elixir_lang.expander.interpreter.holdsUnknown
 import org.elixir_lang.expander.interpreter.otpOf
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINITION_FILE_ABSOLUTE
 import org.elixir_lang.lowering.inspect
 
 /**
@@ -1044,42 +1046,17 @@ class ModuleCreateTest : SdkProbeTestCase() {
             readers = readersOf("FileGiven.Made", "file_is", "dir_is"),
         )
 
-    /**
-     * An `@file` naming the given `:file` keeps a created definition in that file, where its `__ENV__.file` is it, where
-     * the path is absolute: on Windows, `/elsewhere/given.ex` takes the working directory's drive, so the definition
-     * moves, and its `__ENV__.file` is unknown, as a moved definition's is.
-     */
+    /** An `@file` naming the given `:file` keeps a created definition in that file, where its `__ENV__.file` is it. */
     fun testAnAtFileOfTheGivenFileKeepsTheDefinitionThere() =
-        assertFileIsAsElixir(
-            "FileKept",
-            """quote(do: (@file "/elsewhere/given.ex"; def file_is, do: __ENV__.file))""",
-            "/elsewhere/given.ex",
-            moved = OS.CURRENT == OS.Windows,
-        )
+        assertFileIsAsElixir("FileKept", """quote(do: (@file "/elsewhere/given.ex"; def file_is, do: __ENV__.file))""", "/elsewhere/given.ex")
 
-    /**
-     * An `@file` naming a given `:file` with a drive is absolute only on Windows: elsewhere it is relative to the working
-     * directory, so the definition moves, and its `__ENV__.file` is unknown, as a moved definition's is.
-     */
-    fun testAnAtFileOfAGivenFileWithADriveKeepsTheDefinitionOnlyOnWindows() =
-        assertFileIsAsElixir(
-            "FileDrive",
-            """quote(do: (@file "c:/elsewhere/given.ex"; def file_is, do: __ENV__.file))""",
-            "c:/elsewhere/given.ex",
-            moved = OS.CURRENT != OS.Windows,
-        )
+    /** An `@file` naming a given `:file` with a drive is absolute only on Windows. */
+    fun testAnAtFileOfAGivenFileWithADriveIsAbsoluteOnlyOnWindows() =
+        assertFileIsAsElixir("FileDrive", """quote(do: (@file "c:/elsewhere/given.ex"; def file_is, do: __ENV__.file))""", "c:/elsewhere/given.ex")
 
-    /**
-     * A `keep:` naming a given `:file` with a drive is absolute only on Windows, as an `@file` is: elsewhere the
-     * definition moves, and its `__ENV__.file` is unknown, as a moved definition's is.
-     */
-    fun testAKeepOfAGivenFileWithADriveKeepsTheDefinitionOnlyOnWindows() =
-        assertFileIsAsElixir(
-            "KeepDrive",
-            """quote(file: "c:/elsewhere/given.ex", do: def(file_is, do: __ENV__.file))""",
-            "c:/elsewhere/given.ex",
-            moved = OS.CURRENT != OS.Windows,
-        )
+    /** A `keep:` naming a given `:file` with a drive is absolute only on Windows, as an `@file` is. */
+    fun testAKeepOfAGivenFileWithADriveIsAbsoluteOnlyOnWindows() =
+        assertFileIsAsElixir("KeepDrive", """quote(file: "c:/elsewhere/given.ex", do: def(file_is, do: __ENV__.file))""", "c:/elsewhere/given.ex")
 
     /** `__DIR__` of a given `:file` with a drive is its directory on every OS, as `filename:dirname/1` reads no pathtype. */
     fun testADirOfAGivenFileWithADriveIsItsDirectory() =
@@ -1098,17 +1075,91 @@ class ModuleCreateTest : SdkProbeTestCase() {
             readers = readersOf("DirDrive.Made", "dir_is"),
         )
 
-    /**
-     * The given `:file` is compared as given, so an `@file` of the same unnormalised path moves the definition, whose
-     * `__ENV__.file` is then unknown, as a moved definition's is.
-     */
+    /** The given `:file` is compared as given, so an `@file` of the same unnormalised path moves the definition. */
     fun testAnAtFileOfAnUnnormalisedGivenFileMovesTheDefinition() =
-        assertFileIsAsElixir(
-            "FileRaw",
-            """quote(do: (@file "/elsewhere/./given.ex"; def file_is, do: __ENV__.file))""",
-            "/elsewhere/./given.ex",
-            moved = true,
+        assertFileIsAsElixir("FileRaw", """quote(do: (@file "/elsewhere/./given.ex"; def file_is, do: __ENV__.file))""", "/elsewhere/./given.ex")
+
+    /** A macro a moved definition calls is given the definition's file as `__CALLER__.file`. */
+    fun testAMovedDefinitionIsItsCallersFile() = assertCallerFileIsAsElixir("CallerFile", "/elsewhere/moved.ex")
+
+    /** A macro a definition moved to a relative file calls is given that file, before 1.14 as it is. */
+    fun testADefinitionMovedToARelativeFileIsItsCallersFile() = assertCallerFileIsAsElixir("CallerRelative", "elsewhere/moved.ex")
+
+    /**
+     * Under an `@file` of a relative path, before 1.14, a kept `quote`'s file is that path, which no directory places.
+     * From 1.14 it is the path made absolute, which the quote declines where, as here, the directory Elixir compiles in
+     * isn't known.
+     */
+    fun testAKeptQuoteUnderARelativeAtFileIsThatPath() {
+        val source =
+            """
+            defmodule Created.KeptRelative do
+              @file "elsewhere/kept.ex"
+              def kept_is, do: quote(location: :keep, do: f())
+            end
+
+            defmodule Created.KeptRelative.User do
+              @kept_is Created.KeptRelative.kept_is()
+              def kept_is, do: @kept_is
+            end
+            """
+
+        if (DEFINITION_FILE_ABSOLUTE.isSufficient(legLevel())) {
+            val expanded = expanded(source, listOf("KeptRelative"), emptyList())
+            assertTrue(expanded, "KeptRelative stopped quote/2" in expanded)
+        } else {
+            assertAsElixir(source, "KeptRelative", "KeptRelative.User", readers = readersOf("KeptRelative.User", "kept_is"))
+        }
+    }
+
+    /**
+     * Under an `@file` of a relative path, before 1.14, `Macro.Env.stacktrace/1`'s file is that path, which no directory
+     * places. It is read as a string, as a charlist's `inspect` differs by leg.
+     */
+    fun testAStacktraceUnderARelativeAtFileIsThatPath() =
+        assertAsElixir(
+            """
+            defmodule Created.StacktraceRelative do
+              @file "elsewhere/kept.ex"
+              def stacktrace_is do
+                [{_, _, _, [file: file, line: line]}] = Macro.Env.stacktrace(__ENV__)
+                {List.to_string(file), line}
+              end
+            end
+
+            defmodule Created.StacktraceRelative.User do
+              @stacktrace_is Created.StacktraceRelative.stacktrace_is()
+              def stacktrace_is, do: @stacktrace_is
+            end
+            """,
+            "StacktraceRelative", "StacktraceRelative.User",
+            readers = readersOf("StacktraceRelative.User", "stacktrace_is"),
+            unknown = unknownWhereTheDirectoryIsRead("elsewhere/kept.ex", "stacktrace_is"),
         )
+
+    /**
+     * An `@file` that isn't UTF-8 moves a definition to a file not known, not to the text its bytes decode to. Elixir
+     * raises compiling the module, as `elixir_erl` takes the file as characters, which the expander doesn't follow.
+     */
+    fun testAnAtFileThatIsntUtf8IsntKnown() {
+        val expanded = expanded(
+            """
+            defmodule Created.FileNotUtf8 do
+              @file <<"/elsewhere/x", 0xFF, ".ex">>
+              def file_is, do: __ENV__.file
+            end
+
+            defmodule Created.FileNotUtf8.User do
+              @file_is Created.FileNotUtf8.file_is()
+              def file_is, do: @file_is
+            end
+            """,
+            listOf("FileNotUtf8", "FileNotUtf8.User"),
+            readersOf("FileNotUtf8.User", "file_is"),
+        )
+
+        assertTrue(expanded, "FileNotUtf8.User.file_is unknown" in expanded)
+    }
 
     /** A `Macro.Env`'s `file` is the created body's, though it names another file. */
     fun testAnEnvsFileIsTheBodysFile() =
@@ -1534,9 +1585,9 @@ class ModuleCreateTest : SdkProbeTestCase() {
 
     /**
      * [name]'s `Made`, created from [quoted] with `:file` [file], and the `__ENV__.file` its `file_is/0` gives, as
-     * [name]'s `User` reads it, against Elixir's: unknown where the definition [moved], as a moved one's is.
+     * [name]'s `User` reads it, against Elixir's.
      */
-    private fun assertFileIsAsElixir(name: String, quoted: String, file: String, moved: Boolean) =
+    private fun assertFileIsAsElixir(name: String, quoted: String, file: String) =
         assertAsElixir(
             """
             defmodule Created.$name do
@@ -1555,8 +1606,46 @@ class ModuleCreateTest : SdkProbeTestCase() {
             """,
             name, "$name.Made", "$name.User",
             readers = readersOf("$name.User", "file_is"),
-            unknown = if (moved) setOf("file_is") else emptySet(),
+            unknown = unknownWhereTheDirectoryIsRead(file, "file_is"),
         )
+
+    /**
+     * The `__CALLER__.file` [name]'s `caller/0` macro gives in `Moved`'s `caller_is/0`, under an `@file` of [file], as
+     * `Moved.User` reads it, against Elixir's.
+     */
+    private fun assertCallerFileIsAsElixir(name: String, file: String) =
+        assertAsElixir(
+            """
+            defmodule Created.$name do
+              defmacro caller, do: __CALLER__.file
+            end
+
+            defmodule Created.$name.Moved do
+              require Created.$name
+              @file "$file"
+              def caller_is, do: Created.$name.caller()
+            end
+
+            defmodule Created.$name.Moved.User do
+              @caller_is Created.$name.Moved.caller_is()
+              def caller_is, do: @caller_is
+            end
+            """,
+            name, "$name.Moved", "$name.Moved.User",
+            readers = readersOf("$name.Moved.User", "caller_is"),
+            unknown = unknownWhereTheDirectoryIsRead(file, "caller_is"),
+        )
+
+    /**
+     * [reader], where the file a definition `@file` names, [path], is read against the directory Elixir compiles in,
+     * which the tests don't know: from 1.14, made absolute, where [path] is relative; before it, taken relative to that
+     * directory, where [path] is absolute.
+     */
+    private fun unknownWhereTheDirectoryIsRead(path: String, reader: String): Set<String> {
+        val absolute = Filename.pathtype(path, OS.CURRENT) == Filename.PathType.ABSOLUTE
+
+        return if (absolute == DEFINITION_FILE_ABSOLUTE.isSufficient(legLevel())) emptySet() else setOf(reader)
+    }
 
     /**
      * [source], with `Created` under a fresh token, as the expander ends it against Elixir's compile: what raises, each of

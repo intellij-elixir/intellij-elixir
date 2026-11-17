@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import com.intellij.testFramework.LightVirtualFile
+import com.intellij.util.system.OS
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.inspect
@@ -139,7 +140,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             """,
         )
 
-    /** `filename:absname/1` keeps `..`, so a path through it names another file and moves the definition. */
+    /** `filename:absname/1` keeps `..`, so a path through it names another file and moves the definition there. */
     fun testAFileThroughAParentNamesAnotherFile() =
         assertClauses(
             """
@@ -148,7 +149,10 @@ class ModuleClausesTest : ExpanderTestCase() {
               defmacro m, do: quote(location: :keep, do: v)
             end
             """,
-            "",
+            """
+            module Elixir.A from a.ex
+              defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/project/b/../a.ex", 3}], A]}
+            """,
         )
 
     /** A drive-letter path is absolute wherever the plugin runs, as file paths are on Windows. */
@@ -208,7 +212,79 @@ class ModuleClausesTest : ExpanderTestCase() {
               defmacro m, do: quote(location: :keep, do: v)
             end
             """,
-            "",
+            """
+            module Elixir.A from a.ex
+              defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/project/a.ex/.", 3}], A]}
+            """,
+        )
+
+    /** A kept quote in a definition `@file` moved keeps the file it moved to, a relative one made absolute. */
+    fun testAKeptQuoteUnderFileKeepsTheFileItMovedTo() =
+        assertClauses(
+            """
+            defmodule A do
+              @file "x.ex"
+              defmacro m, do: quote(location: :keep, do: v)
+              @file "/elsewhere/y.ex"
+              defmacro n, do: quote(location: :keep, do: v)
+            end
+            """,
+            """
+            module Elixir.A from a.ex
+              defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/project/x.ex", 3}], A]}
+              defmacro n/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/elsewhere/y.ex", 5}], A]}
+            """,
+            directories = { "/project" },
+        )
+
+    /**
+     * Before 1.14, `@file` moves a definition to the path relative to the directory Elixir compiles in, compared with the
+     * module's file as given: a relative path as it is, and an absolute one below that directory relative to it, so
+     * naming the module's own file moves the definition too.
+     */
+    fun testAKeptQuoteUnderFileBefore114KeepsThePathRelativeToTheDirectory() =
+        assertClauses(
+            """
+            defmodule A do
+              @file "x.ex"
+              defmacro m, do: quote(location: :keep, do: v)
+              @file "/elsewhere/y.ex"
+              defmacro n, do: quote(location: :keep, do: v)
+              @file "/project/a.ex"
+              defmacro o, do: quote(location: :keep, do: v)
+            end
+            """,
+            """
+            module Elixir.A from a.ex
+              defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"x.ex", 3}], A]}
+              defmacro n/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/elsewhere/y.ex", 5}], A]}
+              defmacro o/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"a.ex", 7}], A]}
+            """,
+            version = "1.13.4",
+            directories = { "/project" },
+            os = OS.Linux,
+        )
+
+    /** Before 1.14, an absolute `@file` is read against the directory Elixir compiles in, so where that isn't known B stops. */
+    fun testAnAbsoluteFileBefore114WhereTheDirectoryIsntKnownStops() =
+        assertClauses(
+            """
+            defmodule A do
+              @file "x.ex"
+              def f, do: 1
+            end
+
+            defmodule B do
+              @file "/project/a.ex"
+              defmacro m, do: quote(location: :keep, do: v)
+            end
+            """,
+            """
+            module Elixir.A from a.ex
+              def f/0: () -> 1
+            """,
+            version = "1.13.4",
+            os = OS.Linux,
         )
 
     fun testAHeadHasNoClause() =
@@ -389,19 +465,24 @@ class ModuleClausesTest : ExpanderTestCase() {
         version: String = VERSION,
         file: String = FILE,
         directories: CompileDirectories = CompileDirectories.UNKNOWN,
+        os: OS? = null,
     ) {
         val source = code.trimIndent()
-        val rendered = loaded(source, version, file, directories).joinToString("\n") { render(it, source) }
+        val rendered = loaded(source, version, file, directories, os).joinToString("\n") { render(it, source) }
 
         assertEquals(expected.trimIndent(), rendered)
     }
 
-    /** The clauses each module of [source] loads with at [version], expanded as [file], compiled where [directories] says. */
+    /**
+     * The clauses each module of [source] loads with at [version], expanded as [file], compiled where [directories] says,
+     * its SDK running as [os].
+     */
     private fun loaded(
         source: String,
         version: String = VERSION,
         file: String = FILE,
         directories: CompileDirectories = CompileDirectories.UNKNOWN,
+        os: OS? = null,
     ): List<ModuleClauses> {
         val level = ElixirLanguageLevel.of(version)
         val loaded = mutableListOf<ModuleClauses>()
@@ -415,7 +496,7 @@ class ModuleClausesTest : ExpanderTestCase() {
 
         Expander.expandFile(
             lower(source, level), Env.empty(level, kernel), level, exports, structs, NO_APP_ENV, observer, file = { file },
-            directories = directories, virtualFile = LightVirtualFile("a.ex"),
+            directories = directories, virtualFile = LightVirtualFile("a.ex"), os = os,
         )
 
         return loaded
