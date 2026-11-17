@@ -7690,6 +7690,34 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 """,
                 pins = DECLINED_ON_WINDOWS,
             ),
+            // `File.exists?/1` reads the path as `file:read_file_info/1` does, resolved as the OS resolves it.
+            macro(
+                "native:file-exists-resolved",
+                """
+                defmacro m do
+                  [
+                    File.exists?("$FILES/tree/.."),
+                    File.exists?("$FILES/tree/./a.ex"),
+                    File.exists?("$FILES/missing.txt/.."),
+                    File.exists?("$FILES/text.txt/.."),
+                    File.exists?("$FILES/text.txt/x"),
+                    File.exists?("")
+                  ]
+                end
+                """,
+            ),
+            macro(
+                "native:file-exists-trailing-separator",
+                "defmacro m, do: [File.exists?(\"$FILES/tree/\"), File.exists?(\"$FILES/text.txt/\"), File.exists?(\"$FILES/missing.txt/\")]",
+            ),
+            macro("native:file-exists-nul", "defmacro m, do: File.exists?(\"$FILES/text.txt\\0\")", pins = DECLINED_ON_WINDOWS),
+            // A name's bytes that aren't UTF-8 name a file the VFS can't look up.
+            macro("native:file-exists-not-utf8", "defmacro m, do: File.exists?(<<0xFF>>)", pins = DECLINED),
+            macro(
+                "native:file-exists-not-a-directory",
+                "defmacro m, do: [File.exists?(\"$FILES/text.txt/\"), File.exists?(\"$FILES/tree/\")]",
+                pins = DECLINED_ON_WINDOWS,
+            ),
             macro(
                 "native:file-read-file-2",
                 """

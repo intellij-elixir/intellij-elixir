@@ -3477,7 +3477,7 @@ internal class Natives(private val evaluation: Evaluation) {
      * UTF-8.
      */
     private fun fileName(term: OtpErlangObject): String? {
-        binaryBytes(term)?.let { return decodeUtf8(it) ?: decline("a file name of %s, which isn't UTF-8", term) }
+        if (isBinary(term)) return nameText("a file name", term)
 
         val flat = flat(term)
         val characters = flat.takeIf { it.stuck == null }?.let { characters(it.elements) } ?: return null
@@ -3611,14 +3611,18 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun entryAt(path: String): FileEntry = evaluation.run.files.entry(path) ?: decline("what is at $path isn't known")
 
     /**
-     * `File.exists?/1,2`: whether a file or directory is at [path], made absolute as Elixir makes it (`Run.absolute`),
-     * read through the run's files.
+     * `File.exists?/1,2`: whether a file or directory is where the OS takes [path] ([locatedFile]), read through the
+     * run's files.
      */
     private fun fileExists(path: OtpErlangObject): OtpErlangObject {
-        val text = String(nameBytes("File.exists?/1", path), Charsets.UTF_8)
-        val absolute = evaluation.run.absolute(text) ?: decline("File.exists?/1 of %s, whose absolute path isn't known", path)
+        val located = locatedFile(path, nameText("File.exists?/1", path), { return bool(false) }) { return bool(false) }
 
-        return bool(evaluation.run.files.exists(absolute) ?: decline("File.exists?/1 of %s isn't known", path))
+        return bool(
+            when (entryAt(located)) {
+                FileEntry.Missing, FileEntry.Dangling -> false
+                FileEntry.File, is FileEntry.Directory -> true
+            },
+        )
     }
 
     /** `Config.__merge__/2`: [config2]'s apps merged into [config1]'s, each app's keys merged by `deep_merge/3`. */
@@ -3929,6 +3933,13 @@ internal class Natives(private val evaluation: Evaluation) {
     /** The bytes of the binary [term], declining where it is not one, as a list or atom name is not. */
     private fun nameBytes(function: String, term: OtpErlangObject): ByteArray =
         binaryBytes(term) ?: decline("$function of %s, which is no binary", term)
+
+    /**
+     * The text of the binary [term], declining where it is not one or isn't UTF-8, as a name's native encoding isn't
+     * read.
+     */
+    private fun nameText(function: String, term: OtpErlangObject): String =
+        decodeUtf8(nameBytes(function, term)) ?: decline("$function of %s, which isn't UTF-8", term)
 
     /** `binary:at/2`: the byte of the binary [subject] at the zero-based [position]. */
     private fun byteAt(subject: OtpErlangObject, position: OtpErlangObject): OtpErlangObject {
