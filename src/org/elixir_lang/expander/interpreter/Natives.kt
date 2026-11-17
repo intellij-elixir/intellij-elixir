@@ -201,9 +201,6 @@ private val RETURNABLE = mapOf(
     Triple("filename", "rootname", 2) to listOf(0),
 )
 
-/** The `filename` functions answered here, by name and arity. */
-private val FILENAME_NATIVES = setOf("dirname/1", "basename/1", "basename/2", "split/1", "extension/1", "rootname/1", "rootname/2")
-
 /**
  * Each native that never returns, whatever it is given, by receiver, name and arity: those `raise`, `throw` and `exit`
  * lower to. `erlang:raise/3` returns `badarg` where its class or stacktrace is invalid.
@@ -3783,21 +3780,20 @@ internal class Natives(private val evaluation: Evaluation) {
      * others decline on a list or atom name.
      */
     private fun filename(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
-        if (key !in FILENAME_NATIVES) return null
-
-        val os = evaluation.run.os ?: decline("filename:$key of a run whose OS isn't known")
-
         fun name() = nameBytes("filename:$key", args[0])
 
-        return when (key) {
-            "extension/1" -> extension(args[0], os)
-            "rootname/1" -> rootname(args[0], os)
-            "rootname/2" -> rootname(args[0], args[1], os)
-            "dirname/1" -> OtpErlangBinary(Filename.dirname(name(), os))
-            "basename/1" -> OtpErlangBinary(Filename.basename(name(), os))
-            "basename/2" -> OtpErlangBinary(Filename.basename(name(), extensionBytes(args[1]), os))
-            else -> list(Filename.split(name(), os).map(::OtpErlangBinary))
+        val native: (OS) -> OtpErlangObject = when (key) {
+            "extension/1" -> { os -> extension(args[0], os) }
+            "rootname/1" -> { os -> rootname(args[0], os) }
+            "rootname/2" -> { os -> rootname(args[0], args[1], os) }
+            "dirname/1" -> { os -> OtpErlangBinary(Filename.dirname(name(), os)) }
+            "basename/1" -> { os -> OtpErlangBinary(Filename.basename(name(), os)) }
+            "basename/2" -> { os -> OtpErlangBinary(Filename.basename(name(), extensionBytes(args[1]), os)) }
+            "split/1" -> { os -> list(Filename.split(name(), os).map(::OtpErlangBinary)) }
+            else -> return null
         }
+
+        return native(evaluation.run.os ?: decline("filename:$key of a run whose OS isn't known"))
     }
 
     /** `filename:extension/1` of [name]: a binary's bytes, else the characters [flattened] gives. */
