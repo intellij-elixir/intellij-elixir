@@ -22,6 +22,9 @@
 
 ### Enhancements
 
+- [#4738](https://github.com/intellij-elixir/intellij-elixir/pull/4738) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, a module that reads files while it compiles, such as one that uses `embed_templates`, a LiveView with its template in a `.html.heex` file beside it, or one that lists files with `Path.wildcard`, compiles in the expander, and compiles again when a file it read is saved or a file is created or deleted where it looked.** Refs [#4731](https://github.com/intellij-elixir/intellij-elixir/issues/4731).
+
 - [#4752](https://github.com/intellij-elixir/intellij-elixir/pull/4752) [@sh41](https://github.com/sh41)
   - **With "Run the expander" on, the Elixir references inspection reads what the macro expander finds, so it no longer reports calls of functions that macros, an unquoted name or a `Mix.env()` branch define, or `module_info` and `__info__`, and reports a call only where the expander is sure nothing defines it.** Refs [#4740](https://github.com/intellij-elixir/intellij-elixir/issues/4740).
 
