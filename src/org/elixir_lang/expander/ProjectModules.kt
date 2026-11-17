@@ -1572,9 +1572,7 @@ internal class ProjectModules(private val project: Project) {
          * Elixir's `Path.expand/1` has it on Windows.
          */
         fun runPath(file: VirtualFile?, sdk: OS, host: OS): String? =
-            file?.takeIf { it.isInLocalFileSystem && sdk == host }?.path?.let { path ->
-                if (sdk == OS.Windows) String(Filename.lowercaseDrive(path.toByteArray())) else path
-            }
+            file?.takeIf { it.isInLocalFileSystem && sdk == host }?.path?.let { Filename.lowercaseDrive(it, sdk) }
 
         /** Each module [expansion] compiled, a nested module after those around it. */
         fun results(expansion: FileExpansion): Sequence<ExpansionResult> =
