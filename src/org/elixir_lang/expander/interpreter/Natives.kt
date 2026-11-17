@@ -31,6 +31,7 @@ import org.elixir_lang.expander.Compiling
 import org.elixir_lang.expander.ConfigRead
 import org.elixir_lang.expander.DEFINITION_ARITIES
 import org.elixir_lang.expander.DefinitionTable
+import org.elixir_lang.expander.DirectoryListing
 import org.elixir_lang.expander.EffectOutcome
 import org.elixir_lang.expander.Env
 import org.elixir_lang.expander.EscapeOp
@@ -80,6 +81,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.OVERRIDABLE_GUARDS_M
 import org.elixir_lang.language_level.ElixirLanguageFeature.SPLICE_EMPTY_BEFORE_TAIL_RAISES
 import org.elixir_lang.language_level.ElixirLanguageFeature.STATIC_OPTIONS_IN_PERSISTENT_TERM
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRING_TO_ATOM_REQUIRES_BINARY
+import org.elixir_lang.language_level.ElixirLanguageFeature.PATH_WILDCARD_READS_FILE_INFO
 import org.elixir_lang.language_level.ElixirLanguageFeature.TERM_TO_BINARY_UTF8_ATOMS
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -412,6 +414,7 @@ internal class Natives(private val evaluation: Evaluation) {
                     else -> null
                 }
             },
+            "filelib" to reading { key, args -> if (key == "wildcard/1" || key == "wildcard/2") wildcard(args) else null },
             "filename" to reading(Natives::filename),
             "elixir_config" to Row({ function, _ -> function == "static" }) { key, args, _ -> config(key, args) },
             "Elixir.Mix" to reading { key, _ -> mix(key) },
@@ -3395,7 +3398,7 @@ internal class Natives(private val evaluation: Evaluation) {
         val text = String(nameBytes("Mix.Config.__import__!/2", expanded), Charsets.UTF_8)
         val paths =
             if (text.any { it in ConfigFiles.WILDCARD }) {
-                evaluation.run.files.wildcard(text)?.map { OtpErlangBinary(it.toByteArray()) }
+                properElements(seen(evaluation.remote(atom("Elixir.Path"), "wildcard", listOf(expanded))))
                     ?: decline("Mix.Config.__import__!/2 of the wildcard %s", expanded)
             } else {
                 listOf(expanded)
@@ -3539,10 +3542,67 @@ internal class Natives(private val evaluation: Evaluation) {
     }
 
     /**
-     * Whether [code] is an ASCII character, which every native name encoding reads alike; a name holding one past it
-     * declines, as that encoding isn't read.
+     * `filelib:wildcard/1,2` (`filelib.erl:159-172` at OTP-29.0.6), as [Filelib] ports it, listed through the run's
+     * files as the module given lists: `file`, the default, every name, and `Path.Wildcard` those not starting with
+     * `.`, and before [PATH_WILDCARD_READS_FILE_INFO] raising `undef` at a `..` after a wildcard. A relative pattern is
+     * listed from the working directory given, or `.`, which the OS resolves from the run's
+     * ([Run.absolute][org.elixir_lang.expander.Run.absolute]). A pattern that isn't a list, or a second argument that
+     * is neither a list nor an atom, has no clause; `{badpattern, Reason}` is raised as `filelib` raises it. Another
+     * module, an empty pattern, a pattern past ASCII, or a relative one's working directory past ASCII declines, as
+     * does a listed name past ASCII where a part counts its characters or the name is given back ([nativeName]).
      */
-    private fun isAscii(code: Int): Boolean = code in 0 until 0x80
+    private fun wildcard(args: List<OtpErlangObject>): OtpErlangObject {
+        val pattern = seen(args[0])
+        val second = args.getOrNull(1)?.let(::seen)
+
+        if (!isList(pattern) || second != null && !isList(second) && second !is OtpErlangAtom) {
+            functionClause("filelib", "wildcard", args)
+        }
+
+        val pathWildcard = second == atom("Elixir.Path.Wildcard")
+        if (second is OtpErlangAtom && second != atom("file") && !pathWildcard) {
+            decline("filelib:wildcard/2 listing through %s", second)
+        }
+        val os = fileNameOs()
+        val text = charlistText(pattern)?.takeIf(::isAscii)
+            ?: decline("filelib:wildcard of %s, which isn't characters of ASCII", pattern)
+        val cwd = {
+            if (second == null || second is OtpErlangAtom) "." else {
+                charlistText(second)?.takeIf(::isAscii) ?: decline("filelib:wildcard from %s, which isn't characters of ASCII", second)
+            }
+        }
+        val filelib = Filelib(
+            os,
+            absolute = { evaluation.run.absolute(it) },
+            list = { path -> listingAt(path)?.let { entries -> if (pathWildcard) entries.filter { !it.name.startsWith(".") } else entries } },
+            entry = ::entryAt,
+            readFileInfo = { path ->
+                if (pathWildcard && !PATH_WILDCARD_READS_FILE_INFO.isSufficient(level)) {
+                    evaluation.error(atom("undef"), frame("Elixir.Path.Wildcard", "read_file_info", list(listOf(nativeName(path)))))
+                }
+            },
+        )
+        val paths = try {
+            filelib.wildcard(text, cwd)
+        } catch (badPattern: Filelib.BadPattern) {
+            evaluation.error(tuple(atom("badpattern"), atom(badPattern.reason)))
+        } catch (unanswered: Filelib.Unanswered) {
+            decline(unanswered.reason)
+        }
+
+        return list(paths.map(::nativeName))
+    }
+
+    /** [path], a name `filelib` gives back, as its charlist; declining past ASCII, as the native name encoding isn't read. */
+    private fun nativeName(path: String): OtpErlangObject =
+        if (isAscii(path)) charlist(path) else decline("filelib:wildcard giving %s, past ASCII", binary(path))
+
+    /**
+     * The names in the directory at [path] in the run's files, `null` where nothing or a file is there; declining where
+     * that isn't known.
+     */
+    private fun listingAt(path: String): List<DirectoryListing.Entry>? =
+        ((evaluation.run.files.listing(path) ?: decline("the listing of $path isn't known")) as? DirectoryListing.Names)?.entries
 
     /** The OS a file name of the run is taken by, declining where it isn't known. */
     private fun fileNameOs(): OS = evaluation.run.os ?: decline("a file name of a run whose OS isn't known")

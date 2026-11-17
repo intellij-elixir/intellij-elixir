@@ -6,6 +6,15 @@ import java.io.ByteArrayOutputStream
 import java.util.Arrays
 
 /**
+ * Whether [code] is an ASCII character, which every native name encoding reads alike; a name holding one past it
+ * declines, as that encoding isn't read.
+ */
+internal fun isAscii(code: Int): Boolean = code in 0 until 0x80
+
+/** Whether each character of [text] is ASCII ([isAscii]). */
+internal fun isAscii(text: String): Boolean = text.all { isAscii(it.code) }
+
+/**
  * `filename`'s functions of a binary, and the walks some of them make of a list's characters, ported from OTP's
  * `filename.erl`, which reads `os:type/0` for the syntax a path has: [OS.Windows] is its `win32`, every other OS its
  * unix. A binary's names are bytes, as the binaries they answer are. Also `binary:split/3`, `match/2` and `matches/2`.

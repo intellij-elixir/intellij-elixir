@@ -293,11 +293,19 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
         assertEquals("Path.wildcard/1 skips a name starting with a dot", "[{app,[{k,1}]}] [config/config.exs]", read(dotFile))
     }
 
-    /** `{a,{b,c}}` raises in `filelib`, and `[` matches nothing there: neither is a pattern the run reads. */
-    fun testAWildcardThatCantBeCompiledDeclines() {
-        for (pattern in listOf("{a,{b,c}}.exs", "[.exs")) {
-            assertEquals(pattern, "declined", read(project(CONFIG to "use Mix.Config\n\nimport_config \"$pattern\"\n")))
-        }
+    /** `{a,{b,c}}` raises in `filelib`, which the run doesn't read. */
+    fun testAWildcardThatCantBeCompiledDeclines() =
+        assertEquals("declined", read(project(CONFIG to "use Mix.Config\n\nimport_config \"{a,{b,c}}.exs\"\n")))
+
+    /** A `[` with no `]` is the character itself in `filelib`, so it matches only a file of that name. */
+    fun testAnUnclosedBracketInAWildcardIsItself() {
+        val config = CONFIG to "use Mix.Config\n\nimport_config \"[.exs\"\n"
+
+        assertEquals("[] [config/config.exs]", read(project(config)))
+        assertEquals(
+            "[{app,[{a,1}]}] [config/[.exs, config/config.exs]",
+            read(project(config, "config/[.exs" to "use Mix.Config\n\nconfig :app, a: 1\n")),
+        )
     }
 
     /** A path the SDK's machine resolves can't be looked up from the IDE, so what is there isn't known. */

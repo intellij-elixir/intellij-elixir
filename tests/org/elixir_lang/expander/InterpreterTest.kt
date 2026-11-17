@@ -554,6 +554,64 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
         )
     }
 
+    /**
+     * A relative wildcard lists from the directory the file is compiled in, or from the working directory it is given,
+     * and gives each match relative to it, as Elixir's compile in [FILES] does; without a file it isn't known.
+     */
+    fun testARelativeWildcardListsFromTheFilesCompileDirectory() {
+        val head = { wildcard: String -> "unquote(:erlang.binary_to_atom(Enum.join($wildcard, \" \"), :utf8))" }
+        val files = parsing(legLevel())
+        val compiled = { wildcard: String, path: String? ->
+            file("defmodule A do\n  def ${head(wildcard)}(), do: 1\nend", tables = true, run = RunInputs(OS.CURRENT, path, directories = { FILES }, files = files))
+        }
+
+        for ((wildcard, matches) in listOf(
+            "Path.wildcard(\"tree/*.ex\")" to "tree/B.ex tree/[x].ex tree/a.ex tree/{y}.ex",
+            "Path.wildcard(\"*/f.po\")" to "tree/f.po",
+            "Path.wildcard(\"./tree/a*\")" to "tree/a.ex",
+            "Path.wildcard(\"tree/../tree/a.ex\")" to "tree/../tree/a.ex",
+            "Path.wildcard(\"**/f.po\")" to "tree/f.po",
+            ":filelib.wildcard(~c\"*.ex\", ~c\"tree\")" to ".hidden.ex B.ex [x].ex a.ex {y}.ex",
+            ":filelib.wildcard(~c\"tree/a.ex\", ~c\".\")" to "tree/a.ex",
+            ":filelib.wildcard(~c\"a.ex\", ~c\"tree/\")" to "a.ex",
+        )) {
+            assertEquals(wildcard, "top expanded\nmodule Elixir.A compiled [$matches/0 def]", compiled(wildcard, FILE))
+            assertEquals(wildcard, "top expanded\nmodule Elixir.A stopped `${head(wildcard)}` []", compiled(wildcard, null))
+        }
+        // An absolute working directory is read without the file's.
+        val given = ":filelib.wildcard(~c\"*.ex\", ~c\"$FILES/tree\")"
+        assertEquals("top expanded\nmodule Elixir.A compiled [.hidden.ex B.ex [x].ex a.ex {y}.ex/0 def]", compiled(given, null))
+    }
+
+    /**
+     * A wildcard reads a name past ASCII, whose text the native name encoding gives, only where it may match: a part
+     * counting its characters with a `?` declines, as does a match holding one, but a name the part can't match is passed
+     * over.
+     */
+    fun testAWildcardDeclinesForANamePastAsciiOnlyWhereItMayMatch() {
+        val directories = mapOf(
+            "/t" to listOf(DirectoryListing.Entry("a.heex", false), DirectoryListing.Entry("café.txt", false), DirectoryListing.Entry("dé", true)),
+            "/t/dé" to listOf(DirectoryListing.Entry("b.heex", false)),
+        )
+        val files = object : RunFiles by parsing(legLevel()) {
+            override fun entry(path: String): FileEntry =
+                if (path == "/" || path in directories) FileEntry.Directory(path) else FileEntry.File
+
+            override fun listing(path: String): DirectoryListing =
+                directories[path]?.let(DirectoryListing::Names) ?: DirectoryListing.NotADirectory
+        }
+        val head = { pattern: String -> "unquote(:erlang.binary_to_atom(:erlang.iolist_to_binary(Path.wildcard(\"$pattern\")), :utf8))" }
+        val compiled = { pattern: String ->
+            file("defmodule A do\n  def ${head(pattern)}(), do: 1\nend", tables = true, run = RunInputs(OS.Linux, FILE, files = files))
+        }
+
+        assertEquals("top expanded\nmodule Elixir.A compiled [/t/a.heex/0 def]", compiled("/t/*.heex"))
+        // `d*` matches only `dé`, which the `..` after it reads, raising `undef` with it before 1.14.3.
+        for (pattern in listOf("/t/*.txt", "/t/?.heex", "/t/**/*.heex", "/t/d*/../a.heex")) {
+            assertEquals(pattern, "top expanded\nmodule Elixir.A stopped `${head(pattern)}` []", compiled(pattern))
+        }
+    }
+
     /** `:file.get_cwd/0` answers a Windows drive lowercased, as OTP gives it, whatever the case the directory has. */
     fun testTheWorkingDirectoryOnWindowsHasALowercaseDrive() {
         val code = "defmodule A do\n  {:ok, cwd} = :file.get_cwd()\n  def $CWD_NAME(), do: 1\nend"
@@ -2715,6 +2773,13 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 }
 
             override fun read(path: String): ByteArray = File(path).readBytes()
+
+            override fun listing(path: String): DirectoryListing =
+                File(path).takeIf { it.isDirectory }?.let { directory ->
+                    val entries = directory.listFiles().orEmpty().map { DirectoryListing.Entry(it.name, it.isDirectory) }
+
+                    DirectoryListing.Names(entries)
+                } ?: DirectoryListing.NotADirectory
         }
 
     /**
@@ -7664,6 +7729,60 @@ class InterpreterTest : SdkProbeTestCase(definitions = true) {
                 caught(":file.read_file(\"$FILES/text.txt\", [:raw | :binary])"),
                 legs = READ_FILE_TAKES_OPTIONS::isSufficient,
             ),
+            // `filelib:wildcard/1,2` lists each directory a part of the pattern reaches, `Path.wildcard/2` through
+            // `Path.Wildcard`, which leaves out a name starting with a dot, unless `match_dot: true`.
+            macro(
+                "native:filelib-wildcard",
+                """
+                defmacro m do
+                  Macro.escape([
+                    :filelib.wildcard(~c"$FILES/tree/*.ex"),
+                    Path.wildcard("$FILES/tree/*.ex"),
+                    Path.wildcard("$FILES/tree/*.ex", match_dot: true),
+                    Path.wildcard("$FILES/tree/*"),
+                    Path.wildcard("$FILES/tree/**/*.po"),
+                    Path.wildcard("$FILES/tree/**/*.po", match_dot: true),
+                    Path.wildcard("$FILES/tree/**"),
+                    Path.wildcard("$FILES/tree/sub/**/*.po"),
+                    Path.wildcard("$FILES/tree/**.ex"),
+                    Path.wildcard("$FILES/tree/**/deep"),
+                    Path.wildcard("$FILES/tree/{a,b}.ex*"),
+                    Path.wildcard("$FILES/tree/*.{ex,exs}"),
+                    Path.wildcard("$FILES/tree/{a,B}{.ex,.exs}"),
+                    Path.wildcard("$FILES/tree/?.ex"),
+                    Path.wildcard("$FILES/tree/[a-b].ex"),
+                    Path.wildcard("$FILES/tree/[]a].ex"),
+                    Path.wildcard("$FILES/tree/[^a].ex"),
+                    Path.wildcard("$FILES/tree/\\[x].ex"),
+                    Path.wildcard("$FILES/tree/[x].ex"),
+                    Path.wildcard("$FILES/tree/[x.ex"),
+                    Path.wildcard("$FILES/tree/{y}.ex"),
+                    Path.wildcard("$FILES/tree/a.ex"),
+                    Path.wildcard("$FILES/tree/missing.ex"),
+                    Path.wildcard("$FILES/tree/*/c.ex"),
+                    :filelib.wildcard(~c"$FILES/tree/s*/../a.ex"),
+                    Path.wildcard("$FILES/tree/a.ex/../*"),
+                    Path.wildcard("$FILES/text.txt/*"),
+                    Path.wildcard("$FILES//tree/./a*"),
+                    Path.wildcard("$FILES/tree/"),
+                    Path.wildcard("$FILES/tree/*/"),
+                    :filelib.wildcard(~c"$FILES/tree/*.ex", ~c"/elsewhere"),
+                    :filelib.wildcard(~c"$FILES/tree/*.ex", :file)
+                  ])
+                end
+                """,
+            ),
+            // `Path.Wildcard` has `read_file_info/1`, which `filelib` reads at a `..` after a wildcard, from 1.14.3.
+            macro("native:filelib-wildcard-dotdot", "defmacro m, do: Path.wildcard(\"$FILES/tree/s*/../a.ex\")"),
+            macro("native:filelib-wildcard-unclosed-brace", caught("Path.wildcard(\"$FILES/tree/{a,b.ex\")")),
+            macro("native:filelib-wildcard-binary", caught(":filelib.wildcard(\"$FILES/tree/*.ex\")")),
+            // `{a,{b,c}}` raises a `case_clause` inside `filelib`.
+            macro("native:filelib-wildcard-nested-alternation", "defmacro m, do: Path.wildcard(\"$FILES/tree/{a,{b,c}}.ex\")", pins = DECLINED),
+            // After `}`, `filelib` wraps escapes again, so an `@e` there escapes an escape.
+            macro("native:filelib-wildcard-escaped-escape", "defmacro m, do: Path.wildcard(\"$FILES/tree/{a}@e\\\\x\")", pins = DECLINED),
+            // An absolute pattern doesn't read the working directory it is given.
+            macro("native:filelib-wildcard-absolute-from-a-directory-past-ascii", "defmacro m, do: :filelib.wildcard(~c\"$FILES/tree/*.ex\", ~c\"/\u00e9\")"),
+            macro("native:filelib-wildcard-other-module", "defmacro m, do: :filelib.wildcard(~c\"$FILES/tree/*.ex\", :erl_prim_loader)", pins = DECLINED),
             // The natives: Elixir's functions
             macro(
                 "pure:keyword",

@@ -2989,7 +2989,15 @@ enum class ElixirLanguageFeature(
      *
      * `erlang/otp@b4230bea4d` ("kernel/file: Add read_file/2"), first released in OTP 27.0-rc1.
      */
-    READ_FILE_TAKES_OPTIONS(sinceOtp = "27.0-rc1");
+    READ_FILE_TAKES_OPTIONS(sinceOtp = "27.0-rc1"),
+
+    /**
+     * `Path.Wildcard` reads a file's info, which `filelib:wildcard/2` reads at a `..` after a part with a wildcard.
+     * Before it, `Path.wildcard/2` there raises `undef`, as `Path.Wildcard.read_file_info/1` isn't defined.
+     *
+     * `elixir-lang/elixir@abe2af477` ("Fix wildcard edge case", the backport of #12255), first released in v1.14.3.
+     */
+    PATH_WILDCARD_READS_FILE_INFO(sinceElixir = "1.14.3");
 
 
     /** The first Elixir release with this behaviour, or `null` when every supported release has it. */

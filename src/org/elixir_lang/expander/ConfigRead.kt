@@ -363,14 +363,14 @@ internal interface RunFiles {
     /** The file at [path] evaluated in the same [read], or `null` where there is no such file. */
     fun imported(path: String, read: ConfigRead): FileExpansion?
 
-    /** The files whose paths match the wildcard [pattern] under its fixed prefix directory, `null` where not known. */
-    fun wildcard(pattern: String): List<String>?
-
     /**
      * The saved bytes of the file at [path], which [entry] finds a file, stamped by them, `null` where they can't be read.
      * A file larger than the largest bitstring the interpreter builds declines.
      */
     fun read(path: String): ByteArray? = null
+
+    /** The names in the directory at [path], stamped by its listing, `null` where that can't be known. */
+    fun listing(path: String): DirectoryListing? = null
 
     /** The file at [path] lowered, for `Code` to follow, `null` where it can't be read. */
     fun followed(path: String): FollowedFile? = null
@@ -411,7 +411,6 @@ internal interface RunFiles {
         val NONE = object : RunFiles {
             override fun entry(path: String): FileEntry? = null
             override fun imported(path: String, read: ConfigRead): FileExpansion? = null
-            override fun wildcard(pattern: String): List<String>? = null
         }
 
         /**
@@ -449,6 +448,18 @@ internal sealed interface FileEntry {
 
     /** A directory, at [physical] on disk, through any link. */
     class Directory(override val physical: String) : FileEntry
+}
+
+/** What [RunFiles.listing] finds at a path. */
+internal sealed interface DirectoryListing {
+    /** A directory, and the [entries] in it. */
+    class Names(val entries: List<Entry>) : DirectoryListing
+
+    /** A [name] in a directory, and whether it is one itself. */
+    class Entry(val name: String, val isDirectory: Boolean)
+
+    /** Nothing, or a file. */
+    data object NotADirectory : DirectoryListing
 }
 
 /** What [RunFiles.parsed] gives. */

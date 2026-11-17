@@ -60,10 +60,7 @@ import org.elixir_lang.reference.Resolver
 import org.elixir_lang.reference.resolver.Module
 import org.jetbrains.annotations.TestOnly
 import java.io.IOException
-import java.nio.file.FileSystems
-import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
-import java.util.regex.PatternSyntaxException
 
 /**
  * What each module exports and its struct, read from the copy Elixir loads for the file that asks: a `.beam`, or a
@@ -1113,6 +1110,15 @@ internal class ProjectModules(private val project: Project) {
                 return contents(file)?.also { reserveBits(0, it.size * 8L) }
             }
 
+            // A name created or deleted in the directory, or the directory itself, moves the listing.
+            override fun listing(path: String): DirectoryListing? {
+                val fileSystem = fileSystemOf(path) ?: return null
+                stamps.track(names.listing(path))
+                val directory = fileSystem.findFileByPath(path)?.takeIf { it.isDirectory } ?: return DirectoryListing.NotADirectory
+
+                return DirectoryListing.Names(directory.children.map { DirectoryListing.Entry(it.name, it.isDirectory) })
+            }
+
             override fun imported(path: String, read: ConfigRead): FileExpansion? {
                 val target = stamps.find(fileSystemOf(path), path)?.takeUnless { it in within } ?: return null
                 val psi = read(target) ?: return null
@@ -1157,25 +1163,6 @@ internal class ProjectModules(private val project: Project) {
                 transient(run.transient)
 
                 return run.loaded.followed.map { FollowedLoad(it, run.modules[it.name]) }
-            }
-
-            override fun wildcard(pattern: String): List<String>? {
-                val fileSystem = pathFileSystem ?: return null
-                val slash = pattern.lastIndexOf('/')
-                val prefix = pattern.substring(0, slash.coerceAtLeast(0))
-                if (prefix.any { it in ConfigFiles.WILDCARD }) return null
-                stamps.track(names.listing(prefix))
-                val glob = pattern.substring(slash + 1)
-                val matcher = try {
-                    FileSystems.getDefault().getPathMatcher("glob:$glob")
-                } catch (_: PatternSyntaxException) {
-                    return null
-                }
-
-                return fileSystem.findFileByPath(prefix)?.children.orEmpty()
-                    .filter { !it.name.startsWith(".") && matcher.matches(Path.of(it.name)) }
-                    .map { "$prefix/${it.name}" }
-                    .sorted()
             }
         }
     }

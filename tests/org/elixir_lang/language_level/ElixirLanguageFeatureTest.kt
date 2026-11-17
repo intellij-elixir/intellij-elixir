@@ -21,6 +21,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             NORMALIZED_IDENTIFIERS to ("1.13.4" to "1.14.0-rc.0"),
             FROM_BRACKETS_ON_BRACKETED_EXPRESSION to ("1.14.5" to "1.15.0-rc.0"),
             ADJACENT_CAPTURE_ARGUMENT to ("1.14.5" to "1.15.0-rc.0"),
+            PATH_WILDCARD_READS_FILE_INFO to ("1.14.2" to "1.14.3"),
             FROM_INTERPOLATION to ("1.15.8" to "1.16.0-rc.0"),
             FROM_BRACKETS_ON_EVERY_BRACKET_FORM to ("1.16.1" to "1.16.2"),
             ELLIPSIS_NULLARY_CALL to ("1.16.3" to "1.17.0-rc.0"),
