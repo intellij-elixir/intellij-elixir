@@ -3415,15 +3415,8 @@ internal class Natives(private val evaluation: Evaluation) {
 
         val text = nameText("Config.__import__!/1", path)
 
-        when (evaluation.run.files.exists(text)) {
-            null -> decline("Config.__import__!/1 of %s, whose file isn't known", path)
-            false -> evaluation.raise(
-                "Elixir.File.Error",
-                "reason" to atom("enoent"),
-                "path" to path,
-                "action" to OtpErlangBinary("read file".toByteArray()),
-            )
-            true -> {}
+        readError(path, text)?.let { reason ->
+            evaluation.raise("Elixir.File.Error", "reason" to reason, "path" to path, "action" to binary("read file"))
         }
         if (text in read.imports) {
             if (text in read.maybeImports) decline("Config.__import__!/1 of %s, which code that may not have run read", path)
@@ -3535,6 +3528,16 @@ internal class Natives(private val evaluation: Evaluation) {
         tail?.let { functionClause("file", "check_args", listOf(it)) }
 
         return readFile(name)
+    }
+
+    /**
+     * The reason `File.read/1` gives no bytes for the binary [path], whose text is [text] ([nameText]), as `Config` and
+     * `Code` read a file they load ([fileToRead]), `null` where it gives them.
+     */
+    fun readError(path: OtpErlangObject, text: String): OtpErlangObject? {
+        fileToRead(path, text) { return atom(it) }
+
+        return null
     }
 
     /** `{error, Reason}` of [reason]. */

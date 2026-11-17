@@ -464,9 +464,6 @@ internal interface RunFiles {
     /** What is at [path], stamped by its path, `null` where that can't be known. */
     fun entry(path: String): FileEntry?
 
-    /** Whether a file or directory is at [path] ([entry]), `null` where that can't be known. */
-    fun exists(path: String): Boolean? = entry(path)?.let { it != FileEntry.Missing }
-
     /** The file at [path] evaluated in the same [read], or `null` where there is no such file. */
     fun imported(path: String, read: ConfigRead): FileExpansion?
 

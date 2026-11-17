@@ -131,6 +131,27 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
         assertEquals("[{app,[{k,true}]}] [config/config.exs]", read(project(CONFIG to rescuing("missing.exs"))))
     }
 
+    /** Elixir reads an import with `File.read!/1`, whose `File.Error` gives the read's reason. */
+    fun testARescuedImportOfADirectoryIsEisdir() {
+        val root = project(CONFIG to rescuing("sub", "e.reason"), "config/sub/dev.exs" to "import Config\n")
+
+        assertEquals("[{app,[{k,eisdir}]}] [config/config.exs]", read(root))
+    }
+
+    /** On Windows, whose answer for a name past a file isn't read, it declines. */
+    fun testARescuedImportPastAFileIsEnotdir() {
+        val root = project(CONFIG to rescuing("dev.exs/x.exs", "e.reason"), DEV to "import Config\n")
+
+        assertEquals(if (OS.CURRENT == OS.Windows) "declined" else "[{app,[{k,enotdir}]}] [config/config.exs]", read(root))
+    }
+
+    /** On Windows, whose path check reads a binary's NUL, it declines. */
+    fun testARescuedImportOfANameHoldingANulIsBadarg() {
+        val root = project(CONFIG to rescuing("a\\0.exs", "e.reason"))
+
+        assertEquals(if (OS.CURRENT == OS.Windows) "declined" else "[{app,[{k,badarg}]}] [config/config.exs]", read(root))
+    }
+
     fun testAMissingImportInAnImportedFileLeavesEveryKeyUnknown() {
         val root = project(CONFIG to "import Config\nimport_config \"dev.exs\"\n", DEV to "import Config\nimport_config \"missing.exs\"\n")
 
@@ -201,8 +222,9 @@ class ConfigReadHeavyTest : ConfigHeavyTestCase() {
         assertEquals("unknown", read(root))
     }
 
-    private fun rescuing(file: String) =
-        "import Config\ntry do\n  import_config \"$file\"\nrescue\n  e in File.Error -> config :app, k: match?(%{reason: :enoent}, e)\nend\n"
+    /** A config that imports [file], rescuing its `File.Error` as `k`'s [value]. */
+    private fun rescuing(file: String, value: String = "match?(%{reason: :enoent}, e)") =
+        "import Config\ntry do\n  import_config \"$file\"\nrescue\n  e in File.Error -> config :app, k: $value\nend\n"
 
     /** Elixir compiles this module as the read reaches it, under the read's env; the plugin's copy wouldn't be, so it declines. */
     fun testAModuleInAFileTheReadImportsIsDeclined() {

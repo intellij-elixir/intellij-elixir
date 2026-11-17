@@ -85,13 +85,9 @@ internal class CodeFollow(private val evaluation: Evaluation) {
         val known = seen(expanded) as? OtpErlangBinary ?: decline("Code's follow of a path that isn't known")
         val path = evaluation.natives.nameText("Code's follow of a path", known)
 
-        when (run.files.exists(path)) {
-            null -> decline("Code's follow of %s, whose file isn't known", expanded)
-            false -> {
-                evaluation.mayRaise()
-                evaluation.raise("Elixir.Code.LoadError", "file" to expanded)
-            }
-            true -> {}
+        if (evaluation.natives.readError(known, path) != null) {
+            evaluation.mayRaise()
+            evaluation.raise("Elixir.Code.LoadError", "file" to expanded)
         }
 
         return path

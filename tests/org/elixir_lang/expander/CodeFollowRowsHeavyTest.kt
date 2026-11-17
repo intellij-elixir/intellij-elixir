@@ -312,6 +312,8 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
                 Before(EVAL_STRING_CHECKS_THE_BINDING, "unknown", "exit 1 raises FunctionClauseError"),
             ),
             Row("e10", "unknown", elixir = "[Sub.Inner, Sub]"),
+            // A directory isn't a file `Code` can read.
+            Row("e11", "raises Elixir.Code.LoadError", elixir = "exit 1 raises Code.LoadError"),
             // Which of Elixir's runs comes first is a race.
             Row("i1", "unknown", elixir = ":from_h / exit 1 raises CompileError"),
             Row("i2", ":from_dep", elixir = ":from_dep", Before(LAZY_MODULE_LOADING, ":from_h")),
