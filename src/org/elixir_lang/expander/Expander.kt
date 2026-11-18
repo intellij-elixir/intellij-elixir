@@ -605,7 +605,7 @@ internal class Run(
         val volume = Filename.split(directory, OS.Windows).first()
 
         return when {
-            path[0] == '/' || path[0] == '\\' -> volume + path.substring(1)
+            Filename.isSeparator(path[0].code, OS.Windows) -> volume + path.substring(1)
             path[0].lowercaseChar() == volume[0] -> "$directory/${path.substring(2)}"
             else -> null
         }
