@@ -69,6 +69,20 @@ class PastAStopQuickDocumentationHeavyTest : LegSdkFixtureTestCase() {
         assertOnce(documentation, "@spec located_d(")
     }
 
+    /** Past a stop, a library `.beam`'s function of a module the project's own source defines is not found: Elixir loads the project's copy. */
+    fun testPastAStopALibraryBeamsFunctionOfAModuleTheProjectDefinesIsNotDocumented() {
+        myFixture.addCompiledLibrary(
+            "defmodule Compiled do\n  @doc \"Older.\"\n  def only_older(a), do: a\nend\n",
+            CompiledBuild("ProjectOwned"),
+            sources = true,
+        )
+        myFixture.addFileToProject("lib/project_owned.ex", "defmodule ProjectOwned do\n  def other(a), do: a\nend\n")
+        pastAStop("import ProjectOwned\n  def f(x), do: only_older(x)")
+        val documentation = documentation("only_<caret>older(x)")
+
+        assertFalse("Expected nothing of the library's `only_older/1`, got: $documentation", "Older." in documentation)
+    }
+
     /** Past a stop, a later clause's head is documented as its first is: the module's definitions are one per head. */
     fun testPastAStopALaterClausesHeadIsDocumented() {
         pastAStop("@doc \"Ones.\"\n  def one(1), do: 1\n  def one(2), do: 2")

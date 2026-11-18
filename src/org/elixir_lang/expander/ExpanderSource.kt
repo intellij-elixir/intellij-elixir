@@ -38,6 +38,7 @@ import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Head
 import org.elixir_lang.declaration.Reach
 import org.elixir_lang.declaration.RecordedDoc
+import org.elixir_lang.declaration.SameFunction
 import org.elixir_lang.declaration.Uncertain
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
@@ -527,7 +528,7 @@ internal object ExpanderSource : CandidateSource {
      * `.beam`'s.
      */
     private fun eachNameOnce(defined: List<Defined>): List<Defined> {
-        val (source, compiled) = defined.partition { it.declaration.declared is Declared.Source }
+        val (source, compiled) = sourceAndCompiled(defined)
         val (delegations, clauses) = source.partition { (it.declaration.declared as Declared.Source).form == Form.DELEGATION }
         val (own, placed) = clauses.partition {
             declaringDefiner(it.element, it.declaration.name, it.declaration.arity, it.declaration.capabilities.compileTime) != null
@@ -539,6 +540,13 @@ internal object ExpanderSource : CandidateSource {
             byElement.getValue(clause)
         } + compiled
     }
+
+    /**
+     * [defined]'s source definitions and its compiled ones, each in [defined]'s order. A project's module is what is
+     * built from, so it is answered before a library `.beam` of the same name, left over from an older build.
+     */
+    private fun sourceAndCompiled(defined: List<Defined>): Pair<List<Defined>, List<Defined>> =
+        defined.partition { it.declaration.declared is Declared.Source }
 
     /** The names [call] writes whose heads are known ([written]). */
     @RequiresReadLock
@@ -714,6 +722,10 @@ internal object ExpanderSource : CandidateSource {
 
         /** Its module, name and declared arity. */
         val function: Triple<String, String, ArityKnowledge> get() = Triple(module, declaration.name, declaration.arity)
+
+        /** Whether [other] is a definition of the same name in the same module that takes one of the arities it does. */
+        fun overlaps(other: Defined): Boolean =
+            module == other.module && declaration.sameFunction(other.declaration) == SameFunction.YES
 
         /** Its declaration and the PSI declaring it, which the exports or copies answered by one written head share. */
         val declaredAt: Pair<PsiElement, Declaration> get() = element to declaration
@@ -996,13 +1008,14 @@ internal object ExpanderSource : CandidateSource {
      */
     private fun indexed(file: PsiFile, name: String): List<Defined> {
         val project = file.project
+        val modules = ProjectModules.getInstance(project)
         val byName = CachedValuesManager.getManager(project).getCachedValue(
             file,
             indexedByName,
             {
                 CachedValueProvider.Result.create(
                     ConcurrentHashMap<String, List<Defined>>(),
-                    *ProjectModules.getInstance(project).copyTrackers(),
+                    *modules.copyTrackers(),
                     PsiModificationTracker.MODIFICATION_COUNT,
                 )
             },
@@ -1011,11 +1024,21 @@ internal object ExpanderSource : CandidateSource {
 
         return byName.getOrPut(name) {
             Probe.count(Probe.Counter.INDEX_QUERIES, 1)
+            val fromSource = HashMap<String, Boolean>()
+
             StubIndex.getElements(AllName.KEY, name, project, file.resolveScope, NamedElement::class.java)
                 .flatMap { element ->
                     ProgressManager.checkCanceled()
 
                     indexedDefined(element)
+                }
+                // Elixir loads one copy of a module: where it is the project's source, a library `.beam` of that name, left
+                // over from an older build, defines nothing, whether or not the source lists the name.
+                .filterNot { defined ->
+                    defined.declaration.declared is Declared.Compiled &&
+                        fromSource.getOrPut(defined.module) {
+                            Module.atom(defined.module)?.let { modules.loadsFromSource(file, it) } == true
+                        }
                 }
         }
     }
@@ -1092,7 +1115,14 @@ internal object ExpanderSource : CandidateSource {
             indexed.filterNot { it.element in held || at?.finished(it.element) == true }
         } else {
             val known = found.mapTo(HashSet()) { it.defined.function }
-            indexed.filter { known.add(it.function) }
+            val (source, compiled) = sourceAndCompiled(indexed)
+            val surviving = source.filterTo(HashSet()) { known.add(it.function) }
+            val project = found.map { it.defined }.filter { it.declaration.declared is Declared.Source } + surviving
+            // The project's definition of a function survives a library `.beam`'s that takes any of the arities it does,
+            // and each is answered where the index lists it.
+            compiled.filterTo(surviving) { known.add(it.function) && project.none { own -> own.overlaps(it) } }
+
+            indexed.filter { it in surviving }
         }
 
         return added.map { reached(it, Reach.INDEXED, emptyList(), name, arity, remote) }
