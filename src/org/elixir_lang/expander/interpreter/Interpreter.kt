@@ -973,19 +973,26 @@ internal class Evaluation(
     }
 
     /**
-     * [file] imported in [read] here, its run inside the `try`s around this code that may catch its raise ([Run.catching]).
-     * The file has its own run, so the code after the import learns only here that the file may have raised. The file's
-     * own run has already recorded where it may have raised ([ConfigRead.raisedAt]).
+     * [file] imported in [read] here, its run inside the `try`s around this code that may catch its raise ([Run.catching]),
+     * and as code that may not run where this code may not ([Run.mayNotRun]). The file has its own run, so the code
+     * after the import learns only here that the file may have raised. The file's own run has already recorded where it
+     * may have raised ([ConfigRead.raisedAt]).
      */
     fun <T> importing(read: ConfigRead, file: () -> T): T {
-        val outer = read.catching
+        val catching = read.catching
+        val mayNotRun = read.mayNotRun
+        val unordered = read.unordered
         val assumed = read.assumed
 
         read.catching = run.catching
+        read.mayNotRun = run.mayNotRun
+        read.unordered = run.unordered
         val imported = try {
             file()
         } finally {
-            read.catching = outer
+            read.catching = catching
+            read.mayNotRun = mayNotRun
+            read.unordered = unordered
         }
 
         if (read.assumed != assumed) mayHaveRaised()

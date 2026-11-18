@@ -83,6 +83,18 @@ internal class ConfigRead(val env: String, val target: String, val directory: St
     var catching = 0
 
     /**
+     * Whether the import being run, in whichever of the read's files, is in code that may not run ([Run.mayNotRun]), as
+     * the file it imports then is.
+     */
+    var mayNotRun = false
+
+    /**
+     * How many units stepped unordered ([Run.unordered]) are around the import being run, in whichever of the read's
+     * files, as they are around the file it imports.
+     */
+    var unordered = 0
+
+    /**
      * The read as it was where the body of the `try` being evaluated, in whichever of the read's files, may have raised,
      * oldest first; `null` outside one.
      */

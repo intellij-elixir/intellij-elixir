@@ -451,8 +451,8 @@ internal class Run(
     /** Whether the value of the unit the evaluator runs where it reaches it ([reached]) is read, `null` outside one. */
     var reachedUse: ValueUse? = null
 
-    /** How many arms that may not be taken are running ([mayNotRun]). */
-    var speculating = 0
+    /** How many arms that may not be taken are running ([mayNotRun]), the import of its file's ([ConfigRead.mayNotRun]) among them. */
+    var speculating = if (config?.mayNotRun == true) 1 else 0
 
     /** Whether the body of the `try` being evaluated may have raised over a value that isn't known. */
     var raisedOverUnknown = false
@@ -467,7 +467,7 @@ internal class Run(
     val mayNotRun get() = speculating > 0 || raisedOverUnknown || pastRaise
 
     /** How many units stepped unordered the code running is in. */
-    var unordered = 0
+    var unordered = config?.unordered ?: 0
 
     /** Whether the code running is in a unit stepped unordered ([unordered]), which may run any number of times. */
     val steppedUnordered get() = unordered > 0

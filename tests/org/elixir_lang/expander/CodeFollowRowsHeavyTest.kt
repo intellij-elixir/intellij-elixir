@@ -290,6 +290,8 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("c50", "unknown", elixir = "false / true"),
             // Nor does a counter that function's module draws, so the module's later counters aren't known.
             Row("c51", "unknown", elixir = "{:y, [counter: {A, 4}], A}"),
+            // A file a config read imports in code that may not run requires its file as code that may not run.
+            Row("c53", "unknown", elixir = "false"),
             Row("e1", ":ended", elixir = "exit 124"),
             Row("e2", ":ended", elixir = "exit 124"),
             Row("e3", "raises Elixir.Code.LoadError", elixir = "exit 1 raises Code.LoadError"),
