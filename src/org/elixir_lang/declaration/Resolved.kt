@@ -74,7 +74,7 @@ object Resolved {
             Uncertain.SEVERAL -> feature.takesUncertain
             Uncertain.INDEX -> feature.takesUncertain && !bound
             // An absence's marks, which no find or written name carries.
-            Uncertain.MODULE, Uncertain.NO_EXPANSION, Uncertain.UNPLACED -> true
+            Uncertain.MODULE, Uncertain.NO_EXPANSION, Uncertain.UNPLACED, Uncertain.ASSUMED -> true
         }
 
     /** An MFA is called at runtime from another module, so it reaches only a function that module exports. */

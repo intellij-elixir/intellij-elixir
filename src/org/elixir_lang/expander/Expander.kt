@@ -466,8 +466,12 @@ internal class Run(
     /** Whether code the expander doesn't follow ran in the run ([unfollowedRan]), or in the run `Code` followed it from. */
     val mayHaveRunUnfollowed: Boolean get() = unfollowedRan || parent?.mayHaveRunUnfollowed == true
 
-    /** The file's expansion, ending at [top], with the modules the run compiled and whether code it doesn't follow ran. */
-    fun fileExpansion(top: Expansion, endsRun: Boolean): FileExpansion = FileExpansion(top, compiledInto, endsRun, unfollowedRan)
+    /**
+     * The file's expansion, ending at [top], with the modules the run compiled, whether code it doesn't follow ran and
+     * whether it made an assumption.
+     */
+    fun fileExpansion(top: Expansion, endsRun: Boolean): FileExpansion =
+        FileExpansion(top, compiledInto, endsRun, unfollowedRan, assumptions > 0)
 
     /** Code the expander doesn't follow ran, or may have: a decline the walk went on past, a stop, a macro or callback it lost. */
     fun unfollowedCodeRan() {

@@ -419,7 +419,7 @@ internal object ExpanderSource : CandidateSource {
         }
         // At a call this lookup is the use's first, so a MODULE gap is one it met; a link through several modules may
         // have met it at an earlier one, which only adds finds marked uncertain.
-        val unknown = Uncertain.MODULE in at.gaps || (at.uncertain != null && (located ?: at.locate(module)) == ProjectModules.Located.None)
+        val unknown = Uncertain.MODULE in at.gaps || (at.uncertain != null && (located ?: at.locate(module)).holdsNone)
         val key = Module.indexName(module).takeIf { unknown }
         if (key == null && aliased == null) return found
 
@@ -763,8 +763,8 @@ internal object ExpanderSource : CandidateSource {
     /** The definitions of [name], or of every name when it is `null`, in the module body [at] is in. */
     private fun ownDefined(at: At, name: String?): List<Defined> {
         val module = at.env.module ?: return emptyList()
-        val result = at.holder.expansion(at.file, at.inputs).resultAt(module, at.range) ?: return at.gap(Uncertain.MODULE)
-        if (!result.ownDefinitionsKnown) at.gap(Uncertain.MODULE)
+        val body = at.holder.expansion(at.file, at.inputs).resultAt(module, at.range)
+        val result = known(at, body, ExpansionResult::ownDefinitionsKnown) ?: return emptyList()
 
         return defined(at, at.file, result, name)
     }
@@ -962,6 +962,7 @@ internal object ExpanderSource : CandidateSource {
         when (located) {
             ProjectModules.Located.Unknown -> at.gap(Uncertain.NO_EXPANSION)
             ProjectModules.Located.None -> emptyList()
+            ProjectModules.Located.Assumed -> at.gap(Uncertain.ASSUMED)
             is ProjectModules.Located.Several -> {
                 at.gap(Uncertain.SEVERAL)
                 at.holder.locateEach(at.file, located, module, at.inputs)
@@ -1093,14 +1094,22 @@ internal object ExpanderSource : CandidateSource {
         return added.map { reached(it, Reach.INDEXED, emptyList(), name, arity, remote) }
     }
 
-    /** [result], which is a gap where there is none or what it defines isn't known. */
-    private fun known(at: At, result: ExpansionResult?): ExpansionResult? {
+    /**
+     * [result], which is a gap where there is none, what it defines isn't known as [definitionsKnown] reads it
+     * ([ExpansionResult.definitionsKnown] unless named), or it ran after an assumption.
+     */
+    private fun known(
+        at: At,
+        result: ExpansionResult?,
+        definitionsKnown: (ExpansionResult) -> Boolean = ExpansionResult::definitionsKnown,
+    ): ExpansionResult? {
         if (result == null) {
             at.gap(Uncertain.MODULE)
 
             return null
         }
-        if (!result.definitionsKnown) at.gap(Uncertain.MODULE)
+        if (!definitionsKnown(result)) at.gap(Uncertain.MODULE)
+        if (result.assumed) at.gap(Uncertain.ASSUMED)
 
         return result
     }
