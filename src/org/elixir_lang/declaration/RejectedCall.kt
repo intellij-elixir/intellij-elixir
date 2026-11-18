@@ -9,7 +9,7 @@ object RejectedCall {
      * What a call with [candidates] names, which may be nothing; `null` where the call is not rejected, as one is valid
      * or cannot be decided. It names a declaration at the wrong arity, never a contract such as a `@callback`, which
      * defines nothing, nor what a `defdelegate` delegates to, which the call does not name, and for a [remote] call
-     * only what the module exports. An arity is accepted where
+     * only what the module exports or the name index finds in it. An arity is accepted where
      * [admits] says the path it was reached through brings it in, as an `import only:` may bring in some arities of a
      * function; a head open from some arity is brought in whole.
      */
@@ -27,7 +27,7 @@ object RejectedCall {
             if (applicability != Applicability.WRONG_ARITY ||
                 isContract(declaration) ||
                 reach.delegationTarget ||
-                (remote && !reach.exports(declaration.capabilities))
+                (remote && !reach.remotelyReaches(declaration.capabilities))
             ) {
                 return@mapNotNull null
             }

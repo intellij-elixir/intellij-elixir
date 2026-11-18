@@ -111,7 +111,39 @@ class NoSdkQuickDocumentationTest : BeamLibraryTestCase() {
         assertTrue("Expected a link to Other.f/1, got: $documentation", "href=\"psi_element://Other.f/1\"" in documentation)
     }
 
-    private fun assertShowsDouble(documentation: String) {
+    /**
+     * A call at an arity nothing takes documents what the module offers of its name from outside it, as it does with an
+     * SDK: each public function and macro, and no private one.
+     */
+    fun testACallAtAnArityNothingTakesDocumentsWhatTheModuleOffersOfItsName() {
+        myFixture.addFileToProject(
+            "processor.ex",
+            """
+            defmodule Processor do
+              @doc "Processes with options."
+              def process(item, opts), do: {item, opts}
+
+              @doc "Processes four at once."
+              defmacro process(a, b, c, d), do: {a, b, c, d}
+
+              defp process(secret), do: secret
+            end
+            """.trimIndent()
+        )
+
+        val documentation = quickDocumentationIn("Processor.pro<caret>cess(x, x, x)")
+
+        assertTrue("Expected process/2, got: $documentation", "process(item, opts)" in documentation)
+        assertTrue("Expected the macro, got: $documentation", "Processes four at once." in documentation)
+        assertFalse("Expected no private function, got: $documentation", "process(secret)" in documentation)
+    }
+
+    /** [call], with `Target` in the project, documents `Target.double/1`. */
+    private fun assertShowsDouble(call: String) {
+        myFixture.addFileToProject("target.ex", TARGET)
+
+        val documentation = quickDocumentationIn(call)
+
         assertTrue("Expected the head, got: $documentation", "double(n)" in documentation)
         assertTrue("Expected the @doc, got: $documentation", "Doubles a number." in documentation)
     }

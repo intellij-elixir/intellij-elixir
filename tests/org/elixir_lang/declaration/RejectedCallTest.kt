@@ -115,11 +115,11 @@ class RejectedCallTest {
     }
 
     @Test
-    fun aRemoteCallNamesOnlyWhatTheModuleExports() {
+    fun aRemoteCallNamesOnlyWhatTheModuleExportsOrTheNameIndexFindsInIt() {
         val all = Reach.entries.flatMap { reach -> Definer.entries.map { candidate(reach = reach, definer = it) } }
 
         assertEquals(
-            all.filter { it.reach.held && it.declaration.capabilities.public },
+            all.filter { (it.reach.held || it.reach == INDEXED) && it.declaration.capabilities.public },
             all.filter { named(it, remote = true, admits = everyArity).orEmpty().isNotEmpty() }
         )
     }
