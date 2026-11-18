@@ -1946,15 +1946,6 @@ enum class ElixirLanguageFeature(
     ENSURE_COMPILED_BANG(sinceElixir = "1.12.0-rc.0"),
 
     /**
-     * `Path.expand/1` and `Path.absname/1` read `File.cwd!/0` only for a path that isn't absolute. Before it, each reads
-     * it first.
-     *
-     * `elixir-lang/elixir@741757f2a` ("Lazily evaluate File.cwd! in Path.expand and Path.absname (#13061)"), first
-     * released in v1.16.0-rc.1.
-     */
-    PATH_EXPAND_READS_CWD_LAZILY(sinceElixir = "1.16.0-rc.1"),
-
-    /**
      * `Code.eval_string/3` raises `ArgumentError` for a binding that isn't a list. Before it, `elixir_erl_var:load_binding`
      * raises `FunctionClauseError`.
      *

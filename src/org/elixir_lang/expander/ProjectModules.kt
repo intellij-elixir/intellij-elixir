@@ -1132,11 +1132,9 @@ internal class ProjectModules(private val project: Project) {
             override fun parsed(text: String, line: Int, column: Int, indentation: Int): Parsed =
                 RunFiles.parse(project, inputs.level, text, line, column, indentation)
 
-            // A read that declined may have required any path.
-            override fun requiredByRead(path: String): Require? =
-                buildRead()?.table?.let { table ->
-                    if (path in table.required) Require.REQUIRED else Require.MAYBE.takeIf { table.declined }
-                }
+            override fun requiredByRead(path: String): Boolean = buildRead()?.table?.required?.contains(path) == true
+
+            override fun readRanUnfollowed(): Boolean = buildRead()?.table?.declined == true
 
             override fun parserOptions(): Reading<OtpErlangObject> = parserOptions
 

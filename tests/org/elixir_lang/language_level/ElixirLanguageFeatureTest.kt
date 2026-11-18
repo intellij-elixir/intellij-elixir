@@ -312,7 +312,6 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             EVAL_NUMBER_GIVES_ITS_BINDING to ("1.14.1" to "1.14.2"),
             LAZY_MODULE_LOADING to ("1.18.4" to "1.19.0-rc.0"),
             ENSURE_COMPILED_BANG to ("1.11.4" to "1.12.0-rc.0"),
-            PATH_EXPAND_READS_CWD_LAZILY to ("1.16.0-rc.0" to "1.16.0-rc.1"),
             EVAL_STRING_CHECKS_THE_BINDING to ("1.20.0-rc.2" to "1.20.0-rc.3"),
             REQUIRE_FILE_RELEASES_A_RAISED_FILE to ("1.20.0" to "1.20.1"),
             EVAL_STACKTRACE_NAMES_THE_FILE to ("1.13.4" to "1.14.0-rc.0"),

@@ -323,10 +323,16 @@ internal class RunState(val read: ConfigRead.Snapshot?, val written: WrittenApps
 
 /**
  * What code is inside, as is another run's code it runs, an imported file's or a closure's that run made: the [catching]
- * `try`s that may catch its raise ([Run.catching]), whether it may not run ([mayNotRun], [Run.mayNotRun]), and the
- * [unordered] units stepped unordered around it ([Run.unordered]).
+ * `try`s that may catch its raise ([Run.catching]), whether it may not run ([mayNotRun], [Run.mayNotRun]), the
+ * [unordered] units stepped unordered around it ([Run.unordered]), and whether code the expander doesn't follow may have
+ * run before it ([unfollowed], [Run.mayHaveRunUnfollowed]).
  */
-internal data class Around(val catching: Int = 0, val mayNotRun: Boolean = false, val unordered: Int = 0)
+internal data class Around(
+    val catching: Int = 0,
+    val mayNotRun: Boolean = false,
+    val unordered: Int = 0,
+    val unfollowed: Boolean = false,
+)
 
 /** What every recursive expansion of one [Expander.expand] call shares. */
 internal class Run(
@@ -348,8 +354,8 @@ internal class Run(
     val buildTarget: BuildTarget? = null,
     /** The config read this run's file is evaluated in, `null` where it is evaluated on its own. */
     val config: ConfigRead? = null,
-    /** The project's files the run reaches by path. */
-    val files: RunFiles = RunFiles.NONE,
+    /** The project's files the run reaches by path, which [Run.files] hands out. */
+    files: RunFiles = RunFiles.NONE,
     /** The env the file's forms are expanded from, `null` where the run expands no file. */
     val newEnv: Env? = null,
     /** The run that followed this one's file or string with `Code`, `null` for a file not followed. */
@@ -479,7 +485,10 @@ internal class Run(
     val steppedUnordered get() = unordered > 0
 
     /** What the code running is inside ([Around]). */
-    fun around() = Around(catching, mayNotRun, unordered)
+    fun around() = Around(catching, mayNotRun, unordered, mayHaveRunUnfollowed)
+
+    /** How many of the [Around]s the code running is inside have code the expander doesn't follow run before them. */
+    private var unfollowedAround = 0
 
     /**
      * The code that runs next runs inside [around], as an imported file's or a closure's this run made is inside what its
@@ -491,11 +500,13 @@ internal class Run(
         catching = around.catching
         if (around.mayNotRun) speculating++
         unordered += around.unordered
+        if (around.unfollowed) unfollowedAround++
 
         return {
             catching = outer
             if (around.mayNotRun) speculating--
             unordered -= around.unordered
+            if (around.unfollowed) unfollowedAround--
         }
     }
 
@@ -543,11 +554,39 @@ internal class Run(
         if (joinsOnly) decline("$what in code that may not run, or may run any number of times", *terms)
     }
 
-    /** Whether code the expander doesn't follow ran; once set it stays. */
-    private var unfollowedRan = false
+    /**
+     * Whether code the expander doesn't follow ran in this run, or in another whose code it went on from
+     * ([unfollowedRanBefore]); once set it stays. What the run can't see reads [mayHaveRunUnfollowed].
+     */
+    var unfollowedRan = false
+        private set
 
-    /** Whether code the expander doesn't follow ran in the run ([unfollowedRan]), or in the run `Code` followed it from. */
-    val mayHaveRunUnfollowed: Boolean get() = unfollowedRan || parent?.mayHaveRunUnfollowed == true
+    /**
+     * Whether code the expander doesn't follow ran in the run ([unfollowedRan]), before what the code running is inside
+     * ([Around.unfollowed]), in the run `Code` followed it from, or, for a run followed from none, in the config read its
+     * build runs first ([RunFiles.readRanUnfollowed]).
+     */
+    val mayHaveRunUnfollowed: Boolean
+        get() = unfollowedRan || unfollowedAround > 0 || parent?.mayHaveRunUnfollowed ?: reachedFiles.readRanUnfollowed()
+
+    /**
+     * The project's files the run reaches by path: none at any path once code the expander doesn't follow may have run
+     * ([mayHaveRunUnfollowed]), which may have written any of them.
+     */
+    val files: RunFiles get() = if (mayHaveRunUnfollowed) unfollowedFiles else reachedFiles
+
+    private val reachedFiles = files
+
+    /** [reachedFiles] with nothing known at a path. */
+    private val unfollowedFiles: RunFiles by lazy(LazyThreadSafetyMode.NONE) {
+        object : RunFiles by reachedFiles {
+            override fun entry(path: String): FileEntry? = null
+            override fun imported(path: String, read: ConfigRead): FileExpansion? = null
+            override fun read(path: String): ByteArray? = null
+            override fun listing(path: String): DirectoryListing? = null
+            override fun followed(path: String): FollowedFile? = null
+        }
+    }
 
     /**
      * The file's expansion, ending at [top], with the modules the run compiled, whether code it doesn't follow ran and
@@ -555,6 +594,16 @@ internal class Run(
      */
     fun fileExpansion(top: Expansion, endsRun: Boolean): FileExpansion =
         FileExpansion(top, compiledInto, endsRun, unfollowedRan, assumptions > 0)
+
+    /**
+     * Code the expander doesn't follow ran in another run that shares this one's [shared] values, before what this run
+     * does from then on: one this run's code followed or imported, or one that made a closure this run called.
+     * What it left in the files isn't known here either; the cells and keys it may have written were taken out where
+     * it ran ([declinedCodeRan]).
+     */
+    fun unfollowedRanBefore() {
+        unfollowedRan = true
+    }
 
     /** Code the expander doesn't follow ran, or may have: a decline the walk went on past, a stop, a macro or callback it lost. */
     fun unfollowedCodeRan() {
@@ -578,11 +627,11 @@ internal class Run(
      * The directory Elixir compiles the run's [file] in now, a config read's project's in a read, which `file:get_cwd/0`,
      * `Path.relative_to_cwd/1` and `filename:absname/1` read, `null` where it isn't known: where the run's [file] has no
      * path on the SDK's machine, [directories] doesn't have it, or code the expander doesn't follow may have changed it
-     * ([unfollowedRan]). On Windows its drive letter is lowercase, as OTP gives it.
+     * ([mayHaveRunUnfollowed]). On Windows its drive letter is lowercase, as OTP gives it.
      */
-    fun workingDirectory(): String? = if (unfollowedRan) null else compileDirectory
+    fun workingDirectory(): String? = if (mayHaveRunUnfollowed) null else compileDirectory
 
-    /** The directory [workingDirectory] gives until [unfollowedRan], read once: none of what it reads changes in a run. */
+    /** The directory [workingDirectory] gives until [mayHaveRunUnfollowed], read once: none of what it reads changes in a run. */
     private val compileDirectory by lazy(LazyThreadSafetyMode.NONE) {
         file()?.let { config?.directory ?: directories.of(it) }
             ?.let { Filename.lowercaseDrive(it, os) }
@@ -757,10 +806,11 @@ internal class Run(
 
     /**
      * [answer], for a module the run neither compiled nor is compiling, or [unreadable] where it is [absent] and code the
-     * expander doesn't follow ran ([unfollowedRan]), which may have created it with `Module.create/3`. Such code is taken
-     * not to redefine or unload a module whose answer is already present.
+     * expander doesn't follow may have run ([mayHaveRunUnfollowed]), which may have created it with `Module.create/3`.
+     * Such code is taken not to redefine or unload a module whose answer is already present.
      */
-    private fun <T> maybeCreated(answer: T, absent: T, unreadable: T): T = if (answer == absent && unfollowedRan) unreadable else answer
+    private fun <T> maybeCreated(answer: T, absent: T, unreadable: T): T =
+        if (answer == absent && mayHaveRunUnfollowed) unreadable else answer
 
     /**
      * `Module.open?/1` of [module]: whether it is being compiled, or `null` for one the run didn't compile, which another
@@ -926,7 +976,7 @@ internal class Run(
             os,
             buildTarget,
             config,
-            files,
+            reachedFiles,
             env,
             parent = caller,
             evaluates = evaluates,
@@ -963,7 +1013,7 @@ internal class Run(
         if (child.evaluates) ownLoads += child.ownLoads
         assumptions += child.assumptions
         // The arrays are shared, so the child's own decline cleared them.
-        if (child.unfollowedRan) unfollowedRan = true
+        if (child.unfollowedRan) unfollowedRanBefore()
     }
 
     /**

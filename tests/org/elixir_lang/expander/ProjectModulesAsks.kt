@@ -26,6 +26,13 @@ internal fun exports(
     inputs: ProjectModules.Inputs = legInputs,
 ): ModuleExports = ReadAction.nonBlocking(Callable { holder.exports(asker, atom, inputs) }).executeSynchronously()
 
+internal fun locate(
+    holder: ProjectModules,
+    asker: PsiFile,
+    atom: String,
+    inputs: ProjectModules.Inputs = legInputs,
+): ProjectModules.Located = ReadAction.nonBlocking(Callable { holder.locate(asker, atom, inputs) }).executeSynchronously()
+
 /**
  * Drops every file's PSI in [project], so the next holder starts on new PSI: a holder keeps a file's expansion on its
  * PSI under a key of its own, so PSI read again would still hold each earlier holder's.

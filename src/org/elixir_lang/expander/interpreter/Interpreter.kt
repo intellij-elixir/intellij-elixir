@@ -4208,6 +4208,7 @@ private inline fun carried(carry: Carry?, call: () -> OtpErlangObject): OtpErlan
         leave()
         made.raisedOverUnknown = raised
         if (raisedThere) carry.into.raisedOverUnknown = true
+        if (made.unfollowedRan) carry.into.unfollowedRanBefore()
     }
 }
 

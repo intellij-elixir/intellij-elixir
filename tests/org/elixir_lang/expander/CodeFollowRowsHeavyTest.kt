@@ -124,14 +124,10 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("b6", "{[H], nil, nil}", elixir = "{[H], nil, nil}"),
             // Which of Elixir's runs comes first is a race.
             Row("b7", "unknown", elixir = ":h2 / exit 1 raises CompileError"),
-            Row(
-                "b8",
-                "{unknown, nil, [M1, M2], nil, {:last, []}}",
-                elixir = "{[M1, M2], nil, [M1, M2], nil, {:last, []}}",
-                Before(PATH_EXPAND_READS_CWD_LAZILY, "{unknown, unknown, unknown, unknown, unknown}"),
-            ),
+            // The first require's answer is a race, so the `Enum.map` over it declines, and no file is known after it.
+            Row("b8", "{unknown, unknown, unknown, unknown, unknown}", elixir = "{[M1, M2], nil, [M1, M2], nil, {:last, []}}"),
             Row("b9a", "{[H], unknown}", elixir = "{[H], [H]}"),
-            Row("b9b", "{unknown, [H]}", elixir = "{[H], [H]}", Before(PATH_EXPAND_READS_CWD_LAZILY, "{unknown, unknown}")),
+            Row("b9b", "{unknown, unknown}", elixir = "{[H], [H]}"),
             Row("b10", "{2, {2, [x: 2, y: 1]}, 4}", elixir = "{2, {2, [x: 2, y: 1]}, 4}"),
             Row("b11", "{nil, A, \"/x\", \"nofile\"}", elixir = "{nil, A, \"/x\", \"nofile\"}"),
             Row("b12", ":from_s", elixir = ":from_s"),
@@ -376,8 +372,14 @@ class CodeFollowRowsHeavyTest : ConfigHeavyTestCase() {
             Row("i29", ":from_h", elixir = ":from_h"),
             // An ensure in a string a body evaluates reaches the body.
             Row("i30", ":from_h", elixir = ":from_h"),
-            // A follow the read declined requires nothing: the body follows the file itself, beside its siblings.
-            Row("i31", "{unknown, :from_h}", elixir = "{true, :from_h}"),
+            // A config read that declined may have run code that wrote any file, so the body's own require of one isn't known.
+            // Before 1.13 `H.v()` reads the macros of `H`, which that code may have created: the body stops there.
+            Row(
+                "i31",
+                "{unknown, unknown}",
+                elixir = "{true, :from_h}",
+                Before(UNREQUIRED_MACRO_CALLED_AS_FUNCTION, "{unknown, no-attribute}"),
+            ),
             Row("i32", "unknown", elixir = "true"),
             Row("i33", "unknown", elixir = "true"),
             Row("i34", ":mine", elixir = ":mine"),

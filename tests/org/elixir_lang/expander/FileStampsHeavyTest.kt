@@ -182,6 +182,52 @@ class FileStampsHeavyTest : ConfigHeavyTestCase() {
         assertEquals("\"\"", value(root, expansion(aFile), "A"))
     }
 
+    /** Code the run doesn't follow may have written any file, so a read after it isn't known. */
+    fun testAReadAfterCodeTheRunDoesntFollowIsntKnown() {
+        val root = project(
+            A to "defmodule A do\n  @ran :os.cmd(~c\"true\")\n  @t File.read(Path.join(__DIR__, \"a.heex\"))\n  def t, do: @t\nend\n",
+            "lib/a.heex" to "a\n",
+        )
+
+        assertEquals("unknown", value(root, expansion(psi(root, A)), "A"))
+    }
+
+    /** A read after the build's config read declined isn't known either: code the read didn't follow ran first. */
+    fun testAReadAfterTheBuildsConfigReadDeclinedIsntKnown() {
+        val root = project(
+            "config/config.exs" to "import Config\n:os.cmd(~c\"true\")\n",
+            A to reader("A", "a.heex"),
+            "lib/a.heex" to "a\n",
+        )
+
+        assertEquals("unknown", value(root, expansion(psi(root, A)), "A"))
+    }
+
+    /** Nor is the working directory, which that code may have changed. */
+    fun testTheWorkingDirectoryAfterTheBuildsConfigReadDeclinedIsntKnown() {
+        val root = project(
+            "config/config.exs" to "import Config\n:os.cmd(~c\"true\")\n",
+            A to "defmodule A do\n  @t File.cwd!()\n  def t, do: @t\nend\n",
+        )
+
+        assertEquals("unknown", value(root, expansion(psi(root, A)), "A"))
+    }
+
+    /** Nor is a read after a call of a closure another run made, which ran such code. */
+    fun testAReadAfterAClosureAnotherRunMadeRanCodeTheRunDoesntFollowIsntKnown() {
+        val root = project(
+            A to "defmodule A do\n" +
+                "  {f, _} = Code.eval_string(\"fn -> case :os.cmd(~c'true') do :stop -> :erlang.error(:stop); _ -> :ok end end\")\n" +
+                "  f.()\n" +
+                "  @t File.read(Path.join(__DIR__, \"a.heex\"))\n" +
+                "  def t, do: @t\n" +
+                "end\n",
+            "lib/a.heex" to "a\n",
+        )
+
+        assertEquals("unknown", value(root, expansion(psi(root, A)), "A"))
+    }
+
     /** A read of a missing file, or past `..`, reruns as the names it went through come or go, not as others do. */
     fun testAReadRerunsOnlyAsWhatItWentThroughMoves() {
         val root = project(

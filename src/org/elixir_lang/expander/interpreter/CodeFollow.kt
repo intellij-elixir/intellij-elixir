@@ -10,7 +10,6 @@ import org.elixir_lang.NameArity
 import org.elixir_lang.expander.Expansion
 import org.elixir_lang.expander.Followed
 import org.elixir_lang.expander.Parsed
-import org.elixir_lang.expander.Require
 import org.elixir_lang.expander.TermEscapeView
 import org.elixir_lang.expander.VARIABLE_ORDER
 import org.elixir_lang.expander.Variable
@@ -95,16 +94,14 @@ internal class CodeFollow(private val evaluation: Evaluation) {
 
     /**
      * `elixir_code_server`'s require-once: `nil` for a path the run, or the config read its build follows, already
-     * required, else the modules it loaded. Where code that declined may have required it
-     * ([mayHaveRunUnfollowed][org.elixir_lang.expander.Run.mayHaveRunUnfollowed]), or in a run beside others
+     * required, else the modules it loaded. In a run beside others
      * ([sequential][org.elixir_lang.expander.Run.sequential]), where which of them requires the path first is a race,
      * the modules are loaded but what the call gives isn't known, and the file's run is raced against the env the run
      * wrote ([EnvWrites.race][org.elixir_lang.expander.EnvWrites.race]).
      */
     private fun requireFile(path: String): OtpErlangObject {
-        val earlier = if (path in run.shared.required) Require.REQUIRED else run.files.requiredByRead(path)
-        if (earlier == Require.REQUIRED) return NIL
-        val races = earlier == Require.MAYBE || run.mayHaveRunUnfollowed || !run.sequential
+        if (path in run.shared.required || run.files.requiredByRead(path)) return NIL
+        val races = !run.sequential
 
         val modules = if (races) run.shared.envWrites.race { compileFile(path) } else compileFile(path)
         run.shared.required += path

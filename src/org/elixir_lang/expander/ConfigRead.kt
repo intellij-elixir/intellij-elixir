@@ -450,15 +450,6 @@ internal fun sameRead(left: ConfigRead.Snapshot?, right: ConfigRead.Snapshot?): 
         left.imports == right.imports && left.shape == right.shape && sameTerm(left.config, right.config, held = true)
     }
 
-/** Whether earlier code required a path with `Code.require_file/1,2`, so a later require of it gives `nil`. */
-internal enum class Require {
-    /** It did: a later require gives `nil`. */
-    REQUIRED,
-
-    /** Code that declined may have: a later require may give `nil`, or run the file. */
-    MAYBE,
-}
-
 /** What a run reaches of the project's files by path, each stamped. */
 internal interface RunFiles {
     /** What is at [path], stamped by its path, `null` where that can't be known. */
@@ -493,10 +484,16 @@ internal interface RunFiles {
     fun parserOptions(): Reading<OtpErlangObject> = Reading.Absent
 
     /**
-     * Whether the config read the run's build follows required [path] with `Code.require_file/1,2`, `null` where it
-     * didn't; a read's run follows none.
+     * Whether the config read the run's build follows required [path] with `Code.require_file/1,2`, so a later require
+     * of it gives `nil`; a read's run follows none.
      */
-    fun requiredByRead(path: String): Require? = null
+    fun requiredByRead(path: String): Boolean = false
+
+    /**
+     * Whether a unit of the config read the run's build follows declined, or ran code the read doesn't follow
+     * ([ConfigTable.declined]), so what that code left in the project's files isn't known; a read's run follows none.
+     */
+    fun readRanUnfollowed(): Boolean = false
 
     /**
      * Which copy of [module] the index holds for the run's file: `true` one compiled copy, `false` one source copy,
