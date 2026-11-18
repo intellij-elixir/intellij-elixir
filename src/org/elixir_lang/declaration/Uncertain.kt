@@ -23,6 +23,9 @@ enum class Uncertain {
     /** There was no expansion to read: the file has no SDK inputs, the IDE is indexing, or the expander doesn't answer the use. */
     NO_EXPANSION,
 
-    /** Elixir defines the name, but the plugin has no element for the definition: a head it can't place, or an export with no decompiled definition. */
+    /**
+     * Elixir defines the name, but the plugin has no element for the definition: a head it can't place, an export with
+     * no decompiled definition, or a name the compilers add to a source module.
+     */
     UNPLACED,
 }

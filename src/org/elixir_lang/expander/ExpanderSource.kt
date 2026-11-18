@@ -832,7 +832,7 @@ internal object ExpanderSource : CandidateSource {
     ): List<Reached> {
         ProgressManager.checkCanceled()
 
-        val own = definedIn(at, located, module, name).flatMap { held(at, it, name, arity, remote, crossed) }
+        val own = definedIn(at, located, module, name, arity.takeIf { remote }).flatMap { held(at, it, name, arity, remote, crossed) }
         val source = located as? ProjectModules.Located.Source ?: return own
         val result = source.result?.takeIf { imports } ?: return own
         val body = bodyEnv(result) ?: return own.also { at.gap(Uncertain.MODULE) }
@@ -912,14 +912,32 @@ internal object ExpanderSource : CandidateSource {
     private fun ofModule(at: At, module: String, name: String?): List<Defined> =
         definedIn(at, at.locate(module), module, name)
 
-    /** [module]'s declarations of [name], or of every name when it is `null`, in [located], with the gap it meets. */
-    private fun definedIn(at: At, located: ProjectModules.Located, module: String, name: String?): List<Defined> =
+    /**
+     * [module]'s declarations of [name], or of every name when it is `null`, in [located], with the gap it meets. A
+     * remote call at [arity] to a name the compilers add to a source module ([ModuleExports.adds]) meets an
+     * [Uncertain.UNPLACED] gap.
+     */
+    private fun definedIn(at: At, located: ProjectModules.Located, module: String, name: String?, arity: Int? = null): List<Defined> =
         eachLocated(
             at,
             located,
             module,
-            { source -> known(at, source.result)?.let { defined(at, source.file, it, name) }.orEmpty() },
+            { source -> definedInSource(at, source, name, arity) },
         ) { compiled -> compiled(at, compiled, name) }
+
+    /** [definedIn] where [source] is the module's source. */
+    private fun definedInSource(at: At, source: ProjectModules.Located.Source, name: String?, arity: Int?): List<Defined> {
+        val result = known(at, source.result) ?: return emptyList()
+        val defined = defined(at, source.file, result, name)
+        if (compilerAdds(result, name, arity)) at.gap(Uncertain.UNPLACED)
+
+        return defined
+    }
+
+    /** Whether the compilers add [name] at [arity] to [result]'s module, as [ModuleExports.adds] has it. */
+    private fun compilerAdds(result: ExpansionResult, name: String?, arity: Int?): Boolean =
+        name != null && arity != null &&
+            ModuleExports.adds(NameArity(name, arity)) { LoadedModules.behaviour(result) }
 
     /**
      * What [source] reads of [located] where it is in source, and [compiled] where it is a `.beam`; where it has several

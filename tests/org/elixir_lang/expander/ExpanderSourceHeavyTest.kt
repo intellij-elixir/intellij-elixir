@@ -1960,6 +1960,77 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
     }
 
     /**
+     * The compilers add `module_info/0,1` and `__info__/1` to every module and `behaviour_info/1` to a behaviour, which
+     * no table holds: a remote call to one of them on a source module, at an arity they are added at, is no absence
+     * Elixir reports, even beside a definition of the name at another arity. A local call to one is, as is
+     * `behaviour_info/1` on a module that declares no callback.
+     */
+    fun testARemoteCallToWhatTheCompilersAddToASourceModuleIsAnAbsenceOfNoElement() {
+        val file = file(
+            """
+            defmodule Known do
+              def f(a), do: a
+            end
+
+            defmodule Behaving do
+              @callback cb(term) :: term
+            end
+
+            defmodule MacroCallbacks do
+              @macrocallback mcb(term) :: Macro.t()
+            end
+
+            defmodule Writes do
+              def module_info(a, b), do: {a, b}
+              def __info__(a, b), do: {a, b}
+            end
+
+            defmodule Asker do
+              def all, do: Known.module_info()
+              def exports, do: Known.module_info(:exports)
+              def functions, do: Known.__info__(:functions)
+              def callbacks, do: Behaving.behaviour_info(:callbacks)
+              def macrocallbacks, do: MacroCallbacks.behaviour_info(:callbacks)
+              def written, do: Writes.module_info()
+              def written_info, do: Writes.__info__(:functions)
+              def two, do: Known.module_info(1, 2)
+              def none, do: Known.__info__()
+              def no_behaviour, do: Known.behaviour_info(:callbacks)
+            end
+
+            defmodule Local do
+              def local, do: module_info()
+            end
+            """
+        )
+        // The undefined `module_info/0` is an error that ends `Local` tainted, its table complete; before 1.15 it raises.
+        // Either ends the file's run, so `Local` is last.
+        val tainted = if (FUNCTION_ERRORS_CONTINUE.isSufficient(legLevel())) "certain" else "MODULE"
+        val unplaced = listOf(
+            "Known.module_info()",
+            "Known.module_info(:exports)",
+            "Known.__info__(:functions)",
+            "Behaving.behaviour_info(:callbacks)",
+            "MacroCallbacks.behaviour_info(:callbacks)",
+            "Writes.module_info()",
+            "Writes.__info__(:functions)",
+        )
+        val certain = listOf("Known.module_info(1, 2)", "Known.__info__()", "Known.behaviour_info(:callbacks)")
+        val calls = unplaced + certain
+
+        assertEquals(
+            rows(
+                *(unplaced.map { it to "UNPLACED" } + certain.map { it to "certain" }).toTypedArray(),
+                "module_info()" to tainted,
+            ),
+            rows(
+                *calls.map { it to absence(file, it, it) }.toTypedArray(),
+                "module_info()" to absence(file, "local, do: module_info()", "module_info()"),
+            ),
+        )
+    }
+
+    /**
      * A remote call may name a macro by the function Elixir compiles it to, `MACRO-<name>`, which a `.beam` exports but
      * its decompiled source declares under the macro's name: nothing found is no absence Elixir reports.
      */
