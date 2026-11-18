@@ -2,22 +2,19 @@ package org.elixir_lang.documentation
 
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.testFramework.PlatformTestUtil
-import org.elixir_lang.beam.BeamLibraryTestCase
-import org.elixir_lang.declaration.disableExpander
+import org.elixir_lang.declaration.ExpanderSettingBeamLibraryTestCase
 
 /**
  * A dependency compiled with docs but no debug info: its decompiled source writes each lower arity of a function with
  * defaults as a clause of its own, beside the head that carries the defaults. The function is the head with the
  * defaults, at every arity (`build.exs` rebuilds the fixture).
  */
-class DocsOnlyDefaultsQuickDocumentationTest : BeamLibraryTestCase() {
+class DocsOnlyDefaultsQuickDocumentationTest : ExpanderSettingBeamLibraryTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/beam/docs_only_defaults"
 
-    /** Run the expander off, whatever the run's default: this class pins the walk's answers. */
     override fun setUp() {
         super.setUp()
         HeadlessDataManager.fallbackToProductionDataManager(testRootDisposable)
-        disableExpander(testRootDisposable)
     }
 
     fun testQuickDocsAtALowerArityShowTheFunctionsDoc() {

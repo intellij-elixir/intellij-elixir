@@ -6,9 +6,8 @@ import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.testFramework.utils.parameterInfo.MockCreateParameterInfoContext
 import com.intellij.testFramework.utils.parameterInfo.MockParameterInfoUIContext
 import org.elixir_lang.beam.BeamLibraryFixture
-import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.beam.psi.BeamFileImpl
-import org.elixir_lang.declaration.disableExpander
+import org.elixir_lang.declaration.ExpanderSettingBeamLibraryTestCase
 import org.elixir_lang.documentation.CompiledBuild
 import org.elixir_lang.documentation.addCompiledLibrary
 import java.io.File
@@ -17,13 +16,7 @@ import java.io.File
  * Parameter hints for calls whose definition is in a `.beam` rather than in source. A module's names are the ones its
  * `Docs` chunk records; without them, the ones the decompiler shows for the first clause.
  */
-class BeamParameterInfoTest : BeamLibraryTestCase() {
-    /** Run the expander off, whatever the run's default: this class pins the walk's answers. */
-    override fun setUp() {
-        super.setUp()
-        disableExpander(testRootDisposable)
-    }
-
+class BeamParameterInfoTest : ExpanderSettingBeamLibraryTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/code_insight/parameter_info/beam"
 
     fun testACompiledFunctionIsHintedByTheSignatureItsDocsChunkRecords() =

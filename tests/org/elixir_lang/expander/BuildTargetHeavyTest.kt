@@ -5,6 +5,7 @@ import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
@@ -120,13 +121,16 @@ class BuildTargetHeavyTest : HeavyTestCase() {
         assertEquals("compiled [host/0]", defines(root, "lib/in_lib.ex"))
     }
 
-    private fun defines(root: VirtualFile, path: String): String =
-        defines(holder, PsiManager.getInstance(project).findFile(root.findFileByRelativePath(path)!!)!!)
+    private fun defines(root: VirtualFile, path: String): String = defines(holder, psi(root, path))
+
+    /** The PSI of [path]'s file under [root]. */
+    private fun psi(root: VirtualFile, path: String): PsiFile =
+        PsiManager.getInstance(project).findFile(root.findFileByRelativePath(path)!!)!!
 
     /** The `_build/<env>` of the copy of the built dependency that [path]'s file loads. */
     private fun buildLoaded(root: VirtualFile, path: String): String {
         val located = ReadAction.nonBlocking(Callable {
-            holder.locate(PsiManager.getInstance(project).findFile(root.findFileByRelativePath(path)!!)!!, "Elixir.$DEP", legInputs)
+            holder.locate(psi(root, path), "Elixir.$DEP", legInputs)
         }).executeSynchronously() as ProjectModules.Located.Compiled
 
         return "_build/${buildEnv(located.beam)}"

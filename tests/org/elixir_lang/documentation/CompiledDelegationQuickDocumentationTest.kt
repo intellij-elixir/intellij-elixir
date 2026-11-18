@@ -1,16 +1,9 @@
 package org.elixir_lang.documentation
 
-import org.elixir_lang.beam.BeamLibraryTestCase
-import org.elixir_lang.declaration.disableExpander
+import org.elixir_lang.declaration.ExpanderSettingBeamLibraryTestCase
 
 /** An undocumented delegation to a compiled function shows that function's docs, as one to a source function does. */
-class CompiledDelegationQuickDocumentationTest : BeamLibraryTestCase() {
-    /** Run the expander off, whatever the run's default: this class pins the walk's answers. */
-    override fun setUp() {
-        super.setUp()
-        disableExpander(testRootDisposable)
-    }
-
+class CompiledDelegationQuickDocumentationTest : ExpanderSettingBeamLibraryTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/model/psi/module"
 
     fun testAnUndocumentedDelegationToACompiledFunctionShowsItsDocs() {

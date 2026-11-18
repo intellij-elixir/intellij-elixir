@@ -38,6 +38,7 @@ import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.declaration.enableExpander
 import org.elixir_lang.declaration.preferred
 import org.elixir_lang.elixir_surface.LegManifest
+import org.elixir_lang.expander.ExpanderSourceRows.absence
 import org.elixir_lang.expander.ExpanderSourceRows.arity
 import org.elixir_lang.expander.ExpanderSourceRows.callbacks
 import org.elixir_lang.expander.ExpanderSourceRows.modulars
@@ -3266,12 +3267,6 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals(expected.trimIndent(), expander)
         assertEquals(ExpanderSourceRows.candidates(use, LegacyWalkSource), expander)
     }
-
-    /** Why [ExpanderSource]'s answer to the use [call] in [context] may be missing what it reaches, or `certain`. */
-    private fun absence(file: PsiFile, context: String, call: String): String = absence(use(file, context, call))
-
-    /** Why [ExpanderSource]'s answer to [use] may be missing what it reaches, or `certain`. */
-    private fun absence(use: Use): String = read { ExpanderSource.answer(use, false) }.absence?.name ?: "certain"
 
     /** How each module [file] defines at its top ended, by name. */
     private fun ended(file: PsiFile): Map<String, String> =

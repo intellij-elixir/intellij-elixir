@@ -71,9 +71,9 @@ abstract class LegSdkFixtureTestCase : UsefulTestCase() {
         return "$relative:${lineOf(element)}"
     }
 
-    /** [text], its indent trimmed, as the project's [CALLER], indexed. */
-    protected fun caller(text: String): PsiFile {
-        val file = myFixture.addFileToProject(CALLER, text.trimIndent() + "\n")
+    /** [text], its indent trimmed, as the project's [path], [CALLER] unless named, indexed. */
+    protected fun caller(text: String, path: String = CALLER): PsiFile {
+        val file = myFixture.addFileToProject(path, text.trimIndent() + "\n")
         IndexingTestUtil.waitUntilIndexesAreReady(project)
 
         return file
