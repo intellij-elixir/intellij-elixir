@@ -32,6 +32,13 @@ fun CodeInsightTestFixture.quickDocumentationAtCaret(project: Project): String? 
         .firstOrNull()
         ?.let(::renderedDocumentation)
 
+/** Quick Documentation at the caret in [text], opened as [fileName]; empty where there is none. */
+fun CodeInsightTestFixture.quickDocumentationIn(project: Project, fileName: String, text: String): String {
+    configureByText(fileName, text)
+
+    return quickDocumentationAtCaret(project).orEmpty()
+}
+
 /**
  * The documentation completion's popup shows for [lookupElement], as the platform asks for it: symbol targets, then
  * lookup-element targets, then the lookup's own PSI element.

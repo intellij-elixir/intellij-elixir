@@ -103,8 +103,9 @@ internal object ExpanderSource : CandidateSource {
 
         return when (use) {
             is Use.OfCall -> answerAt(use, readAt, withoutInputs = { indexFound(use) }) { at -> called(at, use) }
-            is Use.Specified -> answerAt(use, readAt) { at -> specified(at, use) }
-            is Use.Remote -> answerAt(use, readAt) { at -> qualified(at, use.module, use.name, use.arity) }
+            is Use.Specified -> answerAt(use, readAt, withoutInputs = { indexFound(use) }) { at -> specified(at, use) }
+            is Use.Remote ->
+                answerAt(use, readAt, withoutInputs = { indexFound(use) }) { at -> qualified(at, use.module, use.name, use.arity) }
             is Use.Link ->
                 answerAt(use, readAt, readsEnv = false, withoutInputs = { indexFound(use, readAt) }) { at -> linked(at, use) }
             is Use.Tag -> Answer(emptyList(), Uncertain.NO_EXPANSION)
@@ -273,6 +274,26 @@ internal object ExpanderSource : CandidateSource {
         val own by lazy { ownModular(call)?.let(::indexNames).orEmpty() }
 
         return indexFound(use, call, name, use.arity, remote = call is Qualified, { module -> module in own }, wanted)
+    }
+
+    /**
+     * With no SDK inputs, a `@spec` head's finds are what the name index defines its name as in the module it is in, a
+     * private one too, as [specified] reads what that module holds.
+     */
+    private fun indexFound(use: Use.Specified): List<Found> {
+        val own = indexNames(use.modular)
+
+        return indexFound(use, use.head, use.name, use.arity, remote = false, own::contains, own::contains)
+    }
+
+    /**
+     * With no SDK inputs, an MFA atom's finds are what the name index defines its name as in the module it names as
+     * written, a public one only, as [qualified] reads a module from outside it.
+     */
+    private fun indexFound(use: Use.Remote): List<Found> {
+        val wanted = writtenModule(use.module) ?: return emptyList()
+
+        return indexFound(use, use.atom, use.name, use.arity, remote = true, { false }, wanted)
     }
 
     /**
