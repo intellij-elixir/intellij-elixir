@@ -69,23 +69,6 @@ sealed class FetchedDocs(open val module: String?) {
             fun headsOf(documentation: List<FunctionOrMacroDocumentation>): List<String> =
                 documentation.flatMap { it.heads }.distinct()
 
-            @RequiresReadLock
-            fun fromCallDefinitionClauseCall(
-                module: String?,
-                call: Call,
-                head: String?
-            ): FunctionOrMacroDocumentation {
-                val callDefinitionAttributeListByName = callDefinitionAttributeListByName(call)
-                val deprecated = callDefinitionAttributeListByName[DEPRECATED]?.joinModuleAttributeQuoteText()
-                    ?.let { OtpErlangBinary(it.toByteArray()) }
-                val doc = docAbove(callDefinitionAttributeListByName)?.moduleAttributeValue()?.documentationMarkdownText()
-                    ?.let { MarkdownByLanguage.english(it) }
-                val impls = callDefinitionAttributeListByName[IMPL].moduleAttributeValueTextList()
-                val specs = callDefinitionAttributeListByName[SPEC].moduleAttributeValueTextList()
-
-                return FunctionOrMacroDocumentation(module, deprecated, doc, impls, specs, listOfNotNull(head))
-            }
-
             private fun mergeDeprecated(first: OtpErlangObject?, second: OtpErlangObject?): OtpErlangObject? =
                 if (first != null) {
                     if (second != null) {
@@ -175,20 +158,49 @@ private val CALL_DEFINITION_ATTRIBUTE_NAME_SET: Set<String> = setOf(DEPRECATED, 
 
 /** Whether an `@doc` that is not metadata is written above [call]: `false` hides the function, which says something. */
 @RequiresReadLock
-internal fun writesDoc(call: Call): Boolean = docAbove(call) != null
+internal fun writesDoc(call: Call): Boolean = DeclarationAttributes.of(call).writesDoc
 
-/** Whether the `@doc` written above [call] is `false`, which hides the function from documentation. */
-@RequiresReadLock
-internal fun hidesDoc(call: Call): Boolean = docAbove(call)?.moduleAttributeValue()?.let(AtomName::of) == "false"
+/**
+ * The `@doc`, `@deprecated`, `@impl` and `@spec` written above a declaration, read once: [doc] is the `@doc` that
+ * stands, and [hidesDoc] whether it is `false`, which hides the function from documentation.
+ */
+internal class DeclarationAttributes private constructor(
+    private val attributeListByName: Map<String, List<AtUnqualifiedNoParenthesesCall<*>>>,
+    private val doc: AtUnqualifiedNoParenthesesCall<*>?,
+    val hidesDoc: Boolean
+) {
+    /** Whether an `@doc` that is not metadata is written: `false` hides the function, which says something. */
+    val writesDoc: Boolean get() = doc != null
 
-/** The `@doc` above [call] that stands, the nearest one: a keyword list only sets metadata beside the doc and replaces nothing. */
-private fun docAbove(call: Call): AtUnqualifiedNoParenthesesCall<*>? = docAbove(callDefinitionAttributeListByName(call))
+    /** The docs these write for the declaration, shown with [head], in [module]. */
+    @RequiresReadLock
+    fun documentation(module: String?, head: String?): FetchedDocs.FunctionOrMacroDocumentation {
+        val deprecated = attributeListByName[DEPRECATED]?.joinModuleAttributeQuoteText()
+            ?.let { OtpErlangBinary(it.toByteArray()) }
+        val markdown = doc?.moduleAttributeValue()?.documentationMarkdownText()?.let { MarkdownByLanguage.english(it) }
+        val impls = attributeListByName[IMPL].moduleAttributeValueTextList()
+        val specs = attributeListByName[SPEC].moduleAttributeValueTextList()
 
-/** `@doc nil` writes no doc, so the function keeps any it replaced (`Module.compile_doc/6`). */
-private fun docAbove(attributeListByName: Map<String, List<AtUnqualifiedNoParenthesesCall<*>>>): AtUnqualifiedNoParenthesesCall<*>? =
-    attributeListByName[DOC]
-        ?.firstOrNull { it.moduleAttributeValue() !is QuotableKeywordList }
-        ?.takeUnless { doc -> doc.moduleAttributeValue()?.let(AtomName::of) == "nil" }
+        return FetchedDocs.FunctionOrMacroDocumentation(module, deprecated, markdown, impls, specs, listOfNotNull(head))
+    }
+
+    companion object {
+        /**
+         * The attributes written above a declaration [call]. The `@doc` that stands is the nearest one: a keyword list
+         * only sets metadata beside the doc and replaces nothing, and `@doc nil` writes no doc, so the function keeps
+         * any it replaced (`Module.compile_doc/6`).
+         */
+        @RequiresReadLock
+        fun of(call: Call): DeclarationAttributes {
+            val attributeListByName = callDefinitionAttributeListByName(call)
+            val doc = attributeListByName[DOC]
+                ?.firstOrNull { it.moduleAttributeValue() !is QuotableKeywordList }
+                ?.takeUnless { it.moduleAttributeValue()?.let(AtomName::of) == "nil" }
+
+            return DeclarationAttributes(attributeListByName, doc, doc?.moduleAttributeValue()?.let(AtomName::of) == "false")
+        }
+    }
+}
 
 private fun callDefinitionAttributeListByName(callDefinitionCall: Call): Map<String, List<AtUnqualifiedNoParenthesesCall<*>>> {
     val source = sourceFor(Feature.DOCUMENTATION)

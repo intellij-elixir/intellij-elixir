@@ -63,8 +63,9 @@ internal object DelegationBlock {
                 entry(reached, module, function.map { it.documentation }, linked.map { it.head }, SourceFileDocsHelper.titles(function), documentation)
             }
             .ifEmpty {
-                val documentation = FetchedDocs.FunctionOrMacroDocumentation.fromCallDefinitionClauseCall(module, delegation, headOf(delegation, reached.head))
-                val writes = writesDoc(delegation)
+                val attributes = DeclarationAttributes.of(delegation)
+                val documentation = attributes.documentation(module, headOf(delegation, reached.head))
+                val writes = attributes.writesDoc
 
                 listOf(entry(reached, module, listOf(documentation), if (writes) emptyList() else listOf(reached.head), titles = emptyList(), documentation.takeIf { writes }))
             }

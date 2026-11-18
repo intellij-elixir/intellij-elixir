@@ -409,17 +409,12 @@ object SourceFileDocsHelper {
         // A placed head's call writes no head naming it, and may be the macro's clause or the call that injected it, whose docs are not its own.
         val head = found.head.written ?: return Written(found, form, arities, undocumented(module), hidden = false)
 
-        return Written(found, form, arities, documentation(call, form, head, name, module), hidesDoc(call))
-    }
+        val attributes = DeclarationAttributes.of(call)
+        val documentation =
+            if (form == Form.EXCEPTION) undocumented(module) else attributes.documentation(module, shownHead(call, form, head, name))
 
-    /** The docs [call] writes for [head], one of its declarations of [name] with [form], documented in [module]. */
-    @RequiresReadLock
-    private fun documentation(call: Call, form: Form, head: PsiElement, name: String, module: String?): FetchedDocs.FunctionOrMacroDocumentation =
-        if (form == Form.EXCEPTION) {
-            undocumented(module)
-        } else {
-            FetchedDocs.FunctionOrMacroDocumentation.fromCallDefinitionClauseCall(module, call, shownHead(call, form, head, name))
-        }
+        return Written(found, form, arities, documentation, attributes.hidesDoc)
+    }
 
     /** No docs, no head and no spec, in [module]. */
     private fun undocumented(module: String?): FetchedDocs.FunctionOrMacroDocumentation =
@@ -487,9 +482,7 @@ object SourceFileDocsHelper {
     @RequiresReadLock
     private fun ownDocs(call: Call, head: String): FetchedDocs? =
         enclosingModularMacroCall(call)?.let { modular ->
-            FetchedDocs.FunctionOrMacroDocumentation
-                .fromCallDefinitionClauseCall(moduleName(modular), call, head)
-                .takeIf { it.doc != null }
+            DeclarationAttributes.of(call).documentation(moduleName(modular), head).takeIf { it.doc != null }
         }
 
     /**
