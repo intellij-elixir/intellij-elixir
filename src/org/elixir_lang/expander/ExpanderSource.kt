@@ -155,11 +155,12 @@ internal object ExpanderSource : CandidateSource {
     }
 
     /**
-     * What the module a `@spec` is in holds of the name it specifies, not what its delegations reach, with the index's
-     * ([withIndexed]).
+     * What the module a `@spec` is in holds of the name it specifies, not what its delegations reach, unconfirmed where
+     * a `quote` returns it ([unconfirmedWhereQuoted]), with the index's ([withIndexed]).
      */
     private fun specified(at: At, use: Use.Specified): List<Reached> {
-        val found = ownDefined(at, use.name).map { heldOnly(it, use.name, use.arity, remote = false) }
+        val defined = ownDefined(at, use.name).map { heldOnly(it, use.name, use.arity, remote = false) }
+        val found = unconfirmedWhereQuoted(at, use.head, defined)
         val module = at.env.module ?: return found
 
         return withIndexed(at, module, found, use.name, use.arity, remote = false)
@@ -323,20 +324,15 @@ internal object ExpanderSource : CandidateSource {
         val call = use.entrance
         val name = (use as? Use.Named)?.name
 
-        // What the call reaches in the module its qualifier names, or its own: where a `quote` returns it, unconfirmed.
-        val unconfirmedWhereQuoted = { reached: List<Reached> ->
-            if (reached.isNotEmpty() && isQuoted(call)) reached.map { it.marked(Uncertain.OPAQUE) } else reached
-        }
-
         return if (call is Qualified) {
-            unconfirmedWhereQuoted(qualified(at, call.qualifier(), name, use.arity))
+            unconfirmedWhereQuoted(at, call, qualified(at, call.qualifier(), name, use.arity))
         } else {
             val isOwn = isOwn(at)
             val reached = buildList {
                 val defined = ownDefined(at, name)
                 // This lookup is the use's first, so a MODULE gap is one it met: what its module defines isn't known.
                 val ownUnknown = Uncertain.MODULE in at.gaps
-                addAll(unconfirmedWhereQuoted(defined.flatMap { held(at, it, name, use.arity, remote = false, emptySet()) }))
+                addAll(unconfirmedWhereQuoted(at, call, defined.flatMap { held(at, it, name, use.arity, remote = false, emptySet()) }))
                 addAll(imported(at, at.file, at.env, name, use.arity, emptySet()))
                 addAll(specialForms(at, name, use.arity))
                 // Past where the env is known, what the code after it brings in may be any definition of the name; on
@@ -357,8 +353,20 @@ internal object ExpanderSource : CandidateSource {
     }
 
     /**
-     * Whether [call], a local call or one on `__MODULE__` or a module under it, is code a `quote` returns: it then runs
-     * in, or under, the module that code is injected into, which may define its name itself.
+     * [reached], what [use] reaches in the module its qualifier names, or its own: where a `quote` returns it
+     * ([isQuoted]), unconfirmed, and nothing found there is no known absence.
+     */
+    private fun unconfirmedWhereQuoted(at: At, use: Call, reached: List<Reached>): List<Reached> =
+        if (isQuoted(use)) {
+            at.gap(Uncertain.OPAQUE)
+            reached.map { it.marked(Uncertain.OPAQUE) }
+        } else {
+            reached
+        }
+
+    /**
+     * Whether [call], a local call or one on `__MODULE__` or a module under it, or a `@spec`'s head, is code a `quote`
+     * returns: it then runs in, or under, the module that code is injected into, which may define its name itself.
      */
     private fun isQuoted(call: Call): Boolean =
         (call !is Qualified || isModuleRelative(call.qualifier())) && Unquote.quoting(call) != null

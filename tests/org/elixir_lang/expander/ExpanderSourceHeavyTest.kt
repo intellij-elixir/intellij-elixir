@@ -2041,6 +2041,28 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals("UNPLACED", absence(file, call, call))
     }
 
+    /**
+     * A local or `__MODULE__` call a `quote` returns runs in the module that code is injected into, which may define
+     * its name: nothing found where the `quote` is written is no absence Elixir reports.
+     */
+    fun testAnAbsenceOfAQuotedCallIsUncertain() {
+        val file = file(
+            """
+            defmodule Using do
+              defmacro __using__(_), do: quote(do: (def k(x), do: x; def f(y), do: k(y); def g(y), do: __MODULE__.k(y)))
+            end
+            """
+        )
+
+        assertEquals(
+            rows("k(y)" to "OPAQUE", "__MODULE__.k(y)" to "OPAQUE"),
+            rows(
+                "k(y)" to absence(file, "do: k(y)", "k(y)"),
+                "__MODULE__.k(y)" to absence(file, "__MODULE__.k(y)", "__MODULE__.k(y)"),
+            ),
+        )
+    }
+
     /** A qualified call whose qualifier names no module, such as a variable's, may reach any module's function. */
     fun testAnAbsenceThroughAQualifierNamingNoModuleIsUncertain() {
         val file = file("defmodule Asker do\n  def f(x), do: x.missing(1)\nend")
