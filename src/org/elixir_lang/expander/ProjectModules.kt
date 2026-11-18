@@ -445,6 +445,13 @@ internal class ProjectModules(private val project: Project) {
         heldCopies(asker, atom).let { it.chosen.asSequence() + it.fallback }.firstOrNull { it.virtualFile == beam }?.source
 
     /**
+     * Whether the copy Elixir loads of [atom] for [asker] is source, so that a library's `.beam` of the same name,
+     * left over from an older build, is not the module's. Needs no [Inputs], as the choice is made from the roots.
+     */
+    @RequiresReadLock
+    fun loadsFromSource(asker: PsiFile, atom: String): Boolean = heldCopies(asker, atom).chosen.any { !it.compiled }
+
+    /**
      * Held per asker while the roots and the asker's path hold, as they say which copies load for it, and each entry while
      * its name, the roots and, on disk, every copy it is ruled from hold.
      */

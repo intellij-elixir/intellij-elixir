@@ -17,8 +17,8 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 
 /**
- * Documentation at the name a declaration writes, which has no reference to document through, and at a use wherever
- * [DocumentedAt.answeredAt] answers. It answers nowhere else.
+ * Documentation at the name a declaration writes, which has no reference to document through, at a use wherever
+ * [DocumentedAt.answeredAt] answers, and in a template wherever [DocumentedAt.of] does. It answers nowhere else.
  */
 internal class ElixirDeclarationDocumentationTargetProvider : DocumentationTargetProvider {
     // A caret just after a name is on the next leaf, as at the end of `def push<caret>(a)`.
@@ -40,9 +40,17 @@ internal class ElixirDeclarationDocumentationTargetProvider : DocumentationTarge
         } else {
             DocumentedAt.answeredAt(leaf)?.let { choice ->
                 choice.element?.let { ElixirDocumentationTarget.of(it, leaf) } ?: Undocumented(leaf)
-            }
+            } ?: inTemplate(file, leaf)
         }
     }
+
+    /**
+     * What [leaf] documents in a template, a `.heex` file or a `~H`, `~E` or `~L` sigil, as it does in `.ex`. The platform
+     * asks a file's language for the documentation element at the caret, and a template's has no provider, so the
+     * element it finds is the call itself, which documents nothing.
+     */
+    private fun inTemplate(file: PsiFile, leaf: PsiElement): DocumentationTarget? =
+        if (file.language.isKindOf(ElixirLanguage)) null else DocumentedAt.of(leaf)?.let { ElixirDocumentationTarget.of(it, leaf) }
 
     /** A `defdelegate` [head] documents its delegation, then what it delegates to. */
     private fun delegationHeadDocumented(head: Call): PsiElement? {

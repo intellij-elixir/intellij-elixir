@@ -37,6 +37,8 @@ import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Head
 import org.elixir_lang.declaration.Reach
+import org.elixir_lang.declaration.RecordedDoc
+import org.elixir_lang.declaration.SameFunction
 import org.elixir_lang.declaration.Uncertain
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
@@ -55,6 +57,7 @@ import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Definition
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirFile
+import org.elixir_lang.psi.Import.Term
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.QualifiedAlias
@@ -100,8 +103,9 @@ internal object ExpanderSource : CandidateSource {
 
         return when (use) {
             is Use.OfCall -> answerAt(use, readAt, withoutInputs = { indexFound(use) }) { at -> called(at, use) }
-            is Use.Specified -> answerAt(use, readAt) { at -> specified(at, use) }
-            is Use.Remote -> answerAt(use, readAt) { at -> qualified(at, use.module, use.name, use.arity) }
+            is Use.Specified -> answerAt(use, readAt, withoutInputs = { indexFound(use) }) { at -> specified(at, use) }
+            is Use.Remote ->
+                answerAt(use, readAt, withoutInputs = { indexFound(use) }) { at -> qualified(at, use.module, use.name, use.arity) }
             is Use.Link ->
                 answerAt(use, readAt, readsEnv = false, withoutInputs = { indexFound(use, readAt) }) { at -> linked(at, use) }
             is Use.Tag -> Answer(emptyList(), Uncertain.NO_EXPANSION)
@@ -132,7 +136,7 @@ internal object ExpanderSource : CandidateSource {
         use: Use,
         element: PsiElement,
         readsEnv: Boolean = true,
-        withoutInputs: () -> List<Found> = { emptyList() },
+        withoutInputs: () -> List<Found>,
         reach: (At) -> List<Reached>,
     ): Answer =
         inputs(element)?.let { answerAt(use, element, it, readsEnv, reach) } ?: Answer(withoutInputs(), Uncertain.NO_EXPANSION)
@@ -270,6 +274,26 @@ internal object ExpanderSource : CandidateSource {
         val own by lazy { ownModular(call)?.let(::indexNames).orEmpty() }
 
         return indexFound(use, call, name, use.arity, remote = call is Qualified, { module -> module in own }, wanted)
+    }
+
+    /**
+     * With no SDK inputs, a `@spec` head's finds are what the name index defines its name as in the module it is in, a
+     * private one too, as [specified] reads what that module holds.
+     */
+    private fun indexFound(use: Use.Specified): List<Found> {
+        val own = indexNames(use.modular)
+
+        return indexFound(use, use.head, use.name, use.arity, remote = false, own::contains, own::contains)
+    }
+
+    /**
+     * With no SDK inputs, an MFA atom's finds are what the name index defines its name as in the module it names as
+     * written, a public one only, as [qualified] reads a module from outside it.
+     */
+    private fun indexFound(use: Use.Remote): List<Found> {
+        val wanted = writtenModule(use.module) ?: return emptyList()
+
+        return indexFound(use, use.atom, use.name, use.arity, remote = true, { false }, wanted)
     }
 
     /**
@@ -525,7 +549,7 @@ internal object ExpanderSource : CandidateSource {
      * `.beam`'s.
      */
     private fun eachNameOnce(defined: List<Defined>): List<Defined> {
-        val (source, compiled) = defined.partition { it.declaration.declared is Declared.Source }
+        val (source, compiled) = sourceAndCompiled(defined)
         val (delegations, clauses) = source.partition { (it.declaration.declared as Declared.Source).form == Form.DELEGATION }
         val (own, placed) = clauses.partition {
             declaringDefiner(it.element, it.declaration.name, it.declaration.arity, it.declaration.capabilities.compileTime) != null
@@ -537,6 +561,13 @@ internal object ExpanderSource : CandidateSource {
             byElement.getValue(clause)
         } + compiled
     }
+
+    /**
+     * [defined]'s source definitions and its compiled ones, each in [defined]'s order. A project's module is what is
+     * built from, so it is answered before a library `.beam` of the same name, left over from an older build.
+     */
+    private fun sourceAndCompiled(defined: List<Defined>): Pair<List<Defined>, List<Defined>> =
+        defined.partition { it.declaration.declared is Declared.Source }
 
     /** The names [call] writes whose heads are known ([written]). */
     @RequiresReadLock
@@ -569,18 +600,21 @@ internal object ExpanderSource : CandidateSource {
     /**
      * The heads of [name] that [modular]'s table logged and no longer holds ([DefinitionTable.replaced]), each declared
      * where [defined] declares a head, in the copy of each module [modular] is that its file loads, where that is source.
+     * `null` where it can't answer: [modular] is no call, nothing is expanded, the copy names no module, or one of its
+     * modules isn't located as source or its expansion didn't compile it.
      */
     @RequiresReadLock
-    override fun replaced(modular: PsiElement, name: String): List<Found> {
+    override fun replaced(modular: PsiElement, name: String): List<Found>? {
         ThreadingAssertions.assertReadAccess()
 
-        val call = modular as? Call ?: return emptyList()
-        val inputs = inputs(call) ?: return emptyList()
-        val at = at(call, inputs, readsEnv = false) ?: return emptyList()
+        val call = modular as? Call ?: return null
+        val inputs = inputs(call) ?: return null
+        val at = at(call, inputs, readsEnv = false) ?: return null
+        val modules = modules(call).ifEmpty { return null }
 
-        return modules(call).flatMap { module ->
-            val source = at.locate(module) as? ProjectModules.Located.Source ?: return@flatMap emptyList()
-            val result = source.result ?: return@flatMap emptyList()
+        return modules.flatMap { module ->
+            val source = at.locate(module) as? ProjectModules.Located.Source ?: return null
+            val result = source.result ?: return null
 
             result.table.replaced(name).flatMap { (nameArity, heads) ->
                 val use = Use.link(call, call, name, nameArity.arity)
@@ -686,6 +720,7 @@ internal object ExpanderSource : CandidateSource {
      * @property uncertain why it may not be a definition Elixir has, `null` where it is
      * @property injected whether a macro's output injected it, rather than its module's own body writing it, though
      *   [injectedBy] may not be found
+     * @property recordedDoc the doc its expansion recorded for it, `null` where none is known
      */
     private data class Defined(
         val declaration: Declaration,
@@ -696,6 +731,7 @@ internal object ExpanderSource : CandidateSource {
         val delegation: DefinitionTable.Delegation? = null,
         val uncertain: Uncertain? = null,
         val injected: Boolean = false,
+        val recordedDoc: RecordedDoc? = null,
     ) {
         /** The call that places it in [module], as [Head.placedBy] is: itself where its module's own body writes it. */
         val placedBy: Call? get() = if (injected) injectedBy else element as? Call
@@ -710,6 +746,10 @@ internal object ExpanderSource : CandidateSource {
 
         /** Its module, name and declared arity. */
         val function: Triple<String, String, ArityKnowledge> get() = Triple(module, declaration.name, declaration.arity)
+
+        /** Whether [other] is a definition of the same name in the same module that takes one of the arities it does. */
+        fun overlaps(other: Defined): Boolean =
+            module == other.module && declaration.sameFunction(other.declaration) == SameFunction.YES
 
         /** Its declaration and the PSI declaring it, which the exports or copies answered by one written head share. */
         val declaredAt: Pair<PsiElement, Declaration> get() = element to declaration
@@ -992,13 +1032,14 @@ internal object ExpanderSource : CandidateSource {
      */
     private fun indexed(file: PsiFile, name: String): List<Defined> {
         val project = file.project
+        val modules = ProjectModules.getInstance(project)
         val byName = CachedValuesManager.getManager(project).getCachedValue(
             file,
             indexedByName,
             {
                 CachedValueProvider.Result.create(
                     ConcurrentHashMap<String, List<Defined>>(),
-                    *ProjectModules.getInstance(project).copyTrackers(),
+                    *modules.copyTrackers(),
                     PsiModificationTracker.MODIFICATION_COUNT,
                 )
             },
@@ -1007,11 +1048,21 @@ internal object ExpanderSource : CandidateSource {
 
         return byName.getOrPut(name) {
             Probe.count(Probe.Counter.INDEX_QUERIES, 1)
+            val fromSource = HashMap<String, Boolean>()
+
             StubIndex.getElements(AllName.KEY, name, project, file.resolveScope, NamedElement::class.java)
                 .flatMap { element ->
                     ProgressManager.checkCanceled()
 
                     indexedDefined(element)
+                }
+                // Elixir loads one copy of a module: where it is the project's source, a library `.beam` of that name, left
+                // over from an older build, defines nothing, whether or not the source lists the name.
+                .filterNot { defined ->
+                    defined.declaration.declared is Declared.Compiled &&
+                        fromSource.getOrPut(defined.module) {
+                            Module.atom(defined.module)?.let { modules.loadsFromSource(file, it) } == true
+                        }
                 }
         }
     }
@@ -1088,7 +1139,14 @@ internal object ExpanderSource : CandidateSource {
             indexed.filterNot { it.element in held || at?.finished(it.element) == true }
         } else {
             val known = found.mapTo(HashSet()) { it.defined.function }
-            indexed.filter { known.add(it.function) }
+            val (source, compiled) = sourceAndCompiled(indexed)
+            val surviving = source.filterTo(HashSet()) { known.add(it.function) }
+            val project = found.map { it.defined }.filter { it.declaration.declared is Declared.Source } + surviving
+            // The project's definition of a function survives a library `.beam`'s that takes any of the arities it does,
+            // and each is answered where the index lists it.
+            compiled.filterTo(surviving) { known.add(it.function) && project.none { own -> own.overlaps(it) } }
+
+            indexed.filter { it in surviving }
         }
 
         return added.map { reached(it, Reach.INDEXED, emptyList(), name, arity, remote) }
@@ -1121,9 +1179,24 @@ internal object ExpanderSource : CandidateSource {
      */
     private fun defined(at: At, file: ElixirFile, result: ExpansionResult, name: String?): List<Defined> =
         NameIndex.of(result.table).named(name).flatMap { (nameArity, entry) ->
+            val recordedDoc = recordedDoc(result, nameArity)
+
             entry.heads.mapNotNull { head ->
-                defined(file, result.module, nameArity, entry.kind, entry.defaults, head, at.inputs) ?: unplaced(at)
+                defined(file, result.module, nameArity, entry.kind, entry.defaults, head, at.inputs, recordedDoc) ?: unplaced(at)
             }
+        }
+
+    /**
+     * The doc [result]'s expansion recorded for [nameArity], as Elixir's `compile_doc` took it, `null` where none is
+     * known: a doc written `false`, or none under a name that starts with an underscore, is hidden, as `Code.fetch_docs`
+     * gives `:hidden` for both.
+     */
+    private fun recordedDoc(result: ExpansionResult, nameArity: NameArity): RecordedDoc? =
+        when (val doc = (result.attributes.definitions[nameArity]?.doc as? AttributeValue.Known)?.term) {
+            is Term.Binary -> doc.bytes?.let { RecordedDoc.Text(String(it, Charsets.UTF_8)) }
+            FALSE -> RecordedDoc.Hidden
+            NIL -> RecordedDoc.Hidden.takeIf { nameArity.name.startsWith("_") }
+            else -> null
         }
 
     /** No definition, for one Elixir's table holds that has no element: an [Uncertain.UNPLACED] gap. */
@@ -1142,6 +1215,7 @@ internal object ExpanderSource : CandidateSource {
         defaults: Int,
         head: DefinitionTable.Head,
         inputs: ProjectModules.Inputs,
+        recordedDoc: RecordedDoc? = null,
     ): Defined? {
         ProgressManager.checkCanceled()
 
@@ -1165,7 +1239,7 @@ internal object ExpanderSource : CandidateSource {
         val written = call.takeIf { form != Form.CLAUSE || definer != null }
             ?.let { DeclaringForm.head(it, form, nameArity.name, arity) }
 
-        return placement.defined(Declaration(nameArity.name, arity, capabilities, declared), written, Module.indexName(module), head.delegation)
+        return placement.defined(Declaration(nameArity.name, arity, capabilities, declared), written, Module.indexName(module), head.delegation, recordedDoc)
     }
 
     /**
@@ -1176,8 +1250,13 @@ internal object ExpanderSource : CandidateSource {
         val form: Form? = DeclaringForm.shapedForm(call)
 
         /** [declaration] declared here, written by [written], as a definition of [module] with the [delegation] its head makes. */
-        fun defined(declaration: Declaration, written: PsiElement?, module: String, delegation: DefinitionTable.Delegation? = null): Defined =
-            Defined(declaration, call, written, module, injectedBy, delegation, injected = injected)
+        fun defined(
+            declaration: Declaration,
+            written: PsiElement?,
+            module: String,
+            delegation: DefinitionTable.Delegation? = null,
+            recordedDoc: RecordedDoc? = null,
+        ): Defined = Defined(declaration, call, written, module, injectedBy, delegation, injected = injected, recordedDoc = recordedDoc)
     }
 
     /**
@@ -1312,6 +1391,7 @@ internal object ExpanderSource : CandidateSource {
                 reached.through,
                 reached.defined.uncertain ?: envUncertain,
                 reached.arities,
+                reached.defined.recordedDoc,
             )
         }
 

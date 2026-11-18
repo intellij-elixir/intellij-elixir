@@ -30,6 +30,7 @@ import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.clauseOrder
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.declaration.fullArity
+import org.elixir_lang.declaration.identity
 import org.elixir_lang.declaration.mirroredIn
 import org.elixir_lang.declaration.nameUnquotedHead
 import org.elixir_lang.documentation.moduleAttributeValue
@@ -139,18 +140,42 @@ class RecordedSignature(val parameters: List<String>, val text: String) {
                 return placed(module, name, full, elements)
             }
             // A head with defaults is a find at each arity they add, but one clause of the function.
-            val clauses = found.mapNotNull { one ->
-                val form = (one.candidate.declaration.declared as? Declared.Source)?.form ?: return@mapNotNull null
-                val order = one.clauseOrder() ?: return null
-
-                one.head.written?.let { Clause(form, it, order) } ?: nameUnquoted(one.element, full, order) ?: return null
-            }.distinct()
+            val clauses = found
+                .filter { it.candidate.declaration.declared is Declared.Source }
+                .map { clause(it, full) ?: return null }
+                .distinct()
             val compiled = compiledHead(first, name, full)
                 ?: return of(module, name, full, clauses)
             val written = clauses.filter { clause -> fullArity(clause.head) == full }
             val defaults = compiled.map(ParameterText::default)
 
             return of(module, name, full, written, defaults)
+        }
+
+        /**
+         * [of] [found], the finds of one function in the copy of its module the first is in, and the definitions of its identity
+         * among [replaced], what the source reports as replaced of the name in that copy, in the order the module defines
+         * them: Elixir's merge names the parameters from the first clause, and an override replaces the clause a `use`
+         * defined. A replaced find joins only where [of] reads it as a clause, as a find with a written head does, so one
+         * that has none, as a compiled `use`'s, leaves the signature as the held finds give it.
+         */
+        @RequiresReadLock
+        fun ofOverridden(found: List<Found>, full: Int, replaced: List<Found>): RecordedSignature? {
+            val identity = (found.firstOrNull() ?: return null).identity()
+
+            return of(replaced.filter { it.identity() == identity && clause(it, full) != null } + found, full)
+        }
+
+        /**
+         * [found] as a clause of the merge at [full] parameters, [of]'s and [ofOverridden]'s one reading of it: its written
+         * head, else its name-unquoted `def`, defined where its place says; `null` where it is none, or has no place.
+         */
+        @RequiresReadLock
+        private fun clause(found: Found, full: Int): Clause? {
+            val form = (found.candidate.declaration.declared as? Declared.Source)?.form ?: return null
+            val order = found.clauseOrder() ?: return null
+
+            return found.head.written?.let { Clause(form, it, order) } ?: nameUnquoted(found.element, full, order)
         }
 
         /**

@@ -9,11 +9,11 @@ import com.intellij.util.OpenSourceUtil
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.call.Visibility
-import org.elixir_lang.code_insight.definition
+import org.elixir_lang.declaration.ArityKnowledge
+import org.elixir_lang.name_arity.PresentationData
 import org.elixir_lang.navigation.item_presentation.NameArity
 import org.elixir_lang.navigation.item_presentation.Parent
 import org.elixir_lang.psi.ElixirAtom
-import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.DEF
 import org.elixir_lang.psi.call.name.Function.DEFP
@@ -37,7 +37,7 @@ class EExFunctionFrom(val modular: Modular, val call: Call) : StructureViewTreeE
     override fun canNavigate(): Boolean = true
     override fun canNavigateToSource(): Boolean = true
 
-    override fun getName(): String = "$declaredName/$arity"
+    override fun getName(): String = PresentationData.presentableText(declaredName, arity)
 
     override fun getValue(): Any = call
 
@@ -64,9 +64,9 @@ class EExFunctionFrom(val modular: Modular, val call: Call) : StructureViewTreeE
             ?: "unknown_name"
     }
 
-    /** The arity that names the declared function, as it names any definition, and none where unknown. */
-    private val arity: Int by lazy {
-        call.finalArguments()?.let(Declarations::eexArity)?.arityInterval()?.definition()?.first ?: 0
+    /** The arity of the declared function, `null` where the bindings are not a list of one length: an open tail leaves a minimum only. */
+    private val arity: Int? by lazy {
+        (call.finalArguments()?.let(Declarations::eexArity) as? ArityKnowledge.Exact)?.arity
     }
 
     override fun visibility(): Visibility? =

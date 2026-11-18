@@ -242,8 +242,26 @@ class SignatureHeaderQuickDocumentationTest : QuickDocumentationTestCase() {
             "  def message(user)"
         )
 
-    fun testAnOverriddenMessageIsHeadedByTheUsersDefAloneWithTheExpanderOn() =
-        withTheExpanderOn(::testAnOverriddenMessageIsHeadedByTheUsersDefAlone)
+    /** With the expander on the parameters are the replaced `message(exception)`'s, as Elixir's docs keep them. */
+    fun testAnOverriddenMessageIsHeadedByTheSignatureItReplacesWithTheExpanderOn() = withTheExpanderOn {
+        assertHeader(
+            """
+            defmodule Oops do
+              defexception [:message]
+
+              @impl true
+              def message(user), do: user.message
+            end
+
+            defmodule Caller do
+              def calls(m), do: Oops.mess<caret>age(m)
+            end
+            """,
+            "<i>module</i> <b>Oops</b>",
+            "message(exception)",
+            "  def message(user)"
+        )
+    }
 
     /** Inside `Oops`, a use of the user's `message/2` lists it alone: not the `message/1` that `defexception` defines beside it. */
     fun testAMessageOfAnotherArityInsideTheExceptionIsListedAlone() =

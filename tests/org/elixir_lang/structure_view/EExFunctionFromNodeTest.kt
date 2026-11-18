@@ -80,6 +80,30 @@ class EExFunctionFromNodeTest : PlatformTestCase() {
         assertEquals("sample/2", elements().single().presentation.presentableText)
     }
 
+    /** Bindings that are not a literal list give no arity to list: a function of unknown arity is `page/?`, not `page/0`. */
+    fun testAnArityThatIsNotAListOfBindingsIsUnknown() {
+        myFixture.configureByText(
+            "unknown_eex.ex",
+            EEX_DEFINITION +
+                "defmodule M do\n  require EEx\n  @args [:a, :b]\n  EEx.function_from_string(:def, :page, \"<%= a %>\", @args)\nend\n"
+        )
+
+        assertEquals("page/?", elements().single().presentation.presentableText)
+        assertEquals("page/?", elements().single().name)
+    }
+
+    /** An open tail leaves more bindings to come, so the ones written are a minimum, not the arity. */
+    fun testAnOpenTailLeavesTheArityUnknown() {
+        myFixture.configureByText(
+            "open_tail_eex.ex",
+            EEX_DEFINITION +
+                "defmodule M do\n  require EEx\n  @rest [:b]\n  EEx.function_from_string(:def, :sample, \"<%= a %>\", [:a | @rest])\nend\n"
+        )
+
+        assertEquals("sample/?", elements().single().presentation.presentableText)
+        assertEquals("sample/?", elements().single().name)
+    }
+
     private fun elements(): List<EExFunctionFrom> = structureViewElements<EExFunctionFrom>(myFixture.file as ElixirFile)
 
     private companion object {

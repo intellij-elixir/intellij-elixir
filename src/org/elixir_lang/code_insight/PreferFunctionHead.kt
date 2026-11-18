@@ -1,6 +1,7 @@
 package org.elixir_lang.code_insight
 
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.NameArity
@@ -10,9 +11,12 @@ import org.elixir_lang.beam.decompiler.ParameterText
 import org.elixir_lang.beam.decompiler.signatureParameters
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.declaration.Declared
+import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Preferred
 import org.elixir_lang.declaration.definition
+import org.elixir_lang.declaration.sourceFor
+import org.elixir_lang.documentation.Documented
 import org.elixir_lang.documentation.BeamDocsHelper
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
@@ -74,12 +78,21 @@ fun signatures(preferred: List<Preferred>): List<Signature> {
     val docsOf = { file: VirtualFile ->
         if (file in docsByFile) docsByFile[file] else docs(file).also { docsByFile[file] = it }
     }
+    // Each arity of a name is its own definition, and each asks its module's copy for the same replaced finds.
+    val replacedByCopy = mutableMapOf<Pair<PsiElement, String>, List<Found>>()
+    val replacedOf = { found: Found ->
+        val name = found.candidate.declaration.name
+
+        Documented.copy(found)
+            ?.let { copy -> replacedByCopy.getOrPut(copy to name) { sourceFor(Feature.PARAMETER_INFO).replaced(copy, name).orEmpty() } }
+            .orEmpty()
+    }
 
     return preferred
         .mapNotNull { Signature.of(it.found)?.let { signature -> signature to it.found } }
         .groupBy { (_, found) -> found.definition() }
         .map { (definition, group) ->
-            recordedParameters(group, definition.identity, docsOf)?.let { recorded ->
+            recordedParameters(group, definition.identity, docsOf, replacedOf)?.let { recorded ->
                 // Elixir's merge keeps only the first clause's defaults, so a call binds by the clause that declares them.
                 val declaring = group.maxBy { it.first.defaults }.first
 
@@ -93,7 +106,12 @@ fun signatures(preferred: List<Preferred>): List<Signature> {
  * clauses give in source order, by the same rule for a private function, which Elixir records none for; for a `.beam`,
  * the one its `Docs` chunk holds, as Quick Documentation titles it. `null` where no signature is recorded.
  */
-private fun recordedParameters(group: List<Pair<Signature, Found>>, identity: NameArity?, docsOf: (VirtualFile) -> Docs?): List<String>? {
+private fun recordedParameters(
+    group: List<Pair<Signature, Found>>,
+    identity: NameArity?,
+    docsOf: (VirtualFile) -> Docs?,
+    replacedOf: (Found) -> List<Found>
+): List<String>? {
     val first = group.first().second
     val (name, full) = identity ?: return null
 
@@ -108,7 +126,7 @@ private fun recordedParameters(group: List<Pair<Signature, Found>>, identity: Na
                     // A signature that is no call, as an operator's `left <~> right`, names no parameters to read.
                     ?.takeIf { full in ParameterText.arities(it) }
             }
-        is Declared.Source -> RecordedSignature.of(group.map { it.second }, full)?.parameters
+        is Declared.Source -> RecordedSignature.ofOverridden(group.map { it.second }, full, replacedOf(first))?.parameters
     }
 }
 

@@ -1080,7 +1080,7 @@ internal class Evaluation(
     private fun placed(tuple: OtpErlangTuple, node: ElixirAst, frame: Frame): OtpErlangTuple {
         if (tuple.arity() != 3) return tuple
         val place = if (frame.source) {
-            frame.module.file?.let { Place.Written(it, node.meta.origin) }
+            Place.Written(frame.module.file, node.meta.origin)
         } else {
             frame.compiled?.let(Place::Compiled)
         } ?: return tuple

@@ -288,6 +288,14 @@
 
 ### Bug Fixes
 
+- [#4754](https://github.com/intellij-elixir/intellij-elixir/pull/4754) [@sh41](https://github.com/sh41)
+  - **With Run the expander on and no SDK, Quick Documentation of the atom in `apply/3` or an MFA tuple, and of a `@spec` head, shows the function's documentation, and a call at an arity nothing takes names the public functions of that name.** Fixes [#4699](https://github.com/intellij-elixir/intellij-elixir/issues/4699).
+  - **Quick Documentation of Elixir in a `~H`, `~E` or `~L` sigil and a `.heex` file shows the function's documentation with Run the expander off.** Fixes [#4713](https://github.com/intellij-elixir/intellij-elixir/issues/4713).
+  - **An EEx function whose arity is not known is listed as `name/?` and not `name/0`.** Fixes [#4705](https://github.com/intellij-elixir/intellij-elixir/issues/4705).
+  - **A function a macro defines shows the documentation the macro recorded for it, and an override is titled from the clauses it overrides.** Fixes [#4721](https://github.com/intellij-elixir/intellij-elixir/issues/4721). Refs [#4720](https://github.com/intellij-elixir/intellij-elixir/issues/4720).
+  - **Completing a call to a function a macro defines in the same file inserts its parameters and not `(arg1)`.** Fixes [#4723](https://github.com/intellij-elixir/intellij-elixir/issues/4723).
+  - **A function that is not part of a module's public API, one written `@doc false`, marked `@impl` or named with a leading underscore without a doc, or defined by `defexception`, says so in Quick Documentation.** Refs [#4691](https://github.com/intellij-elixir/intellij-elixir/issues/4691).
+  - **With Run the expander on and no SDK, Quick Documentation shows the project's own function and not a stale library `.beam`'s of the same module name.** Fixes [#4722](https://github.com/intellij-elixir/intellij-elixir/issues/4722).
 - [#4732](https://github.com/intellij-elixir/intellij-elixir/pull/4732) [@sh41](https://github.com/sh41)
   - **A keyword option given twice in a call is read from its first pair, as Elixir reads it, so `alias String, as: First, as: Second` aliases `First`; an `alias ..., as:` name shows the whole call in lists, a `quote` with `location:` and `unquote:` shows one comma between them, and an alias whose module is in parentheses is read as Elixir reads it: `alias (Target), as: First` no longer throws when `First` is resolved, and `Bar` resolves after `alias (Foo.Bar)`.** Refs [#4715](https://github.com/intellij-elixir/intellij-elixir/issues/4715).
 - [#4732](https://github.com/intellij-elixir/intellij-elixir/pull/4732) [@sh41](https://github.com/sh41)
