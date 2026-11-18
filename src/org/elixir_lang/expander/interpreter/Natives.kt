@@ -3938,7 +3938,7 @@ internal class Natives(private val evaluation: Evaluation) {
      * The text of the binary [term], declining where it is not one or isn't UTF-8, as a name's native encoding isn't
      * read.
      */
-    private fun nameText(function: String, term: OtpErlangObject): String =
+    fun nameText(function: String, term: OtpErlangObject): String =
         decodeUtf8(nameBytes(function, term)) ?: decline("$function of %s, which isn't UTF-8", term)
 
     /** `binary:at/2`: the byte of the binary [subject] at the zero-based [position]. */
