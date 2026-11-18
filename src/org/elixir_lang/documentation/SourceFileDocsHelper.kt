@@ -197,11 +197,15 @@ object SourceFileDocsHelper {
 
     /**
      * The signature Elixir records for [function], the declarations of one function, in the module that declares it,
-     * from every clause of it where the module defines it.
+     * from every clause of it where the module defines it, those an override replaced among them.
      */
     @RequiresReadLock
     internal fun titles(function: List<Written>): List<String> =
-        listOfNotNull(function.first().identity?.let { RecordedSignature.of(function.map(Written::found), it.arity) }?.text)
+        listOfNotNull(
+            function.first().identity
+                ?.let { RecordedSignature.ofOverridden(function.map(Written::found), it.arity, Feature.DOCUMENTATION) }
+                ?.text
+        )
 
     /**
      * The docs of every function [declaring] shares a name with in its module that the use can reach, ascending by

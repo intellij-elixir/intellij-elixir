@@ -11,7 +11,8 @@ import org.elixir_lang.model.psi.function.FunctionSymbol
 
 /**
  * `defoverridable` makes overridable only what is already defined when it runs, so a later definition of that name and
- * arity is the user's, and a call names it alone.
+ * arity is the user's, and a call names it alone. With Run the expander on, Parameter Info names the parameters of the
+ * clause the overriding one replaces, as Elixir keeps them.
  */
 @Suppress("UnstableApiUsage")
 class OverridableTest : ExpanderSettingTestCase() {
@@ -20,7 +21,11 @@ class OverridableTest : ExpanderSettingTestCase() {
         HeadlessDataManager.fallbackToProductionDataManager(myFixture.testRootDisposable)
     }
 
-    fun testADefinitionThatDefoverridableFollowsIsReplacedByALaterOne() {
+    fun testADefinitionThatDefoverridableFollowsIsReplacedByALaterOne() = assertADefinitionThatDefoverridableFollowsIsReplacedByALaterOne("user")
+
+    fun testADefinitionThatDefoverridableFollowsIsReplacedByALaterOneWithTheExpanderOn() = withTheExpanderOn { assertADefinitionThatDefoverridableFollowsIsReplacedByALaterOne("original") }
+
+    private fun assertADefinitionThatDefoverridableFollowsIsReplacedByALaterOne(parameters: String) {
         configure(
             """
             defmodule M do
@@ -35,17 +40,18 @@ class OverridableTest : ExpanderSettingTestCase() {
             """
         )
 
-        assertEquals(listOf("user"), myFixture.parameterInfoSignaturesAtCaret())
+        assertEquals(listOf(parameters), myFixture.parameterInfoSignaturesAtCaret())
         assertStepKeeps("6 -> []")
         atName()
         assertEquals(listOf("preferred.ex:6"), goTo())
         assertEquals(listOf("def f(user)"), labels())
     }
 
-    fun testADefinitionThatDefoverridableFollowsIsReplacedByALaterOneWithTheExpanderOn() =
-        withTheExpanderOn(::testADefinitionThatDefoverridableFollowsIsReplacedByALaterOne)
+    fun testWhatAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinition() = assertWhatAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinition("user")
 
-    fun testWhatAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinition() {
+    fun testWhatAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinitionWithTheExpanderOn() = withTheExpanderOn { assertWhatAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinition("x") }
+
+    private fun assertWhatAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinition(parameters: String) {
         myFixture.addFileToProject(
             "b.ex",
             """
@@ -72,17 +78,18 @@ class OverridableTest : ExpanderSettingTestCase() {
             """
         )
 
-        assertEquals(listOf("user"), myFixture.parameterInfoSignaturesAtCaret())
+        assertEquals(listOf(parameters), myFixture.parameterInfoSignaturesAtCaret())
         assertStepKeeps("4 -> []")
         atName()
         assertEquals(listOf("preferred.ex:4"), goTo())
         assertEquals(listOf("def g(user)"), labels())
     }
 
-    fun testWhatAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinitionWithTheExpanderOn() =
-        withTheExpanderOn(::testWhatAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinition)
+    fun testADelegationThatDefoverridableFollowsIsReplacedByALaterDefinition() = assertADelegationThatDefoverridableFollowsIsReplacedByALaterDefinition("user")
 
-    fun testADelegationThatDefoverridableFollowsIsReplacedByALaterDefinition() {
+    fun testADelegationThatDefoverridableFollowsIsReplacedByALaterDefinitionWithTheExpanderOn() = withTheExpanderOn { assertADelegationThatDefoverridableFollowsIsReplacedByALaterDefinition("s") }
+
+    private fun assertADelegationThatDefoverridableFollowsIsReplacedByALaterDefinition(parameters: String) {
         myFixture.addFileToProject("t.ex", "defmodule T do\n  def id(s), do: s\nend\n")
         configure(
             """
@@ -98,17 +105,18 @@ class OverridableTest : ExpanderSettingTestCase() {
             """
         )
 
-        assertEquals(listOf("user"), myFixture.parameterInfoSignaturesAtCaret())
+        assertEquals(listOf(parameters), myFixture.parameterInfoSignaturesAtCaret())
         assertStepKeeps("6 -> []")
         atName()
         assertEquals(listOf("preferred.ex:6"), goTo())
         assertEquals(listOf("def id(user)"), labels())
     }
 
-    fun testADelegationThatDefoverridableFollowsIsReplacedByALaterDefinitionWithTheExpanderOn() =
-        withTheExpanderOn(::testADelegationThatDefoverridableFollowsIsReplacedByALaterDefinition)
+    fun testADelegationAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinition() = assertADelegationAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinition("user")
 
-    fun testADelegationAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinition() {
+    fun testADelegationAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinitionWithTheExpanderOn() = withTheExpanderOn { assertADelegationAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinition("s") }
+
+    private fun assertADelegationAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinition(parameters: String) {
         myFixture.addFileToProject("t.ex", "defmodule T do\n  def id(s), do: s\nend\n")
         myFixture.addFileToProject(
             "b.ex",
@@ -136,18 +144,19 @@ class OverridableTest : ExpanderSettingTestCase() {
             """
         )
 
-        assertEquals(listOf("user"), myFixture.parameterInfoSignaturesAtCaret())
+        assertEquals(listOf(parameters), myFixture.parameterInfoSignaturesAtCaret())
         assertStepKeeps("4 -> []")
         atName()
         assertEquals(listOf("preferred.ex:4"), goTo())
         assertEquals(listOf("def id(user)"), labels())
     }
 
-    fun testADelegationAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinitionWithTheExpanderOn() =
-        withTheExpanderOn(::testADelegationAUseInjectsWithItsDefoverridableIsReplacedByTheUsingModulesDefinition)
-
     /** What a `use` injects is defined where the `use` is, so a `defoverridable` after the `use` takes it. */
-    fun testWhatAUseInjectsIsMadeOverridableByADefoverridableAfterTheUse() {
+    fun testWhatAUseInjectsIsMadeOverridableByADefoverridableAfterTheUse() = assertWhatAUseInjectsIsMadeOverridableByADefoverridableAfterTheUse("user")
+
+    fun testWhatAUseInjectsIsMadeOverridableByADefoverridableAfterTheUseWithTheExpanderOn() = withTheExpanderOn { assertWhatAUseInjectsIsMadeOverridableByADefoverridableAfterTheUse("x") }
+
+    private fun assertWhatAUseInjectsIsMadeOverridableByADefoverridableAfterTheUse(parameters: String) {
         myFixture.addFileToProject(
             "b.ex",
             """
@@ -174,18 +183,19 @@ class OverridableTest : ExpanderSettingTestCase() {
             """
         )
 
-        assertEquals(listOf("user"), myFixture.parameterInfoSignaturesAtCaret())
+        assertEquals(listOf(parameters), myFixture.parameterInfoSignaturesAtCaret())
         assertStepKeeps("6 -> []")
         atName()
         assertEquals(listOf("preferred.ex:6"), goTo())
         assertEquals(listOf("def g(user)"), labels())
     }
 
-    fun testWhatAUseInjectsIsMadeOverridableByADefoverridableAfterTheUseWithTheExpanderOn() =
-        withTheExpanderOn(::testWhatAUseInjectsIsMadeOverridableByADefoverridableAfterTheUse)
-
     /** A `use` inside a `use`'s `quote` injects where that `quote` is, so a `defoverridable` after it there takes it. */
-    fun testWhatANestedUseInjectsIsMadeOverridableByADefoverridableAfterIt() {
+    fun testWhatANestedUseInjectsIsMadeOverridableByADefoverridableAfterIt() = assertWhatANestedUseInjectsIsMadeOverridableByADefoverridableAfterIt("user")
+
+    fun testWhatANestedUseInjectsIsMadeOverridableByADefoverridableAfterItWithTheExpanderOn() = withTheExpanderOn { assertWhatANestedUseInjectsIsMadeOverridableByADefoverridableAfterIt("x") }
+
+    private fun assertWhatANestedUseInjectsIsMadeOverridableByADefoverridableAfterIt(parameters: String) {
         myFixture.addFileToProject(
             "b.ex",
             """
@@ -224,15 +234,12 @@ class OverridableTest : ExpanderSettingTestCase() {
             """
         )
 
-        assertEquals(listOf("user"), myFixture.parameterInfoSignaturesAtCaret())
+        assertEquals(listOf(parameters), myFixture.parameterInfoSignaturesAtCaret())
         assertStepKeeps("4 -> []")
         atName()
         assertEquals(listOf("preferred.ex:4"), goTo())
         assertEquals(listOf("def g(user)"), labels())
     }
-
-    fun testWhatANestedUseInjectsIsMadeOverridableByADefoverridableAfterItWithTheExpanderOn() =
-        withTheExpanderOn(::testWhatANestedUseInjectsIsMadeOverridableByADefoverridableAfterIt)
 
     fun testDefoverridableOfAnotherArityLeavesTheDefinitionTheUsers() {
         configure(
