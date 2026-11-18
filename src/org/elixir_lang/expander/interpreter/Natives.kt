@@ -3573,7 +3573,8 @@ internal class Natives(private val evaluation: Evaluation) {
         }
 
         val os = fileNameOs()
-        val absolute = evaluation.run.absolute(path) ?: decline("the file name %s, whose absolute path isn't known", name)
+        val absolute =
+            evaluation.run.absolute(path, os) ?: decline("the file name %s, whose absolute path isn't known", name)
         val directory = os != OS.Windows && Filename.isSeparator(absolute.last().code, os) && Filename.split(absolute, os).size > 1
 
         return when (val resolved = Filename.resolved(if (directory) "$absolute." else absolute, os) { entryAt(it).physical }) {
@@ -3643,7 +3644,7 @@ internal class Natives(private val evaluation: Evaluation) {
         }
         val filelib = Filelib(
             os,
-            absolute = { evaluation.run.absolute(it) },
+            absolute = { evaluation.run.absolute(it, os) },
             list = { path -> listingAt(path)?.let { entries -> if (pathWildcard) entries.filter { !it.name.startsWith(".") } else entries } },
             entry = ::entryAt,
             readFileInfo = { path ->

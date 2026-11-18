@@ -18,7 +18,7 @@ class RunAbsoluteTest : ProbeTestCase() {
         val run = run(OS.CURRENT, base)
         val source = SHAPES.joinToString("\n") { shape ->
             val path = elixirString(shape)
-            val absolute = elixirString(run.absolute(shape)!!)
+            val absolute = elixirString(run.absolute(shape, OS.CURRENT)!!)
 
             "IntellijElixir.Quoter.Probe.send(__ENV__, " +
                 "{:filename.pathtype($path), :filename.absname($path, ${elixirString(base)}), :filename.join([$absolute])})"
@@ -55,7 +55,7 @@ class RunAbsoluteTest : ProbeTestCase() {
     private fun assertAbsolute(os: OS, base: String?, vararg shapes: Pair<String, String?>) {
         val run = run(os, base)
 
-        for ((shape, absolute) in shapes) assertEquals("$os $shape", absolute, run.absolute(shape))
+        for ((shape, absolute) in shapes) assertEquals("$os $shape", absolute, run.absolute(shape, os))
     }
 
     private fun run(os: OS, base: String?): Run =

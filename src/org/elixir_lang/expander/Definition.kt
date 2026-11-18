@@ -935,7 +935,7 @@ private fun movedTo(file: AttributeValue?, head: ElixirAst, env: Env, run: Run):
     if (DEFINITION_FILE_ABSOLUTE.isSufficient(run.level)) {
         // `filename:absname/1` of a path already absolute is `join/1` of it.
         val absname = { absolute: String -> Filename.join(absolute, "", os) }
-        val absolute = run.absolute(path)?.let(absname) ?: return MovedTo(null)
+        val absolute = run.absolute(path, os)?.let(absname) ?: return MovedTo(null)
 
         return MovedTo(absolute).takeIf { absolute != envFile(run, env, absname) }
     }

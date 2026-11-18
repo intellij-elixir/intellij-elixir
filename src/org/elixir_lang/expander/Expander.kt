@@ -5,7 +5,6 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangPid
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
-import com.intellij.openapi.util.io.OSAgnosticPathUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.util.system.OS
 import org.elixir_lang.beam.MacroNameArity
@@ -592,12 +591,11 @@ internal class Run(
     /**
      * [path] made absolute as `filename:absname/1` makes it on [os], before `join/1` tidies it: an absolute path as it
      * is, and any other from the directory Elixir compiles the run's file in ([workingDirectory]), its volume alone for
-     * a root with no drive on Windows (`absname_vr/3`); `null` where that directory isn't known, or the path is relative
-     * to another drive's directory. Where [os] isn't known, a path absolute on either OS is taken as absolute.
+     * a root with no drive on Windows (`absname_vr/3`); `null` where that directory isn't known, or the path is
+     * relative to another drive's directory.
      */
-    fun absolute(path: String): String? {
-        val type = os?.let { Filename.pathtype(path, it) }
-            ?: if (OSAgnosticPathUtil.isAbsolute(path)) Filename.PathType.ABSOLUTE else Filename.PathType.RELATIVE
+    fun absolute(path: String, os: OS): String? {
+        val type = Filename.pathtype(path, os)
         if (type == Filename.PathType.ABSOLUTE) return path
 
         val directory = workingDirectory() ?: return null
