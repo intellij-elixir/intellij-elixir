@@ -322,6 +322,13 @@ internal class RunState(val read: ConfigRead.Snapshot?, val written: WrittenApps
     fun isAt(other: RunState) = written.isAt(other.written) && sameRead(read, other.read)
 }
 
+/**
+ * What code is inside, as is another run's code it runs, an imported file's or a closure's that run made: the [catching]
+ * `try`s that may catch its raise ([Run.catching]), whether it may not run ([mayNotRun], [Run.mayNotRun]), and the
+ * [unordered] units stepped unordered around it ([Run.unordered]).
+ */
+internal data class Around(val catching: Int = 0, val mayNotRun: Boolean = false, val unordered: Int = 0)
+
 /** What every recursive expansion of one [Expander.expand] call shares. */
 internal class Run(
     val level: ElixirLanguageLevel,
@@ -443,16 +450,16 @@ internal class Run(
 
     /**
      * How many bodies of a `try` with `catch` or `rescue` are being evaluated, in this run, around the import of its
-     * file ([ConfigRead.catching]) or around another run's call of a function it made, any of which may catch a raise in
+     * file ([ConfigRead.around]) or around another run's call of a function it made, any of which may catch a raise in
      * the code running now, whichever evaluation, or `fn`, it is of.
      */
-    var catching = config?.catching ?: 0
+    var catching = 0
 
     /** Whether the value of the unit the evaluator runs where it reaches it ([reached]) is read, `null` outside one. */
     var reachedUse: ValueUse? = null
 
-    /** How many arms that may not be taken are running ([mayNotRun]), the import of its file's ([ConfigRead.mayNotRun]) among them. */
-    var speculating = if (config?.mayNotRun == true) 1 else 0
+    /** How many arms that may not be taken are running ([mayNotRun]), the import of its file's ([ConfigRead.around]) among them. */
+    var speculating = 0
 
     /** Whether the body of the `try` being evaluated may have raised over a value that isn't known. */
     var raisedOverUnknown = false
@@ -467,10 +474,35 @@ internal class Run(
     val mayNotRun get() = speculating > 0 || raisedOverUnknown || pastRaise
 
     /** How many units stepped unordered the code running is in. */
-    var unordered = config?.unordered ?: 0
+    var unordered = 0
 
     /** Whether the code running is in a unit stepped unordered ([unordered]), which may run any number of times. */
     val steppedUnordered get() = unordered > 0
+
+    /** What the code running is inside ([Around]). */
+    fun around() = Around(catching, mayNotRun, unordered)
+
+    /**
+     * The code that runs next runs inside [around], as an imported file's or a closure's this run made is inside what its
+     * import or call is; what it gives undoes that.
+     */
+    fun enter(around: Around): () -> Unit {
+        val outer = catching
+
+        catching = around.catching
+        if (around.mayNotRun) speculating++
+        unordered += around.unordered
+
+        return {
+            catching = outer
+            if (around.mayNotRun) speculating--
+            unordered -= around.unordered
+        }
+    }
+
+    init {
+        config?.around?.let(::enter)
+    }
 
     /**
      * Whether a value the runs share ([shared]) that the code running writes may be written any number of times, or

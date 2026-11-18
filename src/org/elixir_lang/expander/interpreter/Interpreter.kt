@@ -13,6 +13,7 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.ericsson.otp.erlang.OtpOutputStream
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
+import org.elixir_lang.expander.Around
 import org.elixir_lang.expander.CompiledClause
 import org.elixir_lang.expander.Compiling
 import org.elixir_lang.expander.ConfigRead
@@ -973,26 +974,19 @@ internal class Evaluation(
     }
 
     /**
-     * [file] imported in [read] here, its run inside the `try`s around this code that may catch its raise ([Run.catching]),
-     * and as code that may not run where this code may not ([Run.mayNotRun]). The file has its own run, so the code
-     * after the import learns only here that the file may have raised. The file's own run has already recorded where it
-     * may have raised ([ConfigRead.raisedAt]).
+     * [file] imported in [read] here, its run inside what this code is inside ([Run.around]). The file has its own run,
+     * so the code after the import learns only here that the file may have raised. The file's own run has already
+     * recorded where it may have raised ([ConfigRead.raisedAt]).
      */
     fun <T> importing(read: ConfigRead, file: () -> T): T {
-        val catching = read.catching
-        val mayNotRun = read.mayNotRun
-        val unordered = read.unordered
+        val around = read.around
         val assumed = read.assumed
 
-        read.catching = run.catching
-        read.mayNotRun = run.mayNotRun
-        read.unordered = run.unordered
+        read.around = run.around()
         val imported = try {
             file()
         } finally {
-            read.catching = catching
-            read.mayNotRun = mayNotRun
-            read.unordered = unordered
+            read.around = around
         }
 
         if (read.assumed != assumed) mayHaveRaised()
@@ -1006,7 +1000,7 @@ internal class Evaluation(
         } else {
             // The `try`s around the call alone. One that ended in the made run, its file's import's among them, is around
             // nothing now; one still around the made run's code is around the import that runs this code too.
-            Carry(made, run.catching, run.mayNotRun, run.unordered, run).pastRaiseOfMade()
+            Carry(made, run.around(), run).pastRaiseOfMade()
         }
 
     /** [value], where Elixir may raise instead ([raiseMayBeCaught]). */
@@ -4151,19 +4145,18 @@ private open class TailCall(val evaluate: () -> OtpErlangObject, val gives: (Dec
 }
 
 /**
- * How a call of a closure another run [made] runs that run's code, from code of the run [into]: inside the [catching]
- * `try`s around the call, which may catch its raise ([Run.catching]), as code that may not run where [mayNotRun]
- * ([Run.mayNotRun]), in the [unordered] units stepped unordered around the call ([Run.unordered]), and with a raise it
- * may make under them that code's ([Run.raisedOverUnknown]). It is taken where the call is made, so a call made in a
- * tail runs as carried once the code it was made in has ended.
+ * How a call of a closure another run [made] runs that run's code, from code of the run [into]: inside what the call is
+ * inside ([around]), and with a raise it may make under the `try`s there that code's ([Run.raisedOverUnknown]). It is
+ * taken where the call is made, so a call made in a tail runs as carried once the code it was made in has ended.
  */
-private data class Carry(val made: Run, val catching: Int, val mayNotRun: Boolean, val unordered: Int, val into: Run) {
+private data class Carry(val made: Run, val around: Around, val into: Run) {
     /**
      * This carry, as code that may not run where the made run's code is past a raise of its own ([Run.raisedOverUnknown]),
      * which [carried] sets aside while the call's body runs: where the call is made, and where the body has returned the
      * call in its tail.
      */
-    fun pastRaiseOfMade(): Carry = if (made.raisedOverUnknown && !mayNotRun) copy(mayNotRun = true) else this
+    fun pastRaiseOfMade(): Carry =
+        if (made.raisedOverUnknown && !around.mayNotRun) copy(around = around.copy(mayNotRun = true)) else this
 }
 
 /**
@@ -4174,12 +4167,9 @@ private inline fun carried(carry: Carry?, call: () -> OtpErlangObject): OtpErlan
     if (carry == null) return call()
 
     val made = carry.made
-    val catching = made.catching
     val raised = made.raisedOverUnknown
 
-    made.catching = carry.catching
-    if (carry.mayNotRun) made.speculating++
-    made.unordered += carry.unordered
+    val leave = made.enter(carry.around)
     made.raisedOverUnknown = false
     try {
         return when (val value = call()) {
@@ -4192,9 +4182,7 @@ private inline fun carried(carry: Carry?, call: () -> OtpErlangObject): OtpErlan
     } finally {
         val raisedThere = made.raisedOverUnknown
 
-        made.catching = catching
-        if (carry.mayNotRun) made.speculating--
-        made.unordered -= carry.unordered
+        leave()
         made.raisedOverUnknown = raised
         if (raisedThere) carry.into.raisedOverUnknown = true
     }
