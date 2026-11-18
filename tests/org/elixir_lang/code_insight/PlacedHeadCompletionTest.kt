@@ -63,6 +63,26 @@ class PlacedHeadCompletionTest : ExpanderSettingTestCase() {
             assertInserted("hello(x)", NAMED)
         }
 
+    /**
+     * The macro and its call are in the file completed in, which completion expands as a copy with no file of its own:
+     * a head the macro's quote writes keeps its parameters, whether the call that generates it is written above the
+     * use or below it.
+     */
+    fun testADefAQuoteWritesInTheCompletedFileAboveItsUseIsInsertedWithItsParametersWithTheExpanderBehindCompletion() =
+        withTheExpanderBehindCompletion {
+            assertInserted("hello(x)", GEN + "\n\n" + NAMED)
+        }
+
+    fun testADefAQuoteWritesInTheCompletedFileBelowItsUseIsInsertedWithItsParametersWithTheExpanderBehindCompletion() =
+        withTheExpanderBehindCompletion {
+            assertInserted("hello(x)", GEN + "\n\n" + NAMED_BELOW)
+        }
+
+    fun testADefAQuoteWritesInTheCompletedFileAboveItsUseRendersItsParametersWithTheExpanderBehindCompletion() =
+        withTheExpanderBehindCompletion {
+            assertEquals("(x)", LookupElementPresentation.renderElement(completed(GEN + "\n\n" + NAMED, "hello")).tailText)
+        }
+
     /** A default is legal only in a definition's head, so the call is inserted without it. */
     fun testAnUnquoteFragmentsDefWithADefaultIsInsertedWithoutItWithTheExpanderBehindCompletion() =
         withTheExpanderBehindCompletion {
@@ -209,6 +229,18 @@ class PlacedHeadCompletionTest : ExpanderSettingTestCase() {
               Gen.named(:hello)
 
               def calls, do: hel<caret>
+            end
+            """.trimIndent()
+
+        /** As [NAMED], with the `Gen.named` call written below the use. */
+        val NAMED_BELOW =
+            """
+            defmodule Named do
+              require Gen
+
+              def calls, do: hel<caret>
+
+              Gen.named(:hello)
             end
             """.trimIndent()
 
